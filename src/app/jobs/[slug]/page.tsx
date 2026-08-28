@@ -1,12 +1,15 @@
 import { cache } from "react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
-import { EmployerTrackRecord } from "@/components/jobs/EmployerTrackRecord";
+// Server-safe icon entry (`/dist/ssr`) — this page has no "use client"
+// directive (it exports `generateMetadata`); see openclaw/page.tsx's own
+// comment for why the default `@phosphor-icons/react` entry throws here.
+import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { getJobById } from "@/lib/jobs/get-job";
 import { jobPath, parseJobSlug } from "@/lib/jobs/job-slug";
-import { locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
-import { buildJobPostingJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 /**
@@ -26,8 +29,9 @@ const load = cache(async (slug: string) => {
     return job ? { job, path: jobPath(job) } : null;
 });
 
-function displayCompanyFor(job: { company: string | null }): string | null {
-    return job.company ? titleCaseDisplay(job.company) : null;
+function displayCompanyFor(job: { company: string | null; company_domain: string | null; title: string }): string | null {
+    const brand = displayCompanyBrand(job.company, job.company_domain, job.title);
+    return brand || null;
 }
 
 export async function generateMetadata({
@@ -48,15 +52,23 @@ export async function generateMetadata({
             ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
             : `${job.title}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
 
-    // Same policy Task 6 later exposes as `isJobIndexable` (job-slug.ts) —
-    // inlined here since that shared gate doesn't exist yet in this task.
-    const indexable = job.vacancy_status !== "closed" && job.ghost_badge !== "likely_ghost" && job.ghost_badge !== "unscored";
-
     return {
         title,
         description,
         ...canonicalMetadata(path, title, description),
-        ...(indexable ? {} : { robots: { index: false, follow: true } }),
+        robots: {
+            index: false,
+            follow: false,
+            nocache: true,
+            googleBot: {
+                index: false,
+                follow: false,
+                noimageindex: true,
+                "max-video-preview": -1,
+                "max-image-preview": "none",
+                "max-snippet": -1,
+            },
+        },
     };
 }
 
@@ -70,20 +82,22 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
     // link), send crawlers and humans to the one canonical URL.
     if (`/jobs/${slug}` !== path) permanentRedirect(path);
 
-    const jsonLd = buildJobPostingJsonLd(job, path);
-    const closed = job.vacancy_status === "closed";
-
     return (
-        <main data-testid="job-page" className="mx-auto max-w-[900px] px-4 py-8 sm:px-6">
-            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
-            {closed && (
-                <p data-testid="job-closed-notice" className="mt-2 text-sm text-muted-foreground">
-                    This role is closed. It was last seen active on{" "}
-                    {job.updated_at ? new Date(job.updated_at).toISOString().slice(0, 10) : "an earlier date"}.
-                </p>
-            )}
-            <EmployerTrackRecord job={job} />
-            <PublicJobDetail job={job} />
+        <main data-testid="job-page" className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6">
+            {/* Breadcrumb (spec annotation #1) — a cold visitor landing on a
+                shared job link otherwise has no path into the board. Two
+                segments only: back to /jobs, then the current job title as
+                plain text — there is no sourced taxonomy field to put a third
+                segment on, so none is invented. */}
+            <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Link href="/jobs" className="inline-flex items-center gap-1 hover:text-foreground hover:underline">
+                    <ArrowLeft size={12} weight="bold" aria-hidden />
+                    All jobs
+                </Link>
+                <span aria-hidden>/</span>
+                <span className="truncate text-foreground">{decodeText(job.title)}</span>
+            </nav>
+            <PublicJobDetail job={job} layout="document" />
         </main>
     );
 }

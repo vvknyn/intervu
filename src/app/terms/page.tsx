@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
-import { BETA_UNLIMITED_CREDITS } from "@/lib/llm/credit-copy";
+import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Terms of Service";
 const DESCRIPTION = "The terms for using intervu, including how we frame posting-check and risk signals.";
@@ -13,20 +13,15 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/terms", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "August 1, 2026";
+const LAST_UPDATED = "August 27, 2026";
 
 export default function TermsPage() {
   return (
     <main data-testid="terms-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <div className="rounded-none border border-border/80 bg-card/75 p-6 sm:p-10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
-        <div className="border-b border-border pb-4 mb-6">
-          <span className="text-xs font-bold uppercase tracking-widest text-brand">[ LEGAL & TERMS ]</span>
-          <h1 className="mt-1 font-display text-3xl font-black uppercase tracking-tight text-foreground">Terms of Service</h1>
-        </div>
+        <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
         <article className="prose prose-sm max-w-none dark:prose-invert">
-        <p>Last updated: {LAST_UPDATED}</p>
-
         <p>
           intervu is in beta. That means the product is real and working, but still changing — features may shift,
           and we&apos;re actively improving how the service works. By using intervu, you agree to the terms below.
@@ -39,14 +34,15 @@ export default function TermsPage() {
           charge employers to be included.
         </p>
 
-        <h2>Posting-check and risk signals are estimates, not facts</h2>
+        <h2>Posting-check and risk signals are automated observations, not guarantees</h2>
         <p>
           Posting-check and risk signals — labels like &quot;Possibly stale&quot; or &quot;Worth verifying&quot;,
-          covering what the industry calls &quot;{GHOST_JOB_TERM}s&quot; —
-          are automated estimates based on posting age, listing freshness, and patterns across an employer&apos;s
-          other listings. They are not statements of fact about any specific listing or employer, and we make no
-          warranty as to their accuracy. Treat every signal as one input, not a verdict, when you decide where to
-          spend your time.
+          covering what the industry calls &quot;{GHOST_JOB_TERM}s&quot; — come from automated checks of facts we
+          observe on an employer&apos;s own careers site: posting age, whether a listing is still published, and
+          how it has been reposted over time. They describe what we saw when we checked, not an employer&apos;s
+          intent, and a listing can change after we check it. They are not statements of fact beyond those
+          observations, and we make no warranty as to their accuracy or completeness. Treat every signal as one
+          input, not a verdict, when you decide where to spend your time.
         </p>
 
         <h2>Acceptable use</h2>
@@ -61,19 +57,8 @@ export default function TermsPage() {
         </ul>
         <p>We may suspend or terminate accounts that violate these terms, including accounts we reasonably believe are engaged in abuse.</p>
 
-        {/* Reads the same switch as the credit gate and /pricing. The
-            unconditional version of this clause described a prepaid economy
-            that is not running: nothing is metered during beta, and there is
-            no purchase path to be prepaid against. A terms page asserting a
-            charge the product cannot levy is the worst place for that gap. */}
-        <h2>Credits</h2>
-        {BETA_UNLIMITED_CREDITS ? (
-          <p>
-            AI features are free while intervu is in beta. Nothing is metered and there is nothing to buy.
-          </p>
-        ) : (
-          <p>Some features use credits. Credits are prepaid and non-refundable once used. Credit packs don&apos;t expire.</p>
-        )}
+        <h2>AI features</h2>
+        <p>AI features are free. Nothing is metered and there is nothing to buy.</p>
 
         <h2>Employers</h2>
         <p>

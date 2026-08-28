@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   MIN_INDEXABLE_ROLES,
+  fetchCompanySnapshotRoleCount,
   fetchIndexableCompanyDomains,
-  hasIndexableCompanyContent,
-  isCompanyIndexable,
   parseCompanyDirectoryHit,
+  resolveCompanyIndexability,
 } from "@/lib/companies/indexable";
 import {
   buildCompanyPageMetadata,
@@ -46,85 +46,182 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     ghostFlaggedPct: null,
     boards: ["elite"],
     nowMs: Date.now(),
+    exhaust: null,
     ...overrides,
     jobs,
   };
 }
 
-describe("isCompanyIndexable — the /co/[slug] robots + sitemap gate", () => {
-  it("passes a company with real inventory and no track record at all", () => {
-    // The load-bearing case: `hasTrackRecord` is false for 100% of employers
-    // today (no `company_*` fields in the live index). If it were a
-    // precondition rather than an upgrade, every page would go noindex.
-    assert.equal(isCompanyIndexable(company({ jobs: roles(40), hasTrackRecord: false })), true);
+/** Records every `company_directory` search request sent, and replies with
+ *  one fixed page per call (or `{ hits: [] }` past the end of `pages`) — so a
+ *  test can assert on the exact request shape without a network call. Shared
+ *  by the sitemap paging walk and the single-doc snapshot lookup, which both
+ *  call through the same `searchCompanyDirectoryPage` shape. */
+function fakeSearch(pages: Record<string, unknown>[][]) {
+  const calls: { sort: string[]; filter: string; limit: number; offset: number }[] = [];
+  let round = 0;
+  const search = async (request: { sort: string[]; filter: string; limit: number; offset: number }) => {
+    calls.push(request);
+    const hits = pages[round] ?? [];
+    round += 1;
+    return { hits };
+  };
+  return { calls, search };
+}
+
+describe("resolveCompanyIndexability — the /co/[slug] sitemap + robots seam", () => {
+  it("holds the invariant inSitemap ⇒ pageIndexable for every input", () => {
+    // The class-wide guarantee the seam exists to make structural, not
+    // conventional: no (snapshot, live) pair can ever list a URL in the
+    // sitemap that the page itself marks noindex.
+    for (const snapshotRoleCount of [null, 0, 1, 2, 3, 7]) {
+      for (const liveRoleCount of [0, 1, 2, 3, 7]) {
+        const { inSitemap, pageIndexable } = resolveCompanyIndexability({ snapshotRoleCount, liveRoleCount });
+        assert.ok(
+          !inSitemap || pageIndexable,
+          `snapshot=${snapshotRoleCount} live=${liveRoleCount}: inSitemap was true but pageIndexable was false`,
+        );
+      }
+    }
   });
 
-  it("fails a company with zero live roles", () => {
-    assert.equal(isCompanyIndexable(company({ jobs: roles(0), openCount: 0 })), false);
+  it("the surfaced drift case: a sitemap-listed company whose live count has since dipped stays indexable", () => {
+    // The exact bug this seam closes: the old page path read ONLY
+    // `jobs.length` (2) and noindexed a URL the sitemap still listed off a
+    // snapshot of 5 — a recurring GSC "Submitted URL marked noindex".
+    const result = resolveCompanyIndexability({ snapshotRoleCount: 5, liveRoleCount: 2 });
+    assert.equal(result.inSitemap, true);
+    assert.equal(result.pageIndexable, true);
   });
 
-  it("fails a thin page when the track-record KPIs are absent", () => {
-    assert.equal(isCompanyIndexable(company({ jobs: roles(1), hasTrackRecord: false })), false);
+  it("a rising company ahead of the snapshot: indexable, but correctly absent from the sitemap", () => {
+    assert.deepEqual(resolveCompanyIndexability({ snapshotRoleCount: null, liveRoleCount: 4 }), {
+      inSitemap: false,
+      pageIndexable: true,
+    });
   });
 
-  it("treats the threshold as a floor, not a ceiling", () => {
-    assert.equal(isCompanyIndexable(company({ jobs: roles(MIN_INDEXABLE_ROLES - 1) })), false);
-    assert.equal(isCompanyIndexable(company({ jobs: roles(MIN_INDEXABLE_ROLES) })), true);
+  it("a snapshot-qualified company with zero live roles this instant: both true, the sitemap's measurement wins", () => {
+    assert.deepEqual(resolveCompanyIndexability({ snapshotRoleCount: 3, liveRoleCount: 0 }), {
+      inSitemap: true,
+      pageIndexable: true,
+    });
   });
 
-  it("lets a track record UPGRADE a page the role count alone would reject", () => {
-    // Proves the OR: when the `company_*` aggregate sync lands, a company
-    // with a real 90-day history becomes indexable with no code change.
+  it("treats the threshold as a floor on both inputs independently", () => {
     assert.equal(
-      isCompanyIndexable(company({ jobs: roles(0), openCount: 0, hasTrackRecord: true })),
+      resolveCompanyIndexability({ snapshotRoleCount: MIN_INDEXABLE_ROLES - 1, liveRoleCount: 0 }).inSitemap,
+      false,
+    );
+    assert.equal(
+      resolveCompanyIndexability({ snapshotRoleCount: MIN_INDEXABLE_ROLES, liveRoleCount: 0 }).inSitemap,
       true,
     );
   });
+});
 
-  it("still indexes a company whose display name was derived from its domain", () => {
-    // The checkout.com class (measured 2026-08-11: 184 live roles,
-    // nameSource "domain" because its corpus `company` string is its own
-    // domain). Inventory decides indexation; a name defect does not.
-    assert.equal(
-      isCompanyIndexable(company({ jobs: roles(184), nameSource: "domain" })),
-      true,
-    );
+describe("fetchCompanySnapshotRoleCount — the page path's single-doc company_directory lookup", () => {
+  it("reads the domain's open_role_count off the matching hit", async () => {
+    const { search } = fakeSearch([[{ domain: "acme.com", open_role_count: 5 }]]);
+    assert.equal(await fetchCompanySnapshotRoleCount("acme.com", search), 5);
   });
 
-  it("does not let an inflated openCount buy indexation for a page with one role", () => {
-    // `openCount` can claim roles the page never renders. The gate counts
-    // rendered roles, so a stale aggregate cannot talk its way into the
-    // sitemap.
-    assert.equal(isCompanyIndexable(company({ jobs: roles(1), openCount: 184 })), false);
+  it("returns null on a doc miss — not in the directory, correctly excluded from the sitemap side of the OR", async () => {
+    const { search } = fakeSearch([[]]);
+    assert.equal(await fetchCompanySnapshotRoleCount("acme.com", search), null);
   });
 
-  it("reads an omitted hasTrackRecord as unobserved, not as a false claim", () => {
-    // The shape sitemap.ts passes: an aggregation query can count roles but
-    // cannot see the KPIs, so it omits the field entirely.
-    assert.equal(hasIndexableCompanyContent({ openRoleCount: 40 }), true);
-    assert.equal(hasIndexableCompanyContent({ openRoleCount: 1 }), false);
+  it("returns null and warns exactly once, rather than throwing, when the Meilisearch request fails", async () => {
+    const originalWarn = console.warn;
+    const warnings: unknown[][] = [];
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args);
+    };
+    try {
+      const result = await fetchCompanySnapshotRoleCount("acme.com", async () => {
+        throw new Error("meili down");
+      });
+      assert.equal(result, null);
+      assert.equal(warnings.length, 1);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  it("returns null without calling search when Meilisearch isn't configured", async () => {
+    const original = process.env.MEILISEARCH_HOST;
+    delete process.env.MEILISEARCH_HOST;
+    try {
+      let called = false;
+      const result = await fetchCompanySnapshotRoleCount("acme.com", async () => {
+        called = true;
+        return { hits: [] };
+      });
+      assert.equal(result, null);
+      assert.equal(called, false);
+    } finally {
+      process.env.MEILISEARCH_HOST = original;
+    }
   });
 });
 
 describe("/co/[slug] metadata", () => {
-  it("emits a self-referencing canonical on an indexable page", () => {
-    const meta = buildCompanyPageMetadata(company({ jobs: roles(40) }));
+  /** Stubs the snapshot lookup so these tests exercise only
+   *  `buildCompanyPageMetadata`'s own logic, never the network — same DI
+   *  `fetchCompanySnapshotRoleCount` itself takes. */
+  function stubSnapshot(count: number | null) {
+    return async () => count;
+  }
+
+  it("emits a self-referencing canonical on an indexable page (live count alone qualifies)", async () => {
+    const meta = await buildCompanyPageMetadata(company({ jobs: roles(40) }), stubSnapshot(null));
     assert.equal(meta.alternates?.canonical, "/co/acme--com");
     assert.equal(meta.robots, undefined);
   });
 
-  it("emits the SAME canonical on a noindex page, with follow retained", () => {
+  it("emits the SAME canonical on a noindex page, with follow retained", async () => {
     // A de-indexed page still has to declare which URL it is — that is what
     // consolidates the intervu.cc -> intervuhq.com and /companies/[slug]
     // redirect paths onto one address.
-    const meta = buildCompanyPageMetadata(company({ jobs: roles(0), openCount: 0 }));
+    const meta = await buildCompanyPageMetadata(
+      company({ jobs: roles(0), openCount: 0, hasTrackRecord: false }),
+      stubSnapshot(null),
+    );
     assert.equal(meta.alternates?.canonical, "/co/acme--com");
     assert.deepEqual(meta.robots, { index: false, follow: true });
   });
 
-  it("builds the canonical from the domain, so it matches the sitemap's URL", () => {
-    const meta = buildCompanyPageMetadata(company({ domain: "1password.com", jobs: roles(59) }));
+  it("builds the canonical from the domain, so it matches the sitemap's URL", async () => {
+    const meta = await buildCompanyPageMetadata(
+      company({ domain: "1password.com", jobs: roles(59) }),
+      stubSnapshot(null),
+    );
     assert.equal(meta.alternates?.canonical, "/co/1password--com");
+  });
+
+  it("stays indexable when live roles have dipped below a snapshot the sitemap already lists — the surfaced bug", async () => {
+    const meta = await buildCompanyPageMetadata(company({ jobs: roles(2) }), stubSnapshot(5));
+    assert.equal(meta.robots, undefined);
+  });
+
+  it("does not let an inflated openCount buy indexation — the live count is jobs.length, never openCount", async () => {
+    // `openCount` can claim roles the page never renders. The gate counts
+    // rendered roles, so a stale aggregate cannot talk its way past noindex.
+    const meta = await buildCompanyPageMetadata(
+      company({ jobs: roles(1), openCount: 184 }),
+      stubSnapshot(null),
+    );
+    assert.deepEqual(meta.robots, { index: false, follow: true });
+  });
+
+  it("lets a track record UPGRADE a page neither role count alone would qualify", async () => {
+    // Proves the OR: when the `company_*` aggregate sync lands, a company
+    // with a real 90-day history becomes indexable with no code change.
+    const meta = await buildCompanyPageMetadata(
+      company({ jobs: roles(0), openCount: 0, hasTrackRecord: true }),
+      stubSnapshot(null),
+    );
+    assert.equal(meta.robots, undefined);
   });
 });
 
@@ -238,22 +335,6 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
 });
 
 describe("fetchIndexableCompanyDomains — the company_directory paging walk", () => {
-  /** Records every request `fetchIndexableCompanyDomains` sent, and replies
-   *  with one fixed page per call (or `{ hits: [] }` past the end of
-   *  `pages`) — so a test can assert on the exact request shape (the filter
-   *  clause, the offset progression) without a network call. */
-  function fakeSearch(pages: Record<string, unknown>[][]) {
-    const calls: { sort: string[]; filter: string; limit: number; offset: number }[] = [];
-    let round = 0;
-    const search = async (request: { sort: string[]; filter: string; limit: number; offset: number }) => {
-      calls.push(request);
-      const hits = pages[round] ?? [];
-      round += 1;
-      return { hits };
-    };
-    return { calls, search };
-  }
-
   it("sends the MIN_INDEXABLE_ROLES filter clause in the actual request, not just conceptually", async () => {
     const { calls, search } = fakeSearch([[{ domain: "acme.com", open_role_count: 40 }]]);
     await fetchIndexableCompanyDomains(search);

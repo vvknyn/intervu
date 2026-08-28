@@ -10,6 +10,11 @@
  */
 import type { JobSearchParams, JobSearchResult, PlaceClause, PostedBucket, PublicJob } from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
+import { scoreJobAgainstResume, type MatchScore } from "../match/score";
+import type { ResumeData } from "../../types/resume";
+import type { CompanyPageData } from "../companies/types";
+import type { CompanyExhaust } from "../companies/exhaust";
+import type { CompanySearchHit } from "../companies/company-search";
 import { parsePlaceTokens, type LocationVocabulary } from "../jobs/query-understanding";
 import {
   buildJobSnapshot, orderResumeVersionsLatestFirst,
@@ -99,6 +104,41 @@ export interface ToolDeps {
    *  `toJobDetailFields`/`toSearchHit` above. Injected so tools never touch
    *  the store directly, matching every other I/O dep here. */
   consumeRecordBudget: (count: number) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Full company-profile + exhaust assembly for one domain-resolved slug —
+   *  the SAME chokepoint `/co/[slug]` renders through (`getCompanyPageData`,
+   *  `lib/companies/get-company.ts`), injected so `get_company` never
+   *  touches Postgres/Firestore/Meili directly. `null` only when the
+   *  company doesn't resolve to a real listing (never for a transient
+   *  exhaust outage — that degrades individual `.exhaust` sections instead,
+   *  see `CompanyExhaust`'s doc comment). */
+  getCompanyPageData: (slug: string) => Promise<CompanyPageData | null>;
+  /** Box-PG digital-exhaust facts for one domain — the SAME chokepoint
+   *  `getCompanyPageData` embeds as its own `.exhaust` field
+   *  (`lib/companies/exhaust.ts`), injected separately so
+   *  `get_company_timeline` can read just the change-history section
+   *  without also paying for `getCompanyPageData`'s jobs-search/news work.
+   *  `null` only when `EXHAUST_PG_URL` is unset or the box is unreachable —
+   *  never a fabricated empty exhaust for a real outage. */
+  getCompanyExhaust: (domain: string) => Promise<CompanyExhaust | null>;
+  /** Company-directory substring search — see `searchCompanies`
+   *  (`lib/companies/company-search.ts`). Injected so `search_companies`
+   *  never touches Postgres directly, matching every other I/O dep here. */
+  searchCompanies: (query: string, limit: number) => Promise<CompanySearchHit[]>;
+}
+
+/**
+ * The résumé shape `scoreJobAgainstResume` needs, derived from `BaseResume`
+ * (see `getBaseResumeForUser`, `resume/base-resume.ts`) — MC3 only scores
+ * off the STRUCTURED résumé; a plain-text résumé (`source: "resume_text"`)
+ * has no structured fields to compare against a job, so `match` is honestly
+ * omitted for those callers rather than guessed at from free text. `null`
+ * for `source: "none"` too. A genuinely empty structured résumé still
+ * reaches `scoreJobAgainstResume`, which returns `null` itself when no
+ * comparable component exists — that's a scoring decision, not this
+ * source-shape one.
+ */
+function structuredResume(base: BaseResume): ResumeData | null {
+  return base.source === "resume_data" ? base.resume_data : null;
 }
 
 /**
@@ -135,7 +175,7 @@ const POSTED_WITHIN_DAYS_TO_BUCKET: Record<PostedWithinDays, { bucket: PostedBuc
  * syncing next — a raw `...job` spread anywhere in this file would defeat
  * that, which is why neither function below ever does one.
  */
-type JobDetailFields = Pick<
+export type JobDetailFields = Pick<
   PublicJob,
   | "id" | "title" | "company" | "company_domain" | "location" | "location_country"
   | "work_type" | "employment_type" | "experience_level"
@@ -159,9 +199,16 @@ type JobDetailFields = Pick<
    *  even when `apply_url` is blank — see `toSearchHit`'s absent-apply_url
    *  test. */
   intervu_url: string;
+  /** MC3 — present only when the caller has a stored résumé AND
+   *  `scoreJobAgainstResume` found at least one comparable field; OMITTED
+   *  entirely otherwise (never a null/zeroed placeholder) — see
+   *  `toJobDetailFields`'s `resume` param and `structuredResume` above.
+   *  Derived, not a raw `PublicJob` pass-through, so it sits outside the
+   *  `Pick` above rather than widening the wire allowlist it documents. */
+  match?: MatchScore;
 };
 
-function toJobDetailFields(job: PublicJob): JobDetailFields {
+function toJobDetailFields(job: PublicJob, resume: ResumeData | null = null): JobDetailFields {
   const {
     id, title, company, company_domain, location, location_country,
     work_type, employment_type, experience_level,
@@ -169,6 +216,7 @@ function toJobDetailFields(job: PublicJob): JobDetailFields {
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
   } = job;
+  const match = resume ? scoreJobAgainstResume(resume, job) : null;
   return {
     id, title, company, company_domain, location, location_country,
     work_type, employment_type, experience_level,
@@ -176,18 +224,21 @@ function toJobDetailFields(job: PublicJob): JobDetailFields {
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
     intervu_url: jobShareUrl(getSiteUrl(), job),
+    ...(match ? { match } : {}),
   };
 }
 
-type SearchHit = Pick<
+export type SearchHit = Pick<
   JobDetailFields,
   | "id" | "title" | "company" | "location" | "ghost_badge"
-  | "posted_at" | "first_seen_at" | "updated_at" | "vacancy_status" | "apply_url" | "intervu_url"
+  | "posted_at" | "first_seen_at" | "updated_at" | "vacancy_status" | "apply_url" | "intervu_url" | "match"
 >;
 
-function toSearchHit(job: PublicJob): SearchHit {
-  const { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url, intervu_url } = toJobDetailFields(job);
-  return { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url, intervu_url };
+// Exported — company-tools.ts reuses this SAME wire-allowlist mapping for
+// get_company's embedded jobs list, rather than duplicating the Pick/spread.
+export function toSearchHit(job: PublicJob, resume: ResumeData | null = null): SearchHit {
+  const { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url, intervu_url, match } = toJobDetailFields(job, resume);
+  return { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url, intervu_url, ...(match ? { match } : {}) };
 }
 
 export interface SearchOut {
@@ -409,10 +460,14 @@ export async function toolSearchJobs(
   // same honest disclosure the web UI already shows via `degradedResultsNote`
   // (result-state.ts) rather than a stale serve silently reading as fresh.
   const note = joinNotes(limitNote, bucketNote, result.note, degradedResultsNote(result));
+  // MC3 — fetched once per call, not once per hit, and only once the backend
+  // is confirmed up (the early `isBackendDown` return above skips this read
+  // entirely, so a down backend never costs a wasted résumé fetch).
+  const resume = structuredResume(await deps.getBaseResume(deps.uid));
   // Depth-cap truncation: the backend was asked for a full page (see the
   // limit comment above), but only `depthCapRemaining(offset)` of those hits
   // are ever handed back — 0 once `offset` has reached the cap.
-  const hits = result.hits.slice(0, depthCapRemaining(offset)).map(toSearchHit);
+  const hits = result.hits.slice(0, depthCapRemaining(offset)).map((job) => toSearchHit(job, resume));
   // Corpus-harvesting guardrail: meter the ACTUAL hits about to be returned
   // against the credential's daily record budget before handing them back.
   const budget = await deps.consumeRecordBudget(hits.length);
@@ -454,8 +509,9 @@ export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise
   // meters against, so get_job can't be used to route around it.
   const budget = await deps.consumeRecordBudget(1);
   if (!budget.ok) return { error: budget.error };
+  const resume = structuredResume(await deps.getBaseResume(deps.uid));
   return {
-    ...toJobDetailFields(lookup.job),
+    ...toJobDetailFields(lookup.job, resume),
     description: { untrusted: true, text: lookup.job.description },
     content_note: CONTENT_NOTE,
   };

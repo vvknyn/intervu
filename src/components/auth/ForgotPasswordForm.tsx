@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { sendResetEmail } from "@/lib/firebase/client-auth";
+import { requestPasswordResetAction } from "@/actions/auth";
 import { CircleNotch, EnvelopeSimple, ArrowLeft } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
 
 interface ForgotPasswordFormProps {
     onBack: () => void;
@@ -23,27 +26,16 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         }
         setIsPending(true);
         setError(null);
-        try {
-            // Firebase's native password-reset flow: emails an oobCode link that
-            // lands on /reset-password, where ResetPasswordForm calls confirmReset.
-            await sendResetEmail(trimmed);
-            setSent(true);
-        } catch (err: unknown) {
-            // Don't leak whether the account exists — Firebase returns
-            // auth/user-not-found, but we still show the neutral success screen
-            // for that case to avoid account enumeration. Surface only real errors.
-            const code = (err as { code?: string })?.code;
-            if (code === "auth/user-not-found" || code === "auth/invalid-email") {
-                setSent(true);
-            } else {
-                setError(
-                    (err as { message?: string })?.message ||
-                        "Could not send reset email. Please try again.",
-                );
-            }
-        } finally {
-            setIsPending(false);
-        }
+        // `requestPasswordResetAction` always resolves `{success: true}` — it
+        // never reveals whether `trimmed` belongs to an account, so there is
+        // no error branch to sniff here (the try/catch this replaced existed
+        // only to force Firebase's `auth/user-not-found` into this same
+        // neutral screen). WorkOS mints the token and emails the link that
+        // lands on /reset-password, where ResetPasswordForm calls
+        // confirmPasswordResetAction.
+        await requestPasswordResetAction({ email: trimmed });
+        setSent(true);
+        setIsPending(false);
     };
 
     if (sent) {
@@ -89,18 +81,17 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-1">
-                    <input
+                <Field label="Email" htmlFor="forgot-password-email">
+                    <Input
+                        id="forgot-password-email"
                         name="email"
                         type="email"
                         autoComplete="email"
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Email"
-                        className="block w-full border-b border-border bg-transparent py-2 text-base md:text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none"
                     />
-                </div>
+                </Field>
 
                 {error && (
                     <div className="mt-2 text-xs text-destructive text-center">
@@ -108,17 +99,13 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                     </div>
                 )}
 
-                <button
-                    type="submit"
-                    disabled={isPending}
-                    className="w-full rounded bg-brand px-3 py-2 text-sm font-medium text-brand-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
-                >
+                <Button type="submit" variant="brand" disabled={isPending} className="w-full mt-6">
                     {isPending ? (
-                        <CircleNotch size={16} className="mx-auto animate-spin" />
+                        <CircleNotch size={16} className="animate-spin" />
                     ) : (
                         "Send reset link"
                     )}
-                </button>
+                </Button>
             </form>
         </div>
     );

@@ -8,7 +8,7 @@ import type { CompanyIntelligence } from "../../src/lib/companies/types";
 /**
  * Guards artifact-spec item 6: the "How they work" remote/hybrid/onsite
  * progress-bar card is retired from `CompanyIntelligenceGrid` — that split
- * now lives in the /co hero's facts line (`buildCompanyFactsLine`,
+ * now lives in the /co hero's fact row (`buildCompanyFacts`,
  * lib/companies/presentation.ts) instead. Tech stack is the class-wide case
  * this guards against a regression of: `workModes` alone must no longer be
  * enough to (a) render a card or (b) even open the "Company details"

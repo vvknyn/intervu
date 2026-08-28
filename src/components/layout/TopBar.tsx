@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FunnelSimple, MagnifyingGlass, MapPin, Moon, Sun, CaretDown, CircleNotch } from "@phosphor-icons/react";
-import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
+import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
+import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
-import { WorkOSNavAuth } from "@/components/auth/workos-nav-auth";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { CreditBalance } from "@/components/layout/CreditBalance";
 import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
@@ -70,21 +69,17 @@ function ShareIntervuMenuItem() {
  */
 export function TopBar() {
     const pathname = usePathname();
-    const [user, setUser] = useState<User | null>(null);
+    // `undefined` until `onAuthChange` resolves — NOT `null`, which would
+    // claim "signed out" during the server round-trip and flash a Sign-in
+    // button at a signed-in user. See lib/auth/chrome-state.ts.
+    const [user, setUser] = useState<User | null | undefined>(undefined);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [authTab, setAuthTab] = useState<"login" | "signup">("login");
     const [signingOut, setSigningOut] = useState(false);
-    const sessionRefreshed = useRef(false);
     const { mode, toggleMode, mounted } = useTheme();
 
     useEffect(() => {
-        const unsubscribe = onAuthChange((u) => {
-            setUser(u);
-            if (u && !sessionRefreshed.current) {
-                sessionRefreshed.current = true;
-                refreshSession().catch(() => {});
-            }
-        });
+        const unsubscribe = onAuthChange((u) => setUser(u));
         return () => unsubscribe();
     }, []);
 
@@ -94,6 +89,7 @@ export function TopBar() {
     // rather than decorating a corner — it keeps its /trends link there, and
     // that page already had the same stats in hand, so this also removes a
     // duplicate fetch. This slot now belongs to the docked search below.
+    const authChrome = resolveAuthChrome(user);
     const { docked } = useSearchDock();
     const navBadges = useNavBadgeCounts();
     const menuTabs = NAV_TABS.filter((t) => t.placement === "menu");
@@ -258,9 +254,13 @@ export function TopBar() {
 
                     <FollowAlertsBell />
 
-                    {user ? (
+                    {authChrome === "pending" ? (
+                        /* Auth unresolved: reserve the row height so the bar
+                           does not jump when it resolves, and assert nothing
+                           about who is signed in. */
+                        <span aria-hidden data-testid="topbar-auth-pending" className="block h-10 w-8 shrink-0" />
+                    ) : authChrome === "authenticated" && user ? (
                         <>
-                            <CreditBalance />
                             <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button
@@ -278,9 +278,6 @@ export function TopBar() {
                             <DropdownMenuContent align="end" className="w-56 rounded-xl border border-border bg-card p-1 shadow-lg">
                                 <DropdownMenuItem asChild className="rounded-lg">
                                     <Link href="/settings">Account</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="rounded-lg">
-                                    <Link href="/pricing">Pricing</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="rounded-lg">
                                     <Link href="/research/ghost-jobs">{GHOST_JOB_RESEARCH_TITLE}</Link>
@@ -333,7 +330,26 @@ export function TopBar() {
                         </>
                     ) : (
                         <>
-                        <WorkOSNavAuth />
+                        {/* Same AuthPopover as the alerts CTA below, opened on
+                            its login tab — one auth system, two tabs. This is
+                            deliberately NOT a second auth component: the branch
+                            it sits in has already resolved that nobody is
+                            signed in, so anything re-deciding that here could
+                            only contradict it. Visible at every width — on
+                            mobile it is the "auth affordance pinned right" the
+                            component contract above promises, since the alerts
+                            CTA is desktop-only. */}
+                        <button
+                            type="button"
+                            data-testid="topbar-signin"
+                            onClick={() => {
+                                setAuthTab("login");
+                                setAuthPopoverOpen(true);
+                            }}
+                            className="whitespace-nowrap px-1 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                            Sign in
+                        </button>
                         <button
                             type="button"
                             data-testid="topbar-alerts-cta"
@@ -404,7 +420,6 @@ export function TopBar() {
                         <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-1.5" />
                         <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-1.5" />
                         <div className="min-w-0 flex-1" aria-hidden />
-                        <div data-testid="topbar-docked-resume" className="flex shrink-0 items-center gap-2" />
                         <div data-testid="topbar-docked-sort" className="flex shrink-0 items-center gap-2" />
                         <div data-testid="topbar-docked-extras" className="flex shrink-0 items-center gap-2" />
                     </div>

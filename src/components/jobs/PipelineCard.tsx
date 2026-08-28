@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { usePursuits } from "@/lib/pursuits/use-pursuits";
-import { boardColumn, orderPursuits, type BoardColumn, type Pursuit } from "@/lib/pursuits/types";
+import { boardColumn, orderPursuits, type Pursuit } from "@/lib/pursuits/types";
+import { TRACKER_BOARD_COLUMNS } from "@/lib/pursuits/tracker-display";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 
-/** Same stage buckets as the /yours board (`boardColumn`, single source of
- *  truth) — this card just shows a subset (no "closed" tile) and its own labels. */
-const STAGE_TILES: { label: string; column: BoardColumn }[] = [
-    { label: "Saved", column: "saved" },
-    { label: "Applied", column: "applied" },
-    { label: "Interview", column: "interviewing" },
-    { label: "Offer", column: "offer" },
-];
+/** Same stage buckets/labels as the /yours board — sourced directly from
+ *  `TRACKER_BOARD_COLUMNS` (the one place lane label/order lives) rather
+ *  than a hand-typed parallel list, so this card's tiles can't drift from
+ *  the board's own lane heads (it previously said "Interview" here and
+ *  "Interviewing" there). Just a subset: no "closed" tile. */
+const STAGE_TILES = TRACKER_BOARD_COLUMNS.filter(({ column }) => column !== "closed");
 
 function pursuitTitle(p: Pursuit): string {
     return p.job_snapshot?.title ?? p.position;

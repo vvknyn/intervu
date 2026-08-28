@@ -10,21 +10,16 @@
  * rate-limited a second later.
  *
  * Since 2026-08-23 it is no longer résumé-only: with bring-your-own-key gone,
- * the app funds every generation, so every generation walks the rungs. The
- * callers do not opt in — the two chokepoints in actions/generate-context.ts
- * pass `FREE_LADDER` by default.
+ * the app funds every generation, so every generation walks the rungs. Callers
+ * do not opt in — the one surviving chokepoint, `generateGenericJSON` in
+ * actions/generate-context.ts, passes `FREE_LADDER` by default.
  *
- * Two properties matter more than the saving:
+ * One property matters more than the saving:
  *
- * 1. **A rung that fails must cost the user nothing.** The credit charge lives
- *    in `fetchJSON`, above the walk, and is levied exactly once per generation
- *    no matter how many rungs run. That is why the walk lives inside the
- *    charge boundary instead of the caller looping over `generateGenericJSON`
- *    — that shape would bill three credits for one upload.
- * 2. **The last rung must be paid.** Free models are rate-limited and come and
- *    go; a ladder made only of them converts "cheap" into "sometimes the
- *    feature doesn't work". The paid tail is what keeps this a cost
- *    optimisation rather than a reliability regression.
+ * **The last rung must be paid.** Free models are rate-limited and come and
+ * go; a ladder made only of them converts "cheap" into "sometimes the
+ * feature doesn't work". The paid tail is what keeps this a cost
+ * optimisation rather than a reliability regression.
  *
  * This module is deliberately I/O-free so it can be tested without a provider,
  * a network or firebase-admin: `resolveModelLadder` is the policy, `runLadder`

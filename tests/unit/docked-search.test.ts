@@ -179,13 +179,13 @@ describe("docked search: controlled input, not a scroll-to button", () => {
     it("centers docked clear controls in the field row", () => {
         const src = stripComments(JOBS);
         const queryBlock = src.slice(src.indexOf("const dockedQueryEl"), src.indexOf("const dockedLocationEl"));
-        const locationBlock = src.slice(src.indexOf("const dockedLocationEl"), src.indexOf("const resumeControlEl"));
+        const locationBlock = src.slice(src.indexOf("const dockedLocationEl"), src.indexOf("const sortEl"));
         assert.match(queryBlock, /flex h-full w-full items-center/);
         assert.match(queryBlock, /topbar-docked-clear[\s\S]*self-center/);
         assert.match(locationBlock, /flex h-full w-full items-center/);
         assert.match(locationBlock, /topbar-docked-location-clear[\s\S]*self-center/);
         const comboAt = src.indexOf("const dockedLocationEl");
-        const combo = src.slice(comboAt, src.indexOf("const resumeControlEl"));
+        const combo = src.slice(comboAt, src.indexOf("const sortEl"));
         assert.match(combo, /containerClassName="[^"]*flex-1/, "w-full on the combobox shoves the clear onto Search");
         assert.doesNotMatch(combo, /containerClassName="[^"]*\bw-full\b/);
     });

@@ -118,3 +118,20 @@ test("CompanyRolesList: a stale-clear row still renders 'Not recently verified'"
   const html = renderRolesList([job({ id: "1", ghost_badge: "clear", ghost_checked_at: STALE })]);
   assert.match(html, /Not recently verified/);
 });
+
+/**
+ * Dedup contract: `CompanyRoleSearch` no longer runs `collapseDuplicatePostings`
+ * itself (moved to lib/companies/dedupe-postings.ts — see
+ * company-dedupe-postings.test.ts) — `getCompanyPageData` (get-company.ts)
+ * dedupes once, server-side, and hands this component the final array. This
+ * locks in that the component trusts its `jobs` prop as-is: a duplicate
+ * posting that reaches it (e.g. a caller that hasn't deduped) renders as two
+ * rows, not one, so a regression that re-adds a second, disagreeing dedup
+ * pass inside the component is easy to tell apart from this contract.
+ */
+test("CompanyRoleSearch: renders exactly the jobs it's given — no dedup of its own", () => {
+  const first = job({ id: "1", title: "Escrow Operations Intern", salary_min: 40_000 });
+  const dupe = job({ id: "2", title: "Escrow Operations Intern", salary_min: 45_000 });
+  const html = renderRoleSearch([first, dupe]);
+  assert.equal((html.match(/Escrow Operations Intern/g) || []).length, 2);
+});

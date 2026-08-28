@@ -15,7 +15,6 @@ import {
     X,
     Check,
     Question,
-    SlidersHorizontal,
     CircleNotch,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -66,13 +65,12 @@ import {
     interleaveByCompany,
     partitionByTitleMatch,
     seamSummary,
-    seamSummarySorted,
-    buildRowMetaLine,
-    employmentTypeSegment,
-    locationWithMode,
+    shortDate,
 } from "@/lib/jobs/presentation";
 import { presentJob } from "@/lib/presentation";
 import { ContextHelp } from "@/components/ui/context-help";
+import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { MatchChip } from "@/components/jobs/MatchChip";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
@@ -95,18 +93,21 @@ import {
     suppressLocationDefault,
     restoreLocationDefault,
     shouldShowLocationDefaultChip,
+    regionDisplayName,
+    buildDockedChips,
+    DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
+import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
-import { tourSteps } from "@/components/tour/tour-steps";
 import {
-    toolbarChipClass,
     toolbarControlHeight,
     toolbarSegmentGroupClass,
 } from "@/lib/jobs/toolbar-control-height";
+import { captureFunnelEvent } from "@/lib/analytics/funnel";
 import {
     activeFilterEntries,
     entriesNeedingOwnChip,
@@ -129,6 +130,10 @@ import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
+import { buildFactChips } from "@/components/jobs/job-detail-facts";
+import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
+import { rowTrustChip } from "@/lib/jobs/badges";
+import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -150,27 +155,11 @@ import {
     resolveDetailMountSite,
     degradedResultsNote,
     resolveEndOfListState,
-    resolveResumeControlState,
-    runResumeControlClick,
-    hasSearchPrefs,
-    shouldPromptSearchPrefsInsteadOfResume,
     shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
-import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
-import { SearchPrefsSetup } from "@/components/jobs/SearchPrefsSetup";
-import {
-    clearStashedPrefs,
-    dismissOnboarding,
-    getStashedPrefs,
-    isOnboardingDismissed,
-    prefsToFlush,
-    recordOnboardingInteraction,
-    shouldPromptOnboarding,
-    stashPrefs,
-    type PrefsDestination,
-    type SearchPrefsValues,
-} from "@/lib/jobs/onboarding-prompt";
+import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
+import { recordOnboardingInteraction } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
     isEmailNudgeDismissed,
@@ -181,7 +170,7 @@ import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
-import { clusterJobs } from "@/lib/jobs/cluster";
+import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
 import {
     type FacetKey,
@@ -189,13 +178,13 @@ import {
     type JobSortMode,
     type PostedBucket,
     type PublicJob,
+    type YearsExperienceBucket,
 } from "@/lib/jobs/types";
 import {
     parseJobsUrl,
     serializeJobsUrl,
     DEFAULT_URL_STATE,
     urlSortToMode,
-    withSortCleared,
     shouldResetSortOnQueryChange,
     type JobsUrlState,
     type UrlSort,
@@ -205,7 +194,7 @@ import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { BoardId } from "@/lib/boards/types";
-import { buildMatchQuery } from "@/lib/jobs/resume-match";
+import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
     queuePending,
@@ -230,6 +219,8 @@ import {
     isGuestSaveBannerDismissed,
     dismissGuestSaveBanner,
 } from "@/lib/auth/guest-save-gate";
+import { ANONYMOUS_DEPTH_GATE_MESSAGE } from "@/lib/shield/depth-cap";
+import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
 
 /**
  * Every search-action call on this page goes through this one
@@ -319,11 +310,13 @@ function ToolbarSegment({
     pressed,
     onClick,
     pending = false,
+    title,
 }: {
     label: string;
     pressed: boolean;
     onClick: () => void;
     pending?: boolean;
+    title?: string;
 }) {
     return (
         <button
@@ -332,6 +325,7 @@ function ToolbarSegment({
             aria-busy={pending || undefined}
             disabled={pending}
             onClick={onClick}
+            title={title}
             className={cn(
                 "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-1.5 rounded-none px-3 text-xs font-bold uppercase leading-none tracking-wider transition-all duration-150",
                 pressed
@@ -371,19 +365,6 @@ function ToolbarSegment({
  * SAME `suppressLocationDefault` write path the old results-row chip used —
  * REUSED, not a second suppression flag.
  */
-/** Country name for an ISO2 via the browser's own region-name table, with a
- *  bare-code fallback if `Intl.DisplayNames` throws. Shared by
- *  `DefaultLocationChip` and the zero-result state's geo-default entry
- *  (below) so there is exactly one place that resolves this, not a second
- *  copy of the same try/catch. */
-function regionDisplayName(iso2: string): string {
-    try {
-        return new Intl.DisplayNames(["en"], { type: "region" }).of(iso2) ?? iso2;
-    } catch {
-        return iso2;
-    }
-}
-
 function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
     const flag = countryToFlag(iso2);
     const name = useMemo(() => regionDisplayName(iso2), [iso2]);
@@ -424,7 +405,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     data-testid="serp-ask-seed"
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
-                    className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/80 px-2.5 py-1 text-xs font-medium text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-700 shadow-2xs"
+                    className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/80 px-2.5 py-1 text-left text-xs font-medium text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-700 shadow-2xs"
                 >
                     {seed}
                 </button>
@@ -494,25 +475,6 @@ function JobsTourReplayButton() {
     );
 }
 
-function JobsSearchPrefsButton({ onClick }: { onClick: () => void }) {
-    return (
-        <button
-            type="button"
-            data-testid="jobs-search-prefs"
-            aria-label="Set up search preferences"
-            onClick={onClick}
-            className={cn(
-                chipVariants({ active: false }),
-                toolbarChipClass,
-                "inline-flex shrink-0 items-center justify-center gap-1.5 leading-none text-muted-foreground transition-colors hover:text-foreground",
-            )}
-        >
-            <SlidersHorizontal size={14} weight="bold" aria-hidden />
-            <span className="whitespace-nowrap text-xs leading-none">Preferences</span>
-        </button>
-    );
-}
-
 /**
  * One result. Title + company/location on the left, a fixed-width data rail
  * (salary, ghost flag, age — top to bottom, whichever apply) on the right.
@@ -541,10 +503,13 @@ function JobCard({
     onCompany,
     now,
     variantCount = 0,
+    clusterLabel = "",
     expanded = false,
     onToggleExpand,
     dense = false,
     tourAnchor = false,
+    matchScore = null,
+    matchAsOfDate = null,
 }: {
     job: PublicJob;
     active: boolean;
@@ -557,12 +522,22 @@ function JobCard({
     /** Accepted-but-unused: elite board styling removed from row chrome. */
     elite?: boolean;
     variantCount?: number;
+    /** Collapsed-state pill text ("+N locations"/"+N openings"), computed
+     *  by `clusterToggleLabel` (lib/jobs/cluster.ts) at the call site — the
+     *  card just renders it, never derives it. */
+    clusterLabel?: string;
     expanded?: boolean;
     onToggleExpand?: () => void;
     /** Accepted-but-unused: comfortable layout is the only SERP density now. */
     dense?: boolean;
     /** First visible result row — anchor for the jobs guided tour. */
     tourAnchor?: boolean;
+    /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
+     *  no signed-in résumé or no comparable field — renders no chip, never a
+     *  fabricated 0 (Rule 3, match-contract.md). */
+    matchScore?: MatchScore | null;
+    /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
+    matchAsOfDate?: string | null;
 }) {
     const presented = presentJob(job);
     const accessibleName = `${presented.title} at ${presented.company.name}`;
@@ -570,22 +545,27 @@ function JobCard({
     const age = postedAgeShort(derivePostedTs(job), now);
     // `presented.location` (locationSummary(locationText(job))) passes the
     // `LOCATION_UNKNOWN_TEXT` sentinel through unchanged when nothing usable
-    // came off the posting — that's an absence, not a value, so the meta
-    // line's location segment renders only when it's something OTHER than
-    // that (remote is always a known value even when the underlying
-    // location is unknown, since `locationText`'s remote branch never
-    // surfaces the sentinel).
+    // came off the posting — that's an absence, not a value, so the fact
+    // chip renders only when it's something OTHER than that (remote is
+    // always a known value even when the underlying location is unknown,
+    // since `locationText`'s remote branch never surfaces the sentinel).
     const locationKnown = job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
-    // Meta-line facts, ordered salary-first — see `buildRowMetaLine`'s doc
-    // comment for the absence-is-silence rule and the posted-age fallback.
-    const metaSegments = buildRowMetaLine(
-        {
-            salary: presented.salary,
-            location: locationKnown ? locationWithMode(presented.location, job.work_type) : null,
-            employmentType: employmentTypeSegment(job.employment_type),
-        },
-        age,
-    );
+    // Icon-fact grammar (board-redesign.html §rollout stage 1) — same
+    // `buildFactChips` chokepoint JobDetail uses, so a card and the pane it
+    // opens can never disagree about how work_type/employment_type/
+    // experience_level/salary read. `null, null` skips the posted/first_seen
+    // kinds (`age`, below, already covers that on the row). Work-type is its
+    // own chip here, so location is deliberately plain (no `locationWithMode`
+    // fold-in) — showing "Hybrid" in both the location text AND its own
+    // chip would say the same fact twice.
+    const factChips = buildFactChips(job, null, null);
+    const freshness = classifyPostingFreshness(job, now);
+    // Positive-only trust signal (mirrors `rowTrustChip`'s own doc comment:
+    // "review"/"ghost" verdicts already surface via `exceptionMark` above,
+    // not duplicated here).
+    const activelyPosted = rowTrustChip(job, now) === "clear";
+    const topSkills = (job.must_have_skills ?? []).slice(0, 3);
+    const extraSkillCount = Math.max(0, (job.must_have_skills?.length ?? 0) - topSkills.length);
 
     return (
         <div
@@ -664,11 +644,11 @@ function JobCard({
                         </span>
                     )}
                 </span>
-                <div className="mt-1 w-full text-left text-sm font-medium text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-left text-sm font-medium text-muted-foreground">
                     {onCompany ? (
                         <button
                             type="button"
-                            className="hover:text-foreground hover:underline"
+                            className="text-left hover:text-foreground hover:underline"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onCompany(job);
@@ -677,7 +657,20 @@ function JobCard({
                             {presented.company.name}
                         </button>
                     ) : (
-                        presented.company.name
+                        <span>{presented.company.name}</span>
+                    )}
+                    {/* "New" reads the SAME 7-day `classifyPostingFreshness`
+                        window everything else on the row already uses — not
+                        the mock's literal "today," which this data can't
+                        honestly claim (posting-freshness.ts's FRESH_WINDOW_MS
+                        is 7 days, not 1). */}
+                    {freshness.kind === "fresh" && (
+                        <span
+                            data-testid="freshness-badge"
+                            className="mono-data inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300"
+                        >
+                            New
+                        </span>
                     )}
                 </div>
             </div>
@@ -687,7 +680,11 @@ function JobCard({
                 claim. Monospace is reserved for <code> (see typography.test);
                 `.mono-data` gets the same "figures line up" property from
                 tabular-nums on the sans face instead. */}
-            <span className="flex h-fit items-start self-start">
+            {/* Match chip stacks above the age line in this same meta
+                column — no new row, no layout shift when a résumé isn't on
+                file (`matchScore` is simply `null` then). */}
+            <span className="flex h-fit flex-col items-end gap-1 self-start">
+                {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} />}
                 {age && (
                     <span
                         data-testid="posted-age"
@@ -700,27 +697,33 @@ function JobCard({
                     </span>
                 )}
             </span>
-            <div className="col-span-full flex flex-wrap items-baseline gap-x-1.5 gap-y-1 pt-0.5">
-                {/* Meta line (Vivek's approved mock, 2026-08-20) — one quiet
-                    prose sentence replaces the labeled boxed chips: salary
-                    leads in semibold, everything else muted, "·" between
-                    segments. No label, no box, no tint — semantic color
-                    (the old PAY chip's green) is reserved for exceptions
-                    elsewhere on the row (the trust icon, the relist mark),
-                    not for a routine fact. Each segment renders only when
-                    known (`buildRowMetaLine`'s absence-is-silence rule); when
-                    nothing is known the line falls back to the posted age. */}
-                {metaSegments.length > 0 && (
-                    <span data-testid="job-row-meta" className="text-meta leading-snug">
-                        {metaSegments.map((segment, i) => (
-                            <span key={i}>
-                                {i > 0 && <span className="mx-1.5 text-muted-foreground/60" aria-hidden>·</span>}
-                                <span className={segment.emphasis ? "font-semibold text-foreground" : "text-muted-foreground"}>
-                                    {segment.text}
-                                </span>
-                            </span>
-                        ))}
+            {/* Icon-fact row (board-redesign.html §1) — replaces the quiet
+                prose meta line: one icon set (`FACT_CHIP_ICON`, shared with
+                JobDetail), no box/border, salary bold. Each fact renders
+                only when known (absence is silence, same rule the prose
+                line followed). Falls back to posted age when nothing else
+                is known, so a row is never mute. */}
+            <div className="col-span-full flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
+                {locationKnown && (
+                    <span className="inline-flex items-center gap-1.5 text-xs">
+                        <FACT_CHIP_ICON.location size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="mono-data text-muted-foreground">{presented.location}</span>
                     </span>
+                )}
+                {factChips.map((c) => {
+                    const FactIcon = FACT_CHIP_ICON[c.kind];
+                    const isSalary = c.kind === "salary";
+                    return (
+                        <span key={c.kind} className="inline-flex items-center gap-1.5 text-xs">
+                            <FactIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                            <span className={cn("mono-data", isSalary ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                                {c.label}
+                            </span>
+                        </span>
+                    );
+                })}
+                {!locationKnown && factChips.length === 0 && age && (
+                    <span className="mono-data text-xs text-muted-foreground">Posted {age}</span>
                 )}
                 {variantCount > 0 && (
                     <button
@@ -732,10 +735,33 @@ function JobCard({
                             onToggleExpand?.();
                         }}
                     >
-                        {expanded ? "hide" : `+${variantCount} location${variantCount === 1 ? "" : "s"}`}
+                        {expanded ? "hide" : clusterLabel}
                     </button>
                 )}
             </div>
+            {/* Skill chips + trust check (board-redesign.html §1 row3).
+                Renders only when there's something to show on either side —
+                no empty spacer row. */}
+            {(topSkills.length > 0 || activelyPosted) && (
+                <div className="col-span-full flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 pt-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {topSkills.map((skill) => (
+                            <span key={skill} className="inline-flex items-center rounded-none bg-chip px-2.5 py-0.5 text-xs font-medium leading-tight text-foreground/80">
+                                {decodeText(skill)}
+                            </span>
+                        ))}
+                        {extraSkillCount > 0 && (
+                            <span className="mono-data text-xs text-muted-foreground">+{extraSkillCount}</span>
+                        )}
+                    </div>
+                    {activelyPosted && (
+                        <span className="mono-data inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                            <Check size={12} weight="bold" aria-hidden />
+                            Actively posted
+                        </span>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -984,7 +1010,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={() => onClearEntry(entry)}
-                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                 >
                     ✕ clear {entry.label}
                 </button>
@@ -994,7 +1020,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={locationDefault.onClear}
-                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                 >
                     ✕ clear {locationDefault.label}
                 </button>
@@ -1165,6 +1191,9 @@ function JobsContent() {
     const [salaryMin, setSalaryMin] = useState(initialUrlState.salaryMin);
     const [visaOnly, setVisaOnly] = useState(initialUrlState.visaOnly);
     const [postedBucket, setPostedBucket] = useState<PostedBucket | undefined>(initialUrlState.postedBucket);
+    const [yearsExperience, setYearsExperience] = useState<YearsExperienceBucket | undefined>(
+        initialUrlState.yearsExperience,
+    );
     // First-screen default: exclude likely_ghost from results. `ghosts=show` in
     // the URL flips it. No UI toggle wired yet (Task 6 — Trust toolbar).
     const [hideGhosts, setHideGhosts] = useState(initialUrlState.hideGhosts);
@@ -1177,7 +1206,16 @@ function JobsContent() {
     // live) so the search effect below can read ONE `filterState` for this
     // render instead of five separate primitives — review fix, 2026-07-19,
     // needed so `buildJobSearchPayload` has a single FilterState to take.
-    const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain };
+    const filterState: FilterState = {
+        facets,
+        salaryMin,
+        visaOnly,
+        postedBucket,
+        yearsExperience,
+        hideGhosts,
+        board,
+        companyDomain,
+    };
     /**
      * The places this search is filtered to. Read off `filterState` rather
      * than mirrored into a second piece of state: the location box is an
@@ -1264,6 +1302,7 @@ function JobsContent() {
         salaryMin,
         visaOnly,
         postedBucket,
+        yearsExperience,
         hideGhosts,
         board,
         companyDomain,
@@ -1339,6 +1378,22 @@ function JobsContent() {
         setMobileResultsEngaged(true);
         recordRecentSearch(q);
         applyUrlState(buildUrlState({ q }), "push");
+        // Step 1 of the funnel (docs/analytics/FUNNEL.md). Placed at this one
+        // submit chokepoint for the same reason the dropdown is closed here:
+        // Enter, a suggestion pick, the external Search button and the
+        // category/seed chips all route through it, so a future entry point is
+        // counted automatically instead of being silently invisible.
+        //
+        // The raw query is deliberately NOT sent — only its length. A search
+        // box carries names, employers and salary expectations, and none of
+        // that needs to leave the browser to answer "did they search".
+        // `activeFilterEntries` is re-derived here rather than read from the
+        // render-scope binding so this does not depend on declaration order.
+        captureFunnelEvent("search_submitted", {
+            query_length: q.trim().length,
+            has_location: chosenLocations.length > 0,
+            filter_count: activeFilterEntries(filterState).length,
+        });
         // Searches run in this browser. Counted HERE, at the one submit
         // chokepoint, which is what stops a future search entry point from
         // being invisible to either prompt — and counted for signed-in
@@ -1379,19 +1434,6 @@ function JobsContent() {
             ) {
                 setEmailNudgeOpen(true);
             }
-        } else {
-            // Signed out there's no profile to write preferences into, so the
-            // count is the only intent signal available.
-            if (
-                shouldPromptOnboarding({
-                    interactions,
-                    signedIn: false,
-                    dismissed: onboardingDismissed,
-                    configured: agentSearchPrefsSet || Boolean(onboardingStash),
-                })
-            ) {
-                setSearchPrefsDialogOpen(true);
-            }
         }
     };
 
@@ -1414,6 +1456,12 @@ function JobsContent() {
     resultRef.current = result;
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    // Set once `loadMore` hits the anonymous depth wall (`meta.gated`, see
+    // `interpretLoadMoreResponse`) — holds the server's own note verbatim so
+    // the sentinel below can swap "Show N more" for a sign-in CTA instead of
+    // silently doing nothing forever. Reset alongside `loadingMore` whenever
+    // a new first-page search starts.
+    const [depthGateNote, setDepthGateNote] = useState<string | null>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
@@ -1541,29 +1589,17 @@ function JobsContent() {
     if (!paginationRef.current) paginationRef.current = new JobsPaginationGeneration();
 
     const [user, setUser] = useState<User | null>(null);
-    const [agentPrefs, setAgentPrefs] = useState<AgentPreferences | null>(null);
-    const [searchPrefsDialogOpen, setSearchPrefsDialogOpen] = useState(false);
-    // Signed-out onboarding (owner's call, 2026-08-23): offer the setup
-    // wizard after a few submitted searches rather than on arrival. Both
-    // values live in localStorage and are read post-mount, so `dismissed`
-    // starts at the SUPPRESSED end — true until the browser says otherwise —
-    // rather than risk offering the wizard to someone who already said no.
-    // Same idiom as `guestSaveBannerDismissed` above. The interaction count
-    // isn't mirrored into state: `submitSearch` reads it back from the
-    // increment it just made, and state nothing renders is state that only
-    // has room to go stale. Decisions live in lib/jobs/onboarding-prompt.ts.
-    const [onboardingDismissed, setOnboardingDismissed] = useState(true);
-    const [onboardingStash, setOnboardingStash] = useState<SearchPrefsValues | null>(null);
-    // The signed-in twin: an account whose only address is a minted
-    // <username>@intervu.cc can't receive anything we send. Same
-    // suppressed-until-the-browser-says-otherwise start as above.
+    // The signed-in email nudge: an account whose only address is a minted
+    // <username>@intervu.cc can't receive anything we send. Value lives in
+    // localStorage and is read post-mount, so it starts at the SUPPRESSED
+    // end — true until the browser says otherwise — rather than risk
+    // offering the nudge to someone who already said no. Same idiom as
+    // `guestSaveBannerDismissed` above.
     const [emailNudgeDismissed, setEmailNudgeDismissed] = useState(true);
     const [emailNudgeOpen, setEmailNudgeOpen] = useState(false);
     const [accountEmailState, setAccountEmailState] = useState<EmailNudgeState | null>(null);
     const [accountPendingEmail, setAccountPendingEmail] = useState<string | null>(null);
     useEffect(() => {
-        setOnboardingDismissed(isOnboardingDismissed());
-        setOnboardingStash(getStashedPrefs());
         setEmailNudgeDismissed(isEmailNudgeDismissed());
     }, []);
     // Resolved from the server, never guessed from the client-side user
@@ -1632,6 +1668,11 @@ function JobsContent() {
     // vs the now-removed "explore") and the in-flight Explore call's state
     // (`exploringRaw`/`exploreFailed`) are gone — MCP handoff, 2026-08-02.
     const [resume, setResume] = useState<ResumeData | null>(null);
+    // The stored `resume_last_updated` behind the match-score toolbar's
+    // "scored against your résumé of {date}" line (see `fetchResumeData`,
+    // actions/resume.ts) — kept alongside `resume` itself, set at the same
+    // two call sites, so the two can never point at different résumés.
+    const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
@@ -1681,53 +1722,6 @@ function JobsContent() {
         return () => unsub();
     }, []);
 
-    useEffect(() => {
-        if (!user) {
-            setAgentPrefs(null);
-            return;
-        }
-        let cancelled = false;
-        void fetchAgentPreferencesAction().then(async (res) => {
-            if (cancelled || !res.data) return;
-            // Carry up anything the wizard collected while they were signed
-            // out — but only into an account that has nothing yet. Someone
-            // who set preferences on another device must not have them
-            // overwritten by a logged-out session in this browser, which
-            // would make signing in destructive. `prefsToFlush` owns that
-            // rule; `hasSearchPrefs` is the same "already configured" test
-            // the rest of this page gates on.
-            const flush = prefsToFlush({
-                signedIn: true,
-                stash: getStashedPrefs(),
-                accountConfigured: hasSearchPrefs(res.data.search),
-            });
-            if (!flush) {
-                setAgentPrefs(res.data);
-                return;
-            }
-            const saved = await saveAgentPreferencesAction({
-                search: {
-                    query: flush.query,
-                    location: flush.location || undefined,
-                    remoteOnly: flush.remoteOnly || undefined,
-                    salaryMin: flush.salaryMin || undefined,
-                },
-            });
-            if (cancelled) return;
-            // Only drop the local copy once the server has it. A failed
-            // flush leaves the stash intact so the next sign-in retries,
-            // rather than silently discarding what they typed.
-            if (saved.data) {
-                clearStashedPrefs();
-                setOnboardingStash(null);
-            }
-            setAgentPrefs(saved.data ?? res.data);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [user?.uid]);
-
     // Refetch rule: only the search-affecting subset should trigger a fetch.
     // `jobId` is deliberately omitted here, so opening/closing a job (a `job`-
     // only URL change) can never appear in this key — the fetch effect below
@@ -1743,6 +1737,7 @@ function JobsContent() {
                 salaryMin,
                 visaOnly,
                 postedBucket,
+                yearsExperience,
                 hideGhosts,
                 board,
                 companyDomain,
@@ -1752,7 +1747,19 @@ function JobsContent() {
         // `postedDateSupported` participates because it changes the sort the
         // backend is asked for: when the probe resolves, the date sort becomes
         // real and the results must be re-fetched in the new order.
-        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain, sortOverride, postedDateSupported],
+        [
+            query,
+            facets,
+            salaryMin,
+            visaOnly,
+            postedBucket,
+            yearsExperience,
+            hideGhosts,
+            board,
+            companyDomain,
+            sortOverride,
+            postedDateSupported,
+        ],
     );
 
     // Single source: résumé usable, hoisted here (instead of
@@ -1771,21 +1778,12 @@ function JobsContent() {
     // below rather than short-circuited into it.
     const resumeKnownOnServer = useResumePresence(user?.uid ?? null);
 
-    // Whether the "My résumé" toolbar control (below) should treat a
-    // résumé as on file — `hasUsableResume` (session-local: just uploaded,
-    // or already resolved for a fit application) wins outright when true;
-    // otherwise this is `resumeKnownOnServer`'s tri-state answer as-is,
-    // `null` included. BOTH the control's visual state
-    // (`resolveResumeControlState`) and its click behavior
-    // (`runResumeControlClick`) read this SAME value, but only the click
-    // decides on its truth — the render just borrows it as a hint (see
-    // `runResumeControlClick`'s own doc comment, lib/jobs/result-state.ts).
+    // Whether the sort control's résumé-aware "Best match" segment (below)
+    // should treat a résumé as on file — `hasUsableResume` (session-local:
+    // just uploaded, or already resolved for a fit application) wins
+    // outright when true; otherwise this is `resumeKnownOnServer`'s
+    // tri-state answer as-is, `null` included.
     const resumeOnFile: boolean | null = hasUsableResume || resumeKnownOnServer;
-
-    // The control's rendered state (see `resolveResumeControlState`'s own
-    // doc comment for the three states) — one hoisted call instead of the
-    // `fitActive`/`resumeOnFile` check inline in the JSX below.
-    const resumeControlState = resolveResumeControlState({ fitActive, resumeOnFile });
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -1807,6 +1805,15 @@ function JobsContent() {
     // search had been narrowed at all.
     const unnamedEntries = entriesNeedingOwnChip(activeEntries, facetBarRepresents(postedDateSupported));
     const dockChipsKey = unnamedEntries.map((e) => `${e.key}=${chipLabelForEntry(e)}`).join("|");
+
+    // Same disclosure gate `DefaultLocationChip`/the zero-result entry use
+    // (`shouldShowLocationDefaultChip`), collapsed to the ISO2 or `null` so
+    // the dock effect below can take it as ONE primitive dependency instead
+    // of re-deriving the verdict from `result`/`chosenLocations` objects —
+    // see that effect's own React #185 comment for why.
+    const dockedDefaultLocationIso2 = shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
+        ? result!.defaultedLocation!
+        : null;
 
     // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
     // call to the same `activeFilterEntries` chokepoint, with
@@ -1864,15 +1871,12 @@ function JobsContent() {
     const headerDockActive = isLgUp;
     const showLandingMarketing = isPristineLanding && !mobileResultsEngaged;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
-    const agentSearchPrefsSet = hasSearchPrefs(agentPrefs?.search);
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
-    const jobsTourAutoStartedRef = useRef(false);
     const [dockedFacetsMount, setDockedFacetsMount] = useState<HTMLElement | null>(null);
     const [dockedFieldDirectoryMount, setDockedFieldDirectoryMount] = useState<HTMLElement | null>(null);
     const [dockedQueryMount, setDockedQueryMount] = useState<HTMLElement | null>(null);
     const [dockedLocationMount, setDockedLocationMount] = useState<HTMLElement | null>(null);
-    const [dockedResumeMount, setDockedResumeMount] = useState<HTMLElement | null>(null);
     const [dockedSortMount, setDockedSortMount] = useState<HTMLElement | null>(null);
     const [dockedExtrasMount, setDockedExtrasMount] = useState<HTMLElement | null>(null);
     const [dockedClearFiltersMount, setDockedClearFiltersMount] = useState<HTMLElement | null>(null);
@@ -1884,7 +1888,6 @@ function JobsContent() {
             setDockedFieldDirectoryMount(null);
             setDockedQueryMount(null);
             setDockedLocationMount(null);
-            setDockedResumeMount(null);
             setDockedSortMount(null);
             setDockedExtrasMount(null);
             setDockedClearFiltersMount(null);
@@ -1896,7 +1899,6 @@ function JobsContent() {
             setDockedFieldDirectoryMount(document.querySelector('[data-testid="topbar-docked-field-directory"]') as HTMLElement | null);
             setDockedQueryMount(document.querySelector('[data-testid="topbar-docked-query"]') as HTMLElement | null);
             setDockedLocationMount(document.querySelector('[data-testid="topbar-docked-location"]') as HTMLElement | null);
-            setDockedResumeMount(document.querySelector('[data-testid="topbar-docked-resume"]') as HTMLElement | null);
             setDockedSortMount(document.querySelector('[data-testid="topbar-docked-sort"]') as HTMLElement | null);
             setDockedExtrasMount(document.querySelector('[data-testid="topbar-docked-extras"]') as HTMLElement | null);
             setDockedClearFiltersMount(document.querySelector('[data-testid="topbar-docked-clear-filters"]') as HTMLElement | null);
@@ -1921,6 +1923,7 @@ function JobsContent() {
         const generation = paginationRef.current!.beginFirstPage();
         setSearchError(null);
         setLoadingMore(false);
+        setDepthGateNote(null);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
         setLoading(true);
@@ -2283,6 +2286,16 @@ function JobsContent() {
         // rather than logging a fake position.
         const rank = resultRef.current?.hits.findIndex((h) => h.id === id) ?? -1;
         void recordJobOpenedAction(lastSearchId, id, rank);
+        // Same -1 rule as the line above, for the same reason: a job opened
+        // from a URL has no rank in the current result set, and a fabricated
+        // `position: -1` would quietly poison every position-ranked insight.
+        // Not firing is the honest answer.
+        //
+        // One call site covers both SERP rows and the detail pane's "also in"
+        // rail, because `onOpenRelated` is wired to this same function.
+        if (rank >= 0) {
+            captureFunnelEvent("result_clicked", { position: rank, job_id: id, source: "serp" });
+        }
         setOpensThisSession((n) => n + 1);
         setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
         const hit = resultRef.current?.hits.find((h) => h.id === id);
@@ -2296,18 +2309,6 @@ function JobsContent() {
     };
 
     const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
-
-    useEffect(() => {
-        if (jobsTourAutoStartedRef.current || hasSeenTour("jobs")) return;
-        const steps = tourSteps.jobs ?? [];
-        const hasTarget = steps.some((s) => document.querySelector(s.selector));
-        if (!hasTarget) return;
-        // Wait for a result row so the tour isn't only the search box.
-        if (!document.querySelector('[data-tour="jobs-card"]') && hits.length === 0) return;
-        jobsTourAutoStartedRef.current = true;
-        const id = requestAnimationFrame(() => startTour());
-        return () => cancelAnimationFrame(id);
-    }, [hasSeenTour, startTour, hits.length]);
 
     /**
      * Render fallback for a zero-query state (`resolveJobsRenderMode`,
@@ -2329,12 +2330,10 @@ function JobsContent() {
             failed: zeroQueryFetchFailed,
         }) === "serp-ask";
 
-    // Whether this render's search is scoped to title+company because an
-    // explicit sort turned `sort` into a real ORDER BY — the identical
-    // condition `buildSearchBody` used server-side to decide the SAME thing
+    // Whether to partition hits into titled vs mention blocks for display —
+    // retrieval is whole-document; this flag is seam UI only
     // (`shouldScopeTextMatchToTitle`, sort.ts). Relevance ranking (explicit
-    // or auto-defaulted) never scopes, so it's false there exactly when it's
-    // false here.
+    // or auto-defaulted) skips the partition.
     const sortScopedSeam = shouldScopeTextMatchToTitle(effectiveSort, result?.effectiveQ ?? "");
 
     // The relevance seam (Task A) — where the "titled it" block of results
@@ -2364,10 +2363,51 @@ function JobsContent() {
     // Deliverable 3 — collapse repeat postings (same title, same company —
     // e.g. one role cross-posted at several locations) into one card each,
     // ranked at the earliest/best-ranked copy's position. `clusterJobs` is
-    // pure (lib/jobs/cluster.ts); reads `displayHits`, not raw `hits`, so a
-    // partitioned sort's reordering (above) survives clustering instead of
-    // being clustered back into raw engine order.
+    // pure (lib/jobs/cluster.ts); reads `displayHits`, not raw `hits`.
     const clusters = useMemo(() => clusterJobs(displayHits), [displayHits]);
+
+    // The one scoring function (`scoreJobAgainstResume`, lib/match/score.ts)
+    // computed once per result set, keyed by job id. Both the card chip
+    // (JobCard below) and the `fitActive` resort just below reuse this SAME
+    // map — the frozen "one scoring function" rule means the chip and the
+    // visible order can never disagree about a job's score. `null` (no
+    // résumé) short-circuits to no map at all, not a map of nulls.
+    const matchScores = useMemo(() => {
+        if (!resume) return null;
+        const map = new Map<string, MatchScore | null>();
+        for (const h of hits) map.set(h.id, scoreJobAgainstResume(resume, h));
+        return map;
+    }, [resume, hits]);
+
+    // The receipt/toolbar's "against your résumé of {date}" text — formatted
+    // once here (`shortDate`, presentation.ts, UTC-pinned) rather than at
+    // each chip, then lowercased at this copy layer only: the design's "aug
+    // 27" is a deliberate literal-lowercase style choice, not a locale
+    // default, so it stays out of the shared date formatter.
+    const resumeAsOfDate = useMemo(() => {
+        if (!resumeUpdatedAt) return null;
+        const ms = Date.parse(resumeUpdatedAt);
+        return Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null;
+    }, [resumeUpdatedAt]);
+
+    // `sort=fit`'s visible order: a stable resort of `clusters` by the same
+    // per-job score above, applied client-side only while `fitActive`. This
+    // is layered ON TOP of `clusters` rather than folded into the
+    // `hits`/`displayHits`/`seamIndex` pipeline above — that machinery still
+    // drives relevance-mode recall and the "titled it" seam exactly as
+    // before. `sort=fit`'s actual backend mechanism is résumé-derived query
+    // text (`applyFit` → `buildMatchQuery`) feeding ordinary relevance
+    // ranking (see `resolveUrlSort`'s doc comment above) — this only
+    // reorders what relevance already retrieved, so recall is untouched and
+    // the visible order now matches the chip. `Array.prototype.sort` is
+    // stable (ES2019+), so a tie (or a cluster with no score, -1) keeps its
+    // original relevance position instead of shuffling.
+    const renderedClusters = useMemo(() => {
+        if (!fitActive || !matchScores) return clusters;
+        return [...clusters].sort(
+            (a, b) => (matchScores.get(b.primary.id)?.total ?? -1) - (matchScores.get(a.primary.id)?.total ?? -1),
+        );
+    }, [clusters, fitActive, matchScores]);
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
     // after clustering, positions no longer line up 1:1. Every member of one
@@ -2383,13 +2423,14 @@ function JobsContent() {
         seamIndex > 0 ? clusters.findIndex((c) => c.primaryIndex >= seamIndex) : -1;
 
     // The flat list of jobs actually rendered as their own row right now —
-    // every cluster's primary, plus its variants only while expanded.
+    // every cluster's primary, plus its variants only while expanded, in
+    // `renderedClusters`' order (== `clusters`' order outside `fitActive`).
     // `handleResultsKeyDown` below walks THIS, not raw `hits`: arrow-key nav
     // must never land on a collapsed variant with no visible row to show as
-    // selected.
+    // selected, and must step in the same order the rows actually appear.
     const visibleHits = useMemo(
-        () => clusters.flatMap((c) => [c.primary, ...(expandedClusters.has(c.primary.id) ? c.variants : [])]),
-        [clusters, expandedClusters],
+        () => renderedClusters.flatMap((c) => [c.primary, ...(expandedClusters.has(c.primary.id) ? c.variants : [])]),
+        [renderedClusters, expandedClusters],
     );
 
     // The URL is the reactive source of truth for the WHOLE screen, not just
@@ -2435,6 +2476,7 @@ function JobsContent() {
             setSalaryMin(parsed.salaryMin);
             setVisaOnly(parsed.visaOnly);
             setPostedBucket(parsed.postedBucket);
+            setYearsExperience(parsed.yearsExperience);
             setHideGhosts(parsed.hideGhosts);
             setBoard(parsed.board);
             setCompanyDomain(parsed.companyDomain);
@@ -2553,9 +2595,41 @@ function JobsContent() {
     // instead of asserting death. Confirmed gone: the tombstone.
     const deadJobFoundJob = deadJobResolved?.status === "found" ? deadJobResolved.job : null;
     const isDeadJobConfirmed = deadJobResolved?.status === "not_found";
+
+    // List hits omit `description` for payload size — hydrate the selected
+    // in-list job on demand (same id lookup as the dead-job existence check).
+    const [hydratedDetail, setHydratedDetail] = useState<{ id: string; job: PublicJob } | null>(null);
+    const detailHydrationGuardRef = useRef<FitIntentGuard | null>(null);
+    if (!detailHydrationGuardRef.current) detailHydrationGuardRef.current = new FitIntentGuard();
+    useEffect(() => {
+        setHydratedDetail((prev) => (prev && prev.id === selectedId ? prev : null));
+    }, [selectedId]);
+    useEffect(() => {
+        if (!selected || selected.description !== undefined) return;
+        const id = selected.id;
+        if (hydratedDetail?.id === id) return;
+        const token = detailHydrationGuardRef.current!.begin();
+        void (async () => {
+            try {
+                const r = await searchJobsAction({ id, limit: 1, offset: 0, hideGhosts: false });
+                if (!detailHydrationGuardRef.current!.isCurrent(token)) return;
+                const job = r.hits?.[0];
+                if (job?.id === id) setHydratedDetail({ id, job });
+            } catch {
+                /* detail renders without description until retry/select */
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selected?.id, selected?.description]);
+
     // The job to actually render in the detail pane/sheet — `selected`
     // (in `hits`) first, else the existence check's confirmed-alive job.
-    const detailJob = selected ?? deadJobFoundJob;
+    const detailJob = useMemo(() => {
+        const base = selected ?? deadJobFoundJob;
+        if (!base) return null;
+        if (hydratedDetail?.id === base.id) return hydratedDetail.job;
+        return base;
+    }, [selected, deadJobFoundJob, hydratedDetail]);
     const detailPursuit = detailJob ? pursuitsByJobId.get(detailJob.id) : undefined;
 
     const mainJobsTourActive = tourActive && tourPageId === "jobs";
@@ -2661,6 +2735,13 @@ function JobsContent() {
 
     // Fetch the next page and append it only while its monotonic generation is current.
     const loadMore = useCallback(async () => {
+        // Once the anonymous depth wall has refused a page, the sentinel's
+        // own IntersectionObserver keeps re-firing on every scroll (`total`
+        // never drops below `hits.length` from a gated response — see the
+        // `setResult` updater below, which never touches `total`). Without
+        // this guard that would mean one refused request per re-intersect,
+        // forever. Cleared only by `setDepthGateNote(null)` on a new search.
+        if (depthGateNote) return;
         const cur = result;
         if (!cur || !cur.configured) return;
         if (cur.hits.length >= cur.total || cur.hits.length >= MAX_REACHABLE) return;
@@ -2684,6 +2765,21 @@ function JobsContent() {
                 offset: ticket.offset,
             });
             if (!paginationRef.current!.completeLoadMore(ticket)) return;
+            // The ONLY gate signal is this response's own `meta.gated` — no
+            // client-side copy of the depth-cap's 90/30 constants (see
+            // load-more-outcome.ts's own doc comment).
+            const outcome = interpretLoadMoreResponse({
+                gated: r.meta?.gated === true,
+                received: r.hits.length,
+                requested: PAGE,
+            });
+            if (outcome === "gated") {
+                // Refused, not searched — `r.hits`/`r.total` are not a real
+                // (if empty) page, so `setResult` must never see them: doing
+                // so would clobber the real total this search already has.
+                setDepthGateNote(r.note ?? ANONYMOUS_DEPTH_GATE_MESSAGE);
+                return;
+            }
             setResult((prev) => {
                 if (!prev) return prev;
                 // React may run this updater after another first-page generation
@@ -2717,9 +2813,9 @@ function JobsContent() {
         // every other field `buildJobSearchPayload` reads from this render.
         // `locationDefaultSuppressed` (default-location chip's "×"), same
         // reason: page 2+ must never silently reapply a default this
-        // session already cleared.
+        // session already cleared. `depthGateNote` added for the guard above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, yearsExperience, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed, depthGateNote]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -2817,6 +2913,7 @@ function JobsContent() {
         setSalaryMin(next.salaryMin);
         setVisaOnly(next.visaOnly);
         setPostedBucket(next.postedBucket);
+        setYearsExperience(next.yearsExperience);
         setHideGhosts(next.hideGhosts);
         setBoard(next.board);
         setCompanyDomain(next.companyDomain);
@@ -2826,6 +2923,7 @@ function JobsContent() {
                 salaryMin: next.salaryMin,
                 visaOnly: next.visaOnly,
                 postedBucket: next.postedBucket,
+                yearsExperience: next.yearsExperience,
                 hideGhosts: next.hideGhosts,
                 board: next.board,
                 companyDomain: next.companyDomain,
@@ -2981,8 +3079,16 @@ function JobsContent() {
             placeholder: SEARCH_PLACEHOLDER,
             // FacetBar-owned filters (salary, posted, work mode, experience)
             // render as dropdown chips — only the leftovers become dismiss chips.
-            chips: unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
+            // The applied-location-default chip is PREPENDED by the same
+            // `buildDockedChips` helper the mobile row's disclosure logic
+            // shares, so this row never silently narrows results without a
+            // visible, clearable chip the way the pre-dock-refactor bug did.
+            chips: buildDockedChips(dockedDefaultLocationIso2, unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) }))),
             onClearChip: (key) => {
+                if (key === DEFAULT_LOCATION_CHIP_KEY) {
+                    suppressLocationDefault();
+                    return;
+                }
                 const entry = unnamedEntries.find((e) => e.key === key);
                 if (entry) applyFilterStateRef.current(entry.clear(filterStateRef.current));
             },
@@ -3000,7 +3106,7 @@ function JobsContent() {
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [headerDockActive, queryDraft, activeChipsKey, dockChipsKey, activeCount, filtersOpen, setDocked]);
+    }, [headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, activeCount, filtersOpen, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
@@ -3016,45 +3122,9 @@ function JobsContent() {
     const panelVisaOnly = (v: boolean) => applyFilterStateWithIntent({ ...filterState, visaOnly: v });
     const panelPostedBucket = (v: PostedBucket | undefined) =>
         applyFilterStateWithIntent({ ...filterState, postedBucket: v });
+    const panelYearsExperience = (v: YearsExperienceBucket | undefined) =>
+        applyFilterStateWithIntent({ ...filterState, yearsExperience: v });
     const panelClearAll = () => applyFilterStateWithIntent(PRISTINE_FILTER_STATE);
-
-    const applySavedSearchPrefs = useCallback(
-        (prefs: SearchPrefsValues) => {
-            const rawQ = prefs.query.trim();
-            const { residualQ, workTypes } = parseWorkTypeTokens(rawQ);
-            const q = residualQ || rawQ;
-            const loc = prefs.location.trim();
-            const nextFacets = { ...filterState.facets };
-            if (loc) nextFacets.location_country = [loc];
-            else delete nextFacets.location_country;
-            const types = [...workTypes];
-            if (prefs.remoteOnly && !types.includes("remote")) types.push("remote");
-            if (types.length > 0) nextFacets.work_type = types;
-            else delete nextFacets.work_type;
-            const nextSalary = prefs.salaryMin > 0 ? prefs.salaryMin : 0;
-            setQueryDraft(q);
-            setQuery(q);
-            setFacets(nextFacets);
-            setSalaryMin(nextSalary);
-            // `nextFacets.location_country` above is what applies the saved
-            // place; the box is entry-only and stays empty.
-            setLocationDraft("");
-            recordRecentSearch(q);
-            setAgentPrefs((prev) => ({
-                configured: true,
-                search: {
-                    query: rawQ,
-                    location: loc || undefined,
-                    remoteOnly: prefs.remoteOnly || undefined,
-                    salaryMin: nextSalary || undefined,
-                },
-                answers: prev?.answers ?? { custom: {} },
-                updated_at: new Date().toISOString(),
-            }));
-            applyUrlState(buildUrlState({ q, facets: nextFacets, salaryMin: nextSalary }), "push");
-        },
-        [filterState.facets, buildUrlState, applyUrlState],
-    );
 
     // Task 11 — empty state's ghost-reveal line. Pure gate (lib/jobs/
     // result-state.ts, unit-tested there) so it can't drift from the same
@@ -3154,6 +3224,13 @@ function JobsContent() {
     };
 
     const handleOpenPosting = (job: PublicJob) => {
+        // Fired BEFORE the auth gate and the AI hand-off prompt, because the
+        // event means "clicked Apply", not "reached the posting". Counting only
+        // the clicks that survive both interstitials would hide exactly the
+        // number worth knowing: comparing this against actual opens is what
+        // measures the gate's drop-off. Moving it below either early return
+        // would make that drop-off invisible.
+        captureFunnelEvent("apply_clicked", { job_id: job.id, source: "serp" });
         if (resolveApplyGateDecision(Boolean(user)) === "gate") {
             handleApplyGate(job);
             return;
@@ -3268,6 +3345,11 @@ function JobsContent() {
             const newCount = recordGuestSave();
             setGuestSaveCount(newCount);
             toast.success(GUEST_SAVE_TOAST);
+            // A guest's first save is a real save, so it counts. Fired here and
+            // not at the top of the handler: the branch above this one opens the
+            // auth popover instead of saving, and counting that click would
+            // inflate saves with the exact clicks the gate rejected.
+            captureFunnelEvent("job_saved", { job_id: job.id });
             return;
         }
         void (async () => {
@@ -3285,6 +3367,10 @@ function JobsContent() {
                 }
                 invalidatePursuitsCache();
                 toast.success(GUEST_SAVE_TOAST);
+                // The signed-in save, counted only once the action came back
+                // clean — the `res.error` branch above returns, and a thrown
+                // error lands in the catch, so neither reaches this line.
+                captureFunnelEvent("job_saved", { job_id: job.id });
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     setAuthOpen(true);
@@ -3448,9 +3534,10 @@ function JobsContent() {
     // `resumeIsUsable`'s bar exactly.
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
-        const { data } = await fetchResumeData();
+        const { data, updatedAt } = await fetchResumeData();
         if (data && resumeIsUsable(data)) {
             setResume(data);
+            setResumeUpdatedAt(updatedAt ?? null);
             return data;
         }
         return null;
@@ -3462,28 +3549,19 @@ function JobsContent() {
     // `resolveUrlSort` above for why the backend sort stays relevance, not a
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
-        const { q, facets: f } = buildMatchQuery(r);
-        setFacets(f);
+        const { q, facets: derived } = buildMatchQuery(r);
+        const merged = mergeFacets(facets, derived);
+        setFacets(merged);
         setQueryDraft(q);
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(buildUrlState({ q, facets: f, sort: "fit" }), "replace");
-    };
-
-    // Dismiss the "Ranked by your résumé" chip — per controller resolution
-    // #1, only clears the sort; the résumé-derived query/facets stay as
-    // ordinary, independently-editable search state.
-    const clearFit = () => {
-        setFitActive(false);
-        applyUrlState(withSortCleared(buildUrlState()), "replace");
+        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit" }), "replace");
     };
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
-    // core `resolve` callback both `handleRankByFit` (below) and the "My
-    // résumé" toolbar control's click (`runResumeControlClick`,
-    // lib/jobs/result-state.ts) pass to their own fallback-to-uploader logic
-    // when this comes back `false`.
+    // core `resolve` callback `handleRankByFit` (below) passes to its own
+    // fallback-to-uploader logic when this comes back `false`.
     //
     // `fitIntentRef` guards the await: `resolveUsableResume()` is a network
     // round-trip, and the Select's `onValueChange` bumps the SAME guard for
@@ -3528,10 +3606,13 @@ function JobsContent() {
         applyUrlState(buildUrlState({ sort: modeToUrlSort(mode) }), "replace");
     };
 
+    // The segmented sort control's third segment: résumé-aware "Best match"
+    // when one is on file, plain "Relevance" otherwise (see the ToolbarSegment
+    // mount sites below for the label/title split on `resumeOnFile`).
     const chooseBestMatch = () => {
         fitIntentRef.current!.begin();
-        if (!query.trim()) {
-            void handleRankByFit();
+        if (resumeOnFile === true) {
+            void resolveAndApplyFit();
             return;
         }
         setFitActive(false);
@@ -3621,67 +3702,20 @@ function JobsContent() {
         setImportOpen(true);
     };
 
-    // Adds ONE thing to `beginResumeUpload`: the detour that asks a signed-in
-    // user for search preferences first when they have neither those nor a
-    // résumé. Split out because the wizard's own "Add résumé" step must NOT
-    // take that detour — it is already inside the wizard.
+    // Every OTHER résumé-upload entry point (the fit-rank fallback above, the
+    // résumé-moment card, the "update to rescore" link) goes through this
+    // name — it is just `beginResumeUpload` under a stable identifier so
+    // those call sites don't need to change.
     const handleUploadClick = () => {
-        if (user && shouldPromptSearchPrefsInsteadOfResume(resumeOnFile, agentSearchPrefsSet)) {
-            setSearchPrefsDialogOpen(true);
-            return;
-        }
         beginResumeUpload();
-    };
-
-    const handleSearchPrefsComplete = (values: SearchPrefsValues, destination: PrefsDestination) => {
-        applySavedSearchPrefs(values);
-        // "browser" means the server had nowhere to put these — signed out, or
-        // a session that expired mid-wizard. Keeping them locally is what lets
-        // the next sign-in carry them up (see the flush above) instead of
-        // quietly losing what they just typed.
-        if (destination === "browser") {
-            stashPrefs(values);
-            setOnboardingStash(values);
-        }
-    };
-
-    // The wizard's last step. Goes to the shared chokepoint so a signed-out
-    // visitor gets the auth gate: this used to call `setImportOpen(true)`
-    // itself, which opened an importer that had nowhere to store the file.
-    const handleSearchPrefsAddResume = () => beginResumeUpload();
-
-    // Closing the dialog ends the offer for good, whether they finished it or
-    // backed out — asking again on the next search is nagging, not
-    // onboarding. Recorded here rather than inside the wizard because the two
-    // signed-in entry points open the same component from their own buttons,
-    // and those must stay re-openable.
-    const handleSearchPrefsOpenChange = (next: boolean) => {
-        setSearchPrefsDialogOpen(next);
-        if (!next && !user) {
-            dismissOnboarding();
-            setOnboardingDismissed(true);
-        }
-    };
-
-    // "My résumé" toolbar control's click (JSX below). Deliberately does NOT
-    // trust the control's own rendered STYLE to pick the branch — `resumeOnFile`
-    // is tri-state, and while it's `null` ("not known yet") the control still
-    // renders muted, but a click in that window is exactly the class of user
-    // this whole change is FOR: skipping the resolve there would ask a
-    // returning user with a résumé already on file to "upload" one again,
-    // just narrowed to the few hundred ms before the presence check lands.
-    // `runResumeControlClick` (lib/jobs/result-state.ts) decides on the
-    // TRUTH of `resumeOnFile` instead: only a KNOWN-absent résumé (`false`)
-    // skips straight to `handleUploadClick`; `true` or `null` always try
-    // `resolveAndApplyFit` first and fall back to the uploader only if that
-    // genuinely comes back empty — never a dead click, never a needless
-    // reopen of the importer for a résumé that was there the whole time.
-    const handleMyResumeClick = () => {
-        void runResumeControlClick(resumeOnFile, resolveAndApplyFit, handleUploadClick);
     };
 
     const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
         setResume(data);
+        // Saved in the same beat, just below — the on-screen "as of" date is
+        // this moment, not whatever `saveResumeData`'s fire-and-forget write
+        // eventually timestamps server-side.
+        setResumeUpdatedAt(new Date().toISOString());
         setImportOpen(false);
         // Persist to the profile so returning users skip the upload step (best-effort).
         void saveResumeData(data, source, confidence).catch(() => {});
@@ -3804,7 +3838,7 @@ function JobsContent() {
     // carry their own "+N locations" affordance, only the primary does.
     const renderJobRow = (
         j: PublicJob,
-        clusterProps?: { variantCount: number; expanded: boolean; onToggleExpand: () => void },
+        clusterProps?: { variantCount: number; clusterLabel: string; expanded: boolean; onToggleExpand: () => void },
         tourAnchor = false,
     ) => (
         <JobCard
@@ -3818,9 +3852,12 @@ function JobsContent() {
             now={nowMs}
             elite={board === "elite"}
             variantCount={clusterProps?.variantCount ?? 0}
+            clusterLabel={clusterProps?.clusterLabel ?? ""}
             expanded={clusterProps?.expanded ?? false}
             onToggleExpand={clusterProps?.onToggleExpand}
             tourAnchor={tourAnchor}
+            matchScore={matchScores?.get(j.id) ?? null}
+            matchAsOfDate={resumeAsOfDate}
         />
     );
 
@@ -3926,8 +3963,9 @@ function JobsContent() {
                         onClick={() => chooseSort("salary_desc")}
                     />
                     <ToolbarSegment
-                        label="best match"
-                        pressed={fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())}
+                        label={resumeOnFile === true ? "best match" : "relevance"}
+                        title={resumeOnFile === true ? "Matched by your résumé" : undefined}
+                        pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
                         onClick={chooseBestMatch}
                         pending={fitResolving}
                     />
@@ -3943,6 +3981,7 @@ function JobsContent() {
                 onSalaryMin={panelSalaryMin}
                 onVisaOnly={panelVisaOnly}
                 onPostedBucket={panelPostedBucket}
+                onYearsExperience={panelYearsExperience}
                 onClearAll={panelClearAll}
                 hideGhosts={hideGhosts}
                 onHideGhosts={onHideGhosts}
@@ -4037,10 +4076,11 @@ function JobsContent() {
     );
 
     const tourReplayEl = <JobsTourReplayButton />;
-    const searchPrefsEl =
-        user && !agentSearchPrefsSet ? (
-            <JobsSearchPrefsButton onClick={() => setSearchPrefsDialogOpen(true)} />
-        ) : null;
+
+    // Where the depth-gate CTA's "Sign in" link returns to — this exact
+    // SERP, filters and all. Same `/login?next=` shape used everywhere else
+    // sign-in is a detour rather than a destination (e.g. CompanyExhaustGate).
+    const depthGateSignInHref = `/login?next=${encodeURIComponent(`${pathname}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`)}`;
 
     const dockedQueryEl = (
         <div className="relative flex h-full w-full items-center">
@@ -4107,42 +4147,6 @@ function JobsContent() {
         </div>
     );
 
-    const resumeControlEl =
-        resumeControlState !== "hidden" ? (
-            <button
-                type="button"
-                onClick={() => handleMyResumeClick()}
-                disabled={fitResolving}
-                aria-busy={fitResolving || undefined}
-                data-testid="jobs-my-resume"
-                title={
-                    resumeControlState === "active"
-                        ? "Rank jobs by your résumé"
-                        : "Upload a résumé to personalize results"
-                }
-                aria-label={
-                    resumeControlState === "active"
-                        ? "My résumé — rank jobs by fit"
-                        : "Add résumé — upload one to personalize results"
-                }
-                className={cn(
-                    chipVariants({ active: resumeControlState === "active" }),
-                    toolbarChipClass,
-                    "inline-flex items-center gap-1.5 leading-none",
-                )}
-            >
-                {fitResolving && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
-                {fitResolving
-                    ? "Loading…"
-                    : resumeControlState === "active"
-                      ? "My résumé"
-                      : "Add résumé"}
-            </button>
-        ) : null;
-
-    const showResumeControl =
-        (result?.configured || hits.length > 0 || resumeControlState !== "hidden") && resumeControlEl;
-
     const sortEl = result?.configured ? (
         <div
             role="group"
@@ -4163,19 +4167,60 @@ function JobsContent() {
                 onClick={() => chooseSort("salary_desc")}
             />
             <ToolbarSegment
-                label="best match"
-                pressed={
-                    fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
-                }
+                label={resumeOnFile === true ? "best match" : "relevance"}
+                title={resumeOnFile === true ? "Matched by your résumé" : undefined}
+                pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
                 onClick={chooseBestMatch}
                 pending={fitResolving}
             />
         </div>
     ) : null;
 
+    // "scored against your résumé of {date} · update to rescore" — the
+    // match-score receipt's one-time-parse honesty statement (design's
+    // `.asof`, right-aligned in the toolbar). Gated on `hasUsableResume`
+    // (same bar every other résumé-driven control here uses) rather than
+    // `fitActive`: chips render on every card whenever a résumé is loaded,
+    // not only while sorted by fit, so this line's gate matches the chips',
+    // not the sort control's. `handleUploadClick` is the SAME "open the
+    // importer" entry point "Add résumé"/"My résumé" already use — updating
+    // is the one act that re-runs the AI parse, so it's the only place this
+    // date can move.
+    const asOfEl =
+        hasUsableResume && resumeAsOfDate ? (
+            <span
+                data-testid="resume-as-of"
+                className="mono-data hidden shrink-0 items-center gap-1 text-[10.5px] text-muted-foreground lg:inline-flex"
+            >
+                scored against your résumé of {resumeAsOfDate} ·{" "}
+                <button type="button" onClick={handleUploadClick} className="text-brand hover:underline">
+                    update to rescore
+                </button>
+            </span>
+        ) : null;
+
     const showJobsToolbarRow = !headerDockActive;
     const showJobsToolbarSection =
         showJobsToolbarRow || (!headerDockActive && facetsMountSite !== null);
+
+    /**
+     * The live-count link, same markup regardless of where it renders. Two
+     * call sites need it: the mobile search well below (only once the
+     * landing masthead has stopped owning it) and the masthead itself, which
+     * is the only place this count appears on lg+ now that the TopBar ticker
+     * is gone (2026-08-24) — extracted so neither site can drift from the
+     * other's copy or styling.
+     */
+    const liveCountEl = liveJobsCount !== null && (
+        <Link
+            href="/trends"
+            data-testid="search-live-count"
+            className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-bold uppercase tracking-wider text-brand transition-colors hover:text-brand/80"
+        >
+            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
+            {formatCorpusCount(liveJobsCount)} live roles
+        </Link>
+    );
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -4205,7 +4250,33 @@ function JobsContent() {
                 deliberately don't, so they line up against the same gutter,
                 and the results grid is the one thing that stops widening. */}
             <main data-shell="bleed" className="shell-row flex min-h-screen flex-col pb-20 pt-2 sm:pt-3">
-                <h1 className="sr-only">Jobs</h1>
+                {/* Landing masthead — mounts only for a zero-intent pristine
+                    visitor (`showLandingMarketing`), at every width, not just
+                    mobile: the header's docked search took over the box on
+                    lg+ but never stated what the corpus IS or where it's
+                    from. Was authored (`LandingMasthead`) but never mounted
+                    anywhere on this route (2026-08-21 front-door audit, item
+                    2; frozen front-door redesign, 2026-08-26). Once a search
+                    runs, this unmounts in favor of the sr-only heading so the
+                    page still carries exactly one h1. */}
+                {showLandingMarketing ? (
+                    <div className="pb-4 sm:pb-6">
+                        <div className="border-b border-border py-5 sm:py-7">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand">
+                                Live from employer career pages
+                            </p>
+                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                                {JOBS_USP.mastheadTitle}
+                            </h1>
+                            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                                {JOBS_USP.searchDescription}
+                            </p>
+                            {liveCountEl}
+                        </div>
+                    </div>
+                ) : (
+                    <h1 className="sr-only">Jobs</h1>
+                )}
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
@@ -4230,17 +4301,11 @@ function JobsContent() {
                 >
                     {/* The live count, moved here off the TopBar. Same /trends
                         destination it always had — it is a way into the report,
-                        not a badge. Absent until a real count resolves. */}
-                    {liveJobsCount !== null && (
-                        <Link
-                            href="/trends"
-                            data-testid="search-live-count"
-                            className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-bold uppercase tracking-wider text-brand transition-colors hover:text-brand/80"
-                        >
-                            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
-                            {formatCorpusCount(liveJobsCount)} live roles
-                        </Link>
-                    )}
+                        not a badge. Absent until a real count resolves.
+                        Suppressed during the landing masthead, which already
+                        renders this same `liveCountEl` itself — otherwise a
+                        mobile pristine visitor would see the count twice. */}
+                    {!showLandingMarketing && liveCountEl}
                     {/* Collapses once the header carries a live copy of this
                         search (`headerDockActive`, lg+ only) — the reclaimed
                         height goes straight to results instead of two typing
@@ -4438,8 +4503,12 @@ function JobsContent() {
                     directory + "start with a filter" shortcuts. Was authored
                     but never mounted anywhere (2026-08-21 front-door audit,
                     item 3): the pristine landing had no browse affordance
-                    below the search box at all, only after a search ran. */}
-                {showLandingMarketing && !isLgUp && (
+                    below the search box at all, only after a search ran. Now
+                    mounts at every width (frozen front-door redesign,
+                    2026-08-26) — it used to be mobile-only because the
+                    desktop pristine landing had nothing above it worth
+                    scrolling to; the masthead above gives it one. */}
+                {showLandingMarketing && (
                     <LandingMarketingShowcase
                         onSelectQuery={submitSearch}
                         onSelectRemote={onSelectRemote}
@@ -4511,15 +4580,6 @@ function JobsContent() {
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
                             <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
                         )}
-                        {fitActive && (
-                            <button
-                                type="button"
-                                onClick={clearFit}
-                                className={cn(chipVariants({ active: true }), toolbarChipClass, "shrink-0 leading-none")}
-                            >
-                                ranked by your résumé ✕
-                            </button>
-                        )}
                         {!headerDockActive && unnamedEntries.map((entry) => (
                             <span
                                 key={entry.key}
@@ -4538,10 +4598,9 @@ function JobsContent() {
                         </>
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
-                        {showResumeControl && !headerDockActive && resumeControlEl}
                         {!headerDockActive && sortEl}
-                        {!headerDockActive && searchPrefsEl}
                         {!headerDockActive && tourReplayEl}
+                        {!headerDockActive && asOfEl}
                     </div>
                     )}
 
@@ -4581,15 +4640,10 @@ function JobsContent() {
                     createPortal(clearFiltersEl, dockedClearFiltersMount)}
                 {headerDockActive && dockedSaveSearchMount && savedSearchControl &&
                     createPortal(savedSearchControl, dockedSaveSearchMount)}
-                {showResumeControl && headerDockActive && dockedResumeMount &&
-                    createPortal(resumeControlEl, dockedResumeMount)}
                 {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
                 {headerDockActive && dockedExtrasMount &&
                     createPortal(
-                        <>
-                            {searchPrefsEl}
-                            {tourReplayEl}
-                        </>,
+                        tourReplayEl,
                         dockedExtrasMount,
                     )}
 
@@ -4958,7 +5012,7 @@ function JobsContent() {
                                             `seamIndex` directly — see its own comment
                                             above (`clusterJobs`, lib/jobs/cluster.ts)
                                             for why a cluster can never straddle it. */}
-                                        {clusters.flatMap((cluster, i) => {
+                                        {renderedClusters.flatMap((cluster, i) => {
                                             const expanded = expandedClusters.has(cluster.primary.id);
                                             const rows = [
                                                 renderJobRow(
@@ -4966,6 +5020,7 @@ function JobsContent() {
                                                     cluster.variants.length > 0
                                                         ? {
                                                               variantCount: cluster.variants.length,
+                                                              clusterLabel: clusterToggleLabel(cluster.primary, cluster.variants),
                                                               expanded,
                                                               onToggleExpand: () => toggleClusterExpanded(cluster.primary.id),
                                                           }
@@ -4974,16 +5029,20 @@ function JobsContent() {
                                                 ),
                                                 ...(expanded ? cluster.variants.map((v) => renderJobRow(v)) : []),
                                             ];
-                                            if (i !== clusterSeamIndex) return rows;
+                                            // Under `fitActive` the visible order is the
+                                            // match-score resort above, not relevance —
+                                            // the "titled it vs mentions it" seam text no
+                                            // longer describes anything real, so it's
+                                            // suppressed rather than drawn at a now-
+                                            // meaningless position.
+                                            if (fitActive || i !== clusterSeamIndex) return rows;
                                             return [
                                                 <p
                                                     key="seam"
                                                     data-testid="relevance-seam"
                                                     className="mb-1 border-t border-border pt-4 pb-1 text-xs text-muted-foreground"
                                                 >
-                                                    {sortScopedSeam
-                                                        ? seamSummarySorted(seamIndex)
-                                                        : seamSummary(seamIndex, total, displayHits.length)}
+                                                    {seamSummary(seamIndex, total, displayHits.length)}
                                                 </p>,
                                                 ...rows,
                                             ];
@@ -5056,7 +5115,23 @@ function JobsContent() {
                                         tap than scroll. */}
                                     {hasMore && (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
-                                            {loadingMore ? (
+                                            {depthGateNote ? (
+                                                // The anonymous depth wall refused the next page
+                                                // (`loadMore`'s `interpretLoadMoreResponse` → "gated").
+                                                // The sentinel div stays mounted (harmless — `loadMore`
+                                                // itself now guards on `depthGateNote` so re-intersecting
+                                                // it is a no-op) but the "Show N more" button is gone:
+                                                // clicking it could never have worked past this point.
+                                                <p className="text-xs text-muted-foreground">
+                                                    {depthGateNote}{" "}
+                                                    <a
+                                                        href={depthGateSignInHref}
+                                                        className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground/70"
+                                                    >
+                                                        Sign in
+                                                    </a>
+                                                </p>
+                                            ) : loadingMore ? (
                                                 <span className="text-xs text-muted-foreground">Loading more roles…</span>
                                             ) : (
                                                 <button
@@ -5273,15 +5348,6 @@ function JobsContent() {
                 onContinue={() => {
                     if (applyIntentJob) openPostingNow(applyIntentJob);
                 }}
-            />
-
-            <SearchPrefsSetup
-                variant="dialog"
-                open={searchPrefsDialogOpen}
-                onOpenChange={handleSearchPrefsOpenChange}
-                signedIn={Boolean(user)}
-                onComplete={handleSearchPrefsComplete}
-                onAddResume={handleSearchPrefsAddResume}
             />
 
             {applyReturnPrompt && (

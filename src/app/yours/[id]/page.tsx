@@ -15,7 +15,9 @@ import { updateApplication } from "@/actions/application";
 import { searchJobsAction } from "@/actions/jobs";
 import { classifyExistenceCheck } from "@/lib/jobs/result-state";
 import { JobDetail } from "@/components/jobs/JobDetail";
+import { ReceiptShell } from "@/components/jobs/receipt-shell";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
+import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { PublicJob } from "@/lib/jobs/types";
 import { updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
@@ -151,7 +153,7 @@ export default function PursuitDetailPage() {
         if (version) {
             downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position });
         } else {
-            toast.error("Couldn't find that résumé version — it may have been re-filed since this link was created.");
+            toast.error("Couldn't find that resume version — it may have been re-filed since this link was created.");
         }
         router.replace(`/yours/${id}`);
     }, [loading, pursuit, id, searchParams, router]);
@@ -203,7 +205,7 @@ export default function PursuitDetailPage() {
     if (loading) {
         return (
             <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
-                <div className="h-40 animate-pulse rounded-xl bg-card" />
+                <div className="h-40 animate-pulse rounded-none bg-card" />
             </PageLayout>
         );
     }
@@ -223,7 +225,7 @@ export default function PursuitDetailPage() {
 
     const identity = (
         <>
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-none bg-brand/10 text-brand">
                 <Buildings size={26} />
             </div>
             <div className="min-w-0 flex-1">
@@ -237,7 +239,7 @@ export default function PursuitDetailPage() {
     return (
         <PageLayout header={<PageHeader title={pursuit.company_name} description={pursuit.position} actions={backLink} />}>
             <div className="space-y-6">
-                <div className="rounded-xl border border-border bg-card p-6">
+                <div className="rounded-none border border-border bg-card p-6">
                     {/* Clickable only when a live posting is actually linked. A
                         manual pursuit has no `job_id`, so it renders as plain
                         text — offering a click that could only open an apology
@@ -268,7 +270,7 @@ export default function PursuitDetailPage() {
 
                 <ResumeUsedCard pursuit={pursuit} />
 
-                <div className="rounded-xl border border-border bg-card p-6">
+                <div className="rounded-none border border-border bg-card p-6">
                     {/* Tailoring moved to MCP 2026-08-02 — the in-app
                         /resume-tailor link is gone; the quiet handoff note
                         replaces it (same pattern as the "prep" note below). */}
@@ -323,7 +325,7 @@ export default function PursuitDetailPage() {
                 </div>
 
                 {snapshot?.description && (
-                    <div className="rounded-xl border border-border bg-card p-6">
+                    <div className="rounded-none border border-border bg-card p-6">
                         <div className="mb-2 text-[13px] font-semibold">About this role</div>
                         <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-muted-foreground">
                             {snapshot.description}
@@ -333,12 +335,16 @@ export default function PursuitDetailPage() {
             </div>
 
             <Sheet open={detail.open} onOpenChange={(open) => setDetail((d) => ({ ...d, open }))}>
-                <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-2xl p-0">
+                <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-none p-0">
                     <SheetTitle className="sr-only">
                         {pursuit.position} at {pursuit.company_name}
                     </SheetTitle>
                     {detail.state === "loading" ? (
-                        <div className="p-6 text-sm text-muted-foreground">Loading this posting…</div>
+                        <div className="p-6">
+                            <ReceiptShell label="Posting check" status="Checking" statusClassName={STATUS_PILL.saved}>
+                                <span className="text-muted-foreground">Loading this posting…</span>
+                            </ReceiptShell>
+                        </div>
                     ) : detail.job ? (
                         <JobDetail
                             job={detail.job}
@@ -360,10 +366,12 @@ export default function PursuitDetailPage() {
                            tailoring still works — but we don't dress a stale
                            snapshot up as the live posting. */
                         <div className="p-6">
-                            <p className="text-sm text-foreground">This posting is no longer live.</p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                It has left our index since you saved it. What you saved is still on this page.
-                            </p>
+                            <ReceiptShell label="Posting check" status="No longer live" statusClassName={STATUS_PILL.closed}>
+                                <p className="text-foreground">This posting is no longer live.</p>
+                                <p className="mt-1 text-muted-foreground">
+                                    It has left our index since you saved it. What you saved is still on this page.
+                                </p>
+                            </ReceiptShell>
                         </div>
                     ) : (
                         /* "unknown" — we could not check, so we claim nothing
@@ -371,20 +379,22 @@ export default function PursuitDetailPage() {
                            here would declare a job dead on the strength of a
                            failed request. */
                         <div className="p-6">
-                            <p className="text-sm text-foreground">We can&apos;t load the live posting right now.</p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                What you saved is still on this page, and the posting may well still be open —
-                                {pursuit.job_url ? " open it at the source to check." : " we just can't confirm it from here."}
-                            </p>
-                            {pursuit.job_url && (
-                                <button
-                                    type="button"
-                                    onClick={() => window.open(pursuit.job_url, "_blank", "noopener,noreferrer")}
-                                    className="mt-3 text-sm text-brand underline underline-offset-2"
-                                >
-                                    Open posting
-                                </button>
-                            )}
+                            <ReceiptShell label="Posting check" status="Unconfirmed" statusClassName={STATUS_PILL.saved}>
+                                <p className="text-foreground">We can&apos;t load the live posting right now.</p>
+                                <p className="mt-1 text-muted-foreground">
+                                    What you saved is still on this page, and the posting may well still be open —
+                                    {pursuit.job_url ? " open it at the source to check." : " we just can't confirm it from here."}
+                                </p>
+                                {pursuit.job_url && (
+                                    <button
+                                        type="button"
+                                        onClick={() => window.open(pursuit.job_url, "_blank", "noopener,noreferrer")}
+                                        className="mt-3 text-sm text-brand underline underline-offset-2"
+                                    >
+                                        Open posting
+                                    </button>
+                                )}
+                            </ReceiptShell>
                         </div>
                     )}
                 </SheetContent>

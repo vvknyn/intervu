@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authkit, handleAuthkitHeaders } from "@workos-inc/authkit-nextjs";
-import { isAuthGatedProductPath } from "@/lib/auth/product-routes";
+import { isAuthGatedProductPath, loginRedirectUrl } from "@/lib/auth/product-routes";
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
 import { JOBS_VISITOR_COOKIE, JOBS_VISITOR_COOKIE_MAX_AGE } from "@/lib/jobs-visitor-cookie";
 
@@ -20,38 +20,48 @@ export async function middleware(request: NextRequest) {
 
     // WorkOS AuthKit session — composable pattern that integrates with
     // existing middleware logic rather than replacing it entirely.
-    const { session, headers, authorizationUrl } = await authkit(request);
+    const { session, headers } = await authkit(request);
     const { pathname } = request.nextUrl;
 
-    // Protected routes: redirect to WorkOS auth if not authenticated
+    // Protected routes: bounce to OUR branded /login with a `next=` return
+    // param. The WorkOS hosted chooser (skillful-spoon-89.authkit.app) is
+    // reached only mid-flow, from /login itself, for the passkey/email-code
+    // steps that genuinely need it — never as the first hop for a logged-out
+    // visitor hitting a gated product route.
     if (!session.user && isAuthGatedProductPath(pathname)) {
-        if (authorizationUrl) {
-            return handleAuthkitHeaders(request, headers, { redirect: authorizationUrl });
-        }
-        // Fallback if no auth URL (shouldn't happen, but be safe)
-        const url = request.nextUrl.clone();
-        url.pathname = "/login";
-        url.search = "";
-        url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-        return NextResponse.redirect(url);
+        return handleAuthkitHeaders(request, headers, {
+            redirect: loginRedirectUrl(request.nextUrl, pathname),
+        });
     }
 
     // Returning-searcher memory (see lib/jobs-visitor-cookie.ts) — client-
     // readable, not httpOnly, since it's only ever a "have you been here
     // before" flag for `/`'s bar, never an auth artifact.
+    const response = handleAuthkitHeaders(request, headers);
+
     if (pathname.startsWith("/jobs")) {
-        const response = handleAuthkitHeaders(request, headers);
         response.cookies.set(JOBS_VISITOR_COOKIE, "1", {
             maxAge: JOBS_VISITOR_COOKIE_MAX_AGE,
             secure: process.env.NODE_ENV === "production",
             path: "/",
             sameSite: "lax",
         });
-        return response;
     }
 
-    // Continue with AuthKit headers properly handled
-    return handleAuthkitHeaders(request, headers);
+    // Google/Search Engine Disallow: unconditionally instruct all search engines
+    // to ignore and drop any individual job pages, ?job= permalinks, or parameterized job queries.
+    const isJobRoute =
+        pathname.startsWith("/jobs/") ||
+        pathname.startsWith("/job/") ||
+        request.nextUrl.searchParams.has("job") ||
+        (pathname === "/jobs" && request.nextUrl.searchParams.toString().length > 0) ||
+        (pathname === "/" && request.nextUrl.searchParams.toString().length > 0);
+
+    if (isJobRoute) {
+        response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
+    }
+
+    return response;
 }
 
 export const config = {

@@ -9,11 +9,13 @@ import { WhatsAppThreadHero } from "@/components/marketing/WhatsAppThreadHero";
 import { OpenclawWaitlistForm } from "@/components/marketing/OpenclawWaitlistForm";
 import { OpenclawStatusBadge } from "@/components/marketing/OpenclawStatusBadge";
 import { CopyCommand } from "@/components/marketing/CopyCommand";
+import { PlatformInstallPanel } from "@/components/marketing/PlatformInstallPanel";
 import {
   OPENCLAW_HEADLINE,
   WHILE_YOU_SLEPT_STEPS,
   WHAT_IT_WONT_DO_ITEMS,
   RUNS_ON_YOUR_MACHINE,
+  openclawInstallCommand,
   setupSteps,
 } from "@/components/marketing/openclaw-content";
 import { AGENT } from "@/lib/agent/config";
@@ -27,6 +29,7 @@ export const metadata: Metadata = {
 export default function OpenclawPage() {
   // Step 2's `mcporter auth` command points at the connector's own origin.
   const SETUP_STEPS = setupSteps(AGENT.issuer());
+  const installCommand = openclawInstallCommand(AGENT.issuer());
   return (
     <main data-testid="openclaw-page" className="bg-background">
       {/* Hero */}
@@ -132,7 +135,7 @@ export default function OpenclawPage() {
                   <p className="mt-1 text-sm text-muted-foreground">{step.body}</p>
                   {step.command ? (
                     <div className="mt-3">
-                      <CopyCommand command={step.command} />
+                      <CopyCommand command={step.command} label="authenticate" />
                     </div>
                   ) : null}
                 </div>
@@ -142,16 +145,20 @@ export default function OpenclawPage() {
         </div>
       </section>
 
-      {/* Closing signup */}
-      <section aria-label="Join the waitlist" className="border-t border-border py-16">
-        <div className="mx-auto flex max-w-3xl flex-col items-center px-4 text-center sm:px-6">
+      {/* Closing install/waitlist — platform-scoped truth, not a blanket
+          "get notified when it's installable" above the live steps this
+          same page just walked through (D1). */}
+      <section aria-label="Install OpenClaw" className="border-t border-border py-16">
+        <div className="mx-auto flex max-w-2xl flex-col items-center px-4 text-center sm:px-6">
           <h2 className="font-display text-[clamp(22px,3vw,30px)] font-bold text-foreground">
-            Get notified when it&apos;s installable
+            Install OpenClaw
           </h2>
           <p className="mt-2 max-w-md text-sm text-muted-foreground">
-            We&apos;ll email you the moment the OpenClaw skill is installable.
+            Available on macOS today. Windows and Linux aren&apos;t built yet.
           </p>
-          <OpenclawWaitlistForm className="mt-6 w-full max-w-sm" />
+          <div className="mt-6 w-full text-left">
+            <PlatformInstallPanel installCommand={installCommand} />
+          </div>
           <p className="mt-8 text-xs text-muted-foreground">
             <Check size={12} weight="bold" className="mr-1 inline text-brand" aria-hidden="true" />
             Already using intervu&apos;s search?{" "}

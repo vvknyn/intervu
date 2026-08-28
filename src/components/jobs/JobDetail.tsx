@@ -8,10 +8,14 @@ import { chipVariants } from "@/components/ui/chip";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { MatchChip } from "@/components/jobs/MatchChip";
+import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, type FactChipKind } from "@/components/jobs/job-detail-facts";
+import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel } from "@/components/jobs/job-detail-facts";
+import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
+import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
@@ -34,40 +38,6 @@ import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 
 /**
- * Short mono "key" label per fact-chip kind (`FactChipKind`,
- * job-detail-facts.ts) — the squared design-system pass (docs-mockup.html
- * Comp B2) renders each fact as a bordered `key value` box (mono, no icon)
- * rather than an icon + prose pill. Kept here rather than in the pure
- * helper for the same reason the icon map it replaces was: presentation,
- * not a decision `buildFactChips` needs to be tested on.
- */
-const FACT_CHIP_KEY: Record<FactChipKind, string> = {
-    work_type: "workplace",
-    employment_type: "type",
-    experience_level: "level",
-    salary: "salary",
-    // "posted" is the EMPLOYER's claimed date (re-stamped on a relist,
-    // per posting-freshness.ts) — distinct from "first seen by us" below,
-    // which is OUR observation. Labeling both identically read as if they
-    // carried equal weight; the key now states whose claim each one is.
-    // These two keys are load-bearing prose, not decoration: the ContextHelp
-    // mounted beside these chips names them verbatim ("Employer posted is the
-    // date on their listing. First seen by us is when our crawler actually
-    // found it"), so shortening them for line-fit breaks that pointer. Chip
-    // wrapping is a layout problem — solve it in the chip, not in the word.
-    posted: "employer posted",
-    first_seen: "first seen by us",
-};
-
-/** `buildFactChips`' posted/first_seen labels already embed the verb
- *  ("Posted 3d ago") for the icon-based chip this replaces; the squared
- *  `.fact` box states that verb as the key instead, so it's stripped here
- *  to avoid rendering it twice ("first seen by us" + "First seen 10d ago"). */
-function factValue(kind: FactChipKind, label: string): string {
-    return kind === "posted" || kind === "first_seen" ? label.replace(/^(Posted|First seen)\s+/i, "") : label;
-}
-
-/**
  * The job detail panel — everything we know about one posting.
  *
  * Lifted out of app/page.tsx, which was its only caller while `/` was the only
@@ -84,7 +54,7 @@ function factValue(kind: FactChipKind, label: string): string {
 /** Render structured description blocks (heading / para / list). Descriptions
  *  arrive flattened from the Subspace feed; `formatDescription` reconstructs
  *  the structure. See lib/jobs/format-description.ts. */
-function JobDescription({ blocks }: { blocks: DescBlock[] }) {
+export function JobDescription({ blocks }: { blocks: DescBlock[] }) {
     return (
         <div className="text-[14px] leading-relaxed sm:text-[13.5px] text-muted-foreground">
             {blocks.map((b, i) => {
@@ -227,7 +197,7 @@ export function JobDetailActionBar({
  * calls, so this row can never format a company name, salary, or age
  * differently than the SERP does.
  */
-function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onClick: () => void }) {
+export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onClick: () => void }) {
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     const loc = locationText(job);
@@ -240,7 +210,7 @@ function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onC
                 e.stopPropagation();
                 onClick();
             }}
-            className="flex w-full flex-col gap-0.5 rounded-xl border border-slate-300/80 bg-card px-3.5 py-2.5 text-left transition-all hover:border-brand hover:bg-chip/50 hover:shadow-xs dark:border-slate-700 dark:bg-slate-900/60 cursor-pointer group"
+            className="flex w-full flex-col gap-0.5 rounded-none border border-slate-300/80 bg-card px-3.5 py-2.5 text-left transition-all hover:border-brand hover:bg-chip/50 dark:border-slate-700 dark:bg-slate-900/60 cursor-pointer group"
         >
             <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{decodeText(job.title)}</span>
             <span className="mono-data truncate text-xs text-muted-foreground">
@@ -268,6 +238,8 @@ export function JobDetail({
     onOpenRelated,
     reportJobEnabled = false,
     collapseDescription = true,
+    matchScore = null,
+    matchAsOfDate = null,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -309,6 +281,13 @@ export function JobDetail({
      *  breakpoint together); a `sm:`/`xl:` class here could silently disagree
      *  with it. */
     collapseDescription?: boolean;
+    /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
+     *  no signed-in résumé or no comparable field — renders no chip, never a
+     *  fabricated 0 (Rule 3, match-contract.md). Same value the SERP card and
+     *  `sort=fit` read, computed once by the shared `PublicJobDetail` mount. */
+    matchScore?: MatchScore | null;
+    /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
+    matchAsOfDate?: string | null;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -357,6 +336,11 @@ export function JobDetail({
     // semicolon-joined string that also happens to contain a dash.
     const locationDisplay = presentJob(job).location;
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
+    // `formatDescription(undefined)` and `formatDescription("")` both return
+    // `[]` — collapsing "not yet hydrated" (list-scope stub, no `description`
+    // key at all) into the same bucket as "hydrated, genuinely no
+    // description." Only the field's presence distinguishes them.
+    const hydrated = job.description !== undefined;
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
     // detail panel doesn't run thousands of pixels tall. `collapseDescription`
     // (default true) is the seam that turns this off for mount sites that
@@ -380,6 +364,14 @@ export function JobDetail({
     // split `displayCompanyBrand`'s own doc comment calls out.
     const cleanedCompany = displayCompany(job.company, job.company_domain);
     const companyBrand = displayCompanyBrand(job.company, job.company_domain, job.title);
+    // Same helper /co's hero uses, but sourced from just this one posting —
+    // the full-corpus call site (get-company.ts) has many more postings to
+    // find repeated "about us" boilerplate across, so this returns null more
+    // often. That's the honest outcome of a thinner corpus, not a bug.
+    const aboutLine = useMemo(
+        () => extractCompanyAboutLine([job], companyBrand || cleanedCompany || job.company || ""),
+        [job, companyBrand, cleanedCompany],
+    );
     // Himalayas-style flag chip (visual-identity pass) — see JobCard's
     // matching comment in app/page.tsx for the null-safety rationale.
     const countryFlag = countryToFlag(job.location_country);
@@ -503,6 +495,11 @@ export function JobDetail({
                         <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                         <div className="min-w-0 flex-1">
                             <h1 className="text-xl sm:text-[22px] font-bold leading-snug sm:leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h1>
+                            {matchScore && (
+                                <div className="mt-1.5">
+                                    <MatchChip score={matchScore} asOfDate={matchAsOfDate} />
+                                </div>
+                            )}
                             <div className="mt-1 text-sm font-medium text-muted-foreground">
                                 {cleanedCompany ? (
                                     <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
@@ -579,36 +576,31 @@ export function JobDetail({
                                 </div>
                             )}
 
-                            {/* Unified Aligned Metadata & Compensation Bar with Segmented Demarcation */}
-                            <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                            {/* Icon-fact grammar (board-redesign.html / serp-readout-redesign.html
+                                §3: "`key value` chip becomes `icon value`... one icon set, used
+                                everywhere" — supersedes the bordered key/value box this replaced).
+                                No box/border: `FACT_CHIP_ICON` is the single icon-set chokepoint
+                                shared with JobCard's row. Salary stays bold and first; a relisted
+                                posted-date turns amber (the caution signal), same token used by
+                                the meter pip and receipt row below. */}
+                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
                                 {salary && (
-                                    <span data-tour="jobs-pay" className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 text-xs overflow-hidden">
-                                        <span className="bg-emerald-500/20 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300 border-r border-emerald-500/30">PAY</span>
-                                        <span className="px-2 py-0.5 font-bold tabular-nums text-foreground">{salary}</span>
+                                    <span data-tour="jobs-pay" className="inline-flex items-center gap-1.5 text-xs">
+                                        <FACT_CHIP_ICON.salary size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                                        <span className="mono-data font-semibold text-foreground">{salary}</span>
                                     </span>
                                 )}
                                 {nonSalaryChips.map((c) => {
                                     const caution = c.kind === "posted" && freshness.kind === "relisted";
+                                    const FactIcon = FACT_CHIP_ICON[c.kind];
                                     return (
                                         <span
                                             key={c.kind}
-                                            className={cn(
-                                                "inline-flex items-center rounded-none border text-xs overflow-hidden",
-                                                caution
-                                                    ? "border-amber-500/40 bg-amber-500/10"
-                                                    : "border-border/80 bg-background/50",
-                                            )}
+                                            className={cn("inline-flex items-center gap-1.5 text-xs", caution && LISTING_STATE_TEXT.relisted)}
                                         >
-                                            <span className={cn(
-                                                "px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider border-r",
-                                                caution
-                                                    ? "bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/30"
-                                                    : "bg-muted/70 text-muted-foreground border-border/80",
-                                            )}>
-                                                {FACT_CHIP_KEY[c.kind]}
-                                            </span>
-                                            <span className={cn("px-2 py-0.5 font-medium text-foreground", c.kind === "first_seen" && "font-semibold")}>
-                                                {factValue(c.kind, c.label)}
+                                            <FactIcon size={14} className={cn("shrink-0", !caution && "text-muted-foreground")} aria-hidden />
+                                            <span className={cn("mono-data font-medium", !caution && "text-foreground")}>
+                                                {c.label}
                                             </span>
                                         </span>
                                     );
@@ -725,7 +717,7 @@ export function JobDetail({
                                                     className={cn(
                                                         "h-2 w-3.5 rounded-full",
                                                         s.kind === "freshness" && freshness.kind === "relisted"
-                                                            ? "bg-violet-500 shadow-2xs"
+                                                            ? "bg-amber-500 shadow-2xs"
                                                             : s.status === "favorable"
                                                               ? "bg-emerald-500 shadow-2xs"
                                                               : s.status === "unfavorable"
@@ -856,8 +848,8 @@ export function JobDetail({
                                 </button>
                             )}
                         </>
-                    ) : (
-                        <div className="rounded-xl border border-slate-300/80 bg-slate-50/70 p-4 text-[13.5px] text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 shadow-2xs">
+                    ) : hydrated ? (
+                        <div className="rounded-none border border-slate-300/80 bg-slate-50/70 p-4 text-[13.5px] text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 shadow-2xs">
                             No description was captured for this role.{" "}
                             {job.apply_url ? (
                                 <>
@@ -870,6 +862,20 @@ export function JobDetail({
                             ) : (
                                 "Try the original posting for full details."
                             )}
+                        </div>
+                    ) : (
+                        // Not hydrated yet (the SERP's list-scope stub has no
+                        // `description` field, meilisearch.ts's
+                        // JOB_LIST_ATTRIBUTES_TO_RETRIEVE) — distinct from a
+                        // hydrated job that genuinely has no description
+                        // (case above). Rendering the neutral empty-state box
+                        // here would claim "nothing was captured" before the
+                        // full doc even arrived. Same `.skeleton-bar` idiom
+                        // as JobDetailSkeleton.
+                        <div className="space-y-2.5" aria-hidden="true">
+                            <div className="skeleton-bar h-3.5 w-full" />
+                            <div className="skeleton-bar h-3.5 w-full" />
+                            <div className="skeleton-bar h-3.5 w-5/6" />
                         </div>
                     )}
                 </div>
@@ -890,23 +896,20 @@ export function JobDetail({
                     </div>
                 )}
 
-                {/* "How you match" rail replaced 2026-08-02 */}
-                <McpHandoffNote
-                    className="mb-5"
-                    job={{
-                        id: job.id,
-                        title: decodeText(job.title),
-                        company: companyBrand || job.company || "Unknown company",
-                        location: locationText(job) || null,
-                    }}
-                />
-
                 {/* Company hiring-truth mini-KPI rail */}
                 {hasCompanyIntel && (
-                    <div className="rounded-xl border border-slate-300/90 bg-slate-50/80 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 shadow-2xs">
+                    <div className="rounded-none border border-slate-300/90 bg-slate-50/80 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 shadow-2xs">
                         <div className="mono-data text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
                             {companyBrand || "This company"} · hiring truth
                         </div>
+                        {/* Verbatim-or-absent (founding-wound law, about-line.ts) — a
+                            single job's description is a much thinner corpus than
+                            /co's full posting set, so this returns null far more
+                            often here; that's the correct, honest behavior, not a
+                            bug to work around. */}
+                        {aboutLine && (
+                            <p className="mt-2 text-[13px] leading-snug text-foreground/90">&ldquo;{aboutLine}&rdquo;</p>
+                        )}
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
                             {showOpenCount && (
                                 <div className="min-w-[100px]">
@@ -980,6 +983,20 @@ export function JobDetail({
                         </div>
                     </div>
                 )}
+
+                {/* Footnote position (serp-readout-redesign.html annotation
+                    9) — moved from between the description and the company
+                    rail; "how you match" reads as an afterthought, not a
+                    hiring-truth-rail peer. */}
+                <McpHandoffNote
+                    className="mt-5"
+                    job={{
+                        id: job.id,
+                        title: decodeText(job.title),
+                        company: companyBrand || job.company || "Unknown company",
+                        location: locationText(job) || null,
+                    }}
+                />
             </div>
         </div>
     );

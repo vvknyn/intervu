@@ -3,6 +3,7 @@ export function shouldHideSiteChrome(pathname: string): boolean {
     return (
         pathname.startsWith("/login") ||
         pathname.startsWith("/auth") ||
-        pathname.startsWith("/mock")
+        pathname.startsWith("/mock") ||
+        pathname.startsWith("/oauth")
     );
 }

@@ -1,6 +1,6 @@
 import type { BoardId } from "@/lib/boards/types";
 import { isBoardId } from "@/lib/boards/allowlists";
-import type { FacetKey, JobSearchParams, JobSortMode, PostedBucket } from "./types";
+import type { FacetKey, JobSearchParams, JobSortMode, PostedBucket, YearsExperienceBucket } from "./types";
 
 /** Sort values as they appear in the URL. `fit` = résumé rank (resolved page-side). */
 export type UrlSort = "newest" | "relevance" | "salary" | "fit";
@@ -12,6 +12,10 @@ export interface JobsUrlState {
     salaryMin: number;
     visaOnly: boolean;
     postedBucket: PostedBucket | undefined;
+    /** Minimum-years-of-experience bucket (`?years=`). `undefined` is both
+     *  "no filter" and the pristine default — see `YearsExperienceBucket`'s
+     *  doc (types.ts) for why this has no non-empty default unlike `postedBucket`. */
+    yearsExperience: YearsExperienceBucket | undefined;
     hideGhosts: boolean;
     sort: UrlSort | null;
     jobId: string | null;
@@ -45,19 +49,6 @@ export interface JobsUrlState {
     companyDomain: string | null;
 }
 
-/**
- * Strip `sort` back to unset. The shared URL-state transition for "ranked by
- * résumé" no longer being claimed — used by the "Ranked by your résumé ✕"
- * chip's own dismiss (`clearFit`, src/app/jobs/page.tsx). Explore taking
- * over used to go through this too (review fix, 2026-07-18), but Explore is
- * now ephemeral, non-URL state (design decision, 2026-07-21) — it resets the
- * URL to browse-default directly (`buildUrlState({ q: "", facets: {}, sort:
- * null })`) rather than clearing sort alone, so it no longer needs this
- * function.
- */
-export function withSortCleared(state: JobsUrlState): JobsUrlState {
-    return { ...state, sort: null };
-}
 
 /**
  * Should an explicit sort override reset given the CURRENT query (approved
@@ -93,6 +84,7 @@ export const DEFAULT_URL_STATE: JobsUrlState = {
     salaryMin: 0,
     visaOnly: false,
     postedBucket: "30d",
+    yearsExperience: undefined,
     hideGhosts: true,
     sort: null,
     jobId: null,
@@ -118,6 +110,8 @@ const FACET_PARAMS: Record<string, FacetKey> = {
     emp: "employment_type",
     country: "location_country",
     src: "source",
+    tech: "tech_stack",
+    skills: "must_have_skills",
 };
 const PARAM_FOR_FACET = Object.fromEntries(
     Object.entries(FACET_PARAMS).map(([p, k]) => [k, p]),
@@ -131,6 +125,7 @@ const TIER_FOR_SALARY = Object.fromEntries(
 ) as Record<number, string>;
 
 const POSTED_VALUES: readonly PostedBucket[] = ["1d", "3d", "7d", "30d", "older"];
+const YEARS_EXPERIENCE_VALUES: readonly YearsExperienceBucket[] = ["0-2", "3-5", "6-10", "11+"];
 const SORT_VALUES: readonly UrlSort[] = ["newest", "relevance", "salary", "fit"];
 
 export function urlSortToMode(s: UrlSort): JobSortMode | "fit" {
@@ -149,13 +144,19 @@ export function urlSortToMode(s: UrlSort): JobSortMode | "fit" {
  * banner) and the digest's per-saved-search fetch (lib/email/digest/
  * collect.ts) both call this rather than each re-deriving the same
  * field-by-field mapping.
+ *
+ * `yearsExperience` IS included here, unlike `postedBucket` above — it is not
+ * relative-to-now (a "6-10 years" bucket means the same thing regardless of
+ * when the count/digest runs), so there is no equivalent staleness risk to
+ * exclude it for.
  */
 export function jobSearchParamsFromUrlState(
     state: JobsUrlState,
     sinceMs?: number,
 ): Pick<
     JobSearchParams,
-    "q" | "facets" | "salaryMin" | "visaOnly" | "hideGhosts" | "board" | "companyDomain" | "postedSinceMs"
+    | "q" | "facets" | "salaryMin" | "visaOnly" | "hideGhosts" | "board" | "companyDomain" | "postedSinceMs"
+    | "yearsExperience"
 > {
     return {
         q: state.q || undefined,
@@ -168,6 +169,7 @@ export function jobSearchParamsFromUrlState(
         // here would widen the count banner and the digest back to the
         // free-text corpus the scope exists to exclude.
         companyDomain: state.companyDomain ?? undefined,
+        yearsExperience: state.yearsExperience,
         ...(sinceMs !== undefined ? { postedSinceMs: sinceMs } : {}),
     };
 }
@@ -197,6 +199,10 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
     } else if (posted && (POSTED_VALUES as readonly string[]).includes(posted)) {
         s.postedBucket = posted as PostedBucket;
     }
+    const years = sp.get("years");
+    if (years && (YEARS_EXPERIENCE_VALUES as readonly string[]).includes(years)) {
+        s.yearsExperience = years as YearsExperienceBucket;
+    }
     const salary = sp.get("salary");
     if (salary && salary in SALARY_TIERS) s.salaryMin = SALARY_TIERS[salary];
     if (sp.get("visa") === "1") s.visaOnly = true;
@@ -224,6 +230,7 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     // itself ("30d") stays omitted, same as any other default field here.
     if (s.postedBucket === undefined) sp.set("posted", "any");
     else if (s.postedBucket !== DEFAULT_URL_STATE.postedBucket) sp.set("posted", s.postedBucket);
+    if (s.yearsExperience) sp.set("years", s.yearsExperience);
     if (s.salaryMin > 0 && TIER_FOR_SALARY[s.salaryMin]) sp.set("salary", TIER_FOR_SALARY[s.salaryMin]);
     if (s.visaOnly) sp.set("visa", "1");
     if (!s.hideGhosts) sp.set("ghosts", "show");

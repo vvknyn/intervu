@@ -1,7 +1,18 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/auth-gate';
 
 /**
  * TEST GROUP: SETTINGS - Account page tests (lean 3-tab layout)
+ *
+ * All copy/locator text below matches the current UI as of the 2026-08-27
+ * auth/docs redesign. Independent of that redesign, `/settings` is (and
+ * was, pre-redesign — see AUTH_GATED_PRODUCT_PREFIXES in
+ * lib/auth/product-routes.ts, unchanged by this work) server-gated: a
+ * logged-out run of this file redirects every test to the external WorkOS
+ * AuthKit hosted login before it ever reaches this page, so the whole
+ * suite reads red without credentials. That gate is a pre-existing gap,
+ * not something the auth/docs redesign touches or fixes — every test here
+ * goes through tests/e2e/helpers/auth-gate.ts, which skips the whole file
+ * unless E2E_STORAGE_STATE points at a real signed-in session.
  */
 
 test.describe('SETTINGS - Account Page Tests', () => {
@@ -12,7 +23,9 @@ test.describe('SETTINGS - Account Page Tests', () => {
 
   test('TC-SETTINGS-001: Account page loads', async ({ page }) => {
     await expect(page).toHaveURL('/settings');
-    await expect(page.locator('h1:has-text("Account")')).toBeVisible();
+    // PageHeader title is "Settings" as of the 2026-08-27 auth/docs
+    // redesign (SettingsContainer.tsx) — was "Account".
+    await expect(page.locator('h1:has-text("Settings")')).toBeVisible();
     await expect(page.locator('text=What your agent (and the board) need to know')).toBeVisible();
   });
 
@@ -48,7 +61,9 @@ test.describe('SETTINGS - Account Page Tests', () => {
   test('TC-SETTINGS-012: Page responsive on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.reload();
-    await expect(page.locator('h1:has-text("Account")')).toBeVisible();
+    // PageHeader title is "Settings" as of the 2026-08-27 auth/docs
+    // redesign (SettingsContainer.tsx) — was "Account".
+    await expect(page.locator('h1:has-text("Settings")')).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Resume' })).toBeVisible();
   });
 

@@ -29,6 +29,16 @@ export const STATUS_PILL: Record<StatusTone, string> = {
   closed: "bg-st-closed-soft text-st-closed border border-st-closed/20",
 };
 
+/**
+ * Green "live fact" pill — a posting still being up is a LIVENESS claim,
+ * not tracker progress, so it does not belong on the `StatusTone` scale
+ * above (whose `offer`/`applied` route to `--brand`/blue per the Ledger
+ * palette ruling, 2026-08-27: green is reserved for live facts only). Same
+ * soft-bg + colored-text + matching-border shape as `STATUS_PILL`, built
+ * from the `--live` token family instead of a `--st-*` tone.
+ */
+export const LIVE_PILL = "bg-live-tint-bg text-verdict-live border border-live-tint-border";
+
 /** Solid proportion-bar fill — same tone scale, no soft bg/border. */
 export const STATUS_FILL: Record<StatusTone, string> = {
   saved: "bg-st-saved",
@@ -163,20 +173,20 @@ export type ListingStateTone = "fresh" | "relisted" | "reported";
 /** Chip idiom (border + bg + text) — SERP row FACT_BOX, JobDetail's fact chips. */
 export const LISTING_STATE_CHIP: Record<ListingStateTone, string> = {
   fresh: "border-sky-200/90 bg-sky-50/90 text-sky-950 dark:border-sky-900/70 dark:bg-sky-950/60 dark:text-sky-200",
-  relisted: "border-violet-300 bg-violet-50 text-violet-950 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200",
+  relisted: "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
   reported: "border border-red-300 bg-transparent text-red-800 dark:border-red-800 dark:text-red-300",
 };
 
 /** Chip idiom's bold uppercase key-label sub-color (the `<b>pay</b>`-style tag). */
 export const LISTING_STATE_CHIP_LABEL: Record<ListingStateTone, string> = {
   fresh: "text-sky-600 dark:text-sky-400",
-  relisted: "text-violet-700 dark:text-violet-400",
+  relisted: "text-amber-700 dark:text-amber-400",
   reported: "text-red-700 dark:text-red-400",
 };
 
 /** Plain inline-text idiom — prose notes and the ghost-check ledger's per-signal lines (no box). */
 export const LISTING_STATE_TEXT: Record<ListingStateTone, string> = {
   fresh: "text-sky-700 dark:text-sky-400",
-  relisted: "text-violet-700 dark:text-violet-400",
+  relisted: "text-amber-700 dark:text-amber-400",
   reported: "text-red-700 dark:text-red-400",
 };

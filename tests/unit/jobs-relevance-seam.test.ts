@@ -2,11 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     titleMatchesQuery,
+    titleRelevanceScore,
     firstMentionIndex,
     partitionByTitleMatch,
     seamSummary,
     seamSummarySorted,
 } from "../../src/lib/jobs/presentation";
+import { applyRelevanceQualityReranking } from "../../src/lib/jobs/meilisearch";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 let seq = 0;
@@ -198,4 +200,75 @@ test("seamSummarySorted: titled count only, no unverifiable 'more mention it' cl
 
 test("seamSummarySorted: singular titled-block reads as one role/is", () => {
     assert.equal(seamSummarySorted(1), "1 role is titled this · the rest below are weaker matches");
+});
+
+// titleRelevanceScore — graded title alignment for relevance reranking (stopword-
+// tolerant, &↔and normalized). titleMatchesQuery stays boolean/exact for the seam.
+
+const BRAND_PRODUCT_Q = "director of brand and product";
+
+test("titleRelevanceScore: strong brand/product director title beats partial matches", () => {
+    const strong = titleRelevanceScore("Director of Brand & Product Design", BRAND_PRODUCT_Q);
+    const productOnly = titleRelevanceScore("Product Data Coordinator", BRAND_PRODUCT_Q);
+    const directorOnly = titleRelevanceScore(
+        "Director of Engineering, Operations Planning",
+        BRAND_PRODUCT_Q,
+    );
+    assert.ok(strong > 0.9, `expected high score, got ${strong}`);
+    assert.ok(strong > productOnly, `strong (${strong}) should beat productOnly (${productOnly})`);
+    assert.ok(strong > directorOnly, `strong (${strong}) should beat directorOnly (${directorOnly})`);
+});
+
+test("titleRelevanceScore: ampersand title vs and-query counts brand and product", () => {
+    const score = titleRelevanceScore("Director of Brand & Product Design", "director of brand and product");
+    assert.ok(score > 0.9);
+});
+
+test("titleMatchesQuery: & title vs and-query stays false (boolean seam unchanged)", () => {
+    assert.equal(titleMatchesQuery("Director of Brand & Product Design", BRAND_PRODUCT_Q), false);
+});
+
+test("titleRelevanceScore: empty or whitespace query → 0", () => {
+    assert.equal(titleRelevanceScore("Director of Brand & Product Design", ""), 0);
+    assert.equal(titleRelevanceScore("Director of Brand & Product Design", "   "), 0);
+});
+
+test("applyRelevanceQualityReranking: title relevance beats salary disclosure", () => {
+    const feverUpLike = job({
+        id: "fever",
+        title: "Director, Commercial Product - Brand Partnerships",
+        salary_min: null,
+        salary_max: null,
+        ghost_badge: "unscored",
+        posted_ts: 1000,
+    });
+    const capitalOneLike = job({
+        id: "capital",
+        title: "Director, Product Management - AML",
+        salary_min: 150000,
+        salary_max: null,
+        ghost_badge: "unscored",
+        posted_ts: 2000,
+    });
+    const ranked = applyRelevanceQualityReranking([capitalOneLike, feverUpLike], BRAND_PRODUCT_Q);
+    assert.equal(ranked[0].id, "fever");
+});
+
+test("applyRelevanceQualityReranking: equal title scores — salary breaks tie", () => {
+    const noSalary = job({
+        id: "a",
+        title: "Product Manager",
+        salary_min: null,
+        salary_max: null,
+        posted_ts: 2000,
+    });
+    const withSalary = job({
+        id: "b",
+        title: "Product Manager",
+        salary_min: 120000,
+        salary_max: null,
+        posted_ts: 1000,
+    });
+    const ranked = applyRelevanceQualityReranking([noSalary, withSalary], "product manager");
+    assert.equal(ranked[0].id, "b");
 });

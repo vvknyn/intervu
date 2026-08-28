@@ -7,7 +7,9 @@ import { markJobAppliedAction } from "@/actions/jobs";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { fetchResumeData } from "@/actions/resume";
 import { JobDetail, JobDetailActionBar } from "@/components/jobs/JobDetail";
+import { JobDetailDocument } from "@/components/jobs/JobDetailDocument";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     formatAuthGateValueLine,
@@ -16,6 +18,7 @@ import {
 } from "@/lib/auth/auth-gate-copy";
 import { getGuestSaveCount, recordGuestSave } from "@/lib/auth/guest-save-gate";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
+import { shortDate } from "@/lib/jobs/presentation";
 import {
     emptyPending,
     queuePending,
@@ -25,10 +28,13 @@ import {
 } from "@/lib/jobs/pending-actions";
 import type { PublicJob } from "@/lib/jobs/types";
 import { classifySentinel } from "@/lib/llm/sentinels";
+import { scoreJobAgainstResume } from "@/lib/match/score";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
+import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import type { ResumeData } from "@/types/resume";
 
 export interface PublicJobDetailProps {
     job: PublicJob;
@@ -38,11 +44,18 @@ export interface PublicJobDetailProps {
     collapseDescription?: boolean;
     /** Passed through to JobDetail — sheet mount uses border-0 bg-transparent shadow-none. */
     detailClassName?: string;
+    /** "panel" (default) is the SERP glass panel/modal (`JobDetail`); "document"
+     *  is the standalone `/jobs/[slug]` page layout (`JobDetailDocument`). The
+     *  same gate/handler wiring below drives both — only the rendered detail
+     *  component differs. `JobDetailActionBar` renders unconditionally either
+     *  way; it's already the proven sticky action surface for this route. */
+    layout?: "panel" | "document";
 }
 
 /**
- * Client-side wiring for `JobDetail` on standalone or modal job views.
- * Apply/save gates and the sticky action bar match `/jobs` (SERP) behavior.
+ * Client-side wiring for `JobDetail`/`JobDetailDocument` on standalone or
+ * modal job views. Apply/save gates and the sticky action bar match `/jobs`
+ * (SERP) behavior.
  */
 export function PublicJobDetail({
     job,
@@ -50,6 +63,7 @@ export function PublicJobDetail({
     onOpenRelated,
     collapseDescription = true,
     detailClassName,
+    layout = "panel",
 }: PublicJobDetailProps) {
     const [nowMs] = useState(() => Date.now());
     const [goingAfter, setGoingAfter] = useState(false);
@@ -63,6 +77,34 @@ export function PublicJobDetail({
     const pendingRef = useRef<PendingState<PublicJob, PublicJob>>(emptyPending());
 
     useEffect(() => onAuthChange(setUser), []);
+
+    // Same résumé read path `/jobs` uses (`fetchResumeData` →
+    // `resume_last_updated`, see actions/resume.ts) so the detail-header chip
+    // can never disagree with the SERP card chip for the same signed-in user.
+    const [resume, setResume] = useState<ResumeData | null>(null);
+    const [resumeAsOfDate, setResumeAsOfDate] = useState<string | null>(null);
+    useEffect(() => {
+        if (!user) {
+            setResume(null);
+            setResumeAsOfDate(null);
+            return;
+        }
+        let cancelled = false;
+        fetchResumeData()
+            .then(({ data, updatedAt }) => {
+                if (cancelled || !data || !resumeIsUsable(data)) return;
+                setResume(data);
+                const ms = updatedAt ? Date.parse(updatedAt) : NaN;
+                setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
+            })
+            .catch(() => {
+                /* no résumé on file — no chip, no nagging */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [user]);
+    const matchScore = resume ? scoreJobAgainstResume(resume, job) : null;
 
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
@@ -231,26 +273,63 @@ export function PublicJobDetail({
                 }
                 defaultTab={authGateReason === "apply" ? "signup" : "login"}
             />
-            <JobDetail
-                job={job}
-                now={nowMs}
-                signedIn={Boolean(user)}
-                pursuit={byJobId.get(job.id)}
-                goingAfter={goingAfter}
-                reportJobEnabled={reportJobEnabled}
-                onClose={onClose}
-                onOpenRelated={handleOpenRelated}
-                onRequestSignIn={requireAuth}
-                collapseDescription={collapseDescription}
-                className={cn(detailClassName)}
-                onOpenPosting={() => handleOpenPosting(job)}
-                onGoAfter={() => handleGoAfter(job)}
-            />
-            <JobDetailActionBar
-                job={job}
-                signedIn={Boolean(user)}
-                onOpenPosting={() => handleOpenPosting(job)}
-            />
+            {layout === "document" ? (
+                <JobDetailDocument
+                    job={job}
+                    now={nowMs}
+                    signedIn={Boolean(user)}
+                    pursuit={byJobId.get(job.id)}
+                    goingAfter={goingAfter}
+                    reportJobEnabled={reportJobEnabled}
+                    onOpenRelated={handleOpenRelated}
+                    onRequestSignIn={requireAuth}
+                    onOpenPosting={() => handleOpenPosting(job)}
+                    onGoAfter={() => handleGoAfter(job)}
+                    matchScore={matchScore}
+                    matchAsOfDate={resumeAsOfDate}
+                />
+            ) : (
+                <JobDetail
+                    job={job}
+                    now={nowMs}
+                    signedIn={Boolean(user)}
+                    pursuit={byJobId.get(job.id)}
+                    goingAfter={goingAfter}
+                    reportJobEnabled={reportJobEnabled}
+                    onClose={onClose}
+                    onOpenRelated={handleOpenRelated}
+                    onRequestSignIn={requireAuth}
+                    collapseDescription={collapseDescription}
+                    className={cn(detailClassName)}
+                    onOpenPosting={() => handleOpenPosting(job)}
+                    onGoAfter={() => handleGoAfter(job)}
+                    matchScore={matchScore}
+                    matchAsOfDate={resumeAsOfDate}
+                />
+            )}
+            {/* Document layout already has its own sticky-rail Apply card at
+                lg+ (JobDetailDocument's `applyCardEl`) — this bar stacking on
+                top of it would be a redundant second Apply CTA that, at full
+                document width, sits on top of the (now unclamped) description
+                text instead of a short clamped panel. Mobile still needs it:
+                the document layout's single-column stack has no persistent
+                rail there. The panel layout is unchanged — unconditional,
+                exactly as before. */}
+            {layout === "document" ? (
+                <div className="lg:hidden">
+                    <JobDetailActionBar
+                        job={job}
+                        signedIn={Boolean(user)}
+                        onOpenPosting={() => handleOpenPosting(job)}
+                    />
+                </div>
+            ) : (
+                <JobDetailActionBar
+                    job={job}
+                    signedIn={Boolean(user)}
+                    onOpenPosting={() => handleOpenPosting(job)}
+                />
+            )}
         </>
     );
 }

@@ -1,6 +1,6 @@
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
-import { eventTypeLabel, fetchCompanyEvents } from "@/lib/companies/events";
+import { eventTypeLabel, fetchCompanyEvents, humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent } from "@/lib/companies/types";
 
 function envelope(events: unknown[]) {
@@ -59,6 +59,33 @@ test("eventTypeLabel yields an empty label rather than a stray chip on junk inpu
   assert.equal(eventTypeLabel(""), "");
   assert.equal(eventTypeLabel("   "), "");
   assert.equal(eventTypeLabel("_"), "");
+});
+
+// ---------------------------------------------------------------------------
+// humanizeProjectorHeadline — the render seam every projector headline
+// routes through, so a leaked enum token never reaches a page
+// ---------------------------------------------------------------------------
+
+test("humanizeProjectorHeadline turns a leaked enum token into readable words", () => {
+  assert.equal(
+    humanizeProjectorHeadline("posting velocity fell to multi_month_low"),
+    "posting velocity fell to multi month low",
+  );
+});
+
+test("humanizeProjectorHeadline collapses a run of underscores to one space", () => {
+  assert.equal(humanizeProjectorHeadline("a__b"), "a b");
+});
+
+test("humanizeProjectorHeadline passes a normal sentence through unchanged", () => {
+  assert.equal(
+    humanizeProjectorHeadline("hiring has stalled: 167 new roles in 14d, down from 485"),
+    "hiring has stalled: 167 new roles in 14d, down from 485",
+  );
+});
+
+test("humanizeProjectorHeadline passes an empty string through unchanged", () => {
+  assert.equal(humanizeProjectorHeadline(""), "");
 });
 
 // ---------------------------------------------------------------------------

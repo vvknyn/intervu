@@ -1,11 +1,11 @@
 /**
  * The contact cookie — set once a verify-email token is successfully
  * consumed, it authorizes ONLY follow/unfollow for that identity (never a
- * login session; see the design's Guards section). `setContactCookie`
- * mirrors `firebase/auth-session.ts`'s `setSessionCookie` httpOnly/secure/
- * sameSite/path posture exactly, on a 180-day expiry instead of a 14-day
- * one — this cookie authorizes far less, so it can safely outlive a login
- * session.
+ * login session; see the design's Guards section). `setContactCookie` sets
+ * httpOnly, secure-in-production, sameSite=lax, path=/ — the same posture a
+ * login-session cookie would use — but on a 180-day expiry rather than a
+ * login session's shorter one, since this cookie authorizes far less and can
+ * safely outlive it.
  *
  * `consumeAndFollow` lives here too rather than in a third file: it is the
  * one function that turns a raw verify token into the cookie value the rest

@@ -2,7 +2,6 @@
 
 import { unstable_cache } from "next/cache";
 import { createApplication, upsertPursuitForJob } from "@/actions/application";
-import { generateGenericJSON } from "@/actions/generate-context";
 import {
   getJobsBackendStatus,
   getJobsLastUpdated,
@@ -14,8 +13,10 @@ import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
+import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { getJobById } from "@/lib/jobs/get-job";
+import { isInternalPosting } from "@/lib/jobs/presentation";
 import { jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
@@ -184,13 +185,17 @@ async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Pr
  * it here too would silently double-charge `getRelatedJobsAction`'s shared
  * rate-limit budget for what is still a single logical call.
  */
-async function resolveCompanyOpenCount(companyDomain: string): Promise<OpenCount | null> {
-  if (!companyDomain) return null;
-  const countResult = await runSearch({
+async function fetchCompanyWindow(companyDomain: string): Promise<JobSearchResult> {
+  return runSearch({
     companyDomain,
     limit: COMPANY_JOBS_FETCH_LIMIT,
     hideGhosts: false,
   });
+}
+
+async function resolveCompanyOpenCount(companyDomain: string): Promise<OpenCount | null> {
+  if (!companyDomain) return null;
+  const countResult = await fetchCompanyWindow(companyDomain);
   return resolveOpenCount(countResult, countResult.hits.length, COMPANY_JOBS_FETCH_LIMIT);
 }
 
@@ -205,6 +210,32 @@ export async function getCompanyOpenCountAction(companyDomain: string): Promise<
   const ip = await getClientIp();
   if (!allowSearchRequest(ip)) return null;
   return resolveCompanyOpenCount(companyDomain);
+}
+
+/**
+ * The job-detail document layout's employer rail: live open-role count and
+ * an "about this company" line, from ONE shared query window
+ * (`fetchCompanyWindow`) instead of two separate fetches — same idiom as
+ * `getCompanyPageData` (get-company.ts), which this mirrors for a single
+ * job's page rather than the full /co listing. Internal-only postings are
+ * filtered out before either derivation, matching that same call site, so
+ * the about-line is never sourced from staffing-noise postings and the open
+ * count never counts them either.
+ */
+export async function getCompanyRailAction(
+  companyDomain: string,
+  companyName: string,
+): Promise<{ openCount: OpenCount | null; aboutLine: string | null }> {
+  if (!companyDomain) return { openCount: null, aboutLine: null };
+  const ip = await getClientIp();
+  if (!allowSearchRequest(ip)) return { openCount: null, aboutLine: null };
+
+  const result = await fetchCompanyWindow(companyDomain);
+  const jobs = result.hits.filter((job) => !isInternalPosting(job.title));
+  return {
+    openCount: resolveOpenCount(result, jobs.length, COMPANY_JOBS_FETCH_LIMIT),
+    aboutLine: extractCompanyAboutLine(jobs, companyName),
+  };
 }
 
 export async function getRelatedJobsAction(
@@ -428,62 +459,6 @@ export async function getJobsFreshnessAction(): Promise<string | null> {
  */
 export async function getPostedDateFilterSupportAction(): Promise<boolean | null> {
   return isPostedDateFilterSupported();
-}
-
-/**
- * Explore mode: ask the model for ADJACENT roles the candidate is positioned for
- * but might not search themselves. Inherits the login + credit gate from
- * `generateGenericJSON` — auth / out-of-credits surface as sentinel-prefixed
- * `error` strings the client routes to the AuthPopover (see lib/llm/sentinels).
- *
- * Inputs are user-controlled (resume-derived) and flow into an LLM prompt, so
- * they're length-capped to bound prompt size + injection surface.
- */
-export async function suggestAdjacentRolesAction(input: {
-  profession: string;
-  skills: string[];
-  seniority?: string | null;
-}): Promise<{ titles?: string[]; error?: string }> {
-  const profession = (input.profession ?? "").trim().slice(0, 120);
-  const skills = (input.skills ?? [])
-    .map((s) => String(s ?? "").trim().slice(0, 60))
-    .filter(Boolean)
-    .slice(0, 12);
-  const seniority = (input.seniority ?? "").trim().slice(0, 20);
-
-  if (!profession && skills.length === 0) {
-    return { error: "Add a profession or skills to your resume to explore adjacent roles." };
-  }
-
-  const prompt = `You suggest ADJACENT career roles for a job seeker.
-
-Current role: "${profession || "(not specified)"}"
-${seniority ? `Seniority: ${seniority}` : ""}
-Skills: ${skills.join(", ") || "(none listed)"}
-
-Return 6 to 8 job titles that are ADJACENT or TANGENTIAL to this background —
-roles the person is well-positioned for but might not search for themselves.
-Favor lateral moves and reasonable stretches that reuse their skills. Avoid
-exact synonyms of their current title, and avoid unrelated fields.
-
-Return ONLY JSON, no prose:
-{ "titles": ["Title 1", "Title 2", "Title 3", "Title 4", "Title 5", "Title 6"] }`;
-
-  const result = await generateGenericJSON(prompt);
-
-  // Sentinel-prefixed hard blocks (AUTH_REQUIRED / OUT_OF_CREDITS) arrive here
-  // verbatim; pass them through so the client's sentinel UX fires.
-  if (result?.error) return { error: result.error };
-
-  const lowerProfession = profession.toLowerCase();
-  const titles = (Array.isArray(result?.titles) ? result.titles : [])
-    .map((t: unknown) => String(t ?? "").trim())
-    .filter((t: string) => t.length > 0 && t.toLowerCase() !== lowerProfession)
-    .filter((t: string, i: number, arr: string[]) => arr.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i)
-    .slice(0, 8);
-
-  if (titles.length === 0) return { error: "NO_SUGGESTIONS" };
-  return { titles };
 }
 
 /** Report which search backend is live, for the UI's connected/empty states. */

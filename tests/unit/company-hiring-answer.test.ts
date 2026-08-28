@@ -59,6 +59,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     ghostFlaggedPct: null,
     jobs: [],
     boards: ["elite"],
+    exhaust: null,
     nowMs: NOW,
     ...overrides,
   };
@@ -120,7 +121,6 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
     const items = buildCompanyFaqItems({
       companyName: "Lumentum",
       hiringAnswer: answer.headline,
-      ghostFlaggedPct: null,
     });
     assert.equal(items[0]!.question, "Is Lumentum hiring?");
     assert.equal(items[0]!.answer, answer.headline);

@@ -74,11 +74,11 @@ export function CompanyIntelligenceGrid({
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    <CurrencyDollar className="h-4 w-4 text-emerald-500" weight="bold" />
+                    <CurrencyDollar className="h-4 w-4 text-brand" weight="bold" />
                     Capital & Stage
                   </span>
                   {funding.stage && (
-                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {funding.stage}
                     </span>
                   )}
@@ -111,7 +111,7 @@ export function CompanyIntelligenceGrid({
                       {funding.investors.map((inv) => (
                         <span
                           key={inv}
-                          className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] text-foreground"
+                          className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-[11.5px] text-foreground"
                         >
                           {inv}
                         </span>
@@ -165,7 +165,7 @@ export function CompanyIntelligenceGrid({
                   {techStack.languages.slice(0, 5).map((lang) => (
                     <span
                       key={lang}
-                      className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] font-medium text-foreground"
+                      className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-[11.5px] font-medium text-foreground"
                     >
                       {lang}
                     </span>
@@ -173,7 +173,7 @@ export function CompanyIntelligenceGrid({
                   {techStack.infrastructure.slice(0, 3).map((infra) => (
                     <span
                       key={infra}
-                      className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] text-muted-foreground"
+                      className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-[11.5px] text-muted-foreground"
                     >
                       {infra}
                     </span>
@@ -208,11 +208,11 @@ export function CompanyIntelligenceGrid({
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex flex-col justify-between rounded-xl border border-border/70 bg-background/50 p-4 transition-colors hover:border-border-strong"
+                className="flex flex-col justify-between border border-border/70 bg-background/50 p-4 transition-colors hover:border-border-strong"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-md border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-brand">
+                    <span className="border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-brand">
                       {item.publisher}
                     </span>
                     {dateLabel && (

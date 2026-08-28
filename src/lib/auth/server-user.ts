@@ -6,28 +6,22 @@
  * identity provider underneath is a change to this file rather than to the
  * ~32 places that ask.
  *
- * During the Firebase → WorkOS transition it reads BOTH:
- *
- *   1. a WorkOS AuthKit session, for anyone who has signed in since the cutover
- *   2. a Firebase session cookie, for anyone still holding one
- *
- * That is a transition, not a fallback in the bad sense — neither branch
- * invents a user when the other fails. Each reads a real, currently-valid
- * session, and a request carrying neither is genuinely signed out. Firebase
- * session cookies last 14 days, so once every issued cookie has expired the
- * Firebase branch (and this comment) can be deleted without touching a single
- * caller.
+ * Firebase Auth is retired (2026-08-27 WorkOS migration) — this reads only a
+ * WorkOS AuthKit session. Firestore DATA access is untouched; only the
+ * session/identity layer moved.
  *
  * The uid rule that keeps a migrated user attached to their data lives in
  * `workos-identity.ts`, which has no imports and therefore has tests.
  */
 
-import { getFirebaseServerUser } from "@/lib/firebase/auth-session";
 import { toServerUser, type ServerUser } from "@/lib/auth/workos-identity";
 
 export type { ServerUser };
 
-async function getWorkosServerUser(): Promise<ServerUser | null> {
+/**
+ * The current user, or null when nobody is signed in.
+ */
+export async function getServerUser(): Promise<ServerUser | null> {
   try {
     // Loaded on use, not at module scope. `@workos-inc/authkit-nextjs` is
     // ESM-only, and this module is imported by ~32 files across actions,
@@ -46,14 +40,4 @@ async function getWorkosServerUser(): Promise<ServerUser | null> {
     // take down a page that renders perfectly well for a guest.
     return null;
   }
-}
-
-/**
- * The current user, or null when nobody is signed in.
- *
- * Callers must not care which provider answered, and nothing in the return
- * shape tells them.
- */
-export async function getServerUser(): Promise<ServerUser | null> {
-  return (await getWorkosServerUser()) ?? (await getFirebaseServerUser());
 }

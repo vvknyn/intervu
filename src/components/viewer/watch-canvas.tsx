@@ -39,6 +39,23 @@ type Payload = { f: string; r: { x: number; y: number; width: number; height: nu
 type Latest = { img: HTMLImageElement; rect: Payload["r"]; deviceWidth: number };
 type TouchState = { startX: number; startY: number; lastY: number; accDy: number; swiped: boolean; lastSentAt: number };
 
+/**
+ * Colors the status dot and text (2026-08-26 redesign, §04): live/pending/
+ * ended, honestly set at each `setStatus` call site alongside its own text
+ * rather than re-derived later by pattern-matching that text — a future
+ * status string only has to be classified once, where it's actually known,
+ * not guessed at from a rendered string. Hardcoded hex/Tailwind palette
+ * colors are the one sanctioned exception to the token rule: the watch frame
+ * is deliberately single-theme dark and doesn't read the site's light/dark
+ * tokens (see module doc).
+ */
+type StatusTone = "live" | "pending" | "ended";
+const STATUS_TONE_STYLE: Record<StatusTone, { dot: string; text: string }> = {
+    live: { dot: "bg-emerald-400", text: "text-emerald-400" },
+    pending: { dot: "bg-amber-400", text: "text-amber-400" },
+    ended: { dot: "bg-white/40", text: "text-white/70" },
+};
+
 /** How long to wait for the laptop to post its offer, in 1s attempts. The
  *  phone can win the race when the link is opened the instant it arrives. */
 const HOST_WAIT_ATTEMPTS = 20;
@@ -65,8 +82,14 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
     const channelRef = useRef<RTCDataChannel | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const touchRef = useRef<TouchState | null>(null);
-    const [status, setStatus] = useState("connecting…");
-    const [live, setLive] = useState(false);
+    const [statusText, setStatusText] = useState("connecting…");
+    const [statusTone, setStatusTone] = useState<StatusTone>("pending");
+    // The one place status text and its color are set — see STATUS_TONE_STYLE's
+    // doc for why this is a paired setter rather than two independent ones.
+    const setStatus = (text: string, tone: StatusTone) => {
+        setStatusText(text);
+        setStatusTone(tone);
+    };
     const [follow, setFollow] = useState(true);
     const [controlOn, setControlOn] = useState(false);
 
@@ -84,8 +107,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                 canvas.height = sh;
             }
             canvas.getContext("2d")?.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-            setLive(true);
-            setStatus(crop ? "live — following the field" : "live");
+            setStatus(crop ? "live — following the field" : "live", "live");
         },
         [follow],
     );
@@ -129,12 +151,12 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
         const join = async (previousOfferSdp: string | null) => {
             for (let attempt = 0; attempt < HOST_WAIT_ATTEMPTS && !cancelled; attempt++) {
                 const res = await fetch(url);
-                if (res.status === 401) return setStatus("log in to intervu on this phone, then reopen this link");
-                if (!res.ok) return setStatus(ENDED_COPY);
+                if (res.status === 401) return setStatus("log in to intervu on this phone, then reopen this link", "ended");
+                if (!res.ok) return setStatus(ENDED_COPY, "ended");
 
                 const { host } = (await res.json()) as { host: { sdp: string } | null };
                 if (!isNewOffer(host?.sdp, previousOfferSdp)) {
-                    setStatus(previousOfferSdp ? "reconnecting…" : "waiting for your laptop…");
+                    setStatus(previousOfferSdp ? "reconnecting…" : "waiting for your laptop…", "pending");
                     await sleep(1000);
                     continue;
                 }
@@ -155,7 +177,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                     if (cancelled || reconnecting || pc !== thisPc) return;
                     if (thisPc.connectionState === "failed" || thisPc.connectionState === "disconnected" || thisPc.connectionState === "closed") {
                         reconnecting = true;
-                        setStatus("reconnecting…");
+                        setStatus("reconnecting…", "pending");
                         join(offerSdp).finally(() => {
                             reconnecting = false;
                         });
@@ -199,13 +221,13 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                     // transport-webrtc.mjs's isFreshAnswer.
                     body: JSON.stringify({ role: "guest", sdp: thisPc.localDescription?.sdp, answeredOffer: fingerprintSdp(offerSdp) }),
                 });
-                setStatus("connecting to your laptop…");
+                setStatus("connecting to your laptop…", "pending");
                 return;
             }
-            if (!cancelled) setStatus("your laptop never answered — it may have finished");
+            if (!cancelled) setStatus("your laptop never answered — it may have finished", "ended");
         };
 
-        join(null).catch((error: Error) => setStatus(`could not connect: ${error.message}`));
+        join(null).catch((error: Error) => setStatus(`could not connect: ${error.message}`, "ended"));
 
         return () => {
             cancelled = true;
@@ -225,7 +247,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
     // already being recovered elsewhere (onconnectionstatechange), so the
     // honest thing to say is "reconnecting", not to throw.
     const sendSafe = (message: unknown) => {
-        if (!trySend(channelRef.current, message)) setStatus("reconnecting…");
+        if (!trySend(channelRef.current, message)) setStatus("reconnecting…", "pending");
     };
 
     // Swiping vertically in control mode scrolls the laptop's page instead
@@ -332,23 +354,30 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
     return (
         <main className="min-h-dvh bg-black text-white">
             <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-white/10 bg-black px-4 py-3 text-sm">
-                <span className={`h-2 w-2 flex-none rounded-full ${live ? "bg-emerald-400" : "bg-white/30"}`} />
-                <span data-testid="watch-status">{status}</span>
+                <span className={`h-2 w-2 flex-none rounded-full ${STATUS_TONE_STYLE[statusTone].dot}`} />
+                <span data-testid="watch-status" className={STATUS_TONE_STYLE[statusTone].text}>
+                    {statusText}
+                </span>
                 <button
                     type="button"
                     data-testid="watch-control-toggle"
                     onClick={toggleControl}
-                    className="rounded-full border border-white/20 px-3 py-1 text-xs"
+                    className="rounded-full border border-white/20 px-3 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5B8CFF]"
                 >
                     {controlOn ? "watching only" : "take control"}
                 </button>
-                <span
+                {/* Real button, not a span with onClick: a span is invisible
+                    to keyboard focus. Unconditionally wired so a keyboard
+                    user can toggle zoom in either mode — mouse/touch users
+                    keep tapping the canvas itself when control is off. */}
+                <button
+                    type="button"
                     data-testid="watch-zoom-chip"
-                    className="ml-auto text-xs text-white/50"
-                    onClick={controlOn ? () => setFollow((f) => !f) : undefined}
+                    onClick={() => setFollow((f) => !f)}
+                    className="ml-auto text-xs text-white/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5B8CFF]"
                 >
                     {follow ? "tap to zoom out" : "tap to follow field"}
-                </span>
+                </button>
             </header>
             <canvas ref={canvasRef} data-testid="watch-canvas" className="block h-auto w-full" onClick={onCanvasTap} />
             {/* Focused after a tap in control mode so the phone's keyboard

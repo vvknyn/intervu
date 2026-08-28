@@ -141,7 +141,10 @@ describe("searchMeili sort-integrity guard — relevance mode is never touched",
         mock.method(globalThis, "fetch", async () => {
             calls++;
             // Out of newest order — irrelevant, relevance mode must ignore it.
-            return jsonResponse(200, { hits: NEWEST_UNSORTED, totalHits: NEWEST_UNSORTED.length });
+            // totalHits is a full page (>= RELAX_MIN_HITS) so the unrelated
+            // thin-result relax pass (shouldRelaxSearch) doesn't fire and add
+            // a second fetch — this test pins the sort-integrity retry count.
+            return jsonResponse(200, { hits: NEWEST_UNSORTED, totalHits: 25 });
         });
 
         const result = await searchMeili({ q: "engineer" });
@@ -183,14 +186,17 @@ describe("searchMeili sort-integrity guard — salary_desc (a mode the 2026-08-1
 /**
  * 2026-08-14: `typo` now sits ahead of `sort` in `rankingRules`
  * (JOBS_INDEX_SETTINGS, meilisearch.ts), so an explicit-sort + non-empty-q
- * search is scoped to title+company (`shouldScopeTextMatchToTitle`, sort.ts)
- * and can legitimately restart its date/salary order at the boundary
+ * search can legitimately restart its date/salary order at the boundary
  * between the 0-typo bucket and a looser typo-admit bucket — that restart
  * is the new rule order working as intended, NOT the searchCutoffMs
  * partial-sort disorder the guard above exists to catch. These pin the
- * guard's new invariant: check sortedness on the TITLED subsequence only
- * (`sortVerifiableHits`, sort.ts) when scoping is active, and keep the
- * original whole-page check when it isn't (empty q, or relevance).
+ * guard's invariant: check sortedness on the TITLED subsequence only
+ * (`sortVerifiableHits`, sort.ts) when an explicit sort + query would
+ * interleave titled vs mention hits, and keep the original whole-page
+ * check when it wouldn't (empty q, or relevance).
+ * Retrieval for a real query is title/company/tags-scoped by default
+ * (`titleFirstScoped`, `buildSearchBody`) — whole-document only on the
+ * relax pass or an empty browse query.
  */
 describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary)", () => {
     it("passes when the titled subsequence is monotonic even though the full page restarts at a typo-bucket boundary", async () => {
@@ -211,7 +217,9 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
         let calls = 0;
         mock.method(globalThis, "fetch", async () => {
             calls++;
-            return jsonResponse(200, { hits: page, totalHits: page.length });
+            // Full page (>= RELAX_MIN_HITS) so the unrelated thin-result relax
+            // pass doesn't fire — this test pins the sort-integrity retry count.
+            return jsonResponse(200, { hits: page, totalHits: 25 });
         });
 
         const result = await searchMeili({ q: "engineer", sort: "newest" });
@@ -238,9 +246,12 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
         let calls = 0;
         mock.method(globalThis, "fetch", async () => {
             calls++;
+            // Full page (>= RELAX_MIN_HITS) on both passes so the unrelated
+            // thin-result relax pass doesn't fire — this test pins the
+            // sort-integrity retry, not the relax mechanism.
             return calls === 1
-                ? jsonResponse(200, { hits: unsorted, totalHits: unsorted.length })
-                : jsonResponse(200, { hits: sorted, totalHits: sorted.length });
+                ? jsonResponse(200, { hits: unsorted, totalHits: 25 })
+                : jsonResponse(200, { hits: sorted, totalHits: 25 });
         });
 
         const result = await searchMeili({ q: "engineer", sort: "newest" });
@@ -281,7 +292,9 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
         let calls = 0;
         mock.method(globalThis, "fetch", async () => {
             calls++;
-            return jsonResponse(200, { hits: page, totalHits: page.length });
+            // Full page (>= RELAX_MIN_HITS) so the unrelated thin-result relax
+            // pass doesn't fire — this test pins the sort-integrity retry count.
+            return jsonResponse(200, { hits: page, totalHits: 25 });
         });
 
         const result = await searchMeili({ q: "engineer", sort: "salary_desc" });

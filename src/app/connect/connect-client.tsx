@@ -1,16 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition, type FormEvent } from "react";
-import { ArrowSquareOut, Check, Copy, Sparkle, ShieldCheck, Code, TerminalWindow } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { ArrowSquareOut, Copy, Sparkle, ShieldCheck, Code, TerminalWindow } from "@phosphor-icons/react";
 import { useSearchParams } from "next/navigation";
-import { joinConnectWaitlist } from "@/actions/connect-waitlist";
+import { CopyCommand } from "@/components/marketing/CopyCommand";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
-import { OPENCLAW_INSTALL_HINT } from "@/components/marketing/openclaw-content";
-import { resolveWaitlistOutcome } from "@/components/marketing/waitlist-outcome";
+import { PlatformInstallPanel } from "@/components/marketing/PlatformInstallPanel";
 import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
-import { Input } from "@/components/ui/input";
-import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import {
   Accordion,
   AccordionContent,
@@ -19,7 +16,6 @@ import {
 } from "@/components/ui/accordion";
 import { parseConnectClientParam } from "@/lib/auth/landing-intent";
 import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
-import { detectPlatform, type DetectedPlatform } from "@/lib/detect-platform";
 import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-handoff";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { cn } from "@/lib/utils";
@@ -68,49 +64,6 @@ const CLIENT_INSTRUCTIONS: Record<string, ClientInstruction> = {
   },
 };
 
-function CopyBox({ value, label }: { value: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Degrades gracefully if clipboard is denied
-    }
-  };
-
-  return (
-    <div className="relative flex items-center justify-between gap-3 overflow-hidden rounded-none border border-border bg-muted/40 p-3 shadow-2xs">
-      <div className="min-w-0 flex-1 pl-1">
-        {label && (
-          <div className="mb-1 whitespace-nowrap text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            {label}
-          </div>
-        )}
-        <code className="block truncate text-meta font-semibold text-foreground">
-          {value}
-        </code>
-      </div>
-      <Button
-        type="button"
-        size="sm"
-        onClick={handleCopy}
-        className={cn(
-          "shrink-0 gap-1.5 px-3.5 py-1.5 text-xs font-semibold transition-all",
-          copied
-            ? "bg-brand text-brand-foreground"
-            : "bg-brand text-brand-foreground hover:bg-brand/90",
-        )}
-      >
-        {copied ? <Check size={14} weight="bold" /> : <Copy size={14} />}
-        {copied ? "Copied" : "Copy"}
-      </Button>
-    </div>
-  );
-}
-
 const TRY_THESE_PROMPTS = [
   "Find senior product manager roles in Berlin with verified salary > $120k posted this week",
   "Is this job posting real, or does it look stale or relisted?",
@@ -137,21 +90,9 @@ export function ConnectClient({
   const searchParams = useSearchParams();
   const [selectedClient, setSelectedClient] = useState<ConnectClientId>("claude");
   const [film, setFilm] = useState<HowItWorksFilmId | null>(null);
-  const [platform, setPlatform] = useState<DetectedPlatform | null>(null);
-
-  // OpenClaw Waitlist state for non-mac
-  const [email, setEmail] = useState("");
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<{ error?: string; success?: true } | null>(null);
-  const outcome = result ? resolveWaitlistOutcome(result) : null;
 
   const currentMeta = MCP_CLIENTS.find((c) => c.id === selectedClient) || MCP_CLIENTS[0];
   const currentInstruction = CLIENT_INSTRUCTIONS[selectedClient] || CLIENT_INSTRUCTIONS.claude;
-
-  useEffect(() => {
-    setPlatform(detectPlatform(navigator.userAgent));
-  }, []);
 
   const handleSelectClient = (id: ConnectClientId) => {
     setSelectedClient(id);
@@ -165,13 +106,6 @@ export function ConnectClient({
       handleSelectClient(fromQuery as ConnectClientId);
     }
   }, [searchParams]);
-
-  const handleWaitlistSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    startTransition(async () => {
-      setResult(await joinConnectWaitlist({ email, client: "openclaw", turnstileToken: turnstileToken ?? undefined }));
-    });
-  };
 
   const jsonConfig = JSON.stringify(
     {
@@ -208,7 +142,7 @@ export function ConnectClient({
         <section className="rounded-none border border-border bg-card p-6 sm:p-7 shadow-xs space-y-6">
           <div className="flex items-center justify-between border-b border-border/80 pb-4">
             <div>
-              <h2 className="text-sm font-bold text-foreground">1. Universal MCP Server</h2>
+              <h2 className="text-sm font-bold text-foreground">Universal MCP Server</h2>
               <p className="text-xs text-muted-foreground">Standard SSE / HTTP transport</p>
             </div>
             <button
@@ -220,103 +154,118 @@ export function ConnectClient({
             </button>
           </div>
 
-          {/* The step that was missing. Everything below this line ends at an
-              intervu account — the endpoint answers 401 until a connector
-              finishes the OAuth handshake, and the Claude Code lane hands you a
-              token only Settings can mint — but the page said nothing about
-              one, so a signed-out visitor copied a URL and met a sign-in wall
-              inside someone else's app with no idea why. `next` brings them
-              back HERE, mid-setup, rather than dropping them on /jobs. */}
-          {!signedIn && (
-            <div
-              data-testid="connect-signin-step"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-none border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/40"
-            >
-              <div className="min-w-0">
-                <h3 className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                  First, sign in to intervu
-                </h3>
-                <p className="mt-1 text-xs leading-snug text-amber-800 dark:text-amber-300">
-                  Your AI connects as you, so it needs an account to connect to. We&apos;ll bring you
-                  right back here.
-                </p>
-              </div>
-              <Button
-                asChild
-                size="sm"
-                className="shrink-0 gap-1.5 bg-brand px-3.5 text-xs font-semibold text-brand-foreground hover:bg-brand/90"
-              >
-                <a href={`/login?next=${encodeURIComponent("/connect")}`}>Sign in</a>
-              </Button>
-            </div>
-          )}
-
-          <CopyBox value={mcpUrl} label="Universal MCP Endpoint URL" />
-
-          {/* AI Client Selector Tabs */}
-          <div className="border-t border-border/80 pt-4 space-y-3">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">2. Select Your AI Assistant</h3>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              {MCP_CLIENTS.map((client) => {
-                const active = selectedClient === client.id;
-                return (
-                  <button
-                    key={client.id}
-                    type="button"
-                    onClick={() => handleSelectClient(client.id)}
-                    className={cn(chipVariants({ active }), "shadow-2xs")}
-                  >
-                    {client.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Instructions Box */}
-            <div className="rounded-none border border-border bg-muted/40 p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-4 w-4 items-center justify-center rounded-none bg-brand text-[10px] font-bold text-brand-foreground">
-                    ✓
-                  </span>
-                  <h4 className="text-xs font-bold text-foreground">
-                    {currentInstruction.title} Setup
-                  </h4>
+          {/* Sign-in is step 1 of this sequence, not a floating aside — see
+              the `!signedIn` step below. Everything after it ends at an
+              intervu account: the endpoint answers 401 until a connector
+              finishes the OAuth handshake, and the Claude Code lane hands
+              you a token only Settings can mint. `next` brings a signed-out
+              visitor back HERE, mid-setup, rather than dropping them on
+              /jobs. */}
+          <ol className="space-y-5">
+            {!signedIn && (
+              <li data-testid="connect-signin-step" className="flex gap-4">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-[12px] font-bold text-foreground">
+                  1
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-xs font-bold text-foreground">Sign in to intervu</h3>
+                    <Button
+                      asChild
+                      size="sm"
+                      className="shrink-0 gap-1.5 bg-brand px-3.5 text-xs font-semibold text-brand-foreground hover:bg-brand/90"
+                    >
+                      <a href={`/login?next=${encodeURIComponent("/connect")}`}>Sign in</a>
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                    Your AI connects as you, so it needs an account to connect to. We&apos;ll bring you
+                    right back here.
+                  </p>
                 </div>
-                {currentMeta.openUrl && (
-                  <Button
-                    asChild
-                    size="xs"
-                    className="gap-1 bg-brand font-semibold text-brand-foreground hover:bg-brand/90 shadow-2xs"
-                  >
-                    <a href={currentMeta.openUrl} target="_blank" rel="noopener noreferrer">
-                      Open {currentMeta.label} <ArrowSquareOut size={12} />
-                    </a>
-                  </Button>
-                )}
+              </li>
+            )}
+
+            <li className="flex gap-4">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-[12px] font-bold text-foreground">
+                2
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs font-bold text-foreground">Copy the endpoint</h3>
+                <div className="mt-2">
+                  <CopyCommand command={mcpUrl} label="MCP endpoint" />
+                </div>
               </div>
+            </li>
 
-              <ol className="space-y-1.5 text-xs text-foreground">
-                {currentInstruction.steps.map((step, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-none bg-card border border-border text-[10px] font-bold text-foreground shadow-2xs">
-                      {idx + 1}
-                    </span>
-                    <span className="leading-snug">{step}</span>
-                  </li>
-                ))}
-              </ol>
+            <li className="flex gap-4">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-[12px] font-bold text-foreground">
+                3
+              </span>
+              <div className="min-w-0 flex-1 space-y-3">
+                <h3 className="text-xs font-bold text-foreground">Paste it into your AI client</h3>
+                <p className="text-xs text-muted-foreground">Pick your client for its exact steps.</p>
 
-              {currentInstruction.note && (
-                <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-none px-2 py-0.5 inline-block">
-                  Note: {currentInstruction.note}
-                </p>
-              )}
-            </div>
-          </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {MCP_CLIENTS.map((client) => {
+                    const active = selectedClient === client.id;
+                    return (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => handleSelectClient(client.id)}
+                        className={cn(chipVariants({ active }), "shadow-2xs")}
+                      >
+                        {client.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Instructions Box */}
+                <div className="rounded-none border border-border bg-muted/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-none bg-brand text-[10px] font-bold text-brand-foreground">
+                        ✓
+                      </span>
+                      <h4 className="text-xs font-bold text-foreground">
+                        {currentInstruction.title} Setup
+                      </h4>
+                    </div>
+                    {currentMeta.openUrl && (
+                      <Button
+                        asChild
+                        size="xs"
+                        className="gap-1 bg-brand font-semibold text-brand-foreground hover:bg-brand/90 shadow-2xs"
+                      >
+                        <a href={currentMeta.openUrl} target="_blank" rel="noopener noreferrer">
+                          Open {currentMeta.label} <ArrowSquareOut size={12} />
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+
+                  <ol className="space-y-1.5 text-xs text-foreground">
+                    {currentInstruction.steps.map((step, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-none bg-card border border-border text-[10px] font-bold text-foreground shadow-2xs">
+                          {idx + 1}
+                        </span>
+                        <span className="leading-snug">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+
+                  {currentInstruction.note && (
+                    <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-none px-2 py-0.5 inline-block">
+                      Note: {currentInstruction.note}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </li>
+          </ol>
         </section>
 
         {/* Right Column: OpenClaw Local Agent & Accordions */}
@@ -336,7 +285,7 @@ export function ConnectClient({
                 onClick={() => setFilm("claw")}
                 className="text-xs font-semibold text-brand hover:text-brand/80 underline underline-offset-4"
               >
-                Watch demo film →
+                Watch the demo →
               </button>
             </div>
 
@@ -344,43 +293,7 @@ export function ConnectClient({
               Autonomous desktop worker for macOS. Discovers verified postings matching your goals, parses ATS forms, and queues drafts for your 1-click review.
             </p>
 
-            <div>
-              {platform === "mac" || platform === null ? (
-                <div className="space-y-2">
-                  <CopyBox value={installCommand} label="1-Click Mac Terminal Command" />
-                  <p className="text-xs text-muted-foreground">{OPENCLAW_INSTALL_HINT}</p>
-                </div>
-              ) : (
-                <div className="rounded-none border border-border bg-muted/40 p-3.5">
-                  <p className="text-xs text-muted-foreground mb-2.5">
-                    OpenClaw is built for macOS. Enter your email to get notified when Windows / Linux launches:
-                  </p>
-                  {outcome?.kind === "success" ? (
-                    <p className="text-xs font-semibold text-brand">
-                      ✓ You&apos;re on the list!
-                    </p>
-                  ) : (
-                    <form onSubmit={handleWaitlistSubmit} className="space-y-2">
-                      <div className="flex gap-2">
-                        <Input
-                          type="email"
-                          required
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="you@company.com"
-                          disabled={pending}
-                          className="h-8 text-base md:text-xs"
-                        />
-                        <Button type="submit" size="xs" disabled={pending}>
-                          {pending ? "Joining…" : "Notify me"}
-                        </Button>
-                      </div>
-                      <TurnstileWidget onVerify={setTurnstileToken} />
-                    </form>
-                  )}
-                </div>
-              )}
-            </div>
+            <PlatformInstallPanel installCommand={installCommand} />
           </section>
 
           {/* Accordion Panels for Sample Prompts & Security */}
@@ -393,7 +306,7 @@ export function ConnectClient({
               <AccordionTrigger className="py-3 text-xs font-bold text-foreground hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Sparkle size={14} weight="duotone" className="text-brand" />
-                  <span>Sample Prompts to Ask Your AI</span>
+                  <span>Sample prompts</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
@@ -427,7 +340,7 @@ export function ConnectClient({
               <AccordionTrigger className="py-3 text-xs font-bold text-foreground hover:no-underline">
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={14} weight="duotone" className="text-brand" />
-                  <span>Permissions & Privacy Guarantees</span>
+                  <span>Permissions and privacy</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
@@ -456,7 +369,7 @@ export function ConnectClient({
               <AccordionTrigger className="py-3 text-xs font-bold text-foreground hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Code size={14} weight="duotone" className="text-brand" />
-                  <span>Raw JSON Config</span>
+                  <span>Raw JSON config</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">

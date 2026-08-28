@@ -3,17 +3,20 @@
 import { useState } from "react";
 
 /**
- * Copyable command block for /openclaw's setup steps and the front door's
- * install command. Same `copied`-state shape AND the same ink-bordered
- * visual treatment as /connect's `CopyUrlBar` (connect-client.tsx) — local
- * boolean, clipboard write, revert after 1.5s, silent no-op if the
- * Clipboard API is denied, `border-2 border-foreground` box with no fill —
- * reused rather than inventing a second copy-to-clipboard pattern (this one
- * used to paint its own `--oc-night` block; one-visual-world pass,
- * 2026-08-04, retired that in favor of the token-based box already proven
- * on /connect).
+ * The single copy-command primitive for /connect and /openclaw (2026-08-26
+ * redesign, §03) — one shape for a labeled, copyable shell command: an
+ * optional uppercase label above the code, the command itself, and a COPY
+ * chip. Local boolean, clipboard write, revert after 1.5s, silent no-op if
+ * the Clipboard API is denied, `border-2 border-foreground` box with no fill.
+ * Replaces the three prior shapes (this component's own bare form, /connect's
+ * bespoke `CopyBox`, and the mocked-up `CopyUrlBar` that never existed as a
+ * real component) — every call site now renders through here.
+ *
+ * `label`, when given, is plain uppercase sans — never wrapped in `<code>`
+ * and never given the monospace utility class (banned on .tsx,
+ * tests/unit/typography.test.ts): it names the command, it isn't itself code.
  */
-export function CopyCommand({ command }: { command: string }) {
+export function CopyCommand({ command, label }: { command: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -30,9 +33,16 @@ export function CopyCommand({ command }: { command: string }) {
 
   return (
     <div className="flex items-stretch border-2 border-foreground">
-      <pre className="min-w-0 flex-1 overflow-x-auto px-3 py-2.5">
-        <code className="text-[13px] text-foreground">{command}</code>
-      </pre>
+      <div className="min-w-0 flex-1 overflow-x-auto px-3 py-2.5">
+        {label && (
+          <div className="mb-1 whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            {label}
+          </div>
+        )}
+        <pre>
+          <code className="text-[13px] text-foreground">{command}</code>
+        </pre>
+      </div>
       <button
         type="button"
         onClick={handleCopy}

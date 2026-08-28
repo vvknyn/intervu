@@ -7,7 +7,7 @@
  */
 import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/facets";
 import { BOARD_META, type BoardId } from "@/lib/boards/types";
-import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
+import { FACETABLE_KEYS, type FacetKey, type PostedBucket, type YearsExperienceBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import { addLocationValue } from "@/lib/jobs/location-suggest";
 import { GHOST_META } from "@/lib/jobs/presentation";
@@ -65,6 +65,23 @@ export const POSTED_BUCKET_PRESETS: { label: string; value: PostedBucket | undef
 /** Human label for a posted-bucket value, shared with the active-filter chips. */
 export function postedBucketLabel(v: PostedBucket): string {
     return POSTED_BUCKET_PRESETS.find((o) => o.value === v)?.label ?? v;
+}
+
+/** Shared value+order ladder for the years-of-experience buckets — mirrors
+ *  `POSTED_BUCKET_PRESETS` exactly. See `YearsExperienceBucket` (types.ts)
+ *  for why "Any" (`undefined`) is also the pristine default here, unlike
+ *  posted-date's non-empty "30d" default. */
+export const YEARS_EXPERIENCE_PRESETS: { label: string; value: YearsExperienceBucket | undefined }[] = [
+    { label: "Any", value: undefined },
+    { label: "0–2 years", value: "0-2" },
+    { label: "3–5 years", value: "3-5" },
+    { label: "6–10 years", value: "6-10" },
+    { label: "11+ years", value: "11+" },
+];
+
+/** Human label for a years-of-experience bucket value, shared with the active-filter chips. */
+export function yearsExperienceLabel(v: YearsExperienceBucket): string {
+    return YEARS_EXPERIENCE_PRESETS.find((o) => o.value === v)?.label ?? v;
 }
 
 /** How many facet values a group shows before "top N" truncation — shared
@@ -262,6 +279,9 @@ export interface FilterState {
     salaryMin: number;
     visaOnly: boolean;
     postedBucket: PostedBucket | undefined;
+    /** Minimum-years-of-experience bucket. `undefined` is both "no filter"
+     *  and the pristine default — see `YearsExperienceBucket` (types.ts). */
+    yearsExperience: YearsExperienceBucket | undefined;
     /** First-screen default true (hide `likely_ghost` postings) — mirrors the URL's `ghosts` param. */
     hideGhosts: boolean;
     /**
@@ -292,6 +312,7 @@ export const PRISTINE_FILTER_STATE: FilterState = {
     salaryMin: 0,
     visaOnly: false,
     postedBucket: "30d",
+    yearsExperience: undefined,
     hideGhosts: true,
     board: null,
     companyDomain: null,
@@ -388,6 +409,14 @@ export function activeFilterEntries(
             key: "visaOnly",
             label: "Sponsors visas",
             clear: (s) => ({ ...s, visaOnly: false }),
+        });
+    }
+
+    if (state.yearsExperience) {
+        entries.push({
+            key: "yearsExperience",
+            label: yearsExperienceLabel(state.yearsExperience),
+            clear: (s) => ({ ...s, yearsExperience: undefined }),
         });
     }
 

@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+
+// Overrides the parent watch/layout.tsx title ("Live Application Session"),
+// which is written for /watch/[id] and is wrong for this page.
+export const metadata: Metadata = {
+    title: "Watch from anywhere",
+};
+
 /**
  * D9: the phone-side half of the Tailscale upgrade.
  *
@@ -7,6 +15,12 @@
  * check, `tailscale up`, auth-URL scrape, marker file) is entirely the
  * agent's job, not this page's. Static: nothing here changes at runtime,
  * so there is no client-side state and no data to fetch.
+ *
+ * Not dead code: this page has zero inbound links anywhere in src/, which
+ * reads as an orphan to a grep, but the URL travels out-of-band in the
+ * agent's own WhatsApp messages (D2, 2026-08-26 redesign). Deleting or
+ * folding it into /connect/help would break links already sent to a real
+ * phone.
  */
 export default function WatchAnywherePage() {
     return (

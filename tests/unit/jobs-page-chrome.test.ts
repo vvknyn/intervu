@@ -260,11 +260,35 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /return null/);
     });
 
-    it("signed-out TopBar shows Sign in via WorkOSNavAuth plus Get job alerts", () => {
+    it("signed-out TopBar offers Sign in and Get job alerts, and only one auth system", () => {
         const src = readFileSync(TOPBAR, "utf8");
-        const signedOut = src.slice(src.indexOf("{user ?"), src.indexOf("<AuthPopover"));
-        assert.match(signedOut, /topbar-alerts-cta/);
-        assert.match(signedOut, /WorkOSNavAuth/);
+        const start = src.indexOf('authChrome === "pending"');
+        assert.notStrictEqual(start, -1, "auth chrome branch not found in TopBar");
+        const authBlock = src.slice(start, src.indexOf("<AuthPopover"));
+        assert.match(authBlock, /topbar-signin/);
+        assert.match(authBlock, /topbar-alerts-cta/);
+        // The defect this replaced was a SECOND auth component rendering its
+        // own session check and its own button beside the popover's, so the
+        // two could disagree on screen. Naming the old component here would
+        // only have banned that one instance — this bans the shape: nothing
+        // in the bar may resolve auth except `onAuthChange` above.
+        assert.doesNotMatch(src, /useAuth\(/);
+        assert.strictEqual(src.match(/<AuthPopover/g)?.length, 1);
+    });
+
+    it("TopBar reserves the auth slot instead of claiming signed-out before auth resolves", () => {
+        const src = readFileSync(TOPBAR, "utf8");
+        // `null` alone would mean both "signed out" and "not asked yet", and
+        // `onAuthChange` waits on a server round-trip for the httpOnly WorkOS
+        // cookie — so the undefined seed is what keeps a signed-in user from
+        // being shown a Sign-in button mid-flight.
+        assert.match(src, /useState<User \| null \| undefined>\(undefined\)/);
+        const pending = src.slice(
+            src.indexOf('authChrome === "pending"'),
+            src.indexOf('authChrome === "authenticated"'),
+        );
+        assert.doesNotMatch(pending, /topbar-signin|topbar-alerts-cta/);
+        assert.match(pending, /topbar-auth-pending/);
     });
 
     it("résumé prompts stay off while any jobs tour is active", () => {
@@ -273,10 +297,20 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /showResumeMoment[\s\S]*!tourActive/);
     });
 
-    it("SERP keeps a single page h1 when the landing masthead is absent", () => {
+    it("SERP renders exactly one h1 — masthead branch or sr-only fallback, never both", () => {
+        // The masthead and the sr-only fallback are the two arms of one
+        // ternary (2026-08-26 front-door redesign), so at most one can ever
+        // be in the DOM at a time — this is the guard against ever co-mounting
+        // two heroes, kept as a structural check rather than a component-name
+        // check now that the masthead is inline markup, not a component.
         const src = readFileSync(PAGE, "utf8");
-        assert.doesNotMatch(src, /<LandingMasthead/);
-        assert.match(src, /<h1[^>]*className="[^"]*sr-only/);
+        const mastheadStart = src.indexOf("{showLandingMarketing ? (");
+        const fallbackH1 = src.indexOf('<h1 className="sr-only">Jobs</h1>');
+        assert.notStrictEqual(mastheadStart, -1, "masthead ternary anchor moved — update this test");
+        assert.notStrictEqual(fallbackH1, -1, "sr-only fallback h1 anchor moved — update this test");
+        assert.ok(fallbackH1 > mastheadStart, "sr-only h1 should be the ternary's else branch");
+        const h1Count = (src.match(/<h1[\s>]/g) || []).length;
+        assert.equal(h1Count, 2, "expected exactly two <h1> literals — masthead branch + sr-only fallback");
     });
 
     it("loading splash copy uses readable status text size", () => {
@@ -294,15 +328,12 @@ describe("jobs page chrome guards", () => {
         assert.match(page, /createPortal\(\s*sortEl/);
     });
 
-    it("browse-by-field and résumé portal into the docked TopBar filter row", () => {
+    it("browse-by-field portals into the docked TopBar filter row", () => {
         const page = readFileSync(PAGE, "utf8");
         const topbar = readFileSync(TOPBAR, "utf8");
         assert.match(topbar, /data-testid="topbar-docked-field-directory"/);
-        assert.match(topbar, /data-testid="topbar-docked-resume"/);
         assert.match(page, /topbar-docked-field-directory/);
-        assert.match(page, /topbar-docked-resume/);
         assert.match(page, /createPortal\(fieldDirectoryMenu/);
-        assert.match(page, /createPortal\(resumeControlEl/);
         assert.match(page, /createPortal\(clearFiltersEl/);
         assert.match(page, /createPortal\(savedSearchControl/);
         assert.match(topbar, /data-testid="topbar-docked-clear-filters"/);
@@ -317,13 +348,12 @@ describe("jobs page chrome guards", () => {
         const clearIdx = dockedRow.indexOf("topbar-docked-clear-filters");
         const saveIdx = dockedRow.indexOf("topbar-docked-save-search");
         const chipIdx = dockedRow.indexOf("topbar-docked-chip");
-        const resumeIdx = dockedRow.indexOf("topbar-docked-resume");
         const sortIdx = dockedRow.indexOf("topbar-docked-sort");
         assert.ok(fieldIdx > -1 && filtersIdx > fieldIdx && facetsIdx > filtersIdx, "Browse by field mounts before Filters, then facets");
         assert.ok(chipIdx > facetsIdx, "Leftover filter chips mount after facet dropdowns");
         assert.ok(clearIdx > chipIdx && saveIdx > clearIdx, "Clear filters and save search mount after chips");
         assert.doesNotMatch(topbar, /topbar-docked-status/, "live corpus count deferred from docked toolbar");
-        assert.ok(resumeIdx > saveIdx && sortIdx > resumeIdx, "Résumé mounts before sort segments");
+        assert.ok(sortIdx > saveIdx, "Sort segments mount after save search");
     });
 
     it("auto-starts the jobs tour only after a result card exists", () => {
@@ -344,9 +374,20 @@ describe("jobs page chrome guards", () => {
         assert.doesNotMatch(replay, /h-9 w-9/);
     });
 
-    it("does not render LandingMasthead on /jobs", () => {
+    it("mounts the masthead's headline and provenance line when showLandingMarketing", () => {
+        // Was the "does not render LandingMasthead" guard for the OLD bug
+        // (component authored, never mounted). The masthead is now inline
+        // markup absorbed at this callsite — assert its real content mounts
+        // instead of asserting a component name that no longer exists.
         const src = readFileSync(PAGE, "utf8");
-        assert.doesNotMatch(src, /<LandingMasthead/);
+        const start = src.indexOf("{showLandingMarketing ? (");
+        const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
+        assert.notStrictEqual(start, -1);
+        assert.notStrictEqual(end, -1);
+        const branch = src.slice(start, end);
+        assert.match(branch, /JOBS_USP\.mastheadTitle/);
+        assert.match(branch, /JOBS_USP\.searchDescription/);
+        assert.match(branch, /liveCountEl/);
     });
 
     it("lg+ always docks search in the header", () => {
@@ -419,14 +460,4 @@ describe("jobs page chrome guards", () => {
         assert.doesNotMatch(beforeToolbar, /<FilterChipsRow/);
     });
 
-    it("search prefs chip lives on the filter toolbar, not the results column", () => {
-        const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /data-testid="jobs-search-prefs"/);
-        assert.doesNotMatch(src, /showLandingMarketing && user && !agentSearchPrefsSet/);
-        assert.doesNotMatch(src, /mb-6[\s\S]{0,200}Set up search preferences/);
-        const labelMatches = [...src.matchAll(/Set up search preferences/g)];
-        assert.equal(labelMatches.length, 1, "label should appear exactly once as aria-label");
-        assert.match(src, /aria-label="Set up search preferences"/);
-        assert.match(src, /createPortal\([\s\S]*searchPrefsEl[\s\S]*dockedExtrasMount/);
-    });
 });

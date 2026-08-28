@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { BETA_UNLIMITED_CREDITS } from "@/lib/llm/credit-copy";
+import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Privacy Policy";
 const DESCRIPTION = "How intervu collects, uses, and protects your data.";
@@ -12,20 +12,15 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "August 11, 2026";
+const LAST_UPDATED = "August 27, 2026";
 
 export default function PrivacyPage() {
   return (
     <main data-testid="privacy-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <div className="rounded-none border border-border/80 bg-card/75 p-6 sm:p-10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
-        <div className="border-b border-border pb-4 mb-6">
-          <span className="text-xs font-bold uppercase tracking-widest text-brand">[ LEGAL & PRIVACY ]</span>
-          <h1 className="mt-1 font-display text-3xl font-black uppercase tracking-tight text-foreground">Privacy Policy</h1>
-        </div>
+        <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
         <article className="prose prose-sm max-w-none dark:prose-invert">
-        <p>Last updated: {LAST_UPDATED}</p>
-
         <p>
           intervu is a job search tool. This page explains what we collect, why, and how you can control it. If
           anything here is unclear, use the contact page — we read every message ourselves.
@@ -34,12 +29,14 @@ export default function PrivacyPage() {
         <h2>What we collect</h2>
         <p>
           When you create an account, we collect the email address and profile information you provide. You can
-          sign in with Google or with a username and password — Google-hosted sign-in is handled by Firebase Auth,
-          so we never see or store your Google password.
+          sign in with Google, a passkey, an email code, or a username and password. Google, passkey, and
+          email-code sign-in run through WorkOS, our sign-in provider, which holds your account record under its
+          own data-processing terms — we never see or store your Google password. Username-and-password sign-in
+          is currently processed by Google&apos;s Firebase Auth.
         </p>
         <p>
           Once you&apos;re using intervu, we store the things you create: your tracked applications, saved resumes,
-          saved searches, prep answers, and credit balance. This data lives in Google Cloud Firestore and is only
+          saved searches, and prep answers. This data lives in Google Cloud Firestore and is only
           ever accessed by our servers — never exposed directly to the browser or to other users.
         </p>
         <p>
@@ -62,32 +59,18 @@ export default function PrivacyPage() {
         </p>
 
         <h2>How we use it</h2>
-        {/* Reads the same switch /terms and /pricing do. While beta is on, no
-            feature draws on a balance and there is nothing to buy, so naming a
-            "paid feature" here would describe a charge the product cannot
-            levy — and a privacy policy is the worst place to be approximately
-            true. The metered wording is kept, not deleted, so it is correct
-            again the day the switch flips. */}
-        {BETA_UNLIMITED_CREDITS ? (
-          <p>
-            We use your account data to run the product: to show your tracked applications and keep your resumes and
-            prep answers where you left them. AI features are free while intervu is in beta, so nothing you do draws
-            on a balance. That&apos;s it — we don&apos;t use your data to train models, and we don&apos;t build
-            advertising profiles.
-          </p>
-        ) : (
-          <p>
-            We use your account data to run the product: to show your tracked applications, keep your resumes and
-            prep answers where you left them, and apply your credit balance when you use a paid feature. That&apos;s
-            it — we don&apos;t use your data to train models, and we don&apos;t build advertising profiles.
-          </p>
-        )}
+        <p>
+          We use your account data to run the product: to show your tracked applications and keep your resumes and
+          prep answers where you left them. intervu is free to use — nothing you do draws on a balance or requires
+          payment. That&apos;s it — we don&apos;t use your data to train models, and we don&apos;t build
+          advertising profiles.
+        </p>
 
         <h2>AI processing</h2>
         <p>
-          Some features — resume tailoring and interview prep critique — work by sending the relevant text (your
-          resume, a job description, your prep answers) to an AI provider to generate a response. We use OpenRouter
-          and Groq for this. That text is sent transiently to generate your result; it is not stored by us for any
+          Some features — resume parsing (when you upload one) and resume tailoring — work by sending the relevant
+          text (your resume, a job description) to an AI provider to generate a response. We use OpenRouter and Groq
+          for this. That text is sent transiently to generate your result; it is not stored by us for any
           purpose beyond producing that response, and we don&apos;t use it to train anything. Each provider is
           bound by its own data-handling terms, which govern how they process the request while it&apos;s with
           them.
@@ -122,8 +105,10 @@ export default function PrivacyPage() {
 
         <h2>Cookies &amp; analytics</h2>
         <p>
-          We use a single cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts), lasts about
-          14 days, and identifies your session — nothing more.
+          We use a session cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts) and
+          identifies your session — nothing more. The jobs board sets one more tiny cookie the first time you
+          visit: a returning-visitor flag (literally the value 1, with no identifier in it), so the front door
+          can skip the first-visit intro next time.
         </p>
         <p>
           We use PostHog for product analytics — page views, clicks, and searches — so we can see what&apos;s
@@ -132,7 +117,9 @@ export default function PrivacyPage() {
           session, nothing is shared with your other tabs, and all of it is discarded when you close the tab.
           Events aren&apos;t tied to your identity unless you&apos;re signed in. PostHog (US cloud) processes this
           data as our processor under their own DPA terms. We don&apos;t run ad trackers or any third-party
-          tracking pixels, and the sign-in cookie above remains the only cookie on intervu.
+          tracking pixels, and beyond the two cookies above intervu sets none. The Cloudflare Turnstile check on
+          our contact and sign-up forms runs in its own frame and may use its own storage under
+          Cloudflare&apos;s terms to tell humans from bots.
         </p>
         <p>
           PostHog also records a replay of your visit — the pages you saw and how you moved through them — so we
@@ -145,8 +132,8 @@ export default function PrivacyPage() {
         <p>
           We keep your data for as long as your account is active. You can delete your account and everything tied
           to it at any time from <Link href="/settings">account settings</Link> — it&apos;s self-serve, not a
-          support ticket. Deletion removes your profile, tracked applications, resumes, prep answers, and credit
-          history from our systems.
+          support ticket. Deletion removes your profile, tracked applications, resumes, and prep answers from our
+          systems.
         </p>
 
         <h2>Your choices</h2>

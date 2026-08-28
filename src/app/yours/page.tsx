@@ -18,14 +18,7 @@ import { addManualGuestPursuit, listGuestPursuits, removeGuestPursuit, updateGue
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
-import {
-    TRACKER_CHIP_FILTERS,
-    countAppliedSince,
-    countByTrackerFilter,
-    matchesTrackerFilter,
-    matchesTrackerSearch,
-    type TrackerFilter,
-} from "@/lib/pursuits/tracker-display";
+import { countAppliedSince, matchesTrackerSearch } from "@/lib/pursuits/tracker-display";
 import { TrackerKanbanBoard } from "@/components/tracker/TrackerKanbanBoard";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
@@ -44,61 +37,31 @@ function YoursLoading() {
     return (
         <PageLayout fullWidth header={<TrackerHeader />}>
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 py-8 sm:px-8 xl:px-10">
-                <p className="text-[13px] text-muted-foreground">Loading your tracker…</p>
+                <div aria-hidden className="space-y-4">
+                    <div className="skeleton-bar h-9 w-full max-w-md" />
+                    <div className="flex gap-3 overflow-hidden">
+                        {[0, 1, 2, 3, 4].map((i) => (
+                            <div key={i} className="skeleton-bar h-64 w-[min(85vw,20rem)] shrink-0 md:w-full" />
+                        ))}
+                    </div>
+                </div>
+                <span className="sr-only">Loading your tracker…</span>
             </div>
         </PageLayout>
     );
 }
 
-import { BookmarkSimple, MagnifyingGlass, ArrowSquareOut } from "@phosphor-icons/react";
+import { BookmarkSimple, MagnifyingGlass } from "@phosphor-icons/react";
 
-function StatusChips({
-    filter,
-    counts,
-    total,
-    appliedThisWeek,
-    onChange,
-}: {
-    filter: TrackerFilter;
-    counts: ReturnType<typeof countByTrackerFilter>;
-    total: number;
-    appliedThisWeek: number;
-    onChange: (f: TrackerFilter) => void;
-}) {
+/** "N applied this week" — the one still-live count StatusChips used to
+ *  carry; lane counts themselves now live solely in each lane's own head
+ *  (`TrackerKanbanBoard`), so this is the only thing left to surface here. */
+function AppliedThisWeekBadge({ count }: { count: number }) {
+    if (count < 1) return null;
     return (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-            <div className="inline-flex max-w-full items-center overflow-x-auto rounded-none border border-border bg-card/75 p-0.5 backdrop-blur-xl">
-                {TRACKER_CHIP_FILTERS.map(({ key, label }) => {
-                    const n = key === "all" ? total : counts[key];
-                    const active = filter === key;
-                    return (
-                        <button
-                            key={key}
-                            type="button"
-                            aria-pressed={active}
-                            onClick={() => onChange(key)}
-                            className={cn(
-                                "flex h-11 min-h-11 items-center gap-1.5 rounded-none px-3 text-xs font-semibold uppercase tracking-wider transition-colors md:h-auto md:min-h-0 md:py-1",
-                                active
-                                    ? "bg-primary text-primary-foreground font-bold"
-                                    : "text-muted-foreground hover:text-foreground",
-                            )}
-                        >
-                            <span>{label}</span>
-                            <span className={cn("px-1 text-xs", active ? "opacity-90" : "opacity-60")}>
-                                {n}
-                            </span>
-                        </button>
-                    );
-                })}
-            </div>
-
-            {appliedThisWeek >= 1 && (
-                <span className="inline-flex items-center rounded-none border border-brand/40 bg-brand/10 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-brand">
-                    {appliedThisWeek} applied this week
-                </span>
-            )}
-        </div>
+        <span className="inline-flex items-center rounded-none border border-brand/40 bg-brand/10 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-brand">
+            {count} applied this week
+        </span>
     );
 }
 
@@ -150,7 +113,6 @@ function YoursContent() {
     const [user, setUser] = useState<User | null>(null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [addOpen, setAddOpen] = useState(searchParams.get("view") === "new");
-    const [filter, setFilter] = useState<TrackerFilter>("all");
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -215,13 +177,10 @@ function YoursContent() {
     };
 
     const filtered = useMemo(() => {
-        return orderPursuits(pursuits).filter(
-            (p) => matchesTrackerFilter(p, filter) && matchesTrackerSearch(p, search),
-        );
-    }, [pursuits, filter, search]);
+        return orderPursuits(pursuits).filter((p) => matchesTrackerSearch(p, search));
+    }, [pursuits, search]);
 
     const selected = pursuits.find((p) => p.id === selectedId) ?? null;
-    const counts = useMemo(() => countByTrackerFilter(pursuits), [pursuits]);
     const appliedThisWeek = useMemo(() => countAppliedSince(pursuits, Date.now() - 7 * 86_400_000), [pursuits]);
 
     const mutate = async (id: string, patch: Partial<Pursuit>) => {
@@ -336,26 +295,21 @@ function YoursContent() {
             }
         >
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
-                <StatusChips
-                    filter={filter}
-                    counts={counts}
-                    total={pursuits.length}
-                    appliedThisWeek={appliedThisWeek}
-                    onChange={setFilter}
-                />
-
-                <div className="relative mb-5">
-                    <MagnifyingGlass
-                        size={16}
-                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    />
-                    <Input
-                        type="search"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search company or role in your tracker..."
-                        className="h-10 pl-9 rounded-xl border-slate-300 bg-card text-base md:text-xs font-medium shadow-2xs dark:border-slate-700"
-                    />
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <div className="relative min-w-0 flex-1">
+                        <MagnifyingGlass
+                            size={16}
+                            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        />
+                        <Input
+                            type="search"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search company or role in your tracker..."
+                            className="h-10 rounded-none border-slate-300 bg-card pl-9 text-base font-medium shadow-2xs dark:border-slate-700 md:text-xs"
+                        />
+                    </div>
+                    <AppliedThisWeekBadge count={appliedThisWeek} />
                 </div>
 
                 {filtered.length === 0 ? (
@@ -375,7 +329,6 @@ function YoursContent() {
                 ) : (
                     <TrackerKanbanBoard
                         pursuits={filtered}
-                        filter={filter}
                         selectedId={selectedId}
                         detailOpen={detailOpen}
                         onRowClick={openDetail}

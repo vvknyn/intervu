@@ -1,10 +1,10 @@
 /**
  * Server-only module (imports firebase-admin); never import from a client
  * component. Exposed to the UI only via a thin "use server" action wrapper
- * (`src/actions/admin-metrics.ts`) — the same shape `credit-gate.ts` uses.
+ * (`src/actions/admin-metrics.ts`).
  *
  * WHAT THIS IS. intervu already writes a lot of telemetry — searches, opens,
- * apply clicks, AI credit spend, saved intent, email lifecycle, daily corpus
+ * apply clicks, historical AI credit spend, saved intent, email lifecycle, daily corpus
  * snapshots — and until now had nowhere to read it back. PostHog is wired in
  * (`components/providers/PostHogProvider.tsx`) but no-ops without a key, and
  * `lib/analytics.ts` has no callers, so a hosted dashboard would show an empty
@@ -34,10 +34,9 @@
  * never reports 0 — "nobody signed up" and "Firestore is unreachable" must not
  * render as the same number.
  */
-import type { Auth, UserRecord } from "firebase-admin/auth";
 import type { Firestore, Query } from "firebase-admin/firestore";
-import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
-import { currentPeriod } from "@/lib/llm/credit-gate";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { getWorkosUserManagement, listIntervuUsers } from "@/lib/auth/workos-runtime";
 import { SEARCH_LOG_TTL_DAYS } from "@/lib/jobs/search-log";
 import { FOLLOW_FUNNEL_STEPS, type FollowFunnelStep } from "@/lib/follows/funnel-log";
 import {
@@ -63,29 +62,10 @@ export interface MetricSpec extends MetricMeta {
 
 export interface MetricContext {
     db: Firestore;
-    auth: Auth;
     nowMs: number;
-    /** Memoised: the People metrics all need the same user page-walk, and
-     *  `listUsers` is the one genuinely expensive call on this page. */
-    census(): Promise<{ census: AuthCensus; truncated: boolean }>;
-}
-
-/** Page size Firebase Auth allows per `listUsers` call. */
-const AUTH_PAGE_SIZE = 1000;
-/** Hard stop on the page walk. Bounds the work an admin page can do; when it
- *  bites, the People tiles say so instead of quietly under-reporting. */
-const AUTH_MAX_PAGES = 10;
-
-async function walkUsers(auth: Auth): Promise<{ users: UserRecord[]; truncated: boolean }> {
-    const users: UserRecord[] = [];
-    let pageToken: string | undefined;
-    for (let page = 0; page < AUTH_MAX_PAGES; page += 1) {
-        const result = await auth.listUsers(AUTH_PAGE_SIZE, pageToken);
-        users.push(...result.users);
-        pageToken = result.pageToken;
-        if (!pageToken) return { users, truncated: false };
-    }
-    return { users, truncated: true };
+    /** Memoised: the People metrics all need the same user walk, and
+     *  `listIntervuUsers` is the one genuinely expensive call on this page. */
+    census(): Promise<AuthCensus>;
 }
 
 // --- query helpers ---------------------------------------------------------
@@ -185,16 +165,12 @@ function equalityShare(meta: MetricMeta, source: SourceRef, field: string, equal
     };
 }
 
-/** One number lifted out of the memoised Firebase Auth census. */
+/** One number lifted out of the memoised WorkOS census. */
 function authMetric(meta: MetricMeta, pick: (census: AuthCensus) => MetricValue): MetricSpec {
     return {
         ...meta,
         async read(ctx) {
-            const { census, truncated } = await ctx.census();
-            const value = pick(census);
-            return truncated
-                ? { ...value, caveat: `first ${AUTH_MAX_PAGES * AUTH_PAGE_SIZE} accounts only` }
-                : value;
+            return pick(await ctx.census());
         },
     };
 }
@@ -220,25 +196,26 @@ const FUNNEL_STEP_LABEL: Record<FollowFunnelStep, string> = {
 
 export const METRICS: readonly MetricSpec[] = [
     // --- People -----------------------------------------------------------
-    // Firebase Auth, NOT the `profiles` collection, is the account of record.
+    // WorkOS, NOT the `profiles` collection, is the account of record.
     // Someone who signs up with an email and password and never opens their
     // profile has no Firestore document at all, so counting `profiles` would
-    // silently drop them. Reading Auth counts every sign-up route there is.
+    // silently drop them. Reading WorkOS counts every sign-up route there is.
+    //
+    // No email-vs-federated split: Firebase's `providerData` made that a free
+    // read, but neither the plain WorkOS `User` object nor anything the
+    // Firebase/Supabase migrations wrote to it (firebase-to-workos.ts,
+    // workos-apps.ts) carries which connection a migrated account originally
+    // used. `metadata.username` only marks signups made after the WorkOS
+    // cutover (signUpCore) — treating its absence as "federated" would
+    // misreport the entire pre-cutover back-catalog, so the split is retired
+    // rather than approximated.
     authMetric(
-        { id: "accounts", label: "Accounts", group: "People", note: "Every Firebase Auth account, however they signed up. Windows are new sign-ups." },
+        { id: "accounts", label: "Accounts", group: "People", note: "Every WorkOS account, however they signed up. Windows are new sign-ups." },
         (c) => ({ value: c.total, windows: c.created }),
     ),
     authMetric(
         { id: "returning", label: "Signed in recently", group: "People", note: "Accounts whose LAST sign-in falls in the window — the closest thing we collect to DAU / WAU / MAU." },
         (c) => ({ value: c.active["30d"] ?? null, windows: c.active }),
-    ),
-    authMetric(
-        { id: "accounts_password", label: "Email + password", group: "People", note: "Accounts with no federated provider — signed up with an email address alone. These have no Firestore profile until they use the product." },
-        (c) => ({ value: c.total - c.federated }),
-    ),
-    authMetric(
-        { id: "accounts_federated", label: "Via Google", group: "People", note: "Accounts holding at least one federated provider. Matched on \"not a password login\", so a newly enabled provider counts here without a code change." },
-        (c) => ({ value: c.federated }),
     ),
 
     // --- Waitlist ---------------------------------------------------------
@@ -344,20 +321,24 @@ export const METRICS: readonly MetricSpec[] = [
         { collection: "followedCompanies", group: true },
     ),
 
-    // --- Credits ----------------------------------------------------------
+    // --- Credits ------------------------------------------------------
+    // FROZEN (2026-08-27, billing removed — everything free): nothing writes
+    // `profiles.credits_period` or `credit_grants` any more. Historical
+    // totals only, same "counter died, number didn't" treatment as
+    // `apply_days` above.
     {
         id: "ai_users",
-        label: "Spent AI credits this month",
+        label: "Accounts ever charged an AI credit",
         group: "Credits",
-        note: "Accounts charged at least one shared-key credit in the current UTC month. Admins are never charged, so they never appear here.",
+        note: "FROZEN: lifetime count of accounts that spent at least one shared-key credit before credits were removed 2026-08-27. Not a live figure.",
         async read(ctx) {
             return {
-                value: await countOf(ctx.db.collection("profiles").where("credits_period", "==", currentPeriod())),
+                value: await countOf(ctx.db.collection("profiles").where("credits_period", ">", "")),
             };
         },
     },
     timedCount(
-        { id: "credit_grants", label: "Credit grants", group: "Credits", note: "Additive grants to permanent balances — the welcome bonus and anything else awarded. Idempotent, so one row is one real grant." },
+        { id: "credit_grants", label: "Credit grants", group: "Credits", note: "FROZEN: additive grants to permanent balances (the welcome bonus and anything else awarded) before credits were removed 2026-08-27. Idempotent, so one row is one real grant." },
         { collection: "credit_grants" },
         "granted_at",
     ),
@@ -449,17 +430,14 @@ function metaOf({ id, label, group, note }: MetricSpec): MetricMeta {
  * them through `Promise.allSettled` instead of `Promise.all`.
  */
 export async function collectMetrics(nowMs: number = Date.now()): Promise<MetricsReport> {
-    const auth = getAdminAuth();
-    let censusOnce: Promise<{ census: AuthCensus; truncated: boolean }> | null = null;
+    let censusOnce: Promise<AuthCensus> | null = null;
     const ctx: MetricContext = {
         db: getAdminDb(),
-        auth,
         nowMs,
         census() {
-            censusOnce ??= walkUsers(auth).then(({ users, truncated }) => ({
-                census: summarizeUsers(users, nowMs),
-                truncated,
-            }));
+            censusOnce ??= getWorkosUserManagement()
+                .then(listIntervuUsers)
+                .then((users) => summarizeUsers(users, nowMs));
             return censusOnce;
         },
     };

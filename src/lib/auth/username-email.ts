@@ -63,6 +63,31 @@ export function isReachableEmail(email: string | null | undefined): boolean {
     return Boolean(email) && !isMintedLoginEmail(email);
 }
 
+/**
+ * True when a typed login identifier is a real email rather than a bare
+ * username — the shape decides, not an enumerated list of who is legacy.
+ * Relocated from lib/firebase/client-auth.ts (2026-08-27 WorkOS migration):
+ * the routing decision it feeds, `resolveLoginEmail` below, now runs
+ * server-side inside the password sign-in action rather than client-side, so
+ * it belongs beside `usernameEmail` rather than in a Firebase-specific file.
+ */
+export function isEmailIdentifier(identifier: string): boolean {
+    return identifier.trim().includes("@");
+}
+
+/**
+ * The single "what address does this login attempt mean" decision. An email
+ * identifier is used as-is; a bare username re-derives the synthesized
+ * `<username>@intervu.cc` address (legacy accounts predating the 2026-08-20
+ * signup-ladder audit — see `usernameEmail`'s doc). One chokepoint so the
+ * password sign-in action can't drift from what `usernameEmail`/
+ * `isEmailIdentifier` each mean on their own.
+ */
+export function resolveLoginEmail(identifier: string): string {
+    const trimmed = identifier.trim();
+    return isEmailIdentifier(trimmed) ? trimmed : usernameEmail(trimmed);
+}
+
 const signupEmailSchema = z.string().trim().toLowerCase().email();
 
 export type SignupEmailResult = { ok: true; email: string } | { ok: false; error: string };

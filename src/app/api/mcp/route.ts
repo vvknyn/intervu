@@ -8,12 +8,14 @@ import { firestoreStore } from "@/lib/agent/store";
 import { verifySecret, AUTHORIZED_CREDENTIAL_KINDS } from "@/lib/agent/tokens";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import { consumeRecordBudget } from "@/lib/agent/record-budget";
+import { consumeCompanyReadBudget } from "@/lib/agent/company-read-budget";
 import {
     toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
     toolGetResume, toolSaveResumeVariant, toolGetResumeVariant, toolSetResume,
     toolGetPreferences, toolSetPreferences, toolGetApplications,
     EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS, type ToolDeps,
 } from "@/lib/agent/tools";
+import { toolGetCompany, toolGetCompanyTimeline, toolSearchCompanies } from "@/lib/agent/company-tools";
 import { getAgentPreferences, setAgentPreferences } from "@/lib/agent/preferences";
 import { optionalString } from "@/lib/validation";
 import { searchJobs, locationVocabulary } from "@/lib/jobs/search";
@@ -23,6 +25,10 @@ import { listPursuitsForUser } from "@/lib/pursuits/list";
 import { PURSUIT_STAGES } from "@/lib/pursuits/types";
 import { getBaseResumeForUser } from "@/lib/resume/base-resume";
 import { setBaseResumeForUser } from "@/lib/resume/set-resume";
+import { getIntervuPg, getExhaustPg } from "@/lib/pg/pool";
+import { getCompanyPageData } from "@/lib/companies/get-company";
+import { getCompanyExhaust, CHANGE_HISTORY_LIMIT } from "@/lib/companies/exhaust";
+import { searchCompanies } from "@/lib/companies/company-search";
 
 /**
  * POST/GET/DELETE /api/mcp — Streamable HTTP entrypoint for intervu's agent
@@ -80,11 +86,21 @@ export function toolResult(payload: object): { content: Array<{ type: "text"; te
  * read off a module-level variable — so concurrent requests for different
  * users can never cross-contaminate.
  */
-function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Promise<Out>) {
+function withDeps<In, Out extends object>(
+    run: (deps: ToolDeps, input: In) => Promise<Out>,
+    opts?: { companyRead?: boolean },
+) {
     return async (input: In, ctx: ServerContext) => {
         const uid = ctx.http?.authInfo?.extra?.uid;
         const credentialId = ctx.http?.authInfo?.extra?.credentialId;
         if (typeof uid !== "string" || typeof credentialId !== "string") return toolResult({ error: "unauthorized" });
+        // D6 — checked BEFORE the tool runs, matched by the `companyRead`
+        // tool option rather than an enumerated tool-name list, so any
+        // future company-reading tool inherits this budget by construction.
+        if (opts?.companyRead) {
+            const budget = await consumeCompanyReadBudget(getIntervuPg(), credentialId);
+            if (!budget.ok) return toolResult({ error: budget.error });
+        }
         const deps: ToolDeps = {
             uid, search: searchJobs, locationVocabulary, upsert: upsertPursuitCore,
             getBaseResume: getBaseResumeForUser,
@@ -95,6 +111,9 @@ function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Pr
             setPreferences: setAgentPreferences,
             listApplications: listPursuitsForUser,
             consumeRecordBudget: (count) => consumeRecordBudget(firestoreStore(), credentialId, count),
+            getCompanyPageData,
+            getCompanyExhaust,
+            searchCompanies: (query, limit) => searchCompanies(getExhaustPg(), query, limit),
         };
         return toolResult(await run(deps, input));
     };
@@ -239,6 +258,22 @@ export const setPreferencesInput = z.object({
 export const getApplicationsInput = z.object({
     status: z.enum(PURSUIT_STAGES).optional(),
     limit: z.number().int().min(1).max(AGENT.APPLICATIONS_MAX_LIMIT).optional(),
+});
+
+/** Shared by all 3 company tools — one identifier field, either intervu's
+ *  own company slug or a bare domain (see `resolveCompanyDomain`,
+ *  company-tools.ts). */
+const companyIdentifierInput = z.object({ slug_or_domain: z.string().min(1).max(255) });
+
+export const getCompanyInput = companyIdentifierInput;
+
+export const getCompanyTimelineInput = companyIdentifierInput.extend({
+    limit: z.number().int().min(1).max(CHANGE_HISTORY_LIMIT).optional(),
+});
+
+export const searchCompaniesInput = z.object({
+    query: z.string().min(1).max(200),
+    limit: z.number().int().min(1).max(AGENT.COMPANY_SEARCH_LIMIT).optional(),
 });
 
 const mcpHandler = createMcpHandler(
@@ -401,6 +436,43 @@ const mcpHandler = createMcpHandler(
                 inputSchema: setPreferencesInput,
             },
             withDeps(toolSetPreferences)
+        );
+        server.registerTool(
+            "get_company",
+            {
+                title: "Get company profile",
+                description:
+                    "Get intervu's full Hiring Record for one company — profile facts, funding, SEC filings, " +
+                    "government contracts, tech stack, hiring health/cadence, and its current open roles. Accepts " +
+                    "either intervu's own company slug or a bare domain (e.g. \"stripe.com\"). Budgeted at " +
+                    `${AGENT.DAILY_COMPANY_READ_BUDGET} calls/day (UTC), shared with get_company_timeline and ` +
+                    "search_companies.",
+                inputSchema: getCompanyInput,
+            },
+            withDeps(toolGetCompany, { companyRead: true })
+        );
+        server.registerTool(
+            "get_company_timeline",
+            {
+                title: "Get company change timeline",
+                description:
+                    "Get one company's published change-event history (funding, leadership, headcount signals, " +
+                    `layoffs, ...), newest first, up to ${CHANGE_HISTORY_LIMIT} events. Same identifier and daily ` +
+                    "budget as get_company.",
+                inputSchema: getCompanyTimelineInput,
+            },
+            withDeps(toolGetCompanyTimeline, { companyRead: true })
+        );
+        server.registerTool(
+            "search_companies",
+            {
+                title: "Search companies",
+                description:
+                    "Search intervu's company directory by name or domain (substring match, no fuzzy ranking). " +
+                    `Returns up to ${AGENT.COMPANY_SEARCH_LIMIT} matches. Same daily budget as get_company.`,
+                inputSchema: searchCompaniesInput,
+            },
+            withDeps(toolSearchCompanies, { companyRead: true })
         );
     },
     { serverInfo: { name: "intervu-agent", version: "1.0.0" } }

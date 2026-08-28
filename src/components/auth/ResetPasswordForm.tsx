@@ -2,14 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { confirmReset } from "@/lib/firebase/client-auth";
+import { confirmPasswordResetAction } from "@/actions/auth";
 import { CircleNotch, CheckCircle } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
 
 export function ResetPasswordForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    // Firebase's reset link appends ?oobCode=...&mode=resetPassword to our continue URL.
-    const oobCode = searchParams.get("oobCode");
+    // WorkOS's reset link appends ?token=... to `passwordResetEmailContent`'s
+    // /reset-password URL (lib/email/password-reset.ts).
+    const token = searchParams.get("token");
 
     const [isPending, setIsPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -45,28 +49,20 @@ export function ResetPasswordForm() {
             setError("Password must be at least 6 characters");
             return;
         }
-        if (!oobCode) {
+        if (!token) {
             setError("This reset link is invalid or has expired. Please request a new one.");
             return;
         }
 
         setIsPending(true);
         setError(null);
-        try {
-            await confirmReset(oobCode, password);
+        const result = await confirmPasswordResetAction({ token, newPassword: password });
+        if ("error" in result) {
+            setError(result.error);
+        } else {
             setSuccess(true);
-        } catch (err: unknown) {
-            const code = (err as { code?: string })?.code;
-            if (code === "auth/expired-action-code" || code === "auth/invalid-action-code") {
-                setError("This reset link is invalid or has expired. Please request a new one.");
-            } else if (code === "auth/weak-password") {
-                setError("Password is too weak. Please choose a stronger one.");
-            } else {
-                setError((err as { message?: string })?.message || "Could not reset password. Please try again.");
-            }
-        } finally {
-            setIsPending(false);
         }
+        setIsPending(false);
     };
 
     if (success) {
@@ -74,14 +70,14 @@ export function ResetPasswordForm() {
             <div className="min-h-screen flex items-center justify-center px-4">
                 <div className="w-full max-w-xs text-center">
                     <div className="mb-6 flex justify-center">
-                        <div className="w-12 h-12 rounded-2xl bg-green-50 dark:bg-green-950/30 flex items-center justify-center shadow-2xs">
-                            <CheckCircle size={24} weight="fill" className="text-green-600 dark:text-green-400" />
+                        <div className="w-12 h-12 bg-verdict-good-bg flex items-center justify-center">
+                            <CheckCircle size={24} weight="fill" className="text-verdict-good" />
                         </div>
                     </div>
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                    <h2 className="text-lg font-semibold text-foreground mb-2">
                         Password updated
                     </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-muted-foreground">
                         Redirecting you to the app...
                     </p>
                 </div>
@@ -93,85 +89,81 @@ export function ResetPasswordForm() {
         <div className="min-h-screen flex items-center justify-center px-4">
             <div className="w-full max-w-xs">
                 <div className="mb-8 text-center">
-                    <h1 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    <h1 className="text-lg font-semibold text-foreground">
                         Set new password
                     </h1>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                         Enter your new password below
                     </p>
                 </div>
 
-                {!oobCode && (
-                    <div className="mb-4 text-xs text-amber-600 dark:text-amber-400 text-center">
+                {!token && (
+                    <div className="mb-4 text-xs text-warn text-center">
                         This page should be opened from the link in your reset email.
                     </div>
                 )}
 
-                {oobCode && (
+                {token && (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-1">
+                    <Field label="New password" htmlFor="reset-password-new">
                         <div className="relative">
-                            <input
+                            <Input
+                                id="reset-password-new"
                                 name="password"
                                 type={showPassword ? "text" : "password"}
                                 autoComplete="new-password"
                                 required
-                                placeholder="New password"
                                 minLength={6}
-                                className="block w-full border-b border-slate-300 bg-transparent py-2 pr-12 text-base md:text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
+                                className="pr-14"
                             />
                             <button
                                 type="button"
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => setShowPassword((show) => !show)}
                                 aria-label={showPassword ? "Hide password" : "Show password"}
-                                className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-foreground dark:text-slate-500"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground transition-colors"
                             >
                                 {showPassword ? "Hide" : "Show"}
                             </button>
                         </div>
-                    </div>
+                    </Field>
 
-                    <div className="space-y-1">
+                    <Field label="Confirm password" htmlFor="reset-password-confirm">
                         <div className="relative">
-                            <input
+                            <Input
+                                id="reset-password-confirm"
                                 name="confirmPassword"
                                 type={showConfirmPassword ? "text" : "password"}
                                 autoComplete="new-password"
                                 required
-                                placeholder="Confirm password"
                                 minLength={6}
-                                className="block w-full border-b border-slate-300 bg-transparent py-2 pr-12 text-base md:text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
+                                className="pr-14"
                             />
                             <button
                                 type="button"
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => setShowConfirmPassword((show) => !show)}
                                 aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                                className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-foreground dark:text-slate-500"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground transition-colors"
                             >
                                 {showConfirmPassword ? "Hide" : "Show"}
                             </button>
                         </div>
-                    </div>
+                    </Field>
 
                     {error && (
-                        <div className="mt-2 text-xs text-red-500 text-center">
+                        <div className="mt-2 text-xs text-destructive text-center">
                             {error}
                         </div>
                     )}
 
-                    <button
-                        type="submit"
-                        disabled={isPending || !oobCode}
-                        className="mt-6 w-full rounded bg-brand px-3 py-2 text-sm font-medium text-brand-foreground hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
+                    <Button type="submit" variant="brand" disabled={isPending || !token} className="w-full mt-6">
                         {isPending ? (
-                            <CircleNotch size={16} className="mx-auto animate-spin" />
+                            <CircleNotch size={16} className="animate-spin" />
                         ) : (
                             "Update password"
                         )}
-                    </button>
+                    </Button>
                 </form>
                 )}
             </div>

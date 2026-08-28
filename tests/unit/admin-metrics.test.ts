@@ -15,13 +15,9 @@ const NOW = Date.parse("2026-08-18T12:00:00Z");
 const DAY = 86_400_000;
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 
-const user = (opts: {
-    created?: string;
-    lastSignIn?: string;
-    providers?: string[];
-}): AuthUserLike => ({
-    metadata: { creationTime: opts.created, lastSignInTime: opts.lastSignIn },
-    providerData: (opts.providers ?? ["password"]).map((providerId) => ({ providerId })),
+const user = (opts: { created?: string; lastSignIn?: string }): AuthUserLike => ({
+    createdAt: opts.created ?? ago(0),
+    lastSignInAt: opts.lastSignIn,
 });
 
 /* ------------------------------ sharePercent ------------------------------ */
@@ -74,42 +70,6 @@ test("last sign-in drives the active windows, not sign-up date", () => {
     );
     assert.deepEqual(census.active, { "24h": 0, "7d": 1, "30d": 1 });
     assert.deepEqual(census.created, { "24h": 0, "7d": 0, "30d": 0 });
-});
-
-test("email-and-password accounts are the complement of federated ones", () => {
-    // The case that matters for the funnel: someone can sign up with an email
-    // address alone and never acquire a Firestore document, so Auth is the
-    // only place they exist.
-    const census = summarizeUsers(
-        [
-            user({ providers: ["password"] }),
-            user({ providers: ["password"] }),
-            user({ providers: ["google.com"] }),
-        ],
-        NOW,
-    );
-    assert.equal(census.federated, 1);
-    assert.equal(census.total - census.federated, 2);
-});
-
-test("an account holding both providers counts as federated exactly once", () => {
-    const census = summarizeUsers([user({ providers: ["password", "google.com"] })], NOW);
-    assert.equal(census.federated, 1);
-});
-
-test("a provider nobody has enabled yet still counts as federated", () => {
-    // Deliberately a provider this codebase does not use. `federated` matches
-    // on the class ("not a password login"), so turning on Apple or GitHub
-    // sign-in needs no edit here. A provider-id allowlist would silently
-    // report those accounts as email-and-password.
-    const census = summarizeUsers([user({ providers: ["apple.com"] })], NOW);
-    assert.equal(census.federated, 1);
-});
-
-test("an account with no provider data at all is not federated", () => {
-    const census = summarizeUsers([user({ providers: [] })], NOW);
-    assert.equal(census.federated, 0);
-    assert.equal(census.total, 1);
 });
 
 /* ------------------------------ groupMetrics ------------------------------ */
@@ -189,11 +149,10 @@ test("every metric explains itself", () => {
     }
 });
 
-test("the People metrics read Firebase Auth, which is the only place an email-only signup exists", () => {
+test("the People metrics read WorkOS, which is the only place an email-only signup exists", () => {
     const people = METRICS.filter((m) => m.group === "People").map((m) => m.id);
-    assert.ok(people.includes("accounts_password"), "no tile counts email-and-password accounts");
-    assert.ok(people.includes("accounts_federated"), "no tile counts federated accounts");
     assert.ok(people.includes("accounts"), "no tile counts accounts overall");
+    assert.ok(people.includes("returning"), "no tile counts recently-active accounts");
 });
 
 test("the waitlists are counted, since those addresses have no account at all", () => {

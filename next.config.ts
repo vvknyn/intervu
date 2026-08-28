@@ -23,7 +23,7 @@ const CONTENT_SECURITY_POLICY = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
   "connect-src 'self' https:",
-  "frame-src 'self' https://*.firebaseapp.com",
+  "frame-src 'self' https://*.firebaseapp.com https://challenges.cloudflare.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -154,6 +154,14 @@ const nextConfig: NextConfig = {
       {
         source: "/resume-tailor",
         destination: "/yours",
+        permanent: true,
+      },
+      // Billing removed (2026-08-27 — everything free, yield is user data).
+      // /pricing no longer exists; anything linking to it lands on the
+      // front door instead of a 404.
+      {
+        source: "/pricing",
+        destination: "/",
         permanent: true,
       },
     ];

@@ -20,7 +20,6 @@ import {
   serializeJsonLd,
 } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
-import { CursorFabricBackground } from "@/components/ui/CursorFabricBackground";
 import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 
 /**
@@ -92,7 +91,7 @@ export const metadata: Metadata = {
   // No `images` array here — leaving it unset lets Next's file-based
   // convention (opengraph-image.tsx, 1200x630) fill it in, and lets every
   // route with its own generator (jobs/[slug], co/[slug], companies/[slug],
-  // pricing, trends) override it per-route. An explicit `images` entry here
+  // trends) override it per-route. An explicit `images` entry here
   // previously WON over all of those, so the 512x512 square app icon shipped
   // as the og:image on every route instead (2026-08-24 fix).
   openGraph: {
@@ -176,7 +175,6 @@ export default function RootLayout({
         <AuthKitProvider>
         <PostHogProvider>
           <ThemeProvider>
-            <CursorFabricBackground />
             <TourProvider>
               {/* Wraps BOTH the header and the page: /jobs publishes its search
                   summary here once its own search box scrolls away, and TopBar

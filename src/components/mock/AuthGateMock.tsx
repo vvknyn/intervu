@@ -359,7 +359,7 @@ export function AuthGateMock() {
                                             setPendingNext("/jobs");
                                             setPhase("bounce");
                                         }}
-                                        className="text-live"
+                                        className="text-brand"
                                     >
                                         Sign in
                                     </button>

@@ -1,9 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+import { reconcileIdentity } from "../../openclaw/scripts/mcporter-reconcile.mjs";
 
 /**
  * The installer runs `curl -fsSL <origin>/install | bash` with no
@@ -123,6 +125,22 @@ function runPatch(initial: unknown, redirect: string = REDIRECT, serverUrl: stri
         stdout,
         identityChanged: stdout.includes("IDENTITY_CHANGED"),
     };
+}
+
+/**
+ * Same shape as runPatch, but through openclaw/scripts/mcporter-reconcile.mjs
+ * — the copy a scheduled (cron) run's preflight calls, since install.sh
+ * itself cannot be imported (curl|bash has no checkout to import from). The
+ * two copies cannot share code for that reason; the "installer mcporter
+ * config patch stays in sync" describe block below is what proves they stay
+ * in lockstep instead.
+ */
+function runReconcile(initial: unknown, redirect: string = REDIRECT, serverUrl: string = SERVER_URL): PatchResult {
+    const dir = mkdtempSync(path.join(tmpdir(), "mcporter-reconcile-"));
+    const file = path.join(dir, "mcporter.json");
+    writeFileSync(file, JSON.stringify(initial, null, 2));
+    const identityChanged = reconcileIdentity(file, SERVER_KEY, serverUrl, redirect);
+    return { config: JSON.parse(readFileSync(file, "utf8")), stdout: "", identityChanged };
 }
 
 describe("installer mcporter config patch", () => {
@@ -314,6 +332,117 @@ describe("installer origin", () => {
             installerVar("INTERVU_BASE"),
             issuer,
             "install.sh points people at an origin the MCP server does not identify as"
+        );
+    });
+});
+
+describe("openclaw/scripts/mcporter-reconcile.mjs stays in lockstep with install.sh's inline patch", () => {
+    // A scheduled run's preflight (mcporter-preflight.mjs, see
+    // mcporter-preflight.test.ts) calls reconcileIdentity() instead of
+    // install.sh's node -e block, because curl|bash install.sh has no repo
+    // checkout to import from. That structural gap is why these two must be
+    // proven behaviorally identical rather than sharing an import — every
+    // fixture below is run through BOTH and must produce the same config and
+    // the same IDENTITY_CHANGED signal.
+    const fixtures: Array<{ name: string; initial: unknown; redirect?: string; serverUrl?: string }> = [
+        {
+            name: "predates the pin",
+            initial: { mcpServers: { [SERVER_KEY]: { baseUrl: SERVER_URL, lifecycle: "keep-alive" } } },
+        },
+        {
+            name: "already matches",
+            initial: {
+                mcpServers: { [SERVER_KEY]: { baseUrl: SERVER_URL, lifecycle: "keep-alive", oauthRedirectUrl: REDIRECT } },
+            },
+        },
+        {
+            name: "pinned to some other port",
+            initial: { mcpServers: { [SERVER_KEY]: { baseUrl: SERVER_URL, oauthRedirectUrl: "http://127.0.0.1:52045/callback" } } },
+        },
+        {
+            name: "stale previous origin (the 2026-08-24 case)",
+            initial: {
+                mcpServers: { [SERVER_KEY]: { baseUrl: "https://previous-origin.example/api/mcp", oauthRedirectUrl: REDIRECT } },
+            },
+        },
+        { name: "server entry missing entirely", initial: { mcpServers: {} } },
+        { name: "no mcpServers key at all", initial: {} },
+        {
+            name: "leaves other servers untouched",
+            initial: {
+                mcpServers: {
+                    [SERVER_KEY]: { baseUrl: SERVER_URL },
+                    "some-other-server": { baseUrl: "https://example.com/mcp", lifecycle: "on-demand" },
+                },
+            },
+        },
+    ];
+
+    for (const { name, initial, redirect, serverUrl } of fixtures) {
+        it(name, () => {
+            const fromInstaller = runPatch(initial, redirect, serverUrl);
+            const fromModule = runReconcile(initial, redirect, serverUrl);
+            assert.deepEqual(
+                fromModule.config,
+                fromInstaller.config,
+                `mcporter-reconcile.mjs wrote a different config than install.sh for case "${name}"`
+            );
+            assert.equal(
+                fromModule.identityChanged,
+                fromInstaller.identityChanged,
+                `IDENTITY_CHANGED differs between mcporter-reconcile.mjs and install.sh for case "${name}"`
+            );
+        });
+    }
+});
+
+describe("installer cron preflight wiring", () => {
+    it("registers every cron job through the shared arm_cron_job helper, not by hand", () => {
+        const source = installerSource();
+        const calls = source.match(/^arm_cron_job .+$/gm) ?? [];
+        assert.ok(calls.some((c) => c.includes("intervu-apply-digest")), "digest job must go through arm_cron_job");
+        assert.ok(calls.some((c) => c.includes("intervu-apply-recap")), "recap job must go through arm_cron_job");
+        // Every actual `openclaw cron add` call site must live INSIDE
+        // arm_cron_job's own body — the one place that prepends
+        // PREFLIGHT_DIRECTIVE. A second call site outside it (a job
+        // registered "by hand") would skip the shared directive, which is
+        // what "a job added later inherits the check by construction" rests
+        // on, so strip the function body and require nothing is left.
+        const fnBody = /arm_cron_job\(\)\s*\{[\s\S]*?\n\}/.exec(source)?.[0];
+        assert.ok(fnBody, "arm_cron_job function definition not found");
+        const outsideFn = source.replace(fnBody as string, "");
+        assert.doesNotMatch(
+            outsideFn,
+            /openclaw cron add --name/,
+            "every cron registration must go through arm_cron_job, never call `openclaw cron add` directly elsewhere"
+        );
+    });
+
+    it("arm_cron_job wires every job's --system-event through the one shared PREFLIGHT_DIRECTIVE", () => {
+        const source = installerSource();
+        const fn = /arm_cron_job\(\)\s*\{[\s\S]*?\n\}/.exec(source)?.[0];
+        assert.ok(fn, "arm_cron_job function definition not found");
+        assert.match(
+            fn as string,
+            /--system-event "\$PREFLIGHT_DIRECTIVE \$task"/,
+            "arm_cron_job must prepend PREFLIGHT_DIRECTIVE to every job, not let a job compose its own --system-event"
+        );
+        const assignments = source.match(/^PREFLIGHT_DIRECTIVE=/gm) ?? [];
+        assert.equal(assignments.length, 1, "PREFLIGHT_DIRECTIVE must be assigned exactly once — a second copy is a second answer to what the directive says");
+    });
+
+    it("names a preflight script that actually exists in the repo, with no new literal callback port", () => {
+        const source = installerSource();
+        assert.match(source, /PREFLIGHT_SCRIPT="\$INSTALL_DIR\/scripts\/mcporter-preflight\.mjs"/);
+        assert.ok(
+            existsSync(path.join(process.cwd(), "openclaw", "scripts", "mcporter-preflight.mjs")),
+            "PREFLIGHT_SCRIPT names a path that must exist under openclaw/scripts/ (packaged into the skill tarball by scripts/prebuild-openclaw.mjs)"
+        );
+        const cronSection = source.slice(source.indexOf("# --- 7. Arm the cron jobs"));
+        assert.doesNotMatch(
+            cronSection,
+            /(?:127\.0\.0\.1|localhost):\d+/,
+            "the cron/preflight wiring must not hardcode a literal callback port — MCP_OAUTH_REDIRECT stays install.sh's single source"
         );
     });
 });

@@ -51,6 +51,16 @@ export interface PublicJob {
   salary_period: string | null;
   visa_sponsorship: boolean | null;
   tags: string[];
+  /**
+   * Owned by Subspace's own classifier, not intervu — populated upstream and
+   * filterable live since Meili task 467532 (2026-08-18, see
+   * `JOBS_INDEX_SETTINGS` in meilisearch.ts) but never previously surfaced on
+   * this wire type. Search hits are cast straight through (`as PublicJob[]`,
+   * no stripping mapper), so this was always present on the raw document —
+   * adding it here is typing-only, zero runtime change. Optional because
+   * older/unclassified documents don't carry it.
+   */
+  occupation?: string | null;
   apply_url: string;
   source: string;
   posted_at: string | null;
@@ -103,6 +113,15 @@ export interface PublicJob {
   google_indexed_at?: string | null;
   is_indexed_linkedin?: boolean | null;
   linkedin_indexed_at?: string | null;
+  /** Enriched deterministic qualifications & telemetry */
+  min_years_experience?: number | null;
+  max_years_experience?: number | null;
+  must_have_skills?: string[];
+  preferred_skills?: string[];
+  tech_stack?: string[];
+  in_office_days?: number | null;
+  normalized_salary_min?: number | null;
+  normalized_salary_max?: number | null;
   /**
    * ITEM O-FE (2026-08-15) — user "Report listing" count, aggregated
    * upstream from the flags endpoint. Same dark-launch posture as the
@@ -148,18 +167,21 @@ export const FACETABLE_KEYS = [
   "visa_sponsorship",
   "location_country",
   "source",
+  "tech_stack",
+  "must_have_skills",
 ] as const;
 export type FacetKey = (typeof FACETABLE_KEYS)[number];
 
 /** The subset of FACETABLE_KEYS the client actually consumes per search —
  *  either as a generic FacetGroup (work_type/experience_level/employment_type/
- *  location_country, SerpFilters.tsx) or a bespoke reader of its own facet
- *  values (ghost_badge → the ghost-hide count; visa_sponsorship → the
- *  sparse-filter honesty caption). `source` is FACETABLE (filterable via
- *  ?src=, url-state.ts, and by MCP) but never rendered — requesting its
- *  distribution on every search computes a count nothing reads. The
- *  per-search Meilisearch `facets:` request (buildSearchBody, meilisearch.ts)
- *  asks for exactly this list, not the full FACETABLE_KEYS. */
+ *  location_country/tech_stack/must_have_skills, SerpFilters.tsx) or a
+ *  bespoke reader of its own facet values (ghost_badge → the ghost-hide
+ *  count; visa_sponsorship → the sparse-filter honesty caption). `source` is
+ *  FACETABLE (filterable via ?src=, url-state.ts, and by MCP) but never
+ *  rendered — requesting its distribution on every search computes a count
+ *  nothing reads. The per-search Meilisearch `facets:` request
+ *  (buildSearchBody, meilisearch.ts) asks for exactly this list, not the
+ *  full FACETABLE_KEYS. */
 export const REQUESTED_FACET_KEYS: readonly FacetKey[] = [
   "work_type",
   "experience_level",
@@ -167,6 +189,8 @@ export const REQUESTED_FACET_KEYS: readonly FacetKey[] = [
   "ghost_badge",
   "location_country",
   "visa_sponsorship",
+  "tech_stack",
+  "must_have_skills",
 ] as const;
 
 /** Per-facet value→count, for rendering filter options with live counts. */
@@ -177,6 +201,17 @@ export type JobSortMode = "newest" | "relevance" | "salary_desc";
 
 /** Age-bucket filter, computed against sanitized `posted_ts` at request time. */
 export type PostedBucket = "1d" | "3d" | "7d" | "30d" | "older";
+
+/**
+ * Minimum-years-of-experience bucket, filtered against `min_years_experience`
+ * (Subspace enrichment — see `PublicJob.min_years_experience`). Buckets from
+ * the live corpus distribution measured 2026-08-26: 0-2 (36,157 jobs), 3-5
+ * (43,093), 6-10 (22,136), 11+ (12,097). Unlike `PostedBucket`, there is no
+ * default bucket a fresh visit lands on — `undefined` is both "no filter" and
+ * the pristine state (see `FilterPanel.PRISTINE_FILTER_STATE`), since backfill
+ * coverage (~47% of the corpus) means the field is still draining in.
+ */
+export type YearsExperienceBucket = "0-2" | "3-5" | "6-10" | "11+";
 
 /** Search request shape shared across every backend + the server action. */
 export interface JobSearchParams {
@@ -203,6 +238,14 @@ export interface JobSearchParams {
   sort?: JobSortMode;
   /** Restrict to jobs whose sanitized posted_ts falls in this age bucket. */
   postedBucket?: PostedBucket;
+  /**
+   * Restrict to jobs whose `min_years_experience` falls in this bucket — OR
+   * that lack the field entirely (see `buildFilter`'s composed clause,
+   * meilisearch.ts). The missing-field union is REQUIRED, not an edge case:
+   * backfill coverage is ~47% and draining, so a bare range clause would
+   * silently hide the majority of the corpus from every bucket.
+   */
+  yearsExperience?: YearsExperienceBucket;
   /**
    * Restrict to jobs posted at or after this exact epoch-ms floor —
    * `postedBucket`'s sibling for an arbitrary "since a stored cursor" query

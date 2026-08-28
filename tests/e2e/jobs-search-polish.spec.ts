@@ -47,11 +47,16 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
     // Portal redesign rewrite: the "Sort results" combobox (Date posted /
     // Salary high to low / Best match, with Best match disabled sans query)
     // is gone — sort is now three plain `ToolbarSegment` buttons (page.tsx:
-    // freshest / top pay / best match), each a real `aria-pressed` toggle,
+    // freshest / top pay / relevance), each a real `aria-pressed` toggle,
     // gated as a group on `result?.configured` the same way the old
-    // combobox was. "top pay" and "best match" always render when
+    // combobox was. "top pay" and the third segment always render when
     // configured; "freshest" only when `postedDateSupported` — guarded
     // separately rather than folded into the top-level configured check.
+    //
+    // Résumé-fold (2026-08): the third segment's own label is résumé-aware —
+    // "Best match" (résumé-ranked) when a résumé is on file, "Relevance"
+    // (plain relevance sort) otherwise. Playwright never signs in here, so
+    // `resumeOnFile` is always null and every test below sees "relevance".
     /**
      * A multi-word role search must not answer with rows that matched only one
      * of its words.
@@ -84,7 +89,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         expect(titles).toMatch(/account|manager/);
     });
 
-    test('TC-JOBS-SORT-001: sort segments offer freshest / top pay / best match when configured', async ({ page }) => {
+    test('TC-JOBS-SORT-001: sort segments offer freshest / top pay / relevance when configured', async ({ page }) => {
         await enterBrowseMode(page);
 
         const topPay = page.getByRole('button', { name: 'top pay' });
@@ -105,16 +110,15 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             return;
         }
 
-        const bestMatch = page.getByRole('button', { name: 'best match' });
-        await expect(bestMatch).toBeVisible();
+        const relevance = page.getByRole('button', { name: 'relevance' });
+        await expect(relevance).toBeVisible();
 
         const freshest = page.getByRole('button', { name: 'freshest' });
         if ((await freshest.count()) > 0) {
             // Default landing sort (no query, no explicit override) is
-            // "newest" — freshest starts pressed; best match has nothing to
-            // rank without a query or an active résumé fit.
+            // "newest" — freshest starts pressed; relevance does not.
             await expect(freshest).toHaveAttribute('aria-pressed', 'true');
-            await expect(bestMatch).toHaveAttribute('aria-pressed', 'false');
+            await expect(relevance).toHaveAttribute('aria-pressed', 'false');
         }
 
         await topPay.click();
@@ -125,11 +129,11 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await expect(page).toHaveURL(/sort=salary/);
     });
 
-    test('TC-JOBS-SORT-002: clearing query resets best-match/relevance sort to freshest', async ({ page }) => {
+    test('TC-JOBS-SORT-002: clearing query resets relevance sort to freshest', async ({ page }) => {
         await enterBrowseMode(page);
 
-        const bestMatch = page.getByRole('button', { name: 'best match' });
-        if ((await bestMatch.count()) === 0) {
+        const relevance = page.getByRole('button', { name: 'relevance' });
+        if ((await relevance.count()) === 0) {
             test.skip(true, 'Backend unconfigured — sort segments absent');
         }
         const freshest = page.getByRole('button', { name: 'freshest' });
@@ -141,16 +145,59 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await searchInput.fill('engineer');
         await expect(page).toHaveURL(/q=engineer/);
 
-        // With a query, "best match" is plain relevance (chooseSort), not the
-        // résumé-rank action — see jobs-first-screen.spec.ts's "best match
-        // with no query" test for that other branch.
-        await bestMatch.click();
-        await expect(bestMatch).toHaveAttribute('aria-pressed', 'true');
+        // Signed out (no résumé on file), this segment is always plain
+        // relevance sort (`chooseBestMatch`, page.tsx) — never the
+        // résumé-rank action, which only activates when `resumeOnFile === true`.
+        await relevance.click();
+        await expect(relevance).toHaveAttribute('aria-pressed', 'true');
         await expect(page).toHaveURL(/sort=relevance/);
 
         await searchInput.fill('');
         await expect(freshest).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 });
-        await expect(bestMatch).toHaveAttribute('aria-pressed', 'false');
+        await expect(relevance).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    test('TC-JOBS-SORT-003: sort and filter order do not change matched count or ID set', async ({ page }) => {
+        const q = 'product%20manager';
+        await page.goto(`/jobs?q=${q}&work_type=remote&experience_level=senior&posted=any`);
+        await page.waitForLoadState('networkidle');
+
+        const relevance = page.getByRole('button', { name: 'relevance' });
+        if ((await relevance.count()) === 0) {
+            test.skip(true, 'Backend unconfigured — sort segments absent');
+        }
+        const freshest = page.getByRole('button', { name: 'freshest' });
+        const topPay = page.getByRole('button', { name: 'top pay' });
+        if ((await freshest.count()) === 0) {
+            test.skip(true, 'Corpus carries no posted_ts — freshest segment hidden');
+        }
+
+        const resultLine = page.getByTestId('result-line');
+        await expect(resultLine).toBeVisible({ timeout: 15000 });
+        const initialCount = (await resultLine.textContent())?.trim() ?? '';
+        if (!initialCount || /No roles match/i.test(initialCount)) {
+            test.skip(true, 'No rows for this query in the current corpus');
+        }
+
+        // Compare totals, not the first page of titles: an explicit sort
+        // reorders the same matched set, so page 1's rows legitimately change.
+        await freshest.click();
+        await expect(page).toHaveURL(/sort=newest/);
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
+
+        await topPay.click();
+        await expect(page).toHaveURL(/sort=salary/);
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
+
+        await relevance.click();
+        await expect(page).toHaveURL(/sort=relevance/);
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
+
+        // Reverse filter apply order on a fresh navigation — same total.
+        await page.goto(`/jobs?q=${q}&experience_level=senior&work_type=remote&posted=any`);
+        await page.waitForLoadState('networkidle');
+        await expect(resultLine).toBeVisible({ timeout: 15000 });
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
     });
 
     test('TC-JOBS-REFRESH-001: refetch keeps current results visible and shows in-flight feedback', async ({ page }) => {

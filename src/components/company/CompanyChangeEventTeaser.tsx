@@ -1,5 +1,5 @@
 import React from "react";
-import { eventTypeLabel } from "@/lib/companies/events";
+import { eventTypeLabel, humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent } from "@/lib/companies/types";
 import { cn } from "@/lib/utils";
 import { directionStyle, eventDate } from "@/components/company/CompanyChangeEvents";
@@ -32,7 +32,9 @@ export function CompanyChangeEventTeaser({ event }: { event: CompanyChangeEvent 
             {label}
           </span>
         )}
-        <span className="text-[14px] leading-snug text-foreground">{event.headline}</span>
+        <span className="text-[14px] leading-snug text-foreground">
+          {humanizeProjectorHeadline(event.headline)}
+        </span>
         {date && <span className="text-[11px] text-muted-foreground">· {date}</span>}
       </div>
     </div>

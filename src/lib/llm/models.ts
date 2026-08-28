@@ -29,9 +29,10 @@ export const AVAILABLE_MODELS = {
  * AI (bring-your-own-key was removed): once every call is on our key, the
  * argument for laddering résumé parsing applies to all of them, and opting
  * each caller in one at a time is how a call site gets forgotten. It is now
- * the default at the two chokepoints — `fetchJSON` and `generateGenericText`
- * in actions/generate-context.ts — so a new caller is covered by
- * construction rather than by remembering to pass an argument.
+ * the default inside `fetchJSON`, the one surviving chokepoint every caller
+ * of `generateGenericJSON` (actions/generate-context.ts) routes through — so
+ * a new caller is covered by construction rather than by remembering to pass
+ * an argument.
  *
  * A caller that names its own model still skips these rungs entirely. That
  * is the point of naming one: answering a deliberately-premium request from

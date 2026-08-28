@@ -34,6 +34,13 @@ function StoriesContent() {
     const searchParams = useSearchParams();
 
     const [user, setUser] = useState<User | null>(null);
+    // Separate from `loading` below on purpose: that flag tracks the
+    // stories/sources FETCH, not whether we know yet who's signed in.
+    // Conflating them into one boolean was the bug (2026-08-26 front-door
+    // audit) — a signed-out visitor fell through to the signed-in layout
+    // (MotivationalBanner included) for as long as the fetch took, because
+    // the guest branch below only checked the fetch flag.
+    const [authChecked, setAuthChecked] = useState(false);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -42,6 +49,13 @@ function StoriesContent() {
 
     const [stories, setStories] = useState<StarStory[]>([]);
     const [sources, setSources] = useState<SourceItem[]>([]);
+
+    // Picked once on mount, not per render: `pickRandom()` called directly in
+    // JSX re-rolls on every re-render, so the guest heading changed mid-visit
+    // instead of reading as one line written for the page (2026-08-26
+    // front-door audit).
+    const [guestHeading] = useState(() => pickRandom(LOGIN_REQUIRED.stories.headings));
+    const [guestSubtext] = useState(() => pickRandom(LOGIN_REQUIRED.stories.subtexts));
 
     const defaultTab = searchParams.get("tab") === "sources" ? "sources" : "stories";
 
@@ -56,6 +70,7 @@ function StoriesContent() {
         const unsubscribe = onAuthChange((firebaseUser) => {
             if (isSigningOut.current) return;
             setUser(firebaseUser);
+            setAuthChecked(true);
             if (firebaseUser) {
                 router.refresh();
             }
@@ -108,8 +123,16 @@ function StoriesContent() {
         }
     };
 
+    // Auth resolving — a neutral skeleton, not the signed-in layout. This is
+    // the state that used to fall through to the tabs branch below (and its
+    // unconditional MotivationalBanner) for every visitor, signed in or not,
+    // until the stories/sources fetch finished.
+    if (!authChecked) {
+        return <StoriesLoading />;
+    }
+
     // Guest View - Login Required
-    if (!loading && !user) {
+    if (!user) {
         return (
             <PageLayout
                 header={<PageHeader size="display" sticky={false} title="Stories" description="Your best interview answers, saved and reusable" />}
@@ -119,17 +142,17 @@ function StoriesContent() {
                         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 256 256"><path d="M216,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H56V56H216V200ZM184,80a8,8,0,0,1,8-8h0a8,8,0,0,1,8,8v64a8,8,0,0,1-8,8h0a8,8,0,0,1-8-8ZM80,96a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,96Zm0,32a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,128Zm0,32a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,160Z"></path></svg>
                     </div>
                     <h2 className="text-xl font-semibold tracking-tight mb-2">
-                        {pickRandom(LOGIN_REQUIRED.stories.headings)}
+                        {guestHeading}
                     </h2>
                     <p className="text-muted-foreground max-w-[400px] mb-8 text-sm">
-                        {pickRandom(LOGIN_REQUIRED.stories.subtexts)}
+                        {guestSubtext}
                     </p>
 
                     <Button
                         onClick={() => setAuthPopoverOpen(true)}
                         className="min-w-[120px]"
                     >
-                        Log in
+                        Sign in
                     </Button>
                     <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
                 </div>

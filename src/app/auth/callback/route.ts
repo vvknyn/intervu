@@ -1,5 +1,7 @@
 import { handleAuth } from "@workos-inc/authkit-nextjs";
+import { after } from "next/server";
 import { getSiteUrl } from "@/lib/seo/constants";
+import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisioning";
 
 /**
  * WorkOS AuthKit OAuth callback route.
@@ -18,5 +20,22 @@ import { getSiteUrl } from "@/lib/seo/constants";
  * robots.txt already use, and it throws when unset rather than guessing a
  * domain — so a missing var fails loudly at startup instead of silently
  * redirecting users somewhere unreachable.
+ *
+ * `onSuccess` is this route's provisioning hook — the class fix for spec §4.
+ * Google/passkey/magic-auth sign-in never touches `actions/auth.ts`'s
+ * `signIn`/`signUp`, so without a hook here those users got no welcome email
+ * and no "Intervu" org membership. Deferred via `after()`,
+ * same reasoning as `signIn`/`signUp`'s own provisioning calls: it must never
+ * turn a successful WorkOS exchange into a redirect error, and a person
+ * finishing sign-in should not wait on Resend or Firestore to land on the app.
  */
-export const GET = handleAuth({ baseURL: getSiteUrl() });
+export const GET = handleAuth({
+    baseURL: getSiteUrl(),
+    onSuccess: async ({ user }) => {
+        after(() =>
+            realProvisioningDeps()
+                .then((deps) => provisionAppAccess(deps, user))
+                .catch((err) => console.error("[Auth] callback provisioning failed:", err)),
+        );
+    },
+});

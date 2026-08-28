@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useTour } from "@/hooks/use-tour";
 import { Question, X, Play } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
-import { tourSteps } from "./tour-steps";
-import { visibleTourTarget } from "./TourProvider";
+import { cn } from "@/lib/utils";
+import { visibleStepsForTour } from "./TourProvider";
+import { dismissTourThisSession, isTourDismissedThisSession } from "./tour-storage";
 
 function getPageId(pathname: string): string {
   if (pathname === "/" || pathname === "") return "dashboard";
@@ -14,78 +15,86 @@ function getPageId(pathname: string): string {
 }
 
 export function TourTrigger() {
-  const {
-    isActive,
-    isMinimized,
-    currentStep,
-    steps,
-    startTour,
-    stopTour,
-    resume,
-    hasSeenTour,
-  } = useTour();
+  const { isActive, isMinimized, currentStep, steps, startTour, stopTour, resume, hasSeenTour } = useTour();
 
   const pathname = usePathname();
   const pageId = getPageId(pathname);
   const hasSeen = hasSeenTour(pageId);
 
-  // Only show the button if the current page has tour targets in the DOM
-  const [hasTargets, setHasTargets] = useState(false);
+  // A 1-step "tour" isn't a tour — only offer it once at least 2 of its
+  // steps have a visible target in the current DOM.
+  const [tourAvailable, setTourAvailable] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    const stepsForPage = tourSteps[pageId] || [];
-    const found = stepsForPage.some((s) => visibleTourTarget(s.selector));
-    setHasTargets(found);
+    setTourAvailable(visibleStepsForTour(pageId).length >= 2);
+    setDismissed(isTourDismissedThisSession(pageId));
   }, [pageId]);
 
-  // When tour is active and not minimized, overlay handles everything
+  // Overlay handles everything while the tour is active and expanded.
   if (isActive && !isMinimized) return null;
 
-  // Minimized pill
-  if (isActive && isMinimized) {
-    return (
-      <div className="fixed bottom-24 right-6 lg:bottom-6 z-[80] flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <button
-          onClick={resume}
-          className="flex items-center gap-2 px-3 py-2 rounded-full bg-brand text-brand-foreground text-xs font-semibold shadow-lg hover:opacity-90 transition-opacity"
-        >
-          <Play size={12} weight="fill" />
-          <span>
-            Tour ({currentStep + 1}/{steps.length})
-          </span>
-        </button>
-        <button
-          onClick={stopTour}
-          className="p-1.5 rounded-full bg-card text-muted-foreground shadow-lg border border-border hover:text-foreground transition-colors"
-          aria-label="End tour"
-        >
-          <X size={12} weight="bold" />
-        </button>
-      </div>
-    );
-  }
+  const minimizedTour = isActive && isMinimized;
 
   // /jobs uses its own quiet replay control on the filters row — the
-  // floating pill collides with SIGN IN TO APPLY on mobile.
-  if (pageId === "jobs") return null;
+  // floating pill collides with SIGN IN TO APPLY on mobile. Only the idle
+  // offer is suppressed here; a minimized in-progress tour still resumes.
+  if (!minimizedTour && pageId === "jobs") return null;
+  if (!minimizedTour && (!tourAvailable || dismissed)) return null;
 
-  // No tour targets on this page — don't render the button
-  if (!hasTargets) return null;
+  const label = minimizedTour ? `Tour (${currentStep + 1}/${steps.length})` : "Tour";
 
-  // Default floating button — small and subtle. Sits above the mobile tab bar
-  // (bottom ~7rem) and clear of the footer on desktop (bottom-6), honoring the
-  // iOS safe-area inset so it never collides with footer text.
+  const handlePillClick = () => {
+    if (minimizedTour) resume();
+    else startTour();
+  };
+
+  const handleDismiss = () => {
+    if (minimizedTour) {
+      stopTour();
+      return;
+    }
+    // Session-only: the permanent seen-state (`markTourSeen`) is reserved
+    // for actually completing/stopping a tour, not for waving off the offer.
+    dismissTourThisSession(pageId);
+    setDismissed(true);
+  };
+
   return (
-    <button
-      onClick={() => startTour()}
-      className="fixed right-4 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-[80] flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/80 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur-sm transition-all outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand/40 lg:bottom-6"
-      aria-label="Take a tour"
-    >
-      <Question size={14} weight="bold" />
-      <span className="tracking-wide">Take a tour</span>
-      {!hasSeen && (
-        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-brand opacity-60 motion-safe:animate-ping" />
+    // Single dismissible-chip control: one pill, an inline ✕ hit-area.
+    // Sits above the mobile bottom tab bar (its real height token, not a
+    // guessed offset) and clear of the footer on desktop.
+    <div
+      className={cn(
+        "fixed right-4 z-[80] flex items-center gap-0.5 rounded-full pl-2.5 pr-1 py-1 text-[11px] font-medium shadow-sm backdrop-blur-sm transition-all outline-none animate-in fade-in slide-in-from-bottom-2 duration-200",
+        "bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+1rem)] lg:right-6 lg:bottom-6",
+        minimizedTour
+          ? "bg-brand text-brand-foreground shadow-lg"
+          : "border border-border/50 bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
-    </button>
+    >
+      <button
+        type="button"
+        onClick={handlePillClick}
+        className="flex items-center gap-1.5 rounded-full py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      >
+        {minimizedTour ? <Play size={12} weight="fill" /> : <Question size={14} weight="bold" />}
+        <span className="tracking-wide">{label}</span>
+      </button>
+      <button
+        type="button"
+        onClick={handleDismiss}
+        aria-label={minimizedTour ? "End tour" : "Dismiss tour"}
+        className={cn(
+          "relative rounded-full p-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/40",
+          minimizedTour ? "text-brand-foreground/70 hover:text-brand-foreground" : "hover:text-foreground",
+        )}
+      >
+        <X size={12} weight="bold" />
+        {!minimizedTour && !hasSeen && (
+          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-brand opacity-60 motion-safe:animate-ping" />
+        )}
+      </button>
+    </div>
   );
 }

@@ -72,6 +72,31 @@ export function mcpConnectorUrl(issuer: string): string {
 export const MCP_CONNECTOR_HINT = "Paste as a custom connector in Claude or ChatGPT. Approve once.";
 export const OPENCLAW_INSTALL_HINT = "Runs on your machine. Stops before submit. Free to self-host.";
 
+/**
+ * Platform-scoped install truth for the local OpenClaw agent (D1, 2026-08-26
+ * redesign). Single source for `PlatformInstallPanel`, the one component that
+ * renders it — before this, /connect showed the Mac command with no waitlist
+ * at all while /openclaw's closing section printed a blanket "get notified
+ * when it's installable" above its own live install steps, and only
+ * /connect/help told the truth ("only installs on a Mac today — there isn't
+ * a Windows version yet"). Two placements reading one object can't repeat
+ * that drift.
+ */
+export const PLATFORM_INSTALL_STATUS = {
+  mac: {
+    row: "macOS",
+    pill: "available today",
+    body: "Install now — one Terminal command.",
+  },
+  waitlist: {
+    row: "Windows · Linux",
+    pill: "waitlist",
+    body: "No build yet. Leave your email and we'll tell you when yours is ready.",
+  },
+} as const;
+
+export const MAC_INSTALL_COMMAND_LABEL = "Mac terminal command";
+
 export type ThreadRole = "agent" | "user";
 
 export interface ThreadMessage {

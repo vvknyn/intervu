@@ -77,6 +77,40 @@ describe("/co/[slug]: roles list renders before secondary (intel/hiring-activity
   });
 });
 
+describe("/co/[slug]: hero fact row is icon-led facts, not a joined mono string", () => {
+  it("renders the domain as a real link plus the hiring-geos and remote-share facts via buildCompanyFacts", () => {
+    const source = readFileSync(CO_PAGE, "utf8");
+    assert.match(source, /buildCompanyFacts\(/, "hero must read the structured facts, not the retired joined-line helper");
+    assert.match(source, /href=\{`https:\/\/\$\{facts\.domain\}`\}/, "domain must render as a real external link");
+    assert.match(source, /ArrowSquareOut/);
+    assert.match(source, /GlobeHemisphereWest/);
+    assert.match(source, /House/);
+  });
+
+  it("carries no font-mono utility — the fact row is prose, not a tabular/aligned surface", () => {
+    const source = readFileSync(CO_PAGE, "utf8");
+    assert.doesNotMatch(source, /(?<![-\w])font-mono(?![-\w])/);
+  });
+});
+
+describe("/co/[slug]: the rail — hiring record and list health, gated, no button", () => {
+  it("a second, distinct CompanyIntelGate carries the rail's two named boxes", () => {
+    const source = readFileSync(CO_PAGE, "utf8");
+    const secondaryGateIndex = source.indexOf("<CompanyIntelGate", source.indexOf('data-testid="company-secondary"'));
+    const railGateIndex = source.indexOf('testId="company-intel-gate-record"');
+    const recordHeadingIndex = source.indexOf("The hiring record");
+    const listHealthIndex = source.indexOf("List health");
+    assert.ok(railGateIndex !== -1, "rail gate with a distinct testId is missing");
+    assert.ok(secondaryGateIndex < railGateIndex, "the rail gate must be a second, later gate instance");
+    assert.ok(railGateIndex < recordHeadingIndex && railGateIndex < listHealthIndex, "both named boxes must live inside the rail gate");
+  });
+
+  it("the rail gate passes showFollowButton={false} — no duplicate CTA beside the header's Follow control", () => {
+    const source = readFileSync(CO_PAGE, "utf8");
+    assert.match(source, /showFollowButton=\{false\}/);
+  });
+});
+
 function job(overrides: Partial<PublicJob> & Pick<PublicJob, "id">): PublicJob {
   return {
     title: "Engineer",

@@ -202,7 +202,9 @@ test.describe('AUTH - Authentication Tests', () => {
   /**
    * TC-AUTH-009: Sign up option exists in auth form
    *
-   * The auth form should have a sign up option.
+   * The auth form should have a sign up option. Tab label reads "Create
+   * account" as of the 2026-08-27 auth/docs redesign (authCardCopy in
+   * lib/auth/auth-gate-copy.ts) — was "Sign Up".
    */
   test('TC-AUTH-009: Sign up option exists in auth form', async ({ page }) => {
     await page.goto('/');
@@ -213,7 +215,7 @@ test.describe('AUTH - Authentication Tests', () => {
       await loginButton.click();
       await page.waitForTimeout(500);
 
-      const signUp = page.locator('button:has-text("Sign Up"), button:has-text("Sign up"), a:has-text("Sign up")');
+      const signUp = page.locator('button:has-text("Create account"), a:has-text("Create account")');
       await expect(signUp.first()).toBeVisible({ timeout: 5000 });
     }
   });

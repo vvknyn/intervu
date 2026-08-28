@@ -7,20 +7,19 @@ import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
-import { TailoredVersionsList } from "@/components/resume/TailoredVersionsList";
 import { FileText } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
-const RESUME_SUBCOPY = "One base résumé. Tailor it per role from the apply dialog, then find it here.";
+const RESUME_SUBCOPY = "Your one base resume. Connect your AI to tailor a version for each role.";
 
 function ResumeHeader() {
-    return <PageHeader size="display" fullWidth sticky={false} title="Résumé" description={RESUME_SUBCOPY} />;
+    return <PageHeader size="display" fullWidth sticky={false} title="Resume" description={RESUME_SUBCOPY} />;
 }
 
 function ResumeAuthSkeleton() {
     return (
         <div className="space-y-4 rounded-none border border-border bg-card p-8" role="status" aria-busy="true">
-            <span className="sr-only">Loading résumé</span>
+            <span className="sr-only">Loading resume</span>
             <div aria-hidden className="mx-auto max-w-sm space-y-3">
                 <div className="skeleton-bar mx-auto h-12 w-12" />
                 <div className="skeleton-bar mx-auto h-4 w-48" />
@@ -37,9 +36,9 @@ function SignedOutState({ onLoginClick }: { onLoginClick: () => void }) {
                 <FileText size={24} />
             </div>
             <div className="space-y-1 max-w-sm mx-auto">
-                <h3 className="text-sm font-semibold text-foreground">Sign in to see your résumé</h3>
+                <h3 className="text-sm font-semibold text-foreground">Sign in to see your resume</h3>
                 <p className="text-xs text-muted-foreground">
-                    Your résumé and any versions you tailor for a role live on your account.
+                    Your resume and any versions you tailor for a role live on your account.
                 </p>
             </div>
             <Button size="sm" onClick={onLoginClick} className="rounded-none">
@@ -49,7 +48,7 @@ function SignedOutState({ onLoginClick }: { onLoginClick: () => void }) {
     );
 }
 
-export default function ResumePage() {
+function ResumeContent() {
     const [user, setUser] = useState<User | null>(() => getCurrentUser());
     // Already resolved if a session was cached at mount; otherwise flips true
     // the moment onAuthChange's first callback fires (may still land on
@@ -81,19 +80,20 @@ export default function ResumePage() {
                 ) : !user ? (
                     <SignedOutState onLoginClick={() => setAuthPopoverOpen(true)} />
                 ) : (
-                    <>
-                        <YourResumeSection
-                            user={user}
-                            onLoginClick={() => setAuthPopoverOpen(true)}
-                            embedded
-                            onEditorActiveChange={setEditorOpen}
-                        />
-                        {!editorOpen && <TailoredVersionsList />}
-                    </>
+                    <YourResumeSection
+                        user={user}
+                        onLoginClick={() => setAuthPopoverOpen(true)}
+                        embedded
+                        onEditorActiveChange={setEditorOpen}
+                    />
                 )}
 
                 <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
             </div>
         </PageLayout>
     );
+}
+
+export default function ResumePage() {
+    return <ResumeContent />;
 }

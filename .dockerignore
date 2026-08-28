@@ -10,15 +10,15 @@ mobile-screenshots
 .env*
 !.env.example
 docs
-data
 tests
 playwright.config.ts
 **/*.md
 !DEPLOY.md
-!data/boards
-!data/boards/**
-!data/geo
-!data/geo/**
+# Tracked data/ files ship with the build context by construction — never
+# re-add a per-subdir allowlist here (it silently strips new subdirs; broke
+# the 2026-08-27 deploy when data/research/ appeared). Exclude only heavy
+# local artifacts:
+data/geo/*.mmdb
 # openclaw/ ships complete inside the image: the prebuild hook packages it
 # into public/ as the skill tarball, so nothing under it may be context-
 # stripped (the **/*.md rule above was silently gutting SKILL.md/RANKING.md

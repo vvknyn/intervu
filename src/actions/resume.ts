@@ -4,10 +4,12 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ResumeConfidenceScores, UncertainField, ParsedResumeResult } from "@/types/resume";
 import { generateGenericJSON } from "@/actions/generate-context";
-import { ProviderConfig } from "@/lib/llm/types";
+import { AUTH_REQUIRED, AUTH_REQUIRED_MESSAGE } from "@/lib/llm/credit-gate";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { getIntervuPg } from "@/lib/pg/pool";
+import { RESUME_PARSE_DAILY_LIMIT, resolveParseRateLimit, getResumeParseCountToday, recordResumeParseAttempt } from "@/lib/resume/parse-rate-limit";
 
 /**
  * Presence-only signal for a returning visit: does this user have a usable
@@ -24,7 +26,7 @@ export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean }> {
 /**
  * Fetch structured resume data from database
  */
-export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: string; confidence?: number; error?: string }> {
+export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: string; confidence?: number; updatedAt?: string | null; error?: string }> {
     try {
         const user = await getServerUser();
 
@@ -54,7 +56,13 @@ export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: s
         return {
             data: resumeData,
             source: docData?.resume_import_source,
-            confidence: docData?.resume_import_confidence
+            confidence: docData?.resume_import_confidence,
+            // Same field `saveResumeData` writes on every save (below) and
+            // `getBaseResumeSummaryForUser` (lib/resume/base-resume.ts) reads
+            // for the Settings card — reused here so the match-score toolbar's
+            // "scored against your résumé of {date}" line has one source of
+            // truth for "when was this last touched", not a second read path.
+            updatedAt: (docData?.resume_last_updated as string | undefined) ?? null
         };
     } catch (e: any) {
         console.error("[Resume] Fetch Exception:", e);
@@ -175,7 +183,6 @@ function resumeDataToText(data: ResumeData): string {
 export async function parseResumeWithAI(
     content: string,
     contentType: 'pdf' | 'docx' | 'text',
-    configOverride?: Partial<ProviderConfig>
 ): Promise<{ data?: ParsedResumeResult; error?: string }> {
     try {
         if (!content || content.trim().length < 50) {
@@ -212,14 +219,29 @@ export async function parseResumeWithAI(
             }
         `;
 
-        const optimizedConfig = {
-            ...configOverride
-        };
+        // Auth + daily abuse brake. `generateGenericJSON` below also enforces
+        // sign-in (via resolveLLMConfig), but that gate fires deep inside the
+        // model ladder — too late to key a per-user counter or to stop a
+        // request before it spends an LLM call. Same AUTH_REQUIRED sentinel
+        // either way, so the client's existing handling doesn't change.
+        const user = await getServerUser();
+        if (!user) {
+            return { error: `${AUTH_REQUIRED}: ${AUTH_REQUIRED_MESSAGE}` };
+        }
+
+        const pg = getIntervuPg();
+        if (pg) {
+            const countToday = await getResumeParseCountToday(pg, user.uid);
+            if (!resolveParseRateLimit(countToday)) {
+                return { error: `You've reached today's limit of ${RESUME_PARSE_DAILY_LIMIT} resume parses. Please try again tomorrow.` };
+            }
+            await recordResumeParseAttempt(pg, user.uid);
+        }
 
         // Free models first, the paid default behind them — now the default for
         // every generation rather than this call site's own opt-in, so the
         // ladder is no longer named here. See lib/llm/models.ts FREE_LADDER.
-        const result = await generateGenericJSON(prompt, optimizedConfig);
+        const result = await generateGenericJSON(prompt);
 
         if (!result) {
             return { error: "No response from AI. Please try again in a moment." };

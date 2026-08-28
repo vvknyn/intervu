@@ -9,10 +9,14 @@
  * public onboarding + non-Mac waitlist capture — while everything behind
  * them that reads real account data still authenticates at the action/API
  * layer. Only surfaces that render server-side account data stay here.
+ *
+ * `/account` came OFF this list in the 2026-08-27 redesign: it is now a
+ * one-line redirect to `/settings?tab=account` and nothing else — "one
+ * door, one guard" — so `/settings` is the sole real gate and `/account`
+ * carries no gate of its own to drift out of sync with it.
  */
 export const AUTH_GATED_PRODUCT_PREFIXES = [
     "/settings",
-    "/account",
 ] as const;
 
 /**
@@ -51,6 +55,23 @@ export function isAuthGatedProductPath(pathname: string): boolean {
 
 function isSafePostAuthPath(pathname: string): boolean {
     return pathMatchesAnyPrefix(pathname, SAFE_POST_AUTH_PREFIXES);
+}
+
+/**
+ * Login redirect target for a gated route hit while logged out: same
+ * origin as the request, pathname forced to `/login`, `next` carrying the
+ * original path + query so LoginClient's `redirectAfterAuth` can bounce
+ * back after sign-in. Always same-origin and always `/login` by
+ * construction — this can never resolve to the WorkOS hosted chooser
+ * (skillful-spoon-89.authkit.app), unlike the authorizationUrl this
+ * replaced.
+ */
+export function loginRedirectUrl(requestUrl: URL, pathname: string): URL {
+    const url = new URL(requestUrl);
+    url.pathname = "/login";
+    url.search = "";
+    url.searchParams.set("next", `${pathname}${requestUrl.search}`);
+    return url;
 }
 
 /**

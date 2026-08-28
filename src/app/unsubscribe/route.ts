@@ -39,6 +39,10 @@ const SCOPE_LABEL: Record<UnsubscribeScope, string> = {
     // EMAIL_KIND_POLICY, so nothing signs a token at this scope today. If
     // anything ever does, this is the sentence it lands on.
     verify_email: "email confirmation messages",
+    // Same shape again: password_reset is non-suppressible (EMAIL_KIND_POLICY)
+    // and its send never signs an unsubscribe token (see password-reset.ts's
+    // doc comment) — kept so this Record stays exhaustive over EmailKind.
+    password_reset: "password reset messages",
     all: "all intervu emails",
 };
 

@@ -1,8 +1,13 @@
 # Funnel events — wave-3 wiring map
 
 `src/lib/analytics/funnel.ts` defines six event names as a naming contract.
-This PR ships that module, its tests, and this map only — **nothing calls it
-yet**. Wave 3 wires each `captureFunnelEvent(...)` call into the sites below.
+
+**Status: wired.** The module shipped in an earlier wave with tests, this map,
+and no call sites at all — so every rate below read as zero for as long as that
+lasted. `tests/unit/funnel-wiring.test.ts` now asserts per-event that a call
+site exists, so an event can no longer be declared and left dead. The call sites
+below are the live ones; where a row differs from what an older revision of this
+file promised, the row is what the code does.
 
 ## The six events
 
@@ -10,10 +15,10 @@ yet**. Wave 3 wires each `captureFunnelEvent(...)` call into the sites below.
 |---|---|---|
 | `search_submitted` | `{ query_length, has_location, filter_count }` | `src/app/jobs/page.tsx`, `submitSearch(q)` (~line 1236) — the single chokepoint the search box's Enter/suggestion-pick and a recent-search chip click both already route through. |
 | `result_clicked` | `{ position, job_id, source }` | `src/app/jobs/page.tsx`, the SERP row's open handler (`JobCard`'s `onClick`, defined ~line 482) and `onOpenRelated` (wired ~line 3331 for the detail pane's "also in" rail) — `position` is the row's index in the current result list, `source` is `"serp"` for both. |
-| `apply_clicked` | `{ job_id, source }` | `src/app/jobs/page.tsx`, `handleOpenPosting` (~line 2653), wired to `JobDetailActionBar`/`JobDetail`'s `onOpenPosting` prop (`src/components/jobs/JobDetail.tsx`, the "Apply on Company Site" / "Apply" buttons, ~lines 203 and 584). `source` is `"serp"` from the jobs page, `"co"` from `src/app/co/**`'s job detail rendering, `"email"` from an emailed job link's landing handler. |
+| `apply_clicked` | `{ job_id, source }` | `src/app/jobs/page.tsx`, the **first line** of `handleOpenPosting` — before the auth gate and before the AI hand-off prompt, because the event means "clicked Apply", not "reached the posting". Firing after either early return would hide the gate's drop-off, which is the number most worth having. `source` is `"serp"`; `"co"` and `"email"` stay in the type but are **not reachable today** — `src/app/co/**` has no apply handler of its own, and there is no emailed-link landing handler. |
 | `job_saved` | `{ job_id }` | `src/app/jobs/page.tsx`, `handleGoAfter` (wired ~line 3330 to `JobDetail`'s `onGoAfter` prop) — this is the "Save" button in `src/components/jobs/JobDetail.tsx` (~line 598). Internally this concept is called a "pursuit" (`src/lib/pursuits/use-pursuits.ts`); the event name stays `job_saved` because that's the user-facing verb. |
 | `company_followed` | `{ company_domain }` | `src/components/companies/FollowButton.tsx`, `handleClick`'s `if (next)` branch (~line 50) — the same chokepoint that already fires `recordFollowFunnelAction("follow_click", ...)`, so both funnels record a follow the same way. `CompanyFollowControl.tsx` wraps `FollowButton` and needs no separate wiring. |
-| `signup_completed` | `{ method }` | `src/lib/firebase/client-auth.ts`: `signUpWithUsername` (~line 86, `method: "username"`) and `signInWithGoogle` (~line 120, `method: "google"`) — the latter fires on sign-IN too, so wave-3 wiring must gate on Firebase's `additionalUserInfo?.isNewUser` (from `getAdditionalUserInfo(userCredential)`) to fire only on an actual signup, not every Google login. There is no separate plain-email/password signup path today — `method: "email"` is reserved for if/when one ships. |
+| `signup_completed` | `{ method }` | `src/components/auth/login-form.tsx`, immediately after `signUp(...)` returns without an error (`method: "username"`). ⚠️ **PARTIAL — this counts the username/password form only.** The call sites this file used to name (`signUpWithUsername`, `signInWithGoogle`) no longer apply: `signUpWithUsername` does not exist, and `signInWithGoogle` has zero call sites — Google moved to WorkOS AuthKit (`startAuthKit("GoogleOAuth")`), a full page redirect whose callback is server-side, where posthog-js does not run. AuthKit signups are therefore **uncounted rather than guessed at**. Closing the gap needs one of: server-side capture via posthog-node (a new dependency), or `/auth/callback` handing an explicit new-user signal back to the client to fire on. Deriving it from `user.createdAt ≈ now` would be an inference, not a fact, and is deliberately not done. |
 
 No landing/pageview event is defined here — `POSTHOG_OPTIONS.capture_pageview:
 "history_change"` (`src/lib/posthog-options.ts`) already fires a `$pageview`

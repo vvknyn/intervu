@@ -159,31 +159,22 @@ export interface CompanyFaqInput {
    *  precisely how that match rots. It also keeps the honesty rules about
    *  floors ("200+") and zero-role employers stated once. */
   hiringAnswer: string;
-  /** Share of tracked postings flagged with a possible-ghost-job signal, or
-   *  `null` when the company has no scored postings to derive a share from
-   *  — that question is skipped rather than answered with a fabricated 0%. */
-  ghostFlaggedPct: number | null;
 }
 
 /**
- * Company-page FAQ content ("Is X hiring?" / "Does X have ghost-job risk?"),
- * built only from fields the page itself renders (KPI tiles on `/co/[slug]`)
- * — never a claim the page doesn't also show a human reader.
+ * Company-page FAQ content ("Is X hiring?"), built only from fields the page
+ * itself renders (KPI tiles on `/co/[slug]`) — never a claim the page
+ * doesn't also show a human reader. The ghost-flagged share is deliberately
+ * excluded: it's follower-gated content on the page (`CompanyIntelGate`),
+ * and structured data must never expose gated content to crawlers.
  */
 export function buildCompanyFaqItems(input: CompanyFaqInput): FaqItem[] {
-  const items: FaqItem[] = [
+  return [
     {
       question: `Is ${input.companyName} hiring?`,
       answer: input.hiringAnswer,
     },
   ];
-  if (input.ghostFlaggedPct != null) {
-    items.push({
-      question: `Does ${input.companyName} have ghost-job risk?`,
-      answer: `${input.ghostFlaggedPct}% of ${input.companyName}'s tracked postings carry a possible-ghost-job signal from our automated checks — not a verdict, worth verifying before you invest time.`,
-    });
-  }
-  return items;
 }
 
 export interface ArticleJsonLdInput {
