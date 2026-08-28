@@ -219,6 +219,8 @@ import {
     isGuestSaveBannerDismissed,
     dismissGuestSaveBanner,
 } from "@/lib/auth/guest-save-gate";
+import { ANONYMOUS_DEPTH_GATE_MESSAGE } from "@/lib/shield/depth-cap";
+import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
 
 /**
  * Every search-action call on this page goes through this one
@@ -403,7 +405,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     data-testid="serp-ask-seed"
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
-                    className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/80 px-2.5 py-1 text-xs font-medium text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-700 shadow-2xs"
+                    className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/80 px-2.5 py-1 text-left text-xs font-medium text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-700 shadow-2xs"
                 >
                     {seed}
                 </button>
@@ -646,7 +648,7 @@ function JobCard({
                     {onCompany ? (
                         <button
                             type="button"
-                            className="hover:text-foreground hover:underline"
+                            className="text-left hover:text-foreground hover:underline"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onCompany(job);
@@ -1008,7 +1010,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={() => onClearEntry(entry)}
-                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                 >
                     ✕ clear {entry.label}
                 </button>
@@ -1018,7 +1020,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={locationDefault.onClear}
-                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                 >
                     ✕ clear {locationDefault.label}
                 </button>
@@ -1454,6 +1456,12 @@ function JobsContent() {
     resultRef.current = result;
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    // Set once `loadMore` hits the anonymous depth wall (`meta.gated`, see
+    // `interpretLoadMoreResponse`) — holds the server's own note verbatim so
+    // the sentinel below can swap "Show N more" for a sign-in CTA instead of
+    // silently doing nothing forever. Reset alongside `loadingMore` whenever
+    // a new first-page search starts.
+    const [depthGateNote, setDepthGateNote] = useState<string | null>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
@@ -1915,6 +1923,7 @@ function JobsContent() {
         const generation = paginationRef.current!.beginFirstPage();
         setSearchError(null);
         setLoadingMore(false);
+        setDepthGateNote(null);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
         setLoading(true);
@@ -2726,6 +2735,13 @@ function JobsContent() {
 
     // Fetch the next page and append it only while its monotonic generation is current.
     const loadMore = useCallback(async () => {
+        // Once the anonymous depth wall has refused a page, the sentinel's
+        // own IntersectionObserver keeps re-firing on every scroll (`total`
+        // never drops below `hits.length` from a gated response — see the
+        // `setResult` updater below, which never touches `total`). Without
+        // this guard that would mean one refused request per re-intersect,
+        // forever. Cleared only by `setDepthGateNote(null)` on a new search.
+        if (depthGateNote) return;
         const cur = result;
         if (!cur || !cur.configured) return;
         if (cur.hits.length >= cur.total || cur.hits.length >= MAX_REACHABLE) return;
@@ -2749,6 +2765,21 @@ function JobsContent() {
                 offset: ticket.offset,
             });
             if (!paginationRef.current!.completeLoadMore(ticket)) return;
+            // The ONLY gate signal is this response's own `meta.gated` — no
+            // client-side copy of the depth-cap's 90/30 constants (see
+            // load-more-outcome.ts's own doc comment).
+            const outcome = interpretLoadMoreResponse({
+                gated: r.meta?.gated === true,
+                received: r.hits.length,
+                requested: PAGE,
+            });
+            if (outcome === "gated") {
+                // Refused, not searched — `r.hits`/`r.total` are not a real
+                // (if empty) page, so `setResult` must never see them: doing
+                // so would clobber the real total this search already has.
+                setDepthGateNote(r.note ?? ANONYMOUS_DEPTH_GATE_MESSAGE);
+                return;
+            }
             setResult((prev) => {
                 if (!prev) return prev;
                 // React may run this updater after another first-page generation
@@ -2782,9 +2813,9 @@ function JobsContent() {
         // every other field `buildJobSearchPayload` reads from this render.
         // `locationDefaultSuppressed` (default-location chip's "×"), same
         // reason: page 2+ must never silently reapply a default this
-        // session already cleared.
+        // session already cleared. `depthGateNote` added for the guard above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, yearsExperience, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, yearsExperience, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed, depthGateNote]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -4046,6 +4077,11 @@ function JobsContent() {
 
     const tourReplayEl = <JobsTourReplayButton />;
 
+    // Where the depth-gate CTA's "Sign in" link returns to — this exact
+    // SERP, filters and all. Same `/login?next=` shape used everywhere else
+    // sign-in is a detour rather than a destination (e.g. CompanyExhaustGate).
+    const depthGateSignInHref = `/login?next=${encodeURIComponent(`${pathname}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`)}`;
+
     const dockedQueryEl = (
         <div className="relative flex h-full w-full items-center">
             <SearchAutocomplete
@@ -5079,7 +5115,23 @@ function JobsContent() {
                                         tap than scroll. */}
                                     {hasMore && (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
-                                            {loadingMore ? (
+                                            {depthGateNote ? (
+                                                // The anonymous depth wall refused the next page
+                                                // (`loadMore`'s `interpretLoadMoreResponse` → "gated").
+                                                // The sentinel div stays mounted (harmless — `loadMore`
+                                                // itself now guards on `depthGateNote` so re-intersecting
+                                                // it is a no-op) but the "Show N more" button is gone:
+                                                // clicking it could never have worked past this point.
+                                                <p className="text-xs text-muted-foreground">
+                                                    {depthGateNote}{" "}
+                                                    <a
+                                                        href={depthGateSignInHref}
+                                                        className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground/70"
+                                                    >
+                                                        Sign in
+                                                    </a>
+                                                </p>
+                                            ) : loadingMore ? (
                                                 <span className="text-xs text-muted-foreground">Loading more roles…</span>
                                             ) : (
                                                 <button
