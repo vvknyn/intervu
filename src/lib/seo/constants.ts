@@ -28,7 +28,7 @@ export function getSiteUrl(): string {
             "NEXT_PUBLIC_SITE_URL is not set. Canonical URLs, sitemap.xml, " +
                 "robots.txt, and JSON-LD all derive the site's origin from this " +
                 "env var — there is no fallback domain. Set NEXT_PUBLIC_SITE_URL " +
-                "(e.g. https://intervuhq.com) in the environment before building " +
+                "(e.g. https://velai.app) in the environment before building " +
                 "or running this app."
         );
     }
