@@ -127,7 +127,9 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const integrityCount = data.exhaust?.integrity?.data.closedReasonCounts.reduce((s, r) => s + r.count, 0) ?? null;
   const filingsCount =
     (data.exhaust?.secListing ? 1 : 0) + (data.exhaust?.funding?.data.formDCount ? 1 : 0) +
-      (data.exhaust?.govContracts?.data.awardCount ?? 0) || null;
+      (data.exhaust?.govContracts?.data.awardCount ?? 0) +
+      (data.exhaust?.warnNotices?.data.noticeCount ?? 0) +
+      (data.exhaust?.h1bLca ? 1 : 0) || null;
   const exhaustGateTeasers: ExhaustGateTeaser[] = [
     data.exhaust?.integrity && integrityCount
       ? {
@@ -153,7 +155,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
     filingsCount
       ? {
           title: "Filings & records",
-          description: "SEC filings, funding rounds, and federal contracts — the paper trail.",
+          description: "SEC filings, funding rounds, federal contracts, WARN layoffs, and H-1B approvals — the paper trail.",
           count: `${filingsCount} record${filingsCount === 1 ? "" : "s"}`,
         }
       : null,
