@@ -93,6 +93,9 @@ import {
     suppressLocationDefault,
     restoreLocationDefault,
     shouldShowLocationDefaultChip,
+    regionDisplayName,
+    buildDockedChips,
+    DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
@@ -360,19 +363,6 @@ function ToolbarSegment({
  * SAME `suppressLocationDefault` write path the old results-row chip used —
  * REUSED, not a second suppression flag.
  */
-/** Country name for an ISO2 via the browser's own region-name table, with a
- *  bare-code fallback if `Intl.DisplayNames` throws. Shared by
- *  `DefaultLocationChip` and the zero-result state's geo-default entry
- *  (below) so there is exactly one place that resolves this, not a second
- *  copy of the same try/catch. */
-function regionDisplayName(iso2: string): string {
-    try {
-        return new Intl.DisplayNames(["en"], { type: "region" }).of(iso2) ?? iso2;
-    } catch {
-        return iso2;
-    }
-}
-
 function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
     const flag = countryToFlag(iso2);
     const name = useMemo(() => regionDisplayName(iso2), [iso2]);
@@ -1803,6 +1793,15 @@ function JobsContent() {
     const unnamedEntries = entriesNeedingOwnChip(activeEntries, facetBarRepresents(postedDateSupported));
     const dockChipsKey = unnamedEntries.map((e) => `${e.key}=${chipLabelForEntry(e)}`).join("|");
 
+    // Same disclosure gate `DefaultLocationChip`/the zero-result entry use
+    // (`shouldShowLocationDefaultChip`), collapsed to the ISO2 or `null` so
+    // the dock effect below can take it as ONE primitive dependency instead
+    // of re-deriving the verdict from `result`/`chosenLocations` objects —
+    // see that effect's own React #185 comment for why.
+    const dockedDefaultLocationIso2 = shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
+        ? result!.defaultedLocation!
+        : null;
+
     // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
     // call to the same `activeFilterEntries` chokepoint, with
     // `includeQuietDefaults: true` — a silently-applied default (today, only
@@ -3044,8 +3043,16 @@ function JobsContent() {
             placeholder: SEARCH_PLACEHOLDER,
             // FacetBar-owned filters (salary, posted, work mode, experience)
             // render as dropdown chips — only the leftovers become dismiss chips.
-            chips: unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
+            // The applied-location-default chip is PREPENDED by the same
+            // `buildDockedChips` helper the mobile row's disclosure logic
+            // shares, so this row never silently narrows results without a
+            // visible, clearable chip the way the pre-dock-refactor bug did.
+            chips: buildDockedChips(dockedDefaultLocationIso2, unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) }))),
             onClearChip: (key) => {
+                if (key === DEFAULT_LOCATION_CHIP_KEY) {
+                    suppressLocationDefault();
+                    return;
+                }
                 const entry = unnamedEntries.find((e) => e.key === key);
                 if (entry) applyFilterStateRef.current(entry.clear(filterStateRef.current));
             },
@@ -3063,7 +3070,7 @@ function JobsContent() {
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [headerDockActive, queryDraft, activeChipsKey, dockChipsKey, activeCount, filtersOpen, setDocked]);
+    }, [headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, activeCount, filtersOpen, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
