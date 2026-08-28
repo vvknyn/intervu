@@ -23,8 +23,8 @@ import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisionin
  *
  * `onSuccess` is this route's provisioning hook — the class fix for spec §4.
  * Google/passkey/magic-auth sign-in never touches `actions/auth.ts`'s
- * `signIn`/`signUp`, so without a hook here those users got no welcome email,
- * no credit grant, and no "Intervu" org membership. Deferred via `after()`,
+ * `signIn`/`signUp`, so without a hook here those users got no welcome email
+ * and no "Intervu" org membership. Deferred via `after()`,
  * same reasoning as `signIn`/`signUp`'s own provisioning calls: it must never
  * turn a successful WorkOS exchange into a redirect error, and a person
  * finishing sign-in should not wait on Resend or Firestore to land on the app.

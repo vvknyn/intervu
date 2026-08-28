@@ -13,20 +13,6 @@
 export const ACTION_SETTLE_TIMEOUT_MS = 15_000;
 
 /**
- * Deadline for the Explore AI-suggestion call (`suggestAdjacentRolesAction`,
- * see src/app/jobs/page.tsx's `runExplore`) — the same never-settles risk as
- * above (it's a Server Action too), just a longer bound because it drives an
- * LLM prompt rather than a Meilisearch read. This is the only piece of the
- * Explore pipeline that ISN'T already covered: the search Explore triggers
- * afterward (`activateExplore` → the query-change search effect) goes
- * through the page's `searchJobsAction` chokepoint, already wrapped in
- * `ACTION_SETTLE_TIMEOUT_MS`. So this one constant is enough to bound
- * Explore's worst case end-to-end, without a second timer duplicating that
- * search-side guard.
- */
-export const EXPLORE_SUGGEST_TIMEOUT_MS = 25_000;
-
-/**
  * Race any promise against `timeoutMs`; on timeout, REJECTS (never
  * fabricates a result) so callers route through their EXISTING catch-based
  * error handling — the same `searchError` → Retry UI path a genuine thrown

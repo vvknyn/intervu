@@ -21,8 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Sparkle, ArrowRight, ArrowLeft, Check, FloppyDisk, MagicWand } from "@phosphor-icons/react";
-import { convertBlobToStar } from "@/actions/parse-stories";
+import { ArrowRight, ArrowLeft, Check, FloppyDisk } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { COMMON_QUESTIONS } from "@/lib/interview-questions";
 
@@ -33,10 +32,10 @@ interface StoryEditorWizardProps {
     onSave: (story: StarStory) => void;
 }
 
-type WizardStep = 'draft' | 'refine' | 'meta';
+type WizardStep = 'refine' | 'meta';
 
 export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEditorWizardProps) {
-    const [step, setStep] = useState<WizardStep>('draft');
+    const [step, setStep] = useState<WizardStep>('refine');
     const [formData, setFormData] = useState<Partial<StarStory>>({
         title: "",
         content: "",
@@ -47,7 +46,6 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
         importance: 'medium',
         type: 'star'
     });
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isTitleFocused, setIsTitleFocused] = useState(false);
 
 
@@ -56,12 +54,6 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
         if (isOpen) {
             if (story) {
                 setFormData({ ...story });
-                // If it's an existing STAR story, jump to refine. If it's a blob/draft, go to draft.
-                if (story.type === 'star' && story.situation) {
-                    setStep('refine');
-                } else {
-                    setStep('draft');
-                }
             } else {
                 // New story
                 setFormData({
@@ -73,35 +65,12 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                     action: "",
                     result: "",
                     importance: 'medium',
-                    type: 'blob'
+                    type: 'star'
                 });
-                setStep('draft');
             }
+            setStep('refine');
         }
     }, [isOpen, story]);
-
-    const handleAnalyze = async () => {
-        if (!formData.content || formData.content.trim().length < 20) return;
-
-        setIsAnalyzing(true);
-        try {
-            const result = await convertBlobToStar(formData.content, formData.title);
-            if (result.data) {
-                setFormData(prev => ({
-                    ...prev,
-                    ...result.data,
-                    type: 'star',
-                    // Keep original content as backup/source
-                    content: prev.content
-                }));
-                setStep('refine');
-            }
-        } catch (error) {
-            console.error("Analysis failed:", error);
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
 
     const handleSave = () => {
         // Ensure required fields
@@ -112,7 +81,6 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
     };
 
     const steps = [
-        { id: 'draft', label: 'Draft' },
         { id: 'refine', label: 'Refine STAR' },
         { id: 'meta', label: 'Finalize' }
     ];
@@ -144,57 +112,14 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                         </div>
                     </div>
                     <DialogDescription>
-                        {step === 'draft' && "Dump your thoughts. Don't worry about structure yet."}
-                        {step === 'refine' && "Refine the structured analysis. Be specific and quantitative."}
+                        {step === 'refine' && "Fill in the structured details. Be specific and quantitative."}
                         {step === 'meta' && "Add final touches to categorize this story."}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto py-4 px-1">
-                    {step === 'draft' && (
-                        <div className="space-y-4 max-w-3xl mx-auto">
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <Label className="text-sm font-semibold">Story Draft / Notes</Label>
-                                    <span className="text-xs text-muted-foreground">
-                                        {formData.content?.length || 0} chars
-                                    </span>
-                                </div>
-                                <div className="relative">
-                                    <Textarea
-                                        value={formData.content || ''}
-                                        onChange={e => setFormData({ ...formData, content: e.target.value })}
-                                        placeholder="Paste your resume bullet point, or just dump your thoughts here.&#13;&#13;Example:&#13;I led a project to migrate our database... We faced issues with latency... I optimized the queries and reduced load times by 50%..."
-                                        className="min-h-[320px] text-base md:text-sm resize-none bg-muted/10 focus:bg-background border-border/60 leading-relaxed p-4 shadow-inner"
-                                    />
-                                    <div className="absolute bottom-3 right-3">
-                                        {formData.content && formData.content.length > 20 && (
-                                            <div className="text-[10px] px-2 py-1 rounded-full bg-green-500/10 text-green-600 border border-green-200 dark:border-green-800 flex items-center gap-1">
-                                                <Check size={10} weight="bold" />
-                                                Ready to analyze
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Don't worry about formatting. The AI will structure this into Situation, Task, Action, and Result.
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
                     {step === 'refine' && (
                         <div className="space-y-6">
-                            <div className="bg-brand/5 border border-brand/10 p-4 rounded-lg flex items-start gap-3 mb-6">
-                                <Sparkle size={18} weight="fill" className="text-brand shrink-0 mt-0.5" />
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-brand">AI Analysis Complete</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Review the extracted STAR components. Make edits to ensure accuracy and punchiness.
-                                    </p>
-                                </div>
-                            </div>
-
                             <div className="grid gap-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
@@ -294,7 +219,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                     )}
                                 </div>
                                 <p className="text-[10px] text-muted-foreground">
-                                    Categorizing your story helps AI recommend it for the right interview questions.
+                                    Categorizing your story makes it easier to find later when you're prepping for a specific question.
                                 </p>
                             </div>
 
@@ -340,32 +265,9 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                 </div>
 
                 <DialogFooter className="border-t pt-4">
-                    {step === 'draft' ? (
+                    {step === 'refine' ? (
                         <div className="flex justify-between w-full">
                             <Button variant="ghost" onClick={onClose}>Cancel</Button>
-                            <div className="flex gap-2">
-                                <Button variant="outline" onClick={() => setStep('refine')}>Skip to Manual</Button>
-                                <Button
-                                    onClick={handleAnalyze}
-                                    disabled={!formData.content || formData.content.length < 20 || isAnalyzing}
-                                    className="bg-brand hover:bg-brand/90 text-white"
-                                >
-                                    {isAnalyzing ? (
-                                        <>Analyzing...</>
-                                    ) : (
-                                        <>
-                                            <MagicWand size={16} className="mr-2" />
-                                            Analyze with AI
-                                        </>
-                                    )}
-                                </Button>
-                            </div>
-                        </div>
-                    ) : step === 'refine' ? (
-                        <div className="flex justify-between w-full">
-                            <Button variant="ghost" onClick={() => setStep('draft')}>
-                                <ArrowLeft size={16} className="mr-2" /> Back to Draft
-                            </Button>
                             <Button onClick={() => setStep('meta')}>
                                 Next: Finalize <ArrowRight size={16} className="ml-2" />
                             </Button>

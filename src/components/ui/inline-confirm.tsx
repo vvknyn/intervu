@@ -3,10 +3,9 @@
 /**
  * Shared two-step inline confirm — the bordered "{prompt}?" box with a
  * destructive Confirm + outline Cancel that appeared identically (near
- * byte-for-byte) in `YourResumeSection.tsx`'s `manageRow` and
- * `TailoredVersionsList.tsx`'s `VersionRow`. Extracted here rather than
- * letting a third hand-rolled copy land in `PursuitDetailSheet.tsx`'s
- * Remove flow — one shape, one place it can drift.
+ * byte-for-byte) in `YourResumeSection.tsx`'s `manageRow`. Extracted here
+ * rather than letting a second hand-rolled copy land in
+ * `PursuitDetailSheet.tsx`'s Remove flow — one shape, one place it can drift.
  */
 
 import { CircleNotch, Trash } from "@phosphor-icons/react";

@@ -1,7 +1,7 @@
 /**
  * Primary nav — frozen coherent chrome:
  * Jobs · Resume · Tracker · Agents · (avatar → Account)
- * Research / Pricing / Trends live in the footer.
+ * Research / Trends live in the footer.
  */
 import type { ComponentType } from "react";
 import { FileText, Kanban } from "@phosphor-icons/react";
@@ -153,14 +153,6 @@ export const FOOTER_EXTRA_TABS: NavTab[] = [
         href: "/research/ghost-jobs",
         testId: "footer-research",
         match: (p) => p.startsWith("/research"),
-        placement: "bar",
-    },
-    {
-        label: "Pricing",
-        shortLabel: "Pricing",
-        href: "/pricing",
-        testId: "footer-pricing",
-        match: (p) => p.startsWith("/pricing"),
         placement: "bar",
     },
     TRENDS_TAB,

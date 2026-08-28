@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
-import { BETA_UNLIMITED_CREDITS } from "@/lib/llm/credit-copy";
 import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Terms of Service";
@@ -58,19 +57,8 @@ export default function TermsPage() {
         </ul>
         <p>We may suspend or terminate accounts that violate these terms, including accounts we reasonably believe are engaged in abuse.</p>
 
-        {/* Reads the same switch as the credit gate and /pricing. The
-            unconditional version of this clause described a prepaid economy
-            that is not running: nothing is metered during beta, and there is
-            no purchase path to be prepaid against. A terms page asserting a
-            charge the product cannot levy is the worst place for that gap. */}
-        <h2>Credits</h2>
-        {BETA_UNLIMITED_CREDITS ? (
-          <p>
-            AI features are free while intervu is in beta. Nothing is metered and there is nothing to buy.
-          </p>
-        ) : (
-          <p>Some features use credits. Credits are prepaid and non-refundable once used. Credit packs don&apos;t expire.</p>
-        )}
+        <h2>AI features</h2>
+        <p>AI features are free. Nothing is metered and there is nothing to buy.</p>
 
         <h2>Employers</h2>
         <p>

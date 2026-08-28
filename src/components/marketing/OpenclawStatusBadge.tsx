@@ -7,8 +7,7 @@ import { OPENCLAW_STATUS_BADGE } from "./openclaw-content";
  * so the two placements can never drift apart. Label text stays neutral ink
  * (one-visual-world pass, 2026-08-04 — the site's one accent color is
  * spent scarcely); the single `--brand` dot is the one "small mark" this
- * status line gets, the same role a live-verdict dot plays elsewhere
- * (see `/pricing`'s identical `h-[9px] w-[9px] bg-brand` dot).
+ * status line gets, the same role a live-verdict dot plays elsewhere.
  */
 export function OpenclawStatusBadge({ className }: { className?: string }) {
   return (

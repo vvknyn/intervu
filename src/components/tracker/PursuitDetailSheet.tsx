@@ -135,9 +135,8 @@ function PursuitDetailBody({
     }, []);
 
     // Two-step inline confirm — the same shared shape `YourResumeSection`'s
-    // delete-resume flow and `TailoredVersionsList`'s per-version delete
-    // already use, rather than a fourth destructive-action pattern
-    // (`confirmToast`) for one more surface.
+    // delete-resume flow already uses, rather than a third destructive-action
+    // pattern (`confirmToast`) for one more surface.
     const handleRemove = async () => {
         setRemoving(true);
         try {

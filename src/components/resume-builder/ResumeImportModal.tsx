@@ -17,14 +17,12 @@ import { ConfidenceIndicator, ConfidenceBadge, WarningBanner } from "./Confidenc
 import { ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ParsedResumeResult } from "@/types/resume";
 import { parseResumeWithAI, extractPDFText, extractDocxText } from "@/actions/resume";
 import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, X, Sparkle, Warning, PencilSimple } from "@phosphor-icons/react";
-import { ProviderConfig } from "@/lib/llm/types";
 import { sentinelMessage } from "@/lib/llm/sentinels";
 
 interface ResumeImportModalProps {
     isOpen: boolean;
     onClose: () => void;
     onImport: (data: ResumeData, source: 'pdf' | 'docx' | 'text', confidence: number) => void;
-    configOverride?: Partial<ProviderConfig>;
     /**
      * Label for the final review-step's confirm button. This modal is
      * shared between the resume-builder (where "Apply to Resume" means
@@ -50,7 +48,7 @@ interface ResumeImportModalProps {
 type ImportStep = 'input' | 'parsing' | 'review';
 type InputMethod = 'file' | 'paste';
 
-export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, confirmLabel = "Apply to Resume", title, description }: ResumeImportModalProps) {
+export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
     const [pastedText, setPastedText] = useState("");
@@ -175,7 +173,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                 throw new Error("No content provided");
             }
 
-            const result = await parseResumeWithAI(textContent, contentType, configOverride);
+            const result = await parseResumeWithAI(textContent, contentType);
 
             if (result.error) {
                 throw new Error(result.error);

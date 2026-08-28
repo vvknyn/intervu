@@ -42,11 +42,22 @@ CREATE TABLE IF NOT EXISTS intervu.email_follows (
   PRIMARY KEY (identity_id, company_domain)
 );
 
+-- Daily abuse brake on AI resume parsing (src/lib/resume/parse-rate-limit.ts),
+-- keyed by the AUTHENTICATED app user's stable id (WorkOS externalId/id, the
+-- `uid` getServerUser() returns) — NOT a row in intervu.identities above,
+-- which is the anonymous email-follow identity, a different concern.
+CREATE TABLE IF NOT EXISTS intervu.resume_parse_counters (
+  user_uid text NOT NULL,
+  window_date date NOT NULL,
+  count integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_uid, window_date)
+);
+
 -- ROLE SETUP — run manually as postgres, password set interactively, never committed:
 --   CREATE ROLE intervu_web LOGIN PASSWORD '<set interactively>';
 --   GRANT USAGE ON SCHEMA intervu TO intervu_web;
 --   GRANT SELECT, INSERT, UPDATE, DELETE ON intervu.identities, intervu.auth_tokens,
---     intervu.email_follows TO intervu_web;
+--     intervu.email_follows, intervu.resume_parse_counters TO intervu_web;
 --
 -- Through the Supavisor transaction pooler (port 6543) the connection
 -- username is `intervu_web.<project-ref>`, not the bare role name. The app

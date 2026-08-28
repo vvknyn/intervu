@@ -1,9 +1,9 @@
 /**
  * Server-only LLM config resolution. Every signed-in user runs on the app's
  * own OpenRouter/Groq keys — the app funds the AI. Sign-in is still required:
- * the shared key is never spent on anonymous traffic. Metering (and the
- * admin exemption) lives in `credit-gate.ts`, not here; this module only
- * answers "which provider and key".
+ * the shared key is never spent on anonymous traffic. The auth gate (and the
+ * separate `/admin` exemption) lives in `credit-gate.ts`, not here; this
+ * module only answers "which provider and key".
  */
 import { getServerUser } from "@/lib/auth/server-user";
 import { AUTH_REQUIRED, AUTH_REQUIRED_MESSAGE } from "@/lib/llm/credit-gate";
