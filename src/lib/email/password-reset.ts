@@ -21,7 +21,7 @@ export function passwordResetEmailContent(input: { resetUrl: string }): {
     text: string;
     html: string;
 } {
-    const subject = "Reset your intervu password";
+    const subject = "Reset your velai password";
     const promiseLine = "Someone asked to reset the password on this account. Click below to choose a new one.";
     const expiryLine = "This link expires soon and can only be used once.";
     const ignoreLine = "If you didn't ask for this, ignore this email and your password stays the same.";

@@ -55,7 +55,7 @@ export async function generateMetadata({
   const name = companyFromSlug(slug);
   return {
     title: `Is ${name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`,
-    description: `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${name} on intervu.`,
+    description: `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${name} on velai.`,
     robots: { index: false, follow: true },
     alternates: { canonical: "/jobs" },
   };

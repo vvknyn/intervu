@@ -66,7 +66,7 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
     return (
         <div>
             <h2 className="mb-1 text-[15px] font-semibold tracking-[-0.02em]">Email</h2>
-            <p className="mb-4 text-[13px] text-muted-foreground">Which emails intervu sends you.</p>
+            <p className="mb-4 text-[13px] text-muted-foreground">Which emails velai sends you.</p>
 
             {prefs ? (
                 prefs.needsEmail ? (
@@ -89,7 +89,7 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                             <p className="text-sm font-medium">Weekly digest</p>
                             <p className="text-[12px] text-muted-foreground">
                                 New roles from your followed companies and saved searches.
-                                {prefs.blockedGlobally && " Blocked — you've unsubscribed from all intervu emails."}
+                                {prefs.blockedGlobally && " Blocked — you've unsubscribed from all velai emails."}
                             </p>
                         </div>
                         <Switch checked={prefs.digestEnabled} onChange={() => void toggleDigest()} disabled={saving} />

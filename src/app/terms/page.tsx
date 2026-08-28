@@ -5,7 +5,7 @@ import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Terms of Service";
-const DESCRIPTION = "The terms for using intervu, including how we frame posting-check and risk signals.";
+const DESCRIPTION = "The terms for using velai, including how we frame posting-check and risk signals.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -23,13 +23,13 @@ export default function TermsPage() {
 
         <article className="prose prose-sm max-w-none dark:prose-invert">
         <p>
-          intervu is in beta. That means the product is real and working, but still changing — features may shift,
-          and we&apos;re actively improving how the service works. By using intervu, you agree to the terms below.
+          velai is in beta. That means the product is real and working, but still changing — features may shift,
+          and we&apos;re actively improving how the service works. By using velai, you agree to the terms below.
         </p>
 
         <h2>The service</h2>
         <p>
-          intervu helps you search and track job listings, and prepare for interviews. The listings we show are
+          velai helps you search and track job listings, and prepare for interviews. The listings we show are
           collected from employers&apos; own public career pages — we don&apos;t invent listings, and we don&apos;t
           charge employers to be included.
         </p>
@@ -48,7 +48,7 @@ export default function TermsPage() {
         <h2>Acceptable use</h2>
         <p>You agree not to:</p>
         <ul>
-          <li>Scrape, crawl, or systematically extract data from intervu</li>
+          <li>Scrape, crawl, or systematically extract data from velai</li>
           <li>Attempt to access another user&apos;s account or credentials</li>
           <li>
             Use automated tools to create accounts, bypass rate limits, or access the service in bulk outside the

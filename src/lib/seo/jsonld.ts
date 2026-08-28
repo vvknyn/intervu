@@ -117,34 +117,34 @@ export function buildFaqPageJsonLd(items: FaqItem[]): FaqPageJsonLd | null {
 export function buildJobSearchFaqJsonLd(): FaqPageJsonLd | null {
   return buildFaqPageJsonLd([
     {
-      question: "How is Intervu different from Indeed and LinkedIn?",
+      question: "How is Velai different from Indeed and LinkedIn?",
       answer:
-        "Unlike Indeed and LinkedIn which allow sponsored reposts, stale third-party feeds, and unmonitored listings, Intervu indexes live jobs directly from employer applicant tracking systems (Greenhouse, Lever, Ashby, Workday, etc.) and actively screens every posting for freshness, salary transparency, and ghost-job risk.",
+        "Unlike Indeed and LinkedIn which allow sponsored reposts, stale third-party feeds, and unmonitored listings, Velai indexes live jobs directly from employer applicant tracking systems (Greenhouse, Lever, Ashby, Workday, etc.) and actively screens every posting for freshness, salary transparency, and ghost-job risk.",
     },
     {
-      question: "How do I find the best remote and work-from-home jobs on Intervu?",
+      question: "How do I find the best remote and work-from-home jobs on Velai?",
       answer:
-        "Intervu features a dedicated Remote filter and verified work-mode badges. Simply search for your desired role or tech stack (e.g. 'Software Engineer', 'AI Specialist', 'Data Analyst') and select the Remote filter to browse live, vetted work-from-home opportunities across Canada, the US, and worldwide.",
+        "Velai features a dedicated Remote filter and verified work-mode badges. Simply search for your desired role or tech stack (e.g. 'Software Engineer', 'AI Specialist', 'Data Analyst') and select the Remote filter to browse live, vetted work-from-home opportunities across Canada, the US, and worldwide.",
     },
     {
-      question: "Are remote jobs in Canada and the United States verified on Intervu?",
+      question: "Are remote jobs in Canada and the United States verified on Velai?",
       answer:
-        "Yes, every remote listing is verified directly against the hiring company's live career portal. Intervu checks hiring activity, location eligibility, and compensation bands so Canadian, American, and international candidates apply only to genuine openings.",
+        "Yes, every remote listing is verified directly against the hiring company's live career portal. Velai checks hiring activity, location eligibility, and compensation bands so Canadian, American, and international candidates apply only to genuine openings.",
     },
     {
-      question: "What is a ghost job and how does Intervu screen for them?",
+      question: "What is a ghost job and how does Velai screen for them?",
       answer:
-        "A ghost job is a listing that remains posted indefinitely even when the company is not actively hiring. Intervu monitors posting duration, company hiring velocity, ATS update frequencies, and listing freshness to flag stale or low-signal roles before you waste time applying.",
+        "A ghost job is a listing that remains posted indefinitely even when the company is not actively hiring. Velai monitors posting duration, company hiring velocity, ATS update frequencies, and listing freshness to flag stale or low-signal roles before you waste time applying.",
     },
     {
-      question: "Is Intervu free to search for jobs?",
+      question: "Is Velai free to search for jobs?",
       answer:
-        "Yes, searching live jobs, filtering by remote or salary, viewing verified employer track records, and exploring market trends on Intervu is completely free for job seekers.",
+        "Yes, searching live jobs, filtering by remote or salary, viewing verified employer track records, and exploring market trends on Velai is completely free for job seekers.",
     },
     {
-      question: "How fresh are the job listings on Intervu?",
+      question: "How fresh are the job listings on Velai?",
       answer:
-        "Intervu updates listings directly from company career sites continuously. When an employer closes a role on their career page, it is marked closed on Intervu within 24 hours.",
+        "Velai updates listings directly from company career sites continuously. When an employer closes a role on their career page, it is marked closed on Velai within 24 hours.",
     },
   ]);
 }
@@ -214,13 +214,13 @@ export function buildWebsiteJsonLd(): WebsiteJsonLd {
     url: siteUrl,
     name: SITE_NAME,
     alternateName: [
-      "Intervu",
-      "Intervu Jobs",
-      "Intervu Job Search",
-      "Intervu Remote Jobs",
-      "Intervu Canada Remote Jobs",
-      "Intervu - Indeed & LinkedIn Alternative",
-      "Intervu HQ",
+      "Velai",
+      "Velai Jobs",
+      "Velai Job Search",
+      "Velai Remote Jobs",
+      "Velai Canada Remote Jobs",
+      "Velai - Indeed & LinkedIn Alternative",
+      "Velai HQ",
     ],
     description:
       "Search live, verified remote and tech jobs directly from company career pages with ghost-job screening and hiring signals.",
@@ -245,7 +245,7 @@ export function buildOrganizationJsonLd(): OrganizationJsonLd {
     url: siteUrl,
     logo: `${siteUrl}/icon-512.png`,
     description:
-      "Intervu is an independent job search platform that verifies listings directly against company career pages and screens for ghost jobs.",
+      "Velai is an independent job search platform that verifies listings directly against company career pages and screens for ghost jobs.",
     slogan:
       "Live jobs, checked for ghost postings — the transparent alternative to Indeed & LinkedIn",
     knowsAbout: [
@@ -296,7 +296,7 @@ export function buildWebApplicationJsonLd(): WebApplicationJsonLd {
   return {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "Intervu Job Search",
+    name: "Velai Job Search",
     url: siteUrl,
     applicationCategory: "BusinessApplication",
     operatingSystem: "All",

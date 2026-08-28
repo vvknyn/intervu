@@ -285,7 +285,7 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch, onIn
         async start() {
             const created = await fetchImpl(`${base}/api/viewer/session`, { method: "POST", headers: auth });
             if (!created.ok) {
-                throw new Error(`could not open a viewer session (HTTP ${created.status}) — the agent's intervu login may have expired; 'mcporter auth intervu-cc-mcp' renews it`);
+                throw new Error(`could not open a viewer session (HTTP ${created.status}) — the agent's velai login may have expired; 'mcporter auth intervu-cc-mcp' renews it`);
             }
             const { sessionId: id, expiresAt: expiry } = await created.json();
             sessionId = id;

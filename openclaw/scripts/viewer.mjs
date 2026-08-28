@@ -164,7 +164,7 @@ async function main() {
         const bearer = readAccessToken(MCP_SERVER_KEY);
         let watchUrl = null;
         if (!bearer) {
-            console.error(`Remote viewing unavailable: no intervu credential found for ${MCP_SERVER_KEY}. Run 'mcporter auth ${MCP_SERVER_KEY}'.`);
+            console.error(`Remote viewing unavailable: no velai credential found for ${MCP_SERVER_KEY}. Run 'mcporter auth ${MCP_SERVER_KEY}'.`);
         } else {
             try {
                 const rtc = createWebRtcTransport({ apiBase: API_BASE, bearer, onInput, onDisconnect });

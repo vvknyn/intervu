@@ -43,7 +43,7 @@ const SCOPE_LABEL: Record<UnsubscribeScope, string> = {
     // and its send never signs an unsubscribe token (see password-reset.ts's
     // doc comment) — kept so this Record stays exhaustive over EmailKind.
     password_reset: "password reset messages",
-    all: "all intervu emails",
+    all: "all velai emails",
 };
 
 export async function GET(request: Request): Promise<NextResponse> {

@@ -72,24 +72,22 @@ function preheaderBlock(text: string): string {
  * Brand lockup: the app mark beside the wordmark, centred, sized to the
  * ratio `TopBar.tsx` uses (28px mark, 20px wordmark).
  *
- * The mark is a hosted PNG because SVG does not render in Gmail or Outlook,
- * and it is the app-icon lockup — light brackets on ink — rather than the
- * site header's ink-on-paper brackets. That is a KNOWN difference, and a
- * deliberate one: the site draws the mark from `BrandMark.tsx`, whose dot is
- * `#7cb87a` while `public/mark.svg` uses `#6fad6d` and `--brand` is now
- * Klein blue. Three values, no decision yet. Rendering a new raster would
- * mean picking one, so this uses the asset that already ships.
+ * The mark is a hosted PNG (public/velai-logo.png) because SVG does not
+ * render in Gmail or Outlook — it's the app-icon lockup (mark on its own
+ * dark ground, per src/app/icon.svg) rather than the site header's
+ * currentColor mark (BrandMark.tsx), since a raster can't adapt to the
+ * email client's own light/dark rendering the way currentColor does in-app.
  *
  * Its `alt` is deliberately EMPTY — the wordmark next to it is real text, so
  * alt text here would read the brand twice to a screen reader and print
- * "intervu intervu" in every client that blocks images by default.
+ * "velai velai" in every client that blocks images by default.
  */
 function header(siteUrl: string): string {
   const { text, fontSize, fontWeight, letterSpacing } = EMAIL_WORDMARK;
   return `<tr>
         <td align="center" style="padding:32px 32px 24px;">
           <a href="${siteUrl}" style="text-decoration:none;color:${C.ink};">
-            <img src="${siteUrl}/intervu-logo.png" width="28" height="28" alt="" style="border-radius:6px;vertical-align:middle;border:0;display:inline-block;" />
+            <img src="${siteUrl}/velai-logo.png" width="28" height="28" alt="" style="border-radius:6px;vertical-align:middle;border:0;display:inline-block;" />
             <span style="${FONT}font-size:${fontSize}px;font-weight:${fontWeight};letter-spacing:${letterSpacing};text-transform:uppercase;color:${C.ink};vertical-align:middle;padding-left:8px;">${text}</span>
           </a>
         </td>

@@ -44,7 +44,7 @@ describe("seo/constants — getSiteUrl() env seam", () => {
   // with the site origin must never require NEXT_PUBLIC_SITE_URL to be set.
   it("does not require NEXT_PUBLIC_SITE_URL just to import an unrelated export", () => {
     delete process.env.NEXT_PUBLIC_SITE_URL;
-    assert.equal(SITE_NAME, "Intervu");
+    assert.equal(SITE_NAME, "Velai");
   });
 
   // robots.ts/sitemap.ts used to declare their own local

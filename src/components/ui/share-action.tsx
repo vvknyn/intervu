@@ -12,7 +12,7 @@ type VisualState = "idle" | "copied" | "failed";
  * "failed") — shows it for 1.5s before reverting to idle. A completed
  * native share and a cancelled one both leave the control on its idle
  * state: the OS sheet already gave its own feedback, and a cancel isn't a
- * failure. `ShareAction` below and the "Share Intervu" menu item
+ * failure. `ShareAction` below and the "Share Velai" menu item
  * (TopBar.tsx) both use this, so neither re-implements the bookkeeping —
  * only their render shell (icon button vs. menu row) differs.
  */

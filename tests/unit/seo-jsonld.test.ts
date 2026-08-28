@@ -78,7 +78,7 @@ describe("seo/jsonld", () => {
   it("buildWebApplicationJsonLd emits WebApplication graph", () => {
     const jsonLd = buildWebApplicationJsonLd();
     assert.equal(jsonLd["@type"], "WebApplication");
-    assert.equal(jsonLd.name, "Intervu Job Search");
+    assert.equal(jsonLd.name, "Velai Job Search");
     assert.equal(jsonLd.url, ORIGIN);
     assert.ok(jsonLd.featureList.length > 0);
   });
@@ -91,7 +91,7 @@ describe("seo/jsonld", () => {
     });
     assert.equal(jsonLd.dateModified, "2026-07-01");
     assert.equal(jsonLd.url, `${ORIGIN}/research/ghost-jobs`);
-    assert.equal(jsonLd.publisher.name, "Intervu");
+    assert.equal(jsonLd.publisher.name, "Velai");
     assert.equal("description" in jsonLd, false);
   });
 

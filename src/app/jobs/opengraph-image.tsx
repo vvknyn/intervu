@@ -1,4 +1,5 @@
 import { buildPageOgImage, OG_IMAGE_CONTENT_TYPE, OG_IMAGE_SIZE } from "@/lib/og/page-card";
+import { SITE_NAME } from "@/lib/seo/constants";
 
 // /jobs is the front door `/` redirects to (see app/page.tsx) — `/` itself
 // never actually renders (it always calls `redirect()`), so its own
@@ -10,7 +11,7 @@ import { buildPageOgImage, OG_IMAGE_CONTENT_TYPE, OG_IMAGE_SIZE } from "@/lib/og
 // generator — same shared card as co/[slug], companies/[slug], trends —
 // is what actually makes it get an image again.
 export const runtime = "edge";
-export const alt = "Intervu — live jobs from company career pages";
+export const alt = `${SITE_NAME} — live jobs from company career pages`;
 export const size = OG_IMAGE_SIZE;
 export const contentType = OG_IMAGE_CONTENT_TYPE;
 

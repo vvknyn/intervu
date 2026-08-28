@@ -110,7 +110,7 @@ export function ConnectClient({
   const jsonConfig = JSON.stringify(
     {
       mcpServers: {
-        intervu: {
+        velai: {
           url: mcpUrl,
         },
       },
@@ -169,7 +169,7 @@ export function ConnectClient({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-xs font-bold text-foreground">Sign in to intervu</h3>
+                    <h3 className="text-xs font-bold text-foreground">Sign in to velai</h3>
                     <Button
                       asChild
                       size="sm"

@@ -116,8 +116,8 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             title: `Disconnect ${displayName(credential)}?`,
             description:
                 credential.kind === "oauth"
-                    ? "This disconnects the app entirely, including its ability to silently refresh its own access — it won't be able to reach your intervu account anymore. You can always connect it again later."
-                    : "It won't be able to reach your intervu account anymore. You can always connect it again later.",
+                    ? "This disconnects the app entirely, including its ability to silently refresh its own access — it won't be able to reach your velai account anymore. You can always connect it again later."
+                    : "It won't be able to reach your velai account anymore. You can always connect it again later.",
             confirmLabel: "Disconnect",
             destructive: true,
         });
@@ -145,7 +145,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                     <button onClick={onLoginClick} className="underline text-brand hover:text-brand/80">
                         login
                     </button>{" "}
-                    to connect Claude or another AI agent to your intervu account.
+                    to connect Claude or another AI agent to your velai account.
                 </p>
             </section>
         );

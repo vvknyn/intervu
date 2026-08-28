@@ -12,7 +12,7 @@ export default function NotFound() {
         <BrandMark className="h-7 w-7" />
       </div>
       <span className="mt-4 font-display text-[13px] font-extrabold tracking-tight text-muted-foreground">
-        intervu
+        velai
       </span>
       <p className="mt-3 text-xs uppercase tracking-[0.08em] text-brand">404</p>
       <h1 className="mt-1 font-display text-2xl font-extrabold tracking-[-0.02em] text-foreground">

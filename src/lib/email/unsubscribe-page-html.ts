@@ -30,7 +30,7 @@ export function renderUnsubscribeStatusPage(input: {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
-    <title>${input.title} — intervu</title>
+    <title>${input.title} — velai</title>
   </head>
   <body style="font-family:${EMAIL_FONT_SANS};max-width:420px;margin:80px auto;padding:0 24px;background-color:${C.page};color:${C.ink};text-align:center;">
     <p style="margin:0 0 28px;font-size:${EMAIL_WORDMARK.fontSize}px;font-weight:${EMAIL_WORDMARK.fontWeight};letter-spacing:${EMAIL_WORDMARK.letterSpacing};text-transform:uppercase;">${EMAIL_WORDMARK.text}</p>

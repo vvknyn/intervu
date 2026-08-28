@@ -71,7 +71,7 @@ export const EMAIL_FONT_SANS =
  * different wordmark next to identical typography.
  */
 export const EMAIL_WORDMARK = {
-  text: "INTERVU",
+  text: "VELAI",
   fontSize: 20,
   fontWeight: 900,
   letterSpacing: "-0.025em",

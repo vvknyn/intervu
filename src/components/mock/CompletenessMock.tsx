@@ -64,9 +64,9 @@ const CONNECT_MOCK_CLIENTS = CONNECT_CLIENTS.filter((c) =>
 const STEP1_INTRO: Record<ConnectClientId, string> = {
     claude: "In Claude, open Settings → Connectors → Add custom connector and paste:",
     chatgpt: "In ChatGPT: Settings → Connectors (developer mode) → Add — requires a paid plan.",
-    gemini: "The Gemini app can't take custom MCP connectors yet. In your Gemini CLI settings.json, add intervu as an mcpServers entry pointing at:",
+    gemini: "The Gemini app can't take custom MCP connectors yet. In your Gemini CLI settings.json, add velai as an mcpServers entry pointing at:",
     cursor: "In Cursor, open Settings → MCP and add a new server pointing at:",
-    openclaw: "In your openclaw.json, add intervu under mcpServers pointing at the URL below.",
+    openclaw: "In your openclaw.json, add velai under mcpServers pointing at the URL below.",
 };
 
 const CONNECT_PROMPTS = [
@@ -672,7 +672,7 @@ export function CompletenessMock() {
                 <div className="mx-auto flex h-16 w-full max-w-[920px] items-center justify-between px-5 sm:px-7">
                     <div className="flex items-center gap-2.5 text-[#ececec]">
                         <BrandMark className="h-10 w-10" />
-                        <span className="text-[22px] font-semibold tracking-[-0.03em]">intervu</span>
+                        <span className="text-[22px] font-semibold tracking-[-0.03em]">velai</span>
                     </div>
                     <nav aria-label="Mock panels" className="flex items-center gap-[18px] text-[13px]">
                         {MOCK_PANELS.map(({ id, label }) => (
@@ -814,7 +814,7 @@ export function CompletenessMock() {
                         Your AI already knows how to job hunt. Give it the real market.
                     </h1>
                     <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-                        Pair intervu with the AI client you already use through MCP, and let it search and track verified job
+                        Pair velai with the AI client you already use through MCP, and let it search and track verified job
                         listings for you.
                     </p>
                     <div data-testid="connect-tabs" role="tablist" aria-label="AI client" className="mt-8 flex gap-2 overflow-x-auto">
@@ -880,7 +880,7 @@ export function CompletenessMock() {
                         </ul>
                     </section>
                     <p className="mt-6 max-w-xl text-xs text-muted-foreground">
-                        Revocable any time in settings. Your AI&apos;s subscription does the thinking — intervu provides the data.
+                        Revocable any time in settings. Your AI&apos;s subscription does the thinking — velai provides the data.
                     </p>
                 </main>
             )}

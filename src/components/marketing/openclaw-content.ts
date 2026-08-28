@@ -185,7 +185,7 @@ export function setupSteps(issuer: string): readonly SetupStep[] {
     { title: "Install OpenClaw", body: "The open-source assistant that runs on your own machine." },
     {
       title: "Authenticate",
-      body: "Point it at intervu's data with your own key. It opens a browser to sign in to intervu the first time.",
+      body: "Point it at velai's data with your own key. It opens a browser to sign in to velai the first time.",
       command: `mcporter auth ${mcpConnectorUrl(issuer)}`,
     },
     { title: "Scan the WhatsApp QR", body: "Pair your WhatsApp so the agent can message you drafts to review." },

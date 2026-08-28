@@ -304,8 +304,8 @@ export function buildCompanyHiringAnswer(
     // whether the employer is hiring somewhere it can't see. It reports the
     // former and lets the reader draw the latter.
     headline: hasOpenRoles
-      ? `Yes — ${openCountText(data)} ${roles} live on intervu right now.`
-      : "intervu isn't tracking any live open roles right now.",
+      ? `Yes — ${openCountText(data)} ${roles} live on velai right now.`
+      : "velai isn't tracking any live open roles right now.",
     trackRecord: data.hasTrackRecord
       ? `Last 90 days: ${data.opened90d} roles opened, ${data.closed90d} closed.`
       : "Opened and closed counts for the last 90 days aren't tracked for this employer yet.",
@@ -320,9 +320,9 @@ export function companyMetaDescription(data: CompanyPageData): string {
   if (data.openCount > 0) {
     const roles = data.openCount === 1 ? "role" : "roles";
     const count = data.openCountIsLowerBound ? `at least ${data.openCount}` : String(data.openCount);
-    return `${data.name} has ${count} live, verified open ${roles} tracked on intervu, screened for ${GHOST_JOB_TERM} risk.`;
+    return `${data.name} has ${count} live, verified open ${roles} tracked on velai, screened for ${GHOST_JOB_TERM} risk.`;
   }
-  return `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${data.name} on intervu.`;
+  return `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${data.name} on velai.`;
 }
 
 /**

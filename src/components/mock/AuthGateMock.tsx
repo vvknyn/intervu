@@ -244,7 +244,7 @@ export function AuthGateMock() {
                         <div className="flex items-center gap-5">
                             <BrandMark className="h-24 w-24 text-[#ececec] sm:h-28 sm:w-28" />
                             <span className="text-[52px] font-semibold leading-none tracking-[-0.045em] sm:text-[60px]">
-                                intervu
+                                velai
                             </span>
                         </div>
                         <p
@@ -327,7 +327,7 @@ export function AuthGateMock() {
                         <div className="mx-auto flex h-16 w-full max-w-[920px] items-center justify-between px-5 sm:px-7">
                             <div className="flex items-center gap-2.5">
                                 <BrandMark className="h-10 w-10" />
-                                <span className="text-[22px] font-semibold tracking-[-0.03em]">intervu</span>
+                                <span className="text-[22px] font-semibold tracking-[-0.03em]">velai</span>
                             </div>
                             <nav className="flex items-center gap-4 text-[13px]">
                                 <button
@@ -389,7 +389,7 @@ export function AuthGateMock() {
                             {consent === "pending" ? (
                                 <div className="mt-8 max-w-md rounded-none border border-[#3a4049] bg-black/30 p-6">
                                     <p className="text-sm font-medium text-[#ececec]">
-                                        Allow {agentLabel(lane === "board" ? "mcp" : lane)} to access intervu?
+                                        Allow {agentLabel(lane === "board" ? "mcp" : lane)} to access velai?
                                     </p>
                                     <Button
                                         className="mt-5 rounded-none bg-[#ececec] text-[#12151a] hover:bg-[#ececec]/90"

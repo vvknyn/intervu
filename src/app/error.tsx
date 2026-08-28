@@ -32,7 +32,7 @@ export default function Error({
         <BrandMark className="h-7 w-7" />
       </div>
       <span className="mt-4 font-display text-[13px] font-extrabold tracking-tight text-muted-foreground">
-        intervu
+        velai
       </span>
       <h1 className="mt-3 font-display text-2xl font-extrabold tracking-[-0.02em] text-foreground">
         Something went sideways

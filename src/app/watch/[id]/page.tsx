@@ -24,14 +24,14 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
                 <div className="max-w-sm text-center space-y-4" data-testid="watch-login-required">
                     <h1 className="text-lg font-medium">Sign in to watch</h1>
                     <p className="text-sm text-white/60">
-                        Sign in to intervu on this phone, then open this link again to see the
+                        Sign in to velai on this phone, then open this link again to see the
                         application being filled in.
                     </p>
                     <Link
                         href="/"
                         className="inline-block rounded-md bg-white px-4 py-2 text-sm font-medium text-black"
                     >
-                        Go to intervu
+                        Go to velai
                     </Link>
                 </div>
             </main>

@@ -17,7 +17,7 @@ function ConsentBrand() {
         <div className="mb-6 flex items-center justify-center gap-2 text-brand">
             <BrandMark className="h-7 w-7 text-brand" />
             <span className="font-display text-[20px] font-black uppercase tracking-tight text-brand">
-                intervu
+                velai
             </span>
         </div>
     );

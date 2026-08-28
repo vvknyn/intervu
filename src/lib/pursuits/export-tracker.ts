@@ -51,7 +51,7 @@ export function serializePursuitsJson(pursuits: Pursuit[]): string {
 
 export function trackerExportFilename(format: TrackerExportFormat, now = new Date()): string {
     const stamp = now.toISOString().slice(0, 10);
-    return `intervu-tracker-${stamp}.${format}`;
+    return `velai-tracker-${stamp}.${format}`;
 }
 
 export function trackerExportMime(format: TrackerExportFormat): string {

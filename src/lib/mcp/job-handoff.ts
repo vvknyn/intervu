@@ -16,7 +16,7 @@ function jobLabel(job: JobHandoffInput): string {
 
 /** Prompt that tells a paired MCP client to use intervu tools on this job. */
 export function buildJobMcpHandoffPrompt(job: JobHandoffInput): string {
-    return `Using my intervu MCP connection, pull job_id ${job.id} (${jobLabel(job)}). Tell me if I'm a fit, what gaps to close, and whether to save it.`;
+    return `Using my velai MCP connection, pull job_id ${job.id} (${jobLabel(job)}). Tell me if I'm a fit, what gaps to close, and whether to save it.`;
 }
 
 /** Deep link with prefilled prompt for the chosen AI client. */

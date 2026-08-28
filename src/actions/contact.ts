@@ -68,8 +68,8 @@ export async function submitContactMessage({
         // Dispatch notification email to hello@thesubspace.io
         await sendEmail({
             to: "hello@thesubspace.io",
-            subject: `[Intervu Contact] Message from ${parsed.data.name ? `${parsed.data.name} (${parsed.data.email})` : parsed.data.email}`,
-            text: `New contact form submission on Intervu:\n\nName: ${parsed.data.name || "Not provided"}\nEmail: ${parsed.data.email}\nSubmitted from: ${path}\nTime: ${new Date().toISOString()}\n\nMessage:\n${parsed.data.message}\n`,
+            subject: `[Velai Contact] Message from ${parsed.data.name ? `${parsed.data.name} (${parsed.data.email})` : parsed.data.email}`,
+            text: `New contact form submission on Velai:\n\nName: ${parsed.data.name || "Not provided"}\nEmail: ${parsed.data.email}\nSubmitted from: ${path}\nTime: ${new Date().toISOString()}\n\nMessage:\n${parsed.data.message}\n`,
             kind: "transactional",
         });
 

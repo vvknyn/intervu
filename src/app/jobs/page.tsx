@@ -4857,7 +4857,7 @@ function JobsContent() {
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
                                     <p className="text-[13px] text-foreground">Job search is being connected.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
-                                        We&apos;re wiring intervu up to Subspace&apos;s live job corpus — including the posting check
+                                        We&apos;re wiring velai up to Subspace&apos;s live job corpus — including the posting check
                                         that flags roles that aren&apos;t really hiring.
                                     </p>
                                     {result?.note && (
