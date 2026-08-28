@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
-import { captureFunnelEvent } from '@/lib/analytics/funnel'
+import { captureEvent } from '@/lib/analytics/events'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -141,7 +141,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
             // rather than guessed at. Closing that gap needs either
             // server-side capture or an explicit new-user signal handed
             // back from /auth/callback; see docs/analytics/FUNNEL.md.
-            captureFunnelEvent('signup_completed', { method: 'username' })
+            captureEvent('signup_completed', { method: 'username' })
             router.refresh()
             await syncGuestFollowsToServer()
             if (onSuccess) onSuccess()

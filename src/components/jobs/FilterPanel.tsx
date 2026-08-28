@@ -319,6 +319,41 @@ export const PRISTINE_FILTER_STATE: FilterState = {
 };
 
 /**
+ * Pure: which fields actually differ between two FilterState snapshots, by
+ * field name (`"employment_type"`, `"salaryMin"`, `"board"`, …) — the
+ * `search_filter_applied` analytics seam's diff, called from the one
+ * `applyFilterState` mutation chokepoint (page.tsx) rather than threading a
+ * per-control capture through every caller of `applyFilterState` (chip
+ * remove, mobile sheet, location add/clear, board/company scope, …).
+ *
+ * Deliberately a full field comparison, not `activeFilterEntries`'s active-
+ * key set: swapping one selected value for another under the same key (e.g.
+ * `location_country` Canada -> US) changes nothing about WHICH keys are
+ * active, so a key-set diff would miss it.
+ */
+export function changedFilterFacets(prev: FilterState, next: FilterState): string[] {
+    const changed: string[] = [];
+    const facetKeys = new Set([...Object.keys(prev.facets), ...Object.keys(next.facets)]) as Set<FacetKey>;
+    for (const key of facetKeys) {
+        const prevValues = prev.facets[key] ?? [];
+        const nextValues = next.facets[key] ?? [];
+        const same =
+            prevValues.length === nextValues.length &&
+            prevValues.every((v) => nextValues.includes(v)) &&
+            nextValues.every((v) => prevValues.includes(v));
+        if (!same) changed.push(key);
+    }
+    if (prev.salaryMin !== next.salaryMin) changed.push("salaryMin");
+    if (prev.visaOnly !== next.visaOnly) changed.push("visaOnly");
+    if (prev.postedBucket !== next.postedBucket) changed.push("postedBucket");
+    if (prev.yearsExperience !== next.yearsExperience) changed.push("yearsExperience");
+    if (prev.hideGhosts !== next.hideGhosts) changed.push("hideGhosts");
+    if (prev.board !== next.board) changed.push("board");
+    if (prev.companyDomain !== next.companyDomain) changed.push("companyDomain");
+    return changed;
+}
+
+/**
  * Pure add/remove-from-array toggle for one facet key's selected values.
  * Shared by the desktop mutator (`toggleFacet`, page.tsx) and Task 10's
  * mobile sheet pending-state mutator, so there is exactly one place that

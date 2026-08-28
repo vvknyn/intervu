@@ -39,6 +39,8 @@ interface ShareActionProps {
    *  replaces) — provided, it renders as text instead (e.g. a menu item). */
   label?: string;
   className?: string;
+  /** Job-surface share — see `ShareRequest.jobId` (share-decision.ts). */
+  jobId?: string;
 }
 
 /**
@@ -47,7 +49,7 @@ interface ShareActionProps {
  * CopyJobLinkButton copied-state idiom (Check/Copy icon swap, an aria-label
  * that tracks state) so it reads as native to the rest of the app.
  */
-export function ShareAction({ title, text, url, label, className }: ShareActionProps) {
+export function ShareAction({ title, text, url, label, className, jobId }: ShareActionProps) {
   const { state, trigger } = useShareControl();
 
   const displayText = state === "copied" ? "Copied" : state === "failed" ? "Couldn't share" : label;
@@ -55,7 +57,7 @@ export function ShareAction({ title, text, url, label, className }: ShareActionP
   return (
     <button
       type="button"
-      onClick={() => trigger({ title, text, url })}
+      onClick={() => trigger({ title, text, url, jobId })}
       aria-label={displayText ?? "Share"}
       className={className}
     >

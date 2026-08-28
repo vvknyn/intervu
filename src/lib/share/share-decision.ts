@@ -1,4 +1,5 @@
 import { trackEvent } from "@/lib/analytics";
+import { captureEvent } from "@/lib/analytics/events";
 
 /**
  * Decision logic for the one reusable share control (`ShareAction`,
@@ -73,6 +74,10 @@ export interface ShareRequest {
   title: string;
   text: string;
   url: string;
+  /** Present only for a job-surface share — routes the capture through the
+   *  typed `job_shared` catalog entry (with `job_id`) instead of the untyped
+   *  `share_initiated` fallback below. */
+  jobId?: string;
 }
 
 /**
@@ -102,7 +107,11 @@ export async function performShare(request: ShareRequest): Promise<ShareOutcome>
   const outcome = classifyShareOutcome(method, error);
   if (shouldTrackShare(outcome)) {
     const surface = shareSurfaceFromUrl(request.url);
-    if (surface) trackEvent("share_initiated", { surface, method });
+    if (surface === "job" && request.jobId) {
+      captureEvent("job_shared", { job_id: request.jobId, method });
+    } else if (surface) {
+      trackEvent("share_initiated", { surface, method });
+    }
   }
   return outcome;
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { followCompanyAction, unfollowCompanyAction } from "@/actions/follows";
 import { recordFollowFunnelAction } from "@/actions/follow-funnel";
-import { captureFunnelEvent } from "@/lib/analytics/funnel";
+import { captureEvent } from "@/lib/analytics/events";
 import { unfollowByContactCookieAction } from "@/actions/email-follow";
 import { Button } from "@/components/ui/button";
 import { FollowEmailStep } from "@/components/companies/FollowEmailStep";
@@ -136,6 +136,7 @@ export function FollowButton({
             // would resurrect the follow this click just removed.
             removeGuestFollow(normalizedDomain);
             onGuestUnfollow?.();
+            captureEvent("company_unfollowed", { company_domain: normalizedDomain });
           }
         } finally {
           setBusy(false);
@@ -168,10 +169,11 @@ export function FollowButton({
         // `follow_click` up there is the INTENT event; this one asserts the
         // follow exists, and the optimistic state is rolled back on failure.
         // A failed action throws on the line above and never reaches this.
-        captureFunnelEvent("company_followed", { company_domain: normalizedDomain });
+        captureEvent("company_followed", { company_domain: normalizedDomain });
       } else {
         const res = await unfollowCompanyAction(normalizedDomain);
         if (res.error) throw new Error(res.error);
+        captureEvent("company_unfollowed", { company_domain: normalizedDomain });
       }
       invalidateFollowsCache();
     } catch {
