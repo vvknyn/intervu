@@ -37,14 +37,14 @@ export function getSiteUrl(): string {
 
 /** Matches the established brand casing used throughout existing metadata
  *  (OG siteName, app title default) — see `layout.tsx`. */
-export const SITE_NAME = "Intervu";
+export const SITE_NAME = "Velai";
 
 /** Landing (`/`) metadata — what every search result, browser tab, and
  *  shared-link preview shows. Job-seeker language only; the guest-copy
  *  jargon test bans machinery terms here. Agent/OpenClaw copy belongs to
  *  the opted-in surfaces (/connect, /openclaw). */
 export const LANDING_TITLE =
-    "Intervu — Live Jobs from Company Career Pages | Verified & Ghost-Screened";
+    "Velai — Live Jobs from Company Career Pages | Verified & Ghost-Screened";
 export const LANDING_DESCRIPTION =
     "Search live jobs pulled directly from employer career pages — software, healthcare, trades, and more. Every role is screened for freshness, salary transparency, and ghost-job risk before you apply.";
 
@@ -59,9 +59,9 @@ export const SITE_DESCRIPTION =
  *  copy. Guest-facing (a share recipient is, by definition, logged out), so
  *  the jargon test covers both. */
 export const SHARE_JOB_TEXT =
-    "Found this on Intervu — it pulls jobs straight from company career pages and flags the stale ones before you apply.";
+    "Found this on Velai — it pulls jobs straight from company career pages and flags the stale ones before you apply.";
 export const SHARE_APP_TEXT =
-    "Intervu shows live jobs pulled straight from company career pages, and screens each one for ghost-job risk before you apply.";
+    "Velai shows live jobs pulled straight from company career pages, and screens each one for ghost-job risk before you apply.";
 
 /** High-intent keywords targeting core job discovery, Google Trends top queries,
  *  remote work, Canada/US markets, tech roles, verified employer postings, and salary transparency. */

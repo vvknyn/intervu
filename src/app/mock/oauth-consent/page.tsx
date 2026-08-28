@@ -3,7 +3,7 @@ import { ConsentCard, LoggedOutCard, ErrorCard } from "@/components/oauth/Consen
 import { consentParamsToQuery, type ConsentParams } from "@/lib/agent/consent";
 
 export const metadata: Metadata = {
-    title: "Oauth-consent mock — Intervu",
+    title: "Oauth-consent mock — Velai",
     robots: { index: false, follow: false },
 };
 

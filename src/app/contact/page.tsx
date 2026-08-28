@@ -3,7 +3,7 @@ import { ContactForm } from "@/components/contact/ContactForm";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 const TITLE = "Contact";
-const DESCRIPTION = "Reach the intervu team — questions, feedback, or a listing to correct.";
+const DESCRIPTION = "Reach the velai team — questions, feedback, or a listing to correct.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -27,7 +27,7 @@ export default function ContactPage() {
           mono shape as the landing hero's sourcing line (see page.tsx). */}
       <div className="mt-8 flex items-center gap-2.5 text-[13px] tracking-[0.02em] text-muted-foreground">
         <span aria-hidden className="inline-block h-[9px] w-[9px] bg-brand" />
-        the intervu team · job data by Subspace
+        the velai team · job data by Subspace
       </div>
     </main>
   );

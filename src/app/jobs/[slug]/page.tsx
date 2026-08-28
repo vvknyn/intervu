@@ -11,6 +11,7 @@ import { getJobById } from "@/lib/jobs/get-job";
 import { jobPath, parseJobSlug } from "@/lib/jobs/job-slug";
 import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { SITE_NAME } from "@/lib/seo/constants";
 
 /**
  * Server-rendered, indexable job page (spec 2026-08-09-shareable-job-pages).
@@ -46,7 +47,7 @@ export async function generateMetadata({
     const { job, path } = found;
     const company = displayCompanyFor(job);
     const where = titleCaseDisplay(locationText(job));
-    const title = `${job.title}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | Intervu`;
+    const title = `${job.title}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | ${SITE_NAME}`;
     const description =
         job.company_opened_90d != null && job.company_closed_90d != null && company
             ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`

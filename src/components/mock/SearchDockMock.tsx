@@ -93,7 +93,7 @@ function Header({ docked, treatment }: { docked: boolean; treatment: Treatment }
                             docked ? "max-w-0 opacity-0" : "max-w-[120px] opacity-100",
                         )}
                     >
-                        INTERVU
+                        VELAI
                     </span>
                 </div>
 

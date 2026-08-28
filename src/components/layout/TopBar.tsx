@@ -39,15 +39,15 @@ function initialsOf(user: User): string {
     return src.slice(0, 1).toUpperCase();
 }
 
-/** "Share Intervu" account-menu entry — same share control as JobDetail's
+/** "Share Velai" account-menu entry — same share control as JobDetail's
  *  ShareAction (native sheet, clipboard fallback, honest failure), rendered
  *  as a plain DropdownMenuItem so it keeps this menu's own keyboard/click
  *  handling rather than nesting a second interactive element inside it.
  *  `onSelect` is prevented so the menu stays open long enough to show the
  *  transient "Copied"/"Couldn't share" text. */
-function ShareIntervuMenuItem() {
+function ShareVelaiMenuItem() {
     const { state, trigger } = useShareControl();
-    const label = state === "copied" ? "Copied!" : state === "failed" ? "Couldn't share" : "Share Intervu";
+    const label = state === "copied" ? "Copied!" : state === "failed" ? "Couldn't share" : "Share Velai";
 
     return (
         <DropdownMenuItem
@@ -128,7 +128,7 @@ export function TopBar() {
                 >
                     <BrandMark className="h-7 w-7 text-brand" />
                     <span className="font-display text-[20px] font-black uppercase tracking-tight text-brand">
-                        intervu
+                        velai
                     </span>
                 </Link>
 
@@ -288,7 +288,7 @@ export function TopBar() {
                                         Feedback
                                     </DropdownMenuItem>
                                 </FeedbackModal>
-                                <ShareIntervuMenuItem />
+                                <ShareVelaiMenuItem />
                                 <DropdownMenuItem asChild className="rounded-lg text-muted-foreground text-xs">
                                     <Link href="/privacy">Privacy & Terms</Link>
                                 </DropdownMenuItem>

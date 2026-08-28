@@ -29,7 +29,7 @@ export default function WatchAnywherePage() {
                 <h1 className="text-lg font-medium">Watch from anywhere</h1>
                 <p className="text-sm text-white/60">
                     Watch from anywhere runs over your own private network; nothing passes through
-                    intervu.
+                    velai.
                 </p>
                 <ol className="space-y-3 text-sm text-white/80 list-decimal list-inside">
                     <li>Install the Tailscale app on this device.</li>

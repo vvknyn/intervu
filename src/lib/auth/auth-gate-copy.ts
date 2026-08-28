@@ -54,7 +54,7 @@ export interface AuthCardCopy {
 export function authCardCopy(tab: AuthCardTab): AuthCardCopy {
     const label = tab === "signup" ? "Create account" : "Sign in";
     return {
-        eyebrow: `intervu · ${label.toLowerCase()}`,
+        eyebrow: `velai · ${label.toLowerCase()}`,
         title: label,
         tabLabel: label,
         submitLabel: label,

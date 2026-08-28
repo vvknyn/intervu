@@ -42,5 +42,5 @@ test("serializePursuitsJson includes stage and row fields", () => {
 });
 
 test("trackerExportFilename uses date stamp", () => {
-    assert.equal(trackerExportFilename("csv", new Date("2026-08-05T12:00:00Z")), "intervu-tracker-2026-08-05.csv");
+    assert.equal(trackerExportFilename("csv", new Date("2026-08-05T12:00:00Z")), "velai-tracker-2026-08-05.csv");
 });

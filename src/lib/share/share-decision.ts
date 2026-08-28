@@ -2,7 +2,7 @@ import { trackEvent } from "@/lib/analytics";
 
 /**
  * Decision logic for the one reusable share control (`ShareAction`,
- * components/ui/share-action.tsx) and the account-menu "Share Intervu" item
+ * components/ui/share-action.tsx) and the account-menu "Share Velai" item
  * (TopBar.tsx) — both call `performShare` below rather than each
  * reimplementing "try the native sheet, fall back to clipboard, report the
  * outcome," which is exactly the kind of parallel mechanism that drifts.

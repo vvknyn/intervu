@@ -1,5 +1,6 @@
 import { buildPageOgImage, OG_IMAGE_CONTENT_TYPE, OG_IMAGE_SIZE } from "@/lib/og/page-card";
 import { getCompanyPageData } from "@/lib/companies/get-company";
+import { SITE_NAME } from "@/lib/seo/constants";
 
 // nodejs, not edge: getCompanyPageData now reaches getCompanyExhaust ->
 // getExhaustPg, which imports the `pg` driver (raw TCP, native bindings) —
@@ -7,7 +8,7 @@ import { getCompanyPageData } from "@/lib/companies/get-company";
 // import alone. This route never renders exhaust data into the image (only
 // `data.name`), so nothing gated is exposed by the switch.
 export const runtime = "nodejs";
-export const alt = "Intervu — company hiring truth";
+export const alt = `${SITE_NAME} — company hiring truth`;
 export const size = OG_IMAGE_SIZE;
 export const contentType = OG_IMAGE_CONTENT_TYPE;
 

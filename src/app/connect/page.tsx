@@ -7,9 +7,9 @@ import { AGENT } from "@/lib/agent/config";
 import { getServerUser } from "@/lib/auth/server-user";
 import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/openclaw-content";
 
-const TITLE = "Connect your AI to intervu (MCP)";
+const TITLE = "Connect your AI to velai (MCP)";
 const DESCRIPTION =
-  "Pair Claude, Gemini CLI, or Cursor with intervu's verified job data through an MCP server for job search — ask your AI client to find and track real openings without leaving the chat.";
+  "Pair Claude, Gemini CLI, or Cursor with velai's verified job data through an MCP server for job search — ask your AI client to find and track real openings without leaving the chat.";
 
 export const metadata: Metadata = {
   title: TITLE,

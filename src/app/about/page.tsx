@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
-const TITLE = "About intervu";
-const DESCRIPTION = "What intervu is, how it works, and where the data comes from.";
+const TITLE = "About velai";
+const DESCRIPTION = "What velai is, how it works, and where the data comes from.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -25,15 +25,15 @@ const ASEC = "mt-8 mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-mu
 export default function AboutPage() {
   return (
     <main data-testid="about-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">About intervu</p>
-      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">About intervu</h1>
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">About velai</p>
+      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">About velai</h1>
       <p className="mt-1.5 text-sm italic text-muted-foreground">
         An honest layer over the real job market: what&apos;s actually posted, flagged when it looks stale, out of
         the way otherwise.
       </p>
 
       <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
-        <h2 className={ASEC}>What intervu is</h2>
+        <h2 className={ASEC}>What velai is</h2>
         <p>
           The job market runs on information asymmetry. Employers know which roles are actively being filled,
           which listings are stale, and which teams are really hiring. Job seekers don&apos;t — they see a listing
@@ -41,7 +41,7 @@ export default function AboutPage() {
           interviewed or the req quietly died.
         </p>
         <p>
-          intervu exists to close that gap. We&apos;re an honest layer over the real job market: we show you what&apos;s
+          velai exists to close that gap. We&apos;re an honest layer over the real job market: we show you what&apos;s
           actually posted, flag what looks stale or low-signal, and get out of the way otherwise.
         </p>
 
@@ -69,7 +69,7 @@ export default function AboutPage() {
           <thead>
             <tr>
               <th className={RTABLE_TH}></th>
-              <th className={RTABLE_TH}>intervu</th>
+              <th className={RTABLE_TH}>velai</th>
               <th className={RTABLE_TH}>typical job board</th>
             </tr>
           </thead>
@@ -101,8 +101,8 @@ export default function AboutPage() {
       <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2 className={ASEC}>Where the data comes from</h2>
         <p>
-          intervu runs on the Subspace jobs corpus — an independent hiring-market data engine that monitors
-          companies&apos; own career pages. Subspace is the infrastructure; intervu is the product built on top of
+          velai runs on the Subspace jobs corpus — an independent hiring-market data engine that monitors
+          companies&apos; own career pages. Subspace is the infrastructure; velai is the product built on top of
           it, focused on making that data useful for your job search. Learn more at{" "}
           <a href="https://thesubspace.io" target="_blank" rel="noopener">
             thesubspace.io

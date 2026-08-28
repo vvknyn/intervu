@@ -4,9 +4,9 @@ import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/
 import { AGENT } from "@/lib/agent/config";
 
 export const metadata: Metadata = {
-  title: "Setup help — intervu",
+  title: "Setup help — velai",
   description:
-    "Troubleshooting for connecting your AI to intervu — the Claude connector (no install) and the OpenClaw local agent (Mac install). Find the exact step that failed and what to do next.",
+    "Troubleshooting for connecting your AI to velai — the Claude connector (no install) and the OpenClaw local agent (Mac install). Find the exact step that failed and what to do next.",
 };
 
 /** Ordered id + label pairs — the single source for both the on-page table
@@ -69,7 +69,7 @@ export default function ConnectHelpPage() {
         Setup help
       </p>
       <h1 className="mt-2 text-title font-semibold tracking-tight text-foreground">
-        Connecting your AI to intervu
+        Connecting your AI to velai
       </h1>
       <p className="mt-3 max-w-xl text-sm text-muted-foreground">
         Two ways to connect: a connector you paste into an AI client you already use, or a local
@@ -142,7 +142,7 @@ export default function ConnectHelpPage() {
           <p>
             One more thing worth knowing: the job descriptions your AI reads through this
             connector are text pulled from the original posting elsewhere on the web, not
-            something intervu wrote. Every response labels that text as data for your AI to read,
+            something velai wrote. Every response labels that text as data for your AI to read,
             never as instructions for it to follow — so a strange line buried in a posting
             can&apos;t quietly make your AI do something you didn&apos;t ask for.
           </p>
@@ -221,7 +221,7 @@ export default function ConnectHelpPage() {
 
         <HelpSection id="onboarding" title={SECTIONS[5].label}>
           <p>
-            Partway through, OpenClaw hands you off to its own setup wizard — not something intervu
+            Partway through, OpenClaw hands you off to its own setup wizard — not something velai
             runs. It asks you to pick an AI model provider (for example, Anthropic, the company
             behind Claude) and paste in a personal API key for it: an account you set up yourself,
             which can bill you separately for what the agent uses.
@@ -242,7 +242,7 @@ export default function ConnectHelpPage() {
         <HelpSection id="auth" title={SECTIONS[6].label}>
           <p>
             Near the end of the install, a browser window opens automatically asking you to approve
-            the connection between your Mac and intervu. It waits about 60 seconds for you to click
+            the connection between your Mac and velai. It waits about 60 seconds for you to click
             through — like a login link that expires quickly, it&apos;s timed on purpose so a
             connection can&apos;t be approved by someone else later without you noticing.
           </p>
@@ -256,7 +256,7 @@ export default function ConnectHelpPage() {
 
         <HelpSection id="skill-download" title={SECTIONS[7].label}>
           <p>
-            Near the end of the install, the script downloads intervu&apos;s actual job-search
+            Near the end of the install, the script downloads velai&apos;s actual job-search
             instructions and installs them into OpenClaw. This step failed — almost
             always a network hiccup (a dropped connection), not a problem with your account or
             anything installed so far.
@@ -318,9 +318,9 @@ export default function ConnectHelpPage() {
           </p>
           <p>
             Your WhatsApp link dies along with the agent — there&apos;s nothing left to message. And
-            nothing about you stays behind on intervu&apos;s servers from the local agent: it runs
+            nothing about you stays behind on velai&apos;s servers from the local agent: it runs
             entirely on your own machine, and the only thing that ever left it was job-matching
-            queries to intervu, the same way your browser talks to any website you visit.
+            queries to velai, the same way your browser talks to any website you visit.
           </p>
         </HelpSection>
 

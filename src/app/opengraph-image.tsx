@@ -1,15 +1,16 @@
 import { ImageResponse } from "next/og";
-import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { BRAND_MARK_PATHS, BRAND_MARK_STROKE_WIDTH, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { SITE_NAME } from "@/lib/seo/constants";
 
 // Route segment config + image metadata (Next reads these by convention).
 export const runtime = "edge";
-export const alt = "Intervu — your job application workspace";
+export const alt = `${SITE_NAME} — your job application workspace`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 /**
- * Branded OpenGraph/Twitter card: indigo gradient field, the Intervu
- * bracket-gate mark, and the product name + tagline. Generated at the edge by
+ * Branded OpenGraph/Twitter card: indigo gradient field, the Velai
+ * mark, and the product name + tagline. Generated at the edge by
  * next/og's ImageResponse.
  */
 export default function OpengraphImage() {
@@ -41,11 +42,17 @@ export default function OpengraphImage() {
             background: "rgba(255,255,255,0.14)",
           }}
         >
-          <svg viewBox={BRAND_MARK_VIEWBOX} width="72" height="72">
-            {BRAND_MARK_BRACKETS.map((d) => (
-              <path key={d} d={d} fill="#ffffff" />
+          <svg viewBox={BRAND_MARK_VIEWBOX} width="72" height="72" fill="none">
+            {BRAND_MARK_PATHS.map((d) => (
+              <path
+                key={d}
+                d={d}
+                stroke="#ffffff"
+                strokeWidth={BRAND_MARK_STROKE_WIDTH}
+                strokeLinecap="butt"
+                strokeLinejoin="round"
+              />
             ))}
-            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
           </svg>
         </div>
         <div
@@ -56,7 +63,7 @@ export default function OpengraphImage() {
             letterSpacing: "-0.03em",
           }}
         >
-          Intervu
+          {SITE_NAME}
         </div>
         <div
           style={{

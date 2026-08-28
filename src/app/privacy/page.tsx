@@ -4,7 +4,7 @@ import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Privacy Policy";
-const DESCRIPTION = "How intervu collects, uses, and protects your data.";
+const DESCRIPTION = "How velai collects, uses, and protects your data.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
 
         <article className="prose prose-sm max-w-none dark:prose-invert">
         <p>
-          intervu is a job search tool. This page explains what we collect, why, and how you can control it. If
+          velai is a job search tool. This page explains what we collect, why, and how you can control it. If
           anything here is unclear, use the contact page — we read every message ourselves.
         </p>
 
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
           is currently processed by Google&apos;s Firebase Auth.
         </p>
         <p>
-          Once you&apos;re using intervu, we store the things you create: your tracked applications, saved resumes,
+          Once you&apos;re using velai, we store the things you create: your tracked applications, saved resumes,
           saved searches, and prep answers. This data lives in Google Cloud Firestore and is only
           ever accessed by our servers — never exposed directly to the browser or to other users.
         </p>
@@ -61,7 +61,7 @@ export default function PrivacyPage() {
         <h2>How we use it</h2>
         <p>
           We use your account data to run the product: to show your tracked applications and keep your resumes and
-          prep answers where you left them. intervu is free to use — nothing you do draws on a balance or requires
+          prep answers where you left them. velai is free to use — nothing you do draws on a balance or requires
           payment. That&apos;s it — we don&apos;t use your data to train models, and we don&apos;t build
           advertising profiles.
         </p>
@@ -78,7 +78,7 @@ export default function PrivacyPage() {
 
         <h2>Connected AI clients</h2>
         <p>
-          If you pair an AI client with intervu from the <Link href="/connect">connect page</Link> (Claude,
+          If you pair an AI client with velai from the <Link href="/connect">connect page</Link> (Claude,
           ChatGPT, Gemini, or another app that speaks MCP), that client can — after you sign in and approve the
           connection — read your saved resume, your tracked applications, and your job preferences, and save
           changes back when you tell it to. Anything your AI client reads travels to that provider and is handled
@@ -112,11 +112,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           We use PostHog for product analytics — page views, clicks, and searches — so we can see what&apos;s
-          working and fix what isn&apos;t. It runs cookieless on intervu: no analytics cookie is set, and session
+          working and fix what isn&apos;t. It runs cookieless on velai: no analytics cookie is set, and session
           state is kept in memory only, gone the moment you close the tab or reload. Events aren&apos;t tied to
           your identity unless you&apos;re signed in. PostHog (US cloud) processes this data as our processor under
           their own DPA terms. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond the
-          two cookies above intervu sets none. The Cloudflare Turnstile check on our contact and sign-up forms
+          two cookies above velai sets none. The Cloudflare Turnstile check on our contact and sign-up forms
           runs in its own frame and may use its own storage under Cloudflare&apos;s terms to tell humans from
           bots.
         </p>

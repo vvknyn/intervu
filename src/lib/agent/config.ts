@@ -168,7 +168,7 @@ export const AGENT = {
  * hand-typed copies, so the two surfaces can never drift apart.
  */
 export function claudeCodeConnectCommand(mcpUrl: string): string {
-    return `claude mcp add --transport http intervu ${mcpUrl} --header "Authorization: Bearer YOUR_TOKEN"`;
+    return `claude mcp add --transport http velai ${mcpUrl} --header "Authorization: Bearer YOUR_TOKEN"`;
 }
 
 /**
@@ -181,7 +181,7 @@ export function claudeCodeConnectCommand(mcpUrl: string): string {
  */
 export function chatAppConnectInstruction(): { primary: string; alternate: string } {
     return {
-        primary: "Add intervu as a connector by URL and sign in when your app asks.",
+        primary: "Add velai as a connector by URL and sign in when your app asks.",
         alternate: "Some apps ask for a token instead — generate one in Settings → Connected agents.",
     };
 }

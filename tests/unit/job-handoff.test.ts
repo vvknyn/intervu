@@ -13,7 +13,7 @@ describe("buildJobMcpHandoffPrompt", () => {
     it("includes job_id and MCP-oriented ask", () => {
         const prompt = buildJobMcpHandoffPrompt(FIXTURE);
         assert.match(prompt, /job_id job-abc123/);
-        assert.match(prompt, /intervu MCP/);
+        assert.match(prompt, /velai MCP/);
         assert.match(prompt, /fit/);
         assert.ok(prompt.length < 500);
     });

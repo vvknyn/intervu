@@ -69,7 +69,7 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
   it("answers from the open-role count when the 90-day aggregates are absent (every employer today)", () => {
     const answer = buildCompanyHiringAnswer(company(), NOW);
     assert.equal(answer.hasOpenRoles, true);
-    assert.equal(answer.headline, "Yes — 213 open roles are live on intervu right now.");
+    assert.equal(answer.headline, "Yes — 213 open roles are live on velai right now.");
     // The half it does NOT have is stated as missing, not implied, not
     // rendered as a plausible-looking zero or an em-dash on its own.
     assert.equal(
@@ -85,7 +85,7 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
       company({ opened90d: 48, closed90d: 31, hasTrackRecord: true }),
       NOW,
     );
-    assert.equal(answer.headline, "Yes — 213 open roles are live on intervu right now.");
+    assert.equal(answer.headline, "Yes — 213 open roles are live on velai right now.");
     assert.equal(answer.trackRecord, "Last 90 days: 48 roles opened, 31 closed.");
   });
 
@@ -93,18 +93,18 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
     assert.equal(
       buildCompanyHiringAnswer(company({ openCount: 200, openCountIsLowerBound: true }), NOW)
         .headline,
-      "Yes — 200+ open roles are live on intervu right now.",
+      "Yes — 200+ open roles are live on velai right now.",
     );
     assert.equal(
       buildCompanyHiringAnswer(company({ openCount: 1 }), NOW).headline,
-      "Yes — 1 open role is live on intervu right now.",
+      "Yes — 1 open role is live on velai right now.",
     );
   });
 
   it("reports what intervu tracks rather than answering 'no' about the world", () => {
     const answer = buildCompanyHiringAnswer(company({ openCount: 0 }), NOW);
     assert.equal(answer.hasOpenRoles, false);
-    assert.equal(answer.headline, "intervu isn't tracking any live open roles right now.");
+    assert.equal(answer.headline, "velai isn't tracking any live open roles right now.");
     assert.doesNotMatch(answer.headline, /^(Yes|No)\b/);
     // A zero-role employer still gets the 90-day record when one exists.
     assert.equal(

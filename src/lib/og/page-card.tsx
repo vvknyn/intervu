@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { BRAND_MARK_PATHS, BRAND_MARK_STROKE_WIDTH, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
 
 /**
  * Shared OpenGraph/Twitter card shape for interior pages (company profiles,
@@ -25,9 +25,9 @@ const FOREGROUND = "#ECEEF2";
 const MUTED = "rgba(236,238,242,0.6)";
 const SIGNAL_GREEN = "#0D6E56";
 
-/** The brand's bracket-gate mark — same geometry (BRAND_MARK_*) used by the
- *  root OG image and the error/not-found pages, so this card reads as the
- *  same product. */
+/** The brand's mark — same geometry (BRAND_MARK_*) used by the root OG
+ *  image and the error/not-found pages, so this card reads as the same
+ *  product. */
 function BrandMark() {
   return (
     <div
@@ -41,11 +41,17 @@ function BrandMark() {
         background: "rgba(13,110,86,0.18)",
       }}
     >
-      <svg viewBox={BRAND_MARK_VIEWBOX} width={22} height={22}>
-        {BRAND_MARK_BRACKETS.map((d) => (
-          <path key={d} d={d} fill={FOREGROUND} />
+      <svg viewBox={BRAND_MARK_VIEWBOX} width={22} height={22} fill="none">
+        {BRAND_MARK_PATHS.map((d) => (
+          <path
+            key={d}
+            d={d}
+            stroke={FOREGROUND}
+            strokeWidth={BRAND_MARK_STROKE_WIDTH}
+            strokeLinecap="butt"
+            strokeLinejoin="round"
+          />
         ))}
-        <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
       </svg>
     </div>
   );
@@ -76,7 +82,7 @@ export function buildPageOgImage(title: string, eyebrow?: string): ImageResponse
               color: FOREGROUND,
             }}
           >
-            intervu
+            velai
           </span>
         </div>
 

@@ -27,7 +27,7 @@ export const AUTH_REQUIRED = "AUTH_REQUIRED";
 /** User-facing copy for the hard block, pulled out so it has one source of
  *  truth and is unit-testable without the Firebase-dependent functions that
  *  throw it. */
-export const AUTH_REQUIRED_MESSAGE = "Sign in to use Intervu's built-in AI.";
+export const AUTH_REQUIRED_MESSAGE = "Sign in to use Velai's built-in AI.";
 
 /** Admin emails get unlimited shared-key use. vvk is the default; override via env. */
 function adminEmails(): string[] {

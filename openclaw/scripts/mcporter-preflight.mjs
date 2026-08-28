@@ -122,7 +122,7 @@ function fail(message) {
 export function runPreflight(serverKey, canonicalUrl, canonicalRedirect) {
   const configPath = join(mcporterHome(), "mcporter.json");
   if (!existsSync(configPath)) {
-    fail(`intervu's mcporter is not set up on this machine (${configPath} is missing).`);
+    fail(`velai's mcporter is not set up on this machine (${configPath} is missing).`);
     return;
   }
 
@@ -135,7 +135,7 @@ export function runPreflight(serverKey, canonicalUrl, canonicalRedirect) {
   }
   if (identityChanged) {
     fail(
-      "intervu's mcporter identity had drifted from what install.sh sets up and was just corrected — " +
+      "velai's mcporter identity had drifted from what install.sh sets up and was just corrected — " +
         "the cached connection needs one manual re-approval before this can run.",
     );
     return;
@@ -147,11 +147,11 @@ export function runPreflight(serverKey, canonicalUrl, canonicalRedirect) {
   try {
     credentials = JSON.parse(readFileSync(join(mcporterHome(), "credentials.json"), "utf8"));
   } catch {
-    fail("intervu's connection needs approval before this can run — no credentials found.");
+    fail("velai's connection needs approval before this can run — no credentials found.");
     return;
   }
   if (!hasValidToken(credentials, serverKey, canonicalUrl)) {
-    fail("intervu's connection needs re-approval before this can run.");
+    fail("velai's connection needs re-approval before this can run.");
   }
 }
 

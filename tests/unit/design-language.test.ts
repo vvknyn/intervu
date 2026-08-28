@@ -23,31 +23,6 @@ function declarations(css: string): Array<{ name: string; value: string }> {
     }));
 }
 
-function tokenTriplet(css: string, name: string, scope: "root" | "dark"): string {
-    // Both scopes declare the same names, so the block has to be sliced before
-    // matching. Anchor on the selector at the start of a line — `.dark` also
-    // occurs inside `@custom-variant dark (&:is(.dark *))` near the top of the
-    // file, and slicing from there reads the @theme block instead.
-    const selector = new RegExp(`^${scope === "root" ? ":root" : "\\.dark"}\\s*\\{`, "m");
-    const start = css.search(selector);
-    assert.ok(start >= 0, `no ${scope} block in globals.css`);
-    const block = css.slice(start, css.indexOf("\n}", start));
-    const hit = block.match(new RegExp(`${name}\\s*:\\s*([0-9]+ [0-9]+ [0-9]+)\\s*;`));
-    assert.ok(hit, `${name} not found as an RGB triplet in ${scope}`);
-    return hit[1];
-}
-
-function tripletToHex(triplet: string): string {
-    return (
-        "#" +
-        triplet
-            .split(/\s+/)
-            .map((n) => Number(n).toString(16).padStart(2, "0"))
-            .join("")
-            .toUpperCase()
-    );
-}
-
 /**
  * The Tailwind-generated shadow SCALE (--shadow-2xs..2xl, --shadow-inner) —
  * the keys that back a `shadow-{size}` utility, mapped to their FRAMEWORK
@@ -206,37 +181,35 @@ test("primary filled chrome aliases brand — body ink stays on --foreground", (
     }
 });
 
-test("the brand mark has exactly one dot colour, and it is the --live token", () => {
-    const markSource = readFileSync(
-        path.join(ROOT, "src/components/brand/BrandMark.tsx"),
-        "utf8",
-    );
-    const declared = markSource.match(/BRAND_MARK_DOT_FILL\s*=\s*"(#[0-9A-Fa-f]{6})"/);
-    assert.ok(declared, "BRAND_MARK_DOT_FILL is no longer exported from BrandMark.tsx");
+test("every renderer of the brand mark sources its geometry from BrandMark.tsx", () => {
+    // The dot-drift bug this file used to guard (five renderers hand-copying a
+    // colour that then went stale) doesn't apply post-rebrand — the va-ligature
+    // mark (2026-08-27) carries no dot, so there is no per-renderer colour to
+    // drift. What still matters, and what actually broke before, is renderers
+    // hand-copying the PATH geometry itself instead of importing it — so guard
+    // that class of drift instead of a token this design no longer has.
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+        for (const entry of readdirSync(dir)) {
+            const full = path.join(dir, entry);
+            if (statSync(full).isDirectory()) {
+                walk(full);
+            } else if (/\.tsx?$/.test(entry) && full !== path.join(ROOT, "src/components/brand/BrandMark.tsx")) {
+                const src = readFileSync(full, "utf8").replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
+                // A literal `d="M ..."` path string that wasn't sourced from
+                // BRAND_MARK_PATHS — i.e. the mark's own SVG commands, hand-pasted.
+                if (/d="M 52 50 H 30/.test(src) && !/BRAND_MARK_PATHS/.test(src)) {
+                    offenders.push(path.relative(ROOT, full));
+                }
+            }
+        }
+    };
+    walk(path.join(ROOT, "src"));
 
-    assert.equal(
-        declared[1].toUpperCase(),
-        tripletToHex(tokenTriplet(GLOBALS, "--live", "root")),
-        "BRAND_MARK_DOT_FILL has drifted from the light --live token",
-    );
-
-    // The favicon is a dark-ground artifact with no cascade, so it takes .dark.
-    const icon = readFileSync(path.join(ROOT, "src/app/icon.svg"), "utf8");
-    const iconDot = icon.match(/<circle[^>]*fill="(#[0-9A-Fa-f]{6})"/);
-    assert.ok(iconDot, "icon.svg has no dot circle");
-    assert.equal(
-        iconDot[1].toUpperCase(),
-        tripletToHex(tokenTriplet(GLOBALS, "--live", "dark")),
-        "icon.svg's dot has drifted from the dark --live token",
-    );
-
-    const markSvg = readFileSync(path.join(ROOT, "public/mark.svg"), "utf8");
-    const markDot = markSvg.match(/<circle[^>]*fill="(#[0-9A-Fa-f]{6})"/);
-    assert.ok(markDot, "public/mark.svg has no dot circle");
-    assert.equal(
-        markDot[1].toUpperCase(),
-        declared[1].toUpperCase(),
-        "public/mark.svg's dot has drifted from BRAND_MARK_DOT_FILL",
+    assert.deepEqual(
+        offenders,
+        [],
+        `hardcoded mark path in: ${offenders.join(", ")} — import BRAND_MARK_PATHS instead.`,
     );
 });
 
@@ -583,31 +556,5 @@ test("/co: no rounded-2xl/rounded-3xl survives in the company-page family", () =
         `rounded-2xl/rounded-3xl surviving in the company-page family: ${offenders.join("; ")}. ` +
             `Every --radius-* key is 0px already — drop the class (or use rounded-none where dropping it ` +
             `would leave the element non-square by default).`,
-    );
-});
-
-test("no renderer hardcodes the mark's dot fill instead of importing it", () => {
-    // The drift happened because BrandMark centralised GEOMETRY only, so five
-    // other renderers hand-copied the colour. This catches a sixth.
-    const offenders: string[] = [];
-    const walk = (dir: string) => {
-        for (const entry of readdirSync(dir)) {
-            const full = path.join(dir, entry);
-            if (statSync(full).isDirectory()) {
-                walk(full);
-            } else if (/\.tsx?$/.test(entry)) {
-                const src = readFileSync(full, "utf8").replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
-                if (/BRAND_MARK_DOT\.r\}\s*fill="#/.test(src)) {
-                    offenders.push(path.relative(ROOT, full));
-                }
-            }
-        }
-    };
-    walk(path.join(ROOT, "src"));
-
-    assert.deepEqual(
-        offenders,
-        [],
-        `hardcoded dot fill in: ${offenders.join(", ")} — import BRAND_MARK_DOT_FILL instead.`,
     );
 });

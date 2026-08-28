@@ -120,7 +120,7 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
             in
           </span>
           <span className="flex min-w-0 flex-1 flex-col leading-tight">
-            <span className="truncate text-[13px] font-medium text-white">intervu — your agent</span>
+            <span className="truncate text-[13px] font-medium text-white">velai — your agent</span>
             <span className="text-[10px] text-[#8AAB9A]">online</span>
           </span>
           <span className="flex shrink-0 items-center gap-3 text-white/75" aria-hidden="true">

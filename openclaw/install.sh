@@ -263,10 +263,10 @@ echo "    mcporter ready."
 
 # Advisory, not fatal: an older mcporter still authenticates and still serves
 # the MCP tools, so this is worth knowing about but not worth blocking on.
-warn_if_outdated mcporter || echo "    Not fatal — the intervu tools work on this version."
+warn_if_outdated mcporter || echo "    Not fatal — the velai tools work on this version."
 
 # --- 3. Register the intervu MCP server (idempotent) ------------------------
-echo "==> Registering the intervu MCP server ($MCP_SERVER_KEY)..."
+echo "==> Registering the velai MCP server ($MCP_SERVER_KEY)..."
 grep -q "$MCP_SERVER_KEY" "$MCPORTER_CONFIG" 2>/dev/null || \
   mcporter config add "$MCP_SERVER_KEY" --url "$MCP_SERVER_URL" --config "$MCPORTER_CONFIG"
 echo "    Registered."
@@ -315,7 +315,7 @@ echo "    Connection keep-alive daemon started."
 
 # --- 4. Auth (opens a browser window) ---------------------------------------
 echo "==============================================================="
-echo "  A browser window is about to open for you to approve intervu."
+echo "  A browser window is about to open for you to approve velai."
 echo "  YOU HAVE ABOUT 60 SECONDS — be ready to click through it now."
 help_link auth
 echo "==============================================================="

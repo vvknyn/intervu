@@ -72,10 +72,10 @@ function welcomeFeatures(siteUrl: string): WelcomeFeature[] {
  */
 export function buildWelcomeEmail(input: WelcomeEmailInput): { subject: string; html: string; text: string } {
   const features = welcomeFeatures(input.siteUrl);
-  const subject = "Welcome to intervu — here's what it does";
+  const subject = "Welcome to velai — here's what it does";
 
   const intro =
-    "Thanks for signing up. intervu is a job search built on postings taken straight from employers, screened for the ones that aren't really open.";
+    "Thanks for signing up. velai is a job search built on postings taken straight from employers, screened for the ones that aren't really open.";
   // Points at the contact form, NOT at a reply. `intervuhq.com` publishes no
   // MX record (verified 2026-08-17, `dig MX intervuhq.com` returns nothing),
   // so the domain can send but cannot receive: a reply to this email fails at
@@ -123,14 +123,14 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): { subject: string; 
       // the inbox list, so repeating it wastes the only other line of copy a
       // reader sees before deciding whether to open.
       preheader: "Postings straight from employers, screened for the ones that aren't really open.",
-      heading: "Welcome to intervu",
+      heading: "Welcome to velai",
       bodyHtml,
     }),
     text: renderEmailShellText({
       siteUrl: input.siteUrl,
       unsubscribeUrl: input.unsubscribeUrl,
       preheader: "",
-      heading: "Welcome to intervu",
+      heading: "Welcome to velai",
       bodyText,
     }),
   };

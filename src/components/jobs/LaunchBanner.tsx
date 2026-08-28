@@ -25,7 +25,7 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
                     AI WORKFLOWS
                 </span>
                 <p className="mt-1 text-[13.5px] font-normal leading-relaxed text-foreground/90">
-                    Search intervu&apos;s verified corpus inside Claude, ChatGPT, or Cursor without tab-switching.
+                    Search velai&apos;s verified corpus inside Claude, ChatGPT, or Cursor without tab-switching.
                 </p>
                 <div className="mt-2.5 flex items-center gap-2">
                     <Link

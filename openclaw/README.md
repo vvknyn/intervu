@@ -1,6 +1,6 @@
 # intervu-apply — OpenClaw skill
 
-Finds intervu jobs worth applying to, tailors your resume per job, fills the
+Finds velai jobs worth applying to, tailors your resume per job, fills the
 employer's application form, and leaves it ready for you to submit. It never
 submits for you. Full behavior is in `SKILL.md` — this file is install-only.
 
@@ -9,7 +9,7 @@ submits for you. Full behavior is in `SKILL.md` — this file is install-only.
 - [OpenClaw](https://docs.openclaw.ai) 2026.3.8+ (`openclaw --version`),
   with WhatsApp (or your configured channel) already linked for
   `openclaw message send`.
-- `mcporter` (bundled OpenClaw skill / npm package) for the intervu MCP
+- `mcporter` (bundled OpenClaw skill / npm package) for the velai MCP
   bridge.
 
 ## Install
