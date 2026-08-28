@@ -100,7 +100,6 @@ import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
-import { tourSteps } from "@/components/tour/tour-steps";
 import {
     toolbarControlHeight,
     toolbarSegmentGroupClass,
@@ -1862,7 +1861,6 @@ function JobsContent() {
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
-    const jobsTourAutoStartedRef = useRef(false);
     const [dockedFacetsMount, setDockedFacetsMount] = useState<HTMLElement | null>(null);
     const [dockedFieldDirectoryMount, setDockedFieldDirectoryMount] = useState<HTMLElement | null>(null);
     const [dockedQueryMount, setDockedQueryMount] = useState<HTMLElement | null>(null);
@@ -2298,18 +2296,6 @@ function JobsContent() {
     };
 
     const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
-
-    useEffect(() => {
-        if (jobsTourAutoStartedRef.current || hasSeenTour("jobs")) return;
-        const steps = tourSteps.jobs ?? [];
-        const hasTarget = steps.some((s) => document.querySelector(s.selector));
-        if (!hasTarget) return;
-        // Wait for a result row so the tour isn't only the search box.
-        if (!document.querySelector('[data-tour="jobs-card"]') && hits.length === 0) return;
-        jobsTourAutoStartedRef.current = true;
-        const id = requestAnimationFrame(() => startTour());
-        return () => cancelAnimationFrame(id);
-    }, [hasSeenTour, startTour, hits.length]);
 
     /**
      * Render fallback for a zero-query state (`resolveJobsRenderMode`,

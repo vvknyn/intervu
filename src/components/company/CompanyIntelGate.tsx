@@ -91,7 +91,7 @@ function CompanyIntelGateInner({
       {!unlocked && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background/70 px-6 py-10 text-center">
           <div className="flex w-full max-w-sm flex-col items-center gap-4 border border-border bg-card px-6 py-6">
-            <p className="text-[15px] font-semibold text-foreground">Follow to unlock hiring intel</p>
+            <p className="text-[15px] font-semibold text-foreground">Follow this company to see its hiring history</p>
             <p className="text-[12.5px] leading-relaxed text-muted-foreground">
               {description ?? `Recent hiring changes, funding, tech stack, and news for ${displayName} — visible once you follow.`}
             </p>
@@ -107,7 +107,7 @@ function CompanyIntelGateInner({
                 slug={slug}
                 displayName={displayName}
                 variant="primary"
-                idleLabel="Follow to unlock hiring intel"
+                idleLabel="Follow this company to see its hiring history"
                 className="items-center"
               />
             )}

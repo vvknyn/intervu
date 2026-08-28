@@ -29,6 +29,16 @@ export const STATUS_PILL: Record<StatusTone, string> = {
   closed: "bg-st-closed-soft text-st-closed border border-st-closed/20",
 };
 
+/**
+ * Green "live fact" pill — a posting still being up is a LIVENESS claim,
+ * not tracker progress, so it does not belong on the `StatusTone` scale
+ * above (whose `offer`/`applied` route to `--brand`/blue per the Ledger
+ * palette ruling, 2026-08-27: green is reserved for live facts only). Same
+ * soft-bg + colored-text + matching-border shape as `STATUS_PILL`, built
+ * from the `--live` token family instead of a `--st-*` tone.
+ */
+export const LIVE_PILL = "bg-live-tint-bg text-verdict-live border border-live-tint-border";
+
 /** Solid proportion-bar fill — same tone scale, no soft bg/border. */
 export const STATUS_FILL: Record<StatusTone, string> = {
   saved: "bg-st-saved",
