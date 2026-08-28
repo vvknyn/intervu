@@ -115,7 +115,10 @@ export type CompanyExhaust = {
 const CADENCE_WEEKS = 26;
 const VERDICT_MIN_OBSERVATION_DAYS = 90;
 const INTEGRITY_WINDOW_DAYS = 90;
-const CHANGE_HISTORY_LIMIT = 50;
+/** Exported — `get_company_timeline` (agent/company-tools.ts) clamps its
+ *  own `limit` input to this SAME cap, so the MCP wire's ceiling can never
+ *  drift from the number of rows this module actually fetches. */
+export const CHANGE_HISTORY_LIMIT = 50;
 
 // ─────────────────────────── pure decision helpers ───────────────────────
 
@@ -200,12 +203,15 @@ export function resolveCoverageLadder(exhaust: CompanyExhaust | null): "full" | 
 
 // ───────────────────────────── payload coercion ──────────────────────────
 
-function str(v: unknown): string | null {
+/** Exported — company-search.ts reuses this SAME payload coercion for
+ *  `search_companies` rather than duplicating it. */
+export function str(v: unknown): string | null {
   if (typeof v === "string" && v.trim() !== "") return v;
   return null;
 }
 
-function num(v: unknown): number | null {
+/** Exported — see `str`'s doc comment above. */
+export function num(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
   return null;
@@ -215,7 +221,8 @@ function bool(v: unknown): boolean {
   return v === true;
 }
 
-function strArray(v: unknown): string[] {
+/** Exported — see `str`'s doc comment above. */
+export function strArray(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   return v.filter((x): x is string => typeof x === "string" && x.trim() !== "");
 }
