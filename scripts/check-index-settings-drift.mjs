@@ -80,6 +80,7 @@ export const JOBS_INDEX_SETTINGS = {
   ],
   rankingRules: ["words", "typo", "sort", "proximity", "attributeRank", "wordPosition", "exactness", "posted_ts:desc"],
   synonyms: JOBS_SYNONYMS,
+  stopWords: ["a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"],
   typoTolerance: { minWordSizeForTypos: { oneTypo: 5, twoTypos: 9 } },
   pagination: { maxTotalHits: 100000 },
   faceting: { maxValuesPerFacet: 300, sortFacetValuesBy: { "*": "count" } },
