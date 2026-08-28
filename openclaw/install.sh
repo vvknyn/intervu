@@ -404,21 +404,42 @@ echo "==> Arming cron jobs..."
 wait_for_gateway
 EXISTING_CRON="$(openclaw cron list 2>/dev/null || true)"
 
-if echo "$EXISTING_CRON" | grep -q "intervu-apply-digest"; then
-  echo "    intervu-apply-digest already exists, skipping."
-else
-  openclaw cron add --name intervu-apply-digest --cron "0 8 * * *" \
-    --session main --system-event "Run the intervu-apply morning digest (SKILL.md §1)."
-  echo "    intervu-apply-digest armed."
-fi
+# openclaw's cron API takes natural-language text, not a shell-exec/pre-hook
+# (there is no such flag — see `openclaw cron add --help`), so the only lever
+# for gating a scheduled run on config health is instructing the agent to run
+# a check and obey its exit code. Routing every job through this ONE
+# PREFLIGHT_DIRECTIVE — via arm_cron_job below, rather than each job composing
+# its own --system-event by hand — is what makes a job added later inherit
+# the check by construction instead of by remembering to ask for it.
+#
+# mcporter-preflight.mjs carries the actual invariants (identity drift, stale
+# daemon, missing tokens for the active identity); this only wires jobs
+# through it. It ships under the installed skill dir (openclaw/scripts/ is
+# packaged into the skill tarball by scripts/prebuild-openclaw.mjs — unlike
+# install.sh itself, which that same script excludes), so it exists on disk
+# by the time any cron job fires, without install.sh needing to reference its
+# own checkout (it has none in curl|bash mode).
+#
+# On failure the directive tells the agent to relay the script's one-line
+# stderr message and stop — no retry, no browser — matching SKILL.md's
+# "Unattended runs cannot self-heal" / "Two strikes, then speak" rules for
+# every other failure mode a cron-triggered run can hit.
+PREFLIGHT_SCRIPT="$INSTALL_DIR/scripts/mcporter-preflight.mjs"
+PREFLIGHT_DIRECTIVE="Before doing anything else, run: node \"$PREFLIGHT_SCRIPT\" \"$MCP_SERVER_KEY\" \"$MCP_SERVER_URL\" \"$MCP_OAUTH_REDIRECT\" — if it exits nonzero, send its stderr line as your only reply and stop (do not retry, do not open a browser). Otherwise,"
 
-if echo "$EXISTING_CRON" | grep -q "intervu-apply-recap"; then
-  echo "    intervu-apply-recap already exists, skipping."
-else
-  openclaw cron add --name intervu-apply-recap --cron "0 18 * * 0" \
-    --session main --system-event "Run the intervu-apply weekly recap (SKILL.md §6)."
-  echo "    intervu-apply-recap armed."
-fi
+arm_cron_job() {
+  local name="$1" cron_expr="$2" task="$3"
+  if echo "$EXISTING_CRON" | grep -q "$name"; then
+    echo "    $name already exists, skipping."
+  else
+    openclaw cron add --name "$name" --cron "$cron_expr" \
+      --session main --system-event "$PREFLIGHT_DIRECTIVE $task"
+    echo "    $name armed."
+  fi
+}
+
+arm_cron_job intervu-apply-digest "0 8 * * *" "run the intervu-apply morning digest (SKILL.md §1)."
+arm_cron_job intervu-apply-recap "0 18 * * 0" "run the intervu-apply weekly recap (SKILL.md §6)."
 
 # --- 8. Done ------------------------------------------------------------------
 echo
