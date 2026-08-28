@@ -3,12 +3,12 @@
 /**
  * Lightweight "does this signed-in user have a usable résumé on file"
  * signal — a boolean-only round trip (`hasUsableResumeOnFile`), never the
- * résumé document itself. /jobs (`page.tsx`) needs this to style its
- * persistent "My résumé" control correctly for a RETURNING user on first
- * paint, without re-introducing the mount-time full-résumé fetch that was
- * deliberately removed (page.tsx:2548, Task 4) — the actual résumé is only
- * ever fetched on demand, via `resolveUsableResume`, the moment an action
- * needs it.
+ * résumé document itself. /jobs (`page.tsx`) needs this to label its sort
+ * control's "Best match"/"Relevance" segment correctly for a RETURNING user
+ * on first paint, without re-introducing the mount-time full-résumé fetch
+ * that was deliberately removed (page.tsx:2548, Task 4) — the actual résumé
+ * is only ever fetched on demand, via `resolveUsableResume`, the moment an
+ * action needs it.
  *
  * Tri-state, not boolean: `true`/`false` are KNOWN answers; `null` means
  * "the round trip hasn't landed yet" — a real, distinct state, not the same
@@ -16,9 +16,11 @@
  * résumé-driven action's own resolve because the presence check merely
  * hasn't answered yet) re-creates the exact bug this hook exists to close,
  * just narrowed to the few hundred ms before the fetch resolves — see
- * page.tsx's `handleMyResumeClick` for why it never does that. `false` on a
- * failed fetch would be a lying answer (we don't actually know), so a
- * transient error also resolves to `null`, not `false`.
+ * page.tsx's `chooseBestMatch` (the sort control's résumé-aware third
+ * segment) for why it only activates fit ranking on a strict `=== true`,
+ * never on truthy. `false` on a failed fetch would be a lying answer (we
+ * don't actually know), so a transient error also resolves to `null`, not
+ * `false`.
  *
  * A separate concern from `usePursuits` (tracked applications) — not bolted
  * onto that hook.
