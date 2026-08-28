@@ -170,7 +170,7 @@ import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
-import { clusterJobs } from "@/lib/jobs/cluster";
+import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
 import {
     type FacetKey,
@@ -501,6 +501,7 @@ function JobCard({
     onCompany,
     now,
     variantCount = 0,
+    clusterLabel = "",
     expanded = false,
     onToggleExpand,
     dense = false,
@@ -519,6 +520,10 @@ function JobCard({
     /** Accepted-but-unused: elite board styling removed from row chrome. */
     elite?: boolean;
     variantCount?: number;
+    /** Collapsed-state pill text ("+N locations"/"+N openings"), computed
+     *  by `clusterToggleLabel` (lib/jobs/cluster.ts) at the call site — the
+     *  card just renders it, never derives it. */
+    clusterLabel?: string;
     expanded?: boolean;
     onToggleExpand?: () => void;
     /** Accepted-but-unused: comfortable layout is the only SERP density now. */
@@ -728,7 +733,7 @@ function JobCard({
                             onToggleExpand?.();
                         }}
                     >
-                        {expanded ? "hide" : `+${variantCount} location${variantCount === 1 ? "" : "s"}`}
+                        {expanded ? "hide" : clusterLabel}
                     </button>
                 )}
             </div>
@@ -3802,7 +3807,7 @@ function JobsContent() {
     // carry their own "+N locations" affordance, only the primary does.
     const renderJobRow = (
         j: PublicJob,
-        clusterProps?: { variantCount: number; expanded: boolean; onToggleExpand: () => void },
+        clusterProps?: { variantCount: number; clusterLabel: string; expanded: boolean; onToggleExpand: () => void },
         tourAnchor = false,
     ) => (
         <JobCard
@@ -3816,6 +3821,7 @@ function JobsContent() {
             now={nowMs}
             elite={board === "elite"}
             variantCount={clusterProps?.variantCount ?? 0}
+            clusterLabel={clusterProps?.clusterLabel ?? ""}
             expanded={clusterProps?.expanded ?? false}
             onToggleExpand={clusterProps?.onToggleExpand}
             tourAnchor={tourAnchor}
@@ -4978,6 +4984,7 @@ function JobsContent() {
                                                     cluster.variants.length > 0
                                                         ? {
                                                               variantCount: cluster.variants.length,
+                                                              clusterLabel: clusterToggleLabel(cluster.primary, cluster.variants),
                                                               expanded,
                                                               onToggleExpand: () => toggleClusterExpanded(cluster.primary.id),
                                                           }
