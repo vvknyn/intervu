@@ -415,7 +415,7 @@ describe('toolSearchJobs', () => {
     if ('error' in out) throw new Error('unexpected error shape');
     assert.ok(out.hits[0].match);
     assert.equal(typeof out.hits[0].match?.total, 'number');
-    assert.ok(out.hits[0].match?.components.some((c) => c.key === 'skills'));
+    assert.ok(out.hits[0].match?.components.some((c) => c.key === 'relevance'));
   });
 });
 
@@ -507,7 +507,7 @@ describe('toolGetJob', () => {
     if ('error' in out) return;
     assert.ok(out.match);
     assert.equal(typeof out.match?.total, 'number');
-    assert.ok(out.match?.components.some((c) => c.key === 'skills'));
+    assert.ok(out.match?.components.some((c) => c.key === 'relevance'));
   });
 });
 

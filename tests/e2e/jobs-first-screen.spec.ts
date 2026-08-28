@@ -305,36 +305,23 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 
     // Portal redesign rewrite: the "Sort results" combobox (with its own
     // "Rank by fit" dropdown item) is gone — sort is now three plain
-    // `ToolbarSegment` buttons (page.tsx: freshest / top pay / best match, see
-    // jobs-search-polish.spec.ts's TC-JOBS-SORT-001/002). "The old Match mode
-    // is gone: 'Rank by fit' is no longer a [dropdown option]" per page.tsx's
-    // own comment — with no query, "best match" IS the résumé-rank action
-    // (`chooseBestMatch` → `handleRankByFit`), which for an anonymous session
-    // with no résumé on hand falls through to the résumé importer
-    // (`confirmLabel="Rank my jobs"` is that same flow's own continuation).
-    /**
-     * "Best match" with no query needs a résumé to rank against, so it starts
-     * the résumé-rank journey. For a signed-out visitor that journey begins at
-     * the AUTH gate, not the import dialog — `handleUploadClick` queues the
-     * upload intent and calls `openAuth()` when there is no user (page.tsx),
-     * and only replays it once they are in.
-     *
-     * This test asserted the import dialog directly, which is the state AFTER
-     * authentication; anonymously it could only ever see the auth popover.
-     * Measured: clicking it here opens a dialog reading "Authentication / Log
-     * In / Create account" (the sr-only DialogTitle is still literally
-     * "Authentication" as of the 2026-08-27 auth/docs redesign — see
-     * auth-popover.tsx — so the regex below stays tolerant on purpose rather
-     * than pinning the tab's exact wording). Asserting the gate keeps the
-     * real contract under test — the click starts the journey rather than
-     * doing nothing.
-     */
-    test("best match with no query starts the résumé-rank journey (auth gate first)", async ({ page }) => {
+    // `ToolbarSegment` buttons (page.tsx: freshest / top pay / third segment,
+    // see jobs-search-polish.spec.ts's TC-JOBS-SORT-001/002).
+    //
+    // Résumé fold (2026-08): the standalone "My résumé" chip and its own
+    // upload entry point are gone — the third sort segment is now
+    // résumé-aware instead (`chooseBestMatch`, page.tsx). Signed out (or
+    // signed in with no résumé on file, `resumeOnFile !== true`), it reads
+    // "relevance" and clicking it just sets plain relevance sort directly —
+    // no résumé prompt, no auth gate. Only `resumeOnFile === true` (a
+    // résumé already on file) makes it read "Best match" and rank by fit.
+    // Upload still has its own entry points elsewhere on the page
+    // (`beginResumeUpload`) — this control no longer opens one.
+    test("relevance sort activates directly for a signed-out visitor — no auth gate, no résumé prompt", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await page.getByRole("button", { name: "best match" }).click();
-        const gate = page.getByRole("dialog");
-        await expect(gate).toBeVisible();
-        await expect(gate).toContainText(/Log ?In|Sign ?Up|Authentication/i);
+        await page.getByRole("button", { name: "relevance" }).click();
+        await expect(page.getByRole("dialog")).not.toBeVisible();
+        await expect(page).toHaveURL(/sort=relevance/);
     });
 
     // Task 6/7 + the Jul 24 incident fix (fd42534): the fresh-visit default

@@ -328,15 +328,12 @@ describe("jobs page chrome guards", () => {
         assert.match(page, /createPortal\(\s*sortEl/);
     });
 
-    it("browse-by-field and résumé portal into the docked TopBar filter row", () => {
+    it("browse-by-field portals into the docked TopBar filter row", () => {
         const page = readFileSync(PAGE, "utf8");
         const topbar = readFileSync(TOPBAR, "utf8");
         assert.match(topbar, /data-testid="topbar-docked-field-directory"/);
-        assert.match(topbar, /data-testid="topbar-docked-resume"/);
         assert.match(page, /topbar-docked-field-directory/);
-        assert.match(page, /topbar-docked-resume/);
         assert.match(page, /createPortal\(fieldDirectoryMenu/);
-        assert.match(page, /createPortal\(resumeControlEl/);
         assert.match(page, /createPortal\(clearFiltersEl/);
         assert.match(page, /createPortal\(savedSearchControl/);
         assert.match(topbar, /data-testid="topbar-docked-clear-filters"/);
@@ -351,13 +348,12 @@ describe("jobs page chrome guards", () => {
         const clearIdx = dockedRow.indexOf("topbar-docked-clear-filters");
         const saveIdx = dockedRow.indexOf("topbar-docked-save-search");
         const chipIdx = dockedRow.indexOf("topbar-docked-chip");
-        const resumeIdx = dockedRow.indexOf("topbar-docked-resume");
         const sortIdx = dockedRow.indexOf("topbar-docked-sort");
         assert.ok(fieldIdx > -1 && filtersIdx > fieldIdx && facetsIdx > filtersIdx, "Browse by field mounts before Filters, then facets");
         assert.ok(chipIdx > facetsIdx, "Leftover filter chips mount after facet dropdowns");
         assert.ok(clearIdx > chipIdx && saveIdx > clearIdx, "Clear filters and save search mount after chips");
         assert.doesNotMatch(topbar, /topbar-docked-status/, "live corpus count deferred from docked toolbar");
-        assert.ok(resumeIdx > saveIdx && sortIdx > resumeIdx, "Résumé mounts before sort segments");
+        assert.ok(sortIdx > saveIdx, "Sort segments mount after save search");
     });
 
     it("auto-starts the jobs tour only after a result card exists", () => {
@@ -464,14 +460,4 @@ describe("jobs page chrome guards", () => {
         assert.doesNotMatch(beforeToolbar, /<FilterChipsRow/);
     });
 
-    it("search prefs chip lives on the filter toolbar, not the results column", () => {
-        const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /data-testid="jobs-search-prefs"/);
-        assert.doesNotMatch(src, /showLandingMarketing && user && !agentSearchPrefsSet/);
-        assert.doesNotMatch(src, /mb-6[\s\S]{0,200}Set up search preferences/);
-        const labelMatches = [...src.matchAll(/Set up search preferences/g)];
-        assert.equal(labelMatches.length, 1, "label should appear exactly once as aria-label");
-        assert.match(src, /aria-label="Set up search preferences"/);
-        assert.match(src, /createPortal\([\s\S]*searchPrefsEl[\s\S]*dockedExtrasMount/);
-    });
 });

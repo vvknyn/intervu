@@ -420,7 +420,6 @@ export function TopBar() {
                         <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-1.5" />
                         <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-1.5" />
                         <div className="min-w-0 flex-1" aria-hidden />
-                        <div data-testid="topbar-docked-resume" className="flex shrink-0 items-center gap-2" />
                         <div data-testid="topbar-docked-sort" className="flex shrink-0 items-center gap-2" />
                         <div data-testid="topbar-docked-extras" className="flex shrink-0 items-center gap-2" />
                     </div>

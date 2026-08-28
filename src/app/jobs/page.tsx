@@ -15,7 +15,6 @@ import {
     X,
     Check,
     Question,
-    SlidersHorizontal,
     CircleNotch,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -103,7 +102,6 @@ import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
 import { tourSteps } from "@/components/tour/tour-steps";
 import {
-    toolbarChipClass,
     toolbarControlHeight,
     toolbarSegmentGroupClass,
 } from "@/lib/jobs/toolbar-control-height";
@@ -155,27 +153,11 @@ import {
     resolveDetailMountSite,
     degradedResultsNote,
     resolveEndOfListState,
-    resolveResumeControlState,
-    runResumeControlClick,
-    hasSearchPrefs,
-    shouldPromptSearchPrefsInsteadOfResume,
     shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
-import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
-import { SearchPrefsSetup } from "@/components/jobs/SearchPrefsSetup";
-import {
-    clearStashedPrefs,
-    dismissOnboarding,
-    getStashedPrefs,
-    isOnboardingDismissed,
-    prefsToFlush,
-    recordOnboardingInteraction,
-    shouldPromptOnboarding,
-    stashPrefs,
-    type PrefsDestination,
-    type SearchPrefsValues,
-} from "@/lib/jobs/onboarding-prompt";
+import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
+import { recordOnboardingInteraction } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
     isEmailNudgeDismissed,
@@ -201,7 +183,6 @@ import {
     serializeJobsUrl,
     DEFAULT_URL_STATE,
     urlSortToMode,
-    withSortCleared,
     shouldResetSortOnQueryChange,
     type JobsUrlState,
     type UrlSort,
@@ -325,11 +306,13 @@ function ToolbarSegment({
     pressed,
     onClick,
     pending = false,
+    title,
 }: {
     label: string;
     pressed: boolean;
     onClick: () => void;
     pending?: boolean;
+    title?: string;
 }) {
     return (
         <button
@@ -338,6 +321,7 @@ function ToolbarSegment({
             aria-busy={pending || undefined}
             disabled={pending}
             onClick={onClick}
+            title={title}
             className={cn(
                 "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-1.5 rounded-none px-3 text-xs font-bold uppercase leading-none tracking-wider transition-all duration-150",
                 pressed
@@ -496,25 +480,6 @@ function JobsTourReplayButton() {
             )}
         >
             <Question size={16} weight="bold" aria-hidden />
-        </button>
-    );
-}
-
-function JobsSearchPrefsButton({ onClick }: { onClick: () => void }) {
-    return (
-        <button
-            type="button"
-            data-testid="jobs-search-prefs"
-            aria-label="Set up search preferences"
-            onClick={onClick}
-            className={cn(
-                chipVariants({ active: false }),
-                toolbarChipClass,
-                "inline-flex shrink-0 items-center justify-center gap-1.5 leading-none text-muted-foreground transition-colors hover:text-foreground",
-            )}
-        >
-            <SlidersHorizontal size={14} weight="bold" aria-hidden />
-            <span className="whitespace-nowrap text-xs leading-none">Preferences</span>
         </button>
     );
 }
@@ -1473,19 +1438,6 @@ function JobsContent() {
             ) {
                 setEmailNudgeOpen(true);
             }
-        } else {
-            // Signed out there's no profile to write preferences into, so the
-            // count is the only intent signal available.
-            if (
-                shouldPromptOnboarding({
-                    interactions,
-                    signedIn: false,
-                    dismissed: onboardingDismissed,
-                    configured: agentSearchPrefsSet || Boolean(onboardingStash),
-                })
-            ) {
-                setSearchPrefsDialogOpen(true);
-            }
         }
     };
 
@@ -1635,29 +1587,17 @@ function JobsContent() {
     if (!paginationRef.current) paginationRef.current = new JobsPaginationGeneration();
 
     const [user, setUser] = useState<User | null>(null);
-    const [agentPrefs, setAgentPrefs] = useState<AgentPreferences | null>(null);
-    const [searchPrefsDialogOpen, setSearchPrefsDialogOpen] = useState(false);
-    // Signed-out onboarding (owner's call, 2026-08-23): offer the setup
-    // wizard after a few submitted searches rather than on arrival. Both
-    // values live in localStorage and are read post-mount, so `dismissed`
-    // starts at the SUPPRESSED end — true until the browser says otherwise —
-    // rather than risk offering the wizard to someone who already said no.
-    // Same idiom as `guestSaveBannerDismissed` above. The interaction count
-    // isn't mirrored into state: `submitSearch` reads it back from the
-    // increment it just made, and state nothing renders is state that only
-    // has room to go stale. Decisions live in lib/jobs/onboarding-prompt.ts.
-    const [onboardingDismissed, setOnboardingDismissed] = useState(true);
-    const [onboardingStash, setOnboardingStash] = useState<SearchPrefsValues | null>(null);
-    // The signed-in twin: an account whose only address is a minted
-    // <username>@intervu.cc can't receive anything we send. Same
-    // suppressed-until-the-browser-says-otherwise start as above.
+    // The signed-in email nudge: an account whose only address is a minted
+    // <username>@intervu.cc can't receive anything we send. Value lives in
+    // localStorage and is read post-mount, so it starts at the SUPPRESSED
+    // end — true until the browser says otherwise — rather than risk
+    // offering the nudge to someone who already said no. Same idiom as
+    // `guestSaveBannerDismissed` above.
     const [emailNudgeDismissed, setEmailNudgeDismissed] = useState(true);
     const [emailNudgeOpen, setEmailNudgeOpen] = useState(false);
     const [accountEmailState, setAccountEmailState] = useState<EmailNudgeState | null>(null);
     const [accountPendingEmail, setAccountPendingEmail] = useState<string | null>(null);
     useEffect(() => {
-        setOnboardingDismissed(isOnboardingDismissed());
-        setOnboardingStash(getStashedPrefs());
         setEmailNudgeDismissed(isEmailNudgeDismissed());
     }, []);
     // Resolved from the server, never guessed from the client-side user
@@ -1780,53 +1720,6 @@ function JobsContent() {
         return () => unsub();
     }, []);
 
-    useEffect(() => {
-        if (!user) {
-            setAgentPrefs(null);
-            return;
-        }
-        let cancelled = false;
-        void fetchAgentPreferencesAction().then(async (res) => {
-            if (cancelled || !res.data) return;
-            // Carry up anything the wizard collected while they were signed
-            // out — but only into an account that has nothing yet. Someone
-            // who set preferences on another device must not have them
-            // overwritten by a logged-out session in this browser, which
-            // would make signing in destructive. `prefsToFlush` owns that
-            // rule; `hasSearchPrefs` is the same "already configured" test
-            // the rest of this page gates on.
-            const flush = prefsToFlush({
-                signedIn: true,
-                stash: getStashedPrefs(),
-                accountConfigured: hasSearchPrefs(res.data.search),
-            });
-            if (!flush) {
-                setAgentPrefs(res.data);
-                return;
-            }
-            const saved = await saveAgentPreferencesAction({
-                search: {
-                    query: flush.query,
-                    location: flush.location || undefined,
-                    remoteOnly: flush.remoteOnly || undefined,
-                    salaryMin: flush.salaryMin || undefined,
-                },
-            });
-            if (cancelled) return;
-            // Only drop the local copy once the server has it. A failed
-            // flush leaves the stash intact so the next sign-in retries,
-            // rather than silently discarding what they typed.
-            if (saved.data) {
-                clearStashedPrefs();
-                setOnboardingStash(null);
-            }
-            setAgentPrefs(saved.data ?? res.data);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [user?.uid]);
-
     // Refetch rule: only the search-affecting subset should trigger a fetch.
     // `jobId` is deliberately omitted here, so opening/closing a job (a `job`-
     // only URL change) can never appear in this key — the fetch effect below
@@ -1883,21 +1776,12 @@ function JobsContent() {
     // below rather than short-circuited into it.
     const resumeKnownOnServer = useResumePresence(user?.uid ?? null);
 
-    // Whether the "My résumé" toolbar control (below) should treat a
-    // résumé as on file — `hasUsableResume` (session-local: just uploaded,
-    // or already resolved for a fit application) wins outright when true;
-    // otherwise this is `resumeKnownOnServer`'s tri-state answer as-is,
-    // `null` included. BOTH the control's visual state
-    // (`resolveResumeControlState`) and its click behavior
-    // (`runResumeControlClick`) read this SAME value, but only the click
-    // decides on its truth — the render just borrows it as a hint (see
-    // `runResumeControlClick`'s own doc comment, lib/jobs/result-state.ts).
+    // Whether the sort control's résumé-aware "Best match" segment (below)
+    // should treat a résumé as on file — `hasUsableResume` (session-local:
+    // just uploaded, or already resolved for a fit application) wins
+    // outright when true; otherwise this is `resumeKnownOnServer`'s
+    // tri-state answer as-is, `null` included.
     const resumeOnFile: boolean | null = hasUsableResume || resumeKnownOnServer;
-
-    // The control's rendered state (see `resolveResumeControlState`'s own
-    // doc comment for the three states) — one hoisted call instead of the
-    // `fitActive`/`resumeOnFile` check inline in the JSX below.
-    const resumeControlState = resolveResumeControlState({ fitActive, resumeOnFile });
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -1976,7 +1860,6 @@ function JobsContent() {
     const headerDockActive = isLgUp;
     const showLandingMarketing = isPristineLanding && !mobileResultsEngaged;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
-    const agentSearchPrefsSet = hasSearchPrefs(agentPrefs?.search);
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
     const jobsTourAutoStartedRef = useRef(false);
@@ -1984,7 +1867,6 @@ function JobsContent() {
     const [dockedFieldDirectoryMount, setDockedFieldDirectoryMount] = useState<HTMLElement | null>(null);
     const [dockedQueryMount, setDockedQueryMount] = useState<HTMLElement | null>(null);
     const [dockedLocationMount, setDockedLocationMount] = useState<HTMLElement | null>(null);
-    const [dockedResumeMount, setDockedResumeMount] = useState<HTMLElement | null>(null);
     const [dockedSortMount, setDockedSortMount] = useState<HTMLElement | null>(null);
     const [dockedExtrasMount, setDockedExtrasMount] = useState<HTMLElement | null>(null);
     const [dockedClearFiltersMount, setDockedClearFiltersMount] = useState<HTMLElement | null>(null);
@@ -1996,7 +1878,6 @@ function JobsContent() {
             setDockedFieldDirectoryMount(null);
             setDockedQueryMount(null);
             setDockedLocationMount(null);
-            setDockedResumeMount(null);
             setDockedSortMount(null);
             setDockedExtrasMount(null);
             setDockedClearFiltersMount(null);
@@ -2008,7 +1889,6 @@ function JobsContent() {
             setDockedFieldDirectoryMount(document.querySelector('[data-testid="topbar-docked-field-directory"]') as HTMLElement | null);
             setDockedQueryMount(document.querySelector('[data-testid="topbar-docked-query"]') as HTMLElement | null);
             setDockedLocationMount(document.querySelector('[data-testid="topbar-docked-location"]') as HTMLElement | null);
-            setDockedResumeMount(document.querySelector('[data-testid="topbar-docked-resume"]') as HTMLElement | null);
             setDockedSortMount(document.querySelector('[data-testid="topbar-docked-sort"]') as HTMLElement | null);
             setDockedExtrasMount(document.querySelector('[data-testid="topbar-docked-extras"]') as HTMLElement | null);
             setDockedClearFiltersMount(document.querySelector('[data-testid="topbar-docked-clear-filters"]') as HTMLElement | null);
@@ -3217,44 +3097,6 @@ function JobsContent() {
         applyFilterStateWithIntent({ ...filterState, yearsExperience: v });
     const panelClearAll = () => applyFilterStateWithIntent(PRISTINE_FILTER_STATE);
 
-    const applySavedSearchPrefs = useCallback(
-        (prefs: SearchPrefsValues) => {
-            const rawQ = prefs.query.trim();
-            const { residualQ, workTypes } = parseWorkTypeTokens(rawQ);
-            const q = residualQ || rawQ;
-            const loc = prefs.location.trim();
-            const nextFacets = { ...filterState.facets };
-            if (loc) nextFacets.location_country = [loc];
-            else delete nextFacets.location_country;
-            const types = [...workTypes];
-            if (prefs.remoteOnly && !types.includes("remote")) types.push("remote");
-            if (types.length > 0) nextFacets.work_type = types;
-            else delete nextFacets.work_type;
-            const nextSalary = prefs.salaryMin > 0 ? prefs.salaryMin : 0;
-            setQueryDraft(q);
-            setQuery(q);
-            setFacets(nextFacets);
-            setSalaryMin(nextSalary);
-            // `nextFacets.location_country` above is what applies the saved
-            // place; the box is entry-only and stays empty.
-            setLocationDraft("");
-            recordRecentSearch(q);
-            setAgentPrefs((prev) => ({
-                configured: true,
-                search: {
-                    query: rawQ,
-                    location: loc || undefined,
-                    remoteOnly: prefs.remoteOnly || undefined,
-                    salaryMin: nextSalary || undefined,
-                },
-                answers: prev?.answers ?? { custom: {} },
-                updated_at: new Date().toISOString(),
-            }));
-            applyUrlState(buildUrlState({ q, facets: nextFacets, salaryMin: nextSalary }), "push");
-        },
-        [filterState.facets, buildUrlState, applyUrlState],
-    );
-
     // Task 11 — empty state's ghost-reveal line. Pure gate (lib/jobs/
     // result-state.ts, unit-tested there) so it can't drift from the same
     // "hideGhosts && ghostHiddenCount > 0" rule the controller specified.
@@ -3688,19 +3530,9 @@ function JobsContent() {
         applyUrlState(buildUrlState({ q, facets: merged, sort: "fit" }), "replace");
     };
 
-    // Dismiss the "Ranked by your résumé" chip — per controller resolution
-    // #1, only clears the sort; the résumé-derived query/facets stay as
-    // ordinary, independently-editable search state.
-    const clearFit = () => {
-        setFitActive(false);
-        applyUrlState(withSortCleared(buildUrlState()), "replace");
-    };
-
     // Resolve a usable résumé and apply fit if one is found — the guarded
-    // core `resolve` callback both `handleRankByFit` (below) and the "My
-    // résumé" toolbar control's click (`runResumeControlClick`,
-    // lib/jobs/result-state.ts) pass to their own fallback-to-uploader logic
-    // when this comes back `false`.
+    // core `resolve` callback `handleRankByFit` (below) passes to its own
+    // fallback-to-uploader logic when this comes back `false`.
     //
     // `fitIntentRef` guards the await: `resolveUsableResume()` is a network
     // round-trip, and the Select's `onValueChange` bumps the SAME guard for
@@ -3745,10 +3577,13 @@ function JobsContent() {
         applyUrlState(buildUrlState({ sort: modeToUrlSort(mode) }), "replace");
     };
 
+    // The segmented sort control's third segment: résumé-aware "Best match"
+    // when one is on file, plain "Relevance" otherwise (see the ToolbarSegment
+    // mount sites below for the label/title split on `resumeOnFile`).
     const chooseBestMatch = () => {
         fitIntentRef.current!.begin();
-        if (!query.trim()) {
-            void handleRankByFit();
+        if (resumeOnFile === true) {
+            void resolveAndApplyFit();
             return;
         }
         setFitActive(false);
@@ -3838,63 +3673,12 @@ function JobsContent() {
         setImportOpen(true);
     };
 
-    // Adds ONE thing to `beginResumeUpload`: the detour that asks a signed-in
-    // user for search preferences first when they have neither those nor a
-    // résumé. Split out because the wizard's own "Add résumé" step must NOT
-    // take that detour — it is already inside the wizard.
+    // Every OTHER résumé-upload entry point (the fit-rank fallback above, the
+    // résumé-moment card, the "update to rescore" link) goes through this
+    // name — it is just `beginResumeUpload` under a stable identifier so
+    // those call sites don't need to change.
     const handleUploadClick = () => {
-        if (user && shouldPromptSearchPrefsInsteadOfResume(resumeOnFile, agentSearchPrefsSet)) {
-            setSearchPrefsDialogOpen(true);
-            return;
-        }
         beginResumeUpload();
-    };
-
-    const handleSearchPrefsComplete = (values: SearchPrefsValues, destination: PrefsDestination) => {
-        applySavedSearchPrefs(values);
-        // "browser" means the server had nowhere to put these — signed out, or
-        // a session that expired mid-wizard. Keeping them locally is what lets
-        // the next sign-in carry them up (see the flush above) instead of
-        // quietly losing what they just typed.
-        if (destination === "browser") {
-            stashPrefs(values);
-            setOnboardingStash(values);
-        }
-    };
-
-    // The wizard's last step. Goes to the shared chokepoint so a signed-out
-    // visitor gets the auth gate: this used to call `setImportOpen(true)`
-    // itself, which opened an importer that had nowhere to store the file.
-    const handleSearchPrefsAddResume = () => beginResumeUpload();
-
-    // Closing the dialog ends the offer for good, whether they finished it or
-    // backed out — asking again on the next search is nagging, not
-    // onboarding. Recorded here rather than inside the wizard because the two
-    // signed-in entry points open the same component from their own buttons,
-    // and those must stay re-openable.
-    const handleSearchPrefsOpenChange = (next: boolean) => {
-        setSearchPrefsDialogOpen(next);
-        if (!next && !user) {
-            dismissOnboarding();
-            setOnboardingDismissed(true);
-        }
-    };
-
-    // "My résumé" toolbar control's click (JSX below). Deliberately does NOT
-    // trust the control's own rendered STYLE to pick the branch — `resumeOnFile`
-    // is tri-state, and while it's `null` ("not known yet") the control still
-    // renders muted, but a click in that window is exactly the class of user
-    // this whole change is FOR: skipping the resolve there would ask a
-    // returning user with a résumé already on file to "upload" one again,
-    // just narrowed to the few hundred ms before the presence check lands.
-    // `runResumeControlClick` (lib/jobs/result-state.ts) decides on the
-    // TRUTH of `resumeOnFile` instead: only a KNOWN-absent résumé (`false`)
-    // skips straight to `handleUploadClick`; `true` or `null` always try
-    // `resolveAndApplyFit` first and fall back to the uploader only if that
-    // genuinely comes back empty — never a dead click, never a needless
-    // reopen of the importer for a résumé that was there the whole time.
-    const handleMyResumeClick = () => {
-        void runResumeControlClick(resumeOnFile, resolveAndApplyFit, handleUploadClick);
     };
 
     const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
@@ -4149,8 +3933,9 @@ function JobsContent() {
                         onClick={() => chooseSort("salary_desc")}
                     />
                     <ToolbarSegment
-                        label="best match"
-                        pressed={fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())}
+                        label={resumeOnFile === true ? "best match" : "relevance"}
+                        title={resumeOnFile === true ? "Matched by your résumé" : undefined}
+                        pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
                         onClick={chooseBestMatch}
                         pending={fitResolving}
                     />
@@ -4261,10 +4046,6 @@ function JobsContent() {
     );
 
     const tourReplayEl = <JobsTourReplayButton />;
-    const searchPrefsEl =
-        user && !agentSearchPrefsSet ? (
-            <JobsSearchPrefsButton onClick={() => setSearchPrefsDialogOpen(true)} />
-        ) : null;
 
     const dockedQueryEl = (
         <div className="relative flex h-full w-full items-center">
@@ -4331,42 +4112,6 @@ function JobsContent() {
         </div>
     );
 
-    const resumeControlEl =
-        resumeControlState !== "hidden" ? (
-            <button
-                type="button"
-                onClick={() => handleMyResumeClick()}
-                disabled={fitResolving}
-                aria-busy={fitResolving || undefined}
-                data-testid="jobs-my-resume"
-                title={
-                    resumeControlState === "active"
-                        ? "Rank jobs by your résumé"
-                        : "Upload a résumé to personalize results"
-                }
-                aria-label={
-                    resumeControlState === "active"
-                        ? "My résumé — rank jobs by fit"
-                        : "Add résumé — upload one to personalize results"
-                }
-                className={cn(
-                    chipVariants({ active: resumeControlState === "active" }),
-                    toolbarChipClass,
-                    "inline-flex items-center gap-1.5 leading-none",
-                )}
-            >
-                {fitResolving && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
-                {fitResolving
-                    ? "Loading…"
-                    : resumeControlState === "active"
-                      ? "My résumé"
-                      : "Add résumé"}
-            </button>
-        ) : null;
-
-    const showResumeControl =
-        (result?.configured || hits.length > 0 || resumeControlState !== "hidden") && resumeControlEl;
-
     const sortEl = result?.configured ? (
         <div
             role="group"
@@ -4387,10 +4132,9 @@ function JobsContent() {
                 onClick={() => chooseSort("salary_desc")}
             />
             <ToolbarSegment
-                label="best match"
-                pressed={
-                    fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
-                }
+                label={resumeOnFile === true ? "best match" : "relevance"}
+                title={resumeOnFile === true ? "Matched by your résumé" : undefined}
+                pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
                 onClick={chooseBestMatch}
                 pending={fitResolving}
             />
@@ -4801,15 +4545,6 @@ function JobsContent() {
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
                             <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
                         )}
-                        {fitActive && (
-                            <button
-                                type="button"
-                                onClick={clearFit}
-                                className={cn(chipVariants({ active: true }), toolbarChipClass, "shrink-0 leading-none")}
-                            >
-                                ranked by your résumé ✕
-                            </button>
-                        )}
                         {!headerDockActive && unnamedEntries.map((entry) => (
                             <span
                                 key={entry.key}
@@ -4828,9 +4563,7 @@ function JobsContent() {
                         </>
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
-                        {showResumeControl && !headerDockActive && resumeControlEl}
                         {!headerDockActive && sortEl}
-                        {!headerDockActive && searchPrefsEl}
                         {!headerDockActive && tourReplayEl}
                         {!headerDockActive && asOfEl}
                     </div>
@@ -4872,15 +4605,10 @@ function JobsContent() {
                     createPortal(clearFiltersEl, dockedClearFiltersMount)}
                 {headerDockActive && dockedSaveSearchMount && savedSearchControl &&
                     createPortal(savedSearchControl, dockedSaveSearchMount)}
-                {showResumeControl && headerDockActive && dockedResumeMount &&
-                    createPortal(resumeControlEl, dockedResumeMount)}
                 {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
                 {headerDockActive && dockedExtrasMount &&
                     createPortal(
-                        <>
-                            {searchPrefsEl}
-                            {tourReplayEl}
-                        </>,
+                        tourReplayEl,
                         dockedExtrasMount,
                     )}
 
@@ -5568,15 +5296,6 @@ function JobsContent() {
                 onContinue={() => {
                     if (applyIntentJob) openPostingNow(applyIntentJob);
                 }}
-            />
-
-            <SearchPrefsSetup
-                variant="dialog"
-                open={searchPrefsDialogOpen}
-                onOpenChange={handleSearchPrefsOpenChange}
-                signedIn={Boolean(user)}
-                onComplete={handleSearchPrefsComplete}
-                onAddResume={handleSearchPrefsAddResume}
             />
 
             {applyReturnPrompt && (
