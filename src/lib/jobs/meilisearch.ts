@@ -277,6 +277,14 @@ export const JOBS_INDEX_SETTINGS = {
   // (non-relevance) sort is affected.
   rankingRules: ["words", "typo", "sort", "proximity", "attributeRank", "wordPosition", "exactness", "posted_ts:desc"],
   synonyms: JOBS_SYNONYMS,
+  // Repo-parity only, added 2026-08-27 — code-only, never applied from here.
+  // Live GET against the jobs index that night showed this exact 15-word
+  // list already set (source unknown — not this repo's apply-* scripts, none
+  // of which touch stopWords); this repo's JOBS_INDEX_SETTINGS was silently
+  // missing it, so the next `applyIndexSettings` PATCH (which REPLACES
+  // stopWords wholesale, same hazard as filterableAttributes above) would
+  // have wiped it. Live on the index since ~2026-08-27.
+  stopWords: ["a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"],
   // Made explicit 2026-08-23; previously left unset (silently riding Meili's
   // factory default, which these numbers equal exactly — GET-verified live
   // against the box that day). Declaring it turns "the typo-tolerance floor"
@@ -619,11 +627,20 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
   return f;
 }
 
-/** Pure relax policy: fall back to word-dropping only when a real query
- *  strictly matched NOTHING. Never on merely-thin results — a query with 3
- *  genuine all-word matches shows those 3, not 3 plus word-dropped noise. */
+/** One page of hits, per the jobs SERP (`PAGE` in `app/jobs/page.tsx`,
+ *  currently 20) — kept as an independent constant here rather than
+ *  importing that file, which is out of scope for the change that added
+ *  this. `shouldRelaxSearch` treats fewer than this many strict/scoped hits
+ *  as thin enough to justify one whole-document fallback pass. */
+export const RELAX_MIN_HITS = 20;
+
+/** Pure relax policy: fall back to whole-document, word-dropping search when
+ *  a real query's strict/scoped pass came back THIN — fewer than
+ *  `RELAX_MIN_HITS` hits, zero included as the extreme case. A query with a
+ *  full page of genuine matches shows those, never padded with word-dropped
+ *  noise from a second pass. */
 export function shouldRelaxSearch(strictTotal: number, q: string): boolean {
-  return Boolean(q.trim()) && strictTotal === 0;
+  return Boolean(q.trim()) && strictTotal < RELAX_MIN_HITS;
 }
 
 /** Explicit shape so call sites and tests can touch optional fields under tsc. */
@@ -760,34 +777,58 @@ export function buildSearchBody(
 ): MeiliSearchBody {
   // `matchingStrategy === "last"` is this file's existing marker for "this is
   // the relaxed pass" (see `searchMeili`'s `runPass`/`shouldRelaxSearch`) —
-  // fired only after a strict pass came back with zero hits. Reusing it here
-  // means the relax pass drops tech-skill attribute scoping back to
+  // fired after a strict/scoped pass came back thin (see `RELAX_MIN_HITS`;
+  // zero is just the extreme of thin). Reusing it here means the relax pass
+  // drops tech-skill AND title-first attribute scoping back to
   // whole-document search by construction (`matchingStrategy === "last"`).
   const techSkillScoped =
     !opts?.companyScoped && matchingStrategy !== "last" && isTechSkillQuery(p.q ?? "");
+  // Default retrieval scope for everything the classifiers above don't
+  // already claim more specifically. Benchmarked live 2026-08-27 (12
+  // queries, k=10): scoping a real query to title/company/tags — instead of
+  // the whole document — lifted strictTitleHit on "director of brand and
+  // product" 0.10 -> 0.50 with no regressions on the other 11. A query with
+  // no genuine title/company/tag match now comes back thin or zero under
+  // this scope; `shouldRelaxSearch`/`RELAX_MIN_HITS` below catch that and
+  // re-run unscoped. Gated on `matchingStrategy !== "last"` for the same
+  // reason `techSkillScoped` is — the relax pass must be truly
+  // whole-document, not re-narrowed. Gated on non-empty `q` so a plain
+  // browse (no query text to scope) is unaffected — Meilisearch has nothing
+  // to match attributes against anyway.
+  const titleFirstScoped =
+    !opts?.companyScoped &&
+    !opts?.titleScoped &&
+    !techSkillScoped &&
+    matchingStrategy !== "last" &&
+    Boolean((p.q ?? "").trim());
   return {
     // `quoteShortTokens` only rewrites the text handed to Meilisearch — every
     // classifier below (`techSkillScoped`, `buildFilter`, …) still reads the
     // raw `p.q`/`p` so quoting can never change what the query is CLASSIFIED
     // as, only how its short tokens are matched.
     q: quoteShortTokens(p.q ?? ""),
-    // Whole-document retrieval is the default and stays that way for every
-    // sort mode — explicit sorts only change ORDER BY (`buildMeiliSort`), not
-    // which attributes may match. Two scoped exceptions, company-intent always
-    // narrower and therefore always winning when both apply:
+    // Whole-document retrieval is the fallback (relax pass, or an empty
+    // browse query) — explicit sorts only change ORDER BY (`buildMeiliSort`),
+    // not which attributes may match. Scoped exceptions below, each narrower
+    // than the last and therefore always winning when more than one applies:
     //  - `companyScoped`: the query text names an employer — see the
     //    "FOREMAN - SEAL & STRIPE" note in company-intent.ts. Restricts to
     //    `company` alone.
+    //  - `titleScoped`: the role-title lane's own pair queries (see
+    //    `fetchRoleTitleLaneHits`) — restricted to `title` alone.
     //  - `techSkillScoped`: standalone tech/programming language tokens
     //    (e.g. "Rust", "Swift", "Python") scope to title/tags/description
     //    to prevent non-tech company false positives (e.g. "Rust Medical Center").
+    //  - `titleFirstScoped`: the default above — everything else.
     ...(opts?.companyScoped
       ? { attributesToSearchOn: ["company"] }
       : opts?.titleScoped
         ? { attributesToSearchOn: ["title"] }
         : techSkillScoped
           ? { attributesToSearchOn: ["title", "tags", "description"] }
-          : {}),
+          : titleFirstScoped
+            ? { attributesToSearchOn: ["title", "company", "tags"] }
+            : {}),
     // Meilisearch's DEFAULT is "last", which drops query words from the end
     // until something matches. For a three-word role that means a search for
     // "Technical Account Manager" is allowed to answer with documents that
@@ -891,20 +932,23 @@ async function searchWithDomainPostFilter(
 
 /** Read-path: search the jobs index.
  *
- *  One pass over the WHOLE document — every query word must match, but it may
- *  match anywhere in `searchableAttributes` (title, company, description,
- *  location, tags — `JOBS_INDEX_SETTINGS`). The old title/company precision
- *  pass treated place words as title words: "product manager canada" found
- *  only the 24 roles literally TITLED that, while 23,813 postings matched all
- *  three words somewhere (measured live 2026-07-26). Attribute order in
- *  `searchableAttributes` still ranks title matches first, so precision at
- *  the top survives without the restriction — verified: identical top-3 on
- *  every keyword query probed.
+ *  One pass, strict (`matchingStrategy: "all"`, every query word must match).
+ *  A real query is scoped to title/company/tags by default (`buildSearchBody`'s
+ *  `titleFirstScoped`, added 2026-08-27) rather than the whole document — the
+ *  earlier whole-document default let place words act like title words:
+ *  "product manager canada" found only the 24 roles literally TITLED that
+ *  under the OLD title/company precision pass, while 23,813 postings matched
+ *  all three words somewhere unscoped (measured live 2026-07-26); title-first
+ *  scoping keeps that precision without dragging place words into the title
+ *  match. `companyScoped`/`titleScoped`/`techSkillScoped` narrow further for
+ *  their own query shapes.
  *
  *  One pass, not two, is also the latency posture the 2026-07-24 incident
  *  bought: no sequential second request to blow the settle guard under load.
- *  Only a strict ZERO relaxes to Meilisearch's word-dropping "last" — flagged
- *  `widened` so the UI can disclose partial matches. */
+ *  Only a THIN or zero result (`shouldRelaxSearch`/`RELAX_MIN_HITS` — fewer
+ *  than one SERP page of hits) relaxes to a second, whole-document,
+ *  word-dropping ("last") pass — flagged `widened` so the UI can disclose
+ *  partial matches. */
 /**
  * Sort-integrity chokepoint for `searchMeili`. `searchCutoffMs`
  * (`JOBS_INDEX_SETTINGS`) can interrupt a slow search under embed-batch/
@@ -1025,12 +1069,16 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     const strict = await runPass();
     if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
 
-    // Every word matched nothing anywhere — only now drop back to
-    // Meilisearch's word-dropping default, so a long or unusual query still
-    // returns its best partial matches instead of an empty screen. Reaching
-    // here means strict matching already came back empty, so this can only add
-    // results, never displace better ones. Flagged `widened` because partial
-    // matches are exactly what that flag exists to disclose.
+    // The strict/scoped pass came back thin or empty (`shouldRelaxSearch`,
+    // `RELAX_MIN_HITS`) — drop both the title-first scope AND matching
+    // strictness back to whole-document, word-dropping search
+    // (`matchingStrategy: "last"` clears `titleFirstScoped`/`techSkillScoped`
+    // in `buildSearchBody` by construction), so a query with genuinely few or
+    // no title/company/tag matches still returns its best whole-document
+    // matches instead of a near-empty page. This REPLACES the strict result
+    // outright rather than appending to it — a thin-but-nonzero strict page
+    // is not merged with the relaxed one. Flagged `widened` because that's
+    // exactly the partial-match disclosure the UI needs when this fires.
     const relaxed = await runPass("last");
     return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
   };
