@@ -113,10 +113,7 @@ function withDeps<In, Out extends object>(
             consumeRecordBudget: (count) => consumeRecordBudget(firestoreStore(), credentialId, count),
             getCompanyPageData,
             getCompanyExhaust,
-            searchCompanies: (query, limit) => {
-                const pg = getExhaustPg();
-                return pg ? searchCompanies(pg, query, limit) : Promise.resolve([]);
-            },
+            searchCompanies: (query, limit) => searchCompanies(getExhaustPg(), query, limit),
         };
         return toolResult(await run(deps, input));
     };
