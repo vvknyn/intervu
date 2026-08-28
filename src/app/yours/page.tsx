@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { createApplication, deleteApplication, updateApplication } from "@/actions/application";
+import { captureEvent } from "@/lib/analytics/events";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { usePursuits, syncGuestPursuitsToServer, invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
@@ -243,7 +244,7 @@ function YoursContent() {
                 const res = await deleteApplication(id);
                 if (res.error) {
                     toast.error(res.error);
-                    return;
+                    return false;
                 }
                 invalidatePursuitsCache();
             } else {
@@ -252,6 +253,7 @@ function YoursContent() {
             setDetailOpen(false);
             setSelectedId(null);
             toast.success("Removed");
+            return true;
         } finally {
             setSaving(false);
         }
@@ -352,8 +354,21 @@ function YoursContent() {
                     if (status === "applied" && !selected.applied_at) {
                         patch.applied_at = new Date().toISOString();
                     }
+                    const fromStage = selected.status;
+                    const jobId = selected.job_id;
                     const ok = await mutate(selected.id, patch);
-                    if (ok) toast.success(`Marked ${status === "interested" ? "saved" : status}`);
+                    if (ok) {
+                        toast.success(`Marked ${status === "interested" ? "saved" : status}`);
+                        // job_id is null for a manually-tracked "outside interviews"
+                        // pursuit with no corpus listing — nothing to key the event on.
+                        if (jobId) {
+                            captureEvent("application_stage_changed", {
+                                job_id: jobId,
+                                from_stage: fromStage,
+                                to_stage: status,
+                            });
+                        }
+                    }
                 }}
                 onNoteSave={async (note) => {
                     if (!selected) return;
@@ -370,7 +385,9 @@ function YoursContent() {
                 }}
                 onRemove={async () => {
                     if (!selected) return;
-                    await handleRemove(selected.id);
+                    const jobId = selected.job_id;
+                    const removed = await handleRemove(selected.id);
+                    if (removed && jobId) captureEvent("job_unsaved", { job_id: jobId });
                 }}
             />
 

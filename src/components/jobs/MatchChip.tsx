@@ -15,6 +15,7 @@
 import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
 import { MATCH_CHIP_BRAND_THRESHOLD, type MatchScore } from "@/lib/match/score";
+import { captureEvent } from "@/lib/analytics/events";
 
 /** The receipt's one static disclosure row — not a scored component (score.ts
  *  never touches location/salary), so it isn't a `MatchComponent`; it's the
@@ -26,12 +27,22 @@ export interface MatchChipProps {
     /** Résumé's stored update date, already formatted (e.g. "aug 27") — see `shortDate` in lib/jobs/presentation.ts. Omitted head line when unknown. */
     asOfDate?: string | null;
     className?: string;
+    /** Fires `job_match_expanded` when the receipt disclosure opens. Optional
+     *  because not every render site (yet) has a job id in scope; omit to
+     *  render the chip without that capture rather than fabricate an id. */
+    jobId?: string;
 }
 
-export function MatchChip({ score, asOfDate, className }: MatchChipProps) {
+export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps) {
     const strong = score.total >= MATCH_CHIP_BRAND_THRESHOLD;
     return (
-        <ContextHelp side="bottom" content={<MatchReceipt score={score} asOfDate={asOfDate} />}>
+        <ContextHelp
+            side="bottom"
+            content={<MatchReceipt score={score} asOfDate={asOfDate} />}
+            onOpenChange={(open) => {
+                if (open && jobId) captureEvent("job_match_expanded", { job_id: jobId });
+            }}
+        >
             <span
                 data-testid="match-chip"
                 className={cn(

@@ -76,6 +76,7 @@ function renderDetail(job: PublicJob, collapseDescription?: boolean): string {
         React.createElement(JobDetail, {
             job,
             now: Date.now(),
+            source: "direct",
             onOpenPosting: noop,
             onGoAfter: noop,
             pursuit: undefined,

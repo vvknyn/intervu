@@ -29,6 +29,7 @@ import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STAT
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { withShareRef } from "@/lib/share/share-decision";
+import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { SHARE_JOB_TEXT } from "@/lib/seo/constants";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
 import { getRelatedJobsAction, getCompanyOpenCountAction } from "@/actions/jobs";
@@ -226,6 +227,7 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
 export function JobDetail({
     job,
     now,
+    source,
     onOpenPosting,
     onGoAfter,
     pursuit,
@@ -244,6 +246,8 @@ export function JobDetail({
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
+    /** Where this panel was opened from — fires `job_viewed` once per job.id mount. */
+    source: EventSource;
     onOpenPosting: () => void;
     /** When false, Apply/Save gate at click; description body stays public. */
     signedIn?: boolean;
@@ -314,6 +318,10 @@ export function JobDetail({
     useEffect(() => {
         setDescExpanded(false);
     }, [job.id]);
+    useEffect(() => {
+        captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [job.id, source]);
     // Identity-header location line — same progressive-disclosure idiom as
     // the description clamp above, for aggregator-feed `location` strings
     // that stuff many semicolon-joined locations into one field (see
@@ -497,7 +505,7 @@ export function JobDetail({
                             <h1 className="text-xl sm:text-[22px] font-bold leading-snug sm:leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h1>
                             {matchScore && (
                                 <div className="mt-1.5">
-                                    <MatchChip score={matchScore} asOfDate={matchAsOfDate} />
+                                    <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
                                 </div>
                             )}
                             <div className="mt-1 text-sm font-medium text-muted-foreground">
@@ -636,6 +644,7 @@ export function JobDetail({
                                     jobShareUrl(typeof window !== "undefined" ? window.location.origin : "", job),
                                     "job",
                                 )}
+                                jobId={job.id}
                                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
                             />
                             {onClose && (

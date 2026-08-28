@@ -271,7 +271,7 @@ export function CompanyRoleSearch({
                       <div className="text-[17px] font-semibold text-foreground group-hover:text-brand transition-colors">
                         {decodeText(job.title)}
                       </div>
-                      {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} />}
+                      {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />}
                     </div>
                     {meta.length > 0 && (
                       <div className="mt-1 text-[14px] text-muted-foreground">
@@ -369,6 +369,7 @@ export function CompanyRoleSearch({
             {selectedJob && (
               <PublicJobDetail
                 job={selectedJob}
+                source="co"
                 onOpenRelated={handleOpenRelated}
                 collapseDescription={false}
                 detailClassName="border-0 bg-transparent shadow-none"

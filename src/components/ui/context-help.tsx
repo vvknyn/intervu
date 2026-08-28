@@ -21,13 +21,17 @@ interface ContextHelpProps {
     icon?: React.ReactNode
     /** Colored inline words as the trigger — drops the fixed 18×18 icon box. */
     children?: React.ReactNode
+    /** Fires on every open/close toggle — lets a caller (e.g. MatchChip) log
+     *  "this disclosure was actually opened" without owning the open state
+     *  itself (Radix's `Tooltip` already does, via `onOpenChange`). */
+    onOpenChange?: (open: boolean) => void
 }
 
-export function ContextHelp({ content, className, side = "top", icon, children }: ContextHelpProps) {
+export function ContextHelp({ content, className, side = "top", icon, children, onOpenChange }: ContextHelpProps) {
     const textTrigger = children != null;
     return (
         <TooltipProvider delayDuration={300}>
-            <Tooltip>
+            <Tooltip onOpenChange={onOpenChange}>
                 <TooltipTrigger asChild>
                     <button
                         type="button"

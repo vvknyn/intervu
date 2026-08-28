@@ -62,6 +62,7 @@ function renderDetail(job: PublicJob): string {
         React.createElement(JobDetail, {
             job,
             now: Date.now(),
+            source: "direct",
             onOpenPosting: noop,
             onGoAfter: noop,
             pursuit: undefined,

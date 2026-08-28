@@ -349,6 +349,12 @@ export default function PursuitDetailPage() {
                         <JobDetail
                             job={detail.job}
                             now={nowMs}
+                            /* This sheet only ever opens from the visitor's own
+                               tracker (Yours), never a search list/company page/
+                               board/email link — "direct" is the closest fit,
+                               matching PublicJobDetail's own document-layout
+                               default. */
+                            source="direct"
                             /* Passing the pursuit is what makes JobDetail render its
                                "In Yours ✓" state instead of a "Go after this job" CTA
                                — you are already here because you went after it. */

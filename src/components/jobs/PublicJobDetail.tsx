@@ -27,6 +27,7 @@ import {
     type PendingState,
 } from "@/lib/jobs/pending-actions";
 import type { PublicJob } from "@/lib/jobs/types";
+import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
@@ -50,6 +51,13 @@ export interface PublicJobDetailProps {
      *  component differs. `JobDetailActionBar` renders unconditionally either
      *  way; it's already the proven sticky action surface for this route. */
     layout?: "panel" | "document";
+    /** `job_viewed`'s source. Defaults from `layout` when the caller doesn't
+     *  know better: "document" is always a standalone page (no referring
+     *  surface to name), "panel" defaults to "serp" (the SERP's own inline
+     *  `<JobDetail>` render — jobs/page.tsx — passes "serp" explicitly, so
+     *  this default only covers other panel callers, e.g. CompanyRoleSearch's
+     *  "co"). */
+    source?: EventSource;
 }
 
 /**
@@ -64,7 +72,9 @@ export function PublicJobDetail({
     collapseDescription = true,
     detailClassName,
     layout = "panel",
+    source,
 }: PublicJobDetailProps) {
+    const effectiveSource: EventSource = source ?? (layout === "document" ? "direct" : "serp");
     const [nowMs] = useState(() => Date.now());
     const [goingAfter, setGoingAfter] = useState(false);
     const [applyIntentOpen, setApplyIntentOpen] = useState(false);
@@ -149,6 +159,7 @@ export function PublicJobDetail({
                 return;
             }
             invalidatePursuitsCache();
+            captureEvent("job_marked_applied", { job_id: target.id });
         } catch (e) {
             if (classifySentinel(e) === "auth") {
                 openAuth("apply");
@@ -213,6 +224,10 @@ export function PublicJobDetail({
             addGuestPursuit(target);
             recordGuestSave();
             toast.success(GUEST_SAVE_TOAST);
+            // A guest's first save is a real save — same placement rule as
+            // jobs/page.tsx's handleGoAfter: after the gate branch above (which
+            // returns instead of saving), so a rejected click never counts.
+            captureEvent("job_saved", { job_id: target.id });
             return;
         }
         void (async () => {
@@ -229,6 +244,7 @@ export function PublicJobDetail({
                 }
                 invalidatePursuitsCache();
                 toast.success(GUEST_SAVE_TOAST);
+                captureEvent("job_saved", { job_id: target.id });
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     openAuth("save");
@@ -277,6 +293,7 @@ export function PublicJobDetail({
                 <JobDetailDocument
                     job={job}
                     now={nowMs}
+                    source={effectiveSource}
                     signedIn={Boolean(user)}
                     pursuit={byJobId.get(job.id)}
                     goingAfter={goingAfter}
@@ -292,6 +309,7 @@ export function PublicJobDetail({
                 <JobDetail
                     job={job}
                     now={nowMs}
+                    source={effectiveSource}
                     signedIn={Boolean(user)}
                     pursuit={byJobId.get(job.id)}
                     goingAfter={goingAfter}

@@ -11,6 +11,7 @@ import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract
 import { parseResumeContent, resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
 import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { downloadBlob } from "@/lib/export-utils";
+import { captureEvent } from "@/lib/analytics/events";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
@@ -450,6 +451,7 @@ function ResumeUploadForm({
                 setError(res.error);
                 return;
             }
+            captureEvent("resume_uploaded", {});
             onSaved();
         });
     };

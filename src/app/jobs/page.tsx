@@ -107,12 +107,14 @@ import {
     toolbarControlHeight,
     toolbarSegmentGroupClass,
 } from "@/lib/jobs/toolbar-control-height";
-import { captureFunnelEvent } from "@/lib/analytics/funnel";
+import { captureEvent } from "@/lib/analytics/events";
+import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
     entriesNeedingOwnChip,
     chipLabelForEntry,
     toggleFacetValue,
+    changedFilterFacets,
     PRISTINE_FILTER_STATE,
     applyLocationSheetDraft,
     locationTriggerLabel,
@@ -574,6 +576,7 @@ function JobCard({
             aria-selected={active}
             aria-label={`View ${accessibleName}`}
             data-job-row
+            data-job-id={job.id}
             data-testid="job-row"
             {...(tourAnchor ? { "data-tour": "jobs-card" } : {})}
             onClick={onClick}
@@ -684,7 +687,7 @@ function JobCard({
                 column — no new row, no layout shift when a résumé isn't on
                 file (`matchScore` is simply `null` then). */}
             <span className="flex h-fit flex-col items-end gap-1 self-start">
-                {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} />}
+                {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />}
                 {age && (
                     <span
                         data-testid="posted-age"
@@ -1389,7 +1392,7 @@ function JobsContent() {
         // that needs to leave the browser to answer "did they search".
         // `activeFilterEntries` is re-derived here rather than read from the
         // render-scope binding so this does not depend on declaration order.
-        captureFunnelEvent("search_submitted", {
+        captureEvent("search_submitted", {
             query_length: q.trim().length,
             has_location: chosenLocations.length > 0,
             filter_count: activeFilterEntries(filterState).length,
@@ -2021,6 +2024,16 @@ function JobsContent() {
                 // actually renders first.
                 const interleavedHits = interleaveByCompany(r.hits);
                 setResult({ ...r, hits: interleavedHits });
+                // A real search (not the pristine zero-query landing) that
+                // comes back empty — the denominator for "how often does
+                // search fail someone," not every empty render (a fresh
+                // pristine mount is not a failed search).
+                if (interleavedHits.length === 0 && !isPristineLanding) {
+                    captureEvent("search_zero_results", {
+                        query_length: query.trim().length,
+                        filter_count: activeFilterEntries(filterState).length,
+                    });
+                }
                 const selection = resolveSelectionAfterRefresh(previousSelectedId, interleavedHits, { wasConfirmed });
                 // Review fix: gate on the id ACTUALLY being absent from this
                 // fetch's fresh hits, not merely on `selection.preserveDeliberateDetail`
@@ -2294,7 +2307,7 @@ function JobsContent() {
         // One call site covers both SERP rows and the detail pane's "also in"
         // rail, because `onOpenRelated` is wired to this same function.
         if (rank >= 0) {
-            captureFunnelEvent("result_clicked", { position: rank, job_id: id, source: "serp" });
+            captureEvent("result_clicked", { position: rank, job_id: id, source: "serp" });
         }
         setOpensThisSession((n) => n + 1);
         setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
@@ -2732,6 +2745,10 @@ function JobsContent() {
 
     // Observer handle stays stable; the generation coordinator owns request guards.
     const observerRef = useRef<IntersectionObserver | null>(null);
+    // #jobs-results-list container — the one mount point `useResultImpressions`
+    // watches for rows crossing 50% visible (see the ref attached below).
+    const resultsListRef = useRef<HTMLDivElement | null>(null);
+    useResultImpressions(resultsListRef, "serp");
 
     // Fetch the next page and append it only while its monotonic generation is current.
     const loadMore = useCallback(async () => {
@@ -2780,6 +2797,9 @@ function JobsContent() {
                 setDepthGateNote(r.note ?? ANONYMOUS_DEPTH_GATE_MESSAGE);
                 return;
             }
+            // "depth" = which page this load-more just fetched (1-indexed);
+            // fired once per genuinely-served page, never for a gated refusal.
+            captureEvent("search_results_paged", { depth: Math.floor(ticket.offset / PAGE) + 1 });
             setResult((prev) => {
                 if (!prev) return prev;
                 // React may run this updater after another first-page generation
@@ -2909,6 +2929,9 @@ function JobsContent() {
     // `onRemove` (via `activeFilterEntries(...).clear`), so the two can never
     // drift on which fields a "clear" touches.
     const applyFilterState = (next: FilterState) => {
+        for (const facet of changedFilterFacets(filterState, next)) {
+            captureEvent("search_filter_applied", { facet });
+        }
         setFacets(next.facets);
         setSalaryMin(next.salaryMin);
         setVisaOnly(next.visaOnly);
@@ -3230,7 +3253,7 @@ function JobsContent() {
         // number worth knowing: comparing this against actual opens is what
         // measures the gate's drop-off. Moving it below either early return
         // would make that drop-off invisible.
-        captureFunnelEvent("apply_clicked", { job_id: job.id, source: "serp" });
+        captureEvent("apply_clicked", { job_id: job.id, source: "serp" });
         if (resolveApplyGateDecision(Boolean(user)) === "gate") {
             handleApplyGate(job);
             return;
@@ -3265,6 +3288,7 @@ function JobsContent() {
                 return;
             }
             invalidatePursuitsCache();
+            captureEvent("job_marked_applied", { job_id: job.id });
             toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
@@ -3349,7 +3373,7 @@ function JobsContent() {
             // not at the top of the handler: the branch above this one opens the
             // auth popover instead of saving, and counting that click would
             // inflate saves with the exact clicks the gate rejected.
-            captureFunnelEvent("job_saved", { job_id: job.id });
+            captureEvent("job_saved", { job_id: job.id });
             return;
         }
         void (async () => {
@@ -3370,7 +3394,7 @@ function JobsContent() {
                 // The signed-in save, counted only once the action came back
                 // clean — the `res.error` branch above returns, and a thrown
                 // error lands in the catch, so neither reaches this line.
-                captureFunnelEvent("job_saved", { job_id: job.id });
+                captureEvent("job_saved", { job_id: job.id });
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     setAuthOpen(true);
@@ -3900,6 +3924,7 @@ function JobsContent() {
                     key={detailJob.id}
                     job={detailJob}
                     now={nowMs}
+                    source="serp"
                     signedIn={Boolean(user)}
                     onRequestSignIn={() => openAuth("generic")}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
@@ -4983,6 +5008,7 @@ function JobsContent() {
                                     )}
                                 <div
                                     id="jobs-results-list"
+                                    ref={resultsListRef}
                                     tabIndex={0}
                                     role="listbox"
                                     aria-label="Job results"

@@ -11,6 +11,7 @@ import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { JobDescription, RelatedJobRow } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
+import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
@@ -201,6 +202,8 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
 export interface JobDetailDocumentProps {
     job: PublicJob;
     now: number;
+    /** Where this page was reached from — fires `job_viewed` once per job.id mount. */
+    source: EventSource;
     onOpenPosting: () => void;
     onGoAfter: () => void;
     pursuit: Pursuit | undefined;
@@ -239,6 +242,7 @@ export interface JobDetailDocumentProps {
 export function JobDetailDocument({
     job,
     now,
+    source,
     onOpenPosting,
     onGoAfter,
     pursuit,
@@ -264,6 +268,11 @@ export function JobDetailDocument({
     const [locationExpanded, setLocationExpanded] = useState(false);
     const blocks = formatDescription(job.description);
     const exceptionMark = rowExceptionMark(job, now);
+
+    useEffect(() => {
+        captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [job.id, source]);
 
     const [related, setRelated] = useState<PublicJob[]>([]);
     useEffect(() => {
@@ -295,7 +304,7 @@ export function JobDetailDocument({
                     <h1 className="text-xl font-bold leading-snug tracking-tight text-foreground sm:text-2xl">{decodeText(job.title)}</h1>
                     {matchScore && (
                         <div className="mt-1.5">
-                            <MatchChip score={matchScore} asOfDate={matchAsOfDate} />
+                            <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
                         </div>
                     )}
                     <div className="mt-1.5 text-sm font-medium text-muted-foreground">
