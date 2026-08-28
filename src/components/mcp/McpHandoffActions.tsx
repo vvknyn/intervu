@@ -68,14 +68,14 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                         key={client}
                         type="button"
                         onClick={() => pickClient(client)}
-                        className="inline-flex h-8 items-center justify-center rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-800 transition-colors cursor-pointer"
+                        className="inline-flex h-8 items-center justify-center rounded-none border border-border/80 bg-background/60 px-3 text-xs font-medium text-foreground backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.3)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] hover:bg-muted/80 transition-colors cursor-pointer"
                     >
                         {CLIENT_LABEL[client]}
                     </button>
                 ))}
-                <p className="text-xs text-emerald-900 dark:text-emerald-300">
+                <p className="text-xs text-muted-foreground">
                     First time?{" "}
-                    <Link href="/connect" className="font-bold underline underline-offset-4 hover:text-emerald-950 dark:hover:text-white">
+                    <Link href="/connect" className="font-bold text-foreground underline underline-offset-4 hover:opacity-80">
                         Connect once →
                     </Link>
                 </p>
@@ -96,7 +96,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                 <button
                     type="button"
                     onClick={handleSwitch}
-                    className="text-xs font-medium text-emerald-900 underline underline-offset-4 hover:text-emerald-950 dark:text-emerald-300 cursor-pointer"
+                    className="text-xs font-medium text-foreground underline underline-offset-4 hover:opacity-80 cursor-pointer"
                 >
                     Switch AI
                 </button>
