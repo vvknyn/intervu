@@ -20,7 +20,6 @@ import {
   serializeJsonLd,
 } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
-import { CursorFabricBackground } from "@/components/ui/CursorFabricBackground";
 import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 
 /**
@@ -176,7 +175,6 @@ export default function RootLayout({
         <AuthKitProvider>
         <PostHogProvider>
           <ThemeProvider>
-            <CursorFabricBackground />
             <TourProvider>
               {/* Wraps BOTH the header and the page: /jobs publishes its search
                   summary here once its own search box scrolls away, and TopBar

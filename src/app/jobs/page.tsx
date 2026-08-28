@@ -15,7 +15,6 @@ import {
     X,
     Check,
     Question,
-    SlidersHorizontal,
     CircleNotch,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -94,6 +93,9 @@ import {
     suppressLocationDefault,
     restoreLocationDefault,
     shouldShowLocationDefaultChip,
+    regionDisplayName,
+    buildDockedChips,
+    DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
@@ -101,9 +103,7 @@ import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
-import { tourSteps } from "@/components/tour/tour-steps";
 import {
-    toolbarChipClass,
     toolbarControlHeight,
     toolbarSegmentGroupClass,
 } from "@/lib/jobs/toolbar-control-height";
@@ -155,27 +155,11 @@ import {
     resolveDetailMountSite,
     degradedResultsNote,
     resolveEndOfListState,
-    resolveResumeControlState,
-    runResumeControlClick,
-    hasSearchPrefs,
-    shouldPromptSearchPrefsInsteadOfResume,
     shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
-import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
-import { SearchPrefsSetup } from "@/components/jobs/SearchPrefsSetup";
-import {
-    clearStashedPrefs,
-    dismissOnboarding,
-    getStashedPrefs,
-    isOnboardingDismissed,
-    prefsToFlush,
-    recordOnboardingInteraction,
-    shouldPromptOnboarding,
-    stashPrefs,
-    type PrefsDestination,
-    type SearchPrefsValues,
-} from "@/lib/jobs/onboarding-prompt";
+import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
+import { recordOnboardingInteraction } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
     isEmailNudgeDismissed,
@@ -186,7 +170,7 @@ import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
-import { clusterJobs } from "@/lib/jobs/cluster";
+import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
 import {
     type FacetKey,
@@ -201,7 +185,6 @@ import {
     serializeJobsUrl,
     DEFAULT_URL_STATE,
     urlSortToMode,
-    withSortCleared,
     shouldResetSortOnQueryChange,
     type JobsUrlState,
     type UrlSort,
@@ -236,6 +219,8 @@ import {
     isGuestSaveBannerDismissed,
     dismissGuestSaveBanner,
 } from "@/lib/auth/guest-save-gate";
+import { ANONYMOUS_DEPTH_GATE_MESSAGE } from "@/lib/shield/depth-cap";
+import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
 
 /**
  * Every search-action call on this page goes through this one
@@ -325,11 +310,13 @@ function ToolbarSegment({
     pressed,
     onClick,
     pending = false,
+    title,
 }: {
     label: string;
     pressed: boolean;
     onClick: () => void;
     pending?: boolean;
+    title?: string;
 }) {
     return (
         <button
@@ -338,6 +325,7 @@ function ToolbarSegment({
             aria-busy={pending || undefined}
             disabled={pending}
             onClick={onClick}
+            title={title}
             className={cn(
                 "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-1.5 rounded-none px-3 text-xs font-bold uppercase leading-none tracking-wider transition-all duration-150",
                 pressed
@@ -377,19 +365,6 @@ function ToolbarSegment({
  * SAME `suppressLocationDefault` write path the old results-row chip used —
  * REUSED, not a second suppression flag.
  */
-/** Country name for an ISO2 via the browser's own region-name table, with a
- *  bare-code fallback if `Intl.DisplayNames` throws. Shared by
- *  `DefaultLocationChip` and the zero-result state's geo-default entry
- *  (below) so there is exactly one place that resolves this, not a second
- *  copy of the same try/catch. */
-function regionDisplayName(iso2: string): string {
-    try {
-        return new Intl.DisplayNames(["en"], { type: "region" }).of(iso2) ?? iso2;
-    } catch {
-        return iso2;
-    }
-}
-
 function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
     const flag = countryToFlag(iso2);
     const name = useMemo(() => regionDisplayName(iso2), [iso2]);
@@ -430,7 +405,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     data-testid="serp-ask-seed"
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
-                    className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/80 px-2.5 py-1 text-xs font-medium text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-700 shadow-2xs"
+                    className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/80 px-2.5 py-1 text-left text-xs font-medium text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-700 shadow-2xs"
                 >
                     {seed}
                 </button>
@@ -500,25 +475,6 @@ function JobsTourReplayButton() {
     );
 }
 
-function JobsSearchPrefsButton({ onClick }: { onClick: () => void }) {
-    return (
-        <button
-            type="button"
-            data-testid="jobs-search-prefs"
-            aria-label="Set up search preferences"
-            onClick={onClick}
-            className={cn(
-                chipVariants({ active: false }),
-                toolbarChipClass,
-                "inline-flex shrink-0 items-center justify-center gap-1.5 leading-none text-muted-foreground transition-colors hover:text-foreground",
-            )}
-        >
-            <SlidersHorizontal size={14} weight="bold" aria-hidden />
-            <span className="whitespace-nowrap text-xs leading-none">Preferences</span>
-        </button>
-    );
-}
-
 /**
  * One result. Title + company/location on the left, a fixed-width data rail
  * (salary, ghost flag, age — top to bottom, whichever apply) on the right.
@@ -547,6 +503,7 @@ function JobCard({
     onCompany,
     now,
     variantCount = 0,
+    clusterLabel = "",
     expanded = false,
     onToggleExpand,
     dense = false,
@@ -565,6 +522,10 @@ function JobCard({
     /** Accepted-but-unused: elite board styling removed from row chrome. */
     elite?: boolean;
     variantCount?: number;
+    /** Collapsed-state pill text ("+N locations"/"+N openings"), computed
+     *  by `clusterToggleLabel` (lib/jobs/cluster.ts) at the call site — the
+     *  card just renders it, never derives it. */
+    clusterLabel?: string;
     expanded?: boolean;
     onToggleExpand?: () => void;
     /** Accepted-but-unused: comfortable layout is the only SERP density now. */
@@ -687,7 +648,7 @@ function JobCard({
                     {onCompany ? (
                         <button
                             type="button"
-                            className="hover:text-foreground hover:underline"
+                            className="text-left hover:text-foreground hover:underline"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onCompany(job);
@@ -774,7 +735,7 @@ function JobCard({
                             onToggleExpand?.();
                         }}
                     >
-                        {expanded ? "hide" : `+${variantCount} location${variantCount === 1 ? "" : "s"}`}
+                        {expanded ? "hide" : clusterLabel}
                     </button>
                 )}
             </div>
@@ -1049,7 +1010,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={() => onClearEntry(entry)}
-                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                 >
                     ✕ clear {entry.label}
                 </button>
@@ -1059,7 +1020,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={locationDefault.onClear}
-                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                 >
                     ✕ clear {locationDefault.label}
                 </button>
@@ -1473,19 +1434,6 @@ function JobsContent() {
             ) {
                 setEmailNudgeOpen(true);
             }
-        } else {
-            // Signed out there's no profile to write preferences into, so the
-            // count is the only intent signal available.
-            if (
-                shouldPromptOnboarding({
-                    interactions,
-                    signedIn: false,
-                    dismissed: onboardingDismissed,
-                    configured: agentSearchPrefsSet || Boolean(onboardingStash),
-                })
-            ) {
-                setSearchPrefsDialogOpen(true);
-            }
         }
     };
 
@@ -1508,6 +1456,12 @@ function JobsContent() {
     resultRef.current = result;
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    // Set once `loadMore` hits the anonymous depth wall (`meta.gated`, see
+    // `interpretLoadMoreResponse`) — holds the server's own note verbatim so
+    // the sentinel below can swap "Show N more" for a sign-in CTA instead of
+    // silently doing nothing forever. Reset alongside `loadingMore` whenever
+    // a new first-page search starts.
+    const [depthGateNote, setDepthGateNote] = useState<string | null>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
@@ -1635,29 +1589,17 @@ function JobsContent() {
     if (!paginationRef.current) paginationRef.current = new JobsPaginationGeneration();
 
     const [user, setUser] = useState<User | null>(null);
-    const [agentPrefs, setAgentPrefs] = useState<AgentPreferences | null>(null);
-    const [searchPrefsDialogOpen, setSearchPrefsDialogOpen] = useState(false);
-    // Signed-out onboarding (owner's call, 2026-08-23): offer the setup
-    // wizard after a few submitted searches rather than on arrival. Both
-    // values live in localStorage and are read post-mount, so `dismissed`
-    // starts at the SUPPRESSED end — true until the browser says otherwise —
-    // rather than risk offering the wizard to someone who already said no.
-    // Same idiom as `guestSaveBannerDismissed` above. The interaction count
-    // isn't mirrored into state: `submitSearch` reads it back from the
-    // increment it just made, and state nothing renders is state that only
-    // has room to go stale. Decisions live in lib/jobs/onboarding-prompt.ts.
-    const [onboardingDismissed, setOnboardingDismissed] = useState(true);
-    const [onboardingStash, setOnboardingStash] = useState<SearchPrefsValues | null>(null);
-    // The signed-in twin: an account whose only address is a minted
-    // <username>@intervu.cc can't receive anything we send. Same
-    // suppressed-until-the-browser-says-otherwise start as above.
+    // The signed-in email nudge: an account whose only address is a minted
+    // <username>@intervu.cc can't receive anything we send. Value lives in
+    // localStorage and is read post-mount, so it starts at the SUPPRESSED
+    // end — true until the browser says otherwise — rather than risk
+    // offering the nudge to someone who already said no. Same idiom as
+    // `guestSaveBannerDismissed` above.
     const [emailNudgeDismissed, setEmailNudgeDismissed] = useState(true);
     const [emailNudgeOpen, setEmailNudgeOpen] = useState(false);
     const [accountEmailState, setAccountEmailState] = useState<EmailNudgeState | null>(null);
     const [accountPendingEmail, setAccountPendingEmail] = useState<string | null>(null);
     useEffect(() => {
-        setOnboardingDismissed(isOnboardingDismissed());
-        setOnboardingStash(getStashedPrefs());
         setEmailNudgeDismissed(isEmailNudgeDismissed());
     }, []);
     // Resolved from the server, never guessed from the client-side user
@@ -1780,53 +1722,6 @@ function JobsContent() {
         return () => unsub();
     }, []);
 
-    useEffect(() => {
-        if (!user) {
-            setAgentPrefs(null);
-            return;
-        }
-        let cancelled = false;
-        void fetchAgentPreferencesAction().then(async (res) => {
-            if (cancelled || !res.data) return;
-            // Carry up anything the wizard collected while they were signed
-            // out — but only into an account that has nothing yet. Someone
-            // who set preferences on another device must not have them
-            // overwritten by a logged-out session in this browser, which
-            // would make signing in destructive. `prefsToFlush` owns that
-            // rule; `hasSearchPrefs` is the same "already configured" test
-            // the rest of this page gates on.
-            const flush = prefsToFlush({
-                signedIn: true,
-                stash: getStashedPrefs(),
-                accountConfigured: hasSearchPrefs(res.data.search),
-            });
-            if (!flush) {
-                setAgentPrefs(res.data);
-                return;
-            }
-            const saved = await saveAgentPreferencesAction({
-                search: {
-                    query: flush.query,
-                    location: flush.location || undefined,
-                    remoteOnly: flush.remoteOnly || undefined,
-                    salaryMin: flush.salaryMin || undefined,
-                },
-            });
-            if (cancelled) return;
-            // Only drop the local copy once the server has it. A failed
-            // flush leaves the stash intact so the next sign-in retries,
-            // rather than silently discarding what they typed.
-            if (saved.data) {
-                clearStashedPrefs();
-                setOnboardingStash(null);
-            }
-            setAgentPrefs(saved.data ?? res.data);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [user?.uid]);
-
     // Refetch rule: only the search-affecting subset should trigger a fetch.
     // `jobId` is deliberately omitted here, so opening/closing a job (a `job`-
     // only URL change) can never appear in this key — the fetch effect below
@@ -1883,21 +1778,12 @@ function JobsContent() {
     // below rather than short-circuited into it.
     const resumeKnownOnServer = useResumePresence(user?.uid ?? null);
 
-    // Whether the "My résumé" toolbar control (below) should treat a
-    // résumé as on file — `hasUsableResume` (session-local: just uploaded,
-    // or already resolved for a fit application) wins outright when true;
-    // otherwise this is `resumeKnownOnServer`'s tri-state answer as-is,
-    // `null` included. BOTH the control's visual state
-    // (`resolveResumeControlState`) and its click behavior
-    // (`runResumeControlClick`) read this SAME value, but only the click
-    // decides on its truth — the render just borrows it as a hint (see
-    // `runResumeControlClick`'s own doc comment, lib/jobs/result-state.ts).
+    // Whether the sort control's résumé-aware "Best match" segment (below)
+    // should treat a résumé as on file — `hasUsableResume` (session-local:
+    // just uploaded, or already resolved for a fit application) wins
+    // outright when true; otherwise this is `resumeKnownOnServer`'s
+    // tri-state answer as-is, `null` included.
     const resumeOnFile: boolean | null = hasUsableResume || resumeKnownOnServer;
-
-    // The control's rendered state (see `resolveResumeControlState`'s own
-    // doc comment for the three states) — one hoisted call instead of the
-    // `fitActive`/`resumeOnFile` check inline in the JSX below.
-    const resumeControlState = resolveResumeControlState({ fitActive, resumeOnFile });
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -1919,6 +1805,15 @@ function JobsContent() {
     // search had been narrowed at all.
     const unnamedEntries = entriesNeedingOwnChip(activeEntries, facetBarRepresents(postedDateSupported));
     const dockChipsKey = unnamedEntries.map((e) => `${e.key}=${chipLabelForEntry(e)}`).join("|");
+
+    // Same disclosure gate `DefaultLocationChip`/the zero-result entry use
+    // (`shouldShowLocationDefaultChip`), collapsed to the ISO2 or `null` so
+    // the dock effect below can take it as ONE primitive dependency instead
+    // of re-deriving the verdict from `result`/`chosenLocations` objects —
+    // see that effect's own React #185 comment for why.
+    const dockedDefaultLocationIso2 = shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
+        ? result!.defaultedLocation!
+        : null;
 
     // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
     // call to the same `activeFilterEntries` chokepoint, with
@@ -1976,15 +1871,12 @@ function JobsContent() {
     const headerDockActive = isLgUp;
     const showLandingMarketing = isPristineLanding && !mobileResultsEngaged;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
-    const agentSearchPrefsSet = hasSearchPrefs(agentPrefs?.search);
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
-    const jobsTourAutoStartedRef = useRef(false);
     const [dockedFacetsMount, setDockedFacetsMount] = useState<HTMLElement | null>(null);
     const [dockedFieldDirectoryMount, setDockedFieldDirectoryMount] = useState<HTMLElement | null>(null);
     const [dockedQueryMount, setDockedQueryMount] = useState<HTMLElement | null>(null);
     const [dockedLocationMount, setDockedLocationMount] = useState<HTMLElement | null>(null);
-    const [dockedResumeMount, setDockedResumeMount] = useState<HTMLElement | null>(null);
     const [dockedSortMount, setDockedSortMount] = useState<HTMLElement | null>(null);
     const [dockedExtrasMount, setDockedExtrasMount] = useState<HTMLElement | null>(null);
     const [dockedClearFiltersMount, setDockedClearFiltersMount] = useState<HTMLElement | null>(null);
@@ -1996,7 +1888,6 @@ function JobsContent() {
             setDockedFieldDirectoryMount(null);
             setDockedQueryMount(null);
             setDockedLocationMount(null);
-            setDockedResumeMount(null);
             setDockedSortMount(null);
             setDockedExtrasMount(null);
             setDockedClearFiltersMount(null);
@@ -2008,7 +1899,6 @@ function JobsContent() {
             setDockedFieldDirectoryMount(document.querySelector('[data-testid="topbar-docked-field-directory"]') as HTMLElement | null);
             setDockedQueryMount(document.querySelector('[data-testid="topbar-docked-query"]') as HTMLElement | null);
             setDockedLocationMount(document.querySelector('[data-testid="topbar-docked-location"]') as HTMLElement | null);
-            setDockedResumeMount(document.querySelector('[data-testid="topbar-docked-resume"]') as HTMLElement | null);
             setDockedSortMount(document.querySelector('[data-testid="topbar-docked-sort"]') as HTMLElement | null);
             setDockedExtrasMount(document.querySelector('[data-testid="topbar-docked-extras"]') as HTMLElement | null);
             setDockedClearFiltersMount(document.querySelector('[data-testid="topbar-docked-clear-filters"]') as HTMLElement | null);
@@ -2033,6 +1923,7 @@ function JobsContent() {
         const generation = paginationRef.current!.beginFirstPage();
         setSearchError(null);
         setLoadingMore(false);
+        setDepthGateNote(null);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
         setLoading(true);
@@ -2418,18 +2309,6 @@ function JobsContent() {
     };
 
     const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
-
-    useEffect(() => {
-        if (jobsTourAutoStartedRef.current || hasSeenTour("jobs")) return;
-        const steps = tourSteps.jobs ?? [];
-        const hasTarget = steps.some((s) => document.querySelector(s.selector));
-        if (!hasTarget) return;
-        // Wait for a result row so the tour isn't only the search box.
-        if (!document.querySelector('[data-tour="jobs-card"]') && hits.length === 0) return;
-        jobsTourAutoStartedRef.current = true;
-        const id = requestAnimationFrame(() => startTour());
-        return () => cancelAnimationFrame(id);
-    }, [hasSeenTour, startTour, hits.length]);
 
     /**
      * Render fallback for a zero-query state (`resolveJobsRenderMode`,
@@ -2856,6 +2735,13 @@ function JobsContent() {
 
     // Fetch the next page and append it only while its monotonic generation is current.
     const loadMore = useCallback(async () => {
+        // Once the anonymous depth wall has refused a page, the sentinel's
+        // own IntersectionObserver keeps re-firing on every scroll (`total`
+        // never drops below `hits.length` from a gated response — see the
+        // `setResult` updater below, which never touches `total`). Without
+        // this guard that would mean one refused request per re-intersect,
+        // forever. Cleared only by `setDepthGateNote(null)` on a new search.
+        if (depthGateNote) return;
         const cur = result;
         if (!cur || !cur.configured) return;
         if (cur.hits.length >= cur.total || cur.hits.length >= MAX_REACHABLE) return;
@@ -2879,6 +2765,21 @@ function JobsContent() {
                 offset: ticket.offset,
             });
             if (!paginationRef.current!.completeLoadMore(ticket)) return;
+            // The ONLY gate signal is this response's own `meta.gated` — no
+            // client-side copy of the depth-cap's 90/30 constants (see
+            // load-more-outcome.ts's own doc comment).
+            const outcome = interpretLoadMoreResponse({
+                gated: r.meta?.gated === true,
+                received: r.hits.length,
+                requested: PAGE,
+            });
+            if (outcome === "gated") {
+                // Refused, not searched — `r.hits`/`r.total` are not a real
+                // (if empty) page, so `setResult` must never see them: doing
+                // so would clobber the real total this search already has.
+                setDepthGateNote(r.note ?? ANONYMOUS_DEPTH_GATE_MESSAGE);
+                return;
+            }
             setResult((prev) => {
                 if (!prev) return prev;
                 // React may run this updater after another first-page generation
@@ -2912,9 +2813,9 @@ function JobsContent() {
         // every other field `buildJobSearchPayload` reads from this render.
         // `locationDefaultSuppressed` (default-location chip's "×"), same
         // reason: page 2+ must never silently reapply a default this
-        // session already cleared.
+        // session already cleared. `depthGateNote` added for the guard above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, yearsExperience, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, yearsExperience, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed, depthGateNote]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -3178,8 +3079,16 @@ function JobsContent() {
             placeholder: SEARCH_PLACEHOLDER,
             // FacetBar-owned filters (salary, posted, work mode, experience)
             // render as dropdown chips — only the leftovers become dismiss chips.
-            chips: unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
+            // The applied-location-default chip is PREPENDED by the same
+            // `buildDockedChips` helper the mobile row's disclosure logic
+            // shares, so this row never silently narrows results without a
+            // visible, clearable chip the way the pre-dock-refactor bug did.
+            chips: buildDockedChips(dockedDefaultLocationIso2, unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) }))),
             onClearChip: (key) => {
+                if (key === DEFAULT_LOCATION_CHIP_KEY) {
+                    suppressLocationDefault();
+                    return;
+                }
                 const entry = unnamedEntries.find((e) => e.key === key);
                 if (entry) applyFilterStateRef.current(entry.clear(filterStateRef.current));
             },
@@ -3197,7 +3106,7 @@ function JobsContent() {
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [headerDockActive, queryDraft, activeChipsKey, dockChipsKey, activeCount, filtersOpen, setDocked]);
+    }, [headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, activeCount, filtersOpen, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
@@ -3216,44 +3125,6 @@ function JobsContent() {
     const panelYearsExperience = (v: YearsExperienceBucket | undefined) =>
         applyFilterStateWithIntent({ ...filterState, yearsExperience: v });
     const panelClearAll = () => applyFilterStateWithIntent(PRISTINE_FILTER_STATE);
-
-    const applySavedSearchPrefs = useCallback(
-        (prefs: SearchPrefsValues) => {
-            const rawQ = prefs.query.trim();
-            const { residualQ, workTypes } = parseWorkTypeTokens(rawQ);
-            const q = residualQ || rawQ;
-            const loc = prefs.location.trim();
-            const nextFacets = { ...filterState.facets };
-            if (loc) nextFacets.location_country = [loc];
-            else delete nextFacets.location_country;
-            const types = [...workTypes];
-            if (prefs.remoteOnly && !types.includes("remote")) types.push("remote");
-            if (types.length > 0) nextFacets.work_type = types;
-            else delete nextFacets.work_type;
-            const nextSalary = prefs.salaryMin > 0 ? prefs.salaryMin : 0;
-            setQueryDraft(q);
-            setQuery(q);
-            setFacets(nextFacets);
-            setSalaryMin(nextSalary);
-            // `nextFacets.location_country` above is what applies the saved
-            // place; the box is entry-only and stays empty.
-            setLocationDraft("");
-            recordRecentSearch(q);
-            setAgentPrefs((prev) => ({
-                configured: true,
-                search: {
-                    query: rawQ,
-                    location: loc || undefined,
-                    remoteOnly: prefs.remoteOnly || undefined,
-                    salaryMin: nextSalary || undefined,
-                },
-                answers: prev?.answers ?? { custom: {} },
-                updated_at: new Date().toISOString(),
-            }));
-            applyUrlState(buildUrlState({ q, facets: nextFacets, salaryMin: nextSalary }), "push");
-        },
-        [filterState.facets, buildUrlState, applyUrlState],
-    );
 
     // Task 11 — empty state's ghost-reveal line. Pure gate (lib/jobs/
     // result-state.ts, unit-tested there) so it can't drift from the same
@@ -3688,19 +3559,9 @@ function JobsContent() {
         applyUrlState(buildUrlState({ q, facets: merged, sort: "fit" }), "replace");
     };
 
-    // Dismiss the "Ranked by your résumé" chip — per controller resolution
-    // #1, only clears the sort; the résumé-derived query/facets stay as
-    // ordinary, independently-editable search state.
-    const clearFit = () => {
-        setFitActive(false);
-        applyUrlState(withSortCleared(buildUrlState()), "replace");
-    };
-
     // Resolve a usable résumé and apply fit if one is found — the guarded
-    // core `resolve` callback both `handleRankByFit` (below) and the "My
-    // résumé" toolbar control's click (`runResumeControlClick`,
-    // lib/jobs/result-state.ts) pass to their own fallback-to-uploader logic
-    // when this comes back `false`.
+    // core `resolve` callback `handleRankByFit` (below) passes to its own
+    // fallback-to-uploader logic when this comes back `false`.
     //
     // `fitIntentRef` guards the await: `resolveUsableResume()` is a network
     // round-trip, and the Select's `onValueChange` bumps the SAME guard for
@@ -3745,10 +3606,13 @@ function JobsContent() {
         applyUrlState(buildUrlState({ sort: modeToUrlSort(mode) }), "replace");
     };
 
+    // The segmented sort control's third segment: résumé-aware "Best match"
+    // when one is on file, plain "Relevance" otherwise (see the ToolbarSegment
+    // mount sites below for the label/title split on `resumeOnFile`).
     const chooseBestMatch = () => {
         fitIntentRef.current!.begin();
-        if (!query.trim()) {
-            void handleRankByFit();
+        if (resumeOnFile === true) {
+            void resolveAndApplyFit();
             return;
         }
         setFitActive(false);
@@ -3838,63 +3702,12 @@ function JobsContent() {
         setImportOpen(true);
     };
 
-    // Adds ONE thing to `beginResumeUpload`: the detour that asks a signed-in
-    // user for search preferences first when they have neither those nor a
-    // résumé. Split out because the wizard's own "Add résumé" step must NOT
-    // take that detour — it is already inside the wizard.
+    // Every OTHER résumé-upload entry point (the fit-rank fallback above, the
+    // résumé-moment card, the "update to rescore" link) goes through this
+    // name — it is just `beginResumeUpload` under a stable identifier so
+    // those call sites don't need to change.
     const handleUploadClick = () => {
-        if (user && shouldPromptSearchPrefsInsteadOfResume(resumeOnFile, agentSearchPrefsSet)) {
-            setSearchPrefsDialogOpen(true);
-            return;
-        }
         beginResumeUpload();
-    };
-
-    const handleSearchPrefsComplete = (values: SearchPrefsValues, destination: PrefsDestination) => {
-        applySavedSearchPrefs(values);
-        // "browser" means the server had nowhere to put these — signed out, or
-        // a session that expired mid-wizard. Keeping them locally is what lets
-        // the next sign-in carry them up (see the flush above) instead of
-        // quietly losing what they just typed.
-        if (destination === "browser") {
-            stashPrefs(values);
-            setOnboardingStash(values);
-        }
-    };
-
-    // The wizard's last step. Goes to the shared chokepoint so a signed-out
-    // visitor gets the auth gate: this used to call `setImportOpen(true)`
-    // itself, which opened an importer that had nowhere to store the file.
-    const handleSearchPrefsAddResume = () => beginResumeUpload();
-
-    // Closing the dialog ends the offer for good, whether they finished it or
-    // backed out — asking again on the next search is nagging, not
-    // onboarding. Recorded here rather than inside the wizard because the two
-    // signed-in entry points open the same component from their own buttons,
-    // and those must stay re-openable.
-    const handleSearchPrefsOpenChange = (next: boolean) => {
-        setSearchPrefsDialogOpen(next);
-        if (!next && !user) {
-            dismissOnboarding();
-            setOnboardingDismissed(true);
-        }
-    };
-
-    // "My résumé" toolbar control's click (JSX below). Deliberately does NOT
-    // trust the control's own rendered STYLE to pick the branch — `resumeOnFile`
-    // is tri-state, and while it's `null` ("not known yet") the control still
-    // renders muted, but a click in that window is exactly the class of user
-    // this whole change is FOR: skipping the resolve there would ask a
-    // returning user with a résumé already on file to "upload" one again,
-    // just narrowed to the few hundred ms before the presence check lands.
-    // `runResumeControlClick` (lib/jobs/result-state.ts) decides on the
-    // TRUTH of `resumeOnFile` instead: only a KNOWN-absent résumé (`false`)
-    // skips straight to `handleUploadClick`; `true` or `null` always try
-    // `resolveAndApplyFit` first and fall back to the uploader only if that
-    // genuinely comes back empty — never a dead click, never a needless
-    // reopen of the importer for a résumé that was there the whole time.
-    const handleMyResumeClick = () => {
-        void runResumeControlClick(resumeOnFile, resolveAndApplyFit, handleUploadClick);
     };
 
     const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
@@ -4025,7 +3838,7 @@ function JobsContent() {
     // carry their own "+N locations" affordance, only the primary does.
     const renderJobRow = (
         j: PublicJob,
-        clusterProps?: { variantCount: number; expanded: boolean; onToggleExpand: () => void },
+        clusterProps?: { variantCount: number; clusterLabel: string; expanded: boolean; onToggleExpand: () => void },
         tourAnchor = false,
     ) => (
         <JobCard
@@ -4039,6 +3852,7 @@ function JobsContent() {
             now={nowMs}
             elite={board === "elite"}
             variantCount={clusterProps?.variantCount ?? 0}
+            clusterLabel={clusterProps?.clusterLabel ?? ""}
             expanded={clusterProps?.expanded ?? false}
             onToggleExpand={clusterProps?.onToggleExpand}
             tourAnchor={tourAnchor}
@@ -4149,8 +3963,9 @@ function JobsContent() {
                         onClick={() => chooseSort("salary_desc")}
                     />
                     <ToolbarSegment
-                        label="best match"
-                        pressed={fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())}
+                        label={resumeOnFile === true ? "best match" : "relevance"}
+                        title={resumeOnFile === true ? "Matched by your résumé" : undefined}
+                        pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
                         onClick={chooseBestMatch}
                         pending={fitResolving}
                     />
@@ -4261,10 +4076,11 @@ function JobsContent() {
     );
 
     const tourReplayEl = <JobsTourReplayButton />;
-    const searchPrefsEl =
-        user && !agentSearchPrefsSet ? (
-            <JobsSearchPrefsButton onClick={() => setSearchPrefsDialogOpen(true)} />
-        ) : null;
+
+    // Where the depth-gate CTA's "Sign in" link returns to — this exact
+    // SERP, filters and all. Same `/login?next=` shape used everywhere else
+    // sign-in is a detour rather than a destination (e.g. CompanyExhaustGate).
+    const depthGateSignInHref = `/login?next=${encodeURIComponent(`${pathname}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`)}`;
 
     const dockedQueryEl = (
         <div className="relative flex h-full w-full items-center">
@@ -4331,42 +4147,6 @@ function JobsContent() {
         </div>
     );
 
-    const resumeControlEl =
-        resumeControlState !== "hidden" ? (
-            <button
-                type="button"
-                onClick={() => handleMyResumeClick()}
-                disabled={fitResolving}
-                aria-busy={fitResolving || undefined}
-                data-testid="jobs-my-resume"
-                title={
-                    resumeControlState === "active"
-                        ? "Rank jobs by your résumé"
-                        : "Upload a résumé to personalize results"
-                }
-                aria-label={
-                    resumeControlState === "active"
-                        ? "My résumé — rank jobs by fit"
-                        : "Add résumé — upload one to personalize results"
-                }
-                className={cn(
-                    chipVariants({ active: resumeControlState === "active" }),
-                    toolbarChipClass,
-                    "inline-flex items-center gap-1.5 leading-none",
-                )}
-            >
-                {fitResolving && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
-                {fitResolving
-                    ? "Loading…"
-                    : resumeControlState === "active"
-                      ? "My résumé"
-                      : "Add résumé"}
-            </button>
-        ) : null;
-
-    const showResumeControl =
-        (result?.configured || hits.length > 0 || resumeControlState !== "hidden") && resumeControlEl;
-
     const sortEl = result?.configured ? (
         <div
             role="group"
@@ -4387,10 +4167,9 @@ function JobsContent() {
                 onClick={() => chooseSort("salary_desc")}
             />
             <ToolbarSegment
-                label="best match"
-                pressed={
-                    fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
-                }
+                label={resumeOnFile === true ? "best match" : "relevance"}
+                title={resumeOnFile === true ? "Matched by your résumé" : undefined}
+                pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
                 onClick={chooseBestMatch}
                 pending={fitResolving}
             />
@@ -4801,15 +4580,6 @@ function JobsContent() {
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
                             <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
                         )}
-                        {fitActive && (
-                            <button
-                                type="button"
-                                onClick={clearFit}
-                                className={cn(chipVariants({ active: true }), toolbarChipClass, "shrink-0 leading-none")}
-                            >
-                                ranked by your résumé ✕
-                            </button>
-                        )}
                         {!headerDockActive && unnamedEntries.map((entry) => (
                             <span
                                 key={entry.key}
@@ -4828,9 +4598,7 @@ function JobsContent() {
                         </>
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
-                        {showResumeControl && !headerDockActive && resumeControlEl}
                         {!headerDockActive && sortEl}
-                        {!headerDockActive && searchPrefsEl}
                         {!headerDockActive && tourReplayEl}
                         {!headerDockActive && asOfEl}
                     </div>
@@ -4872,15 +4640,10 @@ function JobsContent() {
                     createPortal(clearFiltersEl, dockedClearFiltersMount)}
                 {headerDockActive && dockedSaveSearchMount && savedSearchControl &&
                     createPortal(savedSearchControl, dockedSaveSearchMount)}
-                {showResumeControl && headerDockActive && dockedResumeMount &&
-                    createPortal(resumeControlEl, dockedResumeMount)}
                 {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
                 {headerDockActive && dockedExtrasMount &&
                     createPortal(
-                        <>
-                            {searchPrefsEl}
-                            {tourReplayEl}
-                        </>,
+                        tourReplayEl,
                         dockedExtrasMount,
                     )}
 
@@ -5257,6 +5020,7 @@ function JobsContent() {
                                                     cluster.variants.length > 0
                                                         ? {
                                                               variantCount: cluster.variants.length,
+                                                              clusterLabel: clusterToggleLabel(cluster.primary, cluster.variants),
                                                               expanded,
                                                               onToggleExpand: () => toggleClusterExpanded(cluster.primary.id),
                                                           }
@@ -5351,7 +5115,23 @@ function JobsContent() {
                                         tap than scroll. */}
                                     {hasMore && (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
-                                            {loadingMore ? (
+                                            {depthGateNote ? (
+                                                // The anonymous depth wall refused the next page
+                                                // (`loadMore`'s `interpretLoadMoreResponse` → "gated").
+                                                // The sentinel div stays mounted (harmless — `loadMore`
+                                                // itself now guards on `depthGateNote` so re-intersecting
+                                                // it is a no-op) but the "Show N more" button is gone:
+                                                // clicking it could never have worked past this point.
+                                                <p className="text-xs text-muted-foreground">
+                                                    {depthGateNote}{" "}
+                                                    <a
+                                                        href={depthGateSignInHref}
+                                                        className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground/70"
+                                                    >
+                                                        Sign in
+                                                    </a>
+                                                </p>
+                                            ) : loadingMore ? (
                                                 <span className="text-xs text-muted-foreground">Loading more roles…</span>
                                             ) : (
                                                 <button
@@ -5568,15 +5348,6 @@ function JobsContent() {
                 onContinue={() => {
                     if (applyIntentJob) openPostingNow(applyIntentJob);
                 }}
-            />
-
-            <SearchPrefsSetup
-                variant="dialog"
-                open={searchPrefsDialogOpen}
-                onOpenChange={handleSearchPrefsOpenChange}
-                signedIn={Boolean(user)}
-                onComplete={handleSearchPrefsComplete}
-                onAddResume={handleSearchPrefsAddResume}
             />
 
             {applyReturnPrompt && (

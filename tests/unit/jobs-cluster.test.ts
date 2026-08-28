@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { clusterJobs } from "../../src/lib/jobs/cluster";
+import { clusterJobs, clusterToggleLabel } from "../../src/lib/jobs/cluster";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 let seq = 0;
@@ -88,5 +88,46 @@ describe("clusterJobs", () => {
 
     it("an empty input list produces no clusters", () => {
         assert.deepEqual(clusterJobs([]), []);
+    });
+});
+
+describe("clusterToggleLabel", () => {
+    // Prod bug: 3 distinct ZoomInfo reqs, same title+company+city, rendered
+    // "+2 locations" — false, the variants add zero new locations. The pill
+    // must read "openings" unless every variant actually adds a distinct,
+    // usable location.
+
+    it("all variants add a distinct location → \"+N locations\"", () => {
+        const primary = job({ location_city: "Austin" });
+        const v1 = job({ location_city: "Remote" });
+        const v2 = job({ location_city: "Toronto" });
+        assert.equal(clusterToggleLabel(primary, [v1, v2]), "+2 locations");
+    });
+
+    it("every variant shares the primary's location (the prod bug case) → \"+N openings\", never \"locations\"", () => {
+        const primary = job({ location_city: "Austin" });
+        const v1 = job({ location_city: "Austin" });
+        const v2 = job({ location_city: "  austin  " }); // same city, casing/whitespace noise
+        assert.equal(clusterToggleLabel(primary, [v1, v2]), "+2 openings");
+    });
+
+    it("mixed — one variant new, one a repeat of the primary's — still \"openings\" (not partially true)", () => {
+        const primary = job({ location_city: "Austin" });
+        const newCity = job({ location_city: "Toronto" });
+        const sameCity = job({ location_city: "Austin" });
+        assert.equal(clusterToggleLabel(primary, [newCity, sameCity]), "+2 openings");
+    });
+
+    it("singular phrasing: \"+1 location\" vs \"+1 opening\"", () => {
+        const primary = job({ location_city: "Austin" });
+        assert.equal(clusterToggleLabel(primary, [job({ location_city: "Toronto" })]), "+1 location");
+        assert.equal(clusterToggleLabel(primary, [job({ location_city: "Austin" })]), "+1 opening");
+    });
+
+    it("a variant with no usable location never counts as a new one — cluster reads \"openings\"", () => {
+        const primary = job({ location_city: "Austin" });
+        const unusable = job({ location: null, location_city: null, location_state: null, location_country: null, work_type: "onsite" });
+        const distinct = job({ location_city: "Toronto" });
+        assert.equal(clusterToggleLabel(primary, [unusable, distinct]), "+2 openings");
     });
 });

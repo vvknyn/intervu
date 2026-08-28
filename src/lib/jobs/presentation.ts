@@ -1,4 +1,4 @@
-import { ghostBadgeTone, STATUS_PILL } from "@/lib/ui/status-tokens";
+import { ghostBadgeTone, LIVE_PILL, STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
@@ -37,7 +37,16 @@ import { FUNCTION_WORDS } from "@/lib/geo/common-words";
 // src (a third palette copy kept alive only by the type), and leaving a
 // second color source next to a fix for a second color source invites the
 // exact drift this removes.
-const ghostPill = (badge: "clear" | "caution" | "likely_ghost") => STATUS_PILL[ghostBadgeTone(badge)];
+//
+// `clear` is carved out of the `ghostBadgeTone`/`STATUS_PILL` lookup: that
+// tone scale is tracker PROGRESS (offer routes to `--brand`/blue per the
+// Ledger palette ruling), but "actively posted" is a liveness FACT — the
+// same claim the result-card check (`text-emerald-700 dark:text-emerald-400`
+// above the fold) already makes in green. Borrowing `STATUS_PILL.offer` for
+// it made a live-fact pill look like tracker progress; `LIVE_PILL` is the
+// one green token both now speak.
+const ghostPill = (badge: "clear" | "caution" | "likely_ghost") =>
+    badge === "clear" ? LIVE_PILL : STATUS_PILL[ghostBadgeTone(badge)];
 
 export const GHOST_META: Record<GhostBadge, { label: string; cls: string; explain: string } | null> = {
     // "Ghost job" is jobseeker-forum vocabulary. It reads as insider jargon to

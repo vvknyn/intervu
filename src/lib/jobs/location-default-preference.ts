@@ -13,6 +13,8 @@
  * `useSyncExternalStore`-compatible so JobsPage doesn't need its own
  * mount-effect + state for something this file already owns.
  */
+import { countryToFlag } from "./country-flag";
+
 export const SUPPRESS_LOCATION_DEFAULT_KEY = "intervu.jobs.suppressLocationDefault";
 
 function hasLocalStorage(): boolean {
@@ -107,4 +109,52 @@ export function shouldShowLocationDefaultChip(
     chosenLocations: readonly string[],
 ): boolean {
     return !!defaultedLocation && chosenLocations.every((v) => v.trim().length === 0);
+}
+
+/** Country name for an ISO2 via the browser's own region-name table, with a
+ *  bare-code fallback if `Intl.DisplayNames` throws. Single source for every
+ *  "near {region}" label the applied-default disclosure renders — the
+ *  desktop header-dock chip (`buildDockedChips` below), the mobile
+ *  `DefaultLocationChip`, the zero-result entry, and the location sheet's
+ *  detected-label all call this ONE function rather than each keeping its
+ *  own copy of the same try/catch. */
+export function regionDisplayName(iso2: string): string {
+    try {
+        return new Intl.DisplayNames(["en"], { type: "region" }).of(iso2) ?? iso2;
+    } catch {
+        return iso2;
+    }
+}
+
+/** Stable key for the applied-location-default chip once it's dockable
+ *  alongside ordinary filter chips (`buildDockedChips`) — round-trips back
+ *  through `onClearChip` to `suppressLocationDefault`, the same "×" write
+ *  path every other surface for this chip already uses. */
+export const DEFAULT_LOCATION_CHIP_KEY = "default-location";
+
+/** Same "near {region}" copy every applied-default surface uses — flag
+ *  first when `countryToFlag` resolves one (most bare ISO2 codes won't; see
+ *  country-flag.ts's removed-passthrough note), then the region name, with
+ *  no leading space when there's no flag to prefix. */
+function defaultLocationChipLabel(iso2: string): string {
+    const name = regionDisplayName(iso2);
+    const flag = countryToFlag(iso2);
+    return flag ? `${flag} near ${name}` : `near ${name}`;
+}
+
+/**
+ * The desktop header dock's chip list (`docked.chips`, TopBar.tsx) with the
+ * applied-location-default chip PREPENDED when one is actually showing.
+ * `defaultedIso2` is the caller's own `shouldShowLocationDefaultChip`
+ * verdict collapsed to the ISO2 or `null` — this only shapes the array once
+ * that's already decided. `null` returns `entryChips` unchanged (same
+ * reference) so a render with nothing to disclose never fabricates a new
+ * array for the dock effect to chase.
+ */
+export function buildDockedChips(
+    defaultedIso2: string | null,
+    entryChips: Array<{ key: string; label: string }>,
+): Array<{ key: string; label: string }> {
+    if (!defaultedIso2) return entryChips;
+    return [{ key: DEFAULT_LOCATION_CHIP_KEY, label: defaultLocationChipLabel(defaultedIso2) }, ...entryChips];
 }

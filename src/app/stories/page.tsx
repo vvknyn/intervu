@@ -152,7 +152,7 @@ function StoriesContent() {
                         onClick={() => setAuthPopoverOpen(true)}
                         className="min-w-[120px]"
                     >
-                        Log in
+                        Sign in
                     </Button>
                     <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
                 </div>

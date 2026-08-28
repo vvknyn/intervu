@@ -16,18 +16,41 @@
  * Honest gaps: a component only appears when both sides actually have the
  * field to compare. A job/résumé pair with NO comparable field returns
  * `null` (no chip), never a fabricated 0.
+ *
+ * Redesign (2026-08): the previous version scored `skills` and `occupation`
+ * as two independent, individually-optional components, then renormalized
+ * the weighted total over whichever components actually had data. That let
+ * a job/résumé pair with NO topical overlap at all — skills didn't share a
+ * tag, no occupation on either side — still land at 100 purely because
+ * `seniority` happened to match; renormalizing "found nothing on the
+ * subject, but the level matches" up to a full score is not an honest
+ * receipt. `scoreSkills` had a second, independent bug: it divided by the
+ * RÉSUMÉ's own full skill count, so a candidate with a long, real skill list
+ * that only PARTIALLY overlaps a job's own (short) ask got crushed toward
+ * zero by their own thoroughness — the fraction shrinks as the résumé lists
+ * more skills, regardless of how well those skills cover what the job
+ * actually wants.
+ *
+ * `relevance` replaces both `skills` and `occupation` with one token-overlap
+ * component whose denominator is the JOB's own vocabulary (title + tags +
+ * occupation, rank words stripped), not the résumé's. That fixes both bugs
+ * at once: coverage is always "how much of what this role asks for is in
+ * your résumé" — a longer résumé can only help (more terms to match against
+ * the same fixed job vocabulary) — and it's now REQUIRED, so a pair with no
+ * topical overlap returns `null` (no chip) rather than falling back to a
+ * seniority-only 100. `seniority` stays as an optional modifier on top.
  */
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { topSkills } from "@/lib/jobs/resume-match";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
-export type MatchComponentKey = "skills" | "occupation" | "seniority";
+export type MatchComponentKey = "relevance" | "seniority";
 
 export interface MatchComponent {
     key: MatchComponentKey;
     label: string;
-    /** Honest, computed verdict text — e.g. "7 of your 9", "same occupation", "senior — fits". */
+    /** Honest, computed verdict text — e.g. "7 of 12 terms this role names", "senior — fits". */
     detail: string;
     /** This component's own match quality, 0..1. */
     score: number;
@@ -40,16 +63,15 @@ export interface MatchScore {
 }
 
 /**
- * Component weights — skills overlap dominant, occupation + seniority
- * secondary. The ONLY place these live; the total is a weighted average
- * renormalized over whichever components actually scored (see
- * `scoreJobAgainstResume`), so a job missing one comparable field doesn't
- * silently drag the score toward zero.
+ * Component weights. The ONLY place these live; the total is a weighted
+ * average renormalized over whichever components actually scored (see
+ * `scoreJobAgainstResume`) — but `relevance` is REQUIRED (the whole match is
+ * `null` without it), so that renormalization only ever adjusts for
+ * `seniority` being present or absent, never leaves `relevance` out.
  */
 export const MATCH_WEIGHTS: Readonly<Record<MatchComponentKey, number>> = {
-    skills: 0.6,
-    occupation: 0.25,
-    seniority: 0.15,
+    relevance: 0.75,
+    seniority: 0.25,
 };
 
 /** Chip renders with a brand-color outline at/above this total; below it, the default muted border. */
@@ -78,52 +100,93 @@ export const SENIORITY_LADDER: ReadonlyArray<{ maxYears: number; label: string }
  */
 const JOB_EXPERIENCE_LEVEL_ORDER = ["entry", "mid", "senior"] as const;
 
+/**
+ * Rank/level words stripped out of both vocabularies before `relevance` is
+ * scored. Without this, "Senior Backend Engineer" vs. a résumé that also
+ * says "senior" somewhere would count the level word itself as topical
+ * overlap — the exact thing `seniority` already scores, separately and more
+ * precisely (years vs. `experience_level`, not a shared adjective). Matched
+ * on token identity post-tokenize, never substring, so real content that
+ * happens to contain one of these as a fragment (e.g. "leadership") is
+ * untouched.
+ */
+const RANK_WORDS: ReadonlySet<string> = new Set([
+    "senior", "sr", "junior", "jr", "staff", "principal", "lead", "chief",
+    "associate", "entry", "entry-level", "intern", "internship", "trainee",
+    "apprentice", "i", "ii", "iii", "iv", "v",
+]);
+
 function normalize(s: string): string {
     return s.trim().toLowerCase();
 }
 
-/** Simple singular/plural tolerance — no fuzzy/embedding matching. */
-function looseEquals(a: string, b: string): boolean {
-    return a === b || a === `${b}s` || b === `${a}s`;
+/** `meaningfulTitleTokens` (stop-words stripped) with rank words ALSO stripped — the shared step both vocabularies below run through. */
+function relevanceTokens(s: string): string[] {
+    return meaningfulTitleTokens(s).filter((t) => !RANK_WORDS.has(t));
+}
+
+/** Simple singular/plural tolerance carried over from the pre-redesign skills
+ *  comparison (no fuzzy/embedding matching) — a job token matches a résumé
+ *  vocabulary that has it verbatim OR off by exactly one trailing "s". */
+function vocabHasToken(vocab: ReadonlySet<string>, token: string): boolean {
+    return vocab.has(token) || vocab.has(`${token}s`) || (token.endsWith("s") && vocab.has(token.slice(0, -1)));
 }
 
 /**
- * Skills ∩ job tags. `topSkills(resume, Infinity)` is used (not the default
- * cap of 8) — the receipt's "N of your M" must report the real total, and
- * truncating the résumé's own skill list would misreport M.
+ * A job's own topical vocabulary: title + tags + occupation, tokenized and
+ * de-ranked. This is `relevance`'s denominator — "how much of what THIS ROLE
+ * asks for" — so a job with a short, focused vocabulary is exactly as
+ * satisfiable as one with a long one; it never shrinks because the candidate
+ * happens to list a lot of unrelated skills.
  */
-function scoreSkills(resume: ResumeData, job: PublicJob): MatchComponent | null {
-    const skills = topSkills(resume, Number.POSITIVE_INFINITY).map(normalize).filter(Boolean);
-    const tags = (job.tags ?? []).map(normalize).filter(Boolean);
-    if (skills.length === 0 || tags.length === 0) return null;
-
-    const matched = skills.filter((skill) => tags.some((tag) => looseEquals(skill, tag)));
-    const score = matched.length / skills.length;
-    return {
-        key: "skills",
-        label: "Skills in common",
-        detail: `${matched.length} of your ${skills.length}`,
-        score,
-    };
+function jobVocabulary(job: PublicJob): Set<string> {
+    const tokens = [
+        ...relevanceTokens(job.title ?? ""),
+        ...(job.tags ?? []).flatMap((tag) => relevanceTokens(tag)),
+        ...relevanceTokens(job.occupation ?? ""),
+    ];
+    return new Set(tokens);
 }
 
-/** Parsed profession vs job occupation — deterministic token overlap, no fuzzy matching. */
-function scoreOccupation(resume: ResumeData, job: PublicJob): MatchComponent | null {
-    const profession = (resume.profile?.profession ?? "").trim();
-    const occupation = (job.occupation ?? "").trim();
-    if (!profession || !occupation) return null;
+/**
+ * A résumé's own topical vocabulary: every skill, the stated profession, and
+ * every past role title — the three places a résumé actually names what
+ * someone does. `topSkills(resume, Infinity)` (not the default cap of 8) so
+ * a long, real skill list is never truncated out of contention.
+ */
+function resumeVocabulary(resume: ResumeData): Set<string> {
+    const tokens = [
+        ...topSkills(resume, Number.POSITIVE_INFINITY).flatMap((skill) => relevanceTokens(skill)),
+        ...relevanceTokens(resume.profile?.profession ?? ""),
+        ...(resume.experience ?? []).flatMap((exp) => relevanceTokens(exp.role ?? "")),
+    ];
+    return new Set(tokens);
+}
 
-    const professionTokens = meaningfulTitleTokens(profession);
-    const occupationTokens = meaningfulTitleTokens(occupation);
-    if (professionTokens.length === 0 || occupationTokens.length === 0) return null;
+/**
+ * REQUIRED component (see module doc for why): how much of the job's own
+ * vocabulary shows up in the résumé's. `score = min(1, coverage / 0.6)` — a
+ * candidate covering 60%+ of a role's own terms already reads as a strong
+ * match; the curve doesn't demand near-total overlap (job vocabulary
+ * includes incidental terms — a stray tag, a boilerplate word in the title —
+ * that no real candidate's résumé would ever fully enumerate).
+ */
+const RELEVANCE_COVERAGE_FLOOR = 0.6;
 
-    const matched = professionTokens.filter((pt) =>
-        occupationTokens.some((ot) => looseEquals(pt, ot)),
-    );
-    const score = matched.length / professionTokens.length;
-    const detail =
-        score === 1 ? "same occupation" : score > 0 ? "related occupation" : "different occupation";
-    return { key: "occupation", label: "Role vs your title", detail, score };
+function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | null {
+    const jobVocab = jobVocabulary(job);
+    const resumeVocab = resumeVocabulary(resume);
+    if (jobVocab.size === 0 || resumeVocab.size === 0) return null;
+
+    const matched = [...jobVocab].filter((token) => vocabHasToken(resumeVocab, token));
+    const coverage = matched.length / jobVocab.size;
+    const score = Math.min(1, coverage / RELEVANCE_COVERAGE_FLOOR);
+    return {
+        key: "relevance",
+        label: "Relevance to this role",
+        detail: `${matched.length} of ${jobVocab.size} terms this role names`,
+        score,
+    };
 }
 
 /** Years-derived seniority vs a job's `experience_level`. */
@@ -149,16 +212,18 @@ function scoreSeniority(resume: ResumeData, job: PublicJob): MatchComponent | nu
 }
 
 /**
- * The one scoring function. Returns `null` when no component had comparable
- * data on both sides (honest gap — never a fabricated 0). Otherwise returns
- * the weighted-average total (renormalized over whichever components scored)
- * plus each component's own honest detail, in weight order.
+ * The one scoring function. `relevance` is REQUIRED — no topical overlap
+ * between résumé and job means no honest match to report, so this returns
+ * `null` (no chip) rather than falling back to any other component alone.
+ * When `relevance` does score, the total folds in `seniority` too when
+ * comparable (renormalized weighted average), or stands alone otherwise.
  */
 export function scoreJobAgainstResume(resume: ResumeData, job: PublicJob): MatchScore | null {
-    const components = [scoreSkills(resume, job), scoreOccupation(resume, job), scoreSeniority(resume, job)].filter(
-        (c): c is MatchComponent => c !== null,
-    );
-    if (components.length === 0) return null;
+    const relevance = scoreRelevance(resume, job);
+    if (!relevance) return null;
+
+    const seniority = scoreSeniority(resume, job);
+    const components = seniority ? [relevance, seniority] : [relevance];
 
     const weightSum = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key], 0);
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);

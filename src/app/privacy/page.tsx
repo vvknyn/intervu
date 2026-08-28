@@ -112,13 +112,20 @@ export default function PrivacyPage() {
         </p>
         <p>
           We use PostHog for product analytics — page views, clicks, and searches — so we can see what&apos;s
-          working and fix what isn&apos;t. It runs cookieless on velai: no analytics cookie is set, and session
-          state is kept in memory only, gone the moment you close the tab or reload. Events aren&apos;t tied to
-          your identity unless you&apos;re signed in. PostHog (US cloud) processes this data as our processor under
-          their own DPA terms. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond the
-          two cookies above velai sets none. The Cloudflare Turnstile check on our contact and sign-up forms
-          runs in its own frame and may use its own storage under Cloudflare&apos;s terms to tell humans from
-          bots.
+          working and fix what isn&apos;t. It runs cookieless on velai: no analytics cookie is set. What PostHog
+          needs to hold on to lives in your browser&apos;s per-tab storage, so a reload doesn&apos;t restart your
+          session, nothing is shared with your other tabs, and all of it is discarded when you close the tab.
+          Events aren&apos;t tied to your identity unless you&apos;re signed in. PostHog (US cloud) processes this
+          data as our processor under their own DPA terms. We don&apos;t run ad trackers or any third-party
+          tracking pixels, and beyond the two cookies above velai sets none. The Cloudflare Turnstile check on
+          our contact and sign-up forms runs in its own frame and may use its own storage under
+          Cloudflare&apos;s terms to tell humans from bots.
+        </p>
+        <p>
+          PostHog also records a replay of your visit — the pages you saw and how you moved through them — so we
+          can find the places where the product gets in your way. Anything you type is masked before it leaves
+          your browser: we can see that you filled in a field, never what you put in it. A replay covers a single
+          tab, and is tied to your identity only if you&apos;re signed in.
         </p>
 
         <h2>Retention &amp; deletion</h2>

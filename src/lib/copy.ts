@@ -138,8 +138,7 @@ export const LOGIN_REQUIRED = {
             "Your stories, backed up and ready when you need them",
         ],
         subtexts: [
-            "Log in to keep your STAR stories, sync them across devices, and reuse them across every interview.",
-            "Stories saved here stay put — log in once and they're always ready when you need them.",
+            "Stories saved here stay put — sign in once and they're always ready when you need them.",
         ],
     },
     applications: {
@@ -148,7 +147,7 @@ export const LOGIN_REQUIRED = {
             "Track your applications without losing track of them",
         ],
         subtexts: [
-            "Log in to track applications, follow their stages, and keep the right resume linked to each one.",
+            "Sign in to track applications, follow their stages, and keep the right resume linked to each one.",
             "One place for every role you've applied to — status, stage, and the resume you sent.",
         ],
     },

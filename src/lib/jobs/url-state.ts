@@ -49,19 +49,6 @@ export interface JobsUrlState {
     companyDomain: string | null;
 }
 
-/**
- * Strip `sort` back to unset. The shared URL-state transition for "ranked by
- * résumé" no longer being claimed — used by the "Ranked by your résumé ✕"
- * chip's own dismiss (`clearFit`, src/app/jobs/page.tsx). Explore taking
- * over used to go through this too (review fix, 2026-07-18), but Explore is
- * now ephemeral, non-URL state (design decision, 2026-07-21) — it resets the
- * URL to browse-default directly (`buildUrlState({ q: "", facets: {}, sort:
- * null })`) rather than clearing sort alone, so it no longer needs this
- * function.
- */
-export function withSortCleared(state: JobsUrlState): JobsUrlState {
-    return { ...state, sort: null };
-}
 
 /**
  * Should an explicit sort override reset given the CURRENT query (approved

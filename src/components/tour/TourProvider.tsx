@@ -51,10 +51,15 @@ function tourBelongsOnPage(tourId: string, pathname: string): boolean {
   return pageId === tourId || tourId.startsWith(`${pageId}-`);
 }
 
-function stepsForTour(tourId: string): TourStep[] {
+/** Steps for a tour whose target is currently visible in the DOM (no fallback). */
+export function visibleStepsForTour(tourId: string): TourStep[] {
   const catalog = tourSteps[tourId] || [];
-  const available = catalog.filter((step) => !!visibleTourTarget(step.selector));
-  return available.length > 0 ? available : catalog;
+  return catalog.filter((step) => !!visibleTourTarget(step.selector));
+}
+
+function stepsForTour(tourId: string): TourStep[] {
+  const available = visibleStepsForTour(tourId);
+  return available.length > 0 ? available : tourSteps[tourId] || [];
 }
 
 /** First DOM match that is actually visible — skips hidden lg-only nav duplicates. */

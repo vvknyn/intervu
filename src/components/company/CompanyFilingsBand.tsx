@@ -1,4 +1,5 @@
 import { eventDate } from "@/components/company/CompanyChangeEvents";
+import { buildH1bSentence, buildWarnSentence } from "@/lib/companies/exhaust";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 
 interface FilingRow {
@@ -11,10 +12,10 @@ interface FilingRow {
 /**
  * Band 9 (gated) — "The paper trail": SEC filings, federal contract awards,
  * and Form D funding filings, one row per record, each with its own date
- * and source. Built only from the verified `sec_filing_summary`,
- * `government_contract`, and `funding` payload keys (contract.md) — no WARN
- * / OSHA rows, since those data types aren't in the verified exhaust schema
- * yet and this page never renders an invented record.
+ * and source, plus two sentence-grammar sub-sections for WARN Act layoff
+ * notices and H-1B visa approvals — a coarser government-filing shape (a
+ * notice count and a fiscal-year approval summary, not one row per record),
+ * so they render as a count-sentence + mono receipt instead of table rows.
  */
 export function CompanyFilingsBand({ exhaust }: { exhaust: CompanyExhaust }) {
   const rows: FilingRow[] = [];
@@ -52,41 +53,80 @@ export function CompanyFilingsBand({ exhaust }: { exhaust: CompanyExhaust }) {
     });
   }
 
-  if (rows.length === 0) return null;
+  const warn = exhaust.warnNotices;
+  const h1b = exhaust.h1bLca;
+  const warnAsOf = warn ? eventDate(warn.asOf) : null;
+
+  if (rows.length === 0 && !warn && !h1b) return null;
 
   return (
     <section data-testid="company-filings-band" className="border border-border bg-card px-6 py-6 sm:px-8">
       <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         The paper trail · {rows.length} record{rows.length === 1 ? "" : "s"}
       </h2>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-[13.5px]">
-          <thead>
-            <tr>
-              <th className="border-b border-border-strong pb-2 pr-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Date
-              </th>
-              <th className="border-b border-border-strong pb-2 pr-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Record
-              </th>
-              <th className="border-b border-border-strong pb-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Source
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key}>
-                <td className="mono-data whitespace-nowrap border-b border-border py-2 pr-3 text-muted-foreground">
-                  {r.date ? eventDate(r.date) : "—"}
-                </td>
-                <td className="border-b border-border py-2 pr-3 text-foreground">{r.record}</td>
-                <td className="mono-data border-b border-border py-2 text-muted-foreground">{r.sourceLabel}</td>
+      {rows.length > 0 && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-[13.5px]">
+            <thead>
+              <tr>
+                <th className="border-b border-border-strong pb-2 pr-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Date
+                </th>
+                <th className="border-b border-border-strong pb-2 pr-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Record
+                </th>
+                <th className="border-b border-border-strong pb-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Source
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key}>
+                  <td className="mono-data whitespace-nowrap border-b border-border py-2 pr-3 text-muted-foreground">
+                    {r.date ? eventDate(r.date) : "—"}
+                  </td>
+                  <td className="border-b border-border py-2 pr-3 text-foreground">{r.record}</td>
+                  <td className="mono-data border-b border-border py-2 text-muted-foreground">{r.sourceLabel}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {warn && (
+        <div className={rows.length > 0 ? "mt-6 border-t border-border pt-4" : "mt-4"}>
+          <p className="text-[14px] leading-relaxed text-foreground">{buildWarnSentence(warn.data)}</p>
+          {warn.data.recent.length > 0 && (
+            <ul className="mt-2 space-y-1 text-[13px] text-muted-foreground">
+              {warn.data.recent.map((r, i) => (
+                <li key={`${r.noticeDate ?? "notice"}-${i}`}>
+                  {[
+                    r.noticeDate ? eventDate(r.noticeDate) : null,
+                    r.location,
+                    r.employeesAffected != null ? `${r.employeesAffected} affected` : null,
+                  ]
+                    .filter((part): part is string => Boolean(part))
+                    .join(" · ")}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mono-data mt-3 text-[11px] text-muted-foreground">
+            state warn portals (ca ny tx wa){warnAsOf ? ` · as of ${warnAsOf}` : ""}
+          </p>
+        </div>
+      )}
+
+      {h1b && (
+        <div className={rows.length > 0 || Boolean(warn) ? "mt-6 border-t border-border pt-4" : "mt-4"}>
+          <p className="text-[14px] leading-relaxed text-foreground">{buildH1bSentence(h1b.data)}</p>
+          <p className="mono-data mt-3 text-[11px] text-muted-foreground">
+            uscis h-1b employer hub · fy{h1b.data.fiscalYear}
+          </p>
+        </div>
+      )}
     </section>
   );
 }

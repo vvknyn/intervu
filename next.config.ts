@@ -23,7 +23,7 @@ const CONTENT_SECURITY_POLICY = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
   "connect-src 'self' https:",
-  "frame-src 'self' https://*.firebaseapp.com",
+  "frame-src 'self' https://*.firebaseapp.com https://challenges.cloudflare.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
