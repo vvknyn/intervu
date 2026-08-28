@@ -32,7 +32,7 @@ export default function PrivacyPage() {
           sign in with Google, a passkey, an email code, or a username and password. Google, passkey, and
           email-code sign-in run through WorkOS, our sign-in provider, which holds your account record under its
           own data-processing terms — we never see or store your Google password. Username-and-password sign-in
-          is currently processed by Google&apos;s Firebase Auth.
+          is also processed by WorkOS.
         </p>
         <p>
           Once you&apos;re using velai, we store the things you create: your tracked applications, saved resumes,
