@@ -1,7 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveContactGate, submitContact, notifyContactSubmission } from "../../src/lib/contact/submit";
+import {
+  resolveContactGate,
+  submitContact,
+  notifyContactSubmission,
+  normalizeContactKind,
+  buildContactNotificationEmail,
+} from "../../src/lib/contact/submit";
 import { validate, contactMessageSchema } from "../../src/lib/validation";
 
 const VALID_INPUT = {
@@ -67,6 +73,62 @@ describe("submitContact — Turnstile reject", () => {
       if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
       else process.env.TURNSTILE_SECRET_KEY = original;
     }
+  });
+});
+
+describe("normalizeContactKind — kind coercion + context truncation", () => {
+  it("keeps kind 'bug' as-is and passes its context through", () => {
+    const result = normalizeContactKind("bug", { page: "/jobs", userAgent: "ua", viewport: "1440x900" });
+    assert.equal(result.kind, "bug");
+    assert.deepEqual(result.context, { page: "/jobs", userAgent: "ua", viewport: "1440x900" });
+  });
+
+  it("coerces a bogus kind value to 'message' and drops any context", () => {
+    const result = normalizeContactKind("something-else", { page: "/jobs", userAgent: "ua" });
+    assert.equal(result.kind, "message");
+    assert.equal(result.context, undefined);
+  });
+
+  it("drops context when kind is 'message', even if context was supplied", () => {
+    const result = normalizeContactKind("message", { page: "/jobs" });
+    assert.equal(result.kind, "message");
+    assert.equal(result.context, undefined);
+  });
+
+  it("truncates every context field to 300 chars when kind is 'bug'", () => {
+    const result = normalizeContactKind("bug", {
+      page: "p".repeat(400),
+      userAgent: "a".repeat(400),
+      viewport: "v".repeat(400),
+    });
+    assert.equal(result.kind, "bug");
+    assert.equal(result.context?.page?.length, 300);
+    assert.equal(result.context?.userAgent?.length, 300);
+    assert.equal(result.context?.viewport?.length, 300);
+  });
+});
+
+describe("buildContactNotificationEmail — subject prefix and debug block by kind", () => {
+  it("uses the [Velai Bug] subject prefix when kind is 'bug'", () => {
+    const { subject, text } = buildContactNotificationEmail(
+      { email: VALID_INPUT.email, message: VALID_INPUT.message },
+      VALID_INPUT.path,
+      "bug",
+      { page: "/jobs", userAgent: "ua" },
+    );
+    assert.match(subject, /^\[Velai Bug\]/);
+    assert.match(text, /Debug info:/);
+    assert.match(text, /page: \/jobs/);
+  });
+
+  it("uses the [Velai Contact] subject prefix when kind is 'message', with no debug block", () => {
+    const { subject, text } = buildContactNotificationEmail(
+      { email: VALID_INPUT.email, message: VALID_INPUT.message },
+      VALID_INPUT.path,
+      "message",
+    );
+    assert.match(subject, /^\[Velai Contact\]/);
+    assert.doesNotMatch(text, /Debug info:/);
   });
 });
 

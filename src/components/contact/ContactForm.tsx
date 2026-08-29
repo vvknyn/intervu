@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
@@ -26,6 +26,8 @@ export function ContactForm() {
     const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
     const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const isBugReport = searchParams.get("kind") === "bug";
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -45,6 +47,14 @@ export function ContactForm() {
                     honeypot,
                     turnstileToken: turnstileToken ?? undefined,
                     path: pathname || window.location.pathname,
+                    kind: isBugReport ? "bug" : "message",
+                    context: isBugReport
+                        ? {
+                              page: document.referrer || undefined,
+                              userAgent: navigator.userAgent,
+                              viewport: `${window.innerWidth}x${window.innerHeight}`,
+                          }
+                        : undefined,
                 }),
                 signal: AbortSignal.timeout(20000),
             });
@@ -78,6 +88,14 @@ export function ContactForm() {
 
     return (
         <div className="mt-8 rounded-none border border-border/80 bg-card/75 p-6 sm:p-8 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+            {isBugReport && (
+                <div className="mb-5">
+                    <h2 className="text-base font-bold text-foreground">Report a bug</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Tell us what went wrong and what you expected to happen instead.
+                    </p>
+                </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-5">
                 <Field label="Name" htmlFor="name">
                     <Input
@@ -107,7 +125,11 @@ export function ContactForm() {
                         id="message"
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Questions, feedback, corrections, or partnerships..."
+                        placeholder={
+                            isBugReport
+                                ? "What went wrong, and what did you expect to happen instead?"
+                                : "Questions, feedback, corrections, or partnerships..."
+                        }
                         className="min-h-[140px] rounded-none border-border bg-background p-3.5 focus:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
                         required
                         minLength={10}
@@ -131,6 +153,12 @@ export function ContactForm() {
 
                 {status === "error" && error && (
                     <p className="text-xs text-destructive">{error}</p>
+                )}
+
+                {isBugReport && (
+                    <p className="text-[11px] text-muted-foreground">
+                        Your browser and the page you came from are included to help us debug.
+                    </p>
                 )}
 
                 <Button type="submit" size="lg" disabled={isSubmitting} className="h-11 rounded-none bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider px-7 hover:bg-primary/90 transition-colors">

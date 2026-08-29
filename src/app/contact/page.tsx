@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { ContactForm } from "@/components/contact/ContactForm";
+import { RouteSuspenseFallback } from "@/components/ui/route-suspense-fallback";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 const TITLE = "Contact";
@@ -21,7 +23,9 @@ export default function ContactPage() {
         </p>
       </header>
 
-      <ContactForm />
+      <Suspense fallback={<RouteSuspenseFallback label="Loading contact form" />}>
+        <ContactForm />
+      </Suspense>
 
       {/* Status line (docs-mockup.html Comp J / .status): same green-square +
           mono shape as the landing hero's sourcing line (see page.tsx). */}

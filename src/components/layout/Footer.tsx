@@ -15,6 +15,7 @@ export const LEGAL_LINKS: { label: string; href: string }[] = [
     { label: "Research", href: "/research/ghost-jobs" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
+    { label: "Report a bug", href: "/contact?kind=bug" },
     { label: "Setup help", href: "/connect/help" },
     { label: "Privacy", href: "/privacy" },
     { label: "Terms", href: "/terms" },
