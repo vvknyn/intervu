@@ -1,9 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { FacetDistribution, FacetKey, PostedBucket, YearsExperienceBucket } from "@/lib/jobs/types";
 import {
+    facetKeyLabel,
     facetValueLabel,
+    facetGroupVisible,
     isNoiseFacetValue,
     POSTED_BUCKET_PRESETS,
     SALARY_PRESETS,
@@ -11,7 +14,6 @@ import {
     TOP_N,
     YEARS_EXPERIENCE_PRESETS,
     distributionTaggedShare,
-    booleanTaggedShare,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 
@@ -59,7 +61,7 @@ export function Affordance({
         <label
             data-testid={testId}
             className={cn(
-                "flex min-h-7 cursor-pointer items-center gap-1.5 text-xs leading-tight text-foreground",
+                "flex min-h-8 cursor-pointer items-center gap-2 text-xs leading-tight text-foreground",
                 active && inputType === "radio" && "font-medium text-brand",
             )}
         >
@@ -68,7 +70,7 @@ export function Affordance({
                 checked={active}
                 readOnly
                 onClick={onClick}
-                className="h-3 w-3 shrink-0 accent-brand"
+                className="h-3.5 w-3.5 shrink-0 accent-brand"
             />
             <span className="min-w-0 flex-1">{children}</span>
             {typeof count === "number" && (
@@ -78,13 +80,29 @@ export function Affordance({
     );
 }
 
-function Group({ label, children }: { label: string; children: React.ReactNode }) {
+function Group({
+    label,
+    count,
+    children,
+}: {
+    label: string;
+    /** Quiet count of active selections in this group — shown next to the
+     *  heading so a collapsed/scrolled panel still signals which groups
+     *  carry selections (Task #48, Part B item 3). Omit or pass 0 for
+     *  groups where "count" isn't a meaningful concept (single-select
+     *  radios already name their one active choice inline). */
+    count?: number;
+    children: React.ReactNode;
+}) {
     return (
         <div className="flex flex-col">
-            <h4 className="mb-1 whitespace-nowrap text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            <h4 className="mb-1 flex items-baseline gap-1 whitespace-nowrap text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                 {label}
+                {typeof count === "number" && count > 0 && (
+                    <span className="font-normal normal-case tracking-normal tabular-nums text-brand">({count})</span>
+                )}
             </h4>
-            <div className="flex flex-col gap-0.5">{children}</div>
+            <div className="flex flex-col gap-1">{children}</div>
         </div>
     );
 }
@@ -93,6 +111,7 @@ function FacetGroup({
     label,
     facetKey,
     distribution,
+    resultTotal,
     state,
     onToggleFacet,
     cap,
@@ -101,6 +120,7 @@ function FacetGroup({
     label: string;
     facetKey: FacetKey;
     distribution: FacetDistribution | undefined;
+    resultTotal: number;
     state: FilterState;
     onToggleFacet: (key: FacetKey, value: string) => void;
     cap?: number;
@@ -108,9 +128,9 @@ function FacetGroup({
 }) {
     const selected = state.facets[facetKey] ?? [];
     const options = facetOptions(distribution, selected, facetKey, cap, STATIC_FACET_LADDERS[facetKey]);
-    if (options.length === 0) return null;
+    if (!facetGroupVisible(distribution?.[facetKey], resultTotal, options)) return null;
     return (
-        <Group label={label}>
+        <Group label={label} count={selected.length}>
             {options.map(([value, n]) => (
                 <Affordance
                     key={value}
@@ -185,8 +205,8 @@ export function SerpFilters({
         hideGhosts && ghostHiddenCount != null && ghostHiddenCount > 0
             ? `Hide possibly stale (−${ghostHiddenCount.toLocaleString()})`
             : "Hide possibly stale";
-    const workShare = distributionTaggedShare(distribution?.work_type);
-    const visaShare = booleanTaggedShare(distribution?.visa_sponsorship, resultTotal ?? 0);
+    const workShare = distributionTaggedShare(distribution?.work_type, resultTotal ?? 0);
+    const visaShare = distributionTaggedShare(distribution?.visa_sponsorship, resultTotal ?? 0);
 
     return (
         <>
@@ -229,6 +249,7 @@ export function SerpFilters({
                     label="Work mode"
                     facetKey="work_type"
                     distribution={distribution}
+                    resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
                     caption={workShare != null ? `work mode is tagged on ~${Math.round(workShare * 100)}% of roles` : undefined}
@@ -238,6 +259,7 @@ export function SerpFilters({
                     label="Experience"
                     facetKey="experience_level"
                     distribution={distribution}
+                    resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
@@ -247,24 +269,38 @@ export function SerpFilters({
                     label="Employment"
                     facetKey="employment_type"
                     distribution={distribution}
+                    resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
                 />
+
+                <Group label="Visa">
+                    <Affordance active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
+                        Sponsors visas
+                    </Affordance>
+                    {visaShare != null && (
+                        <p className="pl-[22px] text-xs leading-snug text-muted-foreground">
+                            sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
+                        </p>
+                    )}
+                </Group>
 
                 <FacetGroup
                     label="Country"
                     facetKey="location_country"
                     distribution={distribution}
+                    resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
                 />
 
                 <FacetGroup
-                    label="Tech stack"
+                    label={facetKeyLabel("tech_stack")}
                     facetKey="tech_stack"
                     distribution={distribution}
+                    resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
@@ -274,6 +310,7 @@ export function SerpFilters({
                     label="Must-have skills"
                     facetKey="must_have_skills"
                     distribution={distribution}
+                    resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
@@ -332,23 +369,13 @@ export function SerpFilters({
                 )}
             </div>
 
-            <div className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-t border-border pt-2">
-                <div className="flex flex-col gap-0.5">
-                    <Affordance active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
-                        Sponsors visas
-                    </Affordance>
-                    {visaShare != null && (
-                        <p className="pl-[18px] text-[10px] leading-snug text-muted-foreground">
-                            sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
-                        </p>
-                    )}
-                </div>
-                {activeCount > 0 && (
-                    <Affordance active onClick={onClearAll}>
+            {activeCount > 0 && (
+                <div className="mt-2 flex justify-end border-t border-border pt-2">
+                    <Button variant="ghost" size="xs" onClick={onClearAll}>
                         Reset all ✕
-                    </Affordance>
-                )}
-            </div>
+                    </Button>
+                </div>
+            )}
         </>
     );
 }
