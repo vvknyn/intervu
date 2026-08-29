@@ -311,17 +311,11 @@ test("the screenshot case: a typed STATE ('florida') becomes a location_state pl
   );
 });
 
-test("not just the surfacing instance — a typed CITY ('toronto') resolves the same way", async () => {
+test("not just the surfacing instance — a typed CITY ('toronto') resolves the same way, radius+country scope intact", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["toronto"] } }, VOCAB);
   assert.equal(p.places?.length, 1);
   assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
-  // Exact-facet-value-first (below) resolves "toronto" by literal identity —
-  // it IS a known location_city value — before the gazetteer/scoping path
-  // ever runs, so no scopedToCountry here. Country-homonym scoping still
-  // fully applies to the gazetteer-driven path (parsePlaceTokens directly,
-  // and any typed phrase that ISN'T itself an exact facet value) — see the
-  // "cross-country homonym FIX" test above, unaffected by this change.
-  assert.equal(p.places![0].scopedToCountry, undefined);
+  assert.deepEqual(p.places![0].scopedToCountry, [{ field: "location_country", value: "Canada" }]);
   assert.equal(p.facets?.location_country, undefined);
 });
 
@@ -362,18 +356,35 @@ test("a value WITH corpus support keeps its exact facet (no regression): a raw-i
   assert.equal(p.unmatchedPlaceMentions, undefined, "a value the corpus actually has is never reported as unmatched");
 });
 
-/* ------------ exact-facet-value-first ------------
+/* ------------ tiered resolution: tokenize-whole-phrase, else literal, else partial ------------
  * Live bug (prod, 2026-08-26): `country=US CA San Diego` — a real,
  * typeahead-advertised `location_city` facet value with only 96 postings —
  * returned the full US count (982,249) instead of San Diego's narrow count
  * (5,088). `parsePlaceTokens`' greedy scanner tokenized the compound into
- * "US" (country) OR "San Diego" (city), discarding "CA" — and the UNION of
+ * "US" (country) + "San Diego" (city), discarding "CA" — and the UNION of
  * those two clauses equals the whole-US count, with the filter chip still
- * looking applied. Fixed by trying the WHOLE typed string as an exact known
- * facet value first (`resolveExactFacetValue`), before any tokenizing runs;
- * only when nothing matches verbatim does resolution fall through to
- * `parsePlaceTokens`. Own fixture (not the shared VOCAB above), so the
- * compound literal it adds can't leak into other tests' assertions.
+ * looking applied.
+ *
+ * Fix is a 3-tier rule in `resolvePhraseOrRawLiteral`, keyed off whether
+ * tokenizing consumed the WHOLE typed phrase (`residualQ === ""`, the same
+ * accounting `PlaceResolution.wordsConsumed` already produces — no parallel
+ * mechanism):
+ *   1. Tokenizing consumes every word → use that result. Preserves radius
+ *      neighbors / country scoping / region expansion for bare phrases like
+ *      "toronto" (below) exactly as before this fix existed.
+ *   2. Any word left over → the phrase is structured/compound → try it as a
+ *      single exact facet value (`resolveExactFacetValue`); a hit wins.
+ *   3. No literal match either → fall back to whatever tokenizing DID
+ *      manage (today's partial-match behavior, e.g. "San Diego Renewable
+ *      Group" still resolving to San Diego), else unmatched.
+ *
+ * "Canada ON Toronto" is this file's stand-in for "US CA San Diego": both
+ * are country + non-resolving 2-letter admin abbreviation (blocked by
+ * PLACE_MIN_LENGTH, never an alias) + city, so tokenizing leaves a residual
+ * and step 2 fires. A plain "Canada Toronto" (no middle token) would NOT
+ * exercise this — both words fully self-resolve with zero residual, so step
+ * 1 would already succeed and the fragmented (Canada, Toronto) pair — not
+ * the literal — would win, same as it does in the control test below.
  */
 const STRUCTURED_VOCAB = fakeVocab([
   { field: "location_country", value: "Canada" },
@@ -385,25 +396,51 @@ const STRUCTURED_VOCAB = fakeVocab([
   // production, far smaller than) "Canada" alone — this fixture's stand-in
   // for "US CA San Diego", built from a NON-US country to prove the fix
   // isn't US-specific.
-  { field: "location_city", value: "Canada Toronto" },
+  { field: "location_city", value: "Canada ON Toronto" },
 ]);
 
-test("exact-facet-value-first: a structured compound value ('Canada Toronto') resolves to ITSELF, not the broader country its own tokens would separately match", async () => {
-  const p = await resolveLocationFacet({ facets: { location_country: ["Canada Toronto"] } }, STRUCTURED_VOCAB);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "Canada Toronto" }] }]);
+test("tiered resolution step 2: a structured compound value ('Canada ON Toronto') resolves to ITSELF, not the broader country/city its own tokens would separately match", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["Canada ON Toronto"] } }, STRUCTURED_VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "Canada ON Toronto" }] }]);
 });
 
-test("exact-facet-value-first: confirms the fixture actually exercises the bug's mechanism — tokenizing this same compound (the path resolveLocationFacet no longer tries first) really does fragment it into Canada OR Toronto", async () => {
-  const { places } = await parsePlaceTokens("Canada Toronto", STRUCTURED_VOCAB);
+test("tiered resolution: confirms the fixture actually exercises the bug's mechanism — tokenizing this same compound (the path step 2 only reaches once step 1 leaves a residual) really does fragment it into Canada + Toronto, discarding ON", async () => {
+  const { residualQ, places } = await parsePlaceTokens("Canada ON Toronto", STRUCTURED_VOCAB);
+  assert.equal(residualQ, "ON", "the 2-letter admin token is below PLACE_MIN_LENGTH and isn't an alias, so it's never consumed");
   assert.equal(places.length, 2, "the tokenizer finds Canada and Toronto as two separate clauses, not one");
   assert.ok(places.some((c) => c.any.some((f) => f.value === "Canada")));
   assert.ok(places.some((c) => c.any.some((f) => f.value === "Toronto")));
 });
 
-test("exact-facet-value-first: a phrase that is NOT itself a literal facet value still falls through to tokenizing — 'usa' resolves via the country alias exactly as it always did", async () => {
+test("tiered resolution step 1: a phrase that fully tokenizes never reaches the literal probe — 'usa' resolves via the country alias exactly as it always did", async () => {
   const vocab = fakeVocab([{ field: "location_country", value: "United States" }]);
   const p = await resolveLocationFacet({ facets: { location_country: ["usa"] } }, vocab);
   assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "United States" }] }]);
+});
+
+/* Dedicated fixture for the actual prod bug shape: "US CA San Diego". */
+const SD_GAZETTEER = buildGazetteerIndex({
+  countries: [["US", "USA", "United States"]],
+  admin1: [],
+  cities: [["San Diego", null, 32.7157, -117.1611, "US", null, 1423851]],
+});
+const SD_VOCAB = fakeVocab(
+  [
+    { field: "location_country", value: "United States" },
+    { field: "location_city", value: "San Diego" },
+    { field: "location_city", value: "US CA San Diego" },
+  ],
+  SD_GAZETTEER,
+);
+
+test("tiered resolution step 2: 'US CA San Diego' resolves to the San Diego literal, not the fragmented US-country clause", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["US CA San Diego"] } }, SD_VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "US CA San Diego" }] }]);
+});
+
+test("tiered resolution step 3: partial consumption with NO literal match still falls back to the tokenizer's partial result — 'San Diego Renewable Group' resolves to San Diego, not unmatched", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["San Diego Renewable Group"] } }, SD_VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "San Diego" }] }]);
 });
 
 test("no location facet at all (or an empty/whitespace one) is a no-op", async () => {

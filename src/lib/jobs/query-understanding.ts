@@ -277,14 +277,18 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  * A typed value must never survive as an exact facet predicate with zero
  * corpus support — that's how "North America" (a real phrase, but the corpus
  * has no `location_country = "North America"` row) guaranteed zero results
- * forever (reproduced live 2026-08-26). So a phrase that isn't itself an
- * exact known facet value gets ONE more chance: the gazetteer/tokenizing
- * path (`parsePlaceTokens`, below), for the raw-ingest values that are real
- * corpus facts despite naming no GeoNames place ("Worldwide", "EMEA" typed
- * verbatim by an employer's ATS). Only when NEITHER clears does the phrase
- * get dropped — recorded in `unmatchedPlaceMentions` so the caller can tell
- * the searcher, rather than run a predicate guaranteed to return nothing.
- * Each value is judged independently: one bad value in a multi-value facet
+ * forever (reproduced live 2026-08-26). So a phrase the gazetteer can't fully
+ * account for gets ONE more chance: a direct probe of the raw literal
+ * against every location facet field (`resolveExactFacetValue`, below), for
+ * both the raw-ingest values that are real corpus facts despite naming no
+ * GeoNames place ("Worldwide", "EMEA" typed verbatim by an employer's ATS)
+ * AND the structured/compound values a picker or deep link hands back
+ * verbatim ("US CA San Diego" — see `resolvePhraseOrRawLiteral`'s doc for why
+ * tokenizing must be tried, and shown incomplete, before this literal probe
+ * ever runs). Only when NEITHER clears does the phrase get dropped —
+ * recorded in `unmatchedPlaceMentions` so the caller can tell the searcher,
+ * rather than run a predicate guaranteed to return nothing. Each value is
+ * judged independently: one bad value in a multi-value facet
  * (`?location_country=a,b` deep links, /trends' country links) no longer
  * poisons the ones that DID resolve.
  *
@@ -296,22 +300,10 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  */
 /**
  * Does the WHOLE typed phrase exactly match a value one of the location
- * facets already carries — checked BEFORE any tokenizing/gazetteer parsing
- * runs, across all three fields (`LOCATION_FACET_FIELDS`, meilisearch.ts).
- *
- * This is what stops a structured, typeahead-advertised facet value like
- * "US CA San Diego" from being silently fragmented: `parsePlaceTokens`'
- * greedy phrase scanner (resolve-place.ts's `scanPlacePhrases`) tokenizes it
- * into "US" (country alias) OR "San Diego" (city), discarding the "CA"
- * remainder — and since a UNION of "is in the US" with "is in San Diego"
- * equals "is in the US", the whole-country count comes back for a 96-posting
- * city facet value with no visible sign anything went wrong. A picker or
- * deep link that hands back this exact string already knows precisely which
- * corpus row it means; resolving it by literal identity first, rather than
- * re-deriving it by parsing, is what keeps that precision intact. Only when
- * no field carries the phrase verbatim does resolution fall through to
- * tokenizing, where a compound like "US CA San Diego" was never going to
- * match anyway.
+ * facets already carries, across all three fields (`LOCATION_FACET_FIELDS`,
+ * meilisearch.ts). Used by `resolvePhraseOrRawLiteral` below only once
+ * tokenizing has already shown it can't account for the whole phrase — see
+ * that function's doc for why the ordering matters.
  *
  * `matchMode: "literal"` (resolve-place.ts / corpus-values.ts) is what
  * exempts this from PLACE_MIN_COUNT: the candidate isn't a name-derived
@@ -328,17 +320,45 @@ export async function resolveExactFacetValue(phrase: string, vocab: LocationVoca
 }
 
 /**
- * Resolve one typed phrase: first as an exact known facet value
- * (`resolveExactFacetValue` above), then — only when nothing matches that
- * verbatim — via the gazetteer/tokenizing path (`parsePlaceTokens`).
+ * Resolve one typed phrase, in three tiers:
+ *
+ * 1. Tokenize it (`parsePlaceTokens`). If every whitespace-delimited word
+ *    got consumed by SOME resolution (`residualQ` empty) — a bare place name
+ *    ("toronto"), a region ("North America"), an explicit multi-value list
+ *    ("Toronto, Canada") — that result is already the right answer: it
+ *    carries the gazetteer's full apparatus (radius-neighbor padding,
+ *    cross-country homonym scoping, region member expansion), and there is
+ *    nothing left over to explain away. Return it as-is.
+ *
+ * 2. A nonempty `residualQ` means the phrase is structured/compound: the
+ *    scanner could only ever partially cover it. This is the actual bug
+ *    (prod, 2026-08-26) — "US CA San Diego" (a real, typeahead-advertised
+ *    `location_city` value, 96 postings) tokenizes into "US" (country alias)
+ *    + "San Diego" (city), discarding "CA", and a UNION of "in the US" with
+ *    "in San Diego" equals "in the US": the whole-country count comes back
+ *    for a 96-posting city, with the filter chip still looking applied. So a
+ *    partial tokenize is never trusted on its own — the WHOLE phrase is
+ *    tried as one exact known facet value first (`resolveExactFacetValue`).
+ *    A picker or deep link that hands back this exact string already knows
+ *    precisely which corpus row it means; resolving it by literal identity,
+ *    rather than trusting a partial re-derivation, is what keeps that
+ *    precision intact.
+ *
+ * 3. No literal match either — fall back to whatever tokenizing DID manage
+ *    (today's partial-match behavior, unchanged: "San Diego Renewable Group"
+ *    still finds San Diego). Only when tokenizing found nothing AT ALL does
+ *    the phrase get dropped as unmatched.
  */
 async function resolvePhraseOrRawLiteral(
   phrase: string,
   vocab: LocationVocabulary,
 ): Promise<{ places: PlaceClause[]; unmatched: string[] }> {
+  const { residualQ, places } = await parsePlaceTokens(phrase, vocab);
+  if (places.length > 0 && residualQ.trim() === "") return { places, unmatched: [] };
+
   const exact = await resolveExactFacetValue(phrase, vocab);
   if (exact.length > 0) return { places: [{ any: exact }], unmatched: [] };
-  const { places } = await parsePlaceTokens(phrase, vocab);
+
   if (places.length > 0) return { places, unmatched: [] };
   return { places: [], unmatched: [phrase] };
 }
