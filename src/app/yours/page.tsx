@@ -25,6 +25,7 @@ import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackR
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
 import { formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
+import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before they're sent.";
 
@@ -297,7 +298,8 @@ function YoursContent() {
             }
         >
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
-                <div className="mb-4 flex flex-wrap items-center gap-3">
+                <TrackerTabs active="tracker" />
+                <div className="mb-4 mt-4 flex flex-wrap items-center gap-3">
                     <div className="relative min-w-0 flex-1">
                         <MagnifyingGlass
                             size={16}

@@ -17,6 +17,11 @@ export interface JobsUrlState {
      *  doc (types.ts) for why this has no non-empty default unlike `postedBucket`. */
     yearsExperience: YearsExperienceBucket | undefined;
     hideGhosts: boolean;
+    /** SERP "Hide already viewed" toggle (job_views history feature).
+     *  Client-only post-filter — deliberately absent from
+     *  `jobSearchParamsFromUrlState` below: view status isn't known to the
+     *  search index, so this never reaches the server payload. */
+    hideViewed: boolean;
     sort: UrlSort | null;
     jobId: string | null;
     board: BoardId | null;
@@ -86,6 +91,7 @@ export const DEFAULT_URL_STATE: JobsUrlState = {
     postedBucket: "30d",
     yearsExperience: undefined,
     hideGhosts: true,
+    hideViewed: false,
     sort: null,
     jobId: null,
     board: null,
@@ -207,6 +213,7 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
     if (salary && salary in SALARY_TIERS) s.salaryMin = SALARY_TIERS[salary];
     if (sp.get("visa") === "1") s.visaOnly = true;
     if (sp.get("ghosts") === "show") s.hideGhosts = false;
+    if (sp.get("viewed") === "hide") s.hideViewed = true;
     const sort = sp.get("sort");
     if (sort && (SORT_VALUES as readonly string[]).includes(sort)) s.sort = sort as UrlSort;
     const job = sp.get("job");
@@ -234,6 +241,7 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     if (s.salaryMin > 0 && TIER_FOR_SALARY[s.salaryMin]) sp.set("salary", TIER_FOR_SALARY[s.salaryMin]);
     if (s.visaOnly) sp.set("visa", "1");
     if (!s.hideGhosts) sp.set("ghosts", "show");
+    if (s.hideViewed) sp.set("viewed", "hide");
     if (s.sort) sp.set("sort", s.sort);
     if (s.jobId) sp.set("job", s.jobId);
     if (s.board) sp.set("board", s.board);

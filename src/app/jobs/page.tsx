@@ -45,11 +45,14 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
+import { recordJobViewAction } from "@/actions/views";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
+import { useViewed } from "@/lib/views/use-viewed";
+import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
 import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
-import { hasReachedStage } from "@/lib/pursuits/types";
+import { hasReachedStage, buildJobSnapshot } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
@@ -1201,6 +1204,12 @@ function JobsContent() {
     // First-screen default: exclude likely_ghost from results. `ghosts=show` in
     // the URL flips it. No UI toggle wired yet (Task 6 — Trust toolbar).
     const [hideGhosts, setHideGhosts] = useState(initialUrlState.hideGhosts);
+    // SERP "Hide already viewed" toggle (job_views history feature). Kept out
+    // of `filterState` deliberately — unlike the fields above, view status is
+    // a client-only post-filter never sent to `buildJobSearchPayload` (the
+    // search index has no notion of it), so it's persisted via the same
+    // `JobsUrlState` mechanism without joining the server-facing filter set.
+    const [hideViewed, setHideViewed] = useState(initialUrlState.hideViewed);
     const [board, setBoard] = useState<BoardId | null>(initialUrlState.board);
     // Single-employer scope, arriving from `/co/[slug]`'s "View all N jobs"
     // CTA (`buildCompanyJobsUrl`). Held next to `board` because they are the
@@ -1308,6 +1317,7 @@ function JobsContent() {
         postedBucket,
         yearsExperience,
         hideGhosts,
+        hideViewed,
         board,
         companyDomain,
         // `fitActive` wins the default so `sort=fit` survives unrelated
@@ -1664,6 +1674,7 @@ function JobsContent() {
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
     const { byJobId: pursuitsByJobId } = usePursuits();
+    const { viewedIds, markViewed } = useViewed();
     const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
     const guestPursuitSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
@@ -1747,6 +1758,10 @@ function JobsContent() {
                 companyDomain,
                 sort: sortOverride ? modeToUrlSort(sortOverride) : null,
                 jobId: null,
+                // Client-only post-filter, unknown to the search index — same
+                // reason `jobId` above is hardcoded rather than threaded in: it
+                // must never appear in `searchKey` or it would trigger a refetch.
+                hideViewed: false,
             }) + (postedDateSupported ? "" : "&nodatesort"),
         // `postedDateSupported` participates because it changes the sort the
         // backend is asked for: when the probe resolves, the date sort becomes
@@ -2311,6 +2326,7 @@ function JobsContent() {
             captureEvent("result_clicked", { position: rank, job_id: id, source: "serp" });
         }
         setOpensThisSession((n) => n + 1);
+        const alreadyOpened = openedIds.has(id);
         setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
         const hit = resultRef.current?.hits.find((h) => h.id === id);
         if (hit) {
@@ -2319,10 +2335,35 @@ function JobsContent() {
             const cached = getRecentlyViewedSnapshot().find((v) => v.id === id);
             if (cached) recordRecentlyViewedJob(cached);
         }
+        // Viewed-jobs history (job_views): record the FIRST open of this job
+        // this session only — a re-open of an already-`openedIds` job just
+        // re-dims (existing behavior above), it shouldn't re-fire the write.
+        // Fire-and-forget: `openJob` isn't async and the SERP shouldn't ever
+        // block navigation on this. No snapshot to record when `hit` is
+        // missing (a URL-opened job outside the current result set) — same
+        // "don't fabricate" rule the rank telemetry above already follows.
+        if (!alreadyOpened && hit) {
+            markViewed(id);
+            void recordJobViewAction(id, buildJobSnapshot(hit)).catch(() => {});
+        }
         applyUrlState(buildUrlState({ jobId: id }), "push");
     };
 
-    const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
+    // "Hide already viewed" (job_views history feature) — the single choke
+    // point every downstream derived list (`displayHits`, `clusters`,
+    // `renderedClusters`) flows from, so the filter never needs re-applying
+    // at each stage. `resultRef.current.hits` (rank/telemetry, `resultTotal`)
+    // stays untouched — it reads straight off `result`, not this memo.
+    // `openedIds` is folded in alongside the hook's own server+local
+    // `viewedIds` so a job opened THIS render (before the round trip lands)
+    // disappears immediately too, same as it already dims immediately below.
+    const hits = useMemo(() => {
+        const raw = result?.hits ?? [];
+        // `viewedIds` (the hook's own server+local merge) union'd with this
+        // render's `openedIds` — belt-and-suspenders so a just-opened job is
+        // excluded even before the optimistic `markViewed` state re-renders.
+        return applyViewedFilter(raw, buildViewedSet(viewedIds, openedIds, []), hideViewed);
+    }, [result?.hits, viewedIds, openedIds, hideViewed]);
 
     /**
      * Render fallback for a zero-query state (`resolveJobsRenderMode`,
@@ -2492,6 +2533,7 @@ function JobsContent() {
             setPostedBucket(parsed.postedBucket);
             setYearsExperience(parsed.yearsExperience);
             setHideGhosts(parsed.hideGhosts);
+            setHideViewed(parsed.hideViewed);
             setBoard(parsed.board);
             setCompanyDomain(parsed.companyDomain);
             setSortOverride(resolveUrlSort(parsed.sort));
@@ -2889,6 +2931,11 @@ function JobsContent() {
     const onHideGhosts = (v: boolean) => {
         setHideGhosts(v);
         applyUrlState(buildUrlState({ hideGhosts: v }), "replace");
+    };
+
+    const onHideViewed = (v: boolean) => {
+        setHideViewed(v);
+        applyUrlState(buildUrlState({ hideViewed: v }), "replace");
     };
 
     // Routed through `applyFilterState` (the per-render funnel) rather than the
@@ -3870,7 +3917,7 @@ function JobsContent() {
             key={j.id}
             job={j}
             active={activeRowId === j.id}
-            opened={openedIds.has(j.id)}
+            opened={openedIds.has(j.id) || viewedIds.has(j.id)}
             onClick={() => openJob(j.id)}
             onCompany={j.company_domain ? handleCompany : undefined}
             onOpenPosting={handleOpenPosting}
@@ -4012,6 +4059,8 @@ function JobsContent() {
                 hideGhosts={hideGhosts}
                 onHideGhosts={onHideGhosts}
                 ghostHiddenCount={ghostHiddenCount}
+                hideViewed={hideViewed}
+                onHideViewed={onHideViewed}
                 board={board === "elite" ? "elite" : "all"}
                 onBoardChange={(b) => onBoardChange(b === "elite" ? "elite" : null)}
                 layout={layout}

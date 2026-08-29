@@ -124,6 +124,13 @@ export const upsertPursuitSchema = z.object({
   stage: applicationStatus,
 });
 
+/** recordJobViewAction input — the same snapshot shape pursuits capture,
+ *  reused here rather than duplicated (single source of truth). */
+export const recordJobViewSchema = z.object({
+  job_id: nonEmptyString(200),
+  ...jobSnapshotShape,
+});
+
 /** createManualPursuit input (the search seed line, spec §3 "outside
  *  interviews") — no job_id, no snapshot fields: just the two typed inputs.
  *  `status` is optional (defaults to "interviewing" — the seed line's own

@@ -140,6 +140,8 @@ export function SerpFilters({
     hideGhosts,
     onHideGhosts,
     ghostHiddenCount,
+    hideViewed,
+    onHideViewed,
     postedDateSupported,
     board,
     onBoardChange,
@@ -158,6 +160,8 @@ export function SerpFilters({
     hideGhosts: boolean;
     onHideGhosts: (v: boolean) => void;
     ghostHiddenCount: number | null;
+    hideViewed: boolean;
+    onHideViewed: (v: boolean) => void;
     postedDateSupported: boolean;
     board?: "all" | "elite";
     onBoardChange?: (b: "all" | "elite") => void;
@@ -294,6 +298,15 @@ export function SerpFilters({
                     </Affordance>
                     <Affordance inputType="radio" active={!hideGhosts} onClick={() => onHideGhosts(false)}>
                         Show all postings
+                    </Affordance>
+                </Group>
+
+                <Group label="Viewed">
+                    <Affordance inputType="radio" active={!hideViewed} onClick={() => onHideViewed(false)}>
+                        Show all
+                    </Affordance>
+                    <Affordance inputType="radio" active={hideViewed} onClick={() => onHideViewed(true)}>
+                        Hide already viewed
                     </Affordance>
                 </Group>
 
