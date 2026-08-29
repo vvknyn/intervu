@@ -544,6 +544,17 @@ export function renderPlaceClause(clause: PlaceClause): string {
  *  `= "active"`: those differ for any future third status. */
 export const LIVE_VACANCY_FILTER = 'vacancy_status != "closed"';
 
+/** Pure: AND `LIVE_VACANCY_FILTER` onto an optional caller filter clause —
+ *  the same composition `buildFilter` does for real search (`f.push(...)`
+ *  then every clause implicitly ANDed via `filter: string[]`), collapsed to
+ *  a single string because `/facet-search` takes one `filter` string rather
+ *  than an array. `extra` is expected pre-parenthesized when it's a
+ *  multi-term expression (matches `renderPlaceClause`'s and
+ *  `location-suggest.ts`'s convention), so it's safe to AND in unwrapped. */
+export function withLiveVacancyFilter(extra?: string): string {
+  return extra ? `${LIVE_VACANCY_FILTER} AND ${extra}` : LIVE_VACANCY_FILTER;
+}
+
 function canonicalFacetValues(rawVals: string[]): string[] {
   const vals = rawVals.filter((v) => v !== "any" && v !== "all");
   return [...new Set(vals)].sort();
@@ -1236,6 +1247,11 @@ export const LOCATION_FACET_FIELDS = ["location_city", "location_state", "locati
  * specific value regardless of how far down the long tail it sits. Measured
  * live against the box 2026-08-05: ~40ms per call.
  *
+ * Always constrained by `LIVE_VACANCY_FILTER` (via `withLiveVacancyFilter`),
+ * same as every real search (`buildFilter`) — a value counted here that only
+ * exists on closed postings would advertise a number the actual search can
+ * never deliver.
+ *
  * Also the source of the bare-work-mode location suggestion's count
  * (`buildWorkModeSuggestion`, location-suggest.ts) — `field: "work_type"`
  * with an empty `query` browses every work_type value's own total, which is
@@ -1248,10 +1264,12 @@ export const LOCATION_FACET_FIELDS = ["location_city", "location_state", "locati
 export async function fetchFacetSearch(
   field: (typeof LOCATION_FACET_FIELDS)[number] | "work_type",
   query: string,
-  /** Narrows the counts, e.g. `work_type = "remote"`. Meili applies it to the
-   *  facet search itself, so the number returned is the true intersection
-   *  rather than the facet value's total — which is what lets the location
-   *  picker show a work-mode-qualified count it can actually deliver. */
+  /** Narrows the counts on top of `LIVE_VACANCY_FILTER` (always applied —
+   *  see `withLiveVacancyFilter`), e.g. `work_type = "remote"`. Meili applies
+   *  the composed filter to the facet search itself, so the number returned
+   *  is the true intersection rather than the facet value's total — which is
+   *  what lets the location picker show a work-mode-qualified count it can
+   *  actually deliver. */
   filter?: string,
 ): Promise<{ value: string; count: number }[] | null> {
   const h = host();
@@ -1261,7 +1279,7 @@ export async function fetchFacetSearch(
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
-      body: JSON.stringify({ facetName: field, facetQuery: query, ...(filter ? { filter } : {}) }),
+      body: JSON.stringify({ facetName: field, facetQuery: query, filter: withLiveVacancyFilter(filter) }),
     });
     if (!res.ok) return null;
     const body = (await res.json()) as { facetHits?: { value: string; count: number }[] };
