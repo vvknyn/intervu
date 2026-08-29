@@ -443,6 +443,84 @@ test("tiered resolution step 3: partial consumption with NO literal match still 
   assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "San Diego" }] }]);
 });
 
+/* ------------ arity gate: full consumption alone is not faithfulness ------------
+ * `resolvePhraseOrRawLiteral`'s step 1 used to trust ANY zero-residual
+ * tokenize result, however many places it produced. That is a proxy for
+ * FAITHFULNESS ("this reading is what the searcher meant"), and it stands
+ * in for something else: DECOMPOSABILITY ("every segment happens to be a
+ * real place"). A machine-emitted composite built by joining a full
+ * admin1/country name to a city — never abbreviated, so nothing is left
+ * below `PLACE_MIN_LENGTH` the way "CA" is in "US CA San Diego" above —
+ * tokenizes COMPLETELY into several places with zero residual, and the old
+ * gate returned that fragmented AND-of-places before ever trying the whole
+ * phrase as a literal. Gating step 1 on arity===1 (one place, fully
+ * consumed) routes every multi-place, zero-residual reading through step 2
+ * instead, exactly like a residual-bearing compound already does.
+ */
+const ARITY_GAZETTEER = buildGazetteerIndex({
+  countries: [["US", "USA", "United States"]],
+  admin1: [["US", "MA", "Massachusetts"]],
+  cities: [["Boston", null, 42.3601, -71.0589, "US", "MA", 675647]],
+});
+const ARITY_VOCAB = fakeVocab(
+  [
+    { field: "location_state", value: "Massachusetts" },
+    { field: "location_city", value: "Boston" },
+    // The verbatim composite — a real, smaller-than-either-part corpus
+    // value distinct from what "Massachusetts" or "Boston" alone would match.
+    { field: "location_city", value: "Massachusetts Boston" },
+  ],
+  ARITY_GAZETTEER,
+);
+
+test("arity gate: a phrase that fully tokenizes into TWO places (admin1 + city, zero residual) resolves to its verbatim corpus literal, not an AND of its parts", async () => {
+  const { residualQ, places } = await parsePlaceTokens("Massachusetts Boston", ARITY_VOCAB);
+  assert.equal(residualQ, "", "both segments are full names, so nothing is left below PLACE_MIN_LENGTH to leave a residual");
+  assert.equal(places.length, 2, "confirms the fixture really does fully consume into two SEPARATE places, not one");
+
+  const p = await resolveLocationFacet({ facets: { location_country: ["Massachusetts Boston"] } }, ARITY_VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "Massachusetts Boston" }] }]);
+});
+
+/* Class-member coverage: a DIFFERENT composition (country + city, not
+ * admin1 + city) and a different specific value than both "US CA San
+ * Diego" (the residual-bearing bug this file already covers above) and the
+ * admin1+city case just above — proves the arity fix isn't keyed to one
+ * field shape or one string. */
+const DALY_GAZETTEER = buildGazetteerIndex({
+  countries: [["US", "USA", "United States"]],
+  admin1: [],
+  cities: [["Daly City", null, 37.6879, -122.4702, "US", null, 104901]],
+});
+const DALY_VOCAB = fakeVocab(
+  [
+    { field: "location_country", value: "United States" },
+    { field: "location_city", value: "Daly City" },
+    { field: "location_city", value: "United States Daly City" },
+  ],
+  DALY_GAZETTEER,
+);
+
+test("arity gate class coverage: 'United States Daly City' (country + city, zero residual) also resolves to its literal — a different value and field shape than the admin1+city case", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["United States Daly City"] } }, DALY_VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "United States Daly City" }] }]);
+});
+
+test("arity gate blast radius: a fully-tokenized multi-place phrase with NO verbatim match still falls through to the SAME AND-of-places step 1 would have returned — nothing regresses for values that aren't literal corpus facts", async () => {
+  const noLiteralVocab = fakeVocab(
+    [
+      { field: "location_state", value: "Massachusetts" },
+      { field: "location_city", value: "Boston" },
+    ],
+    ARITY_GAZETTEER,
+  );
+  const p = await resolveLocationFacet({ facets: { location_country: ["Massachusetts Boston"] } }, noLiteralVocab);
+  assert.deepEqual(p.places, [
+    { any: [{ field: "location_state", value: "Massachusetts" }] },
+    { any: [{ field: "location_city", value: "Boston" }] },
+  ]);
+});
+
 test("no location facet at all (or an empty/whitespace one) is a no-op", async () => {
   const browse = { q: "product manager" };
   assert.equal(await resolveLocationFacet(browse, VOCAB), browse);
