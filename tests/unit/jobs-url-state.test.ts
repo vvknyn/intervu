@@ -140,3 +140,32 @@ test("company scope composes with a query and survives the round-trip alongside 
     const s = { ...DEFAULT_URL_STATE, q: "driver", companyDomain: "harrods.com" };
     assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
 });
+
+// (g) Picked-field provenance URL grammar. `city=`/`state=` are NEW params
+// added alongside the pre-existing `country=`, wired through the SAME
+// generic FACET_PARAMS loop rather than a parallel encoding — no new parsing
+// code, and `country=` itself is untouched.
+test("(g) back-compat: a legacy country= URL still parses into facets.location_country exactly as before — the new city=/state= params never intercept it", () => {
+    const s = parseJobsUrl(new URLSearchParams("country=Canada"));
+    assert.deepEqual(s.facets, { location_country: ["Canada"] });
+    assert.equal(serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: { location_country: ["Canada"] } }), "?country=Canada");
+});
+
+test("(g) city= and state= round-trip through the generic facet param loop, same as country=", () => {
+    const s = {
+        ...DEFAULT_URL_STATE,
+        facets: { location_city: ["San Jose"], location_state: ["Georgia"] },
+    };
+    const url = serializeJobsUrl(s);
+    assert.equal(url, "?city=San+Jose&state=Georgia");
+    assert.deepEqual(parseJobsUrl(new URLSearchParams(url.slice(1))), s);
+});
+
+test("(g) all three location params compose on one URL without colliding — city, state, and a free-text country pick are three independent facet keys", () => {
+    const s = {
+        ...DEFAULT_URL_STATE,
+        facets: { location_city: ["San Jose"], location_state: ["Georgia"], location_country: ["Canada"] },
+    };
+    const url = serializeJobsUrl(s);
+    assert.deepEqual(parseJobsUrl(new URLSearchParams(url.slice(1))), s);
+});

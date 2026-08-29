@@ -15,7 +15,7 @@
 import type { JobSearchParams, PlaceClause, PlaceFilter } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
-import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution } from "../geo/resolve-place";
+import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution, type LocationField } from "../geo/resolve-place";
 import { MAX_REGION_CLAUSE_TERMS } from "../geo/regions";
 import { FUNCTION_WORDS } from "../geo/common-words";
 import { SENIORITY_PHRASES } from "./role-title-lane";
@@ -312,11 +312,44 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  * corpus's own values — so a low-count city/metro literal is exactly as
  * legitimate a match as a high-count country one.
  */
-export async function resolveExactFacetValue(phrase: string, vocab: LocationVocabulary): Promise<PlaceFilter[]> {
+async function probeFacetFields(
+  fields: readonly LocationField[],
+  phrase: string,
+  vocab: LocationVocabulary,
+): Promise<PlaceFilter[]> {
   const [hits] = await vocab.corpusChecker([
-    LOCATION_FACET_FIELDS.map((field) => ({ field, value: phrase, matchMode: "literal" as const })),
+    fields.map((field) => ({ field, value: phrase, matchMode: "literal" as const })),
   ]);
   return hits;
+}
+
+export async function resolveExactFacetValue(phrase: string, vocab: LocationVocabulary): Promise<PlaceFilter[]> {
+  return probeFacetFields(LOCATION_FACET_FIELDS, phrase, vocab);
+}
+
+/**
+ * Resolve a value that was PICKED from the location typeahead, not typed —
+ * the suggestion already names the single field it was advertised on
+ * (`SuggestField`, location-suggest.ts: the dropdown row's own count comes
+ * from a facet-search against exactly that field). Probing only that field,
+ * rather than `resolveExactFacetValue`'s all-three-field OR, is what keeps
+ * "advertised count == delivered count": a bare or composite value that
+ * happens to also collide with a DIFFERENT field's value (e.g. "San Jose"
+ * matching a `location_state` row for Costa Rica's San José province) can
+ * never be picked up by a filter that was never asked for.
+ *
+ * Same `matchMode: "literal"` primitive as `resolveExactFacetValue` — a
+ * picked value is by construction an already-advertised corpus literal, so
+ * there is no tokenizing/arity question to resolve the way a TYPED phrase
+ * has (`resolvePhraseOrRawLiteral` below): a click carries no ambiguity a
+ * gazetteer scan could usefully second-guess.
+ */
+export async function resolvePickedFacetValue(
+  field: LocationField,
+  phrase: string,
+  vocab: LocationVocabulary,
+): Promise<PlaceFilter[]> {
+  return probeFacetFields([field], phrase, vocab);
 }
 
 /**
@@ -375,12 +408,31 @@ async function resolvePhraseOrRawLiteral(
   return { places: [], unmatched: [phrase] };
 }
 
+/**
+ * Every location field OTHER than `location_country` — i.e. the fields a
+ * value can only reach `p.facets` on by being PICKED from the typeahead
+ * with its field intact (`SuggestField`, addLocation in page.tsx), never by
+ * free-typed text (the location box only ever writes `location_country`).
+ * Derived from `LOCATION_FACET_FIELDS` (meilisearch.ts) rather than a
+ * second literal list, so a future location field is covered here too.
+ */
+const PICKED_LOCATION_FIELDS = LOCATION_FACET_FIELDS.filter(
+  (field): field is Exclude<(typeof LOCATION_FACET_FIELDS)[number], "location_country"> => field !== "location_country",
+);
+
 export async function resolveLocationFacet(
   p: JobSearchParams,
   vocab: LocationVocabulary,
 ): Promise<JobSearchParams> {
   const typed = (p.facets?.location_country ?? []).map((v) => v.trim()).filter(Boolean);
-  if (typed.length === 0) return p;
+  // Picked city/state suggestions: each already names its own field, so it
+  // resolves as one exact literal on that field alone (`resolvePickedFacetValue`)
+  // rather than through the gazetteer/work-mode pipeline below, which exists
+  // to disambiguate free-typed TEXT — a click already answered that question.
+  const picked = PICKED_LOCATION_FIELDS.flatMap((field) =>
+    (p.facets?.[field] ?? []).map((v) => v.trim()).filter(Boolean).map((value) => ({ field, value })),
+  );
+  if (typed.length === 0 && picked.length === 0) return p;
 
   // Work-mode terms typed into the location box ("remote", "hybrid") are not
   // places — strip them with the SAME parser the search box's query text
@@ -426,7 +478,29 @@ export async function resolveLocationFacet(
     );
   }
 
-  const { location_country: _raw, ...facets } = p.facets!;
+  // Picked values resolve independently of the typed/country ones above —
+  // literal probe only, no work-mode binding (a picked place can never carry
+  // typed-in work-mode text) — and fold into the SAME `resolved`/`unmatched`
+  // accumulators, so they OR together with any typed places via the one
+  // `p.places` merge below (`JobSearchParams.places` is already OR-across-
+  // mentions by construction — see its doc).
+  for (const { field, value } of picked) {
+    const hits = await resolvePickedFacetValue(field, value, vocab);
+    if (hits.length === 0) {
+      unmatched.push(value);
+      continue;
+    }
+    resolved.push({ any: hits });
+  }
+
+  // Every location field this function resolves is stripped from the
+  // generic facets bag the same way — left standing, a raw picked literal
+  // would AND against the resolved `places` clause it now lives in instead
+  // (`buildFilter`'s per-key loop is AND-across-keys) and zero the search
+  // out. `LOCATION_FACET_FIELDS` is the single source of truth for which
+  // keys those are, so a new location field is covered here by construction.
+  const facets = { ...p.facets! };
+  for (const field of LOCATION_FACET_FIELDS) delete facets[field];
   // The dropdown's own work_type selection is a DIFFERENT question ("remote
   // anywhere") from one typed into a place phrase ("remote in Canada"), so
   // it stays global and still AND's across the whole query.

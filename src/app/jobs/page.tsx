@@ -142,7 +142,7 @@ import { rowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { derivePostedTs, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
@@ -1238,8 +1238,15 @@ function JobsContent() {
      * being typed", never "what is being filtered on". Everything that needs
      * the latter — the docked search chip, the saved-preference write, the
      * applied-default disclosure — asks here.
+     *
+     * Spans every location field (`LOCATION_FACET_FIELDS`), not just
+     * `location_country`: a city or state picked from the typeahead now
+     * lands in its own field's bucket (see `addLocation` below), so reading
+     * only `location_country` here would miss it — an already-chosen city
+     * would show no checkmark, and an active city-only filter would read as
+     * "no location chosen" to the IP-default chip and the saved preference.
      */
-    const chosenLocations = filterState.facets.location_country ?? [];
+    const chosenLocations = LOCATION_FACET_FIELDS.flatMap((field) => filterState.facets[field] ?? []);
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
@@ -3053,12 +3060,24 @@ function JobsContent() {
             applyFilterStateWithIntent({ ...filterState, facets: { ...filterState.facets, work_type: next } });
             return;
         }
-        const current = filterState.facets.location_country ?? [];
+        // A suggestion carries the field it was advertised on
+        // (`SuggestField`) — write into THAT field's own bucket, so it's
+        // filtered as the exact literal it was counted as
+        // (`resolvePickedFacetValue`, query-understanding.ts) instead of
+        // being re-resolved as free text through the gazetteer, which is
+        // what let a composite value ("US CA San Diego") or an ambiguous
+        // bare name ("San Jose") mis-resolve against the wrong field/country
+        // — the advertised count and the delivered count could disagree.
+        // Free-typed text (`field` undefined) and a picked COUNTRY value
+        // both fall back to the same `location_country` bucket they always
+        // used, so neither one's behavior changes.
+        const targetKey = field ?? "location_country";
+        const current = filterState.facets[targetKey] ?? [];
         const next = addLocationValue(current, trimmed);
         if (next === current) return; // already filtered on this place
         applyFilterStateWithIntent({
             ...filterState,
-            facets: { ...filterState.facets, location_country: next },
+            facets: { ...filterState.facets, [targetKey]: next },
         });
         if (user && query.trim()) {
             void saveAgentPreferencesAction({
@@ -3069,10 +3088,13 @@ function JobsContent() {
 
     /** Drop every chosen place — what the field's own "✕ clear location"
      *  means. Removing ONE place is the chips row's job, which already has a
-     *  ✕ per chip and needs no second affordance here. */
+     *  ✕ per chip and needs no second affordance here. Clears every location
+     *  field (`LOCATION_FACET_FIELDS`), matching `chosenLocations` above —
+     *  a picked city/state lives in its own bucket, not just
+     *  `location_country`. */
     const clearLocations = useCallback(() => {
         const nextFacets = { ...filterState.facets };
-        delete nextFacets.location_country;
+        for (const field of LOCATION_FACET_FIELDS) delete nextFacets[field];
         applyFilterStateWithIntent({ ...filterState, facets: nextFacets });
         if (user && query.trim()) {
             void saveAgentPreferencesAction({

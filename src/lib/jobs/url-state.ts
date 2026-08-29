@@ -115,6 +115,13 @@ const FACET_PARAMS: Record<string, FacetKey> = {
     exp: "experience_level",
     emp: "employment_type",
     country: "location_country",
+    // Field-scoped location picks (typeahead, `SuggestField`) — separate
+    // params from `country` so a picked city/state literal round-trips
+    // through the SAME field it was advertised on, never through the
+    // gazetteer re-resolution `country=` values go through. `country=`
+    // itself is untouched: existing links keep resolving exactly as before.
+    city: "location_city",
+    state: "location_state",
     src: "source",
     tech: "tech_stack",
     skills: "must_have_skills",

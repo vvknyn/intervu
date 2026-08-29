@@ -13,6 +13,7 @@ import {
   fetchJobsLastUpdated,
   fetchPostedDateFilterSupported,
   hasMeilisearch,
+  LOCATION_FACET_FIELDS,
   probeCompanyMatch,
   searchMeili,
 } from "./meilisearch";
@@ -86,9 +87,15 @@ export async function searchJobs(
   opts?: { clientIp?: string; countryLookup?: CountryLookup },
 ): Promise<JobSearchResult & { meta?: SearchServeMeta; defaultedLocation?: string; unmatchedPlaceMentions?: string[] }> {
   // Vocabulary is only relevant when there's something to resolve — query
-  // text, or the board's typed location facet (`resolveLocationFacet`). The
+  // text, or a location facet (`resolveLocationFacet`): the typed
+  // `location_country` box, or a city/state value picked from the typeahead.
+  // `LOCATION_FACET_FIELDS` is the same single source of truth
+  // `resolveLocationFacet` itself reads, so a picked-only search (no query
+  // text, no country) can't silently skip resolution and leak an
+  // unconverted facet into `buildFilter`'s generic AND-across-keys loop. The
   // dead-link id probe and plain browses skip the lookup entirely.
-  const needsVocab = !raw.id && Boolean((raw.q ?? "").trim() || raw.facets?.location_country?.length);
+  const needsVocab =
+    !raw.id && Boolean((raw.q ?? "").trim() || LOCATION_FACET_FIELDS.some((f) => raw.facets?.[f]?.length));
   const vocab = needsVocab ? await locationVocabulary() : undefined;
   const understood = vocab
     ? await resolveLocationFacet(await applyQueryUnderstanding(raw, vocab), vocab)
