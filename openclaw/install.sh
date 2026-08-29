@@ -9,7 +9,7 @@ set -euo pipefail
 # hostnames — even two that redirect to each other — and the handshake fails
 # with an issuer mismatch rather than anything that names the cause.
 # Overridable so a staging origin can be installed against without editing.
-INTERVU_BASE="${INTERVU_BASE:-https://intervuhq.com}"
+INTERVU_BASE="${INTERVU_BASE:-https://velai.app}"
 
 HELP_URL="$INTERVU_BASE/connect/help"
 # Every fatal exit below calls this so a stuck user always has a next step

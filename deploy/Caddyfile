@@ -1,10 +1,172 @@
-# TLS + reverse proxy for intervu.cc → Next standalone (docker compose).
-# Caddy auto-provisions Let's Encrypt when DNS for intervu.cc points here.
+# Dual site — Contabo. Pipelines do not go through this proxy.
 
-intervu.cc, www.intervu.cc {
+# Drop a forged CF-Connecting-IP from any request that did not come through
+# Cloudflare's edge. The app trusts that header to identify the client
+# (intervu: src/lib/shield/client-ip.ts), and the origin IP is public — so a
+# request sent straight here could set it to anything and rotate it to walk
+# past every per-IP rate limit. `remote_ip` deliberately, not `client_ip`:
+# the question is who opened the TCP connection, which stays true even if
+# trusted_proxies is configured later.
+#
+# Safe to run before any DNS cutover: while a site is still DNS-only nothing
+# legitimately sets this header, so it is stripped from everything and the app
+# falls back to X-Forwarded-For exactly as it does today.
+#
+# Ranges are Cloudflare's published list (https://www.cloudflare.com/ips-v4
+# and /ips-v6), fetched 2026-08-17. Cloudflare adds to these occasionally; a
+# stale list fails SAFE — a real edge IP that is missing here only means a
+# genuine CF-Connecting-IP gets dropped and the app falls back to XFF.
+(cf_connecting_ip_guard) {
+	@forged_cf_ip not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+	request_header @forged_cf_ip -CF-Connecting-IP
+}
+
+# The agent/OAuth/MCP surface, factored out so both legacy domains
+# (intervu.cc and intervuhq.com — see the vhosts below) can serve it
+# directly instead of redirecting. Matched by path, not by vhost, so a new
+# agent route only needs adding here once.
+#
+# `handle @agent` (not a bare directive) so a vhost that also redirects
+# everything else can wrap that redirect in its own `handle {}` and rely on
+# Caddy's per-request "first matching handle wins, in written order" rule —
+# `import`ing this BEFORE that redirect is what keeps the redirect from
+# shadowing these paths (bare `redir` sorts by Caddy's global directive
+# order, not source order, and can run before an un-wrapped `handle`).
+(agent_carveout) {
+	@agent path /api/mcp /api/mcp/* /api/oauth/* /api/viewer/* /.well-known/oauth-authorization-server* /.well-known/oauth-protected-resource*
+	handle @agent {
+		encode gzip zstd
+		import cf_connecting_ip_guard
+		reverse_proxy intervu:3000
+	}
+}
+
+# Shared site behavior for every vhost that serves the app directly
+# (intervuhq.com; velai.app alongside it as of Wave-2 phase A).
+#
+# PostHog, served first-party. posthog-js is pointed at
+# https://<this host>/ph — intervu's src/lib/posthog-options.ts,
+# POSTHOG_PROXY_PATH, which is the other half of this rule and lives in a
+# different repo. us.i.posthog.com is on EasyPrivacy, uBlock Origin, Brave
+# and AdGuard, and a blocked visitor makes no request, logs no error and
+# leaves no server-side trace — so the analytics loss is invisible from
+# every dashboard we own. Same-origin requests are not on those lists, and
+# they also satisfy intervu's own `script-src 'self'` CSP (report-only
+# today, next.config.ts) if it is ever enforced.
+#
+# TWO upstreams, deliberately. posthog-js resolves `region` from api_host;
+# a custom host makes it CUSTOM, and CUSTOM sends events AND static assets
+# down this same path. Events belong to us.i.posthog.com, but the static
+# bundles — including the lazily-fetched session-replay recorder — are only
+# served by us-assets.i.posthog.com. Collapsing both onto one upstream
+# silently loses session replay while events keep arriving, which is the
+# hardest version of this to notice.
+#
+# The two blocks strip DIFFERENT amounts, and that difference is the whole
+# reason this comment exists. handle_path strips everything it matched: on
+# /ph/static/* that removes "/ph/static" and asks the upstream for
+# /recorder.js, which 404s — PostHog serves the recorder at
+# /static/recorder.js, verified directly against us-assets.i.posthog.com
+# (/static/recorder.js -> 200, /recorder.js -> 404). So the static block
+# matches with plain `handle` and strips only "/ph" itself. The events
+# block below genuinely wants the full strip: posthog-js builds
+# <api_host>/i/v0/e/, which must reach the upstream as /i/v0/e/.
+#
+# Don't take the above on trust — a wrong prefix looks exactly like a
+# missing rule from the outside. Both of these must hold on prod:
+#   curl -o /dev/null -w '%{http_code}' https://intervuhq.com/ph/static/recorder.js  -> 200
+#   curl -o /dev/null -w '%{http_code}' https://intervuhq.com/ph/static/nope-xyz.js  -> 404
+# The second is not optional: without it a rule that proxies everything to
+# a 200 reads as success.
+#
+# The /static/ rule must stay ABOVE the catch-all — handle blocks are
+# mutually exclusive and matched in the order written.
+#
+# header_up Host is required: both upstreams route on the Host header and
+# answer 404 for intervuhq.com.
+(velai_site) {
 	encode gzip zstd
-	reverse_proxy intervu:3000
+	import cf_connecting_ip_guard
 
+	handle /ph/static/* {
+		uri strip_prefix /ph
+		reverse_proxy https://us-assets.i.posthog.com {
+			header_up Host us-assets.i.posthog.com
+		}
+	}
+	handle_path /ph/* {
+		reverse_proxy https://us.i.posthog.com {
+			header_up Host us.i.posthog.com
+		}
+	}
+
+	handle {
+		reverse_proxy intervu:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+# Retired domain for the WEB. The agent/OAuth/MCP issuer identity is no
+# longer pinned here — it is velai.app (intervu: src/lib/agent/config.ts,
+# AGENT.issuer, 2026-08-29). This carve-out exists purely so clients that
+# registered while the issuer still pointed at this domain (or at
+# intervuhq.com) keep working: a blanket 301 breaks them, because clients
+# re-issue a redirected POST as GET (fetch/undici behavior on 301), and the
+# POST-only token/register/mcp routes then answer a bare 405. So the
+# method-sensitive agent paths are served here directly; everything else
+# keeps the redirect to velai.app. /oauth/authorize stays on the redirect on
+# purpose — it is a browser GET and the user's session cookies live on
+# velai.app now.
+intervu.cc, www.intervu.cc {
+	import agent_carveout
+	handle {
+		redir https://velai.app{uri} permanent
+	}
+}
+
+# Wave-2 phase B: legacy domain 301s to velai.app broke pinned agent/MCP
+# clients here too (same cross-origin POST-drops-to-GET problem as
+# intervu.cc, above) — importing agent_carveout before the redirect
+# restores direct serving so those installs keep working.
+intervuhq.com, www.intervuhq.com {
+	import agent_carveout
+	handle {
+		redir https://velai.app{uri} permanent
+	}
+}
+
+# Wave-2 phase A — served alongside intervuhq.com. The legacy-domain 301
+# flip is PR #2760 (phase B), gating is now the WorkOS redirect URI only.
+#   curl -o /dev/null -w '%{http_code}' https://velai.app/ph/static/recorder.js  -> 200
+#   curl -o /dev/null -w '%{http_code}' https://velai.app/ph/static/nope-xyz.js  -> 404
+velai.app {
+	import velai_site
+}
+
+www.velai.app {
+	redir https://velai.app{uri} permanent
+}
+
+thesubspace.io, www.thesubspace.io {
+	encode gzip zstd
+	reverse_proxy subspace:3000
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+vivekn.xyz, www.vivekn.xyz {
+	encode gzip zstd
+	reverse_proxy vivekn:3000
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 		X-Content-Type-Options nosniff
