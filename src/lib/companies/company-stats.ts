@@ -29,7 +29,7 @@ import {
   type FreshnessBucket,
 } from "@/lib/jobs/posting-age-buckets";
 import { firstNonNull } from "@/lib/companies/aggregates";
-import { decodeText } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand } from "@/lib/jobs/presentation";
 import { isBuildPhase } from "@/lib/next-phase";
 import { hasMeilisearch, searchMeili } from "@/lib/jobs/meilisearch";
 import type { GhostBadge, PublicJob } from "@/lib/jobs/types";
@@ -107,12 +107,32 @@ export async function fetchCompanyProfile(company: string): Promise<CompanyProfi
     return { name: company.trim(), domain: null, roles: [], totalOpenRoles: 0, ghostMix: [], freshness: [] };
   }
 
+  const domain = dominantCompanyDomain(matched);
   return {
-    name: decodeText(matched[0]!.company) || company.trim(),
-    domain: dominantCompanyDomain(matched),
+    name: resolveProfileName(matched, company, domain),
+    domain,
     roles: matched.slice(0, COMPANY_ROLES_DISPLAY_LIMIT),
     ...deriveCompanyStats(matched),
   };
+}
+
+/**
+ * Pure: the display name for a company profile — the cleaned brand of the
+ * first matched hit's company, falling back to the trimmed input when
+ * cleaning yields nothing (e.g. a legal-suffix-only string with no domain to
+ * resolve against). Split out from `fetchCompanyProfile` for the same reason
+ * `deriveCompanyStats` is: unit-testable without a network call.
+ *
+ * `matched[0]!.company` is the index's ATS-stated raw name (intervu owns
+ * display-time cleaning, not ingest) — `CompanyHeader` renders `profile.name`
+ * straight into an <h1>, so it needs the same displayCompanyBrand chain the
+ * SERP/detail panes already apply, not just the entity-decode `decodeText`
+ * alone was doing.
+ */
+export function resolveProfileName(matched: PublicJob[], inputCompany: string, domain: string | null): string {
+  const first = matched[0];
+  if (!first) return inputCompany.trim();
+  return displayCompanyBrand(first.company, domain, first.title) || inputCompany.trim();
 }
 
 /**

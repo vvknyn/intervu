@@ -5,6 +5,7 @@ import { usePursuits } from "@/lib/pursuits/use-pursuits";
 import { boardColumn, orderPursuits, type Pursuit } from "@/lib/pursuits/types";
 import { TRACKER_BOARD_COLUMNS } from "@/lib/pursuits/tracker-display";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 
 /** Same stage buckets/labels as the /yours board — sourced directly from
  *  `TRACKER_BOARD_COLUMNS` (the one place lane label/order lives) rather
@@ -16,8 +17,13 @@ const STAGE_TILES = TRACKER_BOARD_COLUMNS.filter(({ column }) => column !== "clo
 function pursuitTitle(p: Pursuit): string {
     return p.job_snapshot?.title ?? p.position;
 }
+// `job_snapshot.company`/`company_name` are Firestore-stored raw values (same
+// snapshot shape /yours and /yours/history read) — the live Meili index
+// carries the ATS-stated raw name permanently (intervu owns brand cleaning
+// at display time, never at ingest), so this rail widget needs the same
+// render-time clean those two pages already apply.
 function pursuitCompany(p: Pursuit): string {
-    return p.job_snapshot?.company ?? p.company_name;
+    return displayCompanyName(p.job_snapshot?.company ?? p.company_name);
 }
 
 /**

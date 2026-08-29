@@ -118,6 +118,35 @@ test("dedupeJobSuggestionHits strips the gender-suffix artifact from both title 
     assert.deepEqual(result.companies, ["Acme Systems", "Beta Systems"]);
 });
 
+// Company-name seam rework (2026-08-29): the index carries the ATS-stated
+// raw name (intervu owns display-time cleaning, not ingest — the sync that
+// writes the live index lives in a separate repo and PUTs the feed through
+// unchanged), so this dedupe/label step is the typeahead's ONE chokepoint
+// for cleaning, not a leftover from an ingest-time seam. Cleaner-algorithm
+// coverage itself (hostname strip, legal suffix, slogan/brand split,
+// idempotency) lives in jobs-company-clean.test.ts against displayCompanyBrand
+// directly — these two cases prove THIS surface actually calls it, and that
+// cleaning happens before the dedupe key so near-duplicate raw strings
+// collapse into one suggestion instead of three.
+test("dedupeJobSuggestionHits cleans company text before dedupe/cap — a REQ-prefixed and a legal-suffixed raw name for the same company collapse to one cleaned suggestion", () => {
+    const result = dedupeJobSuggestionHits(
+        [
+            { title: "Engineer", company: "REQ123 Acme" },
+            { title: "Engineer II", company: "Acme, Inc." },
+        ],
+        "acme",
+    );
+    assert.deepEqual(result.companies, ["Acme"]);
+});
+
+test("dedupeJobSuggestionHits prefers the domain-corroborated brand tail of a '{slogan} - {brand}' raw name", () => {
+    const result = dedupeJobSuggestionHits(
+        [{ title: "Recruiter", company: "We build great things - Acme", company_domain: "acme.com" }],
+        "acme",
+    );
+    assert.deepEqual(result.companies, ["Acme"]);
+});
+
 // 2026-08-14: the typeahead's request body moved off hitsPerPage (forces
 // Meili's exhaustive-count pagination engine) + unscoped search (description
 // text feeds suggestions) — measured live 0.62s cold / ~0.1s warm — onto

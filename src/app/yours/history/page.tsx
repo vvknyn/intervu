@@ -80,10 +80,12 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
     const snapshot = view.job_snapshot;
     const href = jobPath({ id: view.job_id, title: snapshot.title, company: snapshot.company });
     // `job_snapshot.company` is a Firestore-stored copy taken when the job was
-    // viewed (`buildJobSnapshot`, lib/pursuits/types.ts) — rows filed before the
-    // ingest-side cleaning seam (lib/jobs/meilisearch.ts's `upsertJobs`) still
-    // carry the raw feed value, and a view is never rewritten after the fact.
-    // Cleaned at render instead, same as every live search hit.
+    // viewed (`buildJobSnapshot`, lib/pursuits/types.ts) — the live Meili index
+    // carries the ATS-stated raw name permanently (intervu owns brand cleaning
+    // at display time, never at ingest — see meilisearch.ts's `upsertJobs`),
+    // so every snapshot taken from it carries the raw value too, and a view is
+    // never rewritten after the fact. Cleaned at render instead, same as every
+    // live search hit.
     const companyName = displayCompanyName(snapshot.company);
     return (
         <div

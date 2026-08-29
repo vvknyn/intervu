@@ -1502,6 +1502,16 @@ export function dedupeJobSuggestionHits(
     if (domain && isDomainSquashName(company, domain)) {
       company = humanizeTenantSubdomain(domain);
     }
+    // The index carries the ATS-stated raw name (intervu owns display-time
+    // cleaning, not ingest — see upsertJobs), so fold junk prefixes / legal
+    // suffixes / slogan-brand splits onto the same canonical form the SERP
+    // renders RIGHT before the dedup key below — otherwise "REQ123 Acme",
+    // "Acme, Inc.", and "We build things - Acme" dedupe as three distinct,
+    // near-identical suggestion rows instead of collapsing into one "Acme".
+    // `|| company` only matters if cleaning empties out an already-non-empty
+    // string with no domain to fall back to (e.g. a bare legal-suffix token)
+    // — keep showing the pre-clean text rather than drop the suggestion.
+    company = displayCompanyBrand(company, domain, hit.title) || company;
     if (!titleMatchesQuery(company, q)) continue;
     const key = company.toLowerCase();
     if (!seenCompanies.has(key)) {
@@ -1730,42 +1740,20 @@ export function derivePostedTs(job: { posted_at?: string | null; first_seen_at?:
   return sanitizeTimestamp(job.posted_at, now) ?? sanitizeTimestamp(job.first_seen_at, now) ?? null;
 }
 
-/**
- * Overwrites `company` with `displayCompanyBrand`'s cleaned form at the
- * ingest boundary — the SAME chain the SERP/detail panes already apply at
- * render (`cleanCompany` -> `displayCompanyName` -> `preferBrandSegment`),
- * just moved upstream so every OTHER reader of a search hit's `company`
- * (typeahead, MCP tools, `/companies/[slug]`, a tracker/digest snapshot
- * taken from a fresh hit) gets the clean value for free instead of
- * re-deriving it. `company_raw` keeps the untouched feed string for the rare
- * caller that specifically wants it — never re-cleaned itself.
- *
- * `|| null` (not the bare cleaned string) guards the `?? "Unknown company"`
- * fallbacks downstream (e.g. `toSectionItem` in email/digest/collect.ts)
- * that key off nullish rather than falsy — an empty-string `company` would
- * silently defeat them. `displayCompanyBrand` is idempotent, so a doc that
- * already went through this seam on a prior sync just re-cleans to the same
- * value — safe to run on every ingest, not just the first.
- */
-export function applyCompanySeam(
-  job: Pick<PublicJob, "company" | "company_domain" | "title">,
-): { company: string | null; company_raw: string | null } {
-  return {
-    company: displayCompanyBrand(job.company, job.company_domain, job.title) || null,
-    company_raw: job.company,
-  };
-}
-
 export async function upsertJobs(jobs: PublicJob[]): Promise<void> {
   if (!jobs.length) return;
   // Chokepoint: every ingest path (initialLoad / syncChanged / reconcileAndEvict
-  // in lib/jobs/sync.ts) funnels through here, so deriving posted_ts/company
-  // once at the PUT boundary keeps both consistent without threading them
-  // through each caller.
+  // in lib/jobs/sync.ts) funnels through here, so deriving posted_ts once at
+  // the PUT boundary keeps it consistent without threading it through each
+  // caller. NOTE: this function has zero callers in production — the live
+  // Meili index is written by the separate interview-os repo's
+  // scripts/jobs-sync/sync.mjs (systemd timers), which PUTs the Subspace feed
+  // through unchanged. `company` is deliberately left as the ATS-stated raw
+  // name on the index; intervu owns brand-name cleaning at display time
+  // (lib/jobs/presentation.ts), not at ingest.
   const docs = jobs.map((j) => ({
     ...j,
     posted_ts: derivePostedTs(j),
-    ...applyCompanySeam(j),
   }));
   await adminFetch(`/indexes/${JOBS_INDEX}/documents?primaryKey=id`, {
     method: "PUT",
