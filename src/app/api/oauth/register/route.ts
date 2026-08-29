@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { firestoreStore } from "@/lib/agent/store";
+import { getAgentStore } from "@/lib/agent/store";
 import { registerClient } from "@/lib/agent/oauth";
 import { AGENT } from "@/lib/agent/config";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "invalid_redirect_uri" }, { status: 400 });
     }
 
-    const result = await registerClient(firestoreStore(), {
+    const result = await registerClient(getAgentStore(), {
         client_name: sanitizeClientName(body.client_name),
         redirect_uris: body.redirect_uris,
     });

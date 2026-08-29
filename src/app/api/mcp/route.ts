@@ -4,7 +4,7 @@ import { createMcpHandler } from "mcp-handler";
 import type { ServerContext } from "@modelcontextprotocol/server";
 import { AGENT } from "@/lib/agent/config";
 import { extractBearerToken } from "@/lib/agent/http";
-import { firestoreStore } from "@/lib/agent/store";
+import { getAgentStore } from "@/lib/agent/store";
 import { verifySecret, AUTHORIZED_CREDENTIAL_KINDS } from "@/lib/agent/tokens";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import { consumeRecordBudget } from "@/lib/agent/record-budget";
@@ -110,7 +110,7 @@ function withDeps<In, Out extends object>(
             getPreferences: getAgentPreferences,
             setPreferences: setAgentPreferences,
             listApplications: listPursuitsForUser,
-            consumeRecordBudget: (count) => consumeRecordBudget(firestoreStore(), credentialId, count),
+            consumeRecordBudget: (count) => consumeRecordBudget(getAgentStore(), credentialId, count),
             getCompanyPageData,
             getCompanyExhaust,
             searchCompanies: (query, limit) => searchCompanies(getExhaustPg(), query, limit),
@@ -511,7 +511,7 @@ async function handleMcpRequest(request: Request): Promise<Response> {
     const secret = extractBearerToken(request);
     if (!secret) return unauthorizedResponse();
 
-    const credential = await verifySecret(firestoreStore(), secret);
+    const credential = await verifySecret(getAgentStore(), secret);
     if (!credential || !AUTHORIZED_CREDENTIAL_KINDS.has(credential.kind)) {
         return unauthorizedResponse();
     }

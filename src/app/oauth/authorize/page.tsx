@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { firestoreStore } from "@/lib/agent/store";
+import { getAgentStore } from "@/lib/agent/store";
 import { validateConsentRequest, consentParamsToQuery, type ConsentParamsInput } from "@/lib/agent/consent";
 import { getServerUser } from "@/lib/auth/server-user";
 import { ConsentCard, LoggedOutCard, ErrorCard } from "@/components/oauth/ConsentCards";
@@ -24,7 +24,7 @@ export default async function AuthorizePage({
     searchParams: Promise<ConsentParamsInput>;
 }) {
     const raw = await searchParams;
-    const store = firestoreStore();
+    const store = getAgentStore();
     const validation = await validateConsentRequest(store, raw);
 
     if (!validation.ok) {

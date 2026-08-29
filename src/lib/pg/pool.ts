@@ -79,6 +79,15 @@ export const getIntervuPg = createPool("INTERVU_PG_URL", { statementTimeout: "15
  */
 export const getExhaustPg = createPool("EXHAUST_PG_URL", { readOnly: true, statementTimeout: "5s" });
 
+/**
+ * Returns the agent/MCP credential-store query seam, or null when
+ * AGENT_PG_URL is unset — the same fail-soft-on-missing-env contract as
+ * `getIntervuPg`/`getExhaustPg`. Read-write (unlike `getExhaustPg`): this
+ * pool backs `postgresStore()` (lib/agent/store.ts), which issues, verifies,
+ * and revokes MCP bearer credentials.
+ */
+export const getAgentPg = createPool("AGENT_PG_URL", { statementTimeout: "15s" });
+
 export function isIdentityStoreEnabled(): boolean {
   return getIntervuPg() !== null;
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { firestoreStore } from "@/lib/agent/store";
+import { getAgentStore } from "@/lib/agent/store";
 import { exchangeCode, refreshAccess } from "@/lib/agent/oauth";
 import { AGENT } from "@/lib/agent/config";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     }
 
     const { grant_type, client_id } = body;
-    const store = firestoreStore();
+    const store = getAgentStore();
 
     if (grant_type === "authorization_code") {
         const { code, redirect_uri, code_verifier } = body;

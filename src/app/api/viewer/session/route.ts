@@ -12,14 +12,14 @@
 import { NextResponse } from "next/server";
 import { extractBearerToken } from "@/lib/agent/http";
 import { verifySecret, AUTHORIZED_CREDENTIAL_KINDS } from "@/lib/agent/tokens";
-import { firestoreStore } from "@/lib/agent/store";
+import { getAgentStore } from "@/lib/agent/store";
 import { createSession } from "@/lib/viewer/session-store";
 
 export async function POST(request: Request) {
     const secret = extractBearerToken(request);
     if (!secret) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    const credential = await verifySecret(firestoreStore(), secret);
+    const credential = await verifySecret(getAgentStore(), secret);
     if (!credential || !AUTHORIZED_CREDENTIAL_KINDS.has(credential.kind)) {
         return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }

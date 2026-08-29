@@ -3,7 +3,13 @@
  * Phase 1 of the Firestore -> Postgres migration: dump every collection in
  * MIGRATION_MANIFEST to CSV, one file per table, plus a checksum manifest.
  *
- *   npx tsx scripts/firestore-export.ts [--out=<dir>]
+ *   npx tsx scripts/firestore-export.ts [--out=<dir>] [--collection=<id>]
+ *
+ * --collection scopes the run to one MIGRATION_MANIFEST entry (matched on
+ * its `collection` id, e.g. `agent_credentials`) instead of all 26 — the
+ * backfill for a single collection's cutover (see
+ * src/lib/agent/store.ts's postgresStore()/getAgentStore()) without
+ * re-exporting everyone else's data on every run.
  *
  * READ-ONLY against Firestore. It cannot delete or modify a document; the
  * migration is a COPY and the Firestore data stays exactly where it is until
@@ -96,12 +102,22 @@ async function main(): Promise<void> {
     const outDir = outArg ? outArg.slice("--out=".length) : "/tmp/firestore-export";
     mkdirSync(outDir, { recursive: true });
 
+    const collectionArg = process.argv.find((a) => a.startsWith("--collection="));
+    const wantedCollection = collectionArg ? collectionArg.slice("--collection=".length) : null;
+    const specs = wantedCollection
+        ? (MIGRATION_MANIFEST as CollectionSpec[]).filter((s) => s.collection === wantedCollection)
+        : (MIGRATION_MANIFEST as CollectionSpec[]);
+    if (wantedCollection && specs.length === 0) {
+        console.error(`no collection '${wantedCollection}' in MIGRATION_MANIFEST`);
+        process.exit(1);
+    }
+
     const { getAdminDb } = await import("../src/lib/firebase/admin.ts");
     const db = getAdminDb();
 
     const reports: TableReport[] = [];
 
-    for (const spec of MIGRATION_MANIFEST as CollectionSpec[]) {
+    for (const spec of specs) {
         // A subcollection has no single parent to read from, so it is walked
         // as a collection group; `doc.ref.path` carries the uid either way.
         const query = spec.subcollectionOf
