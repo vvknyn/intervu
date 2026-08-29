@@ -14,9 +14,14 @@
  */
 import { foldForMatch } from "@/lib/geo/corpus-values";
 import { isMalformedLocationValue } from "@/lib/geo/malformed-location-value";
+import { isMisfiledCountryName } from "@/lib/geo/misfiled-country";
 import { regionLabel } from "@/lib/geo/regions";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { capitalizeWords } from "@/lib/text-case";
+// Type-only on purpose: this module is in the CLIENT bundle (the combobox
+// imports it), and a value import of gazetteer.ts would drag the multi-MB
+// gazetteer JSON along. The server route passes the loaded instance in.
+import type { Gazetteer } from "@/lib/geo/gazetteer";
 import type { LocationField } from "@/lib/geo/resolve-place";
 import type { FacetHit } from "@/lib/geo/corpus-values";
 
@@ -213,6 +218,7 @@ export function mergeFieldHits(
     field: LocationField,
     hits: readonly FacetHit[],
     perField = LOCATION_SUGGEST_PER_FIELD,
+    gazetteer?: Gazetteer,
 ): LocationSuggestion[] {
     const groups = new Map<string, { total: number; best: FacetHit }>();
 
@@ -261,6 +267,15 @@ export function mergeFieldHits(
         // canonical geography at ingest), not something this display seam can
         // repair.
         if (regionLabel(hit.value)) continue;
+        // Same trap, one tier down: a value that names a COUNTRY is not a
+        // city or a state either — unless a real city/admin1 genuinely
+        // carries that name, which is what the predicate's protective
+        // lookups check ("Georgia" the US state stays; "Canada" under
+        // CITIES goes). Measured trap and the full rule: see
+        // misfiled-country.ts. Skipped without a gazetteer (the server
+        // route always passes one) — absence of knowledge never
+        // suppresses, per this ladder's positive-evidence-only stance.
+        if (gazetteer && isMisfiledCountryName(field, hit.value, gazetteer)) continue;
         const folded = foldForMatch(hit.value);
         if (!folded) continue;
         const existing = groups.get(folded);
@@ -296,12 +311,13 @@ export function mergeFieldHits(
 export function buildLocationSuggestions(
     hitsByField: Partial<Record<LocationField, readonly FacetHit[]>>,
     perField = LOCATION_SUGGEST_PER_FIELD,
+    gazetteer?: Gazetteer,
 ): LocationSuggestGroup[] {
     const out: LocationSuggestGroup[] = [];
     for (const { field, heading } of LOCATION_SUGGEST_FIELDS) {
         const hits = hitsByField[field];
         if (!hits) continue;
-        const items = mergeFieldHits(field, hits, perField);
+        const items = mergeFieldHits(field, hits, perField, gazetteer);
         if (items.length > 0) out.push({ field, heading, items });
     }
     return out;

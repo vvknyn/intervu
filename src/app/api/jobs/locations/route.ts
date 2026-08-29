@@ -19,12 +19,14 @@
  * exist when we simply failed to look.
  */
 import { NextResponse } from "next/server";
+import { loadGazetteer } from "@/lib/geo/gazetteer";
 import { fetchFacetSearch, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import {
     applyLabelPrefix,
     buildLocationSuggestions,
     buildWorkModeSuggestion,
     LOCATION_SUGGEST_FIELDS,
+    LOCATION_SUGGEST_PER_FIELD,
     planLocationQuery,
 } from "@/lib/jobs/location-suggest";
 import { getClientIp } from "@/lib/shield/client-ip";
@@ -85,7 +87,14 @@ async function buildPlaceGroups(plan: LocationQueryPlan): Promise<LocationSugges
         if (hits) hitsByField[fields[i]] = hits;
     });
 
-    return applyLabelPrefix(buildLocationSuggestions(hitsByField), plan.labelPrefix);
+    // The gazetteer is what lets the model drop a country name misfiled
+    // into a city/state facet (see misfiled-country.ts) — loaded here, on
+    // the server, because the model itself is client-bundled and must not
+    // import the gazetteer JSON.
+    return applyLabelPrefix(
+        buildLocationSuggestions(hitsByField, LOCATION_SUGGEST_PER_FIELD, loadGazetteer()),
+        plan.labelPrefix,
+    );
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
