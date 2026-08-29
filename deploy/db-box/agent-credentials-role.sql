@@ -1,0 +1,39 @@
+-- Least-privilege role for AGENT_PG_URL (src/lib/pg/pool.ts's getAgentPg),
+-- the MCP/agent credential store's own Postgres connection
+-- (src/lib/agent/store.ts's postgresStore(), routed to by getAgentStore()).
+--
+-- WRITE ONLY. Never applied by CI or app code, and NOT executed against
+-- prod by this change — run manually against the box, as a superuser or the
+-- schema-owning role, with a password set interactively and never committed
+-- (same convention as deploy/supabase/identity-schema.sql's ROLE SETUP
+-- block):
+--
+--   CREATE ROLE agent_pg LOGIN PASSWORD '<set interactively>';
+--   GRANT USAGE ON SCHEMA intervu TO agent_pg;
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON intervu.agent_credentials TO agent_pg;
+--
+-- WHY A NEW ROLE, NOT service_role/pipeline. deploy/db-box/intervu-schema.sql
+-- (generated from src/lib/db/firestore-migration-manifest.ts) already grants
+-- those two roles ALL privileges across the ENTIRE intervu schema — all 26
+-- Phase-1 tables, including resume_history ("the most personal data in the
+-- product" per that manifest's own comment) and every other user's migrated
+-- collection. That blanket grant is right for pipeline's batch backfill
+-- role; it is the wrong shape for a live, internet-facing, per-request
+-- bearer-token verification path. A bug or a leaked AGENT_PG_URL in this
+-- pool has no legitimate reason to read or write anyone's resume, saved
+-- search, or application history, so this role is granted nothing on any
+-- table but the one it exists to serve.
+--
+-- TABLE + INDEXES ALREADY EXIST. deploy/db-box/intervu-schema.sql already
+-- creates intervu.agent_credentials with all 5 indexes postgresStore()'s
+-- findByField/claim rely on (token_hash, uid, client_id, expires_at_ms,
+-- revoked_at_ms). Nothing here duplicates that DDL — apply that file FIRST
+-- if the intervu schema does not exist yet on this box. This file adds
+-- exactly one thing intervu-schema.sql does not: a role scoped to less than
+-- "all 26 tables."
+--
+-- CONNECTIVITY. The db-box firewall admits 5432 only from the pipeline box
+-- (194.163.147.154) — see deploy/db-box/load-firestore-export.sh. AGENT_PG_URL
+-- must be reachable from wherever the app actually runs; if that is not the
+-- pipeline box, the firewall rule needs the same review the other box pools
+-- already went through, not a new one invented here.

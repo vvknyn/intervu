@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { firestoreStore } from "@/lib/agent/store";
+import { getAgentStore } from "@/lib/agent/store";
 import { createAuthCode } from "@/lib/agent/oauth";
 import { validateConsentRequest, type ConsentParamsInput } from "@/lib/agent/consent";
 import { getServerUser } from "@/lib/auth/server-user";
@@ -36,7 +36,7 @@ function errorRedirect(redirectUri: string, state: string | undefined, error: st
  * runs again here before anything is issued or any redirect happens.
  */
 export async function approveConsentAction(formData: FormData): Promise<void> {
-    const store = firestoreStore();
+    const store = getAgentStore();
     const validation = await validateConsentRequest(store, readConsentParams(formData));
     if (!validation.ok) {
         // redirect_uri isn't provably registered to this client_id — there is
@@ -64,7 +64,7 @@ export async function approveConsentAction(formData: FormData): Promise<void> {
 
 /** Deny button — same re-validation, then bounce back with the standard RFC 6749 denial. */
 export async function denyConsentAction(formData: FormData): Promise<void> {
-    const store = firestoreStore();
+    const store = getAgentStore();
     const validation = await validateConsentRequest(store, readConsentParams(formData));
     if (!validation.ok) {
         throw new Error(`[agent-consent] deny rejected: ${validation.error}`);

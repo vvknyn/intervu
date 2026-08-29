@@ -1,6 +1,6 @@
 "use server";
 
-import { firestoreStore } from "@/lib/agent/store";
+import { getAgentStore } from "@/lib/agent/store";
 import {
     issueCredential,
     revokeCredential,
@@ -17,7 +17,7 @@ export type { CredentialSummary as AgentCredentialSummary } from "@/lib/agent/to
 export async function listAgentCredentialsAction(): Promise<{ data?: CredentialSummary[]; error?: string }> {
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
-    const rows = await listCredentials(firestoreStore(), user.uid);
+    const rows = await listCredentials(getAgentStore(), user.uid);
     return { data: toActiveCredentialSummaries(rows) };
 }
 
@@ -26,7 +26,7 @@ export async function listAgentCredentialsAction(): Promise<{ data?: CredentialS
 export async function createManualTokenAction(): Promise<{ secret?: string; error?: string }> {
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
-    const { secret } = await issueCredential(firestoreStore(), { uid: user.uid, kind: "manual" });
+    const { secret } = await issueCredential(getAgentStore(), { uid: user.uid, kind: "manual" });
     return { secret };
 }
 
@@ -46,8 +46,8 @@ export async function revokeAgentCredentialAction(
     if (!user) return { error: "Unauthorized" };
     const revokedCount =
         kind === "oauth"
-            ? await revokeByClient(firestoreStore(), user.uid, id)
-            : (await revokeCredential(firestoreStore(), user.uid, id))
+            ? await revokeByClient(getAgentStore(), user.uid, id)
+            : (await revokeCredential(getAgentStore(), user.uid, id))
               ? 1
               : 0;
     if (revokedCount === 0) return { error: "Credential not found" };

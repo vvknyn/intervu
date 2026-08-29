@@ -11,7 +11,7 @@
 import { NextResponse } from "next/server";
 import { extractBearerToken } from "@/lib/agent/http";
 import { verifySecret, AUTHORIZED_CREDENTIAL_KINDS } from "@/lib/agent/tokens";
-import { firestoreStore } from "@/lib/agent/store";
+import { getAgentStore } from "@/lib/agent/store";
 import { getServerUser } from "@/lib/auth/server-user";
 import { authorizeSession, type SignalBlob, type ViewerSession } from "@/lib/viewer/sessions";
 import { getSession, putSignal, deleteSession } from "@/lib/viewer/session-store";
@@ -19,7 +19,7 @@ import { getSession, putSignal, deleteSession } from "@/lib/viewer/session-store
 async function callerUid(request: Request): Promise<string | null> {
     const secret = extractBearerToken(request);
     if (secret) {
-        const credential = await verifySecret(firestoreStore(), secret);
+        const credential = await verifySecret(getAgentStore(), secret);
         return credential && AUTHORIZED_CREDENTIAL_KINDS.has(credential.kind) ? credential.uid : null;
     }
     return (await getServerUser())?.uid ?? null;
