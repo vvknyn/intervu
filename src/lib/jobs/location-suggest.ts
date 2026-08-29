@@ -14,6 +14,7 @@
  */
 import { foldForMatch } from "@/lib/geo/corpus-values";
 import { isMalformedLocationValue } from "@/lib/geo/malformed-location-value";
+import { regionLabel } from "@/lib/geo/regions";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { capitalizeWords } from "@/lib/text-case";
 import type { LocationField } from "@/lib/geo/resolve-place";
@@ -223,6 +224,43 @@ export function mergeFieldHits(
         // of malformation and still renders — see isMalformedLocationValue's
         // doc for why absence of gazetteer knowledge never suppresses.
         if (isMalformedLocationValue(hit.value)) continue;
+        // A value that NAMES A REGION is not a city, a state or a country,
+        // whichever field it was scraped into — so it never renders as one.
+        //
+        // Measured on prod 2026-08-29: `location_city = "North America"` is a
+        // real corpus value with 23 postings, so the dropdown offered "North
+        // America" under CITIES, and picking it filtered to those 23 rows
+        // (2 inside the 30-day default). Typing the same words and pressing
+        // Enter routes through `resolve-place.ts`'s region tier and returns
+        // ~6,200 — the OR of every member country. Two rows that read
+        // identically, three orders of magnitude apart. The one that reads
+        // like a continent and delivers a city is the trap, so it goes.
+        //
+        // Removing it, rather than re-pointing it, is what keeps the
+        // advertised count honest: a "North America — 6,200" row would have
+        // to promise a number this endpoint cannot measure (the region clause
+        // ORs country + admin1 + city candidates and is capped at
+        // `MAX_REGION_CLAUSE_TERMS`, so no sum of member-country facet counts
+        // equals what the filter then delivers). With the row gone, the box's
+        // existing free-text commit — Enter, blur, or SEARCH, all one path
+        // through `addLocation` — is the ONLY way a region phrase resolves,
+        // and that path already answers it correctly.
+        //
+        // `regionLabel` reads the same `REGION_ALIASES` table the resolver
+        // does, matched on the fully folded value, so this is one rule over a
+        // data table, not a list of banned strings: a region added there is
+        // covered here by construction, and a city whose name merely CONTAINS
+        // a region word ("North Vancouver", "Asia Pacific Heights") is
+        // untouched.
+        //
+        // Accepted loss, stated rather than hidden: a posting whose city
+        // literally reads "North America" is now only reachable through the
+        // region filter if its own country/city text matches a member
+        // candidate. Where such a row carries no country at all it is
+        // unreachable from this box — that is the ingest-side defect (#50,
+        // canonical geography at ingest), not something this display seam can
+        // repair.
+        if (regionLabel(hit.value)) continue;
         const folded = foldForMatch(hit.value);
         if (!folded) continue;
         const existing = groups.get(folded);
