@@ -226,11 +226,12 @@ test("id lookup omits attributesToRetrieve so the full document is returned", ()
     assert.ok(!("attributesToRetrieve" in body));
 });
 
-// Repo-parity only (no live push here — see applyIndexSettings/sync.ts):
-// the live jobs index carries these 15 stopWords since ~2026-08-27. Keeping
-// them declared in the canon means the next legitimate `applyIndexSettings`
-// push doesn't silently drop them, and quoteShortTokens/matchingStrategy
-// reasoning above can assume they're actually in effect.
+// Repo-parity only (no live push from this repo — settings are applied by
+// the pipeline repo's sync worker): the live jobs index carries these 15
+// stopWords since ~2026-08-27. Keeping them declared in the canon means the
+// next legitimate settings push doesn't silently drop them, and
+// quoteShortTokens/matchingStrategy reasoning above can assume they're
+// actually in effect.
 test("JOBS_INDEX_SETTINGS declares the 15 stopWords live on the jobs index", () => {
     assert.deepEqual(JOBS_INDEX_SETTINGS.stopWords, [
         "a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with",
