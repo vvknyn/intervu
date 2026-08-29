@@ -158,7 +158,13 @@ export interface JobsApiEnvelope {
   meta: JobsApiMeta;
 }
 
-/** Facet keys exposed for faceted filtering (must be a subset of the Meili filterableAttributes). */
+/** Facet keys exposed for faceted filtering (must be a subset of the Meili filterableAttributes).
+ *  `location_city`/`location_state` are FACETABLE (filterable via ?city=/?state=,
+ *  url-state.ts, and picked from the location typeahead) but never reach
+ *  `buildFilter`'s generic per-key loop directly — `resolveLocationFacet`
+ *  (query-understanding.ts) always strips them into `places` first, same as
+ *  `location_country` already is, so they're never REQUESTED_FACET_KEYS
+ *  below either (no checkbox UI reads their distribution). */
 export const FACETABLE_KEYS = [
   "work_type",
   "experience_level",
@@ -166,6 +172,8 @@ export const FACETABLE_KEYS = [
   "ghost_badge",
   "visa_sponsorship",
   "location_country",
+  "location_city",
+  "location_state",
   "source",
   "tech_stack",
   "must_have_skills",

@@ -20,12 +20,18 @@ import type { LocationField } from "@/lib/geo/resolve-place";
 import type { FacetHit } from "@/lib/geo/corpus-values";
 
 /**
- * Which facet a suggestion writes when committed. Every PLACE suggestion
- * (city/state/country) writes `location_country` regardless of which of the
- * three fields matched it — see `addLocation` in page.tsx — so `LocationField`
- * alone was never the whole answer to "what does this commit". The one
- * suggestion that targets something else is the bare-work-mode row, hence a
- * widened union here rather than a new type per field.
+ * Which facet a suggestion writes when committed. A picked CITY or STATE
+ * suggestion writes its OWN field (`location_city`/`location_state`) — see
+ * `addLocation` in page.tsx — so it's filtered as the exact literal it was
+ * advertised and counted as (`resolvePickedFacetValue`,
+ * query-understanding.ts), never re-resolved as free text through the
+ * gazetteer. A picked COUNTRY suggestion still writes `location_country`,
+ * the same bucket free-typed text uses: country picks were never the source
+ * of the mis-resolution this fields-through-the-click design exists to fix
+ * (see the module doc's "San Jose" / composite-value bug), and that bucket
+ * already runs the full gazetteer + exact-literal pipeline. The one
+ * suggestion that targets something else entirely is the bare-work-mode
+ * row, hence a widened union here rather than a new type per field.
  */
 export type SuggestField = LocationField | "work_type";
 

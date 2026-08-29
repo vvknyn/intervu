@@ -5,6 +5,7 @@ import {
   companyCorroborationCandidates,
   parsePlaceTokens,
   resolveLocationFacet,
+  resolvePickedFacetValue,
   type CompanyProbe,
   type LocationVocabulary,
 } from "../../src/lib/jobs/query-understanding";
@@ -855,4 +856,125 @@ test("a clause with no work mode renders exactly the string it always did", asyn
     filter.some((f) => f === '((location_country = "Canada"))'),
     `unchanged single-group rendering expected: ${JSON.stringify(filter)}`,
   );
+});
+
+/* ------------------------------------------------------------------------
+ * Picked-field provenance (SuggestField fix): "advertised count == delivered
+ * count" for a value CLICKED from the typeahead dropdown. Free text (no
+ * `field`) still goes through the tiered gazetteer/tokenizer path above,
+ * unchanged; a PICKED value instead probes the exact field it was advertised
+ * on — `resolvePickedFacetValue` (single-field `probeFacetFields`), wired
+ * live via `resolveLocationFacet` reading `p.facets.location_city` /
+ * `location_state` (never gazetteer-tokenized). `location_country` picks
+ * keep routing through the pre-existing `location_country` bucket/tiered
+ * path (page.tsx: `targetKey = field ?? "location_country"`), so
+ * `resolvePickedFacetValue`'s own field-genericity (proven directly below,
+ * case d) is what covers a country pick's contract without touching that
+ * bucket's established, backward-compatible behavior.
+ *
+ * Both fixture values below are real, live homonyms across facet FIELDS —
+ * not just across countries — the exact shape the mis-resolution bug needs:
+ * a bare string is ambiguous between fields, so only the FIELD (not another
+ * gazetteer probe) can disambiguate which one the searcher actually clicked.
+ */
+const PICKED_VOCAB = fakeVocab([
+  // "San Jose": the CA city (the live screenshot bug, 5,792 roles) AND, on
+  // location_state, a stand-in for Costa Rica's "San José" province — the
+  // exact cross-field homonym that sent the advertised city pick to the
+  // wrong 407-row bucket.
+  { field: "location_city", value: "San Jose" },
+  { field: "location_state", value: "San Jose" },
+  // "Georgia": the US state AND the country — a second, independent
+  // cross-field homonym proving the fix isn't San Jose-specific.
+  { field: "location_state", value: "Georgia" },
+  { field: "location_country", value: "Georgia" },
+]);
+
+test("(a) picked plain value, field=location_city: probes ONLY location_city, never the identically-named location_state value — the live San Jose/Costa Rica mis-resolution", async () => {
+  const p = await resolveLocationFacet({ facets: { location_city: ["San Jose"] } }, PICKED_VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "San Jose" }] }]);
+});
+
+test("(b) picked COMPOSITE value, field=location_city: resolves to the exact literal, never gazetteer-tokenized into an AND of its parts — the picked path never calls parsePlaceTokens at all", async () => {
+  // DALY_VOCAB's composite ("United States Daly City") fully tokenizes into
+  // country+city when TYPED (see the arity-gate tests above); picked, it
+  // must never even attempt that.
+  const p = await resolveLocationFacet({ facets: { location_city: ["United States Daly City"] } }, DALY_VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "United States Daly City" }] }]);
+});
+
+test("(c) picked plain value, field=location_state: probes ONLY location_state, never location_country — the Georgia (US state) / Georgia (country) homonym", async () => {
+  const p = await resolveLocationFacet({ facets: { location_state: ["Georgia"] } }, PICKED_VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_state", value: "Georgia" }] }]);
+});
+
+test("(d) resolvePickedFacetValue is generic over all three LocationField members — field=location_country probes only location_country, never location_state, even for a same-named value on both (open/closed at the chokepoint: covers a country pick's contract without rewiring the unchanged location_country bucket)", async () => {
+  const hits = await resolvePickedFacetValue("location_country", "Georgia", PICKED_VOCAB);
+  assert.deepEqual(hits, [{ field: "location_country", value: "Georgia" }]);
+});
+
+// "North America" is a recognized region phrase (resolveRegion,
+// resolve-place.ts) whose candidates are the UNION of its member countries'
+// own candidate sets — a real feature, unconditional on any fixture. Using a
+// vocab where NO member country (US, Canada, ...) has any real corpus
+// support isolates the actual "North America bug" shape: every candidate
+// fails corpus validation, so the phrase is dropped and reported, never
+// guessed at. (PICKED_VOCAB/VOCAB above both happen to give a member country
+// real corpus support — Georgia/Canada respectively — so region resolution
+// legitimately succeeds against them; that is correct, pre-existing,
+// unchanged behavior, not what this gate is isolating.)
+const NO_REGION_SUPPORT_VOCAB = fakeVocab([{ field: "location_city", value: "Lisbon" }]);
+
+test("(e) REGRESSION GATE: free text (field===undefined), a region phrase with no corpus-validated member country, is dropped and reported unmatched — never guessed at. The 'North America' bug's general fix, unchanged by this diff", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["North America"] } }, NO_REGION_SUPPORT_VOCAB);
+  assert.equal(p.places, undefined);
+  assert.deepEqual(p.unmatchedPlaceMentions, ["North America"]);
+  assert.equal(p.facets?.location_country, undefined);
+});
+
+test("(e) REGRESSION GATE: free text (field===undefined), a multi-place phrase ('Toronto, Canada') typed as ONE mention, still fragments via parsePlaceTokens and ORs together (with the pre-existing cross-mention country scoping) — the typed code path is textually untouched by this change", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["Toronto, Canada"] } }, VOCAB);
+  assert.equal(p.places?.length, 2);
+  assert.equal(p.facets?.location_country, undefined);
+  const filter = buildFilter(p);
+  assert.ok(
+    filter.some(
+      (f) =>
+        f.includes('((location_city = "Toronto") AND (location_country = "Canada"))') &&
+        f.includes('(location_country = "Canada")') &&
+        f.includes(" OR "),
+    ),
+    `expected Toronto-scoped-to-Canada OR a bare Canada clause: ${JSON.stringify(filter)}`,
+  );
+});
+
+test("(f) two picked values on DIFFERENT fields OR together, not AND — a city pick and a state pick both apply, reusing the pre-existing p.places OR-across-mentions mechanism", async () => {
+  const p = await resolveLocationFacet(
+    { facets: { location_city: ["San Jose"], location_state: ["Georgia"] } },
+    PICKED_VOCAB,
+  );
+  assert.equal(p.places?.length, 2, "each picked field resolves to its own clause");
+  assert.equal(p.facets?.location_city, undefined);
+  assert.equal(p.facets?.location_state, undefined);
+  const filter = buildFilter(p);
+  assert.ok(
+    filter.some(
+      (f) => f.includes('location_city = "San Jose"') && f.includes('location_state = "Georgia"') && f.includes(" OR "),
+    ),
+    `both picks must appear in ONE OR group: ${JSON.stringify(filter)}`,
+  );
+});
+
+test("(f) class coverage: a picked value composes with an already-typed free-text place (field===undefined) — different origins, same OR group", async () => {
+  const mixedVocab = fakeVocab([
+    { field: "location_country", value: "Canada" },
+    { field: "location_city", value: "San Jose" },
+  ]);
+  const p = await resolveLocationFacet(
+    { facets: { location_country: ["canada"], location_city: ["San Jose"] } },
+    mixedVocab,
+  );
+  assert.equal(p.places?.length, 2);
+  assert.ok(p.places!.some((c) => c.any.some((a) => a.value === "Canada")));
+  assert.ok(p.places!.some((c) => c.any.some((a) => a.value === "San Jose" && a.field === "location_city")));
 });
