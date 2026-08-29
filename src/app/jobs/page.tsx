@@ -503,7 +503,7 @@ function JobsTourReplayButton() {
  * "already read" signal, distinct from `active` (the row whose detail is
  * OPEN right now).
  */
-function JobCard({
+export function JobCard({
     job,
     active,
     opened,
@@ -710,8 +710,13 @@ function JobCard({
                 prose meta line: one icon set (`FACT_CHIP_ICON`, shared with
                 JobDetail), no box/border, salary bold. Each fact renders
                 only when known (absence is silence, same rule the prose
-                line followed). Falls back to posted age when nothing else
-                is known, so a row is never mute. */}
+                line followed). No posted-age fallback here: `age` already
+                renders once, unconditionally, in the meta column above —
+                repeating it as "Posted {age}" when no other fact is known
+                would just print the same value twice, and for the 18% of
+                jobs with a null `posted_at` it's actually a first-seen date
+                (`derivePostedTs`), not a fact this row should assert as
+                "Posted". */}
             <div className="col-span-full flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
                 {locationKnown && (
                     <span className="inline-flex items-center gap-1.5 text-xs">
@@ -731,9 +736,6 @@ function JobCard({
                         </span>
                     );
                 })}
-                {!locationKnown && factChips.length === 0 && age && (
-                    <span className="mono-data text-xs text-muted-foreground">Posted {age}</span>
-                )}
                 {variantCount > 0 && (
                     <button
                         type="button"
