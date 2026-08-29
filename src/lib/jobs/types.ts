@@ -31,6 +31,17 @@ export interface PublicJob {
   id: string;
   title: string;
   company: string | null;
+  /**
+   * The untouched Subspace feed value for `company`, captured at intervu
+   * ingest (`upsertJobs` in lib/jobs/meilisearch.ts) the moment before that
+   * seam overwrites `company` with `displayCompanyBrand`'s cleaned form —
+   * every other reader of `company` off a search hit (SERP, typeahead, MCP
+   * tools, `/companies/[slug]`) gets the cleaned value for free once the
+   * index carries it; this is only for a caller that specifically wants the
+   * pre-clean string. Optional because documents indexed before the seam
+   * shipped don't carry it, and never itself re-cleaned.
+   */
+  company_raw?: string | null;
   company_domain: string | null;
   location: string | null;
   location_city: string | null;

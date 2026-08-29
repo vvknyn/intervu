@@ -7,6 +7,7 @@ import {
     isPostedTsPopulationSufficient,
     POSTED_TS_POPULATION_THRESHOLD,
     buildSearchBody,
+    applyCompanySeam,
 } from "../../src/lib/jobs/meilisearch";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "../../src/lib/jobs/types";
 
@@ -110,4 +111,60 @@ test("F6 guard: every REQUESTED_FACET_KEYS member is referenced somewhere in the
 test("F6 guard: 'source' is FACETABLE but deliberately absent from both the requested-keys list and the render path", () => {
     assert.ok(!REQUESTED_FACET_KEYS.includes("source"));
     assert.ok(!RENDER_PATH_SRC.includes('"source"'));
+});
+
+// Company-name seam: upsertJobs now overwrites `company` with
+// displayCompanyBrand's cleaned form at the PUT boundary and carries the
+// untouched feed value forward as `company_raw`, so every reader of a live
+// search hit (SERP, typeahead, MCP tools, /companies/[slug]) inherits the
+// same cleaning the render layer already applied, without re-deriving it.
+test("applyCompanySeam: strips an ATS portal hostname to the humanized tenant name", () => {
+    const seam = applyCompanySeam({ company: "jobs.greenhouse.io", company_domain: null, title: "" });
+    assert.equal(seam.company, "Jobs");
+    assert.equal(seam.company_raw, "jobs.greenhouse.io", "raw feed value survives untouched");
+});
+
+test("applyCompanySeam: strips a requisition-code prefix ('REQ123 Acme' -> 'Acme')", () => {
+    const seam = applyCompanySeam({ company: "REQ123 Acme", company_domain: null, title: "" });
+    assert.equal(seam.company, "Acme");
+    assert.equal(seam.company_raw, "REQ123 Acme");
+});
+
+test("applyCompanySeam: prefers the brand tail of a '{slogan} - {brand}' name when the domain confirms it", () => {
+    const seam = applyCompanySeam({
+        company: "We build great things - Acme",
+        company_domain: "acme.com",
+        title: "",
+    });
+    assert.equal(seam.company, "Acme");
+    assert.equal(seam.company_raw, "We build great things - Acme");
+});
+
+test("applyCompanySeam: strips a comma-form legal suffix ('Acme, Inc.' -> 'Acme')", () => {
+    const seam = applyCompanySeam({ company: "Acme, Inc.", company_domain: null, title: "" });
+    assert.equal(seam.company, "Acme");
+    assert.equal(seam.company_raw, "Acme, Inc.");
+});
+
+test("applyCompanySeam is idempotent: re-running the seam on its own output is a no-op", () => {
+    const first = applyCompanySeam({ company: "jobs.greenhouse.io", company_domain: null, title: "" });
+    const second = applyCompanySeam({ company: first.company, company_domain: null, title: "" });
+    assert.equal(second.company, first.company);
+    assert.equal(second.company, "Jobs");
+});
+
+test("applyCompanySeam: null company with no domain falls back to null, not a fabricated string", () => {
+    const seam = applyCompanySeam({ company: null, company_domain: null, title: "" });
+    assert.equal(seam.company, null);
+    assert.equal(seam.company_raw, null);
+});
+
+test("applyCompanySeam: empty-string company preserves displayCompanyBrand's existing domain fallback", () => {
+    const withoutDomain = applyCompanySeam({ company: "", company_domain: null, title: "" });
+    assert.equal(withoutDomain.company, null, "no domain to fall back to -> null, matching the ?? \"Unknown company\" nullish guard downstream");
+    assert.equal(withoutDomain.company_raw, "", "raw stays the untouched empty string, never coerced to null");
+
+    const withDomain = applyCompanySeam({ company: "", company_domain: "acme.com", title: "" });
+    assert.equal(withDomain.company, "Acme", "empty company still resolves via the domain, same as displayCompany's existing fallback");
+    assert.equal(withDomain.company_raw, "");
 });

@@ -16,7 +16,7 @@ import {
   type CompanyNameSample,
 } from "./company-intent";
 import { isTechSkillQuery } from "./tech-skills";
-import { decodeText, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
+import { decodeText, displayCompanyBrand, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
 import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
@@ -1730,12 +1730,43 @@ export function derivePostedTs(job: { posted_at?: string | null; first_seen_at?:
   return sanitizeTimestamp(job.posted_at, now) ?? sanitizeTimestamp(job.first_seen_at, now) ?? null;
 }
 
+/**
+ * Overwrites `company` with `displayCompanyBrand`'s cleaned form at the
+ * ingest boundary — the SAME chain the SERP/detail panes already apply at
+ * render (`cleanCompany` -> `displayCompanyName` -> `preferBrandSegment`),
+ * just moved upstream so every OTHER reader of a search hit's `company`
+ * (typeahead, MCP tools, `/companies/[slug]`, a tracker/digest snapshot
+ * taken from a fresh hit) gets the clean value for free instead of
+ * re-deriving it. `company_raw` keeps the untouched feed string for the rare
+ * caller that specifically wants it — never re-cleaned itself.
+ *
+ * `|| null` (not the bare cleaned string) guards the `?? "Unknown company"`
+ * fallbacks downstream (e.g. `toSectionItem` in email/digest/collect.ts)
+ * that key off nullish rather than falsy — an empty-string `company` would
+ * silently defeat them. `displayCompanyBrand` is idempotent, so a doc that
+ * already went through this seam on a prior sync just re-cleans to the same
+ * value — safe to run on every ingest, not just the first.
+ */
+export function applyCompanySeam(
+  job: Pick<PublicJob, "company" | "company_domain" | "title">,
+): { company: string | null; company_raw: string | null } {
+  return {
+    company: displayCompanyBrand(job.company, job.company_domain, job.title) || null,
+    company_raw: job.company,
+  };
+}
+
 export async function upsertJobs(jobs: PublicJob[]): Promise<void> {
   if (!jobs.length) return;
   // Chokepoint: every ingest path (initialLoad / syncChanged / reconcileAndEvict
-  // in lib/jobs/sync.ts) funnels through here, so deriving posted_ts once at the
-  // PUT boundary keeps it consistent without threading it through each caller.
-  const docs = jobs.map((j) => ({ ...j, posted_ts: derivePostedTs(j) }));
+  // in lib/jobs/sync.ts) funnels through here, so deriving posted_ts/company
+  // once at the PUT boundary keeps both consistent without threading them
+  // through each caller.
+  const docs = jobs.map((j) => ({
+    ...j,
+    posted_ts: derivePostedTs(j),
+    ...applyCompanySeam(j),
+  }));
   await adminFetch(`/indexes/${JOBS_INDEX}/documents?primaryKey=id`, {
     method: "PUT",
     body: JSON.stringify(docs),

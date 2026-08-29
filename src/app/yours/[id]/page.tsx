@@ -14,6 +14,7 @@ import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { updateApplication } from "@/actions/application";
 import { searchJobsAction } from "@/actions/jobs";
 import { classifyExistenceCheck } from "@/lib/jobs/result-state";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
@@ -222,6 +223,12 @@ export default function PursuitDetailPage() {
 
     const action = nextAction(pursuit);
     const snapshot = pursuit.job_snapshot;
+    // `pursuit.company_name` is a Firestore-stored snapshot (`buildJobSnapshot`/
+    // `upsertPursuitCore`) — rows filed before the ingest-side cleaning seam
+    // (lib/jobs/meilisearch.ts's `upsertJobs`) still carry the raw feed value,
+    // and nothing ever rewrites a pursuit already on file. Cleaned at render
+    // instead, same as every live search hit.
+    const companyName = displayCompanyName(pursuit.company_name);
 
     const identity = (
         <>
@@ -229,7 +236,7 @@ export default function PursuitDetailPage() {
                 <Buildings size={26} />
             </div>
             <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-bold tracking-tight">{pursuit.company_name}</h1>
+                <h1 className="text-xl font-bold tracking-tight">{companyName}</h1>
                 <p className="text-muted-foreground">{pursuit.position}</p>
                 {snapshot?.location && <p className="mt-1 text-xs text-muted-foreground">{snapshot.location}</p>}
             </div>
@@ -237,7 +244,7 @@ export default function PursuitDetailPage() {
     );
 
     return (
-        <PageLayout header={<PageHeader title={pursuit.company_name} description={pursuit.position} actions={backLink} />}>
+        <PageLayout header={<PageHeader title={companyName} description={pursuit.position} actions={backLink} />}>
             <div className="space-y-6">
                 <div className="rounded-none border border-border bg-card p-6">
                     {/* Clickable only when a live posting is actually linked. A
@@ -249,7 +256,7 @@ export default function PursuitDetailPage() {
                             type="button"
                             onClick={() => void openDetail(pursuit.job_id!)}
                             className="flex w-full items-start gap-4 text-left transition-opacity hover:opacity-80"
-                            aria-label={`View the posting for ${pursuit.position} at ${pursuit.company_name}`}
+                            aria-label={`View the posting for ${pursuit.position} at ${companyName}`}
                         >
                             {identity}
                         </button>
@@ -337,7 +344,7 @@ export default function PursuitDetailPage() {
             <Sheet open={detail.open} onOpenChange={(open) => setDetail((d) => ({ ...d, open }))}>
                 <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-none p-0">
                     <SheetTitle className="sr-only">
-                        {pursuit.position} at {pursuit.company_name}
+                        {pursuit.position} at {companyName}
                     </SheetTitle>
                     {detail.state === "loading" ? (
                         <div className="p-6">
