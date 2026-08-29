@@ -4,10 +4,11 @@ import {
     buildSearchBody,
     JOB_LIST_ATTRIBUTES_TO_RETRIEVE,
     JOBS_INDEX_SETTINGS,
+    mergeExpandedIntoStrict,
     quoteShortTokens,
-    RELAX_MIN_HITS,
     shouldRelaxSearch,
 } from "../../src/lib/jobs/meilisearch";
+import type { JobSearchResult, PublicJob } from "../../src/lib/jobs/types";
 
 const SORT_MODES = [undefined, "relevance", "newest", "salary_desc"] as const;
 const Q = "product manager";
@@ -18,19 +19,17 @@ function omitSort(body: ReturnType<typeof buildSearchBody>) {
     return rest;
 }
 
-test("by default a real (multiword role) query scopes retrieval to title/company/tags — title-first, not whole-document", () => {
+test("default SERP retrieval is whole-document — no title-first attributesToSearchOn", () => {
     const body = buildSearchBody({ q: "product manager canada" }, false);
-    assert.deepEqual(body.attributesToSearchOn, ["title", "company", "tags"], JSON.stringify(body));
-    const notCompanyScoped = buildSearchBody({ q: "product manager canada" }, false, "all", { companyScoped: false });
-    assert.deepEqual(notCompanyScoped.attributesToSearchOn, ["title", "company", "tags"], JSON.stringify(notCompanyScoped));
+    assert.ok(!("attributesToSearchOn" in body), JSON.stringify(body));
 });
 
-test("the relax pass drops title-first scoping back to whole-document search", () => {
+test("the expand pass drops attribute scoping back to whole-document search", () => {
     const strict = buildSearchBody({ q: "product manager canada" }, false, "all");
-    assert.deepEqual(strict.attributesToSearchOn, ["title", "company", "tags"]);
-    const relaxed = buildSearchBody({ q: "product manager canada" }, false, "last");
-    assert.ok(!("attributesToSearchOn" in relaxed), JSON.stringify(relaxed));
-    assert.equal(relaxed.matchingStrategy, "last");
+    assert.ok(!("attributesToSearchOn" in strict));
+    const expanded = buildSearchBody({ q: "product manager canada" }, false, "all", { wholeDocument: true });
+    assert.ok(!("attributesToSearchOn" in expanded));
+    assert.equal(expanded.matchingStrategy, "all");
 });
 
 test("a company-name query scopes retrieval to the company attribute", () => {
@@ -44,37 +43,56 @@ test("strict matching is the default — every query word must match", () => {
     assert.equal(buildSearchBody({ q: "technical account manager" }, false).matchingStrategy, "all");
 });
 
-test("the relax pass can be requested explicitly", () => {
-    assert.equal(buildSearchBody({ q: "x" }, false, "last").matchingStrategy, "last");
+test("expand pass keeps matchingStrategy all — never last", () => {
+    assert.equal(buildSearchBody({ q: "x" }, false, "all", { wholeDocument: true }).matchingStrategy, "all");
 });
 
-test("relax fires on a thin scoped result, zero included as the extreme case — not only on zero", () => {
-    assert.equal(shouldRelaxSearch(0, "quantum optics researcher lisbon"), true, "zero is the extreme of thin");
-    assert.equal(shouldRelaxSearch(3, "quantum optics researcher lisbon"), true, "3 hits is thin — below RELAX_MIN_HITS");
-    assert.equal(
-        shouldRelaxSearch(RELAX_MIN_HITS - 1, "quantum optics researcher lisbon"),
-        true,
-        "one short of a full page is still thin",
-    );
-    assert.equal(shouldRelaxSearch(RELAX_MIN_HITS, "quantum optics researcher lisbon"), false, "a full page never relaxes");
+test("relax fires only on a true query miss — zero hits, not thin pages", () => {
+    assert.equal(shouldRelaxSearch(0, "quantum optics researcher lisbon"), true);
+    assert.equal(shouldRelaxSearch(2, "quantum optics researcher lisbon"), false, "2 hits must NOT relax");
+    assert.equal(shouldRelaxSearch(3, "quantum optics researcher lisbon"), false);
+    assert.equal(shouldRelaxSearch(19, "quantum optics researcher lisbon"), false);
+    assert.equal(shouldRelaxSearch(20, "quantum optics researcher lisbon"), false);
     assert.equal(shouldRelaxSearch(0, ""), false, "a browse is already wide — nothing to relax");
     assert.equal(shouldRelaxSearch(0, "   "), false);
 });
 
-test("explicit newest and salary_desc sorts with a query scope identically to relevance — title-first is sort-independent", () => {
-    const relevance = buildSearchBody({ q: Q }, false).attributesToSearchOn;
-    assert.deepEqual(relevance, ["title", "company", "tags"]);
+test("mergeExpandedIntoStrict unions strict hits then extras and sets widened only with extras", () => {
+    const strict = {
+        hits: [{ id: "a", title: "A" } as PublicJob],
+        total: 1,
+        backend: "meilisearch",
+        configured: true,
+    } satisfies JobSearchResult;
+    const expanded = {
+        hits: [
+            { id: "a", title: "A" } as PublicJob,
+            { id: "b", title: "B" } as PublicJob,
+        ],
+        total: 2,
+        backend: "meilisearch",
+        configured: true,
+    } satisfies JobSearchResult;
+    const merged = mergeExpandedIntoStrict(strict, expanded);
+    assert.deepEqual(merged.hits.map((h) => h.id), ["a", "b"]);
+    assert.equal(merged.widened, true);
+    assert.equal(mergeExpandedIntoStrict(strict, { ...expanded, hits: [expanded.hits[0]] }).widened, undefined);
+});
+
+test("explicit newest and salary_desc sorts with a query stay whole-document", () => {
+    const relevance = buildSearchBody({ q: Q }, false);
+    assert.ok(!("attributesToSearchOn" in relevance));
     for (const sort of ["newest", "salary_desc"] as const) {
         const body = buildSearchBody({ q: Q, sort }, false);
-        assert.deepEqual(body.attributesToSearchOn, relevance, `${sort}: ${JSON.stringify(body)}`);
+        assert.ok(!("attributesToSearchOn" in body), `${sort}: ${JSON.stringify(body)}`);
     }
 });
 
-test("relevance sort (explicit or auto) with a query scopes to title-first identically", () => {
+test("relevance sort (explicit or auto) with a query stays whole-document", () => {
     const explicit = buildSearchBody({ q: Q, sort: "relevance" }, false);
-    assert.deepEqual(explicit.attributesToSearchOn, ["title", "company", "tags"], JSON.stringify(explicit));
+    assert.ok(!("attributesToSearchOn" in explicit), JSON.stringify(explicit));
     const auto = buildSearchBody({ q: Q }, false);
-    assert.deepEqual(auto.attributesToSearchOn, explicit.attributesToSearchOn, JSON.stringify(auto));
+    assert.ok(!("attributesToSearchOn" in auto), JSON.stringify(auto));
 });
 
 test("browse mode (no query) stays unscoped regardless of sort", () => {
@@ -89,12 +107,12 @@ test("company-intent scoping is narrower and always wins over sort", () => {
     assert.deepEqual(body.attributesToSearchOn, ["company"]);
 });
 
-test("the relax pass drops tech-skill scoping back to whole-document search", () => {
+test("the expand pass drops tech-skill scoping back to whole-document search", () => {
     const strict = buildSearchBody({ q: "Rust", sort: "newest" }, false, "all");
     assert.deepEqual(strict.attributesToSearchOn, ["title", "tags", "description"]);
-    const relaxed = buildSearchBody({ q: "Rust", sort: "newest" }, false, "last");
-    assert.ok(!("attributesToSearchOn" in relaxed), JSON.stringify(relaxed));
-    assert.equal(relaxed.matchingStrategy, "last");
+    const expanded = buildSearchBody({ q: "Rust", sort: "newest" }, false, "all", { wholeDocument: true });
+    assert.ok(!("attributesToSearchOn" in expanded), JSON.stringify(expanded));
+    assert.equal(expanded.matchingStrategy, "all");
 });
 
 test("same q produces identical attributesToSearchOn across all sort modes", () => {
@@ -201,10 +219,6 @@ test("list search retrieves JOB_LIST_ATTRIBUTES_TO_RETRIEVE without description"
     assert.ok(!(body.attributesToRetrieve as readonly string[]).includes("description"));
 });
 
-// Of Subspace's 8 enriched fields (meilisearch.ts JOBS_INDEX_SETTINGS), only
-// the 3 the jobs SERP actually reads (yearsExperience/tech/skills filters —
-// FilterPanel.tsx, SerpFilters.tsx) belong in the retrieve list; the other 5
-// have no reader yet and would only inflate every SERP response.
 test("JOB_LIST_ATTRIBUTES_TO_RETRIEVE carries exactly the enriched fields the SERP reads, no more", () => {
     const attrs = JOB_LIST_ATTRIBUTES_TO_RETRIEVE as readonly string[];
     for (const read of ["min_years_experience", "must_have_skills", "tech_stack"]) {
@@ -226,12 +240,6 @@ test("id lookup omits attributesToRetrieve so the full document is returned", ()
     assert.ok(!("attributesToRetrieve" in body));
 });
 
-// Repo-parity only (no live push from this repo — settings are applied by
-// the pipeline repo's sync worker): the live jobs index carries these 15
-// stopWords since ~2026-08-27. Keeping them declared in the canon means the
-// next legitimate settings push doesn't silently drop them, and
-// quoteShortTokens/matchingStrategy reasoning above can assume they're
-// actually in effect.
 test("JOBS_INDEX_SETTINGS declares the 15 stopWords live on the jobs index", () => {
     assert.deepEqual(JOBS_INDEX_SETTINGS.stopWords, [
         "a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with",

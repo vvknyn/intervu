@@ -1,5 +1,6 @@
 import type { FilterState } from "@/components/jobs/FilterPanel";
-import type { JobSearchParams, JobSortMode } from "@/lib/jobs/types";
+import { PRISTINE_FILTER_STATE } from "@/components/jobs/FilterPanel";
+import type { JobSearchParams, JobSortMode, PostedBucket } from "@/lib/jobs/types";
 
 /**
  * The ONE place that turns (FilterState, query, sort) into the shared subset
@@ -37,7 +38,19 @@ import type { JobSearchParams, JobSortMode } from "@/lib/jobs/types";
  * request would range-filter over a field with ~no data and silently
  * 0-result every hit. Same signal, same chokepoint, so the picker and the
  * request can never disagree about whether the bucket is real.
+ *
+ * The fresh-visit `30d` default is display-only — not a hard Meili recall cap.
  */
+export function effectivePostedBucket(
+    postedBucket: PostedBucket | undefined,
+    postedDateSupported: boolean,
+    postedExplicit?: boolean,
+): PostedBucket | undefined {
+    if (!postedDateSupported || !postedBucket) return undefined;
+    if (postedBucket === PRISTINE_FILTER_STATE.postedBucket && !postedExplicit) return undefined;
+    return postedBucket;
+}
+
 export function buildJobSearchPayload(
     state: FilterState,
     query: string,
@@ -57,7 +70,7 @@ export function buildJobSearchPayload(
         facets: state.facets,
         salaryMin: state.salaryMin || undefined,
         visaOnly: state.visaOnly || undefined,
-        postedBucket: postedDateSupported ? state.postedBucket : undefined,
+        postedBucket: effectivePostedBucket(state.postedBucket, postedDateSupported, state.postedExplicit),
         yearsExperience: state.yearsExperience,
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,

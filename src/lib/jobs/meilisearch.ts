@@ -48,6 +48,9 @@ const JOBS_SYNONYM_SOURCE: Array<{ term: string; expansions: string[]; oneWay?: 
   { term: "qa", expansions: ["quality assurance"] },
   { term: "hr", expansions: ["human resources"] },
   { term: "devops", expansions: ["dev ops"] },
+  { term: "sde", expansions: ["software engineer", "software developer"] },
+  { term: "software developer", expansions: ["software engineer"] },
+  { term: "full stack", expansions: ["software engineer"], oneWay: true },
 ];
 
 /** Expands a `JOBS_SYNONYM_SOURCE`-shaped table into Meilisearch's directional synonym map. */
@@ -454,6 +457,8 @@ export interface BuildSearchBodyOpts extends BuildFilterOpts {
   companyScoped?: boolean;
   /** Title-only recall lane for seniority+role pair searches. */
   titleScoped?: boolean;
+  /** Expand pass: whole-document retrieval, still `matchingStrategy: "all"`. */
+  wholeDocument?: boolean;
 }
 
 /** TRANSITIONAL: live index may lack `company_domain` in filterableAttributes. */
@@ -634,20 +639,31 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
   return f;
 }
 
-/** One page of hits, per the jobs SERP (`PAGE` in `app/jobs/page.tsx`,
- *  currently 20) — kept as an independent constant here rather than
- *  importing that file, which is out of scope for the change that added
- *  this. `shouldRelaxSearch` treats fewer than this many strict/scoped hits
- *  as thin enough to justify one whole-document fallback pass. */
-export const RELAX_MIN_HITS = 20;
-
-/** Pure relax policy: fall back to whole-document, word-dropping search when
- *  a real query's strict/scoped pass came back THIN — fewer than
- *  `RELAX_MIN_HITS` hits, zero included as the extreme case. A query with a
- *  full page of genuine matches shows those, never padded with word-dropped
- *  noise from a second pass. */
+/** Pure relax policy: widen retrieval only on a true query miss — non-empty
+ *  `q` AND zero strict/scoped hits. Filter-thin pages (e.g. 2 hits) must NOT
+ *  expand. */
 export function shouldRelaxSearch(strictTotal: number, q: string): boolean {
-  return Boolean(q.trim()) && strictTotal < RELAX_MIN_HITS;
+  return Boolean(q.trim()) && strictTotal === 0;
+}
+
+/** Union strict hits first, then expand-pass extras; `widened` only when extras
+ *  were added. */
+export function mergeExpandedIntoStrict(
+  strict: JobSearchResult,
+  expanded: JobSearchResult,
+): JobSearchResult {
+  const seen = new Set(strict.hits.map((h) => h.id));
+  const extras = expanded.hits.filter((h) => !seen.has(h.id));
+  if (extras.length === 0) return strict;
+  return {
+    ...strict,
+    hits: [...strict.hits, ...extras],
+    total: Math.max(strict.total, expanded.total),
+    backend: strict.backend,
+    configured: strict.configured,
+    facetDistribution: strict.facetDistribution ?? expanded.facetDistribution,
+    widened: true,
+  };
 }
 
 /** Explicit shape so call sites and tests can touch optional fields under tsc. */
@@ -783,42 +799,18 @@ export function buildSearchBody(
   matchingStrategy: MatchingStrategy = "all",
   opts?: BuildSearchBodyOpts,
 ): MeiliSearchBody {
-  // `matchingStrategy === "last"` is this file's existing marker for "this is
-  // the relaxed pass" (see `searchMeili`'s `runPass`/`shouldRelaxSearch`) —
-  // fired after a strict/scoped pass came back thin (see `RELAX_MIN_HITS`;
-  // zero is just the extreme of thin). Reusing it here means the relax pass
-  // drops tech-skill AND title-first attribute scoping back to
-  // whole-document search by construction (`matchingStrategy === "last"`).
   const techSkillScoped =
-    !opts?.companyScoped && matchingStrategy !== "last" && isTechSkillQuery(p.q ?? "");
-  // Default retrieval scope for everything the classifiers above don't
-  // already claim more specifically. Benchmarked live 2026-08-27 (12
-  // queries, k=10): scoping a real query to title/company/tags — instead of
-  // the whole document — lifted strictTitleHit on "director of brand and
-  // product" 0.10 -> 0.50 with no regressions on the other 11. A query with
-  // no genuine title/company/tag match now comes back thin or zero under
-  // this scope; `shouldRelaxSearch`/`RELAX_MIN_HITS` below catch that and
-  // re-run unscoped. Gated on `matchingStrategy !== "last"` for the same
-  // reason `techSkillScoped` is — the relax pass must be truly
-  // whole-document, not re-narrowed. Gated on non-empty `q` so a plain
-  // browse (no query text to scope) is unaffected — Meilisearch has nothing
-  // to match attributes against anyway.
-  const titleFirstScoped =
-    !opts?.companyScoped &&
-    !opts?.titleScoped &&
-    !techSkillScoped &&
-    matchingStrategy !== "last" &&
-    Boolean((p.q ?? "").trim());
+    !opts?.companyScoped && !opts?.wholeDocument && isTechSkillQuery(p.q ?? "");
   return {
     // `quoteShortTokens` only rewrites the text handed to Meilisearch — every
     // classifier below (`techSkillScoped`, `buildFilter`, …) still reads the
     // raw `p.q`/`p` so quoting can never change what the query is CLASSIFIED
     // as, only how its short tokens are matched.
     q: quoteShortTokens(p.q ?? ""),
-    // Whole-document retrieval is the fallback (relax pass, or an empty
-    // browse query) — explicit sorts only change ORDER BY (`buildMeiliSort`),
-    // not which attributes may match. Scoped exceptions below, each narrower
-    // than the last and therefore always winning when more than one applies:
+    // Whole-document retrieval is the expand pass (`wholeDocument`) or an empty
+    // browse — explicit sorts only change ORDER BY (`buildMeiliSort`), not
+    // which attributes may match. Scoped exceptions below, each narrower than
+    // the last and therefore always winning when more than one applies:
     //  - `companyScoped`: the query text names an employer — see the
     //    "FOREMAN - SEAL & STRIPE" note in company-intent.ts. Restricts to
     //    `company` alone.
@@ -827,23 +819,16 @@ export function buildSearchBody(
     //  - `techSkillScoped`: standalone tech/programming language tokens
     //    (e.g. "Rust", "Swift", "Python") scope to title/tags/description
     //    to prevent non-tech company false positives (e.g. "Rust Medical Center").
-    //  - `titleFirstScoped`: the default above — everything else.
     ...(opts?.companyScoped
       ? { attributesToSearchOn: ["company"] }
       : opts?.titleScoped
         ? { attributesToSearchOn: ["title"] }
         : techSkillScoped
           ? { attributesToSearchOn: ["title", "tags", "description"] }
-          : titleFirstScoped
-            ? { attributesToSearchOn: ["title", "company", "tags"] }
-            : {}),
-    // Meilisearch's DEFAULT is "last", which drops query words from the end
-    // until something matches. For a three-word role that means a search for
-    // "Technical Account Manager" is allowed to answer with documents that
-    // only matched "Technical" — observed live: Maintenance Technician and
-    // Laboratory Technician rows filling a Technical-Account-Manager search.
-    // Requiring every word is the honest default; `searchMeili` relaxes to
-    // "last" only after strict matching has genuinely found nothing.
+          : {}),
+    // Requiring every word is the honest default; `searchMeili` runs one
+    // whole-document expand pass (`wholeDocument`) only after a strict/scoped
+    // pass returns zero — never word-dropping (`matchingStrategy: "last"`).
     matchingStrategy,
     filter: buildFilter(p, legacy, opts),
     facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
@@ -867,7 +852,7 @@ const DOMAIN_POSTFILTER_NOTE =
 async function searchWithDomainPostFilter(
   h: string,
   p: JobSearchParams,
-  matchingStrategy: MatchingStrategy,
+  wholeDocument = false,
 ): Promise<JobSearchResult> {
   const offset = p.offset ?? 0;
   const limit = p.limit ?? 40;
@@ -880,7 +865,7 @@ async function searchWithDomainPostFilter(
   const scanParams = { ...p, q: postFilterSearchQ(p) };
 
   for (let page = 1; ; page++) {
-    const built = buildSearchBody(scanParams, legacy, matchingStrategy, { skipDomainFilters: true });
+    const built = buildSearchBody(scanParams, legacy, "all", { skipDomainFilters: true, ...(wholeDocument ? { wholeDocument: true } : {}) });
     const { limit: _limit, offset: _offset, ...rest } = built;
     const body = {
       ...rest,
@@ -940,23 +925,11 @@ async function searchWithDomainPostFilter(
 
 /** Read-path: search the jobs index.
  *
- *  One pass, strict (`matchingStrategy: "all"`, every query word must match).
- *  A real query is scoped to title/company/tags by default (`buildSearchBody`'s
- *  `titleFirstScoped`, added 2026-08-27) rather than the whole document — the
- *  earlier whole-document default let place words act like title words:
- *  "product manager canada" found only the 24 roles literally TITLED that
- *  under the OLD title/company precision pass, while 23,813 postings matched
- *  all three words somewhere unscoped (measured live 2026-07-26); title-first
- *  scoping keeps that precision without dragging place words into the title
- *  match. `companyScoped`/`titleScoped`/`techSkillScoped` narrow further for
- *  their own query shapes.
- *
- *  One pass, not two, is also the latency posture the 2026-07-24 incident
- *  bought: no sequential second request to blow the settle guard under load.
- *  Only a THIN or zero result (`shouldRelaxSearch`/`RELAX_MIN_HITS` — fewer
- *  than one SERP page of hits) relaxes to a second, whole-document,
- *  word-dropping ("last") pass — flagged `widened` so the UI can disclose
- *  partial matches. */
+ *  One strict pass (`matchingStrategy: "all"`). Company/title/tech-skill queries
+ *  may scope `attributesToSearchOn`; default SERP retrieval is whole-document.
+ *  Only a true query miss (`shouldRelaxSearch`: non-empty `q`, zero hits)
+ *  triggers one expand pass — still `matchingStrategy: "all"`, unscoped — merged
+ *  onto strict hits and flagged `widened` when extras land. */
 /**
  * Sort-integrity chokepoint for `searchMeili`. `searchCutoffMs`
  * (`JOBS_INDEX_SETTINGS`) can interrupt a slow search under embed-batch/
@@ -1010,14 +983,14 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   const runSearch = async (): Promise<JobSearchResult> => {
     const needsDomain = needsDomainFilters(p);
 
-    const runDomainPostFilter = (matchingStrategy: MatchingStrategy = "all") =>
-      searchWithDomainPostFilter(h, p, matchingStrategy);
+    const runDomainPostFilter = (wholeDocument = false) =>
+      searchWithDomainPostFilter(h, p, wholeDocument);
 
     if (companyDomainFilterUnsupported && needsDomain) {
       const strict = await runDomainPostFilter();
       if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
-      const relaxed = await runDomainPostFilter("last");
-      return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
+      const expanded = await runDomainPostFilter(true);
+      return mergeExpandedIntoStrict(strict, expanded);
     }
 
     // One extra round trip, memoized per query across requests
@@ -1026,15 +999,15 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     // post-filter path above is deliberately excluded — those are
     // `board`/`companyDomain` browses that are ALREADY constrained to one
     // employer, so company-scoping the query text would add nothing.
-    const runPass = async (
-      matchingStrategy: MatchingStrategy = "all",
-    ): Promise<JobSearchResult> => {
+    const runPass = async (wholeDocument = false): Promise<JobSearchResult> => {
       const post = (legacy: boolean) =>
         meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
           cache: "no-store",
-          body: JSON.stringify(buildSearchBody(p, legacy, matchingStrategy, { companyScoped })),
+          body: JSON.stringify(
+            buildSearchBody(p, legacy, "all", { companyScoped, ...(wholeDocument ? { wholeDocument: true } : {}) }),
+          ),
         });
 
       let res = await post(false);
@@ -1050,7 +1023,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         } else if (/company_domain/i.test(text) && needsDomain) {
           companyDomainFilterUnsupported = true;
           console.warn("company_domain not yet filterable — falling back to local post-filter");
-          return runDomainPostFilter(matchingStrategy);
+          return runDomainPostFilter(wholeDocument);
         } else {
           throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
         }
@@ -1077,18 +1050,11 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     const strict = await runPass();
     if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
 
-    // The strict/scoped pass came back thin or empty (`shouldRelaxSearch`,
-    // `RELAX_MIN_HITS`) — drop both the title-first scope AND matching
-    // strictness back to whole-document, word-dropping search
-    // (`matchingStrategy: "last"` clears `titleFirstScoped`/`techSkillScoped`
-    // in `buildSearchBody` by construction), so a query with genuinely few or
-    // no title/company/tag matches still returns its best whole-document
-    // matches instead of a near-empty page. This REPLACES the strict result
-    // outright rather than appending to it — a thin-but-nonzero strict page
-    // is not merged with the relaxed one. Flagged `widened` because that's
-    // exactly the partial-match disclosure the UI needs when this fires.
-    const relaxed = await runPass("last");
-    return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
+    // Strict/scoped pass returned zero — one whole-document expand pass
+    // (`matchingStrategy: "all"`, no attribute scoping) merged onto strict
+    // hits rather than replacing them. Flagged `widened` only when extras land.
+    const expanded = await runPass(true);
+    return mergeExpandedIntoStrict(strict, expanded);
   };
 
   const isRelevance = resolveEffectiveSort(p) === "relevance";
@@ -1104,10 +1070,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         seen.add(hit.id);
         unique.push(hit);
       }
-      const floored = unique.filter((hit) =>
-        titleSatisfiesRoleQuery(decodeText(hit.title), p.q ?? ""),
-      );
-      const ranked = applyRelevanceQualityReranking(floored, p.q ?? "");
+      const ranked = applyRelevanceQualityReranking(unique, p.q ?? "");
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
       result = {
@@ -1208,6 +1171,13 @@ export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): P
       const aIsNonTech = NON_TECH_ROLE_REGEX.test(decodeText(a.title)) ? 1 : 0;
       const bIsNonTech = NON_TECH_ROLE_REGEX.test(decodeText(b.title)) ? 1 : 0;
       if (aIsNonTech !== bIsNonTech) return aIsNonTech - bIsNonTech;
+    }
+
+    // 0b. Role-title lane: satisfy query shape first, demote — never drop.
+    if (query && roleTitlePairQueries(query).length > 0) {
+      const aRole = titleSatisfiesRoleQuery(decodeText(a.title), query) ? 1 : 0;
+      const bRole = titleSatisfiesRoleQuery(decodeText(b.title), query) ? 1 : 0;
+      if (aRole !== bRole) return bRole - aRole;
     }
 
     // 1. Title relevance tier (meaningful-token coverage, stopword-tolerant)

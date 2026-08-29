@@ -17,6 +17,7 @@ test("round-trip identity for a loaded state", () => {
         salaryMin: 150_000,
         visaOnly: true,
         postedBucket: "7d" as const,
+        postedExplicit: true,
         hideGhosts: false,
         sort: "salary" as const,
         jobId: "dd-4821",
@@ -48,11 +49,31 @@ test("absent posted param parses to the 30d default", () => {
 
 test("posted=any parses to no filter (undefined), not the default", () => {
     assert.equal(parseJobsUrl(new URLSearchParams("posted=any")).postedBucket, undefined);
+    assert.equal(parseJobsUrl(new URLSearchParams("posted=any")).postedExplicit, true);
 });
 
 test("back-compat: posted=7d (and other existing buckets) parse unchanged", () => {
     assert.equal(parseJobsUrl(new URLSearchParams("posted=7d")).postedBucket, "7d");
+    assert.equal(parseJobsUrl(new URLSearchParams("posted=7d")).postedExplicit, true);
     assert.equal(parseJobsUrl(new URLSearchParams("posted=older")).postedBucket, "older");
+});
+
+test("posted=30d parses to explicit 30d default", () => {
+    assert.deepEqual(parseJobsUrl(new URLSearchParams("posted=30d")), {
+        ...DEFAULT_URL_STATE,
+        facets: {},
+        postedExplicit: true,
+    });
+});
+
+test("serializeJobsUrl writes posted=30d for explicit 30d", () => {
+    const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, postedExplicit: true });
+    assert.equal(url, "?posted=30d");
+});
+
+test("explicit posted=30d round-trips through serialize + parse", () => {
+    const s = { ...DEFAULT_URL_STATE, postedExplicit: true };
+    assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
 });
 
 test("serializeJobsUrl omits posted for the 30d default", () => {
@@ -60,12 +81,12 @@ test("serializeJobsUrl omits posted for the 30d default", () => {
 });
 
 test("serializeJobsUrl writes posted=any for an explicit no-filter state", () => {
-    const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined });
+    const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined, postedExplicit: true });
     assert.equal(url, "?posted=any");
 });
 
 test("posted=any round-trips through serialize + parse", () => {
-    const s = { ...DEFAULT_URL_STATE, postedBucket: undefined };
+    const s = { ...DEFAULT_URL_STATE, postedBucket: undefined, postedExplicit: true };
     assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
 });
 
