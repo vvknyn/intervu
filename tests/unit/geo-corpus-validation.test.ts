@@ -248,3 +248,79 @@ test("selectMatchingHits: prefix mode's compound match folds too ('Québec - Rem
     { field: "location_state", value: "Québec - Remote" },
   ]);
 });
+
+// ---------------------------------------------------------------------------
+// `caps` (2026-08-29) — a region's OR-list can run past Meili's IN-list
+// guidance; capping keeps only the top-N by corpus hit count. See
+// MAX_REGION_CLAUSE_TERMS (regions.ts) for the one real caller.
+// ---------------------------------------------------------------------------
+
+test("createCorpusValueChecker: a capped group keeps only the top-N surviving filters, sorted by corpus hit count", async () => {
+  const { fetcher } = stubFetcher({
+    "location_country:united states": [{ value: "United States", count: 50000 }],
+    "location_country:canada": [{ value: "Canada", count: 30000 }],
+    "location_country:mexico": [{ value: "Mexico", count: 500 }],
+    "location_country:bermuda": [{ value: "Bermuda", count: 120 }],
+  });
+  const checker = createCorpusValueChecker(fetcher);
+  const [result] = await checker(
+    [
+      [
+        { field: "location_country", value: "United States" },
+        { field: "location_country", value: "Canada" },
+        { field: "location_country", value: "Mexico" },
+        { field: "location_country", value: "Bermuda" },
+      ],
+    ],
+    [2],
+  );
+  assert.deepEqual(
+    result.map((f) => f.value),
+    ["United States", "Canada"],
+    "only the 2 highest-hit-count members survive, most-supported first",
+  );
+});
+
+test("createCorpusValueChecker: a cap at or above the surviving count is a no-op", async () => {
+  const { fetcher } = stubFetcher({
+    "location_country:canada": [{ value: "Canada", count: 30000 }],
+    "location_country:mexico": [{ value: "Mexico", count: 500 }],
+  });
+  const checker = createCorpusValueChecker(fetcher);
+  const [result] = await checker(
+    [[{ field: "location_country", value: "Canada" }, { field: "location_country", value: "Mexico" }]],
+    [5],
+  );
+  assert.deepEqual(result.map((f) => f.value).sort(), ["Canada", "Mexico"]);
+});
+
+test("createCorpusValueChecker: caps are index-aligned per group — an uncapped (undefined) group is untouched even alongside a capped one", async () => {
+  const { fetcher } = stubFetcher({
+    "location_country:canada": [{ value: "Canada", count: 30000 }],
+    "location_country:mexico": [{ value: "Mexico", count: 500 }],
+    "location_city:toronto": [{ value: "Toronto", count: 5183 }],
+    "location_city:markham": [{ value: "Markham", count: 349 }],
+  });
+  const checker = createCorpusValueChecker(fetcher);
+  const [regionGroup, cityGroup] = await checker(
+    [
+      [{ field: "location_country", value: "Canada" }, { field: "location_country", value: "Mexico" }],
+      [{ field: "location_city", value: "Toronto" }, { field: "location_city", value: "Markham" }],
+    ],
+    [1, undefined],
+  );
+  assert.deepEqual(regionGroup.map((f) => f.value), ["Canada"]);
+  assert.deepEqual(cityGroup.map((f) => f.value).sort(), ["Markham", "Toronto"]);
+});
+
+test("createCorpusValueChecker: omitting `caps` entirely behaves exactly as before it existed", async () => {
+  const { fetcher } = stubFetcher({
+    "location_city:toronto": [{ value: "Toronto", count: 5183 }],
+    "location_city:markham": [{ value: "Markham", count: 349 }],
+  });
+  const checker = createCorpusValueChecker(fetcher);
+  const [result] = await checker([
+    [{ field: "location_city", value: "Toronto" }, { field: "location_city", value: "Markham" }],
+  ]);
+  assert.deepEqual(result.map((f) => f.value).sort(), ["Markham", "Toronto"]);
+});

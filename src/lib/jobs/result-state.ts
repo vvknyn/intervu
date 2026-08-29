@@ -59,6 +59,30 @@ export function degradedResultsNote(result: JobSearchResult): string | null {
 }
 
 /**
+ * Deliverable 2's honest disclosure (the "North America" bug's general
+ * fix, query-understanding.ts's `resolveLocationFacet`): a typed location
+ * phrase that named nothing this corpus could filter on gets DROPPED rather
+ * than kept as an exact-facet predicate guaranteed to return zero results —
+ * this is the caption that tells the searcher so, rather than leaving them
+ * looking at results that quietly ignored part of what they typed. `null`
+ * means render nothing (the ordinary case — nothing was dropped). Takes the
+ * mentions array directly, not a `JobSearchResult` (unlike
+ * `degradedResultsNote` above) — `unmatchedPlaceMentions` lives on the
+ * per-call return-type intersection each search entry point builds (see
+ * `defaultedLocation`'s identical shape, search.ts/actions/jobs.ts), never on
+ * `JobSearchResult` itself, so there is no result object to reach into here.
+ */
+export function unmatchedPlaceNote(mentions: string[] | undefined): string | null {
+    if (!mentions || mentions.length === 0) return null;
+    const quoted = mentions.map((m) => `"${m}"`);
+    const list =
+        quoted.length === 1 ? quoted[0] : `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]}`;
+    const noun = mentions.length === 1 ? "a place" : "places";
+    const pronoun = mentions.length === 1 ? "it" : "them";
+    return `We don't recognize ${list} as ${noun} — showing results without ${pronoun}.`;
+}
+
+/**
  * The dispatcher returns configured backend failures as an empty result with
  * `unavailable: true`. Keep that state distinct from a successful empty query.
  * Existing hits are never considered unavailable so background refresh errors

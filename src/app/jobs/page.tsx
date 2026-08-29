@@ -160,6 +160,7 @@ import {
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
     degradedResultsNote,
+    unmatchedPlaceNote,
     resolveEndOfListState,
     shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
@@ -3888,6 +3889,12 @@ function JobsContent() {
     // and why an absent `meta` reads as live, never as degraded.
     const degradedNote = result ? degradedResultsNote(result) : null;
 
+    // Deliverable 2 — a typed location phrase this corpus couldn't filter on
+    // (see `unmatchedPlaceNote`, result-state.ts) got dropped rather than
+    // kept as a doomed exact-facet predicate; this is the honest caption for
+    // that, same shape as `degradedNote` above.
+    const unmatchedNote = unmatchedPlaceNote(result?.unmatchedPlaceMentions);
+
     // Two-Panel Selector (master-detail) — single source of truth for where
     // the shared detail ternary mounts (Sheet below xl, pane at xl+, and —
     // 2026-08-14 auto-preview — the pane again for the ambient first result
@@ -4860,6 +4867,12 @@ function JobsContent() {
                         {!loading && degradedNote && (
                             <p data-testid="degraded-note" className="mb-3 text-[13.5px] text-muted-foreground">
                                 {degradedNote}
+                            </p>
+                        )}
+
+                        {!loading && unmatchedNote && (
+                            <p data-testid="unmatched-place-note" className="mb-3 text-[13.5px] text-muted-foreground">
+                                {unmatchedNote}
                             </p>
                         )}
 

@@ -16,6 +16,7 @@ import type { JobSearchParams, PlaceClause } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
 import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution } from "../geo/resolve-place";
+import { MAX_REGION_CLAUSE_TERMS } from "../geo/regions";
 import { FUNCTION_WORDS } from "../geo/common-words";
 import { SENIORITY_PHRASES } from "./role-title-lane";
 
@@ -194,7 +195,13 @@ export async function parsePlaceTokens(
   }
 
   const groups = resolutions.flatMap((r) => [r.candidates, r.countryScope]);
-  const results = await vocab.corpusChecker(groups);
+  // Cap only a region's OWN candidates (a continent's OR-list can run well
+  // past Meili's IN-list guidance, see MAX_REGION_CLAUSE_TERMS) — its
+  // countryScope slot is always empty (regions don't get a country scope,
+  // see resolve-place.ts's resolveRegion), and no other entity type has this
+  // problem, so every other slot is uncapped.
+  const caps = resolutions.flatMap((r) => [r.entity.type === "region" ? MAX_REGION_CLAUSE_TERMS : undefined, undefined]);
+  const results = await vocab.corpusChecker(groups, caps);
 
   const places: PlaceClause[] = [];
   resolutions.forEach((r, i) => {
@@ -266,13 +273,19 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  * role search, so "success" must still resolve there (see `parsePlaceTokens`'
  * `guardFreeTextWords` doc).
  *
- * Legacy fallback, deliberately: a value that resolves to NOTHING (gibberish,
- * or a real place this corpus has no postings for) keeps the raw exact facet
- * exactly as before — a verbatim corpus value still works, and nothing that
- * searches today starts failing. All-or-nothing across a multi-value facet
- * (`?location_country=a,b` deep links, /trends' country links): resolved
- * clauses OR together, but a raw facet left standing beside them would AND
- * against that OR-group and zero the search out.
+ * A typed value must never survive as an exact facet predicate with zero
+ * corpus support — that's how "North America" (a real phrase, but the corpus
+ * has no `location_country = "North America"` row) guaranteed zero results
+ * forever (reproduced live 2026-08-26). So a phrase that the gazetteer can't
+ * resolve gets ONE more chance: a direct corpus probe of the raw literal
+ * (`resolvePhraseOrRawLiteral` below), for the raw-ingest values that are
+ * real corpus facts despite naming no GeoNames place ("Worldwide", "EMEA"
+ * typed verbatim by an employer's ATS). Only when NEITHER clears does the
+ * phrase get dropped — recorded in `unmatchedPlaceMentions` so the caller can
+ * tell the searcher, rather than run a predicate guaranteed to return
+ * nothing. Each value is judged independently: one bad value in a multi-value
+ * facet (`?location_country=a,b` deep links, /trends' country links) no
+ * longer poisons the ones that DID resolve.
  *
  * Before any place resolution runs, a work-mode pre-pass strips work-mode
  * phrases ("remote", "hybrid", ...) via the SAME `parseWorkTypeTokens` the
@@ -280,6 +293,26 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  * exact `location_country` value that can never match ("remote" — the
  * location box's own placeholder says "City, state, or remote").
  */
+/**
+ * Resolve one typed phrase via the gazetteer, or — when nothing in it names
+ * a real, corpus-known place — check whether the raw literal itself is a
+ * value THIS corpus's `location_country` facet genuinely holds. Reuses
+ * `vocab.corpusChecker` directly as a single-candidate group probe (the same
+ * checker `parsePlaceTokens` already validates gazetteer candidates
+ * through), so a raw literal is held to the identical `PLACE_MIN_COUNT` bar
+ * — never a lower one just because it skipped the gazetteer.
+ */
+async function resolvePhraseOrRawLiteral(
+  phrase: string,
+  vocab: LocationVocabulary,
+): Promise<{ places: PlaceClause[]; unmatched: string[] }> {
+  const { places } = await parsePlaceTokens(phrase, vocab);
+  if (places.length > 0) return { places, unmatched: [] };
+  const [hits] = await vocab.corpusChecker([[{ field: "location_country", value: phrase }]]);
+  if (hits.length > 0) return { places: [{ any: hits }], unmatched: [] };
+  return { places: [], unmatched: [phrase] };
+}
+
 export async function resolveLocationFacet(
   p: JobSearchParams,
   vocab: LocationVocabulary,
@@ -295,50 +328,33 @@ export async function resolveLocationFacet(
   // canada" -> work_type: ["remote"] + a Canada place clause — typing it =
   // clicking it, same principle as the query box).
   const stripped = typed.map((phrase) => parseWorkTypeTokens(phrase));
-  const workTypes = new Set(stripped.flatMap((s) => s.workTypes));
 
-  if (workTypes.size === 0) {
-    // Class case: no work-mode term anywhere in the typed value(s) — the
-    // ORIGINAL place-only resolution, untouched, so every existing legacy-
-    // fallback guarantee (all-or-nothing across a multi-value facet, a
-    // gibberish/uncorroborated value keeping its raw exact facet) still
-    // holds byte-for-byte.
-    const resolved: PlaceClause[] = [];
-    for (const phrase of typed) {
-      const { places } = await parsePlaceTokens(phrase, vocab);
-      if (places.length === 0) return p;
-      resolved.push(...places);
-    }
-    const { location_country: _raw, ...facets } = p.facets!;
-    return { ...p, places: [...(p.places ?? []), ...resolved], facets };
-  }
-
-  // At least one phrase carried a work-mode term: resolve whatever place
-  // text is left after stripping it. A residual that fails to resolve is
-  // simply dropped, not legacy-fallen-back-to — the original phrase
-  // ("remote qwerty") contains a work-mode word no location_country value
-  // ever holds, so there is no real exact facet left to preserve, and the
-  // work-mode facet we DID understand should still apply.
-  //
   // Each phrase's work modes are bound to the places THAT phrase resolved
   // to, rather than pooled into one global facet. Pooling is what made
   // ["remote canada", "hybrid united states"] mean
   //   (remote OR hybrid) AND (Canada OR US)
   // — which also returns remote US roles nobody asked for. Bound, it means
   //   (Canada AND remote) OR (US AND hybrid)
-  // which is the question that was actually asked. For a SINGLE phrase the
-  // two forms are logically identical, so this changes nothing for the
-  // one-location case that has always worked.
+  // which is the question that was actually asked. For a SINGLE phrase with
+  // no work-mode term the two forms are logically identical, so this is also
+  // the whole story for the plain single-location case.
   const resolved: PlaceClause[] = [];
   const unboundWorkTypes = new Set<string>();
+  const unmatched: string[] = [];
   for (const { residualQ, workTypes: phraseWorkTypes } of stripped) {
     const residual = residualQ.trim();
-    const places = residual ? (await parsePlaceTokens(residual, vocab)).places : [];
-    if (places.length === 0) {
-      // Nothing to bind to — a pure work-mode phrase ("remote"), or place
-      // text that did not resolve. Its work modes stay global, which is
-      // exactly the pre-existing behaviour for those inputs.
+    if (!residual) {
+      // Pure work-mode text ("remote") — nothing to resolve, mode stays global.
       for (const t of phraseWorkTypes) unboundWorkTypes.add(t);
+      continue;
+    }
+    const { places, unmatched: miss } = await resolvePhraseOrRawLiteral(residual, vocab);
+    if (places.length === 0) {
+      // Neither the gazetteer nor a direct corpus probe recognized it — its
+      // work mode (if any) stays global rather than being dropped with it,
+      // and the phrase itself is recorded as unmatched (see the module doc).
+      for (const t of phraseWorkTypes) unboundWorkTypes.add(t);
+      unmatched.push(...miss);
       continue;
     }
     resolved.push(
@@ -357,15 +373,22 @@ export async function resolveLocationFacet(
   return {
     ...p,
     // Only attach `places` when there's a resolved clause to carry — a
-    // location box that was pure work-mode text ("remote", no residual
-    // place words) has nothing to filter on, so leave `places` exactly as
-    // it arrived rather than pinning an empty array where `undefined` was.
+    // location box that resolved to nothing at all has nothing to filter
+    // on, so leave `places` exactly as it arrived rather than pinning an
+    // empty array where `undefined` was.
     ...(mergedPlaces.length > 0 ? { places: mergedPlaces } : {}),
     // Likewise only write `work_type` when something global remains: with
     // every typed mode now bound to its own place, this set is often empty,
     // and writing `[]` where the caller had `undefined` would be a change
     // of shape for no change of meaning.
     facets: mergedWorkTypes.size > 0 ? { ...facets, work_type: [...mergedWorkTypes] } : facets,
+    // Every typed value that named nothing this corpus can filter on — never
+    // silently dropped, so the caller can tell the searcher instead of
+    // running a predicate guaranteed to return zero rows (see
+    // src/lib/jobs/result-state.ts's unmatchedPlaceNote).
+    ...(unmatched.length > 0
+      ? { unmatchedPlaceMentions: [...(p.unmatchedPlaceMentions ?? []), ...unmatched] }
+      : {}),
   };
 }
 

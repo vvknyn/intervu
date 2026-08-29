@@ -90,6 +90,12 @@ const VOCAB = fakeVocab([
   { field: "location_city", value: "New York" },
   { field: "location_country", value: "Canada" },
   { field: "location_state", value: "Florida" },
+  // A raw-ingest value with real corpus support but no matching GeoNames
+  // place at all (an employer's ATS literally tags postings "Worldwide") —
+  // the "value WITH corpus support keeps its exact facet" regression guard
+  // below needs a literal the gazetteer can never resolve but the corpus
+  // (this fake) genuinely has.
+  { field: "location_country", value: "Worldwide" },
 ]);
 
 test("the screenshot case: 'Technical Account Manager canada' becomes a Canada FILTER, not a content word", async () => {
@@ -324,18 +330,30 @@ test("case-insensitive: 'FLORIDA' resolves identically to 'florida'", async () =
   assert.deepEqual(p.places, [{ any: [{ field: "location_state", value: "Florida" }] }]);
 });
 
-test("unresolvable text falls back to the legacy exact facet, untouched — nothing that searches today starts failing", async () => {
+test("unresolvable text is DROPPED, not kept as a doomed exact facet — and reported so the caller can tell the searcher (the 'North America' bug's general fix)", async () => {
   const params: JobSearchParams = { facets: { location_country: ["zzznotaplace"] } };
   const p = await resolveLocationFacet(params, VOCAB);
-  assert.equal(p, params, "params must come back by reference when nothing resolved");
-  assert.deepEqual(p.facets?.location_country, ["zzznotaplace"]);
+  assert.equal(
+    p.facets?.location_country,
+    undefined,
+    "the raw exact-match facet must not survive — the live corpus has no such value, so it could only ever match zero rows",
+  );
   assert.equal(p.places, undefined);
+  assert.deepEqual(p.unmatchedPlaceMentions, ["zzznotaplace"]);
 });
 
-test("a real place this corpus has no postings for also falls back to legacy (never invents a filter)", async () => {
+test("a real gazetteer place this corpus has no postings for is ALSO dropped and reported, not kept as a raw facet (never invents a filter)", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["lisbon"] } }, VOCAB);
-  assert.deepEqual(p.facets?.location_country, ["lisbon"]);
+  assert.equal(p.facets?.location_country, undefined);
   assert.equal(p.places, undefined);
+  assert.deepEqual(p.unmatchedPlaceMentions, ["lisbon"]);
+});
+
+test("a value WITH corpus support keeps its exact facet (no regression): a raw-ingest literal the gazetteer can't resolve as any place, but the corpus genuinely has, still becomes a filter", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["worldwide"] } }, VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Worldwide" }] }]);
+  assert.equal(p.facets?.location_country, undefined);
+  assert.equal(p.unmatchedPlaceMentions, undefined, "a value the corpus actually has is never reported as unmatched");
 });
 
 test("no location facet at all (or an empty/whitespace one) is a no-op", async () => {
@@ -355,7 +373,7 @@ test("only the location facet is dropped — every other facet the searcher pick
   assert.equal(p.q, "nurse", "the query text is this function's business to leave alone");
 });
 
-test("multi-value facet (a `?location_country=a,b` deep link): all resolve -> one OR-group; any fails -> all-or-nothing legacy", async () => {
+test("multi-value facet (a `?location_country=a,b` deep link): all resolve -> one OR-group per value", async () => {
   const both = await resolveLocationFacet({ facets: { location_country: ["florida", "canada"] } }, VOCAB);
   assert.deepEqual(both.places, [
     { any: [{ field: "location_state", value: "Florida" }] },
@@ -365,13 +383,14 @@ test("multi-value facet (a `?location_country=a,b` deep link): all resolve -> on
     buildFilter(both).some((f) => f.includes('location_state = "Florida"') && f.includes('location_country = "Canada"') && f.includes(" OR ")),
     "the two values must OR together, exactly like two typed mentions",
   );
+});
 
+test("multi-value facet, mixed: each value resolves INDEPENDENTLY — one bad value no longer poisons its siblings (the AND-poisoning class this replaces: a raw facet left standing beside a resolved OR-group would AND against it and zero the search out)", async () => {
   const mixed = { facets: { location_country: ["florida", "zzznotaplace"] } };
-  assert.equal(
-    await resolveLocationFacet(mixed, VOCAB),
-    mixed,
-    "a raw facet left standing beside a resolved OR-group would AND against it and zero the search out",
-  );
+  const p = await resolveLocationFacet(mixed, VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_state", value: "Florida" }] }], "florida still resolves despite its sibling failing");
+  assert.deepEqual(p.unmatchedPlaceMentions, ["zzznotaplace"]);
+  assert.equal(p.facets?.location_country, undefined);
 });
 
 test("interaction with the IP country default: a resolved place IS location signal, so a Florida search never gets a country default stacked on top", async () => {
@@ -648,6 +667,7 @@ test("place text that does not resolve leaves its work mode global rather than d
   // still apply.
   const p = await resolveLocationFacet({ facets: { location_country: ["remote lisbon"] } }, VOCAB);
   assert.deepEqual(p.facets?.work_type, ["remote"]);
+  assert.deepEqual(p.unmatchedPlaceMentions, ["lisbon"], "the residual that failed to resolve is still reported");
 });
 
 test("the Work-mode dropdown's own selection stays global alongside a bound one", async () => {

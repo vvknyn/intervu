@@ -289,6 +289,18 @@ export interface JobSearchParams {
    * OWN resolution of the city, not a second thing the searcher had to type.
    */
   places?: PlaceClause[];
+  /**
+   * Typed location text that named nothing this corpus can filter on — the
+   * gazetteer didn't recognize it as a place AND the corpus has no matching
+   * `location_country` value either (see `resolveLocationFacet`,
+   * query-understanding.ts). Populated instead of silently keeping the raw
+   * text as a doomed exact-facet predicate (the "North America" bug — a
+   * real phrase, but the corpus has no row spelled that way, so the search
+   * could only ever return zero). Surfaced to the searcher as a plain-
+   * language notice (see `unmatchedPlaceNote`, result-state.ts) rather than
+   * silently dropped.
+   */
+  unmatchedPlaceMentions?: string[];
   limit?: number;
   offset?: number;
   /** Request facet distributions (counts per value) to drive the filter UI. */
