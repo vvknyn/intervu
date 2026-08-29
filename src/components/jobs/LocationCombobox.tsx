@@ -78,7 +78,14 @@ function SuggestionLabel({ label, query }: { label: string; query: string }) {
         ));
     return (
         <span className="flex min-w-0 flex-1 items-baseline gap-2">
-            <span className="max-w-[60%] shrink-0 truncate">{paint(lead, "font-semibold text-foreground")}</span>
+            {/* The cap exists only to leave room for the context column beside
+                it. A value with no context is the whole row — capping it there
+                too would truncate labels that used to fit ("North America Or
+                Europe" and "North America And Europe" both cut to "North
+                America …" at 60% width, measured on prod). */}
+            <span className={cn("truncate", context ? "max-w-[60%] shrink-0" : "min-w-0 flex-1")}>
+                {paint(lead, "font-semibold text-foreground")}
+            </span>
             {context && (
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground/70">
                     {paint(context, "font-semibold")}
