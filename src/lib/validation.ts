@@ -145,7 +145,7 @@ export const submitFeedbackSchema = z.object({
   path: z.string().trim().max(2048).default(""),
 });
 
-/** contact message create (actions/contact.ts submitContactMessage). */
+/** contact message create (lib/contact/submit.ts submitContact). */
 export const contactMessageSchema = z.object({
   name: optionalString(200),
   email: z.string().trim().toLowerCase().email("must be a valid email").max(320),

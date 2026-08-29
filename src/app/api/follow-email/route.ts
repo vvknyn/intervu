@@ -47,8 +47,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         const outcome = await verifyTurnstile(token, remoteIp);
         // "not-configured" (no TURNSTILE_SECRET_KEY, e.g. local dev) passes
         // by the same fail-open posture every other Turnstile caller uses
-        // (actions/contact.ts, actions/auth.ts) — only an explicit "reject"
-        // refuses.
+        // (lib/contact/submit.ts, actions/auth.ts) — only an explicit
+        // "reject" refuses.
         return { success: outcome.status !== "reject" };
       },
       sendVerifyEmail: sendVerifyFollowEmail,

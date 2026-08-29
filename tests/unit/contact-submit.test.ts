@@ -1,0 +1,114 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+import { resolveContactGate, submitContact, notifyContactSubmission } from "../../src/lib/contact/submit";
+import { validate, contactMessageSchema } from "../../src/lib/validation";
+
+const VALID_INPUT = {
+  email: "ada@example.com",
+  message: "I have a question about a listing.",
+  honeypot: "",
+  path: "/contact",
+};
+
+describe("resolveContactGate", () => {
+  it("rejects on a Turnstile reject, without looking at validation", () => {
+    const result = resolveContactGate({
+      turnstile: { status: "reject", reason: "invalid-token" },
+      validated: validate(contactMessageSchema, { email: VALID_INPUT.email, message: VALID_INPUT.message }),
+    });
+    assert.deepEqual(result, { proceed: false, result: { error: "Verification failed — please try again." } });
+  });
+
+  it("rejects on invalid input when Turnstile passes", () => {
+    const result = resolveContactGate({
+      turnstile: { status: "pass" },
+      validated: validate(contactMessageSchema, { email: "not-an-email", message: "hi" }),
+    });
+    assert.equal(result.proceed, false);
+    assert.ok(!result.proceed && "error" in result.result);
+  });
+
+  it("proceeds with the validated data when Turnstile passes (or is not configured) and input is valid", () => {
+    for (const turnstile of [{ status: "pass" as const }, { status: "not-configured" as const }]) {
+      const validated = validate(contactMessageSchema, { email: VALID_INPUT.email, message: VALID_INPUT.message });
+      const result = resolveContactGate({ turnstile, validated });
+      assert.equal(result.proceed, true);
+      assert.ok(result.proceed && result.data.email === VALID_INPUT.email);
+    }
+  });
+});
+
+describe("submitContact — honeypot drop", () => {
+  it("returns success without touching Turnstile or Firestore when the honeypot is filled", async () => {
+    // No TURNSTILE_SECRET_KEY/FIREBASE_SERVICE_ACCOUNT_KEY in a `tsx --test`
+    // run — if this path reached either, it would hang or throw. Resolving
+    // to success proves the honeypot short-circuit fires first.
+    const result = await submitContact({ ...VALID_INPUT, honeypot: "http://spam.example" });
+    assert.deepEqual(result, { success: true });
+  });
+
+  // Class guard, not the incident instance: a second honeypot value proves
+  // the drop is keyed on "was it filled at all", not one specific string.
+  it("also drops a differently-shaped honeypot value", async () => {
+    const result = await submitContact({ ...VALID_INPUT, honeypot: "sure, I'm a bot" });
+    assert.deepEqual(result, { success: true });
+  });
+});
+
+describe("submitContact — Turnstile reject", () => {
+  it("surfaces the verification-failed error without a token, once a secret key is configured", async () => {
+    const original = process.env.TURNSTILE_SECRET_KEY;
+    process.env.TURNSTILE_SECRET_KEY = "test-secret";
+    try {
+      const result = await submitContact({ ...VALID_INPUT, turnstileToken: undefined });
+      assert.deepEqual(result, { error: "Verification failed — please try again." });
+    } finally {
+      if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
+      else process.env.TURNSTILE_SECRET_KEY = original;
+    }
+  });
+});
+
+describe("notifyContactSubmission — email failure never throws, and logs (Fix 1's core rule)", () => {
+  it("resolves without throwing and logs the failure reason when RESEND_API_KEY is unset", async () => {
+    // House pattern (see verify-follow-email.test.ts): `tsx --test` never
+    // loads `.env.local`, so RESEND_API_KEY is genuinely unset — sendEmail
+    // resolves {sent:false, reason:"no-api-key"} rather than throwing. This
+    // is the exact property the incident violated: a lost notification
+    // must be logged, and must never fail the submission that already
+    // persisted in Firestore.
+    const calls: unknown[][] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      calls.push(args);
+    };
+    try {
+      await assert.doesNotReject(() => notifyContactSubmission({ email: VALID_INPUT.email, message: VALID_INPUT.message }, VALID_INPUT.path));
+    } finally {
+      console.error = originalError;
+    }
+    assert.equal(calls.length, 1);
+    assert.match(String(calls[0][0]), /\[Contact\] notification email failed:/);
+    assert.equal(calls[0][1], "no-api-key");
+  });
+
+  // Class guard: a second, differently-shaped submission (with a name)
+  // proves this isn't keyed to one particular payload shape.
+  it("also logs (not throws) for a submission that includes a name", async () => {
+    const calls: unknown[][] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      calls.push(args);
+    };
+    try {
+      await assert.doesNotReject(() =>
+        notifyContactSubmission({ name: "Ada", email: "ada@example.com", message: "Another message." }, "/co/acme"),
+      );
+    } finally {
+      console.error = originalError;
+    }
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][1], "no-api-key");
+  });
+});
