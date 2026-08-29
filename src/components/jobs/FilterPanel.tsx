@@ -238,6 +238,13 @@ const KEY_LABELS: Partial<Record<FacetKey, string>> = {
     employment_type: "Employment",
     visa_sponsorship: "Visa",
     ghost_badge: "Posting status",
+    // Measured 2026-08-29 (Task #48): tech_stack is genuinely populated on
+    // non-tech searches too (17 distinct values on a nursing search, 3 on a
+    // warehouse search — certifications, licences, equipment, not just
+    // programming languages). "Tech stack" is the lie there, not the group,
+    // so this is one generic label true for every domain — never a
+    // per-domain label map.
+    tech_stack: "Skills & tools",
 };
 
 export function facetKeyLabel(key: FacetKey): string {
@@ -503,28 +510,86 @@ export function taggedShare(tagged: number, total: number): number | null {
 }
 
 /**
- * `taggedShare` for a facet distribution shaped like `work_type` — every row
- * carries SOME value, including the sentinel "unknown", so the
- * distribution's own value sum IS the result-set total. `undefined` (facet
- * absent from the response) falls back to `null` — no caption, never a lie.
+ * Share (0..1 — occasionally over 1, see below) of `resultTotal` tagged with
+ * a real value for `dist`: the arithmetic behind the sparse-filter honesty
+ * captions (work-mode group, visa control — SerpFilters.tsx) AND the
+ * dynamic filter-group coverage gate (`facetGroupVisible` below, Task #48).
+ *
+ * The denominator is always the CALLER's own result-set total, never the
+ * distribution's internal sum — Meilisearch shapes a facet distribution two
+ * different ways, and only an external total reads correctly for both:
+ *   - Single-valued facets carrying an explicit "unknown" sentinel
+ *     (work_type/experience_level/employment_type) — every row contributes
+ *     to exactly one bucket, so the distribution's own sum happens to equal
+ *     `resultTotal` too; this subtracts `unknown` from it. Exact.
+ *   - Facets Meilisearch omits untagged rows from ENTIRELY — booleans
+ *     (visa_sponsorship: only `{true, false}` ever appear, verified live —
+ *     this used to be a separate `booleanTaggedShare`, folded in here since
+ *     it was the same formula with a hardcoded total) and array-valued
+ *     facets (tech_stack/must_have_skills/location_country: a job with no
+ *     tags contributes no bucket at all). There's no `unknown` key to
+ *     subtract, so the whole sum is the tagged count — exact for booleans
+ *     (one row, one bucket), an UPPER BOUND for a multi-valued array facet
+ *     (one job with two tags adds to two buckets, so this can exceed 1.0).
+ *     An upper bound is fine for a threshold gate: it never makes a
+ *     genuinely sparse facet look sparser than it is (measured 2026-08-29:
+ *     tech_stack read 316% on a software search, ~3% on nursing/warehouse —
+ *     the gap the gate below keys off is two orders of magnitude wide
+ *     either way the bound leans).
+ *
+ * `null` when there's nothing to compute against (no distribution, or a
+ * non-positive total) — the caller renders no caption / hides the group,
+ * never a divide-by-zero artifact or a lie.
  */
-export function distributionTaggedShare(dist: Record<string, number> | undefined): number | null {
+export function distributionTaggedShare(
+    dist: Record<string, number> | undefined,
+    resultTotal: number,
+): number | null {
     if (!dist) return null;
-    const total = Object.values(dist).reduce((a, b) => a + b, 0);
-    return taggedShare(total - (dist.unknown ?? 0), total);
+    const tagged = Object.entries(dist).reduce((sum, [k, v]) => sum + (k === "unknown" ? 0 : v), 0);
+    return taggedShare(tagged, resultTotal);
 }
 
 /**
- * `taggedShare` for a BOOLEAN facet distribution shaped like
- * `visa_sponsorship` — Meilisearch omits untagged (null) rows from a boolean
- * facet's distribution entirely (verified live: `{true, false}`, no third
- * bucket), so unlike `distributionTaggedShare` the distribution's own sum is
- * only the TAGGED count; the denominator has to be the result set's overall
- * total, passed in separately.
+ * Coverage floor for a facet GROUP to render at all (Task #48, Part A —
+ * dynamic filters). Measured live 2026-08-29 across three search shapes
+ * (`distributionTaggedShare` against each shape's own `resultTotal`; see the
+ * PR body for the full per-facet table):
+ *   - Facets that must stay visible everywhere (work_type/experience_level/
+ *     employment_type/location_country) never read below 39% coverage in
+ *     any of the three shapes — tightest observed was experience_level on
+ *     the nursing search, 39.4%.
+ *   - tech_stack/must_have_skills never rose above ~3.6% on the two
+ *     non-tech shapes (nursing, warehouse), vs. 240%+ on the tech shape.
+ * 0.15 sits with >2.5x margin on both sides of that gap — comfortably below
+ * every legitimate group's floor, comfortably above the tech-facet noise
+ * ceiling on searches it doesn't describe.
  */
-export function booleanTaggedShare(dist: Record<string, number> | undefined, resultTotal: number): number | null {
-    if (!dist) return null;
-    const tagged = (dist["true"] ?? 0) + (dist["false"] ?? 0);
-    return taggedShare(tagged, resultTotal);
+export const FACET_COVERAGE_FLOOR = 0.15;
+
+/**
+ * Whether a facet GROUP earns a place in the panel for the CURRENT result
+ * set — two independent gates, both required (Task #48 design doc):
+ *   1. Coverage — `distributionTaggedShare(dist, resultTotal) >=
+ *      FACET_COVERAGE_FLOOR`. Below the floor, the facet barely describes
+ *      this result set at all.
+ *   2. Discrimination — at least 2 selectable `options` survive (the caller
+ *      computes these via `facetOptions`, which already folds
+ *      `STATIC_FACET_LADDERS` in). A facet where every result shares one
+ *      value can't narrow anything either.
+ * `STATIC_FACET_LADDERS` groups clear #2 by construction — their ladder is
+ * always >=3 entries — so coverage alone governs whether THEY appear, per
+ * the ruling that the static-ladder guarantee is about values WITHIN a
+ * group, not the group's existence. Occupation/domain never appears here: a
+ * group's presence is decided purely by how much of THIS result set it
+ * describes, not by what was searched for.
+ */
+export function facetGroupVisible(
+    dist: Record<string, number> | undefined,
+    resultTotal: number,
+    options: readonly unknown[],
+): boolean {
+    const coverage = distributionTaggedShare(dist, resultTotal);
+    return coverage != null && coverage >= FACET_COVERAGE_FLOOR && options.length >= 2;
 }
 
