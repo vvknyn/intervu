@@ -20,6 +20,35 @@ export const LEGAL_LINKS: { label: string; href: string }[] = [
     { label: "Terms", href: "/terms" },
 ];
 
+/**
+ * The compact link cluster on its own — reused by the global footer below,
+ * and by the /jobs filter surfaces (`app/jobs/page.tsx`'s inline panel and
+ * mobile sheet), which sit below or beside the infinite result feed where
+ * the global `Footer` never scrolls into view. `children` lets a caller
+ * (only `FooterContent` today) append something into the same `<nav>` —
+ * used here for the dark-mode toggle so the global footer's DOM is
+ * unchanged, not a mechanism for future filter-surface callers to grow.
+ */
+export function FooterLinks({ children }: { children?: React.ReactNode }) {
+    return (
+        <nav
+            aria-label="Company"
+            className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground"
+        >
+            {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
+                <Link
+                    key={link.href}
+                    href={link.href}
+                    className="transition-colors duration-100 hover:text-foreground"
+                >
+                    {link.label}
+                </Link>
+            ))}
+            {children}
+        </nav>
+    );
+}
+
 /** Compact 1-line footer links — removed from filter panels; use `FooterContent`. */
 export function FooterContent() {
     const [user, setUser] = useState<User | null>(null);
@@ -39,19 +68,7 @@ export function FooterContent() {
                 they have to share its gutter or the frame is crooked. */}
             <div className="shell-row flex flex-col gap-3 py-6">
                 <p className="max-w-md text-xs text-muted-foreground">{FOOTER_PROVENANCE_LINE}</p>
-                <nav
-                    aria-label="Company"
-                    className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground"
-                >
-                    {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
-                        <Link
-                            key={link.href}
-                            href={link.href}
-                            className="transition-colors duration-100 hover:text-foreground"
-                        >
-                            {link.label}
-                        </Link>
-                    ))}
+                <FooterLinks>
                     {!user && mounted && (
                         <button
                             type="button"
@@ -63,7 +80,7 @@ export function FooterContent() {
                             <span>Dark mode {mode === "dark" ? "on" : "off"}</span>
                         </button>
                     )}
-                </nav>
+                </FooterLinks>
                 <p className="max-w-md text-xs text-muted-foreground">
                     Job data by{" "}
                     <a

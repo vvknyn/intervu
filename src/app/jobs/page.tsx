@@ -33,6 +33,7 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
 import { getMarketingStatsAction } from "@/actions/marketing";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
+import { FooterLinks } from "@/components/layout/Footer";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     searchJobsAction as searchJobsActionRaw,
@@ -4549,6 +4550,13 @@ function JobsContent() {
                         className="panel-enter max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-none border border-border bg-card p-2.5 text-foreground custom-scrollbar"
                     >
                         {renderFiltersPanel()}
+                        {/* The global `Footer` is mounted below this infinite feed and
+                            never scrolls into view here — this is the only reachable
+                            desktop filter surface on /jobs, so the footer links live
+                            at its end too. */}
+                        <div className="mt-3 border-t border-border/80 pt-3">
+                            <FooterLinks />
+                        </div>
                     </div>
                 )}
                 {showJobsToolbarSection && (
@@ -4650,6 +4658,12 @@ function JobsContent() {
                                     className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-card p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
                                 >
                                     {renderFiltersPanel()}
+                                    {/* Same reachability gap as the desktop inline panel
+                                        above — the global `Footer` never scrolls into view
+                                        below the mobile infinite feed either. */}
+                                    <div className="mt-3 border-t border-border/80 pt-3">
+                                        <FooterLinks />
+                                    </div>
                                 </div>
                             </SheetContent>
                         </Sheet>
