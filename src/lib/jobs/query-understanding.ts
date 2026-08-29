@@ -16,7 +16,8 @@ import type { JobSearchParams, PlaceClause, PlaceFilter } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
 import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution, type LocationField } from "../geo/resolve-place";
-import { MAX_REGION_CLAUSE_TERMS } from "../geo/regions";
+import { MAX_REGION_CLAUSE_TERMS, regionLabel } from "../geo/regions";
+import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
 import { SENIORITY_PHRASES } from "./role-title-lane";
 import { LOCATION_FACET_FIELDS } from "./meilisearch";
@@ -339,10 +340,13 @@ export async function resolveExactFacetValue(phrase: string, vocab: LocationVoca
  * never be picked up by a filter that was never asked for.
  *
  * Same `matchMode: "literal"` primitive as `resolveExactFacetValue` — a
- * picked value is by construction an already-advertised corpus literal, so
- * there is no tokenizing/arity question to resolve the way a TYPED phrase
- * has (`resolvePhraseOrRawLiteral` below): a click carries no ambiguity a
- * gazetteer scan could usefully second-guess.
+ * picked value is an already-advertised corpus literal, so there is no
+ * tokenizing/arity question to resolve the way a TYPED phrase has
+ * (`resolvePhraseOrRawLiteral` below): a click carries no ambiguity a
+ * gazetteer scan could usefully second-guess. "Already-advertised" is a
+ * caller-side guarantee, not a URL one — `resolveLocationFacet` screens out
+ * the values the typeahead would no longer offer on the field before
+ * reaching here (see its picked loop).
  */
 export async function resolvePickedFacetValue(
   field: LocationField,
@@ -485,6 +489,31 @@ export async function resolveLocationFacet(
   // `p.places` merge below (`JobSearchParams.places` is already OR-across-
   // mentions by construction — see its doc).
   for (const { field, value } of picked) {
+    // …with ONE carve-out: a value the SUGGESTION chokepoint would refuse to
+    // offer on this field is not a real pick, whatever the URL says. Old deep
+    // links, browser history and saved searches still carry the ones the
+    // dropdown used to emit — a region under CITIES (`?city=North+America`)
+    // or a country name an ATS stuffed into a city/state field
+    // (`?city=Canada`, 31 rows beside Countries·Canada's 66,010) — and a
+    // literal probe honours them exactly, which is precisely the near-empty
+    // result those links produce today. Routing them back through the TYPED
+    // pipeline recovers the meaning the label always had: region → its member
+    // countries, country name → the country.
+    //
+    // The two predicates are the same ones `mergeFieldHits` (location-suggest)
+    // filters with, so the invariant holds by construction rather than by
+    // maintenance: resolution honours literally exactly the set of values
+    // suggestion would still offer. Neither predicate can catch a legitimate
+    // homonym pick — `regionLabel` reads a closed alias table, and
+    // `isMisfiledCountryName` demands positive gazetteer evidence that the
+    // value is a country AND is NOT a city/admin1 (States·Georgia and
+    // Cities·Mexico stay literal on both sides).
+    if (regionLabel(value) || isMisfiledCountryName(field, value, vocab.gazetteer)) {
+      const { places, unmatched: miss } = await resolvePhraseOrRawLiteral(value, vocab);
+      resolved.push(...places);
+      unmatched.push(...miss);
+      continue;
+    }
     const hits = await resolvePickedFacetValue(field, value, vocab);
     if (hits.length === 0) {
       unmatched.push(value);
