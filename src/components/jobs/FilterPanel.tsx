@@ -556,11 +556,11 @@ export function distributionTaggedShare(
  * (`distributionTaggedShare` against each shape's own `resultTotal`; see the
  * PR body for the full per-facet table):
  *   - Facets that must stay visible everywhere (work_type/experience_level/
- *     employment_type/location_country) never read below 40% coverage in
+ *     employment_type/location_country) never read below 39% coverage in
  *     any of the three shapes — tightest observed was experience_level on
- *     the nursing search, 40.3%.
+ *     the nursing search, 39.4%.
  *   - tech_stack/must_have_skills never rose above ~3.6% on the two
- *     non-tech shapes (nursing, warehouse), vs. 250%+ on the tech shape.
+ *     non-tech shapes (nursing, warehouse), vs. 240%+ on the tech shape.
  * 0.15 sits with >2.5x margin on both sides of that gap — comfortably below
  * every legitimate group's floor, comfortably above the tech-facet noise
  * ceiling on searches it doesn't describe.
