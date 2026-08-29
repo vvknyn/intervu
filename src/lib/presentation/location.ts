@@ -116,6 +116,55 @@ function remoteLabel(parts: string[]): string {
   return "Remote";
 }
 
+/** A location value split into the part that identifies it and the part that
+ *  merely places it — see `splitLocationLabel`. */
+export interface LocationLabelParts {
+  /** The identifying part. Never empty; the whole value when it is not a path. */
+  lead: string;
+  /** The broader levels above `lead`, in their original order. "" when none. */
+  context: string;
+}
+
+/** Minimum "/"-joined levels before a value reads as a hierarchy path. Two
+ *  segments are a compound name ("Frankfurt/Main") or a two-item list
+ *  ("Middle East/Africa"), and reversing either would be wrong. */
+const MIN_PATH_SEGMENTS = 3;
+
+/**
+ * Split a raw location value into what IDENTIFIES it and what merely places
+ * it, for a one-line width-constrained row (the location typeahead).
+ *
+ * Measured on prod 2026-08-29, typing "North America":
+ *
+ *     North America/USA/Missouri/St. Louis - CCP    24
+ *     North America/USA/Missouri/St. Louis - WPE    12
+ *
+ * Both rendered as `North America/USA/Missouri/St. …` — character-for-character
+ * identical, two rows offering different things. CSS truncates from the end,
+ * and the end is the only part that differs. Leading with the last segment
+ * moves the discriminating token out of truncation's reach, which is how
+ * place autocompletes render a hierarchy.
+ *
+ * Only "/" counts as a delimiter here, and only at three levels or more. The
+ * other two delimiters this corpus uses are not reliably broad-to-narrow: a
+ * spaced dash is narrow-first about as often as not ("Toronto - Bay St", also
+ * measured on prod), and a comma list is conventionally narrow-first
+ * ("Toronto, Ontario, Canada"). Reversing either would lead the row with the
+ * wrong word. Anything that is not a path comes back whole, so a caller can
+ * render every suggestion through this one shape.
+ *
+ * Display only. The caller still commits, compares and filters on the full
+ * original value — that string is what the corpus and the facet hold.
+ */
+export function splitLocationLabel(raw: string): LocationLabelParts {
+  const segments = raw.split("/").map((s) => s.trim()).filter(Boolean);
+  if (segments.length < MIN_PATH_SEGMENTS) return { lead: raw, context: "" };
+  return {
+    lead: segments[segments.length - 1]!,
+    context: segments.slice(0, -1).join(" / "),
+  };
+}
+
 const MAX_SEGMENTS_BEFORE_SUMMARY = 3;
 
 /**

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { locationSummary } from "../../src/lib/presentation/location";
+import { locationSummary, splitLocationLabel } from "../../src/lib/presentation/location";
 
 // --- Rule 1: strip a trailing postal code ---------------------------------
 
@@ -84,4 +84,55 @@ test("leaves a plain two-segment location untouched", () => {
 
 test("leaves a single-word location untouched", () => {
   assert.equal(locationSummary("Remote"), "Remote");
+});
+
+// --- splitLocationLabel: which part of a value identifies the row ---------
+//
+// The typeahead row is one truncating line. Whatever sits at its start is
+// what a searcher can actually read, so the rule is about WHICH part that is.
+
+test("leads with the site, not the continent — the two prod rows that surfaced this", () => {
+  // Both rendered as "North America/USA/Missouri/St. …" and offered different
+  // things (24 postings vs 12).
+  const ccp = splitLocationLabel("North America/USA/Missouri/St. Louis - CCP");
+  const wpe = splitLocationLabel("North America/USA/Missouri/St. Louis - WPE");
+  assert.equal(ccp.lead, "St. Louis - CCP");
+  assert.equal(wpe.lead, "St. Louis - WPE");
+  assert.notEqual(ccp.lead, wpe.lead, "the whole point: the leads must differ");
+  assert.equal(ccp.context, "North America / USA / Missouri");
+});
+
+test("the rule is the shape, not those rows — any 3+ level path splits the same way", () => {
+  assert.deepEqual(splitLocationLabel("Europe/GRE/Markopoulo"), {
+    lead: "Markopoulo",
+    context: "Europe / GRE",
+  });
+  assert.deepEqual(splitLocationLabel("A/B/C/D/E"), { lead: "E", context: "A / B / C / D" });
+});
+
+test("tolerates padding and empty levels around the separators", () => {
+  assert.deepEqual(splitLocationLabel("North America / USA //  Minnesota / Mankato "), {
+    lead: "Mankato",
+    context: "North America / USA / Minnesota",
+  });
+});
+
+test("two slash-joined parts are a name or a pair, never a path", () => {
+  // Reversing either of these would lead the row with the wrong word:
+  // "Frankfurt/Main" is one city; "Middle East/Africa" is a two-item list.
+  assert.deepEqual(splitLocationLabel("Frankfurt/Main"), { lead: "Frankfurt/Main", context: "" });
+  assert.deepEqual(splitLocationLabel("Middle East/Africa"), { lead: "Middle East/Africa", context: "" });
+});
+
+test("does not reverse the delimiters whose direction is not reliable", () => {
+  // A comma list is conventionally narrow-first, and a spaced dash goes both
+  // ways in this corpus ("Toronto - Bay St" vs "APAC - Malaysia - Seoul").
+  for (const raw of ["Toronto, Ontario, Canada", "APAC - Malaysia - Kuala Lumpur", "Toronto - Bay St"]) {
+    assert.deepEqual(splitLocationLabel(raw), { lead: raw, context: "" }, raw);
+  }
+});
+
+test("a plain place is returned whole, so every row renders through one shape", () => {
+  assert.deepEqual(splitLocationLabel("Toronto"), { lead: "Toronto", context: "" });
+  assert.deepEqual(splitLocationLabel(""), { lead: "", context: "" });
 });
