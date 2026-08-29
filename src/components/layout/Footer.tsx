@@ -10,15 +10,27 @@ import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrom
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { FOOTER_PROVENANCE_LINE } from "@/lib/marketing-stats";
 
-/** Quiet footer links — Research lives here (not primary nav). */
-export const LEGAL_LINKS: { label: string; href: string }[] = [
+/** Quiet footer links — Research lives here (not primary nav). `fromCurrentPage`
+ *  marks a link whose destination wants to know where the visitor was —
+ *  `FooterLinks` appends `?from=<pathname>` for any entry carrying it, keyed
+ *  on the property itself rather than on which link this happens to be. */
+export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true }[] = [
     { label: "Research", href: "/research/ghost-jobs" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
+    { label: "Report a bug", href: "/contact?kind=bug", fromCurrentPage: true },
     { label: "Setup help", href: "/connect/help" },
     { label: "Privacy", href: "/privacy" },
     { label: "Terms", href: "/terms" },
 ];
+
+/** Appends `from=<pathname>` to `href` for a link flagged `fromCurrentPage`,
+ *  reusing whatever query string the link already has — pulled out of
+ *  `FooterLinks` so the URL-building rule has one home instead of living
+ *  inline in the render loop. */
+function withFromParam(href: string, pathname: string): string {
+    return `${href}${href.includes("?") ? "&" : "?"}from=${encodeURIComponent(pathname)}`;
+}
 
 /**
  * The compact link cluster on its own — reused by the global footer below,
@@ -30,6 +42,7 @@ export const LEGAL_LINKS: { label: string; href: string }[] = [
  * unchanged, not a mechanism for future filter-surface callers to grow.
  */
 export function FooterLinks({ children }: { children?: React.ReactNode }) {
+    const pathname = usePathname();
     return (
         <nav
             aria-label="Company"
@@ -38,7 +51,7 @@ export function FooterLinks({ children }: { children?: React.ReactNode }) {
             {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
                 <Link
                     key={link.href}
-                    href={link.href}
+                    href={"fromCurrentPage" in link && link.fromCurrentPage ? withFromParam(link.href, pathname) : link.href}
                     className="transition-colors duration-100 hover:text-foreground"
                 >
                     {link.label}

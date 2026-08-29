@@ -14,6 +14,17 @@ import { verifyTurnstile, type TurnstileResult } from "@/lib/shield/turnstile";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const RATE_LIMIT_MAX = 3;
+const CONTEXT_FIELD_MAX_LEN = 300;
+
+export type ContactKind = "message" | "bug";
+
+/** Auto-captured debug context, attached only to bug reports. Every field is
+ *  optional — the client sends only what it could read. */
+export interface ContactContext {
+  page?: string;
+  userAgent?: string;
+  viewport?: string;
+}
 
 export interface ContactSubmitInput {
   name?: string;
@@ -22,11 +33,68 @@ export interface ContactSubmitInput {
   honeypot: string;
   turnstileToken?: string;
   path: string;
+  kind?: ContactKind;
+  context?: ContactContext;
 }
 
 export type ContactSubmitResult = { success: true } | { error: string };
 
 type ContactData = { name?: string; email: string; message: string };
+
+/**
+ * Pure decision: coerces an arbitrary `kind` value (client input is
+ * untrusted) to one of the two allowed values, and truncates/drops context
+ * accordingly. Context only ever travels with a bug report — anything else
+ * (including a bogus `kind`) drops it, since it's only useful attached to
+ * the report it was captured for. Generic over whatever fields `ContactContext`
+ * has, so a future field doesn't need a matching change here.
+ */
+export function normalizeContactKind(
+  kind: unknown,
+  context: ContactContext | undefined,
+): { kind: ContactKind; context?: ContactContext } {
+  const normalizedKind: ContactKind = kind === "bug" ? "bug" : "message";
+  if (normalizedKind !== "bug" || !context) {
+    return { kind: normalizedKind };
+  }
+
+  const truncated = Object.fromEntries(
+    Object.entries(context)
+      .filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0)
+      .map(([key, value]) => [key, value.slice(0, CONTEXT_FIELD_MAX_LEN)]),
+  ) as ContactContext;
+
+  return {
+    kind: normalizedKind,
+    context: Object.keys(truncated).length > 0 ? truncated : undefined,
+  };
+}
+
+/**
+ * Pure decision: the notification email's subject/body, split out of
+ * `notifyContactSubmission` so the bug-vs-message content logic is
+ * unit-testable without a `sendEmail` call.
+ */
+export function buildContactNotificationEmail(
+  data: ContactData,
+  path: string,
+  kind: ContactKind,
+  context?: ContactContext,
+): { subject: string; text: string } {
+  const isBug = kind === "bug";
+  const debugLines =
+    isBug && context
+      ? Object.entries(context)
+          .filter((entry): entry is [string, string] => Boolean(entry[1]))
+          .map(([key, value]) => `${key}: ${value}`)
+          .join("\n")
+      : "";
+
+  return {
+    subject: `[Velai ${isBug ? "Bug" : "Contact"}] Message from ${data.name ? `${data.name} (${data.email})` : data.email}`,
+    text: `New contact form submission on Velai:\n\nName: ${data.name || "Not provided"}\nEmail: ${data.email}\nSubmitted from: ${path}\nTime: ${new Date().toISOString()}\n\nMessage:\n${data.message}\n${debugLines ? `\nDebug info:\n${debugLines}\n` : ""}`,
+  };
+}
 
 /**
  * Pure decision core: given the turnstile outcome and the schema-validation
@@ -58,11 +126,17 @@ export function resolveContactGate(input: {
  * server-action version failed to do (a lost notification looked identical
  * to a sent one).
  */
-export async function notifyContactSubmission(data: ContactData, path: string): Promise<void> {
+export async function notifyContactSubmission(
+  data: ContactData,
+  path: string,
+  kind: ContactKind = "message",
+  context?: ContactContext,
+): Promise<void> {
+  const { subject, text } = buildContactNotificationEmail(data, path, kind, context);
   const result = await sendEmail({
     to: "hello@thesubspace.io",
-    subject: `[Velai Contact] Message from ${data.name ? `${data.name} (${data.email})` : data.email}`,
-    text: `New contact form submission on Velai:\n\nName: ${data.name || "Not provided"}\nEmail: ${data.email}\nSubmitted from: ${path}\nTime: ${new Date().toISOString()}\n\nMessage:\n${data.message}\n`,
+    subject,
+    text,
     kind: "transactional",
   });
   if (!result.sent) {
@@ -77,6 +151,8 @@ export async function submitContact(input: ContactSubmitInput): Promise<ContactS
     // an error.
     return { success: true };
   }
+
+  const { kind, context } = normalizeContactKind(input.kind, input.context);
 
   const turnstile = await verifyTurnstile(input.turnstileToken);
   const validated = validate(contactMessageSchema, {
@@ -114,9 +190,11 @@ export async function submitContact(input: ContactSubmitInput): Promise<ContactS
       name: gate.data.name ?? null,
       ts: new Date().toISOString(),
       path: input.path,
+      kind,
+      ...(context ? { context } : {}),
     });
 
-    await notifyContactSubmission(gate.data, input.path);
+    await notifyContactSubmission(gate.data, input.path, kind, context);
 
     return { success: true };
   } catch (error) {

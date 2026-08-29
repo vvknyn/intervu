@@ -61,7 +61,7 @@ export function LandingMarketingShowcase({
   onSelectBoard,
 }: LandingMarketingShowcaseProps) {
   return (
-    <div className="w-full space-y-8 pt-8 pb-2 sm:pt-10">
+    <div className="w-full space-y-8 pt-3 pb-2">
 
       <div>
         <div className="flex items-center justify-between border-b border-foreground pb-2 text-sm font-semibold text-foreground">

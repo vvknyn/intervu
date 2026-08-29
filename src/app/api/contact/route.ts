@@ -23,6 +23,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     honeypot: body.honeypot ?? "",
     turnstileToken: body.turnstileToken,
     path: body.path ?? "",
+    kind: body.kind,
+    context: body.context,
   });
 
   return NextResponse.json(result, { status: 200 });
