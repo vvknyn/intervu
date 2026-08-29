@@ -226,7 +226,8 @@ export default function PursuitDetailPage() {
     // `pursuit.company_name` is a Firestore-stored snapshot (`buildJobSnapshot`/
     // `upsertPursuitCore`) — the live Meili index carries the ATS-stated raw
     // name permanently (intervu owns brand cleaning at display time, never at
-    // ingest — see meilisearch.ts's `upsertJobs`), so every snapshot taken
+    // ingest — ingest is the pipeline repo's sync.mjs, which PUTs the
+    // Subspace feed through unchanged), so every snapshot taken
     // from it carries the raw value too, and nothing ever rewrites a pursuit
     // already on file. Cleaned at render instead, same as every live search hit.
     const companyName = displayCompanyName(pursuit.company_name);

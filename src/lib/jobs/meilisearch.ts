@@ -130,7 +130,7 @@ export const JOBS_INDEX_SETTINGS = {
     // Owned by the subspace-side sync worker, not intervu — populated by its
     // own classifier and applied live as Meili task 467532, 2026-08-18.
     // intervu never filters on it. Listed here anyway so this canon stays a
-    // faithful mirror of the live index: applyIndexSettings's PATCH replaces
+    // faithful mirror of the live index: a settings PATCH replaces
     // filterableAttributes wholesale, so omitting a live-only entry here
     // would silently DROP it on the next apply. Do not remove without
     // confirming the box no longer needs it.
@@ -281,9 +281,9 @@ export const JOBS_INDEX_SETTINGS = {
   // Live GET against the jobs index that night showed this exact 15-word
   // list already set (source unknown — not this repo's apply-* scripts, none
   // of which touch stopWords); this repo's JOBS_INDEX_SETTINGS was silently
-  // missing it, so the next `applyIndexSettings` PATCH (which REPLACES
-  // stopWords wholesale, same hazard as filterableAttributes above) would
-  // have wiped it. Live on the index since ~2026-08-27.
+  // missing it, so the next settings PATCH (which REPLACES stopWords
+  // wholesale, same hazard as filterableAttributes above) would have wiped
+  // it. Live on the index since ~2026-08-27.
   stopWords: ["a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"],
   // Made explicit 2026-08-23; previously left unset (silently riding Meili's
   // factory default, which these numbers equal exactly — GET-verified live
@@ -326,10 +326,6 @@ export function hasMeilisearch(): boolean {
 
 export function searchKey(): string {
   return process.env.MEILISEARCH_SEARCH_KEY || process.env.MEILISEARCH_API_KEY || "";
-}
-
-function adminKey(): string {
-  return process.env.MEILISEARCH_ADMIN_KEY || process.env.MEILISEARCH_API_KEY || "";
 }
 
 /** Per-attempt timeout for a read-path Meilisearch call. Single knob — retune
@@ -739,8 +735,9 @@ export interface MeiliSearchBody {
  * ship as dead code that silently never fixes the bug it exists for.
  * Sourcing from the settings object the sync worker already applies to the
  * live index keeps one canonical number: retune typo tolerance by editing
- * `JOBS_INDEX_SETTINGS.typoTolerance` and both the live index (next
- * `applyIndexSettings`) and query-building below follow automatically.
+ * `JOBS_INDEX_SETTINGS.typoTolerance` and both the live index (via the
+ * pipeline repo's settings apply) and query-building below follow
+ * automatically.
  *
  * Returns `null` — never a guessed number — if the field is ever missing or
  * malformed, so `quoteShortTokens` can fail safe to unquoted queries instead
@@ -1521,7 +1518,8 @@ export function dedupeJobSuggestionHits(
       company = humanizeTenantSubdomain(domain);
     }
     // The index carries the ATS-stated raw name (intervu owns display-time
-    // cleaning, not ingest — see upsertJobs), so fold junk prefixes / legal
+    // cleaning, not ingest — ingest is the pipeline repo's sync.mjs, which
+    // PUTs the Subspace feed through unchanged), so fold junk prefixes / legal
     // suffixes / slogan-brand splits onto the same canonical form the SERP
     // renders RIGHT before the dedup key below — otherwise "REQ123 Acme",
     // "Acme, Inc.", and "We build things - Acme" dedupe as three distinct,
@@ -1711,38 +1709,16 @@ export async function resolveCompanyIntent(q: string | undefined): Promise<boole
   return value;
 }
 
-/* --------- Ingestion / admin (invoked only by the pipeline-box sync worker) --------- */
-
-async function adminFetch(path: string, init: RequestInit): Promise<unknown> {
-  const h = host();
-  if (!h) throw new Error("MEILISEARCH_HOST not set");
-  const res = await fetch(`${h}${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${adminKey()}`,
-      ...(init.headers || {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Meilisearch ${path} failed: ${res.status} ${text.slice(0, 300)}`);
-  }
-  return res.json();
-}
-
-export async function applyIndexSettings(): Promise<void> {
-  await adminFetch(`/indexes/${JOBS_INDEX}/settings`, {
-    method: "PATCH",
-    body: JSON.stringify(JOBS_INDEX_SETTINGS),
-  });
-}
-
 /**
  * Derive a sanitized, numeric "posted" timestamp (epoch ms) for a job. Meilisearch
  * range operators are numeric-only, so the raw ISO `posted_at` string can't be
- * used to range-filter directly — this is the numeric derivative, computed once
- * at the ingest chokepoint (`upsertJobs`) rather than at query time.
+ * used to range-filter directly — this is the numeric derivative, computed on
+ * read by every consumer below (sort.ts, JobDetail, snapshot-preview.ts,
+ * follows/alerts.ts) rather than stored on the index. The live jobs index is
+ * written by the separate interview-os repo's scripts/jobs-sync/sync.mjs,
+ * which derives its own `posted_ts` (public-job.ts's `derivePublicPostedTs`)
+ * before PUTting documents — this is intervu's independent read-side copy of
+ * that same derivation, not the ingest path.
  *
  * Measured live: `posted_at` is 18% null and carries future-dated sentinels
  * (2030-01-31, 2026-12-31) that sit at the head of a naive `posted_at:desc`
@@ -1756,51 +1732,4 @@ export async function applyIndexSettings(): Promise<void> {
 export function derivePostedTs(job: { posted_at?: string | null; first_seen_at?: string | null }): number | null {
   const now = Date.now();
   return sanitizeTimestamp(job.posted_at, now) ?? sanitizeTimestamp(job.first_seen_at, now) ?? null;
-}
-
-export async function upsertJobs(jobs: PublicJob[]): Promise<void> {
-  if (!jobs.length) return;
-  // Chokepoint: every ingest path (initialLoad / syncChanged / reconcileAndEvict
-  // in lib/jobs/sync.ts) funnels through here, so deriving posted_ts once at
-  // the PUT boundary keeps it consistent without threading it through each
-  // caller. NOTE: this function has zero callers in production — the live
-  // Meili index is written by the separate interview-os repo's
-  // scripts/jobs-sync/sync.mjs (systemd timers), which PUTs the Subspace feed
-  // through unchanged. `company` is deliberately left as the ATS-stated raw
-  // name on the index; intervu owns brand-name cleaning at display time
-  // (lib/jobs/presentation.ts), not at ingest.
-  const docs = jobs.map((j) => ({
-    ...j,
-    posted_ts: derivePostedTs(j),
-  }));
-  await adminFetch(`/indexes/${JOBS_INDEX}/documents?primaryKey=id`, {
-    method: "PUT",
-    body: JSON.stringify(docs),
-  });
-}
-
-export async function deleteJobs(ids: string[]): Promise<void> {
-  if (!ids.length) return;
-  await adminFetch(`/indexes/${JOBS_INDEX}/documents/delete-batch`, {
-    method: "POST",
-    body: JSON.stringify(ids),
-  });
-}
-
-/** All indexed job ids (for reconciliation / eviction). */
-export async function allIndexedIds(): Promise<Set<string>> {
-  const ids = new Set<string>();
-  let offset = 0;
-  const limit = 1000;
-  for (;;) {
-    const body = (await adminFetch(
-      `/indexes/${JOBS_INDEX}/documents?fields=id&limit=${limit}&offset=${offset}`,
-      { method: "GET" },
-    )) as { results?: { id: string }[] };
-    const results = body.results ?? [];
-    for (const r of results) ids.add(r.id);
-    if (results.length < limit) break;
-    offset += limit;
-  }
-  return ids;
 }
