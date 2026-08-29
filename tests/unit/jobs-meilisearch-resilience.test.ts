@@ -7,6 +7,8 @@ import {
     isPostedTsPopulationSufficient,
     POSTED_TS_POPULATION_THRESHOLD,
     buildSearchBody,
+    withLiveVacancyFilter,
+    LIVE_VACANCY_FILTER,
 } from "../../src/lib/jobs/meilisearch";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "../../src/lib/jobs/types";
 
@@ -110,4 +112,54 @@ test("F6 guard: every REQUESTED_FACET_KEYS member is referenced somewhere in the
 test("F6 guard: 'source' is FACETABLE but deliberately absent from both the requested-keys list and the render path", () => {
     assert.ok(!REQUESTED_FACET_KEYS.includes("source"));
     assert.ok(!RENDER_PATH_SRC.includes('"source"'));
+});
+
+// facet-search liveness fix: the typeahead must never advertise a count real
+// search can't deliver (buildFilter always ANDs LIVE_VACANCY_FILTER; facet
+// search hadn't).
+test("withLiveVacancyFilter: bare liveness clause when there's no caller filter", () => {
+    assert.equal(withLiveVacancyFilter(undefined), LIVE_VACANCY_FILTER);
+    assert.equal(withLiveVacancyFilter(""), LIVE_VACANCY_FILTER);
+});
+
+test("withLiveVacancyFilter: ANDs the caller's filter onto the liveness clause without replacing it", () => {
+    assert.equal(
+        withLiveVacancyFilter('work_type = "remote"'),
+        `${LIVE_VACANCY_FILTER} AND work_type = "remote"`,
+    );
+    // A second representative shape (OR-group), proving this isn't tuned to
+    // one caller's literal string.
+    assert.equal(
+        withLiveVacancyFilter('(work_type = "remote" OR work_type = "hybrid")'),
+        `${LIVE_VACANCY_FILTER} AND (work_type = "remote" OR work_type = "hybrid")`,
+    );
+});
+
+test("fetchFacetSearch: every request body carries the composed liveness filter, work-mode-filtered or not", async (t) => {
+    process.env.MEILISEARCH_HOST = "https://meili.test";
+    process.env.MEILISEARCH_SEARCH_KEY = "k";
+    const { fetchFacetSearch } = await import("../../src/lib/jobs/meilisearch");
+
+    const bodies: unknown[] = [];
+    t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string));
+        return { ok: true, json: async () => ({ facetHits: [] }) };
+    });
+
+    // Plain place query (location typeahead route's no-work-mode case).
+    await fetchFacetSearch("location_city", "Tor");
+    // Work-mode-narrowed place query (buildPlaceGroups' plan.filter case).
+    await fetchFacetSearch("location_city", "Tor", 'work_type = "remote"');
+    // Bare work-mode browse (buildWorkModeGroups: empty query, no filter).
+    await fetchFacetSearch("work_type", "");
+
+    assert.deepEqual(bodies, [
+        { facetName: "location_city", facetQuery: "Tor", filter: LIVE_VACANCY_FILTER },
+        {
+            facetName: "location_city",
+            facetQuery: "Tor",
+            filter: `${LIVE_VACANCY_FILTER} AND work_type = "remote"`,
+        },
+        { facetName: "work_type", facetQuery: "", filter: LIVE_VACANCY_FILTER },
+    ]);
 });
