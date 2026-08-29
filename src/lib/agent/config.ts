@@ -35,9 +35,19 @@ export const AGENT = {
      * Still reads its OWN `AGENT_ISSUER_URL`, never `NEXT_PUBLIC_SITE_URL` (the
      * SEO canonical), so the two can be pointed apart again without either one
      * silently dragging the other along.
+     *
+     * 2026-08-29 — Vivek: "on the website, change them to velai.app; keep old
+     * links active for backward compatibility." Both legacy domains
+     * (intervu.cc AND intervuhq.com) now serve the agent paths directly via
+     * the shared `agent_carveout` Caddy snippet (deploy/Caddyfile), so a
+     * client that registered against either old origin keeps a live,
+     * direct connection instead of hitting a redirect. That works because
+     * access tokens are opaque Firestore-backed secrets, not issuer-bound
+     * JWTs (extractBearerToken, src/app/api/mcp/route.ts) — flipping this
+     * default does not invalidate anything already issued.
      */
     issuer(): string {
-        return process.env.AGENT_ISSUER_URL ?? "https://intervuhq.com";
+        return process.env.AGENT_ISSUER_URL ?? "https://velai.app";
     },
     collections: {
         clients: "agent_clients",

@@ -30,7 +30,7 @@ const HELP = `IndexNow push — POST /sitemap.xml's URLs to api.indexnow.org.
 Usage: node scripts/indexnow-push.mjs [--sitemap URL] [--key KEY] [--key-location URL] [--dry-run]
        node scripts/indexnow-push.mjs --help
 
---sitemap        Sitemap to read (default https://intervuhq.com/sitemap.xml)
+--sitemap        Sitemap to read (default https://velai.app/sitemap.xml)
 --key            IndexNow key. Default: the sole 32-hex-char public/<key>.txt.
 --key-location   Where the key is served (default https://<sitemap host>/<key>.txt)
 --dry-run        Print batch counts, make no network POST.`;
@@ -97,7 +97,7 @@ export function batchUrls(urls, size = INDEXNOW_BATCH_SIZE) {
 }
 
 async function main() {
-  const sitemapUrl = argValue("sitemap", "https://intervuhq.com/sitemap.xml");
+  const sitemapUrl = argValue("sitemap", "https://velai.app/sitemap.xml");
   const host = new URL(sitemapUrl).hostname;
   const key = resolveKey(argValue("key"), join(repoRoot, "public"));
   const keyLocation = argValue("key-location", `https://${host}/${key}.txt`);

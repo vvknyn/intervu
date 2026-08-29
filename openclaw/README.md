@@ -15,7 +15,7 @@ submits for you. Full behavior is in `SKILL.md` — this file is install-only.
 ## Install
 
 ```bash
-curl -fsSL https://intervuhq.com/install | bash
+curl -fsSL https://velai.app/install | bash
 ```
 
 No repo checkout needed — the command above works standalone.

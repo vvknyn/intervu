@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 // A frozen fixture value, deliberately a literal: this mock exists to render a
 // stable picture, so it must not move when an env var does. Kept on the same
 // origin as the real connector so the picture doesn't teach a dead domain.
-const MCP_URL = "https://intervuhq.com/api/mcp";
+const MCP_URL = "https://velai.app/api/mcp";
 const MOCK_NOW = Date.UTC(2026, 7, 5, 15, 0, 0);
 const TOTAL_ROLES = 248;
 

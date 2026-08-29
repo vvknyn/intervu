@@ -34,7 +34,7 @@ import { fileURLToPath } from "node:url";
 
 import { reconcileIdentity } from "./mcporter-reconcile.mjs";
 
-export const HEAL_COMMAND = "curl -fsSL https://intervuhq.com/install | bash";
+export const HEAL_COMMAND = "curl -fsSL https://velai.app/install | bash";
 
 export function mcporterHome() {
   return join(homedir(), ".mcporter");
