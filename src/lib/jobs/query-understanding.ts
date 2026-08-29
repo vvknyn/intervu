@@ -322,39 +322,51 @@ export async function resolveExactFacetValue(phrase: string, vocab: LocationVoca
 /**
  * Resolve one typed phrase, in three tiers:
  *
- * 1. Tokenize it (`parsePlaceTokens`). If every whitespace-delimited word
- *    got consumed by SOME resolution (`residualQ` empty) — a bare place name
- *    ("toronto"), a region ("North America"), an explicit multi-value list
- *    ("Toronto, Canada") — that result is already the right answer: it
- *    carries the gazetteer's full apparatus (radius-neighbor padding,
- *    cross-country homonym scoping, region member expansion), and there is
- *    nothing left over to explain away. Return it as-is.
+ * 1. Tokenize it (`parsePlaceTokens`). Trust that result as-is ONLY when it
+ *    consumed the WHOLE phrase (`residualQ` empty) AND resolved to exactly
+ *    ONE place — a bare place name ("toronto"), a region ("North America").
+ *    A single consumed place is where the gazetteer's generosity (radius-
+ *    neighbor padding, cross-country homonym scoping, region member
+ *    expansion) is actually wanted, and there is nothing left over to
+ *    explain away.
  *
- * 2. A nonempty `residualQ` means the phrase is structured/compound: the
- *    scanner could only ever partially cover it. This is the actual bug
- *    (prod, 2026-08-26) — "US CA San Diego" (a real, typeahead-advertised
- *    `location_city` value, 96 postings) tokenizes into "US" (country alias)
- *    + "San Diego" (city), discarding "CA", and a UNION of "in the US" with
- *    "in San Diego" equals "in the US": the whole-country count comes back
- *    for a 96-posting city, with the filter chip still looking applied. So a
- *    partial tokenize is never trusted on its own — the WHOLE phrase is
- *    tried as one exact known facet value first (`resolveExactFacetValue`).
- *    A picker or deep link that hands back this exact string already knows
- *    precisely which corpus row it means; resolving it by literal identity,
- *    rather than trusting a partial re-derivation, is what keeps that
- *    precision intact.
+ *    Arity, not completeness, is the discriminator, because those two come
+ *    apart: full consumption is evidence the string was DECOMPOSABLE, not
+ *    evidence that decomposing it was faithful to what was typed. A
+ *    machine-emitted composite built by joining an admin1/country name to a
+ *    city ("Massachusetts Boston", "United States Daly City") tokenizes
+ *    COMPLETELY into several places with zero residual too — every segment
+ *    is independently a real place, but the string as a whole was never
+ *    typed by a human meaning "Massachusetts OR Boston". Trusting arity>1
+ *    full consumption here would return that fragmented AND-of-places
+ *    before ever checking whether the whole phrase is itself a corpus
+ *    value (see the test file's "arity gate" block). Gating on arity===1
+ *    keeps the bare-word case fast while routing every multi-place
+ *    consumption — indistinguishable, at the tokenizer's own level, from
+ *    an ordinary compound like "US CA San Diego" — through step 2 below.
+ *
+ * 2. Anything tokenizing didn't reduce to one clean place — residual text
+ *    left over ("US CA San Diego", "Product Manager - Toronto, Canada") OR
+ *    multiple places consumed with nothing left over ("Massachusetts
+ *    Boston") — gets tried as ONE exact known facet value first
+ *    (`resolveExactFacetValue`). A picker or deep link that hands back this
+ *    exact string already knows precisely which corpus row it means;
+ *    resolving it by literal identity, rather than trusting a
+ *    re-derivation the tokenizer had to fragment to produce, is what keeps
+ *    that precision intact.
  *
  * 3. No literal match either — fall back to whatever tokenizing DID manage
- *    (today's partial-match behavior, unchanged: "San Diego Renewable Group"
- *    still finds San Diego). Only when tokenizing found nothing AT ALL does
- *    the phrase get dropped as unmatched.
+ *    (today's partial-match behavior, unchanged: "San Diego Renewable
+ *    Group" still finds San Diego, "Toronto, Canada" still finds both).
+ *    Only when tokenizing found nothing AT ALL does the phrase get dropped
+ *    as unmatched.
  */
 async function resolvePhraseOrRawLiteral(
   phrase: string,
   vocab: LocationVocabulary,
 ): Promise<{ places: PlaceClause[]; unmatched: string[] }> {
   const { residualQ, places } = await parsePlaceTokens(phrase, vocab);
-  if (places.length > 0 && residualQ.trim() === "") return { places, unmatched: [] };
+  if (places.length === 1 && residualQ.trim() === "") return { places, unmatched: [] };
 
   const exact = await resolveExactFacetValue(phrase, vocab);
   if (exact.length > 0) return { places: [{ any: exact }], unmatched: [] };
