@@ -161,6 +161,7 @@ import {
     resolveDetailMountSite,
     degradedResultsNote,
     unmatchedPlaceNote,
+    buildZeroResultPayload,
     resolveEndOfListState,
     shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
@@ -2046,10 +2047,16 @@ function JobsContent() {
                 // search fail someone," not every empty render (a fresh
                 // pristine mount is not a failed search).
                 if (interleavedHits.length === 0 && !isPristineLanding) {
-                    captureEvent("search_zero_results", {
-                        query_length: query.trim().length,
-                        filter_count: activeFilterEntries(filterState).length,
-                    });
+                    // `buildZeroResultPayload` (lib/jobs/result-state.ts) is
+                    // the pure builder — `r.defaultedLocation`/
+                    // `r.unmatchedPlaceMentions` are the two location-
+                    // resolver outputs `searchJobsAction` actually returns
+                    // (see that function's doc comment for why the full
+                    // resolved-place interpretation isn't among them).
+                    captureEvent("search_zero_results", buildZeroResultPayload(filterState, query, {
+                        defaultedLocation: r.defaultedLocation,
+                        unmatchedPlaceMentions: r.unmatchedPlaceMentions,
+                    }));
                 }
                 const selection = resolveSelectionAfterRefresh(previousSelectedId, interleavedHits, { wasConfirmed });
                 // Review fix: gate on the id ACTUALLY being absent from this
