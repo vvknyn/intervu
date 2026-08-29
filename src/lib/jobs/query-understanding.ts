@@ -12,13 +12,14 @@
  * roles that title-first ranking (see searchMeili's precision pass) already
  * orders correctly.
  */
-import type { JobSearchParams, PlaceClause } from "./types";
+import type { JobSearchParams, PlaceClause, PlaceFilter } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
 import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution } from "../geo/resolve-place";
 import { MAX_REGION_CLAUSE_TERMS } from "../geo/regions";
 import { FUNCTION_WORDS } from "../geo/common-words";
 import { SENIORITY_PHRASES } from "./role-title-lane";
+import { LOCATION_FACET_FIELDS } from "./meilisearch";
 
 export {
   roleTitlePairQueries,
@@ -276,16 +277,16 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  * A typed value must never survive as an exact facet predicate with zero
  * corpus support — that's how "North America" (a real phrase, but the corpus
  * has no `location_country = "North America"` row) guaranteed zero results
- * forever (reproduced live 2026-08-26). So a phrase that the gazetteer can't
- * resolve gets ONE more chance: a direct corpus probe of the raw literal
- * (`resolvePhraseOrRawLiteral` below), for the raw-ingest values that are
- * real corpus facts despite naming no GeoNames place ("Worldwide", "EMEA"
- * typed verbatim by an employer's ATS). Only when NEITHER clears does the
- * phrase get dropped — recorded in `unmatchedPlaceMentions` so the caller can
- * tell the searcher, rather than run a predicate guaranteed to return
- * nothing. Each value is judged independently: one bad value in a multi-value
- * facet (`?location_country=a,b` deep links, /trends' country links) no
- * longer poisons the ones that DID resolve.
+ * forever (reproduced live 2026-08-26). So a phrase that isn't itself an
+ * exact known facet value gets ONE more chance: the gazetteer/tokenizing
+ * path (`parsePlaceTokens`, below), for the raw-ingest values that are real
+ * corpus facts despite naming no GeoNames place ("Worldwide", "EMEA" typed
+ * verbatim by an employer's ATS). Only when NEITHER clears does the phrase
+ * get dropped — recorded in `unmatchedPlaceMentions` so the caller can tell
+ * the searcher, rather than run a predicate guaranteed to return nothing.
+ * Each value is judged independently: one bad value in a multi-value facet
+ * (`?location_country=a,b` deep links, /trends' country links) no longer
+ * poisons the ones that DID resolve.
  *
  * Before any place resolution runs, a work-mode pre-pass strips work-mode
  * phrases ("remote", "hybrid", ...) via the SAME `parseWorkTypeTokens` the
@@ -294,22 +295,51 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  * location box's own placeholder says "City, state, or remote").
  */
 /**
- * Resolve one typed phrase via the gazetteer, or — when nothing in it names
- * a real, corpus-known place — check whether the raw literal itself is a
- * value THIS corpus's `location_country` facet genuinely holds. Reuses
- * `vocab.corpusChecker` directly as a single-candidate group probe (the same
- * checker `parsePlaceTokens` already validates gazetteer candidates
- * through), so a raw literal is held to the identical `PLACE_MIN_COUNT` bar
- * — never a lower one just because it skipped the gazetteer.
+ * Does the WHOLE typed phrase exactly match a value one of the location
+ * facets already carries — checked BEFORE any tokenizing/gazetteer parsing
+ * runs, across all three fields (`LOCATION_FACET_FIELDS`, meilisearch.ts).
+ *
+ * This is what stops a structured, typeahead-advertised facet value like
+ * "US CA San Diego" from being silently fragmented: `parsePlaceTokens`'
+ * greedy phrase scanner (resolve-place.ts's `scanPlacePhrases`) tokenizes it
+ * into "US" (country alias) OR "San Diego" (city), discarding the "CA"
+ * remainder — and since a UNION of "is in the US" with "is in San Diego"
+ * equals "is in the US", the whole-country count comes back for a 96-posting
+ * city facet value with no visible sign anything went wrong. A picker or
+ * deep link that hands back this exact string already knows precisely which
+ * corpus row it means; resolving it by literal identity first, rather than
+ * re-deriving it by parsing, is what keeps that precision intact. Only when
+ * no field carries the phrase verbatim does resolution fall through to
+ * tokenizing, where a compound like "US CA San Diego" was never going to
+ * match anyway.
+ *
+ * `matchMode: "literal"` (resolve-place.ts / corpus-values.ts) is what
+ * exempts this from PLACE_MIN_COUNT: the candidate isn't a name-derived
+ * guess that could coincidentally collide with an ordinary word, it's the
+ * verbatim string a searcher already typed or clicked, checked against the
+ * corpus's own values — so a low-count city/metro literal is exactly as
+ * legitimate a match as a high-count country one.
+ */
+export async function resolveExactFacetValue(phrase: string, vocab: LocationVocabulary): Promise<PlaceFilter[]> {
+  const [hits] = await vocab.corpusChecker([
+    LOCATION_FACET_FIELDS.map((field) => ({ field, value: phrase, matchMode: "literal" as const })),
+  ]);
+  return hits;
+}
+
+/**
+ * Resolve one typed phrase: first as an exact known facet value
+ * (`resolveExactFacetValue` above), then — only when nothing matches that
+ * verbatim — via the gazetteer/tokenizing path (`parsePlaceTokens`).
  */
 async function resolvePhraseOrRawLiteral(
   phrase: string,
   vocab: LocationVocabulary,
 ): Promise<{ places: PlaceClause[]; unmatched: string[] }> {
+  const exact = await resolveExactFacetValue(phrase, vocab);
+  if (exact.length > 0) return { places: [{ any: exact }], unmatched: [] };
   const { places } = await parsePlaceTokens(phrase, vocab);
   if (places.length > 0) return { places, unmatched: [] };
-  const [hits] = await vocab.corpusChecker([[{ field: "location_country", value: phrase }]]);
-  if (hits.length > 0) return { places: [{ any: hits }], unmatched: [] };
   return { places: [], unmatched: [phrase] };
 }
 

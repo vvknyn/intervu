@@ -311,11 +311,17 @@ test("the screenshot case: a typed STATE ('florida') becomes a location_state pl
   );
 });
 
-test("not just the surfacing instance — a typed CITY ('toronto') resolves the same way, radius+country scope intact", async () => {
+test("not just the surfacing instance — a typed CITY ('toronto') resolves the same way", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["toronto"] } }, VOCAB);
   assert.equal(p.places?.length, 1);
   assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
-  assert.deepEqual(p.places![0].scopedToCountry, [{ field: "location_country", value: "Canada" }]);
+  // Exact-facet-value-first (below) resolves "toronto" by literal identity —
+  // it IS a known location_city value — before the gazetteer/scoping path
+  // ever runs, so no scopedToCountry here. Country-homonym scoping still
+  // fully applies to the gazetteer-driven path (parsePlaceTokens directly,
+  // and any typed phrase that ISN'T itself an exact facet value) — see the
+  // "cross-country homonym FIX" test above, unaffected by this change.
+  assert.equal(p.places![0].scopedToCountry, undefined);
   assert.equal(p.facets?.location_country, undefined);
 });
 
@@ -354,6 +360,50 @@ test("a value WITH corpus support keeps its exact facet (no regression): a raw-i
   assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Worldwide" }] }]);
   assert.equal(p.facets?.location_country, undefined);
   assert.equal(p.unmatchedPlaceMentions, undefined, "a value the corpus actually has is never reported as unmatched");
+});
+
+/* ------------ exact-facet-value-first ------------
+ * Live bug (prod, 2026-08-26): `country=US CA San Diego` — a real,
+ * typeahead-advertised `location_city` facet value with only 96 postings —
+ * returned the full US count (982,249) instead of San Diego's narrow count
+ * (5,088). `parsePlaceTokens`' greedy scanner tokenized the compound into
+ * "US" (country) OR "San Diego" (city), discarding "CA" — and the UNION of
+ * those two clauses equals the whole-US count, with the filter chip still
+ * looking applied. Fixed by trying the WHOLE typed string as an exact known
+ * facet value first (`resolveExactFacetValue`), before any tokenizing runs;
+ * only when nothing matches verbatim does resolution fall through to
+ * `parsePlaceTokens`. Own fixture (not the shared VOCAB above), so the
+ * compound literal it adds can't leak into other tests' assertions.
+ */
+const STRUCTURED_VOCAB = fakeVocab([
+  { field: "location_country", value: "Canada" },
+  // Bare "Toronto" is also real corpus support — needed so the control test
+  // below can prove the compound genuinely fragments into BOTH tokens (not
+  // just "Canada"), the same shape as the live bug's "US" + "San Diego" split.
+  { field: "location_city", value: "Toronto" },
+  // The compound literal itself: a real corpus value distinct from (and, in
+  // production, far smaller than) "Canada" alone — this fixture's stand-in
+  // for "US CA San Diego", built from a NON-US country to prove the fix
+  // isn't US-specific.
+  { field: "location_city", value: "Canada Toronto" },
+]);
+
+test("exact-facet-value-first: a structured compound value ('Canada Toronto') resolves to ITSELF, not the broader country its own tokens would separately match", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["Canada Toronto"] } }, STRUCTURED_VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "Canada Toronto" }] }]);
+});
+
+test("exact-facet-value-first: confirms the fixture actually exercises the bug's mechanism — tokenizing this same compound (the path resolveLocationFacet no longer tries first) really does fragment it into Canada OR Toronto", async () => {
+  const { places } = await parsePlaceTokens("Canada Toronto", STRUCTURED_VOCAB);
+  assert.equal(places.length, 2, "the tokenizer finds Canada and Toronto as two separate clauses, not one");
+  assert.ok(places.some((c) => c.any.some((f) => f.value === "Canada")));
+  assert.ok(places.some((c) => c.any.some((f) => f.value === "Toronto")));
+});
+
+test("exact-facet-value-first: a phrase that is NOT itself a literal facet value still falls through to tokenizing — 'usa' resolves via the country alias exactly as it always did", async () => {
+  const vocab = fakeVocab([{ field: "location_country", value: "United States" }]);
+  const p = await resolveLocationFacet({ facets: { location_country: ["usa"] } }, vocab);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "United States" }] }]);
 });
 
 test("no location facet at all (or an empty/whitespace one) is a no-op", async () => {

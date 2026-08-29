@@ -72,6 +72,8 @@ export const PLACE_MIN_COUNT = 100;
  * compound-region pattern ("Canada - Remote", "Canada - Toronto") — still
  * gated on the hit being a REAL corpus value, never a pattern invented from
  * the candidate alone, but with no count floor (see PLACE_MIN_COUNT's doc).
+ * "literal" keeps every fold-exact spelling like "exact" does, but WITHOUT
+ * the count floor — see the branch below for why.
  */
 /**
  * Case- AND diacritic-folded form, used for every corpus-value comparison
@@ -106,6 +108,21 @@ export function foldForMatch(value: string): string {
 export function selectMatchingHits(candidate: PlaceCandidate, hits: readonly FacetHit[]): PlaceFilter[] {
   const needle = foldForMatch(candidate.value);
   const out: PlaceFilter[] = [];
+  const exact = hits.filter((h) => foldForMatch(h.value) === needle);
+
+  // "literal": the candidate isn't a NAME resolved to a guessed value — it
+  // IS the string a searcher already typed or picked, checked verbatim
+  // against the corpus's own facet values. A hit here can never be the
+  // coincidental word-collision PLACE_MIN_COUNT exists to catch (see that
+  // constant's doc): the corpus itself, not an inference from a gazetteer
+  // name, is the assertion that the value is real. Gating it on posting
+  // count would silently re-break the exact bug this mode exists to fix — a
+  // structured location value's own facet count can be small (a specific
+  // city/metro literal, not a country) without being any less real.
+  if (candidate.matchMode === "literal") {
+    for (const hit of exact) out.push({ field: candidate.field, value: hit.value });
+    return out;
+  }
 
   // Exact matches are decided as a GROUP, not hit by hit, because
   // PLACE_MIN_COUNT is a claim about the place — "does the corpus really have
@@ -113,7 +130,6 @@ export function selectMatchingHits(candidate: PlaceCandidate, hits: readonly Fac
   // evidence split with it. Lévis (62) and Levis (39) each fail a floor of
   // 100 that the single real city they name (101) clears. Counting the fold
   // group once is what stops a spelling artifact from reading as noise.
-  const exact = hits.filter((h) => foldForMatch(h.value) === needle);
   const exactTotal = exact.reduce((sum, h) => sum + h.count, 0);
   if (exactTotal >= PLACE_MIN_COUNT) {
     for (const hit of exact) out.push({ field: candidate.field, value: hit.value });
