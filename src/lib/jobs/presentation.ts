@@ -484,12 +484,16 @@ export function displayCompany(name: string | null | undefined, domain: string |
  *     brand content) instead of hand-picking which individual tokens are
  *     "safe enough" — so growing `BARE_LEGAL_SUFFIXES` never needs a fresh
  *     ambiguity argument per addition. What still keeps a token OUT of it is
- *     the token's OWN shape: an everyday unpunctuated English word/abbreviation
- *     ("Corp", "Co", "Group") that could plausibly BE a deliberate name
- *     ending stays excluded — "Acme Corp" must read as a company literally
- *     named that. A word that merely CONTAINS one of these tokens is never
- *     touched either way ("Inc Magazine" is untouched — every match here is
- *     end-anchored).
+ *     the token's OWN shape: a pure legal designator that no English brand
+ *     chooses as its own deliberate name ending ("Corp", "Corporation",
+ *     "Ltd") belongs here even bare — the remainder guard above is
+ *     corroboration enough. An ordinary English noun real brands DO choose
+ *     to end on ("Co", "Company", "Group", "Holdings") stays excluded —
+ *     "Acme Co" must read as a company literally named that — and moves to
+ *     `GEO_GATED_TAIL_WORDS` below, gated on an independent corroborating
+ *     signal instead. A word that merely CONTAINS one of these tokens is
+ *     never touched either way ("Inc Magazine" is untouched — every match
+ *     here is end-anchored).
  */
 const COMMA_LEGAL_SUFFIXES = [
     "Inc.", "Inc", "L.L.C.", "LLC", "Ltd.", "Corporation", "Corp.", "Co.",
@@ -499,43 +503,53 @@ const COMMA_LEGAL_SUFFIXES = [
  *  `stripBareLegalForm`'s doc comment) but keeps the vocabulary self-
  *  documenting as multi-word forms are added.
  *
- *  Widened 2026-08-21 (prose-company-names): every entry below is either
- *  punctuated ("Corp.", "Co.", "S.A.S.") or a foreign/technical abbreviation
- *  (ULC, B.V., KK, s.r.o., …) too rare as a genuine everyday English word to
- *  plausibly BE a deliberate brand ending — the same "own shape" test the
- *  module doc above already uses to justify this list (and the same line
- *  the ORIGINAL list already drew between "Ltd." and bare "Ltd", see
- *  `GEO_GATED_TAIL_WORDS`'s doc). The bare, unpunctuated, everyday-word
- *  forms of the same designators — "Ltd", "Corp", "Co", "Company",
- *  "Corporation" — stay OUT of this always-safe list; they move to
- *  `GEO_GATED_TAIL_WORDS` below, which strips them only when an independent
- *  signal corroborates that the trailing word is a legal marker rather than
- *  the brand's own ending. */
+ *  Widened 2026-08-21 (prose-company-names): every entry added then is
+ *  either punctuated ("Corp.", "Co.", "S.A.S.") or a foreign/technical
+ *  abbreviation (ULC, B.V., KK, s.r.o., …) too rare as a genuine everyday
+ *  English word to plausibly BE a deliberate brand ending — the same "own
+ *  shape" test the module doc above already uses to justify this list.
+ *
+ *  Widened again 2026-08-29 (a measured /jobs audit: 16.68% of live
+ *  postings carried a trailing legal suffix, only 13.42% got cleaned —
+ *  "Target Corp" and "NVIDIA Corp" reached the SERP raw because bare
+ *  "Corp"/"Corporation"/"Ltd" sat in `GEO_GATED_TAIL_WORDS` waiting for a
+ *  geography bracket that never came). Their bare forms move here despite
+ *  reading as ordinary English words, because the real test isn't "is this
+ *  an everyday word" — it's "does any English brand choose this as its OWN
+ *  deliberate name ending". Nothing does for "Corp"/"Corporation"/"Ltd":
+ *  they are pure legal designators with no brand-identity use, so the
+ *  remainder guard in `stripBareLegalForm` is corroboration enough on its
+ *  own, same as the other entries in this list. "Co"/"Company"/"Group" fail
+ *  that test — "The Walt Disney Company", "Riverside Group", and the "& Co"
+ *  idiom are real, deliberately-chosen brand endings — so they stay in
+ *  `GEO_GATED_TAIL_WORDS` below, gated on the independent geography-bracket
+ *  signal instead. One known loss from this widening: a single-token brand
+ *  that IS its legal designator ("X Corp", the Twitter entity) now renders
+ *  as bare "X" — vanishingly rare in a job corpus. */
 const BARE_LEGAL_SUFFIXES = [
     "Private Limited", "Private Ltd.", "Pvt. Ltd.", "Pvt Ltd", "Pty Ltd", "Pty. Ltd.",
-    "Ltd.", "Limited", "L.L.C.", "LLC", "LLP", "LP", "Inc.", "Inc", "Incorporated",
+    "Ltd.", "Ltd", "Limited", "L.L.C.", "LLC", "LLP", "LP", "Inc.", "Inc", "Incorporated",
     "GmbH", "PLC", "S.p.A.", "SpA", "S.A.", "S.A.S.", "SAS", "B.V.", "BV", "N.V.", "NV",
-    "AG", "AB", "Oy", "ULC", "Corp.", "Co.", "Pty", "A/S", "KK", "s.r.o.", "d.o.o.",
+    "AG", "AB", "Oy", "ULC", "Corp.", "Corp", "Corporation", "Co.", "Pty", "A/S", "KK",
+    "s.r.o.", "d.o.o.",
 ];
 const BARE_LEGAL_SUFFIXES_BY_LENGTH = [...BARE_LEGAL_SUFFIXES].sort((a, b) => b.length - a.length);
 
 /**
- * Bare (unpunctuated) corporate-structure/entity words too ordinary, on
- * their own, to safely read as a legal marker rather than a deliberate
- * brand ending — "Acme Ltd", "Acme Corp", "Riverside Group" must all render
- * untouched, because real brands legitimately end in these words. They
- * become safe to strip only once `stackedGeographyParen` finds an
- * independent corroborating signal: a bracketed geography qualifier
- * elsewhere in the name (the "(Canada) Holdings LTD" shape) — a company
- * that bothers to bracket a subsidiary's geography is naming a legal
- * filing, not styling a brand. "Company"/"Corporation" join this tier
- * rather than `BARE_LEGAL_SUFFIXES` for the same reason as "Ltd"/"Corp":
- * unlike the punctuated abbreviations above (never a deliberate brand
- * ending), the fully-spelled word IS sometimes the brand's own terminal
- * word — "The Manufacturers Life Insurance Company" stays whole below on
- * exactly that basis.
+ * Bare (unpunctuated) corporate-structure/entity words that real brands DO
+ * legitimately choose as their own deliberate name ending — "The Walt
+ * Disney Company", "Riverside Group", "The Manufacturers Life Insurance
+ * Company", the "& Co" idiom — so on their own they can't safely read as a
+ * legal marker the way "Corp"/"Corporation"/"Ltd" can: those moved to
+ * `BARE_LEGAL_SUFFIXES` above (2026-08-29) because no English brand chooses
+ * one of THOSE as its own ending, only these ordinary nouns. These stay
+ * gated: they become safe to strip only once `stackedGeographyParen` finds
+ * an independent corroborating signal — a bracketed geography qualifier
+ * elsewhere in the name (the "(Canada) Holdings LTD" shape) — because a
+ * company that bothers to bracket a subsidiary's geography is naming a
+ * legal filing, not styling a brand.
  */
-const GEO_GATED_TAIL_WORDS = ["Holdings", "Group", "Ltd", "Corp", "Co", "Company", "Corporation"];
+const GEO_GATED_TAIL_WORDS = ["Holdings", "Group", "Co", "Company"];
 
 function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

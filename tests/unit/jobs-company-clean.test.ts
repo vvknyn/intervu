@@ -149,10 +149,15 @@ test("displayCompanyName strips other comma-form suffixes from the list (LLC, Lt
     assert.equal(displayCompanyName("Muster, GmbH"), "Muster");
 });
 
-test("displayCompanyName strips the bare 'Limited' form but leaves a bare, unpunctuated 'Ltd'/'Corp' (not in the bare-word list) intact", () => {
+// 2026-08-29 (corp-suffix audit): "Ltd"/"Corp" moved from GEO_GATED_TAIL_WORDS
+// to BARE_LEGAL_SUFFIXES — pure legal designators no brand chooses as its
+// own name ending, so they now strip unconditionally like "Limited" always
+// has, no geography bracket required. See presentation.ts's
+// BARE_LEGAL_SUFFIXES doc for the full argument.
+test("displayCompanyName strips the bare 'Limited'/'Ltd'/'Corp' forms unconditionally — pure legal designators need no geography signal", () => {
     assert.equal(displayCompanyName("Acme Limited"), "Acme");
-    assert.equal(displayCompanyName("Acme Ltd"), "Acme Ltd");
-    assert.equal(displayCompanyName("Acme Corp"), "Acme Corp");
+    assert.equal(displayCompanyName("Acme Ltd"), "Acme");
+    assert.equal(displayCompanyName("Acme Corp"), "Acme");
 });
 
 // Live production evidence, 2026-08-18: `q=qualys` returned three different-
@@ -383,8 +388,11 @@ test("strips a legal designator that sits AFTER a trailing geography parenthetic
 // so there is nothing for this function to strip.
 
 // Class-wide beyond the reported examples: a DIFFERENT bracketed country
-// (not Canada) combined with BOTH geo-gated words in one name.
-test("class-wide: a different bracketed country plus a two-deep geo-gated stack (Group + Ltd)", () => {
+// (not Canada) combined with a geo-gated word ("Group") stacked on top of a
+// bare-unconditional one ("Ltd", 2026-08-29 — strips regardless of the
+// bracket; see BARE_LEGAL_SUFFIXES's doc). Same final output as before that
+// split, composed through two different tiers instead of one.
+test("class-wide: a different bracketed country plus a stacked geo-gated word ('Group') and bare designator ('Ltd')", () => {
     assert.equal(displayCompanyName("Acme Widgets (UK) Group Ltd"), "Acme Widgets");
 });
 
@@ -397,6 +405,51 @@ test("negative: 'Group' bare, with no geography anywhere, is left alone (not jus
 
 test("negative: a trailing geography parenthetical with nothing stacked after it is left for cleanCompany's own rule, not stripped here", () => {
     assert.equal(displayCompanyName("Ingram Micro Inc. (Canada)"), "Ingram Micro Inc. (Canada)");
+});
+
+// Corp-suffix audit, 2026-08-29: bare "Corp"/"Corporation"/"Ltd" moved out of
+// GEO_GATED_TAIL_WORDS into BARE_LEGAL_SUFFIXES — a measured /jobs audit
+// found 16.68% of live postings carried a trailing legal suffix but only
+// 13.42% got cleaned, and the worst offenders (no bracketed geography, so
+// the old gate never fired) were exactly this shape.
+test("displayCompanyName strips the reported bug instances: 'Target Corp' and 'NVIDIA Corp'", () => {
+    assert.equal(displayCompanyName("Target Corp"), "Target");
+    assert.equal(displayCompanyName("NVIDIA Corp"), "NVIDIA");
+});
+
+test("displayCompanyName still cleans 'Micron Technology Inc' — no regression on the pre-existing bare-'Inc' path", () => {
+    assert.equal(displayCompanyName("Micron Technology Inc"), "Micron Technology");
+});
+
+// Class-wide, not just the motivating "Corp" case: a different bare legal
+// designator sharing the same widened BARE_LEGAL_SUFFIXES tier must also
+// strip unconditionally.
+test("displayCompanyName strips a bare 'Ltd' name — proves the split covers the class, not just 'Corp'", () => {
+    assert.equal(displayCompanyName("Nimbus Systems Ltd"), "Nimbus Systems");
+});
+
+// The module doc's own counter-example for why "Company" stays geo-gated:
+// a real employer whose legal name genuinely ends in the word must render
+// whole, with no "Company N - " prefix in play this time.
+test("displayCompanyName leaves 'The Manufacturers Life Insurance Company' whole — 'Company' stays geo-gated, unlike 'Corp'/'Ltd'", () => {
+    assert.equal(
+        displayCompanyName("The Manufacturers Life Insurance Company"),
+        "The Manufacturers Life Insurance Company",
+    );
+});
+
+// The bracketed-geography mechanism (Holdings) still composes correctly
+// with the now bare-unconditional "Ltd" — same shape/output as the Michael
+// Kors case above, on a fresh name to confirm it's not one pinned string.
+test("displayCompanyName still strips a geo-bracketed 'Holdings LTD' tail the same as before the split", () => {
+    assert.equal(displayCompanyName("Acme (Canada) Holdings LTD"), "Acme");
+});
+
+// End-anchoring holds for the newly-widened tokens too, not just "Inc"
+// (already covered above) — a name that merely OPENS with "Corp" is never
+// touched.
+test("displayCompanyName leaves a name that merely OPENS with 'Corp' untouched — end-anchored, not substring", () => {
+    assert.equal(displayCompanyName("Corp Solutions"), "Corp Solutions");
 });
 
 // Idempotence: re-running displayCompanyName on its own output must be a

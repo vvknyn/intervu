@@ -30,20 +30,46 @@ test("dedupeJobSuggestionHits dedupes titles case-insensitively, capped at 5, fi
     assert.equal(result.titles.length, 5);
 });
 
+// Fixture refreshed 2026-08-29 (corp-suffix audit). This case used to query
+// "corp" and expect "Acme Corp"/"Beta Corp" back verbatim — the shared query
+// token AND the expected output were both the legal suffix. Now that bare
+// "Corp" strips at display time (`BARE_LEGAL_SUFFIXES`, presentation.ts) and
+// `dedupeJobSuggestionHits` cleans BEFORE its relevance check
+// (meilisearch.ts: `displayCompanyBrand(...)` then `titleMatchesQuery`), no
+// cleaned brand contains "corp" and every row is correctly dropped. What
+// this test is ABOUT is unchanged — case-insensitive dedupe, the cap of 2,
+// blank/null rejection; only the token the fixture shares moved from the
+// suffix onto the brand, which is what a user actually types.
 test("dedupeJobSuggestionHits dedupes companies case-insensitively, capped at 2, and drops blank/null values", () => {
     const hits = [
-        { title: "Engineer", company: "Acme Corp" },
-        { title: "Engineer II", company: "acme corp" }, // dup of above (different case) — dropped
+        { title: "Engineer", company: "Northwind Corp" },
+        { title: "Engineer II", company: "northwind corp" }, // dup of above (different case) — dropped
         { title: "Engineer III", company: "  " }, // blank after trim — dropped
         { title: "Engineer IV", company: null }, // null — dropped
-        { title: "Engineer V", company: "Beta Corp" },
-        { title: "Engineer VI", company: "Gamma Corp" }, // 3rd distinct company — beyond the cap, dropped
+        { title: "Engineer V", company: "Northwind Labs Corp" },
+        { title: "Engineer VI", company: "Northwind Data Corp" }, // 3rd distinct company — beyond the cap, dropped
     ];
 
-    const result = dedupeJobSuggestionHits(hits, "corp");
+    const result = dedupeJobSuggestionHits(hits, "northwind");
 
-    assert.deepEqual(result.companies, ["Acme Corp", "Beta Corp"]);
+    assert.deepEqual(result.companies, ["Northwind", "Northwind Labs"]);
     assert.equal(result.companies.length, 2);
+});
+
+// The behavioural half of the same change, and the reason the fixture above
+// had to move: a bare legal designator must no longer pull in companies
+// whose ONLY tie to the query is the suffix display-time cleaning removes.
+// "Corp" is not a brand, so "Northwind Corp" is not a "corp" result.
+// Asserted for a second designator ("Ltd") as well — this is a property of
+// the whole widened tier, not of the one token that surfaced it.
+test("dedupeJobSuggestionHits does not suggest a company whose only tie to the query is a stripped legal suffix", () => {
+    const hits = [
+        { title: "Engineer", company: "Northwind Corp" },
+        { title: "Engineer II", company: "Southwind Ltd" },
+    ];
+
+    assert.deepEqual(dedupeJobSuggestionHits(hits, "corp").companies, []);
+    assert.deepEqual(dedupeJobSuggestionHits(hits, "ltd").companies, []);
 });
 
 // 2026-08-21 front-door audit, item 6b: live prod suggested "Phsorg",
