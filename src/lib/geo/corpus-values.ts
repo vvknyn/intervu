@@ -139,8 +139,19 @@ export function selectMatchingHits(candidate: PlaceCandidate, hits: readonly Fac
  * (query-understanding.ts) without a second, un-cached round trip — the
  * underlying facet-search hits are still fetched (and cached) exactly once
  * per unique (field, value) regardless of which group(s) reference it.
+ *
+ * `caps` (optional, index-aligned with `candidateGroups`): when group `i`'s
+ * validated filter count exceeds `caps[i]`, only the top `caps[i]` by corpus
+ * hit count survive — the ONLY place per-value hit counts exist is here
+ * (`FacetHit.count`, fetched to validate the group in the first place), so
+ * count-based capping belongs in this layer, not downstream. `undefined`
+ * (the default, and every existing caller) means no cap. See
+ * `MAX_REGION_CLAUSE_TERMS` (regions.ts) for the one caller that sets one.
  */
-export type CorpusValueChecker = (candidateGroups: PlaceCandidate[][]) => Promise<PlaceFilter[][]>;
+export type CorpusValueChecker = (
+  candidateGroups: PlaceCandidate[][],
+  caps?: (number | undefined)[],
+) => Promise<PlaceFilter[][]>;
 
 const DEFAULT_TTL_MS = 60 * 60 * 1000;
 
@@ -173,7 +184,7 @@ export function createCorpusValueChecker(fetch: FacetSearchFetcher, ttlMs = DEFA
     return hits;
   }
 
-  return async (candidateGroups: PlaceCandidate[][]): Promise<PlaceFilter[][]> => {
+  return async (candidateGroups: PlaceCandidate[][], caps?: (number | undefined)[]): Promise<PlaceFilter[][]> => {
     const queries = new Map<string, { field: LocationField; value: string }>();
     for (const c of candidateGroups.flat()) queries.set(cacheKey(c.field, c.value), { field: c.field, value: c.value });
 
@@ -184,18 +195,26 @@ export function createCorpusValueChecker(fetch: FacetSearchFetcher, ttlMs = DEFA
       }),
     );
 
-    return candidateGroups.map((candidates) => {
+    return candidateGroups.map((candidates, i) => {
       const seen = new Set<string>();
       const out: PlaceFilter[] = [];
+      const countOf = new Map<string, number>();
       for (const candidate of candidates) {
         const hits = hitsByKey.get(cacheKey(candidate.field, candidate.value)) ?? [];
+        const countByValue = new Map(hits.map((h) => [h.value, h.count]));
         for (const filter of selectMatchingHits(candidate, hits)) {
           const key = `${filter.field} ${filter.value}`;
           if (!seen.has(key)) {
             seen.add(key);
             out.push(filter);
+            countOf.set(key, countByValue.get(filter.value) ?? 0);
           }
         }
+      }
+      const cap = caps?.[i];
+      if (cap !== undefined && out.length > cap) {
+        out.sort((a, b) => (countOf.get(`${b.field} ${b.value}`) ?? 0) - (countOf.get(`${a.field} ${a.value}`) ?? 0));
+        out.length = cap;
       }
       return out;
     });

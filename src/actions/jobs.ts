@@ -75,7 +75,14 @@ const countryLookup = createMmdbCountryLookup();
  */
 export async function searchJobsAction(
   params: JobSearchParams,
-): Promise<JobSearchResult & { searchId: string; meta?: ShieldSearchServeMeta; defaultedLocation?: string }> {
+): Promise<
+  JobSearchResult & {
+    searchId: string;
+    meta?: ShieldSearchServeMeta;
+    defaultedLocation?: string;
+    unmatchedPlaceMentions?: string[];
+  }
+> {
   const searchId = randomUUID();
   const backendStatus = getJobsBackendStatus();
 

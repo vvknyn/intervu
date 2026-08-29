@@ -630,3 +630,45 @@ test("real gazetteer, not just the reported city: renamed cities resolve to BOTH
     );
   }
 });
+
+// Region/continent wiring (resolveRegion, inserted into resolvePlacePhrase's
+// priority ladder ahead of PLACE_MIN_LENGTH). Region MEMBERSHIP itself
+// (which ISO2 codes belong to "North America") is tested against the real
+// data/geo/regions.json in geo-regions.test.ts — these tests only cover how
+// a resolved region turns into a PlaceResolution against a gazetteer
+// instance, using the same small fixture as every other test above.
+
+test("a region phrase resolves to a 'region' entity whose candidates are built from countryPlaceCandidates per member", () => {
+  const r = resolvePlacePhrase("north america", GAZETTEER);
+  assert.ok(r, "North America must resolve — the fixture's US and CA rows are both NA members");
+  assert.equal(r!.entity.type, "region");
+  assert.equal(r!.entity.countryCode, undefined, "a region spans multiple countries — no single code would be honest");
+  assert.equal(r!.entity.name, "North America");
+  assert.deepEqual(r!.countryScope, [], "a region already IS the scope — nothing left to AND against");
+
+  const countries = fieldValues(r!.candidates, "location_country");
+  // US and CA are both North America members in this fixture's countries
+  // table — their own country-level candidates (same shape countryCandidates
+  // produces for a direct "canada"/"united states" search) must be present.
+  for (const expected of ["United States", "US", "USA", "Canada", "CA", "CAN"]) {
+    assert.ok(countries.includes(expected), `expected ${expected} among ${JSON.stringify(countries)}`);
+  }
+  // Australia is a real country in this fixture but NOT a North America
+  // member — it must not leak in just because it's in the gazetteer.
+  assert.ok(!countries.includes("Australia"), "Australia is not a North America member");
+});
+
+test("a region alias in a different case/punctuation still resolves through resolvePlacePhrase", () => {
+  const r = resolvePlacePhrase("NORTH AMERICA", GAZETTEER);
+  assert.ok(r);
+  assert.equal(r!.entity.type, "region");
+});
+
+test("'Georgia' resolves as the US state (admin1), never as a region — 'georgia' is not a region alias", () => {
+  const r = resolvePlacePhrase("georgia", GAZETTEER);
+  assert.ok(r);
+  assert.equal(r!.entity.type, "admin1");
+  assert.equal(r!.entity.countryCode, "US");
+  const states = fieldValues(r!.candidates, "location_state");
+  assert.ok(states.includes("Georgia"));
+});

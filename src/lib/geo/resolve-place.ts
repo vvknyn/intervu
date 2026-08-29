@@ -47,6 +47,7 @@ import { JOB_VOCAB } from "./job-vocab";
 import { JOBS_SYNONYMS } from "../jobs/meilisearch";
 import { subdivisionCandidates } from "./country-subdivisions";
 import { capitalizeWords } from "@/lib/text-case";
+import { resolveRegionPhrase, regionLabel } from "./regions";
 
 /**
  * The guard's full word set: general-English common words (common-words.ts)
@@ -96,13 +97,15 @@ export interface PlaceCandidate {
   matchMode?: "exact" | "prefix";
 }
 
-export type PlaceEntityType = "city" | "admin1" | "country";
+export type PlaceEntityType = "city" | "admin1" | "country" | "region";
 
 export interface ResolvedPlaceEntity {
   type: PlaceEntityType;
   /** Canonical gazetteer display name. */
   name: string;
-  countryCode: string;
+  /** Undefined for a `region` entity — it spans multiple countries, so no
+   *  single code would be honest. */
+  countryCode?: string;
 }
 
 export interface PlaceResolution {
@@ -173,6 +176,30 @@ function resolveCountry(normalized: string, gazetteer: Gazetteer): PlaceResoluti
 export function countryPlaceCandidates(iso2: string, gazetteer: Gazetteer): PlaceCandidate[] | null {
   const country = gazetteer.countriesByIso2.get(iso2.toUpperCase());
   return country ? countryCandidates(country, gazetteer) : null;
+}
+
+/** A region/continent phrase ("North America", "EMEA", ...) resolves to ONE
+ *  PlaceClause whose candidates are the UNION of every member country's own
+ *  candidate set — built by calling `countryPlaceCandidates` per member, the
+ *  same builder a direct country search uses, never a second one. Null when
+ *  `normalized` isn't a recognized region (regions.ts) or when this
+ *  gazetteer instance (e.g. a small test fixture) has none of the region's
+ *  members — same fail-open shape every other resolver here has. */
+function resolveRegion(normalized: string, gazetteer: Gazetteer): PlaceResolution | null {
+  const members = resolveRegionPhrase(normalized);
+  if (!members) return null;
+  const candidates: PlaceCandidate[] = [];
+  for (const iso2 of members) {
+    const memberCandidates = countryPlaceCandidates(iso2, gazetteer);
+    if (memberCandidates) candidates.push(...memberCandidates);
+  }
+  if (candidates.length === 0) return null;
+  return {
+    entity: { type: "region", name: regionLabel(normalized) ?? normalized, countryCode: undefined },
+    candidates,
+    countryScope: [],
+    wordsConsumed: normalized.split(" ").length,
+  };
 }
 
 function resolveAdmin1(normalized: string, gazetteer: Gazetteer): PlaceResolution | null {
@@ -534,6 +561,14 @@ export function resolvePlacePhrase(
     const r = resolveCity(renamedCanonical, gazetteer);
     return r ? { ...r, wordsConsumed: normalized.split(" ").length } : null;
   }
+
+  // Region/continent phrases ("North America", "EMEA", "APAC", ...) — same
+  // priority tier as PLACE_ALIASES/CITY_NAME_VARIANTS and for the same
+  // reason: several are shorter than PLACE_MIN_LENGTH ("EU") and would
+  // otherwise be killed by the length gate below before ever being
+  // considered. See regions.ts for the alias table.
+  const region = resolveRegion(normalized, gazetteer);
+  if (region) return region;
 
   if (normalized.length < PLACE_MIN_LENGTH) return null;
   if (/\d/.test(normalized)) return null;

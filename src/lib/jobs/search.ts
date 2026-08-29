@@ -84,7 +84,7 @@ export async function searchJobs(
   // constructs and passes one; every other caller (MCP, the OG route)
   // simply omits it and the IP-default step below no-ops.
   opts?: { clientIp?: string; countryLookup?: CountryLookup },
-): Promise<JobSearchResult & { meta?: SearchServeMeta; defaultedLocation?: string }> {
+): Promise<JobSearchResult & { meta?: SearchServeMeta; defaultedLocation?: string; unmatchedPlaceMentions?: string[] }> {
   // Vocabulary is only relevant when there's something to resolve — query
   // text, or the board's typed location facet (`resolveLocationFacet`). The
   // dead-link id probe and plain browses skip the lookup entirely.
@@ -111,6 +111,11 @@ export async function searchJobs(
   // (see resolveDegradedServe in search-cache.ts), because that response
   // body is unfiltered and asserting a location over it would lie about
   // what's actually being shown.
+  //
+  // `unmatchedPlaceMentions` (resolveLocationFacet, query-understanding.ts) is
+  // the same kind of REQUEST-scoped fact — it describes what got dropped from
+  // THIS query's typed location text — so it's threaded through the exact
+  // same return points, for the exact same reasons, below.
   const { params: p, defaultedLocation } = await applyLocationDefault(
     understood,
     opts?.clientIp,
@@ -132,10 +137,20 @@ export async function searchJobs(
       // shape (and, if it's the default browse, as the outage fallback too)
       // — see search-cache.ts. Only the success path ever teaches the cache.
       cacheSearchResult(p, result);
-      return { ...result, meta: { degraded: false, servedFrom: "live" }, ...(defaultedLocation && { defaultedLocation }) };
+      return {
+        ...result,
+        meta: { degraded: false, servedFrom: "live" },
+        ...(defaultedLocation && { defaultedLocation }),
+        ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+      };
     }
     if (backend === "snapshot-preview") {
-      return { ...(await searchSnapshotPreview(p)), effectiveQ: p.q ?? "", ...(defaultedLocation && { defaultedLocation }) };
+      return {
+        ...(await searchSnapshotPreview(p)),
+        effectiveQ: p.q ?? "",
+        ...(defaultedLocation && { defaultedLocation }),
+        ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+      };
     }
   } catch (e) {
     // The raw error goes to server logs only — messages like Next's RSC
@@ -157,8 +172,11 @@ export async function searchJobs(
           // (already location-filtered) key — claiming the default over it
           // is true. A "default-browse" hit is the unfiltered fallback; see
           // the comment on `defaultedLocation`'s computation above for why
-          // it must not be stamped there.
+          // it must not be stamped there. Same reasoning for
+          // `unmatchedPlaceMentions`.
           ...(degraded.servedKey === "exact" && defaultedLocation && { defaultedLocation }),
+          ...(degraded.servedKey === "exact" &&
+            p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
         };
       }
     }
@@ -173,6 +191,7 @@ export async function searchJobs(
       unavailable: true,
       note: SEARCH_UNAVAILABLE_MESSAGE,
       ...(defaultedLocation && { defaultedLocation }),
+      ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
     };
   }
   // Config-error state (no backend configured at all), not a search
