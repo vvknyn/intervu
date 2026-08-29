@@ -54,14 +54,29 @@ test("postedBucket is dropped when the corpus doesn't support date filtering, ev
     assert.equal(p.postedBucket, undefined);
 });
 
-// Phase 1-a #? (30d default): the fresh-visit default now sits IN
-// PRISTINE_FILTER_STATE.postedBucket ("30d") rather than being absent, so
-// this same gate is what stops it from silently 0-result-ing every visitor
-// on a corpus that can't back it — critical, not just the explicit-bucket
-// case above.
-test("the 30d default passes through when date filtering is supported", () => {
+// Phase 1-a #? (30d default): UI still shows 30d, but the quiet default must
+// not become a hard Meili posted_ts recall cap.
+test("the 30d UI default is omitted from the search payload when date filtering is supported", () => {
     const p = buildJobSearchPayload(PRISTINE_FILTER_STATE, "", "newest", true);
+    assert.equal(p.postedBucket, undefined);
+});
+
+test("explicit 30d (postedExplicit: true) is sent as postedBucket 30d when date filtering is supported", () => {
+    const state: FilterState = { ...PRISTINE_FILTER_STATE, postedExplicit: true };
+    const p = buildJobSearchPayload(state, "", "newest", true);
     assert.equal(p.postedBucket, "30d");
+});
+
+test("explicit 30d is still dropped when date filtering is unsupported", () => {
+    const state: FilterState = { ...PRISTINE_FILTER_STATE, postedExplicit: true };
+    const p = buildJobSearchPayload(state, "", "newest", false);
+    assert.equal(p.postedBucket, undefined);
+});
+
+test("non-default posted buckets still pass through when date filtering is supported", () => {
+    const state: FilterState = { ...PRISTINE_FILTER_STATE, postedBucket: "7d" };
+    const p = buildJobSearchPayload(state, "", "newest", true);
+    assert.equal(p.postedBucket, "7d");
 });
 
 test("the 30d default is coerced away (not sent) when date filtering is unsupported", () => {

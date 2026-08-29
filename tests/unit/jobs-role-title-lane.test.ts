@@ -106,7 +106,7 @@ test("titleSatisfiesRoleQuery: does not floor queries without a seniority+role p
     assert.equal(titleSatisfiesRoleQuery("Therapist", "rust"), true);
 });
 
-test("role-query page: one-token titles are filtered after rerank", () => {
+test("role-query page: one-token titles rank below satisfying titles after rerank", () => {
     const keep = {
         id: "keep",
         title: "Director, Product Management",
@@ -121,10 +121,8 @@ test("role-query page: one-token titles are filtered after rerank", () => {
         ghost_badge: "unscored",
         posted_ts: 2,
     } as PublicJob;
-    const ranked = applyRelevanceQualityReranking([keep, drop], BRAND_PRODUCT_Q).filter((h) =>
-        titleSatisfiesRoleQuery(h.title, BRAND_PRODUCT_Q),
-    );
-    assert.deepEqual(ranked.map((h) => h.id), ["keep"]);
+    const ranked = applyRelevanceQualityReranking([drop, keep], BRAND_PRODUCT_Q);
+    assert.deepEqual(ranked.map((h) => h.id), ["keep", "drop"]);
 });
 
 test("pageRoleTitleHits: paginates floored pool with honest total", () => {

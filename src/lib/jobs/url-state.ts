@@ -12,6 +12,8 @@ export interface JobsUrlState {
     salaryMin: number;
     visaOnly: boolean;
     postedBucket: PostedBucket | undefined;
+    /** True when `posted` is present in the URL or the user pinned Posted. */
+    postedExplicit?: boolean;
     /** Minimum-years-of-experience bucket (`?years=`). `undefined` is both
      *  "no filter" and the pristine default — see `YearsExperienceBucket`'s
      *  doc (types.ts) for why this has no non-empty default unlike `postedBucket`. */
@@ -209,8 +211,10 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
     const posted = sp.get("posted");
     if (posted === "any") {
         s.postedBucket = undefined;
+        s.postedExplicit = true;
     } else if (posted && (POSTED_VALUES as readonly string[]).includes(posted)) {
         s.postedBucket = posted as PostedBucket;
+        s.postedExplicit = true;
     }
     const years = sp.get("years");
     if (years && (YEARS_EXPERIENCE_VALUES as readonly string[]).includes(years)) {
@@ -243,6 +247,7 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     // omitting it would silently read back as "30d" on reload. The default
     // itself ("30d") stays omitted, same as any other default field here.
     if (s.postedBucket === undefined) sp.set("posted", "any");
+    else if (s.postedBucket === DEFAULT_URL_STATE.postedBucket && s.postedExplicit) sp.set("posted", s.postedBucket);
     else if (s.postedBucket !== DEFAULT_URL_STATE.postedBucket) sp.set("posted", s.postedBucket);
     if (s.yearsExperience) sp.set("years", s.yearsExperience);
     if (s.salaryMin > 0 && TIER_FOR_SALARY[s.salaryMin]) sp.set("salary", TIER_FOR_SALARY[s.salaryMin]);

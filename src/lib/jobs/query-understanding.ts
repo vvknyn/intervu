@@ -574,17 +574,27 @@ export async function applyQueryUnderstanding(
   const q = (p.q ?? "").trim();
   if (!q) return p;
 
+  const explicitWorkType = (p.facets?.work_type?.length ?? 0) > 0;
   let next = p;
   const { residualQ, workTypes } = parseWorkTypeTokens(q);
-  if (workTypes.length > 0 && !p.facets?.work_type?.length) {
-    next = { ...next, q: residualQ, facets: { ...next.facets, work_type: workTypes } };
+  if (workTypes.length > 0 && !explicitWorkType) {
+    next = { ...next, q: residualQ };
   }
 
   if (vocab && !p.facets?.location_country?.length) {
     const parsed = await parsePlaceTokens((next.q ?? "").trim(), vocab, true);
     if (parsed.places.length > 0) {
-      next = { ...next, q: parsed.residualQ, places: parsed.places };
+      const places =
+        workTypes.length > 0 && !explicitWorkType
+          ? parsed.places.map((clause) => ({ ...clause, workTypes: [...workTypes] }))
+          : parsed.places;
+      next = { ...next, q: parsed.residualQ, places };
     }
   }
+
+  if (workTypes.length > 0 && !explicitWorkType && !(next.places?.length ?? 0)) {
+    next = { ...next, facets: { ...next.facets, work_type: workTypes } };
+  }
+
   return next;
 }

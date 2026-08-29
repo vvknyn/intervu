@@ -1202,6 +1202,7 @@ function JobsContent() {
     const [salaryMin, setSalaryMin] = useState(initialUrlState.salaryMin);
     const [visaOnly, setVisaOnly] = useState(initialUrlState.visaOnly);
     const [postedBucket, setPostedBucket] = useState<PostedBucket | undefined>(initialUrlState.postedBucket);
+    const [postedExplicit, setPostedExplicit] = useState(initialUrlState.postedExplicit ?? false);
     const [yearsExperience, setYearsExperience] = useState<YearsExperienceBucket | undefined>(
         initialUrlState.yearsExperience,
     );
@@ -1228,6 +1229,7 @@ function JobsContent() {
         salaryMin,
         visaOnly,
         postedBucket,
+        postedExplicit: postedExplicit || undefined,
         yearsExperience,
         hideGhosts,
         board,
@@ -1326,6 +1328,7 @@ function JobsContent() {
         salaryMin,
         visaOnly,
         postedBucket,
+        postedExplicit: postedExplicit || undefined,
         yearsExperience,
         hideGhosts,
         hideViewed,
@@ -1763,6 +1766,7 @@ function JobsContent() {
                 salaryMin,
                 visaOnly,
                 postedBucket,
+                postedExplicit: postedExplicit || undefined,
                 yearsExperience,
                 hideGhosts,
                 board,
@@ -1783,6 +1787,7 @@ function JobsContent() {
             salaryMin,
             visaOnly,
             postedBucket,
+            postedExplicit,
             yearsExperience,
             hideGhosts,
             board,
@@ -2548,6 +2553,7 @@ function JobsContent() {
             setSalaryMin(parsed.salaryMin);
             setVisaOnly(parsed.visaOnly);
             setPostedBucket(parsed.postedBucket);
+            setPostedExplicit(parsed.postedExplicit ?? false);
             setYearsExperience(parsed.yearsExperience);
             setHideGhosts(parsed.hideGhosts);
             setHideViewed(parsed.hideViewed);
@@ -3001,6 +3007,7 @@ function JobsContent() {
         setSalaryMin(next.salaryMin);
         setVisaOnly(next.visaOnly);
         setPostedBucket(next.postedBucket);
+        setPostedExplicit(next.postedExplicit ?? false);
         setYearsExperience(next.yearsExperience);
         setHideGhosts(next.hideGhosts);
         setBoard(next.board);
@@ -3011,6 +3018,7 @@ function JobsContent() {
                 salaryMin: next.salaryMin,
                 visaOnly: next.visaOnly,
                 postedBucket: next.postedBucket,
+                postedExplicit: next.postedExplicit,
                 yearsExperience: next.yearsExperience,
                 hideGhosts: next.hideGhosts,
                 board: next.board,
@@ -3224,7 +3232,7 @@ function JobsContent() {
     const panelSalaryMin = (v: number) => applyFilterStateWithIntent({ ...filterState, salaryMin: v });
     const panelVisaOnly = (v: boolean) => applyFilterStateWithIntent({ ...filterState, visaOnly: v });
     const panelPostedBucket = (v: PostedBucket | undefined) =>
-        applyFilterStateWithIntent({ ...filterState, postedBucket: v });
+        applyFilterStateWithIntent({ ...filterState, postedBucket: v, postedExplicit: true });
     const panelYearsExperience = (v: YearsExperienceBucket | undefined) =>
         applyFilterStateWithIntent({ ...filterState, yearsExperience: v });
     const panelClearAll = () => applyFilterStateWithIntent(PRISTINE_FILTER_STATE);

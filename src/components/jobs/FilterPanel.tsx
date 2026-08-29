@@ -286,6 +286,8 @@ export interface FilterState {
     salaryMin: number;
     visaOnly: boolean;
     postedBucket: PostedBucket | undefined;
+    /** True when `posted` is in the URL or the user pinned Posted. */
+    postedExplicit?: boolean;
     /** Minimum-years-of-experience bucket. `undefined` is both "no filter"
      *  and the pristine default — see `YearsExperienceBucket` (types.ts). */
     yearsExperience: YearsExperienceBucket | undefined;
@@ -352,7 +354,7 @@ export function changedFilterFacets(prev: FilterState, next: FilterState): strin
     }
     if (prev.salaryMin !== next.salaryMin) changed.push("salaryMin");
     if (prev.visaOnly !== next.visaOnly) changed.push("visaOnly");
-    if (prev.postedBucket !== next.postedBucket) changed.push("postedBucket");
+    if (prev.postedBucket !== next.postedBucket || prev.postedExplicit !== next.postedExplicit) changed.push("postedBucket");
     if (prev.yearsExperience !== next.yearsExperience) changed.push("yearsExperience");
     if (prev.hideGhosts !== next.hideGhosts) changed.push("hideGhosts");
     if (prev.board !== next.board) changed.push("board");
@@ -468,7 +470,8 @@ export function activeFilterEntries(
     // `opts.includeQuietDefaults` opts pristine "30d" back in for callers that
     // need it named (see the param doc above) — "Any" stays excluded either
     // way, since an explicit "no filter" never narrowed anything to name.
-    const postedIsQuietDefault = state.postedBucket === PRISTINE_FILTER_STATE.postedBucket;
+    const postedIsQuietDefault =
+        state.postedBucket === PRISTINE_FILTER_STATE.postedBucket && !state.postedExplicit;
     if (state.postedBucket && (!postedIsQuietDefault || opts?.includeQuietDefaults)) {
         // A clear must always WIDEN. For every finite bucket that ISN'T the
         // pristine default, widening means falling back to pristine 30d — as
@@ -483,7 +486,14 @@ export function activeFilterEntries(
         entries.push({
             key: "postedBucket",
             label: postedBucketLabel(state.postedBucket),
-            clear: (s) => ({ ...s, postedBucket: widenTo }),
+            clear: (s) => {
+                if (postedIsQuietDefault) {
+                    return { ...s, postedBucket: undefined, postedExplicit: true };
+                }
+                const next = { ...s, postedBucket: widenTo };
+                delete next.postedExplicit;
+                return next;
+            },
         });
     }
 

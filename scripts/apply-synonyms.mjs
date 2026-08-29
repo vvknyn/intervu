@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
 // (`npx tsx -e 'import {JOBS_SYNONYMS} from "./src/lib/jobs/meilisearch"; console.log(JSON.stringify(JOBS_SYNONYMS))'`).
 export const JOBS_SYNONYMS = {
   swe: ["software engineer"],
-  "software engineer": ["swe"],
+  "software engineer": ["swe", "sde", "software developer"],
   sre: ["site reliability engineer"],
   "site reliability engineer": ["sre"],
   pm: ["product manager", "project manager"],
@@ -42,6 +42,9 @@ export const JOBS_SYNONYMS = {
   "human resources": ["hr"],
   devops: ["dev ops"],
   "dev ops": ["devops"],
+  sde: ["software engineer", "software developer"],
+  "software developer": ["sde", "software engineer"],
+  "full stack": ["software engineer"],
 };
 
 // Everything below only runs when this file is executed directly (`node
@@ -78,17 +81,16 @@ async function main() {
   const { taskUid } = await res.json();
   for (;;) {
     const t = await (await fetch(`${HOST}/tasks/${taskUid}`, { headers: { authorization: `Bearer ${KEY}` } })).json();
-    if (t.status === "succeeded") break;
+    if (t.status === "succeeded") {
+      console.log(rollback ? "Synonyms cleared." : "Synonyms applied.");
+      break;
+    }
     if (t.status === "failed") {
-      console.error("task failed:", JSON.stringify(t.error));
+      console.error("Synonyms task failed:", t.error);
       process.exit(1);
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  const current = await (
-    await fetch(`${HOST}/indexes/jobs/settings/synonyms`, { headers: { authorization: `Bearer ${KEY}` } })
-  ).json();
-  console.log(rollback ? "synonyms cleared." : "synonyms applied:", JSON.stringify(current, null, 2));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

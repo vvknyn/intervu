@@ -170,10 +170,19 @@ test("a word the gazetteer has never heard of (not a recognized place at all) DO
 
 test("applyQueryUnderstanding composes: work mode first, then places", async () => {
   const p = await applyQueryUnderstanding({ q: "remote react developer toronto" }, VOCAB);
-  assert.deepEqual(p.facets?.work_type, ["remote"]);
   assert.equal(p.q, "react developer");
   assert.equal(p.places?.length, 1);
   assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
+  assert.deepEqual(p.places![0].workTypes, ["remote"]);
+  assert.equal(p.facets?.work_type, undefined);
+});
+
+test("applyQueryUnderstanding: inferred remote binds to parsed country place", async () => {
+  const p = await applyQueryUnderstanding({ q: "engineer remote canada" }, VOCAB);
+  assert.equal(p.q, "engineer");
+  assert.deepEqual(p.places![0].any, [{ field: "location_country", value: "Canada" }]);
+  assert.deepEqual(p.places![0].workTypes, ["remote"]);
+  assert.equal(p.facets?.work_type, undefined);
 });
 
 test("an explicit country facet from the panel wins — typed place tokens stay in the query", async () => {

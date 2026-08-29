@@ -318,7 +318,6 @@ const getCachedDefaultBrowse = unstable_cache(
   async (places: PlaceClause[] | undefined): Promise<JobSearchResult & { meta?: SearchServeMeta }> =>
     runSearch(
       {
-        postedBucket: "30d",
         hideGhosts: true,
         sort: "newest",
         limit: DEFAULT_BROWSE_LIMIT,
