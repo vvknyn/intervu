@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { submitContactMessage } from "@/actions/contact";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
+
+const DEFAULT_ERROR = "Failed to send your message. Please try again.";
+
+/** Every error path — server-reported or client-caught — must leave a
+ *  person somewhere to go, not just a dead end in the form. */
+function withEscapeHatch(message?: string | null): string {
+    return `${message ?? DEFAULT_ERROR} — or email us directly at hello@thesubspace.io`;
+}
 
 export function ContactForm() {
     const [name, setName] = useState("");
@@ -28,25 +35,31 @@ export function ContactForm() {
         setError(null);
 
         try {
-            const result = await submitContactMessage({
-                name: name || undefined,
-                email,
-                message,
-                honeypot,
-                turnstileToken: turnstileToken ?? undefined,
-                path: pathname || window.location.pathname,
+            const response = await fetch("/api/contact", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: name || undefined,
+                    email,
+                    message,
+                    honeypot,
+                    turnstileToken: turnstileToken ?? undefined,
+                    path: pathname || window.location.pathname,
+                }),
+                signal: AbortSignal.timeout(20000),
             });
+            const result = await response.json();
 
             if (result.success) {
                 setStatus("success");
             } else {
                 setStatus("error");
-                setError(result.error ?? "Failed to send your message. Please try again.");
+                setError(withEscapeHatch(result.error));
             }
         } catch (err) {
             console.error(err);
             setStatus("error");
-            setError("Failed to send your message. Please try again.");
+            setError(withEscapeHatch());
         } finally {
             setIsSubmitting(false);
         }
