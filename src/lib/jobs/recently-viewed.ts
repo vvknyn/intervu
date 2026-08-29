@@ -13,7 +13,13 @@
  */
 
 export const RECENTLY_VIEWED_KEY = "interview-os-recently-viewed";
-const DEFAULT_MAX = 8;
+// Raised 8 → 300 alongside the viewed-jobs history feature: this store is now
+// also one of the three tiers `buildViewedSet` (lib/views/viewed-set.ts)
+// folds together for the SERP hide-viewed filter and card-dim styling, where
+// an 8-job cap would make "hide already viewed" forget a job after a short
+// session. No rendered "Recently viewed" widget currently reads this list
+// directly, so the wider cap has no other UI blast radius.
+const DEFAULT_MAX = 300;
 
 export type RecentlyViewedJob = {
     id: string;

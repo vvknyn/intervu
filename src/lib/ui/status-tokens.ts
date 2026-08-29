@@ -39,6 +39,18 @@ export const STATUS_PILL: Record<StatusTone, string> = {
  */
 export const LIVE_PILL = "bg-live-tint-bg text-verdict-live border border-live-tint-border";
 
+/** `StatusTone` → the matching `Badge` `st-*` variant key (components/ui/badge.tsx),
+ *  same parallel-map shape as `STATUS_PILL` above. Plain literal strings, not
+ *  an import from badge.tsx — this module stays React/DOM-free; the Badge
+ *  component's own `st-*` variant names are a 1:1 echo of this vocabulary. */
+export const STATUS_BADGE_VARIANT = {
+  saved: "st-saved",
+  applied: "st-applied",
+  intv: "st-intv",
+  offer: "st-offer",
+  closed: "st-closed",
+} as const;
+
 /** Solid proportion-bar fill — same tone scale, no soft bg/border. */
 export const STATUS_FILL: Record<StatusTone, string> = {
   saved: "bg-st-saved",
