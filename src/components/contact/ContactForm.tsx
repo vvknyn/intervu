@@ -28,6 +28,16 @@ export function ContactForm() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const isBugReport = searchParams.get("kind") === "bug";
+    // Client-side navigations never update `document.referrer` (Next.js
+    // route transitions don't reload the document), so a visitor who
+    // arrived via a <Link> and reported a bug several pages later would
+    // have `referrer` still pointing at whatever loaded the tab (often an
+    // external referrer like a search engine). The footer's "Report a bug"
+    // link carries the page it was clicked from as `?from=`, which is the
+    // page that's actually relevant — trust it over `referrer` when
+    // present, and only when it's a same-site path (never an absolute URL).
+    const fromParam = searchParams.get("from");
+    const resolvedFromPage = fromParam && fromParam.startsWith("/") ? fromParam : undefined;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,7 +60,7 @@ export function ContactForm() {
                     kind: isBugReport ? "bug" : "message",
                     context: isBugReport
                         ? {
-                              page: document.referrer || undefined,
+                              page: resolvedFromPage || document.referrer || undefined,
                               userAgent: navigator.userAgent,
                               viewport: `${window.innerWidth}x${window.innerHeight}`,
                           }
@@ -162,7 +172,7 @@ export function ContactForm() {
                 )}
 
                 <Button type="submit" size="lg" disabled={isSubmitting} className="h-11 rounded-none bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider px-7 hover:bg-primary/90 transition-colors">
-                    {isSubmitting ? "Sending…" : "Send message →"}
+                    {isSubmitting ? "Sending…" : isBugReport ? "Send report →" : "Send message →"}
                 </Button>
             </form>
         </div>
