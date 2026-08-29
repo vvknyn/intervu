@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Check, CircleNotch } from "@phosphor-icons/react";
 import { highlightMatch } from "@/lib/highlight-match";
 import { isLocationSelected } from "@/lib/jobs/location-suggest";
+import { splitLocationLabel } from "@/lib/presentation/location";
 import { LOCATION_TRIGGER_PLACEHOLDER } from "@/components/jobs/FilterPanel";
 import type { LocationSuggestGroup, LocationSuggestion, SuggestField } from "@/lib/jobs/location-suggest";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,36 @@ interface LocationComboboxProps {
 
 /** Flatten groups to the flat list keyboard navigation moves through — the
  *  headers are not stops. */
+/**
+ * One suggestion's visible text. The row is a single truncating line, so the
+ * part that tells two suggestions apart has to sit at the START of it —
+ * `splitLocationLabel` decides which part that is (see its doc for the prod
+ * rows that forced this: two St. Louis sites rendering identically because
+ * the ellipsis ate the only difference between them).
+ *
+ * `label` itself is untouched — it stays the corpus's own string, which is
+ * what the row commits, compares and filters on. This is display only.
+ */
+function SuggestionLabel({ label, query }: { label: string; query: string }) {
+    const { lead, context } = splitLocationLabel(label);
+    const paint = (text: string, matchClass: string) =>
+        highlightMatch(text, query).map((seg, si) => (
+            <span key={si} className={seg.matched ? matchClass : undefined}>
+                {seg.text}
+            </span>
+        ));
+    return (
+        <span className="flex min-w-0 flex-1 items-baseline gap-2">
+            <span className="max-w-[60%] shrink-0 truncate">{paint(lead, "font-semibold text-foreground")}</span>
+            {context && (
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground/70">
+                    {paint(context, "font-semibold")}
+                </span>
+            )}
+        </span>
+    );
+}
+
 function flatten(groups: LocationSuggestGroup[]): LocationSuggestion[] {
     return groups.flatMap((g) => g.items);
 }
@@ -196,13 +227,7 @@ export function LocationCombobox({
                                     onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => commit(item.label, item.field)}
                                 >
-                                    <span className="min-w-0 flex-1 truncate">
-                                        {highlightMatch(item.label, value).map((seg, si) => (
-                                            <span key={si} className={seg.matched ? "font-semibold text-foreground" : undefined}>
-                                                {seg.text}
-                                            </span>
-                                        ))}
-                                    </span>
+                                    <SuggestionLabel label={item.label} query={value} />
                                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground/80">
                                         {item.count.toLocaleString()}
                                     </span>
