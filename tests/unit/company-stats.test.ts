@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deriveCompanyStats, dominantCompanyDomain } from "../../src/lib/companies/company-stats";
+import { deriveCompanyStats, dominantCompanyDomain, resolveProfileName } from "../../src/lib/companies/company-stats";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 const NOW = Date.parse("2026-08-01T12:00:00Z");
@@ -37,6 +37,30 @@ function job(overrides: Partial<PublicJob>): PublicJob {
     ...overrides,
   };
 }
+
+// Company-name seam rework (2026-08-29): the index carries the ATS-stated
+// raw name (intervu owns display-time cleaning, not ingest — a separate
+// repo writes the live index and PUTs the feed through unchanged), so
+// `/companies/[slug]`'s <h1> used to render the raw corpus string.
+// Cleaner-algorithm coverage lives in jobs-company-clean.test.ts — these
+// prove this chokepoint actually calls it, and the fallback path when
+// cleaning empties out.
+describe("resolveProfileName", () => {
+  it("cleans the first matched hit's raw company name", () => {
+    const name = resolveProfileName([job({ company: "REQ123 Acme Co" })], "acme co", "acme.com");
+    assert.equal(name, "Acme Co");
+  });
+
+  it("falls back to the trimmed input company when there are no matched hits", () => {
+    const name = resolveProfileName([], "  Acme Co  ", null);
+    assert.equal(name, "Acme Co");
+  });
+
+  it("falls back to the trimmed input company when cleaning the matched hit yields nothing", () => {
+    const name = resolveProfileName([job({ company: "" })], "Acme Co", null);
+    assert.equal(name, "Acme Co");
+  });
+});
 
 describe("deriveCompanyStats", () => {
   it("empty hit set: zero total, every bucket present at zero (no silent gaps)", () => {

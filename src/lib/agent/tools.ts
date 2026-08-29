@@ -27,6 +27,7 @@ import type { SetBaseResumeResult } from "../resume/set-resume";
 import type { AgentPreferences, AgentPreferencesPatch } from "./preferences";
 import { AGENT } from "./config";
 import { jobShareUrl } from "../jobs/share-url";
+import { displayCompanyBrand } from "../jobs/presentation";
 import { getSiteUrl } from "../seo/constants";
 import {
   EXPERIENCE_LEVELS, type ExperienceLevel,
@@ -218,7 +219,14 @@ function toJobDetailFields(job: PublicJob, resume: ResumeData | null = null): Jo
   } = job;
   const match = resume ? scoreJobAgainstResume(resume, job) : null;
   return {
-    id, title, company, company_domain, location, location_country,
+    id, title,
+    // The index carries the ATS-stated raw name (intervu owns display-time
+    // cleaning, not ingest) — an MCP client renders `company` straight into
+    // an agent's own UI, so it needs the same chain the SERP/detail panes
+    // apply, not the raw corpus string `toSearchHit`'s Pick used to pass
+    // through unchanged.
+    company: displayCompanyBrand(company, company_domain, title) || company,
+    company_domain, location, location_country,
     work_type, employment_type, experience_level,
     salary_min, salary_max, salary_currency, salary_period,
     tags, apply_url, posted_at, first_seen_at, updated_at,

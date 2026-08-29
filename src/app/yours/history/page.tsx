@@ -24,6 +24,7 @@ import { stageLabel, type Pursuit } from "@/lib/pursuits/types";
 import { applicationStatusTone, STATUS_BADGE_VARIANT } from "@/lib/ui/status-tokens";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { jobPath } from "@/lib/jobs/job-slug";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import type { JobView } from "@/lib/views/types";
@@ -78,6 +79,14 @@ function HistoryEmptyState() {
 function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined }) {
     const snapshot = view.job_snapshot;
     const href = jobPath({ id: view.job_id, title: snapshot.title, company: snapshot.company });
+    // `job_snapshot.company` is a Firestore-stored copy taken when the job was
+    // viewed (`buildJobSnapshot`, lib/pursuits/types.ts) — the live Meili index
+    // carries the ATS-stated raw name permanently (intervu owns brand cleaning
+    // at display time, never at ingest — see meilisearch.ts's `upsertJobs`),
+    // so every snapshot taken from it carries the raw value too, and a view is
+    // never rewritten after the fact. Cleaned at render instead, same as every
+    // live search hit.
+    const companyName = displayCompanyName(snapshot.company);
     return (
         <div
             data-testid="history-row"
@@ -87,7 +96,7 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
                 <Link href={href} className="block truncate text-[15px] font-semibold tracking-[-0.02em] hover:text-brand">
                     {snapshot.title}
                 </Link>
-                <div className="truncate text-[13px] text-muted-foreground">{snapshot.company}</div>
+                <div className="truncate text-[13px] text-muted-foreground">{companyName}</div>
             </div>
             {stage && (
                 <Badge variant={STATUS_BADGE_VARIANT[applicationStatusTone(stage.status)]}>

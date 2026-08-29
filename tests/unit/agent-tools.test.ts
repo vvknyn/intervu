@@ -470,6 +470,21 @@ describe('toolGetJob', () => {
     assert.deepEqual(consumeRecordBudgetCalls, [1]);
   });
 
+  // Company-name seam rework (2026-08-29): the index carries the ATS-stated
+  // raw name (intervu owns display-time cleaning, not ingest — a separate
+  // repo writes the live index and PUTs the feed through unchanged), so an
+  // MCP client used to render "REQ123 Acme Co" straight from this Pick.
+  // Cleaner-algorithm coverage lives in jobs-company-clean.test.ts — this
+  // just proves toJobDetailFields (the shared chokepoint behind get_job,
+  // search_jobs, and get_company's embedded jobs) actually calls it.
+  it('cleans a raw ATS-stated company name before returning it — get_job never renders the corpus value verbatim', async () => {
+    const { deps } = stubDeps([makeJob({ company: 'REQ123 Acme Co' })]);
+    const out = await toolGetJob(deps, { id: 'job-1' });
+    assert.equal('error' in out, false);
+    if ('error' in out) return;
+    assert.equal(out.company, 'Acme Co');
+  });
+
   it('returns the budget error instead of job detail when the daily record budget is exhausted', async () => {
     const { deps } = stubDeps([makeJob()], undefined, {}, TEST_VOCAB, {
       consumeRecordBudgetResult: { ok: false, error: 'Daily corpus budget reached: resets at 2026-08-05T00:00:00.000Z' },

@@ -16,7 +16,7 @@ import {
   type CompanyNameSample,
 } from "./company-intent";
 import { isTechSkillQuery } from "./tech-skills";
-import { decodeText, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
+import { decodeText, displayCompanyBrand, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
 import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
@@ -1502,6 +1502,16 @@ export function dedupeJobSuggestionHits(
     if (domain && isDomainSquashName(company, domain)) {
       company = humanizeTenantSubdomain(domain);
     }
+    // The index carries the ATS-stated raw name (intervu owns display-time
+    // cleaning, not ingest — see upsertJobs), so fold junk prefixes / legal
+    // suffixes / slogan-brand splits onto the same canonical form the SERP
+    // renders RIGHT before the dedup key below — otherwise "REQ123 Acme",
+    // "Acme, Inc.", and "We build things - Acme" dedupe as three distinct,
+    // near-identical suggestion rows instead of collapsing into one "Acme".
+    // `|| company` only matters if cleaning empties out an already-non-empty
+    // string with no domain to fall back to (e.g. a bare legal-suffix token)
+    // — keep showing the pre-clean text rather than drop the suggestion.
+    company = displayCompanyBrand(company, domain, hit.title) || company;
     if (!titleMatchesQuery(company, q)) continue;
     const key = company.toLowerCase();
     if (!seenCompanies.has(key)) {
@@ -1733,9 +1743,18 @@ export function derivePostedTs(job: { posted_at?: string | null; first_seen_at?:
 export async function upsertJobs(jobs: PublicJob[]): Promise<void> {
   if (!jobs.length) return;
   // Chokepoint: every ingest path (initialLoad / syncChanged / reconcileAndEvict
-  // in lib/jobs/sync.ts) funnels through here, so deriving posted_ts once at the
-  // PUT boundary keeps it consistent without threading it through each caller.
-  const docs = jobs.map((j) => ({ ...j, posted_ts: derivePostedTs(j) }));
+  // in lib/jobs/sync.ts) funnels through here, so deriving posted_ts once at
+  // the PUT boundary keeps it consistent without threading it through each
+  // caller. NOTE: this function has zero callers in production — the live
+  // Meili index is written by the separate interview-os repo's
+  // scripts/jobs-sync/sync.mjs (systemd timers), which PUTs the Subspace feed
+  // through unchanged. `company` is deliberately left as the ATS-stated raw
+  // name on the index; intervu owns brand-name cleaning at display time
+  // (lib/jobs/presentation.ts), not at ingest.
+  const docs = jobs.map((j) => ({
+    ...j,
+    posted_ts: derivePostedTs(j),
+  }));
   await adminFetch(`/indexes/${JOBS_INDEX}/documents?primaryKey=id`, {
     method: "PUT",
     body: JSON.stringify(docs),

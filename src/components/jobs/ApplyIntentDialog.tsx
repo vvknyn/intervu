@@ -19,7 +19,7 @@ import {
     type McpHandoffClient,
 } from "@/lib/mcp/job-handoff";
 import { dismissApplyIntent } from "@/lib/jobs/apply-intent";
-import { decodeText, locationText } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, locationText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
 
@@ -63,11 +63,15 @@ export function ApplyIntentDialog({
     // Same shape every external-handoff consumer needs — the one mapping
     // moved here from the two mount sites (jobs/page.tsx, PublicJobDetail.tsx)
     // so description/company_domain reach this dialog too instead of being
-    // dropped at the door by a second, narrower prop.
+    // dropped at the door by a second, narrower prop. `company` goes through
+    // the same displayCompanyBrand chain the SERP/detail panes render — this
+    // text is copied into an external Claude/ChatGPT prompt URL
+    // (buildJobMcpHandoffPrompt), so an uncleaned index value would leak
+    // "REQ123 Acme" into another product's UI, not just intervu's own.
     const handoffJob: JobHandoffInput = {
         id: job.id,
         title: decodeText(job.title),
-        company: job.company || "Unknown company",
+        company: displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company",
         location: locationText(job) || null,
     };
 

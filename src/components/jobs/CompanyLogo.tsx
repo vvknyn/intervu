@@ -82,11 +82,16 @@ export function CompanyLogo({
     const showImage = Boolean(domain) && !errored;
 
     const sizeCls = SIZE_CLS[size];
+    // The index carries the ATS-stated raw name (intervu owns display-time
+    // cleaning, not ingest) — the `alt` text below renders straight into the
+    // DOM regardless of whether the favicon loads, so it needs the same
+    // cleaning CompanyInitialTile already applies to the fallback initial.
+    const cleanedName = cleanCompany(name);
 
     if (!showImage) {
         return (
             <CompanyInitialTile
-                name={name}
+                name={cleanedName}
                 className={cn(
                     "border border-slate-200/80 shadow-2xs dark:border-slate-700/80",
                     sizeCls,
@@ -105,7 +110,7 @@ export function CompanyLogo({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
                 src={companyLogoUrl(domain as string)}
-                alt={`${name ?? "Company"} logo`}
+                alt={`${cleanedName || "Company"} logo`}
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 onError={() => setErrored(true)}
