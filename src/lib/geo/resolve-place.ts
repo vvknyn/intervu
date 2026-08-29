@@ -90,11 +90,17 @@ export interface PlaceCandidate {
   /** Candidate text in gazetteer casing — NOT yet known to exist in the
    *  corpus; corpus-values.ts is what turns this into a real filter. */
   value: string;
-  /** "exact" (default): only the literal value (case-insensitive) counts.
+  /** "exact" (default): only the literal value (case-insensitive) counts,
+   *  gated on PLACE_MIN_COUNT (corpus-values.ts) — the value came from
+   *  resolving a NAME, so it could coincidentally collide with an ordinary
+   *  word.
    *  "prefix": also accept any corpus value starting with "<value> - " —
    *  the compound-region pattern real postings use ("Canada - Remote",
-   *  "Canada - Toronto") that an exact match alone would miss. */
-  matchMode?: "exact" | "prefix";
+   *  "Canada - Toronto") that an exact match alone would miss.
+   *  "literal": the candidate IS the whole, already-typed/picked string, not
+   *  a name-derived guess — see `selectMatchingHits`'s "literal" branch for
+   *  why this mode carries no PLACE_MIN_COUNT floor. */
+  matchMode?: "exact" | "prefix" | "literal";
 }
 
 export type PlaceEntityType = "city" | "admin1" | "country" | "region";

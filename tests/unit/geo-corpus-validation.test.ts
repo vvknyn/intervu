@@ -55,6 +55,43 @@ test("selectMatchingHits: exact mode (no matchMode) does NOT pick up compound va
   assert.deepEqual(selectMatchingHits(candidate, hits), [{ field: "location_country", value: "Canada" }]);
 });
 
+test("selectMatchingHits: literal mode keeps an exact-fold match BELOW PLACE_MIN_COUNT — the class fix for a structured value ('US CA San Diego', 96 postings) that a name-derived floor would otherwise reject", () => {
+  const hits: FacetHit[] = [{ value: "US CA San Diego", count: 96 }];
+  const candidate: PlaceCandidate = { field: "location_city", value: "US CA San Diego", matchMode: "literal" };
+  assert.deepEqual(selectMatchingHits(candidate, hits), [{ field: "location_city", value: "US CA San Diego" }]);
+  assert.ok(96 < PLACE_MIN_COUNT, "the whole point: a real value that would fail the exact-mode floor");
+});
+
+test("selectMatchingHits: literal mode still requires a fold-exact match — no substring or prefix pollution from a longer compound value", () => {
+  const hits: FacetHit[] = [
+    { value: "US CA San Diego", count: 96 },
+    { value: "US CA San Diego County", count: 12 },
+  ];
+  const candidate: PlaceCandidate = { field: "location_city", value: "US CA San Diego", matchMode: "literal" };
+  assert.deepEqual(selectMatchingHits(candidate, hits), [{ field: "location_city", value: "US CA San Diego" }]);
+});
+
+test("selectMatchingHits: literal mode folds case/accent exactly like exact mode, just without the count floor", () => {
+  const hits: FacetHit[] = [{ value: "MONTRÉAL", count: 3 }];
+  const candidate: PlaceCandidate = { field: "location_city", value: "montreal", matchMode: "literal" };
+  assert.deepEqual(selectMatchingHits(candidate, hits), [{ field: "location_city", value: "MONTRÉAL" }]);
+});
+
+test("selectMatchingHits: literal mode with no matching hit still licenses nothing — never invents a filter just because the mode skips the floor", () => {
+  const hits: FacetHit[] = [{ value: "Toronto", count: 5183 }];
+  const candidate: PlaceCandidate = { field: "location_city", value: "Nowhereville", matchMode: "literal" };
+  assert.deepEqual(selectMatchingHits(candidate, hits), []);
+});
+
+test("createCorpusValueChecker: end to end, a literal candidate below PLACE_MIN_COUNT still becomes a filter", async () => {
+  const { fetcher } = stubFetcher({
+    "location_city:us ca san diego": [{ value: "US CA San Diego", count: 96 }],
+  });
+  const checker = createCorpusValueChecker(fetcher);
+  const [result] = await checker([[{ field: "location_city", value: "US CA San Diego", matchMode: "literal" }]]);
+  assert.deepEqual(result, [{ field: "location_city", value: "US CA San Diego" }]);
+});
+
 function stubFetcher(
   data: Record<string, FacetHit[]>,
 ): { fetcher: FacetSearchFetcher; calls: Array<{ field: string; query: string }> } {
