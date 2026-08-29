@@ -110,6 +110,32 @@ export interface EventPayloads {
   search_zero_results: {
     query_length: number;
     filter_count: number;
+    /**
+     * Every active filter's key and human-readable value, generic over
+     * `FilterState` — never a per-facet field name enumerated here, so a
+     * facet added later is captured by construction (see
+     * `buildZeroResultPayload`, lib/jobs/result-state.ts, the pure builder
+     * for this payload). This is structured filter state, not free text:
+     * it already leaves the browser in PostHog's default `$current_url`
+     * super-property on every pageview (the URL encodes the same facets/
+     * values), so attaching it here adds no new data category — it only
+     * makes an existing signal queryable at the moment a search fails,
+     * instead of needing a human to notice a screenshot.
+     */
+    active_facets: { key: string; value: string }[];
+    /** IP-based default location applied to this search (ISO2 country), or
+     *  `null` when none was applied — mirrors `defaultedLocation` on the
+     *  search response (actions/jobs.ts). Never the typed query text. */
+    defaulted_location: string | null;
+    /** Typed location text the resolver could not match to anything in the
+     *  corpus and dropped (the "We don't recognize…" disclosure) — mirrors
+     *  `unmatchedPlaceMentions` on the search response. Empty when nothing
+     *  was dropped. The resolver's interpretation of a place it DID
+     *  recognize is not included: that value (`places`, query-
+     *  understanding.ts) is consumed only server-side to build the search
+     *  filter and is never returned to the client today — see
+     *  `buildZeroResultPayload`'s doc comment. */
+    unmatched_place_mentions: string[];
   };
   search_filter_applied: {
     facet: string;

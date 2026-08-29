@@ -15,10 +15,17 @@ import {
     resolveDetailMountSite,
     degradedResultsNote,
     shouldShowMobileSearchCta,
+    buildZeroResultPayload,
     type SearchServedMeta,
 } from '../../src/lib/jobs/result-state';
 import type { EmptySearchStateInput } from '../../src/lib/jobs/result-state';
 import type { JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
+import {
+    PRISTINE_FILTER_STATE,
+    facetValueLabel,
+    postedBucketLabel,
+    type FilterState,
+} from '../../src/components/jobs/FilterPanel';
 
 function result(overrides: Partial<JobSearchResult> = {}): JobSearchResult {
     return {
@@ -591,5 +598,66 @@ describe('shouldShowMobileSearchCta', () => {
 
     it('trims before comparing — trailing whitespace alone is not a pending edit', () => {
         assert.equal(shouldShowMobileSearchCta(false, 'nurse  ', 'nurse'), false);
+    });
+});
+
+describe('buildZeroResultPayload', () => {
+    it('names every active facet and its value for a multi-facet zero-result search — the reported "Software Engineer" + location + posted-date bug shape', () => {
+        const state: FilterState = {
+            ...PRISTINE_FILTER_STATE,
+            facets: { location_country: ['CA'] },
+            postedBucket: '7d',
+        };
+        const payload = buildZeroResultPayload(state, 'Software Engineer', {});
+        assert.equal(payload.query_length, 'Software Engineer'.length);
+        assert.equal(payload.filter_count, 2);
+        assert.deepEqual(
+            new Set(payload.active_facets.map((f) => `${f.key}=${f.value}`)),
+            new Set([
+                `location_country=${facetValueLabel('location_country', 'CA')}`,
+                `postedBucket=${postedBucketLabel('7d')}`,
+            ]),
+        );
+    });
+
+    it('surfaces a facet never named anywhere in the builder itself — proves the derivation is generic, not an enumerated list (covers a facet OTHER than the one that motivated this change)', () => {
+        const state: FilterState = {
+            ...PRISTINE_FILTER_STATE,
+            facets: { tech_stack: ['rust'] },
+            postedBucket: undefined,
+        };
+        const payload = buildZeroResultPayload(state, 'engineer', {});
+        assert.deepEqual(payload.active_facets, [
+            { key: 'tech_stack', value: facetValueLabel('tech_stack', 'rust') },
+        ]);
+    });
+
+    it('names a silently-applied default (pristine 30d posted bucket) in active_facets even though filter_count — the pre-existing dashboard contract — still excludes it', () => {
+        const payload = buildZeroResultPayload(PRISTINE_FILTER_STATE, 'nurse', {});
+        assert.equal(payload.filter_count, 0);
+        assert.deepEqual(payload.active_facets, [{ key: 'postedBucket', value: postedBucketLabel('30d') }]);
+    });
+
+    it('never emits the raw typed query text anywhere in the payload — only its length', () => {
+        const state: FilterState = { ...PRISTINE_FILTER_STATE, facets: { location_country: ['CA'] }, postedBucket: '7d' };
+        const typed = 'a very specific typed phrase nobody else would type';
+        const payload = buildZeroResultPayload(state, typed, {});
+        assert.equal(JSON.stringify(payload).includes(typed), false);
+        assert.equal(payload.query_length, typed.length);
+    });
+
+    it('passes through the resolver\'s location interpretation when the search response carried one', () => {
+        const payload = buildZeroResultPayload(PRISTINE_FILTER_STATE, 'engineer', {
+            defaultedLocation: 'US',
+            unmatchedPlaceMentions: ['North America'],
+        });
+        assert.equal(payload.defaulted_location, 'US');
+        assert.deepEqual(payload.unmatched_place_mentions, ['North America']);
+    });
+
+    it('reports no location resolution rather than fabricating one when the response carried none', () => {
+        const payload = buildZeroResultPayload(PRISTINE_FILTER_STATE, 'engineer', {});
+        assert.equal(payload.defaulted_location, null);
+        assert.deepEqual(payload.unmatched_place_mentions, []);
     });
 });

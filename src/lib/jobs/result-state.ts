@@ -1,3 +1,5 @@
+import { activeFilterEntries, type FilterState } from "@/components/jobs/FilterPanel";
+import type { EventPayloads } from "@/lib/analytics/events";
 import type { JobSearchResult, PublicJob } from "./types";
 
 /**
@@ -80,6 +82,59 @@ export function unmatchedPlaceNote(mentions: string[] | undefined): string | nul
     const noun = mentions.length === 1 ? "a place" : "places";
     const pronoun = mentions.length === 1 ? "it" : "them";
     return `We don't recognize ${list} as ${noun} — showing results without ${pronoun}.`;
+}
+
+/**
+ * Pure: the `search_zero_results` analytics payload (lib/analytics/events.ts)
+ * for one failed search — everything needed to reconstruct WHICH filter
+ * combination produced zero hits from a dashboard, without ever carrying the
+ * typed query text (see `EventPayloads.search_zero_results`'s own doc
+ * comment for the "why" of that split). Extracted here, not inlined at the
+ * `captureEvent` call site (jobs/page.tsx), so it's testable without a
+ * browser or a mocked `posthog-js` — matching this file's own
+ * `unmatchedPlaceNote`/`isUnavailableJobsResult` precedent.
+ *
+ * `active_facets` reads `activeFilterEntries` (FilterPanel.tsx) — the SAME
+ * chokepoint the toolbar chips, the mobile sheet, and this exact zero-result
+ * state's own "clear a filter" suggestions already read — with
+ * `includeQuietDefaults: true`, so a silently-applied default (today, only
+ * the pristine 30d posted-bucket) is named here just like an explicit pick.
+ * That can make `active_facets` longer than `filter_count` (which stays the
+ * pre-existing, quiet-defaults-excluded count — an established dashboard
+ * contract this change doesn't touch): a search failing under a quiet
+ * default IS the kind of excluder this payload exists to surface, the same
+ * reasoning `activeFilterEntries`'s own doc comment gives for why the
+ * zero-result state passes that option elsewhere. Never enumerates a facet
+ * by name — a facet added to `FilterState` later is covered by construction,
+ * the same guarantee `activeFilterEntries` already gives its other callers.
+ *
+ * `defaultedLocation`/`unmatchedPlaceMentions` are the two location-resolver
+ * outputs that actually reach the client today (see `searchJobsAction`'s
+ * return type, actions/jobs.ts): an IP-based default country, and typed
+ * location text the resolver could not match to anything in the corpus. The
+ * resolver's interpretation of a place it DID recognize — the over-
+ * resolution bug class ("US CA San Diego" -> huge match set) — is NOT
+ * included: `places` (query-understanding.ts) is consumed only inside
+ * `searchJobs` to build the backend filter and is never part of
+ * `JobSearchResult`, so there is nothing to read here without a new API
+ * field — out of scope for this change, left as a finding rather than
+ * invented.
+ */
+export function buildZeroResultPayload(
+    filterState: FilterState,
+    query: string,
+    location: { defaultedLocation?: string; unmatchedPlaceMentions?: string[] },
+): EventPayloads["search_zero_results"] {
+    return {
+        query_length: query.trim().length,
+        filter_count: activeFilterEntries(filterState).length,
+        active_facets: activeFilterEntries(filterState, { includeQuietDefaults: true }).map((entry) => ({
+            key: entry.key.split(":")[0],
+            value: entry.label,
+        })),
+        defaulted_location: location.defaultedLocation ?? null,
+        unmatched_place_mentions: location.unmatchedPlaceMentions ?? [],
+    };
 }
 
 /**
