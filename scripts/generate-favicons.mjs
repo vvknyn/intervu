@@ -30,7 +30,8 @@ const root = join(here, "..");
 const logoBuffer = readFileSync(join(root, "public/velai-logo.png"));
 
 async function renderPng(size) {
-  return sharp(logoBuffer).resize(size, size).png().toBuffer();
+  // Next's ICO decoder requires RGBA. velai-logo.png is opaque RGB.
+  return sharp(logoBuffer).ensureAlpha().resize(size, size).png().toBuffer();
 }
 
 /** Assembles a valid ICO container (PNG-embedded images — supported by
