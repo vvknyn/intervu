@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FollowButton, decideGuestFollowClick, resolveFollowingState, followButtonBusyLabel } from "../../src/components/companies/FollowButton";
+import { FollowButton, decideGuestFollowClick, resolveFollowingState, followButtonBusyLabel, followButtonFollowingLabel } from "../../src/components/companies/FollowButton";
 import { visibleFollowDomains } from "../../src/lib/follows/use-follows";
 import type { FollowedCompany } from "../../src/lib/follows/types";
 
@@ -139,12 +139,13 @@ describe("FollowButton: variant=\"primary\" is the page's single filled CTA", ()
   });
 });
 
-describe("FollowButton: a verified guest channel renders Following", () => {
+describe("FollowButton: a verified guest channel renders Unfollow", () => {
   for (const variant of ["outline", "pill"] as const) {
-    it(`variant="${variant}": emailVerified=true renders Following`, () => {
+    it(`variant="${variant}": emailVerified=true renders Unfollow (the reverse action, not a status badge)`, () => {
       const html = render({ variant, emailVerified: true });
       assert.match(html, /data-following="true"/);
-      assert.match(html, />Following/);
+      assert.match(html, />Unfollow</);
+      assert.doesNotMatch(html, />Following/);
     });
   }
 });
@@ -167,9 +168,13 @@ describe("FollowButton: idleLabel overrides only the idle (not-following) label"
     assert.match(html, />Follow — new roles by email</);
   });
 
-  it("idleLabel never leaks into the Following state — a verified channel still renders 'Following ✓'", () => {
+  it("idleLabel never leaks into the followed state — a verified channel still renders Unfollow", () => {
     const html = render({ variant: "primary", emailVerified: true, idleLabel: "Follow — new roles by email" });
-    assert.match(html, />Following ✓</);
+    assert.match(html, />Unfollow</);
     assert.doesNotMatch(html, /new roles by email/);
+  });
+
+  it("followButtonFollowingLabel is Unfollow on every variant — not a Following badge", () => {
+    assert.equal(followButtonFollowingLabel(), "Unfollow");
   });
 });

@@ -20,6 +20,13 @@ export function followButtonBusyLabel(following: boolean): string {
   return following ? "Unfollowing…" : "Following…";
 }
 
+/** Idle label once a real channel exists. "Following ✓" read as a status
+ *  badge, not a control — the click already unfollowed; the copy has to
+ *  say so. */
+export function followButtonFollowingLabel(): string {
+  return "Unfollow";
+}
+
 export type GuestFollowClickAction = { kind: "unfollow" } | { kind: "open-email-step" };
 
 /**
@@ -183,9 +190,7 @@ export function FollowButton({
     }
   };
 
-  const idleFollowingLabel =
-    variant === "elite" || variant === "primary" ? "Following ✓" : "Following";
-  const label = following ? idleFollowingLabel : idleLabel;
+  const label = following ? followButtonFollowingLabel() : idleLabel;
   const displayLabel = busy ? followButtonBusyLabel(following) : label;
   const disabled = busy || (loading && optimistic === null);
   const showSpinner = busy || (loading && optimistic === null);
@@ -197,6 +202,7 @@ export function FollowButton({
         data-testid="follow-company"
         data-following={following ? "true" : "false"}
         aria-pressed={following}
+        aria-label={following ? `Unfollow ${displayName}` : undefined}
         disabled={disabled}
         aria-busy={showSpinner || undefined}
         onClick={() => void handleClick()}
@@ -228,6 +234,7 @@ export function FollowButton({
         data-testid="follow-company"
         data-following={following ? "true" : "false"}
         aria-pressed={following}
+        aria-label={following ? `Unfollow ${displayName}` : undefined}
         disabled={disabled}
         aria-busy={showSpinner || undefined}
         onClick={() => void handleClick()}

@@ -47,6 +47,51 @@ export function hasSubspaceApiKey(): boolean {
   return Boolean(process.env.SUBSPACE_API_KEY);
 }
 
+interface FillDescriptionsEnvelope {
+  data: Array<{ id: string; description: string | null }>;
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const url = new URL(`${baseUrl()}${path}`);
+
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      method: "POST",
+      headers: {
+        "x-api-key": requireApiKey(),
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch (e) {
+    throw new SubspaceJobsError(
+      `Network error calling ${path}: ${e instanceof Error ? e.message : String(e)}`,
+      undefined,
+      "network_error",
+    );
+  }
+
+  if (!res.ok) {
+    let message = `${res.status} ${res.statusText}`;
+    let code: string | undefined;
+    try {
+      const errBody = (await res.json()) as { error?: { message?: string; code?: string } };
+      if (errBody?.error) {
+        message = errBody.error.message ?? message;
+        code = errBody.error.code;
+      }
+    } catch {
+      /* non-JSON error body — keep the status line */
+    }
+    throw new SubspaceJobsError(`Jobs API ${path} failed: ${message}`, res.status, code);
+  }
+
+  return (await res.json()) as T;
+}
+
 async function getJson(
   path: string,
   params: Record<string, string | number | undefined>,
@@ -127,6 +172,18 @@ export async function* iterateSnapshot(
     cursor = nextCursor ?? undefined;
     pages += 1;
   } while (cursor && pages < maxPages);
+}
+
+/** Demand-fill empty descriptions for visible hit ids (Subspace ladder/Postgres). */
+export async function fillVisibleDescriptions(
+  ids: string[],
+): Promise<Array<{ id: string; description: string | null }>> {
+  const capped = ids.slice(0, 20);
+  if (capped.length === 0) return [];
+  const env = await postJson<FillDescriptionsEnvelope>("/jobs/fill-descriptions", {
+    ids: capped,
+  });
+  return env.data ?? [];
 }
 
 /** Async-iterate the delta since `since`, following `next_cursor`. */
