@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { BRAND_MARK_PATHS, BRAND_MARK_STROKE_WIDTH, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { EMAIL_COLORS } from "@/lib/email/templates/palette";
 
 /**
  * Top-level error boundary — only fires when the root layout itself throws.
@@ -45,7 +46,7 @@ export default function GlobalError({
             <path
               key={d}
               d={d}
-              stroke="#4F46E5"
+              stroke={EMAIL_COLORS.brand}
               strokeWidth={BRAND_MARK_STROKE_WIDTH}
               strokeLinecap="butt"
               strokeLinejoin="round"
@@ -64,7 +65,7 @@ export default function GlobalError({
             marginTop: "0.5rem",
             border: "none",
             borderRadius: "0.5rem",
-            background: "#4F46E5",
+            background: EMAIL_COLORS.brand,
             color: "#fff",
             padding: "0.65rem 1.25rem",
             fontSize: "0.875rem",
