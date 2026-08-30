@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildCompanyScopedSearchLanes,
   shouldRunCompanyScopedLanes,
+  shouldSkipSortIntegrityForCompanyLanes,
 } from "../../src/lib/jobs/company-scoped-lanes";
 import type { JobSearchParams, PlaceClause } from "../../src/lib/jobs/types";
 
@@ -57,6 +58,13 @@ test("buildCompanyScopedSearchLanes: skips identical lanes", () => {
   assert.equal(lanes.length, 2);
   assert.ok(lanes[0]?.places?.length);
   assert.equal(lanes[1]?.places, undefined);
+});
+
+test("shouldSkipSortIntegrityForCompanyLanes: true whenever company lanes run", () => {
+  const p = { q: "tesla", places: [{ any: [{ field: "location_country", value: "Canada" }] }] };
+  assert.equal(shouldSkipSortIntegrityForCompanyLanes(true, p), true);
+  assert.equal(shouldSkipSortIntegrityForCompanyLanes(false, p), false);
+  assert.equal(shouldSkipSortIntegrityForCompanyLanes(true, { q: "tesla" }), false);
 });
 
 test("buildCompanyScopedSearchLanes: work_type facet only yields two lanes", () => {

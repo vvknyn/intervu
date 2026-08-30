@@ -1076,27 +1076,31 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   const isRelevance = resolveEffectiveSort(p) === "relevance";
   let result: JobSearchResult;
 
+  if (shouldRunCompanyScopedLanes(companyScoped, searchParams)) {
+    const { hits: laneHits, facetDistribution } = await fetchCompanyScopedLaneHits(h, searchParams, companyScoped);
+    const seen = new Set<string>();
+    const unique: PublicJob[] = [];
+    for (const hit of laneHits) {
+      if (seen.has(hit.id)) continue;
+      seen.add(hit.id);
+      unique.push(hit);
+    }
+    const ranked = isRelevance ? applyRelevanceQualityReranking(unique, p.q ?? "") : unique;
+    const offset = p.offset ?? 0;
+    const limit = p.limit ?? 40;
+    // Lane-priority order IS the ranking for every sort — skip applySortIntegrityGuard
+    // (same as relevance role-title lane; guard would flatten newest/salary lanes).
+    return {
+      hits: pageRoleTitleHits(ranked, offset, limit),
+      total: ranked.length,
+      backend: "meilisearch",
+      configured: true,
+      facetDistribution,
+    };
+  }
+
   if (isRelevance) {
-    if (shouldRunCompanyScopedLanes(companyScoped, searchParams)) {
-      const { hits: laneHits, facetDistribution } = await fetchCompanyScopedLaneHits(h, searchParams, companyScoped);
-      const seen = new Set<string>();
-      const unique: PublicJob[] = [];
-      for (const hit of laneHits) {
-        if (seen.has(hit.id)) continue;
-        seen.add(hit.id);
-        unique.push(hit);
-      }
-      const ranked = applyRelevanceQualityReranking(unique, p.q ?? "");
-      const offset = p.offset ?? 0;
-      const limit = p.limit ?? 40;
-      result = {
-        hits: pageRoleTitleHits(ranked, offset, limit),
-        total: ranked.length,
-        backend: "meilisearch",
-        configured: true,
-        facetDistribution,
-      };
-    } else if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
+    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
       const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, searchParams, companyScoped);
       const seen = new Set<string>();
       const unique: PublicJob[] = [];

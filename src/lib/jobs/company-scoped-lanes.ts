@@ -11,6 +11,14 @@ export function shouldRunCompanyScopedLanes(companyScoped: boolean, p: JobSearch
   return companyScoped && hasCompanyLaneConstraints(p);
 }
 
+/** Lane merge order is the ranking — sort-integrity guard would flatten it. */
+export function shouldSkipSortIntegrityForCompanyLanes(
+  companyScoped: boolean,
+  p: JobSearchParams,
+): boolean {
+  return shouldRunCompanyScopedLanes(companyScoped, p);
+}
+
 function stripWorkTypeFacet(p: JobSearchParams): JobSearchParams {
   if (!p.facets?.work_type?.length) return p;
   const { work_type: _wt, ...restFacets } = p.facets;
