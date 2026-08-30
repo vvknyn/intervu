@@ -36,6 +36,11 @@ import { ANONYMOUS_DEPTH_GATE_MESSAGE, resolveDepthCap } from "@/lib/shield/dept
 import { getServerUser } from "@/lib/auth/server-user";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
+import {
+  mergeDescriptionFills,
+  planDescriptionFill,
+} from "@/lib/jobs/fill-description";
+import { fillVisibleDescriptions, hasSubspaceApiKey } from "@/lib/jobs/subspaceJobs";
 
 /**
  * `meta` is additive by convention (see `SearchServedMeta` in
@@ -128,12 +133,31 @@ export async function searchJobsAction(
 
   const result = await runSearch({ ...params, limit: depthDecision.effectiveLimit }, { clientIp: ip, countryLookup });
 
+  const fillPlan = planDescriptionFill(params, result.hits, result.unavailable);
+  let hits = result.hits;
+  if (hasSubspaceApiKey() && fillPlan.mode !== "none") {
+    if (fillPlan.mode === "prefetch") {
+      after(() => {
+        void fillVisibleDescriptions(fillPlan.ids).catch((e) =>
+          console.error("[jobs-desc-fill] prefetch failed:", e),
+        );
+      });
+    } else {
+      try {
+        const fills = await fillVisibleDescriptions(fillPlan.ids);
+        hits = mergeDescriptionFills(hits, fills);
+      } catch (e) {
+        console.error("[jobs-desc-fill] await fill failed:", e);
+      }
+    }
+  }
+
   if (shouldLogSearch(params)) {
-    const entry = buildSearchLogEntry(params, result, { searchId, now: Date.now() });
+    const entry = buildSearchLogEntry(params, { ...result, hits }, { searchId, now: Date.now() });
     after(() => recordSearch(entry));
   }
 
-  return { ...result, searchId };
+  return { ...result, hits, searchId };
 }
 
 /** How many related jobs the detail panel's "More like this" shows. */

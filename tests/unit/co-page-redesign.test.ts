@@ -111,6 +111,14 @@ describe("/co/[slug]: the rail — hiring record and list health, gated, no butt
   });
 });
 
+describe("/co/[slug]: Recent changes mounts once", () => {
+  it("CompanyChangeEvents appears once — not once per gate (follow vs sign-in)", () => {
+    const source = stripComments(readFileSync(CO_PAGE, "utf8"));
+    const mounts = source.match(/<CompanyChangeEvents/g) ?? [];
+    assert.equal(mounts.length, 1, `expected one Recent changes list, found ${mounts.length}`);
+  });
+});
+
 function job(overrides: Partial<PublicJob> & Pick<PublicJob, "id">): PublicJob {
   return {
     title: "Engineer",

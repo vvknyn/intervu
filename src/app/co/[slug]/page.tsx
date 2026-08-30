@@ -104,13 +104,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       ].filter((c): c is string => Boolean(c))
     : [];
 
-  // Gated Band 7 — full change history (up to 50) from box PG, mapped into
-  // the SAME `CompanyChangeEvent` shape the public 6-event teaser above
-  // already renders via `events.ts` — reuses `CompanyChangeEvents` untouched
-  // rather than a sibling list component. A row with no title carries no
-  // headline to show and is dropped, same rule `isRenderableEvent` enforces
-  // for the API-sourced list.
-  const gatedChangeHistory: CompanyChangeEvent[] = (data.exhaust?.changeHistory?.data ?? [])
+  // Exhaust PG history, same `CompanyChangeEvent` shape as the projector
+  // list. Fallback only — never a second "Recent changes" mount. Projector
+  // rows carry evidence (outlook / score); exhaust titles do not.
+  const exhaustChangeHistory: CompanyChangeEvent[] = (data.exhaust?.changeHistory?.data ?? [])
     .filter((e) => e.title)
     .map((e) => ({
       event_type: e.eventType,
@@ -119,6 +116,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       occurred_at: e.occurredAt,
       confidence: e.confidence,
     }));
+  const changeEvents =
+    data.changeEvents.length > 0 ? data.changeEvents : exhaustChangeHistory;
 
   // Gate teasers — real counts from the same exhaust sections the unlocked
   // bands below render from, never fabricated (design call DC3). A section
@@ -138,13 +137,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           count: `${integrityCount} closings on record`,
         }
       : null,
-    gatedChangeHistory.length > 0
-      ? {
-          title: "Change history",
-          description: "Every recorded change to their hiring, as it happened.",
-          count: `${gatedChangeHistory.length} event${gatedChangeHistory.length === 1 ? "" : "s"}`,
-        }
-      : null,
+    // Change history lives once, behind CompanyIntelGate — not a second
+    // exhaust-band teaser that unlocks a duplicate "Recent changes".
     data.exhaust?.techStack
       ? {
           title: "Hiring infrastructure",
@@ -303,7 +297,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
               <CompanyChangeEventTeaser event={data.changeEvents[0] ?? null} />
 
               <CompanyIntelGate domain={data.domain} slug={data.slug} displayName={data.name}>
-                <CompanyChangeEvents events={data.changeEvents} companyName={data.name} />
+                <CompanyChangeEvents events={changeEvents} companyName={data.name} />
                 <CompanyIntelligenceGrid intelligence={data.intelligence} companyName={data.name} />
               </CompanyIntelGate>
             </div>
@@ -374,21 +368,15 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           </div>
         )}
 
-        {/* Bands 6-9 — the gated portion of the Hiring Record: listing
-            integrity, full change history, hiring infrastructure, and
-            filings. Signed-in only (CompanyExhaustGate calls the server
-            session check itself); signed-out visitors see real-count
-            teasers, never blurred content. */}
+        {/* Bands 6/8/9 — listing integrity, hiring infrastructure, filings.
+            Change history is not here: one CompanyChangeEvents lives in
+            CompanyIntelGate above. Signed-in only; signed-out visitors see
+            real-count teasers, never blurred content. */}
         {data.exhaust && exhaustGateTeasers.length > 0 && (
           <div className="mt-8">
             <CompanyExhaustGate slug={data.slug} displayName={data.name} teasers={exhaustGateTeasers}>
               <div className="space-y-4">
                 <CompanyIntegrityBand integrity={data.exhaust.integrity} />
-                {gatedChangeHistory.length > 0 && (
-                  <section className="border border-border bg-card px-6 py-6 sm:px-8">
-                    <CompanyChangeEvents events={gatedChangeHistory} companyName={data.name} />
-                  </section>
-                )}
                 <CompanyTechStackBand techStack={data.exhaust.techStack} />
                 <CompanyFilingsBand exhaust={data.exhaust} />
               </div>
