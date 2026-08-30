@@ -565,8 +565,14 @@ export function withLiveVacancyFilter(extra?: string): string {
   return extra ? `${LIVE_VACANCY_FILTER} AND ${extra}` : LIVE_VACANCY_FILTER;
 }
 
+/** Widen sentinels — mean "no filter on this facet", not a corpus place name. */
+export function isNeutralLocationFacetValue(v: string): boolean {
+  const t = v.trim().toLowerCase();
+  return t === "any" || t === "all";
+}
+
 function canonicalFacetValues(rawVals: string[]): string[] {
-  const vals = rawVals.filter((v) => v !== "any" && v !== "all");
+  const vals = rawVals.filter((v) => !isNeutralLocationFacetValue(v));
   return [...new Set(vals)].sort();
 }
 
