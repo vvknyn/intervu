@@ -1,18 +1,14 @@
 #!/usr/bin/env node
 /**
  * Regenerates the entire favicon/icon set from one source asset:
- * src/app/icon.svg (the brand mark, self-contained with its dark background
- * baked in — safe to rasterize directly for apple-touch-icon, which doesn't
- * get transparency niceties).
+ * public/velai-logo.png (the approved lockup raster — same file BrandMark
+ * paints in the header and email templates host).
  *
- * Before this script, `src/app/icon.png` and `public/intervu-logo.png` were
- * both a hand-exported 388x388 PNG (an odd size with no purpose-built
- * variants for the favicon.ico / apple-touch-icon / manifest icon slots).
- * This is the one place that derives every raster variant from the vector
- * source, so a future brand-mark change is one re-run, not a repeat
- * hand-export-and-resize.
+ * Before this script, `src/app/icon.png` and raster variants were derived
+ * from src/app/icon.svg (a stroke-path favicon mark). The lockup raster is
+ * now the single source of truth for every icon slot.
  *
- * Re-run after any change to src/app/icon.svg:
+ * Re-run after any change to public/velai-logo.png:
  *   node scripts/generate-favicons.mjs
  *
  * Writes:
@@ -21,6 +17,8 @@
  *   public/apple-touch-icon.png (180x180 — iOS home-screen/bookmark fallback)
  *   public/icon-192.png       (manifest)
  *   public/icon-512.png       (manifest + Organization JSON-LD logo)
+ *
+ * Does NOT write public/velai-logo.png — that file is hand-approved.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -29,10 +27,10 @@ import sharp from "sharp";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
-const svgBuffer = readFileSync(join(root, "src/app/icon.svg"));
+const logoBuffer = readFileSync(join(root, "public/velai-logo.png"));
 
 async function renderPng(size) {
-  return sharp(svgBuffer).resize(size, size).png().toBuffer();
+  return sharp(logoBuffer).resize(size, size).png().toBuffer();
 }
 
 /** Assembles a valid ICO container (PNG-embedded images — supported by
