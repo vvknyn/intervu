@@ -14,7 +14,7 @@ export const BRAND_MARK_VIEWBOX = "0 0 128 128";
 export const BRAND_MARK_PATHS = [
     "M 52 50 H 30 A 18 18 0 1 1 58 64 C 60 74 62 84 64 94 A 20 18 0 0 0 102 90 V 36",
 ] as const;
-export const BRAND_MARK_STROKE_WIDTH = 14;
+export const BRAND_MARK_STROKE_WIDTH = 16;
 
 /** Lockup box — `h-7` mark and the wordmark share this pixel size. */
 export const BRAND_LOCKUP_MARK_PX = 28;
@@ -48,7 +48,7 @@ export function BrandLockup({ className }: { className?: string }) {
     return (
         <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join(" ")}>
             <BrandMark className="h-7 w-7 text-current" />
-            <span className="font-display text-[28px] leading-none font-black uppercase tracking-tight">
+            <span className="font-display text-[28px] leading-none font-bold uppercase tracking-tight">
                 velai
             </span>
         </span>
