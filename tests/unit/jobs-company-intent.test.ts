@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   COMPANY_INTENT_MIN_EXACT,
   COMPANY_INTENT_MIN_RATIO,
+  companyNameStem,
+  dominantCompanyDomains,
   isCompanyNameQuery,
   normalizeCompanyName,
 } from "../../src/lib/jobs/company-intent";
@@ -13,7 +15,11 @@ import {
  * `matchingStrategy: "all"`), so these cases encode what the corpus actually
  * returns rather than an idealised fixture.
  */
-const sample = (companies: string[], total = companies.length) => ({ total, companies });
+const sample = (companies: string[], total = companies.length, domains: string[] = []) => ({
+  total,
+  companies,
+  domains: domains.length > 0 ? domains : companies.map(() => ""),
+});
 
 test("company-name queries are detected — and not just the one that surfaced the bug", () => {
     // Deliberately NOT "stripe": the gate must be a property of the match
@@ -23,6 +29,22 @@ test("company-name queries are detected — and not just the one that surfaced t
     assert.equal(isCompanyNameQuery("stripe", sample(Array(10).fill("Stripe"), 1021)), true);
     // An employer the corpus has never seen still works — nothing is enumerated.
     assert.equal(isCompanyNameQuery("Zynthara Robotics", sample(Array(8).fill("Zynthara Robotics"), 8)), true);
+});
+
+test("legal-suffix stems match indexed employer names", () => {
+    assert.equal(
+        isCompanyNameQuery("Tesla", sample(Array(8).fill("Tesla, Inc.").concat(Array(2).fill("Other Corp")), 100)),
+        true,
+    );
+    assert.equal(
+        isCompanyNameQuery("tesla", sample(Array(6).fill("Tesla Inc"), 50)),
+        true,
+    );
+    assert.equal(
+        isCompanyNameQuery("microsoft", sample(Array(10).fill("Microsoft Corporation"), 200)),
+        true,
+    );
+    assert.equal(isCompanyNameQuery("stripe", sample(Array(10).fill("Stripe"), 1021)), true);
 });
 
 test("role queries are NOT company queries, even though a company matches every word", () => {
@@ -89,5 +111,31 @@ test("company names compare case-, punctuation- and spacing-insensitively", () =
     assert.equal(
         isCompanyNameQuery("cleveland clinic", sample(Array(10).fill("Cleveland Clinic Florida"), 101)),
         false,
+    );
+});
+
+test("companyNameStem reuses displayCompanyName legal-suffix stripping", () => {
+    assert.equal(companyNameStem("Tesla, Inc."), companyNameStem("Tesla"));
+    assert.equal(companyNameStem("Microsoft Corporation"), companyNameStem("microsoft"));
+});
+
+test("dominantCompanyDomains returns qualifying domains from stem-matching hits", () => {
+    const companies = [...Array(7).fill("Tesla, Inc."), ...Array(3).fill("Other Co")];
+    const domains = [...Array(7).fill("tesla.com"), ...Array(3).fill("other.com")];
+    const s = sample(companies, 100, domains);
+    assert.deepEqual(dominantCompanyDomains("Tesla", s), ["tesla.com"]);
+});
+
+test("dominantCompanyDomains fails open when intent does not pass", () => {
+    assert.deepEqual(
+        dominantCompanyDomains("product manager", sample(["IT Product Manager (All Gender)"], 1)),
+        [],
+    );
+});
+
+test("dominantCompanyDomains fails open when domains are missing", () => {
+    assert.deepEqual(
+        dominantCompanyDomains("stripe", sample(Array(10).fill("Stripe"), 100)),
+        [],
     );
 });

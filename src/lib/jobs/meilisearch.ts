@@ -10,11 +10,17 @@
  */
 import { getBoardDomains } from "@/lib/boards/allowlists";
 import {
+  applyCompanyDomainPin,
   COMPANY_INTENT_SAMPLE,
+  dominantCompanyDomains,
   isCompanyNameQuery,
   normalizeCompanyName,
   type CompanyNameSample,
 } from "./company-intent";
+import {
+  buildCompanyScopedSearchLanes,
+  shouldRunCompanyScopedLanes,
+} from "./company-scoped-lanes";
 import { isTechSkillQuery } from "./tech-skills";
 import { decodeText, displayCompanyBrand, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
 import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
@@ -469,7 +475,7 @@ export function resetCompanyDomainFilterSupportForTests(): void {
 }
 
 function needsDomainFilters(p: JobSearchParams): boolean {
-  return Boolean(p.board || p.companyDomain);
+  return Boolean(p.board || p.companyDomain || (p.companyDomains?.length ?? 0) > 0);
 }
 
 /** Domain label with TLD stripped — weak retrieval bias for company browse. */
@@ -491,13 +497,16 @@ export function postFilterSearchQ(p: JobSearchParams): string {
 /** Board / companyDomain predicates — mirrors snapshot-preview passBase. */
 export function jobMatchesDomainFilters(
   j: PublicJob,
-  p: Pick<JobSearchParams, "board" | "companyDomain">,
+  p: Pick<JobSearchParams, "board" | "companyDomain" | "companyDomains">,
 ): boolean {
   if (p.board) {
     const domains = getBoardDomains(p.board);
     if (domains.length > 0 && !domains.includes((j.company_domain ?? "").toLowerCase())) return false;
   }
-  if (p.companyDomain) {
+  if (p.companyDomains?.length) {
+    const allowed = new Set(p.companyDomains.map((d) => d.trim().toLowerCase()));
+    if (!allowed.has((j.company_domain ?? "").toLowerCase())) return false;
+  } else if (p.companyDomain) {
     if ((j.company_domain ?? "").toLowerCase() !== p.companyDomain.trim().toLowerCase()) return false;
   }
   return true;
@@ -505,7 +514,7 @@ export function jobMatchesDomainFilters(
 
 export function filterHitsByDomainFilters(
   hits: PublicJob[],
-  p: Pick<JobSearchParams, "board" | "companyDomain">,
+  p: Pick<JobSearchParams, "board" | "companyDomain" | "companyDomains">,
 ): PublicJob[] {
   if (!needsDomainFilters(p)) return hits;
   return hits.filter((j) => jobMatchesDomainFilters(j, p));
@@ -632,7 +641,12 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
         f.push(`company_domain IN [${domains.map((d) => JSON.stringify(d)).join(", ")}]`);
       }
     }
-    if (p.companyDomain) {
+    if (p.companyDomains?.length) {
+      const domains = [...new Set(p.companyDomains.map((d) => d.trim().toLowerCase()).filter(Boolean))];
+      if (domains.length > 0) {
+        f.push(`company_domain IN [${domains.map((d) => JSON.stringify(d)).join(", ")}]`);
+      }
+    } else if (p.companyDomain) {
       f.push(`company_domain = ${JSON.stringify(p.companyDomain.trim().toLowerCase())}`);
     }
   }
@@ -978,23 +992,25 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     };
   }
 
-  const companyScoped = await resolveCompanyIntent(p.id ? undefined : p.q);
+  const intent = await resolveCompanyIntentResult(p.id ? undefined : p.q);
+  const companyScoped = intent.companyScoped;
+  const searchParams = applyCompanyDomainPin(p, intent);
 
-  const runSearch = async (): Promise<JobSearchResult> => {
-    const needsDomain = needsDomainFilters(p);
+  const runSearch = async (params: JobSearchParams = searchParams): Promise<JobSearchResult> => {
+    const needsDomain = needsDomainFilters(params);
 
     const runDomainPostFilter = (wholeDocument = false) =>
-      searchWithDomainPostFilter(h, p, wholeDocument);
+      searchWithDomainPostFilter(h, params, wholeDocument);
 
     if (companyDomainFilterUnsupported && needsDomain) {
       const strict = await runDomainPostFilter();
-      if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
+      if (!shouldRelaxSearch(strict.total, params.q ?? "")) return strict;
       const expanded = await runDomainPostFilter(true);
       return mergeExpandedIntoStrict(strict, expanded);
     }
 
     // One extra round trip, memoized per query across requests
-    // (`resolveCompanyIntent`), and only for free-text queries: an id probe,
+    // (`resolveCompanyIntentResult`), and only for free-text queries: an id probe,
     // a plain browse or a board/domain browse never asks. The domain
     // post-filter path above is deliberately excluded — those are
     // `board`/`companyDomain` browses that are ALREADY constrained to one
@@ -1006,7 +1022,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
           headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
           cache: "no-store",
           body: JSON.stringify(
-            buildSearchBody(p, legacy, "all", { companyScoped, ...(wholeDocument ? { wholeDocument: true } : {}) }),
+            buildSearchBody(params, legacy, "all", { companyScoped, ...(wholeDocument ? { wholeDocument: true } : {}) }),
           ),
         });
 
@@ -1048,7 +1064,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     };
 
     const strict = await runPass();
-    if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
+    if (!shouldRelaxSearch(strict.total, params.q ?? "")) return strict;
 
     // Strict/scoped pass returned zero — one whole-document expand pass
     // (`matchingStrategy: "all"`, no attribute scoping) merged onto strict
@@ -1061,8 +1077,27 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   let result: JobSearchResult;
 
   if (isRelevance) {
-    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
-      const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, p, companyScoped);
+    if (shouldRunCompanyScopedLanes(companyScoped, searchParams)) {
+      const { hits: laneHits, facetDistribution } = await fetchCompanyScopedLaneHits(h, searchParams, companyScoped);
+      const seen = new Set<string>();
+      const unique: PublicJob[] = [];
+      for (const hit of laneHits) {
+        if (seen.has(hit.id)) continue;
+        seen.add(hit.id);
+        unique.push(hit);
+      }
+      const ranked = applyRelevanceQualityReranking(unique, p.q ?? "");
+      const offset = p.offset ?? 0;
+      const limit = p.limit ?? 40;
+      result = {
+        hits: pageRoleTitleHits(ranked, offset, limit),
+        total: ranked.length,
+        backend: "meilisearch",
+        configured: true,
+        facetDistribution,
+      };
+    } else if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
+      const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, searchParams, companyScoped);
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
       for (const hit of laneHits) {
@@ -1090,11 +1125,63 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     result = await runSearch();
   }
 
-  return applySortIntegrityGuard(result, p, runSearch);
+  return applySortIntegrityGuard(result, p, () => runSearch());
 }
 
 export function pageRoleTitleHits(ranked: PublicJob[], offset: number, limit: number): PublicJob[] {
   return ranked.slice(offset, offset + limit);
+}
+
+const COMPANY_LANE_HIT_LIMIT = 100;
+
+async function fetchCompanyScopedLaneHits(
+  h: string,
+  p: JobSearchParams,
+  companyScoped: boolean,
+): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> {
+  const lanes = buildCompanyScopedSearchLanes(p);
+  const searchLane = async (
+    laneParams: JobSearchParams,
+    withFacets: boolean,
+    legacy: boolean,
+  ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
+    const body = buildSearchBody(
+      { ...laneParams, withFacets, limit: COMPANY_LANE_HIT_LIMIT, offset: 0 },
+      legacy,
+      "all",
+      { companyScoped },
+    );
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok && res.status === 400) {
+      const text = await res.text().catch(() => "");
+      if (/posted_ts/i.test(text) && !legacy) {
+        return searchLane(laneParams, withFacets, true);
+      }
+      return { hits: [] };
+    }
+    if (!res.ok) return { hits: [] };
+    const json = (await res.json()) as {
+      hits?: PublicJob[];
+      facetDistribution?: Record<string, Record<string, number>>;
+    };
+    return {
+      hits: json.hits ?? [],
+      facetDistribution: json.facetDistribution as FacetDistribution | undefined,
+    };
+  };
+
+  const batches = await Promise.all(
+    lanes.map((laneParams, i) => searchLane(laneParams, i === 0 && !!p.withFacets, false)),
+  );
+  return {
+    hits: batches.flatMap((b) => b.hits),
+    facetDistribution: batches[0]?.facetDistribution,
+  };
 }
 
 async function fetchRoleTitleLaneHits(
@@ -1603,7 +1690,7 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
 export async function probeCompanyNames(phrase: string, sampleSize: number): Promise<CompanyNameSample> {
   const query = phrase.trim();
   const h = host();
-  const empty: CompanyNameSample = { total: 0, companies: [] };
+  const empty: CompanyNameSample = { total: 0, companies: [], domains: [] };
   if (!h || !query) return empty;
   try {
     const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
@@ -1617,12 +1704,12 @@ export async function probeCompanyNames(phrase: string, sampleSize: number): Pro
         filter: buildFilter({ q: query }),
         hitsPerPage: sampleSize,
         page: 1,
-        attributesToRetrieve: ["company"],
+        attributesToRetrieve: ["company", "company_domain"],
       }),
     });
     if (!res.ok) return empty;
     const body = (await res.json()) as {
-      hits?: { company?: string | null }[];
+      hits?: { company?: string | null; company_domain?: string | null }[];
       totalHits?: number;
       estimatedTotalHits?: number;
     };
@@ -1630,6 +1717,7 @@ export async function probeCompanyNames(phrase: string, sampleSize: number): Pro
     return {
       total: body.totalHits ?? body.estimatedTotalHits ?? hits.length,
       companies: hits.map((hit) => hit.company ?? ""),
+      domains: hits.map((hit) => (hit.company_domain ?? "").trim().toLowerCase()),
     };
   } catch {
     return empty;
@@ -1655,28 +1743,42 @@ export async function probeCompanyMatch(phrase: string): Promise<boolean> {
  */
 const COMPANY_INTENT_TTL_MS = 10 * 60_000;
 const COMPANY_INTENT_CACHE_MAX = 500;
-const companyIntentCache = new Map<string, { value: boolean; atMs: number }>();
+
+export interface CompanyIntentResult {
+  companyScoped: boolean;
+  companyDomains: string[];
+}
+
+const companyIntentCache = new Map<string, { value: CompanyIntentResult; atMs: number }>();
 
 export function resetCompanyIntentCacheForTests(): void {
   companyIntentCache.clear();
 }
 
-export async function resolveCompanyIntent(q: string | undefined): Promise<boolean> {
+export async function resolveCompanyIntentResult(q: string | undefined): Promise<CompanyIntentResult> {
   const query = (q ?? "").trim();
-  if (!query) return false;
+  if (!query) return { companyScoped: false, companyDomains: [] };
   const key = normalizeCompanyName(query);
   const hit = companyIntentCache.get(key);
   const now = Date.now();
   if (hit && now - hit.atMs < COMPANY_INTENT_TTL_MS) return hit.value;
 
   const sample = await probeCompanyNames(query, COMPANY_INTENT_SAMPLE);
-  const value = isCompanyNameQuery(query, sample);
+  const companyScoped = isCompanyNameQuery(query, sample);
+  const value: CompanyIntentResult = {
+    companyScoped,
+    companyDomains: companyScoped ? dominantCompanyDomains(query, sample) : [],
+  };
   if (companyIntentCache.size >= COMPANY_INTENT_CACHE_MAX) {
     const oldest = companyIntentCache.keys().next().value;
     if (oldest !== undefined) companyIntentCache.delete(oldest);
   }
   companyIntentCache.set(key, { value, atMs: now });
   return value;
+}
+
+export async function resolveCompanyIntent(q: string | undefined): Promise<boolean> {
+  return (await resolveCompanyIntentResult(q)).companyScoped;
 }
 
 /**
