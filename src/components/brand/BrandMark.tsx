@@ -12,10 +12,12 @@
 // brand-mark change is a one-file edit, not a repo-wide find-and-replace.
 export const BRAND_MARK_VIEWBOX = "0 0 128 128";
 export const BRAND_MARK_PATHS = [
-    "M 52 50 H 30 A 18 18 0 1 1 58 64 C 60 74 62 84 64 94 A 20 18 0 0 0 102 90 V 36",
+    "M 48 50 H 28 A 20 20 0 1 1 56 70 C 58 80 62 90 68 98 A 22 18 0 0 0 100 92 V 38",
 ] as const;
 export const BRAND_MARK_STROKE_WIDTH = 16;
 
+// Email headers use the raster at public/velai-logo.png (SVG unsupported there);
+// that PNG is a display icon, not this stroke geometry.
 /** Lockup box — `h-7` mark and the wordmark share this pixel size. */
 export const BRAND_LOCKUP_MARK_PX = 28;
 export const BRAND_LOCKUP_WORDMARK_PX = 28;
@@ -34,7 +36,7 @@ export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
                     d={d}
                     stroke="currentColor"
                     strokeWidth={BRAND_MARK_STROKE_WIDTH}
-                    strokeLinecap="butt"
+                    strokeLinecap="round"
                     strokeLinejoin="round"
                 />
             ))}
