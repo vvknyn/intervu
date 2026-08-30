@@ -61,7 +61,10 @@ test("buildCompanyScopedSearchLanes: skips identical lanes", () => {
 });
 
 test("shouldSkipSortIntegrityForCompanyLanes: true whenever company lanes run", () => {
-  const p = { q: "tesla", places: [{ any: [{ field: "location_country", value: "Canada" }] }] };
+  const p: JobSearchParams = {
+    q: "tesla",
+    places: [{ any: [{ field: "location_country", value: "Canada" }] }],
+  };
   assert.equal(shouldSkipSortIntegrityForCompanyLanes(true, p), true);
   assert.equal(shouldSkipSortIntegrityForCompanyLanes(false, p), false);
   assert.equal(shouldSkipSortIntegrityForCompanyLanes(true, { q: "tesla" }), false);
