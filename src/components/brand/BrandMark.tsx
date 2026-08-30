@@ -22,16 +22,25 @@ export const BRAND_MARK_STROKE_WIDTH = 16;
 export const BRAND_LOCKUP_MARK_PX = 28;
 export const BRAND_LOCKUP_WORDMARK_PX = 28;
 
+/** Paint `velai-logo.png` in `currentColor` so the mark tracks the wordmark. */
+const MARK_MASK = {
+    maskImage: "url(/velai-logo.png)",
+    WebkitMaskImage: "url(/velai-logo.png)",
+    maskMode: "luminance",
+    WebkitMaskSourceType: "luminance",
+    maskSize: "contain",
+    WebkitMaskSize: "contain",
+    maskRepeat: "no-repeat",
+    maskPosition: "center",
+} as const;
+
 /** The in-app mark is `public/velai-logo.png` — one file, every lockup. */
 export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
     return (
-        <img
-            src="/velai-logo.png"
-            width={28}
-            height={28}
-            alt=""
+        <span
             aria-hidden
-            className={["shrink-0 object-cover", className].filter(Boolean).join(" ")}
+            className={["inline-block shrink-0 bg-current", className].filter(Boolean).join(" ")}
+            style={MARK_MASK}
         />
     );
 }
