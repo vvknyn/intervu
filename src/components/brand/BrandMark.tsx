@@ -22,13 +22,8 @@ export const BRAND_MARK_STROKE_WIDTH = 16;
 export const BRAND_LOCKUP_MARK_PX = 28;
 export const BRAND_LOCKUP_WORDMARK_PX = 28;
 
-/** Option-1 tile — the app-icon raster (`velai-logo.png`), same as /mock/lockup #1. */
-export function BrandLockupMark({
-    tileClassName = "h-7 w-7 rounded-[6px]",
-}: {
-    tileClassName?: string;
-    markClassName?: string;
-} = {}) {
+/** The in-app mark is `public/velai-logo.png` — one file, every lockup. */
+export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
     return (
         <img
             src="/velai-logo.png"
@@ -36,31 +31,18 @@ export function BrandLockupMark({
             height={28}
             alt=""
             aria-hidden
-            className={["shrink-0 object-cover", tileClassName].join(" ")}
+            className={["shrink-0 object-cover", className].filter(Boolean).join(" ")}
         />
     );
 }
 
-export function BrandMark({ className = "h-7 w-7 text-current" }: { className?: string }) {
-    return (
-        <svg
-            viewBox={BRAND_MARK_VIEWBOX}
-            fill="none"
-            aria-hidden
-            className={className}
-        >
-            {BRAND_MARK_PATHS.map((d) => (
-                <path
-                    key={d}
-                    d={d}
-                    stroke="currentColor"
-                    strokeWidth={BRAND_MARK_STROKE_WIDTH}
-                    strokeLinecap="butt"
-                    strokeLinejoin="round"
-                />
-            ))}
-        </svg>
-    );
+export function BrandLockupMark({
+    tileClassName = "h-7 w-7 rounded-[6px]",
+}: {
+    tileClassName?: string;
+    markClassName?: string;
+} = {}) {
+    return <BrandMark className={tileClassName} />;
 }
 
 /** Mark + wordmark — the header lockup. Size/weight live here so TopBar,
