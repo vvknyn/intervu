@@ -3,8 +3,8 @@ import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo/constants";
 
 /**
  * /manifest.webmanifest — served automatically by Next's file convention.
- * Icons are the 192/512 PNGs scripts/generate-favicons.mjs derives from the
- * brand mark (src/app/icon.svg) alongside favicon.ico and apple-touch-icon.
+ * Icons are the 192/512 PNGs scripts/generate-favicons.mjs derives from
+ * public/velai-logo.png alongside favicon.ico and apple-touch-icon.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

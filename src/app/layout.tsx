@@ -119,7 +119,7 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    // File-convention icons (favicon.ico, icon.png, icon.svg) are picked up
+    // File-convention icons (favicon.ico, icon.png) are picked up
     // automatically from src/app/ — only the apple-touch icon needs an
     // explicit entry, since it also has to exist as a literal
     // /apple-touch-icon.png (public/) for iOS's own HTML-independent
