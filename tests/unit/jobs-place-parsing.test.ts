@@ -10,7 +10,7 @@ import {
   type LocationVocabulary,
 } from "../../src/lib/jobs/query-understanding";
 import { applyLocationDefault, hasLocationSignal } from "../../src/lib/geo/ip-default";
-import { buildFilter } from "../../src/lib/jobs/meilisearch";
+import { buildFilter, isNeutralLocationFacetValue } from "../../src/lib/jobs/meilisearch";
 import { buildGazetteerIndex, type GazetteerData } from "../../src/lib/geo/gazetteer";
 import type { CorpusValueChecker } from "../../src/lib/geo/corpus-values";
 import type { JobSearchParams, PlaceFilter } from "../../src/lib/jobs/types";
@@ -364,6 +364,35 @@ test("a value WITH corpus support keeps its exact facet (no regression): a raw-i
   assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Worldwide" }] }]);
   assert.equal(p.facets?.location_country, undefined);
   assert.equal(p.unmatchedPlaceMentions, undefined, "a value the corpus actually has is never reported as unmatched");
+});
+
+test("country=any widen sentinel is not resolved as a place — params unchanged so hasLocationSignal blocks IP default", async () => {
+  const params: JobSearchParams = { facets: { location_country: ["any"] } };
+  const p = await resolveLocationFacet(params, VOCAB);
+  assert.deepEqual(p, params);
+  assert.equal(p.places, undefined);
+  assert.equal(p.unmatchedPlaceMentions, undefined);
+  assert.equal(hasLocationSignal(p), true);
+});
+
+test("country=all widen sentinel is treated the same as any", async () => {
+  const params: JobSearchParams = { facets: { location_country: ["all"] } };
+  const p = await resolveLocationFacet(params, VOCAB);
+  assert.deepEqual(p, params);
+  assert.equal(p.places, undefined);
+  assert.equal(p.unmatchedPlaceMentions, undefined);
+  assert.equal(hasLocationSignal(p), true);
+});
+
+test("mixed sentinel + real place: any is ignored, sibling still resolves, any not unmatched", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["any", "canada"] } }, VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+  assert.equal(p.facets?.location_country, undefined);
+  assert.equal(p.unmatchedPlaceMentions, undefined);
+  assert.ok(
+    !p.places!.some((clause) => clause.any.some((f) => isNeutralLocationFacetValue(f.value))),
+    "no place clause for the widen sentinel",
+  );
 });
 
 /* ------------ tiered resolution: tokenize-whole-phrase, else literal, else partial ------------

@@ -20,7 +20,7 @@ import { MAX_REGION_CLAUSE_TERMS, regionLabel } from "../geo/regions";
 import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
 import { SENIORITY_PHRASES } from "./role-title-lane";
-import { LOCATION_FACET_FIELDS } from "./meilisearch";
+import { isNeutralLocationFacetValue, LOCATION_FACET_FIELDS } from "./meilisearch";
 
 export {
   roleTitlePairQueries,
@@ -428,7 +428,13 @@ export async function resolveLocationFacet(
   p: JobSearchParams,
   vocab: LocationVocabulary,
 ): Promise<JobSearchParams> {
-  const typed = (p.facets?.location_country ?? []).map((v) => v.trim()).filter(Boolean);
+  const typedRaw = (p.facets?.location_country ?? []).map((v) => v.trim()).filter(Boolean);
+  // Widen sentinels (`any`/`all`, same set as `canonicalFacetValues` in
+  // meilisearch.ts) are not place phrases — drop them before resolution so
+  // they are not gazetteer/literal-probed. When nothing real remains, leave
+  // `p` intact so `hasLocationSignal` stays true and `buildFilter` strips
+  // the sentinel at filter-build time.
+  const typed = typedRaw.filter((v) => !isNeutralLocationFacetValue(v));
   // Picked city/state suggestions: each already names its own field, so it
   // resolves as one exact literal on that field alone (`resolvePickedFacetValue`)
   // rather than through the gazetteer/work-mode pipeline below, which exists
