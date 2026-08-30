@@ -19,6 +19,8 @@
  * half of the token set never renders.
  */
 
+import { BRAND_LOCKUP_WORDMARK_PX } from "@/components/brand/BrandMark";
+
 /** Path the drift test reads. Relative to the repo root. */
 export const EMAIL_TOKEN_SOURCE = "src/app/globals.css";
 
@@ -65,14 +67,14 @@ export const EMAIL_FONT_SANS =
   "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
 
 /**
- * The wordmark, matched to `TopBar.tsx` — `font-black uppercase
- * tracking-tight` at 20px. Uppercase and 900 are the whole character of it;
- * rendering "intervu" lowercase at 700, as this shell first did, is a
- * different wordmark next to identical typography.
+ * The wordmark, matched to `BrandLockup` — `font-black uppercase
+ * tracking-tight` at the lockup size. Uppercase and 900 are the whole
+ * character of it; rendering "intervu" lowercase at 700, as this shell
+ * first did, is a different wordmark next to identical typography.
  */
 export const EMAIL_WORDMARK = {
   text: "VELAI",
-  fontSize: 20,
+  fontSize: BRAND_LOCKUP_WORDMARK_PX,
   fontWeight: 900,
   letterSpacing: "-0.025em",
 } as const;

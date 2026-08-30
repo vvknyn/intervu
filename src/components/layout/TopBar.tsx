@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NAV_TABS, menuNavActive, menuNavTriggerLabel } from "@/components/layout/nav-tabs";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
-import { BrandMark } from "@/components/brand/BrandMark";
+import { BrandLockup } from "@/components/brand/BrandMark";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
@@ -126,10 +126,7 @@ export function TopBar() {
                     className="flex shrink-0 items-center gap-2 text-brand transition-opacity hover:opacity-90"
                     data-testid="topbar-logo"
                 >
-                    <BrandMark className="h-7 w-7 text-brand" />
-                    <span className="font-display text-[20px] font-black uppercase tracking-tight text-brand">
-                        velai
-                    </span>
+                    <BrandLockup />
                 </Link>
 
                 {/* `flex-1` so the row's leftover width lands HERE rather than
