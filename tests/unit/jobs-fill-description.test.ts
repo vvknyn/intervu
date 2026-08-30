@@ -5,6 +5,7 @@ import {
   mergeDescriptionFills,
   planDescriptionFill,
   DESCRIPTION_FILL_MAX_IDS,
+  TEASER_MAX_LEN,
 } from "../../src/lib/jobs/fill-description";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -48,8 +49,26 @@ describe("descriptionNeedsFill", () => {
   });
 
   it("a real paragraph does not need fill", () => {
-    const body = "We are hiring a platform engineer to build reliable systems.";
+    const body = "We are hiring a platform engineer to build reliable systems. ".padEnd(TEASER_MAX_LEN, "x");
+    assert.equal(body.length, TEASER_MAX_LEN);
     assert.equal(descriptionNeedsFill(body), false);
+  });
+
+  it("short stub needs fill", () => {
+    assert.equal(descriptionNeedsFill("We are hiring a platform engineer."), true);
+  });
+
+  it("219 chars needs fill", () => {
+    assert.equal(descriptionNeedsFill("x".repeat(219)), true);
+  });
+
+  it("220 chars without ellipsis does not need fill", () => {
+    assert.equal(descriptionNeedsFill("x".repeat(220)), false);
+  });
+
+  it("220+ chars ending in ellipsis needs fill", () => {
+    assert.equal(descriptionNeedsFill("x".repeat(220) + "..."), true);
+    assert.equal(descriptionNeedsFill("x".repeat(220) + "…"), true);
   });
 });
 
@@ -74,14 +93,11 @@ describe("planDescriptionFill", () => {
   });
 
   it("id lookup with a real body → none (not the empty-body instance)", () => {
+    const body = "Own our data pipeline and mentor junior engineers. ".padEnd(TEASER_MAX_LEN, "x");
+    assert.equal(body.length, TEASER_MAX_LEN);
     const plan = planDescriptionFill(
       { id: "filled-1" },
-      [
-        stubHit({
-          id: "filled-1",
-          description: "Own our data pipeline and mentor junior engineers.",
-        }),
-      ],
+      [stubHit({ id: "filled-1", description: body })],
       false,
     );
     assert.deepEqual(plan, { mode: "none", ids: [] });

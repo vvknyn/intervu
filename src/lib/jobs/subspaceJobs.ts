@@ -177,12 +177,15 @@ export async function* iterateSnapshot(
 /** Demand-fill empty descriptions for visible hit ids (Subspace ladder/Postgres). */
 export async function fillVisibleDescriptions(
   ids: string[],
+  opts?: { mode?: "visible" },
 ): Promise<Array<{ id: string; description: string | null }>> {
   const capped = ids.slice(0, 20);
   if (capped.length === 0) return [];
-  const env = await postJson<FillDescriptionsEnvelope>("/jobs/fill-descriptions", {
-    ids: capped,
-  });
+  const body: { ids: string[]; mode?: "visible" } = { ids: capped };
+  if (opts?.mode === "visible") {
+    body.mode = "visible";
+  }
+  const env = await postJson<FillDescriptionsEnvelope>("/jobs/fill-descriptions", body);
   return env.data ?? [];
 }
 
