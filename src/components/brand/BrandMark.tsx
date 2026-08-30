@@ -12,7 +12,7 @@
 // brand-mark change is a one-file edit, not a repo-wide find-and-replace.
 export const BRAND_MARK_VIEWBOX = "0 0 128 128";
 export const BRAND_MARK_PATHS = [
-    "M 52 50 H 30 A 18 18 0 1 1 58 64 C 57.7 56.4 62.4 101.5 64 94 A 20 18 0 0 0 102 90 V 36",
+    "M 52 50 H 30 A 18 18 0 1 1 58 64 C 60 74 62 84 64 94 A 20 18 0 0 0 102 90 V 36",
 ] as const;
 export const BRAND_MARK_STROKE_WIDTH = 16;
 
@@ -22,24 +22,22 @@ export const BRAND_MARK_STROKE_WIDTH = 16;
 export const BRAND_LOCKUP_MARK_PX = 28;
 export const BRAND_LOCKUP_WORDMARK_PX = 28;
 
-/** Option-1 tile — brand-tint ground + vector mark in `currentColor`. */
+/** Option-1 tile — the app-icon raster (`velai-logo.png`), same as /mock/lockup #1. */
 export function BrandLockupMark({
     tileClassName = "h-7 w-7 rounded-[6px]",
-    markClassName = "h-7 w-7",
 }: {
     tileClassName?: string;
     markClassName?: string;
 } = {}) {
     return (
-        <span
+        <img
+            src="/velai-logo.png"
+            width={28}
+            height={28}
+            alt=""
             aria-hidden
-            className={[
-                "inline-flex shrink-0 items-center justify-center overflow-hidden bg-brand/10 text-brand",
-                tileClassName,
-            ].join(" ")}
-        >
-            <BrandMark className={markClassName} />
-        </span>
+            className={["shrink-0 object-cover", tileClassName].join(" ")}
+        />
     );
 }
 
@@ -66,8 +64,8 @@ export function BrandMark({ className = "h-7 w-7 text-current" }: { className?: 
 }
 
 /** Mark + wordmark — the header lockup. Size/weight live here so TopBar,
- *  consent chrome, and email cannot drift. Header uses the vector mark in
- *  brand blue; email keeps the dark-ground raster (SVG unsupported there). */
+ *  consent chrome, and email cannot drift. Header uses the same app-icon
+ *  raster as email (`velai-logo.png`). */
 export function BrandLockup({ className }: { className?: string }) {
     return (
         <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join(" ")}>

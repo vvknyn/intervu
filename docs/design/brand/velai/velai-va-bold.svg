@@ -2,7 +2,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
   <rect width="128" height="128" fill="#0A0A0A"/>
   <path
-    d="M 52 50 H 30 A 18 18 0 1 1 58 64 C 57.7 56.4 62.4 101.5 64 94 A 20 18 0 0 0 102 90 V 36"
+    d="M 52 50 H 30 A 18 18 0 1 1 58 64 C 60 74 62 84 64 94 A 20 18 0 0 0 102 90 V 36"
     stroke="#F4EFE6"
     stroke-width="20"
     stroke-linecap="butt"
