@@ -12,7 +12,7 @@
 // brand-mark change is a one-file edit, not a repo-wide find-and-replace.
 export const BRAND_MARK_VIEWBOX = "0 0 128 128";
 export const BRAND_MARK_PATHS = [
-    "M 48 50 H 28 A 20 20 0 1 1 56 70 C 58 80 62 90 68 98 A 22 18 0 0 0 100 92 V 38",
+    "M 48 50 H 28 A 20 20 0 0 1 68 98 A 22 18 0 0 0 100 92 V 38",
 ] as const;
 export const BRAND_MARK_STROKE_WIDTH = 16;
 
