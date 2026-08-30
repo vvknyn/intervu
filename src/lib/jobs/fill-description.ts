@@ -3,9 +3,19 @@ import type { JobSearchParams, PublicJob } from "./types";
 /** Matches jobs/page.tsx `PAGE` and the Subspace fill-descriptions API cap. */
 export const DESCRIPTION_FILL_MAX_IDS = 20;
 
-/** True when Meili has no usable body — null, undefined, or whitespace-only. */
+/** Must stay 220 — mirrors interview-os constants.ts TEASER_MAX_LEN. */
+export const TEASER_MAX_LEN = 220;
+
+/** True when Meili body is a teaser stub (same class as interview-os isTeaserDescription). */
 export function descriptionNeedsFill(description: string | null | undefined): boolean {
-  return description == null || description.trim() === "";
+  if (description == null || description.trim() === "") {
+    return true;
+  }
+  const trimmed = description.trimEnd();
+  if (trimmed.length < TEASER_MAX_LEN) {
+    return true;
+  }
+  return trimmed.endsWith("...") || trimmed.endsWith("…");
 }
 
 export type DescriptionFillPlan =

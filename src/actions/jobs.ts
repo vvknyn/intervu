@@ -144,7 +144,7 @@ export async function searchJobsAction(
       });
     } else {
       try {
-        const fills = await fillVisibleDescriptions(fillPlan.ids);
+        const fills = await fillVisibleDescriptions(fillPlan.ids, { mode: "visible" });
         hits = mergeDescriptionFills(hits, fills);
       } catch (e) {
         console.error("[jobs-desc-fill] await fill failed:", e);
