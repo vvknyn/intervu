@@ -317,6 +317,8 @@ export interface JobSearchParams {
   board?: BoardId;
   /** Restrict to jobs at a single company domain (exact match). */
   companyDomain?: string;
+  /** Restrict to jobs at one of several company domains (employer-intent pin). */
+  companyDomains?: string[];
 }
 
 /** One parsed place: which location field it lives in, and the corpus's own

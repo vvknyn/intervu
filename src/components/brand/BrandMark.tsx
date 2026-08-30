@@ -14,26 +14,56 @@ export const BRAND_MARK_VIEWBOX = "0 0 128 128";
 export const BRAND_MARK_PATHS = [
     "M 52 50 H 30 A 18 18 0 1 1 58 64 C 60 74 62 84 64 94 A 20 18 0 0 0 102 90 V 36",
 ] as const;
-export const BRAND_MARK_STROKE_WIDTH = 20;
+export const BRAND_MARK_STROKE_WIDTH = 16;
 
+// Email headers use the raster at public/velai-logo.png (SVG unsupported there);
+// that PNG is a display icon, not this stroke geometry.
+/** Lockup box — `h-7` mark and the wordmark share this pixel size. */
+export const BRAND_LOCKUP_MARK_PX = 28;
+export const BRAND_LOCKUP_WORDMARK_PX = 28;
+
+/** Paint `velai-logo.png` in `currentColor` so the mark tracks the wordmark. */
+const MARK_MASK = {
+    maskImage: "url(/velai-logo.png)",
+    WebkitMaskImage: "url(/velai-logo.png)",
+    maskMode: "luminance",
+    WebkitMaskSourceType: "luminance",
+    maskSize: "contain",
+    WebkitMaskSize: "contain",
+    maskRepeat: "no-repeat",
+    maskPosition: "center",
+} as const;
+
+/** The in-app mark is `public/velai-logo.png` — one file, every lockup. */
 export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
     return (
-        <svg
-            viewBox={BRAND_MARK_VIEWBOX}
-            fill="none"
+        <span
             aria-hidden
-            className={className}
-        >
-            {BRAND_MARK_PATHS.map((d) => (
-                <path
-                    key={d}
-                    d={d}
-                    stroke="currentColor"
-                    strokeWidth={BRAND_MARK_STROKE_WIDTH}
-                    strokeLinecap="butt"
-                    strokeLinejoin="round"
-                />
-            ))}
-        </svg>
+            className={["inline-block shrink-0 bg-current", className].filter(Boolean).join(" ")}
+            style={MARK_MASK}
+        />
+    );
+}
+
+export function BrandLockupMark({
+    tileClassName = "h-7 w-7 rounded-[6px]",
+}: {
+    tileClassName?: string;
+    markClassName?: string;
+} = {}) {
+    return <BrandMark className={tileClassName} />;
+}
+
+/** Mark + wordmark — the header lockup. Size/weight live here so TopBar,
+ *  consent chrome, and email cannot drift. Header uses the same app-icon
+ *  raster as email (`velai-logo.png`). */
+export function BrandLockup({ className }: { className?: string }) {
+    return (
+        <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join(" ")}>
+            <BrandLockupMark />
+            <span className="font-display text-[28px] leading-none font-bold uppercase tracking-tight">
+                velai
+            </span>
+        </span>
     );
 }

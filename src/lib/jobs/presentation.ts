@@ -316,6 +316,33 @@ function stripGenericSubdomainPrefixes(token: string): string {
 }
 
 /**
+ * Drop a trailing hostname label that is TLD-shaped, not a brand.
+ *
+ * 2–3 letter alphabetic labels are the ccTLD / short-gTLD class (`.us`,
+ * `.com`, `.inc`) — always a suffix, never a company name we should keep.
+ * 4–8 letter labels (`.club`, `.build`) strip only when the labels to the
+ * LEFT are not themselves a generic careers-prefix run: `relay.club` →
+ * `relay`, but `jobs.acme` / `talent.zippy` / `careers.algoleap` keep the
+ * last label as the brand so prefix-strip can recover it. A leftover
+ * multi-label token still fails open to "" below — this does not guess
+ * `acme.example` after `.com` is gone.
+ */
+function stripTrailingTldLabel(token: string): string {
+    const labels = token.split(".");
+    if (labels.length < 2) return token;
+    const last = labels[labels.length - 1]!;
+    if (!/^[A-Za-z]+$/.test(last)) return token;
+    const n = last.length;
+    const head = labels.slice(0, -1);
+    if (n === 2 || n === 3) return head.join(".");
+    if (n >= 4 && n <= 8) {
+        const headIsOnlyGeneric = head.every((l) => GENERIC_SUBDOMAIN_PREFIXES.has(l.toLowerCase()));
+        if (!headIsOnlyGeneric) return head.join(".");
+    }
+    return token;
+}
+
+/**
  * Extracts clean company brand names from raw ATS tenant domains or domain placeholders:
  * e.g. "zonenetwork.zohorecruit.com" -> "Zone Network"
  *      "sabenzait.zohorecruit.com" -> "Sabenza IT"
@@ -331,7 +358,7 @@ export function humanizeTenantSubdomain(raw: string): string {
     const atsMatch = s.match(/^([a-z0-9-]+)\.(zohorecruit|applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|recruitee|ashbyhq|breezy|workable)\.(com|io|net|co)$/i);
     let token = atsMatch ? atsMatch[1] : s;
 
-    token = token.replace(/\.(com|io|net|org|co|ai|app|dev|tech|de)$/i, "");
+    token = stripTrailingTldLabel(token);
     // Runs after the TLD strip above so "careers.com" loses its TLD first
     // (-> "careers", a single label the prefix-strip leaves alone) rather
     // than being read as prefix "careers" + bare-TLD remainder "com".

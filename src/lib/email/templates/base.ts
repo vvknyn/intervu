@@ -70,7 +70,7 @@ function preheaderBlock(text: string): string {
 
 /**
  * Brand lockup: the app mark beside the wordmark, centred, sized to the
- * ratio `TopBar.tsx` uses (28px mark, 20px wordmark).
+ * ratio `BrandLockup` uses (28px mark, 28px wordmark).
  *
  * The mark is a hosted PNG (public/velai-logo.png) because SVG does not
  * render in Gmail or Outlook — it's the app-icon lockup (mark on its own

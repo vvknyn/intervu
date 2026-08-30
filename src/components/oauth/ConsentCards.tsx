@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { approveConsentAction, denyConsentAction } from "@/actions/agent-consent";
-import { BrandMark } from "@/components/brand/BrandMark";
+import { BrandLockup } from "@/components/brand/BrandMark";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConsentAllowButton, ConsentDenyButton } from "@/components/oauth/ConsentSubmitButtons";
@@ -14,11 +14,8 @@ import type { ConsentParams } from "@/lib/agent/consent";
  */
 function ConsentBrand() {
     return (
-        <div className="mb-6 flex items-center justify-center gap-2 text-brand">
-            <BrandMark className="h-7 w-7 text-brand" />
-            <span className="font-display text-[20px] font-black uppercase tracking-tight text-brand">
-                velai
-            </span>
+        <div className="mb-6 flex items-center justify-center">
+            <BrandLockup />
         </div>
     );
 }

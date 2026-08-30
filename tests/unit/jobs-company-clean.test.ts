@@ -247,6 +247,15 @@ test("guard rail: 'Amazon.com' still resolves via the existing TLD-suffix rule, 
     assert.equal(humanizeTenantSubdomain("Amazon.com"), "Amazon");
 });
 
+test("ccTLD and short gTLD last labels humanize — not just .com", () => {
+    assert.equal(humanizeTenantSubdomain("binance.us"), "Binance");
+    assert.equal(humanizeTenantSubdomain("Binance.Us"), "Binance");
+    assert.equal(humanizeTenantSubdomain("relay.club"), "Relay");
+    assert.equal(humanizeTenantSubdomain("acme.inc"), "Acme");
+    assert.equal(displayCompanyBrand("Binance.Us", "binance.us"), "Binance");
+    assert.equal(displayCompany("Binance.Us", "binance.us"), "Binance");
+});
+
 // Guard rail 3: a single-label token has no leading-prefix-then-remainder
 // structure at all, so it is left alone by construction.
 test("guard rail: a single-label token with no dot is untouched", () => {
