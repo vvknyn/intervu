@@ -11,6 +11,7 @@ import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
+import { ReportListingButton } from "@/components/jobs/ReportListingButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
@@ -637,6 +638,10 @@ export function JobDetail({
 
                         </div>
                         <div className="flex shrink-0 items-center gap-1.5">
+                            <ReportListingButton
+                                job={job}
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
+                            />
                             <ShareAction
                                 title={`${job.title} at ${companyBrand}`}
                                 text={SHARE_JOB_TEXT}
