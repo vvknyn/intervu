@@ -13,6 +13,7 @@ import {
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
+    shouldSuppressLandingAmbientPreview,
     degradedResultsNote,
     shouldShowMobileSearchCta,
     buildZeroResultPayload,
@@ -331,6 +332,21 @@ describe('shouldBackOnDetailSheetClose', () => {
 
     it('sheet opening → never back', () => {
         assert.equal(shouldBackOnDetailSheetClose(true, 'job-1'), false);
+    });
+});
+
+describe('shouldSuppressLandingAmbientPreview', () => {
+    it('suppresses ambient preview on pristine landing below xl', () => {
+        assert.equal(shouldSuppressLandingAmbientPreview(true, false), true);
+    });
+
+    it('allows ambient preview on pristine landing at xl+', () => {
+        assert.equal(shouldSuppressLandingAmbientPreview(true, true), false);
+    });
+
+    it('does not suppress when not pristine landing', () => {
+        assert.equal(shouldSuppressLandingAmbientPreview(false, false), false);
+        assert.equal(shouldSuppressLandingAmbientPreview(false, true), false);
     });
 });
 

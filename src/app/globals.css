@@ -558,8 +558,8 @@ h4 {
   background: rgba(225, 227, 231, 0.85);
   border: 1px solid rgba(10, 10, 10, 0.22);
   box-shadow:
-    0 1px 2px 0 rgba(10, 10, 10, 0.08),
-    0 20px 44px -14px rgba(10, 10, 10, 0.3),
+    0 1px 2px 0 rgba(10, 10, 10, 0.06),
+    0 6px 16px -10px rgba(10, 10, 10, 0.12),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -577,27 +577,9 @@ h4 {
   background: rgba(26, 26, 26, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.22);
   box-shadow:
-    0 1px 2px 0 rgba(0, 0, 0, 0.5),
-    0 20px 48px -14px rgba(0, 0, 0, 0.8),
+    0 1px 2px 0 rgba(0, 0, 0, 0.4),
+    0 6px 16px -10px rgba(0, 0, 0, 0.4),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.26);
-}
-
-/* Mobile polish: keep separation, but avoid a deep cast shadow that visually
-   overpowers the controls immediately below the raised search surface. */
-@media (max-width: 767px) {
-  .glass-panel-raised {
-    box-shadow:
-      0 1px 1px 0 rgba(10, 10, 10, 0.05),
-      0 4px 10px -8px rgba(10, 10, 10, 0.1),
-      inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
-  }
-
-  .dark .glass-panel-raised {
-    box-shadow:
-      0 1px 1px 0 rgba(0, 0, 0, 0.35),
-      0 4px 12px -8px rgba(0, 0, 0, 0.4),
-      inset 0 1px 1px 0 rgba(255, 255, 255, 0.24);
-  }
 }
 
 /* Tinted Color Glass Variants */
