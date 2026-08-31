@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "August 27, 2026";
+const LAST_UPDATED = "August 31, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -126,6 +126,11 @@ export default function PrivacyPage() {
           can find the places where the product gets in your way. Anything you type is masked before it leaves
           your browser: we can see that you filled in a field, never what you put in it. A replay covers a single
           tab, and is tied to your identity only if you&apos;re signed in.
+        </p>
+        <p>
+          PostHog also powers in-app feedback surveys — a feedback tab and short forms when a search returns no
+          results — that may optionally ask for your email address. We use it only to notify you when matching
+          jobs arrive or to follow up on your feedback; the field is optional, and every survey works without it.
         </p>
 
         <h2>Retention &amp; deletion</h2>
