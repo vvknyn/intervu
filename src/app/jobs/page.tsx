@@ -75,6 +75,7 @@ import { presentJob } from "@/lib/presentation";
 import { ContextHelp } from "@/components/ui/context-help";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { MatchChip } from "@/components/jobs/MatchChip";
+import { ReportListingButton } from "@/components/jobs/ReportListingButton";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
@@ -693,6 +694,7 @@ export function JobCard({
                 column — no new row, no layout shift when a résumé isn't on
                 file (`matchScore` is simply `null` then). */}
             <span className="flex h-fit flex-col items-end gap-1 self-start">
+                <ReportListingButton job={job} className="h-6 w-6" />
                 {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />}
                 {age && (
                     <span
