@@ -74,8 +74,8 @@
 #
 # Don't take the above on trust — a wrong prefix looks exactly like a
 # missing rule from the outside. Both of these must hold on prod:
-#   curl -o /dev/null -w '%{http_code}' https://intervuhq.com/ph/static/recorder.js  -> 200
-#   curl -o /dev/null -w '%{http_code}' https://intervuhq.com/ph/static/nope-xyz.js  -> 404
+#   curl -o /dev/null -w '%{http_code}' https://velai.app/ph/static/recorder.js  -> 200
+#   curl -o /dev/null -w '%{http_code}' https://velai.app/ph/static/nope-xyz.js  -> 404
 # The second is not optional: without it a rule that proxies everything to
 # a 200 reads as success.
 #
