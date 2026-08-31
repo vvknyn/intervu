@@ -116,6 +116,7 @@ import { captureEvent } from "@/lib/analytics/events";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
+    appliedPostedBucket,
     entriesNeedingOwnChip,
     chipLabelForEntry,
     toggleFacetValue,
@@ -1239,6 +1240,16 @@ function JobsContent() {
         companyDomain,
     };
     /**
+     * The date window actually filtering these results — never the raw
+     * `postedBucket`, which still holds the fresh-visit "30d" nobody chose
+     * and `buildJobSearchPayload` deliberately never sends. Everything that
+     * SPEAKS about the window (the count sentence, the beyond-window reveal
+     * and its probe) reads this, so the page can't caption an unfiltered
+     * result set "from the last 30 days" or offer to reveal roles it is
+     * already showing.
+     */
+    const appliedPosted = appliedPostedBucket(filterState);
+    /**
      * The places this search is filtered to. Read off `filterState` rather
      * than mirrored into a second piece of state: the location box is an
      * ENTRY field now, not the filter itself, so its text answers "what is
@@ -2215,7 +2226,7 @@ function JobsContent() {
                 // to `null` — a stale prior-search count masquerading as
                 // this search's "N more" would be exactly the fabricated
                 // number the spec forbids.
-                if (postedBucket === "30d") {
+                if (appliedPosted === "30d") {
                     searchJobsAction({
                         ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                         postedBucket: undefined,
@@ -3915,7 +3926,7 @@ function JobsContent() {
     // sentence carries that state instead.
     const resultCountLine =
         result?.configured && !loading && !result.widened
-            ? searchResultLine({ count: totalCount, postedBucket, lastUpdated, nowMs })
+            ? searchResultLine({ count: totalCount, postedBucket: appliedPosted, lastUpdated, nowMs })
             : null;
 
     // "N more beyond 30 days — show all" affordance (2026-08-12) — gated on
@@ -3925,7 +3936,7 @@ function JobsContent() {
     // which would otherwise let `resolveBeyondWindow` render a spurious
     // number the moment `beyondWindowCount` resolves ahead of `totalCount`.
     const beyondWindow = resultCountLine
-        ? resolveBeyondWindow(postedBucket, totalCount, beyondWindowCount)
+        ? resolveBeyondWindow(appliedPosted, totalCount, beyondWindowCount)
         : { show: false, extra: null };
     const beyondWindowText =
         beyondWindow.extra !== null

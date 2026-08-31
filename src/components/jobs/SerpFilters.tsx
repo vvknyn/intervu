@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { FacetDistribution, FacetKey, PostedBucket, YearsExperienceBucket } from "@/lib/jobs/types";
 import {
+    appliedPostedBucket,
     facetKeyLabel,
     facetValueLabel,
     facetGroupVisible,
@@ -223,7 +224,7 @@ export function SerpFilters({
                             <Affordance
                                 key={o.label}
                                 inputType="radio"
-                                active={state.postedBucket === o.value}
+                                active={appliedPostedBucket(state) === o.value}
                                 onClick={() => onPostedBucket(o.value)}
                             >
                                 {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}
