@@ -8,6 +8,7 @@ import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { cn } from "@/lib/utils";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import {
+    appliedPostedBucket,
     facetValueLabel,
     POSTED_BUCKET_PRESETS,
     SALARY_PRESETS,
@@ -145,19 +146,24 @@ export function FacetBar({
         );
     };
 
+    // Never the raw bucket: the fresh-visit 30d is a default nobody chose and
+    // nothing filtered on, so the chip must read "Posted" and "Any date" must
+    // be the checked option until the searcher picks a window.
+    const posted = appliedPostedBucket(state);
+
     return (
         <div data-testid="facet-bar" className="hidden flex-wrap items-center gap-1.5 lg:flex">
             {postedDateSupported && (
                 <FacetChip
                     label="Posted"
-                    activeValue={state.postedBucket ? (DATE_POSTED_SHORT_LABELS[state.postedBucket] ?? state.postedBucket) : null}
+                    activeValue={posted ? (DATE_POSTED_SHORT_LABELS[posted] ?? posted) : null}
                     testId="facet-chip-posted"
                 >
                     {POSTED_BUCKET_PRESETS.map((o) => (
                         <Affordance
                             key={o.label}
                             inputType="radio"
-                            active={state.postedBucket === o.value}
+                            active={posted === o.value}
                             onClick={() => onPostedBucket(o.value)}
                         >
                             {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}

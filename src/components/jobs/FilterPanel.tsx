@@ -328,6 +328,32 @@ export const PRISTINE_FILTER_STATE: FilterState = {
 };
 
 /**
+ * The posted window ACTUALLY in force. `undefined` means no date filter at
+ * all, which TWO different states mean: an explicit "Any" (`postedBucket:
+ * undefined`), and the fresh-visit pristine `30d` — a DISPLAY default nobody
+ * chose. The request layer has always dropped that default on purpose
+ * (`effectivePostedBucket`, lib/jobs/search-payload.ts — "not a hard Meili
+ * recall cap"), so a control drawing it as active claims a narrowing the
+ * results never got: "Posted · Past month" over 4-month-old rows, reported
+ * 2026-08-31.
+ *
+ * Every surface answers "is the Posted filter on?" through here — the
+ * request gate, the chip row, and all three pickers. The rule having three
+ * separate homes is precisely how the two newest pickers ended up with none.
+ *
+ * Keyed on "is this the default nobody chose", NOT on the flag alone: a
+ * bucket other than pristine can only arrive by a choice, so it stays applied
+ * even when a caller forgets to carry `postedExplicit`.
+ */
+export function appliedPostedBucket(
+    state: Pick<FilterState, "postedBucket" | "postedExplicit">,
+): PostedBucket | undefined {
+    if (!state.postedBucket) return undefined;
+    if (state.postedBucket === PRISTINE_FILTER_STATE.postedBucket && !state.postedExplicit) return undefined;
+    return state.postedBucket;
+}
+
+/**
  * Pure: which fields actually differ between two FilterState snapshots, by
  * field name (`"employment_type"`, `"salaryMin"`, `"board"`, …) — the
  * `search_filter_applied` analytics seam's diff, called from the one
@@ -470,8 +496,7 @@ export function activeFilterEntries(
     // `opts.includeQuietDefaults` opts pristine "30d" back in for callers that
     // need it named (see the param doc above) — "Any" stays excluded either
     // way, since an explicit "no filter" never narrowed anything to name.
-    const postedIsQuietDefault =
-        state.postedBucket === PRISTINE_FILTER_STATE.postedBucket && !state.postedExplicit;
+    const postedIsQuietDefault = !!state.postedBucket && !appliedPostedBucket(state);
     if (state.postedBucket && (!postedIsQuietDefault || opts?.includeQuietDefaults)) {
         // A clear must always WIDEN. For every finite bucket that ISN'T the
         // pristine default, widening means falling back to pristine 30d — as
