@@ -13,6 +13,7 @@ import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
+import { ReportListingButton } from "@/components/jobs/ReportListingButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
     assessedGhostSignals,
@@ -332,6 +333,10 @@ export function JobDetailDocument({
                         )}
                     </div>
                 </div>
+                <ReportListingButton
+                    job={job}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-card"
+                />
             </div>
 
             {exceptionMark && (

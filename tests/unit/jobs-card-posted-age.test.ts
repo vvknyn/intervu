@@ -93,3 +93,9 @@ test("null age (no usable posted_at or first_seen_at): the age slot renders noth
     assert.doesNotMatch(html, /data-testid="posted-age"/);
     assert.doesNotMatch(html, /Posted/);
 });
+
+test("renders the PostHog report-listing trigger on every card", () => {
+    const html = renderCard(job({ id: "report-1" }));
+    assert.match(html, /data-testid="report-listing-trigger"/);
+    assert.match(html, /aria-label="Report listing"/);
+});
