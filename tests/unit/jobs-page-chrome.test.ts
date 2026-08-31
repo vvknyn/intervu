@@ -460,4 +460,11 @@ describe("jobs page chrome guards", () => {
         assert.doesNotMatch(beforeToolbar, /<FilterChipsRow/);
     });
 
+    it("mounts the filter toolbar before Browse by field on the landing", () => {
+        const src = readFileSync(PAGE, "utf8");
+        const toolbarIdx = src.indexOf('data-testid="jobs-toolbar"');
+        const showcaseIdx = src.indexOf("<LandingMarketingShowcase");
+        assert.ok(toolbarIdx > -1 && showcaseIdx > toolbarIdx, "jobs-toolbar precedes LandingMarketingShowcase");
+    });
+
 });

@@ -51,6 +51,9 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   // Contabo/Docker: emit .next/standalone for a slim runtime image (see Dockerfile).
   output: "standalone",
+  // `next dev` allows localhost by default but treats 127.0.0.1 as a
+  // different host and 403s module scripts (Origin: http://127.0.0.1:…).
+  allowedDevOrigins: ["127.0.0.1"],
   // Don't advertise the framework.
   poweredByHeader: false,
   reactStrictMode: true,

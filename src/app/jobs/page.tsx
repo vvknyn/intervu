@@ -116,6 +116,7 @@ import { captureEvent } from "@/lib/analytics/events";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
+    appliedPostedBucket,
     entriesNeedingOwnChip,
     chipLabelForEntry,
     toggleFacetValue,
@@ -160,6 +161,7 @@ import {
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
+    shouldSuppressLandingAmbientPreview,
     degradedResultsNote,
     unmatchedPlaceNote,
     buildZeroResultPayload,
@@ -1238,6 +1240,16 @@ function JobsContent() {
         companyDomain,
     };
     /**
+     * The date window actually filtering these results — never the raw
+     * `postedBucket`, which still holds the fresh-visit "30d" nobody chose
+     * and `buildJobSearchPayload` deliberately never sends. Everything that
+     * SPEAKS about the window (the count sentence, the beyond-window reveal
+     * and its probe) reads this, so the page can't caption an unfiltered
+     * result set "from the last 30 days" or offer to reveal roles it is
+     * already showing.
+     */
+    const appliedPosted = appliedPostedBucket(filterState);
+    /**
      * The places this search is filtered to. Read off `filterState` rather
      * than mirrored into a second piece of state: the location box is an
      * ENTRY field now, not the filter itself, so its text answers "what is
@@ -2093,13 +2105,18 @@ function JobsContent() {
                 // defaulting to `hits[0]` is right for every OTHER case (a
                 // dropped selection after a new search/filter, a search that
                 // just returned its first page) — but on the pristine,
-                // zero-intent landing there is no "previous search" for that
-                // default to be standing in for, so it reads as an arbitrary
-                // pick. `preserveDeliberateDetail` is false exactly when
-                // `selection` used that default branch, so a deliberate
-                // selection (deep link, or one carried over from a real
-                // search) is never suppressed here — only the bare default is.
-                setSelectedId(isPristineLanding && !selection.preserveDeliberateDetail ? null : selection.selectedId);
+                // zero-intent landing below xl there is no pane and no sheet
+                // auto-open, so that default reads as an arbitrary pick.
+                // `preserveDeliberateDetail` is false exactly when `selection`
+                // used that default branch, so a deliberate selection (deep
+                // link, or one carried over from a real search) is never
+                // suppressed here — only the bare default is, and only when
+                // `shouldSuppressLandingAmbientPreview` says so.
+                setSelectedId(
+                    shouldSuppressLandingAmbientPreview(isPristineLanding, isXlUp) && !selection.preserveDeliberateDetail
+                        ? null
+                        : selection.selectedId,
+                );
                 if (!selection.preserveDeliberateDetail) {
                     setDetailSheetOpen(false);
                 }
@@ -2209,7 +2226,7 @@ function JobsContent() {
                 // to `null` — a stale prior-search count masquerading as
                 // this search's "N more" would be exactly the fabricated
                 // number the spec forbids.
-                if (postedBucket === "30d") {
+                if (appliedPosted === "30d") {
                     searchJobsAction({
                         ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                         postedBucket: undefined,
@@ -2587,17 +2604,19 @@ function JobsContent() {
     // hits leaves the pane empty rather than stealing a fallback job. No
     // explicit selection at all (ambient "browsing" default) still falls
     // back to the first hit, exactly like before Task 5 — that default is
-    // never URL-represented. EXCEPT on the pristine landing (item 5,
-    // 2026-08-21): `hits[0]` there is a zero-intent visitor's own first
-    // page-1 row, not a result of anything they did, so defaulting to it
-    // reads as an arbitrary pick rather than a browsing default — the
-    // fetch effect above already keeps `selectedId` null for exactly this
-    // case (see its own comment), this mirrors that same gate so the two
-    // can't drift into disagreeing about what "no selection" renders as.
+    // never URL-represented. EXCEPT on the pristine landing below xl (item 5,
+    // 2026-08-21; xl+ lift 2026-08-31): `hits[0]` there is a zero-intent
+    // visitor's own first page-1 row, not a result of anything they did, so
+    // defaulting to it reads as an arbitrary pick — the fetch effect above
+    // already keeps `selectedId` null for exactly this case via
+    // `shouldSuppressLandingAmbientPreview`, this mirrors that same gate so
+    // the two can't drift into disagreeing about what "no selection" renders.
     const selected = useMemo(() => {
-        if (!selectedId) return isPristineLanding ? null : (hits[0] ?? null);
+        if (!selectedId) {
+            return shouldSuppressLandingAmbientPreview(isPristineLanding, isXlUp) ? null : (hits[0] ?? null);
+        }
         return hits.find((h) => h.id === selectedId) ?? null;
-    }, [hits, selectedId, isPristineLanding]);
+    }, [hits, selectedId, isPristineLanding, isXlUp]);
 
     // Task 11 — dead-link EXISTENCE-CHECK CANDIDATE: a deliberate URL
     // selection that the CURRENT search's first page has already resolved
@@ -3907,7 +3926,7 @@ function JobsContent() {
     // sentence carries that state instead.
     const resultCountLine =
         result?.configured && !loading && !result.widened
-            ? searchResultLine({ count: totalCount, postedBucket, lastUpdated, nowMs })
+            ? searchResultLine({ count: totalCount, postedBucket: appliedPosted, lastUpdated, nowMs })
             : null;
 
     // "N more beyond 30 days — show all" affordance (2026-08-12) — gated on
@@ -3917,7 +3936,7 @@ function JobsContent() {
     // which would otherwise let `resolveBeyondWindow` render a spurious
     // number the moment `beyondWindowCount` resolves ahead of `totalCount`.
     const beyondWindow = resultCountLine
-        ? resolveBeyondWindow(postedBucket, totalCount, beyondWindowCount)
+        ? resolveBeyondWindow(appliedPosted, totalCount, beyondWindowCount)
         : { show: false, extra: null };
     const beyondWindowText =
         beyondWindow.extra !== null
@@ -3940,11 +3959,11 @@ function JobsContent() {
     // the shared detail ternary mounts (Sheet below xl, pane at xl+, and —
     // 2026-08-14 auto-preview — the pane again for the ambient first result
     // when nothing is explicitly open; see resolveDetailMountSite's doc
-    // comment for the render-only/telemetry contract, including the item-5
-    // pristine-landing exception). `Boolean(detailJob)`, not `hits.length >
-    // 0` — there being hits to LIST is a different fact from there being a
-    // job to PREVIEW, and pristine landing is exactly the state where those
-    // two now diverge (hits present, nothing selected).
+    // comment for the render-only/telemetry contract). `Boolean(detailJob)`,
+    // not `hits.length > 0` — there being hits to LIST is a different fact
+    // from there being a job to PREVIEW; below xl on pristine landing those
+    // diverge (hits present, preview suppressed), at xl+ they converge again
+    // via ambient `hits[0]` without writing `?job=`.
     const detailMountSite = resolveDetailMountSite(isXlUp, detailSheetOpen, Boolean(detailJob));
     // The row the pane is currently showing — explicit selection when one
     // exists, else the ambient auto-preview. Drives the list's active ring
@@ -4383,12 +4402,12 @@ function JobsContent() {
                     runs, this unmounts in favor of the sr-only heading so the
                     page still carries exactly one h1. */}
                 {showLandingMarketing ? (
-                    <div className="pb-4 sm:pb-6">
-                        <div className="border-b border-border py-5 sm:py-7">
+                    <div className="pb-2">
+                        <div className="border-b border-border py-2 sm:py-3">
                             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand">
                                 Live from employer career pages
                             </p>
-                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
                                 {JOBS_USP.mastheadTitle}
                             </h1>
                             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
@@ -4622,24 +4641,6 @@ function JobsContent() {
                 </section>
                 )}
 
-                {/* Browse entry points for a zero-intent visitor — field
-                    directory + "start with a filter" shortcuts. Was authored
-                    but never mounted anywhere (2026-08-21 front-door audit,
-                    item 3): the pristine landing had no browse affordance
-                    below the search box at all, only after a search ran. Now
-                    mounts at every width (frozen front-door redesign,
-                    2026-08-26) — it used to be mobile-only because the
-                    desktop pristine landing had nothing above it worth
-                    scrolling to; the masthead above gives it one. */}
-                {showLandingMarketing && (
-                    <LandingMarketingShowcase
-                        onSelectQuery={submitSearch}
-                        onSelectRemote={onSelectRemote}
-                        onSelectSalaryMin={panelSalaryMin}
-                        onSelectBoard={onBoardChange}
-                    />
-                )}
-
                 {headerDockActive && facetsMountSite === "inline" && (
                     <div
                         id="filters-panel"
@@ -4767,6 +4768,24 @@ function JobsContent() {
                     ) : null}
                 </section>
                 )}
+
+                {/* Browse entry points for a zero-intent visitor — field
+                    directory + "start with a filter" shortcuts. Was authored
+                    but never mounted anywhere (2026-08-21 front-door audit,
+                    item 3): the pristine landing had no browse affordance
+                    on first paint at all, only after a search ran. Now
+                    mounts at every width (frozen front-door redesign,
+                    2026-08-26) — standard flow is search → refine filters →
+                    browse shortcuts → results; sits below the filter toolbar. */}
+                {showLandingMarketing && (
+                    <LandingMarketingShowcase
+                        onSelectQuery={submitSearch}
+                        onSelectRemote={onSelectRemote}
+                        onSelectSalaryMin={panelSalaryMin}
+                        onSelectBoard={onBoardChange}
+                    />
+                )}
+
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
                     createPortal(fieldDirectoryMenu, dockedFieldDirectoryMount)}
                 {headerDockActive && dockedQueryMount && createPortal(dockedQueryEl, dockedQueryMount)}

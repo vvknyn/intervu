@@ -1,5 +1,5 @@
 import type { FilterState } from "@/components/jobs/FilterPanel";
-import { PRISTINE_FILTER_STATE } from "@/components/jobs/FilterPanel";
+import { appliedPostedBucket } from "@/components/jobs/FilterPanel";
 import type { JobSearchParams, JobSortMode, PostedBucket } from "@/lib/jobs/types";
 
 /**
@@ -40,15 +40,15 @@ import type { JobSearchParams, JobSortMode, PostedBucket } from "@/lib/jobs/type
  * request can never disagree about whether the bucket is real.
  *
  * The fresh-visit `30d` default is display-only — not a hard Meili recall cap.
+ * WHICH window counts as chosen is `appliedPostedBucket`'s call (FilterPanel),
+ * shared with every control that draws one; this adds only the corpus-support
+ * gate, the one concern the pickers don't have.
  */
 export function effectivePostedBucket(
-    postedBucket: PostedBucket | undefined,
+    state: Pick<FilterState, "postedBucket" | "postedExplicit">,
     postedDateSupported: boolean,
-    postedExplicit?: boolean,
 ): PostedBucket | undefined {
-    if (!postedDateSupported || !postedBucket) return undefined;
-    if (postedBucket === PRISTINE_FILTER_STATE.postedBucket && !postedExplicit) return undefined;
-    return postedBucket;
+    return postedDateSupported ? appliedPostedBucket(state) : undefined;
 }
 
 export function buildJobSearchPayload(
@@ -70,7 +70,7 @@ export function buildJobSearchPayload(
         facets: state.facets,
         salaryMin: state.salaryMin || undefined,
         visaOnly: state.visaOnly || undefined,
-        postedBucket: effectivePostedBucket(state.postedBucket, postedDateSupported, state.postedExplicit),
+        postedBucket: effectivePostedBucket(state, postedDateSupported),
         yearsExperience: state.yearsExperience,
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,
