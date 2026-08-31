@@ -279,13 +279,13 @@ export function shouldBackOnDetailSheetClose(open: boolean, urlJobId: string | n
  * Item 5, 2026-08-21 front-door audit: the caller now passes
  * `hasAmbientJob` as "is there actually a job selected/previewable" rather
  * than "are there hits at all" — on the pristine, zero-intent landing
- * there's no explicit selection AND no search behind the first hit for an
- * ambient preview to be standing in for, so `hasAmbientJob` is false there
- * even with hits on screen, and the pane mounts at "none" instead of
- * "pane" — the shared ternary's own placeholder branch, not a bespoke
- * empty state. Everywhere else (a real search, a deep link) is unchanged:
- * this function's own contract didn't move, only what the caller means by
- * "ambient job" got more precise.
+ * below xl there's no explicit selection AND ambient preview is suppressed
+ * (see `shouldSuppressLandingAmbientPreview`), so `hasAmbientJob` is false
+ * there even with hits on screen. At xl+ on the same pristine landing,
+ * `hits[0]` fills the pane as an ambient preview without writing `?job=`.
+ * Everywhere else (a real search, a deep link) is unchanged: this function's
+ * own contract didn't move, only what the caller means by "ambient job" got
+ * more precise.
  */
 export type DetailMountSite = "sheet" | "pane" | "none";
 
@@ -296,6 +296,17 @@ export function resolveDetailMountSite(
 ): DetailMountSite {
     if (detailSheetOpen) return isXlUp ? "pane" : "sheet";
     return isXlUp && hasAmbientJob ? "pane" : "none";
+}
+
+/**
+ * Item 5 / first-viewport collapse (2026-08-31): on the pristine landing,
+ * below xl there is no detail pane and the sheet must not auto-open — so
+ * `hits[0]` must not stand in as an ambient preview. At xl+ the pane earns
+ * an ambient preview even with zero explicit intent, so suppression lifts.
+ * Every non-pristine state keeps the ordinary browsing default.
+ */
+export function shouldSuppressLandingAmbientPreview(isPristineLanding: boolean, isXlUp: boolean): boolean {
+    return isPristineLanding && !isXlUp;
 }
 
 /**

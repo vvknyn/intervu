@@ -130,6 +130,38 @@ describe("landing page copy: plain language, not the builder's vocabulary", () =
 });
 
 /**
+ * Guards the first-viewport collapse (2026-08-31): stacked full-width field
+ * rows and three large filter cards pushed live job cards below the fold on
+ * pristine `/jobs`. Field entry points and shortcuts must stay compact.
+ */
+describe('landing marketing showcase: compact first-viewport layout', () => {
+    it('does not use stacked py-4 full-width field rows', () => {
+        const src = readFileSync(TARGET, 'utf8');
+        assert.doesNotMatch(src, /py-4[\s\S]*group flex w-full/);
+        assert.doesNotMatch(src, /divide-y divide-border/);
+    });
+
+    it('renders field entry points as a compact wrap row of indexCategories titles', () => {
+        const src = readFileSync(TARGET, 'utf8');
+        assert.match(src, /flex flex-wrap/);
+        assert.match(src, /indexCategories\.map/);
+        for (const cat of indexCategories) {
+            assert.match(src, new RegExp(cat.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        }
+        assert.doesNotMatch(src, /\{cat\.desc\}/, 'descriptions must not render as block rows on landing');
+    });
+
+    it('renders filter shortcuts as a compact single row, not p-4 cards in a 3-col grid', () => {
+        const src = readFileSync(TARGET, 'utf8');
+        assert.doesNotMatch(src, /grid grid-cols-1 gap-4 sm:grid-cols-3/);
+        assert.doesNotMatch(src, /border border-border p-4/);
+        assert.match(src, /Top companies/);
+        assert.match(src, /Remote jobs only/);
+        assert.match(src, /Pays \$150k or more/);
+    });
+});
+
+/**
  * Guards the chip-row/directory field-list agreement (2026-08-18): the jobs
  * toolbar's field chips used to be a second, hand-typed, all-tech list
  * (Engineering / AI & ML / Product / Design) that contradicted the field
