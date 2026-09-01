@@ -170,15 +170,23 @@ import {
 } from "@/lib/jobs/result-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
-import { recordOnboardingInteraction } from "@/lib/jobs/onboarding-prompt";
+import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
     isEmailNudgeDismissed,
     shouldPromptEmailNudge,
 } from "@/lib/jobs/email-nudge";
+import {
+    dismissSearchAlertCapture,
+    isSearchAlertDismissed,
+    isSearchAlertSubmitted,
+    shouldShowSearchAlertCapture,
+} from "@/lib/jobs/search-alert-capture";
+import { suggestSavedSearchName } from "@/lib/jobs/saved-searches";
 import { resolveFacetsMountSite, showsFiltersToggle } from "@/lib/jobs/serp-density";
 import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
+import { SearchAlertCapture } from "@/components/jobs/SearchAlertCapture";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
@@ -1055,6 +1063,7 @@ function EmptyResults({
     onRevealGhosts,
     seeds,
     onSubmitSeed,
+    searchAlertSlot,
 }: {
     entries: FilterEntry[];
     onClearEntry: (entry: FilterEntry) => void;
@@ -1076,6 +1085,7 @@ function EmptyResults({
      *  clear-search, and ghost-reveal were the only ways out. */
     seeds: string[];
     onSubmitSeed: (seed: string) => void;
+    searchAlertSlot?: React.ReactNode;
 }) {
     const hasQuery = query.trim().length > 0;
     const hasFilters = entries.length > 0 || !!locationDefault;
@@ -1095,6 +1105,7 @@ function EmptyResults({
                     locationDefault={locationDefault}
                 />
             )}
+            {searchAlertSlot}
             {ghostRevealCount != null && (
                 <button
                     type="button"
@@ -1450,6 +1461,7 @@ function JobsContent() {
         // everyone hates. This way a returning visitor who searched twice
         // yesterday is asked on today's first search.
         const interactions = recordOnboardingInteraction();
+        setSearchInteractions(interactions);
 
         if (user) {
             void saveAgentPreferencesAction({
@@ -1673,6 +1685,15 @@ function JobsContent() {
         setGuestSaveCount(getGuestSaveCount());
         setGuestSaveBannerDismissed(isGuestSaveBannerDismissed());
     }, []);
+    const [searchAlertDismissed, setSearchAlertDismissed] = useState(true);
+    const [searchAlertSubmitted, setSearchAlertSubmitted] = useState(true);
+    const [searchInteractions, setSearchInteractions] = useState(0);
+    useEffect(() => {
+        setSearchAlertDismissed(isSearchAlertDismissed());
+        setSearchAlertSubmitted(isSearchAlertSubmitted());
+        setSearchInteractions(getOnboardingInteractionCount());
+    }, []);
+    const searchAlertVerifiedRef = useRef(false);
     // The masthead's provenance sentence is a constant now
     // (`LANDING_PROVENANCE_LINE`) — it holds no number, so it needs no fetch
     // and no state, and it renders on the server instead of appearing a beat
@@ -1873,6 +1894,42 @@ function JobsContent() {
     // semantics, one extra opt-in — not a second parallel "what's active"
     // derivation.
     const emptyStateEntries = activeFilterEntries(filterState, { includeQuietDefaults: true });
+
+    const searchAlertUrlState: JobsUrlState = useMemo(
+        () => ({
+            q: query,
+            facets,
+            salaryMin,
+            visaOnly,
+            postedBucket,
+            postedExplicit: postedExplicit || undefined,
+            yearsExperience,
+            hideGhosts,
+            board,
+            companyDomain,
+            sort: sortOverride ? modeToUrlSort(sortOverride) : null,
+            jobId: null,
+            hideViewed: false,
+        }),
+        [
+            query,
+            facets,
+            salaryMin,
+            visaOnly,
+            postedBucket,
+            postedExplicit,
+            yearsExperience,
+            hideGhosts,
+            board,
+            companyDomain,
+            sortOverride,
+        ],
+    );
+    const searchAlertHref = useMemo(() => {
+        const qs = serializeJobsUrl(searchAlertUrlState);
+        return qs ? `/jobs${qs}` : "/jobs";
+    }, [searchAlertUrlState]);
+    const searchAlertName = useMemo(() => suggestSavedSearchName(searchAlertUrlState), [searchAlertUrlState]);
 
     /**
      * No query ⇒ no corpus fetch, ever — regardless of filters or
@@ -3880,6 +3937,51 @@ function JobsContent() {
         hitCount: hits.length,
     });
 
+    const searchAlertFilterCount = activeEntries.length;
+    const searchAlertQueryLength = query.trim().length;
+    const showZeroResultsSearchAlert =
+        !user &&
+        shouldShowSearchAlertCapture({
+            signedIn: !!user,
+            dismissed: searchAlertDismissed,
+            submitted: searchAlertSubmitted,
+            interactions: searchInteractions,
+            hasResults: false,
+        });
+    const hasResultsPanel =
+        resultsPanel !== "empty" &&
+        resultsPanel !== "loading" &&
+        resultsPanel !== "error" &&
+        resultsPanel !== "not-connected" &&
+        resultsPanel !== "serp-ask";
+    const showResultsSearchAlert =
+        !user &&
+        hasResultsPanel &&
+        shouldShowSearchAlertCapture({
+            signedIn: !!user,
+            dismissed: searchAlertDismissed,
+            submitted: searchAlertSubmitted,
+            interactions: searchInteractions,
+            hasResults: true,
+        });
+
+    const handleDismissSearchAlert = useCallback(() => {
+        dismissSearchAlertCapture();
+        setSearchAlertDismissed(true);
+    }, []);
+
+    useEffect(() => {
+        if (searchParams.get("search_alert") !== "1") return;
+        if (searchAlertVerifiedRef.current) return;
+        searchAlertVerifiedRef.current = true;
+        captureEvent("search_alert_verified", {
+            surface: resultsPanel === "empty" ? "zero_results" : "results",
+            query_length: searchAlertQueryLength,
+            filter_count: searchAlertFilterCount,
+            has_results: resultsPanel !== "empty",
+        });
+    }, [searchParams, resultsPanel, searchAlertQueryLength, searchAlertFilterCount]);
+
     // SERP-ask's tappable seeds — recent searches first, then the curated
     // fallback list, deduped to ~8 (lib/jobs/recent-searches.ts,
     // unit-tested). Cheap and pure, so computed unconditionally rather than
@@ -4911,6 +5013,20 @@ function JobsContent() {
                                     />
                                 )}
 
+                                {showResultsSearchAlert && (
+                                    <div className="mb-3 border-t border-border pt-4 pb-2">
+                                        <SearchAlertCapture
+                                            surface="results"
+                                            searchName={searchAlertName}
+                                            searchHref={searchAlertHref}
+                                            filterCount={searchAlertFilterCount}
+                                            queryLength={searchAlertQueryLength}
+                                            hasResults
+                                            onDismiss={handleDismissSearchAlert}
+                                        />
+                                    </div>
+                                )}
+
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
                             to word-dropping (`shouldRelaxSearch`, lib/jobs/meilisearch.ts).
@@ -5066,6 +5182,19 @@ function JobsContent() {
                                     onRevealGhosts={() => onHideGhosts(false)}
                                     seeds={searchSeeds}
                                     onSubmitSeed={submitSearch}
+                                    searchAlertSlot={
+                                        showZeroResultsSearchAlert ? (
+                                            <SearchAlertCapture
+                                                surface="zero_results"
+                                                searchName={searchAlertName}
+                                                searchHref={searchAlertHref}
+                                                filterCount={searchAlertFilterCount}
+                                                queryLength={searchAlertQueryLength}
+                                                hasResults={false}
+                                                onDismiss={handleDismissSearchAlert}
+                                            />
+                                        ) : null
+                                    }
                                 />
                             ) : (
                                 <>

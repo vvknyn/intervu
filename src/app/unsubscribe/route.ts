@@ -35,6 +35,7 @@ const SCOPE_LABEL: Record<UnsubscribeScope, string> = {
     // `welcome` is: a future caller signing a verify_follow-scoped token
     // must not land on an empty sentence here.
     verify_follow: "follow confirmation emails",
+    verify_search_alert: "search alert confirmation emails",
     // Same shape and same reason as verify_follow above: non-suppressible in
     // EMAIL_KIND_POLICY, so nothing signs a token at this scope today. If
     // anything ever does, this is the sentence it lands on.
