@@ -46,6 +46,11 @@ export const ANALYTICS_EVENTS = {
   search_results_paged: "search_results_paged",
   results_impressed: "results_impressed",
 
+  search_alert_impressed: "search_alert_impressed",
+  search_alert_submitted: "search_alert_submitted",
+  search_alert_verified: "search_alert_verified",
+  search_alert_dismissed: "search_alert_dismissed",
+
   // Application tracker
   application_stage_changed: "application_stage_changed",
   resume_uploaded: "resume_uploaded",
@@ -147,6 +152,32 @@ export interface EventPayloads {
     job_ids: string[];
     count: number;
     source: EventSource;
+  };
+
+  search_alert_impressed: {
+    surface: "zero_results" | "results";
+    query_length: number;
+    filter_count: number;
+    has_results: boolean;
+  };
+  search_alert_submitted: {
+    surface: "zero_results" | "results";
+    query_length: number;
+    filter_count: number;
+    has_results: boolean;
+    outcome: "accepted" | "rejected";
+  };
+  search_alert_verified: {
+    surface: "zero_results" | "results";
+    query_length: number;
+    filter_count: number;
+    has_results: boolean;
+  };
+  search_alert_dismissed: {
+    surface: "zero_results" | "results";
+    query_length: number;
+    filter_count: number;
+    has_results: boolean;
   };
 
   application_stage_changed: {

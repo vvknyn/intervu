@@ -36,3 +36,8 @@ export function recordOnboardingInteraction(): number {
     }
     return next;
 }
+
+/** Read the current search-interaction count without incrementing. */
+export function getOnboardingInteractionCount(): number {
+    return readInteractions();
+}

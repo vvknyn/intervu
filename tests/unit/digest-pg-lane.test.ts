@@ -34,11 +34,13 @@ function baseRecipient(overrides: {
   identityId?: string;
   email?: string;
   follows?: Array<{ domain: string; displayName: string }>;
+  savedSearches?: Array<{ name: string; href: string; searchHash: string }>;
 } = {}) {
   return {
     identityId: "id-1",
     email: "person@example.com",
     follows: [{ domain: "acme.com", displayName: "Acme" }],
+    savedSearches: [],
     ...overrides,
   };
 }
@@ -62,7 +64,8 @@ function baseDeps(overrides: Partial<SendEmailFollowDigestsDeps> = {}): SendEmai
   const sends: unknown[] = [];
   return {
     listRecipients: async () => [recipient()],
-    listNewRoles: async () => [],
+    listNewRolesForFollows: async () => [],
+    listNewRolesForSavedSearch: async () => [],
     isEmailSuppressed: async () => false,
     signToken: (email) => `signed-${email}`,
     send: async (input) => {
@@ -100,7 +103,7 @@ describe("sendEmailFollowDigests — suppression", () => {
 
 describe("sendEmailFollowDigests — activity-only cadence", () => {
   it("reports skipped-empty when listNewRolesForFollows finds nothing, without calling send", async () => {
-    const deps = baseDeps({ listNewRoles: async () => [] });
+    const deps = baseDeps({ listNewRolesForFollows: async () => [], listNewRolesForSavedSearch: async () => [] });
     const results = await sendEmailFollowDigests(
       { q: new FakeQueryable(), sinceIso: "2026-08-01T00:00:00Z", excludeEmails: new Set() },
       deps,
@@ -112,7 +115,7 @@ describe("sendEmailFollowDigests — activity-only cadence", () => {
 
 describe("sendEmailFollowDigests — happy path", () => {
   it("sends one email with a followed-company section and an unsubscribeUrl", async () => {
-    const deps = baseDeps({ listNewRoles: async () => [groupWithJobs("acme.com", "Acme", 2)] });
+    const deps = baseDeps({ listNewRolesForFollows: async () => [groupWithJobs("acme.com", "Acme", 2)] });
     const results = await sendEmailFollowDigests(
       { q: new FakeQueryable(), sinceIso: "2026-08-01T00:00:00Z", excludeEmails: new Set() },
       deps,
@@ -137,7 +140,7 @@ describe("sendEmailFollowDigests — happy path", () => {
           ],
         }),
       ],
-      listNewRoles: async () => [groupWithJobs("acme.com", "Acme", 1), groupWithJobs("globex.com", "Globex", 1)],
+      listNewRolesForFollows: async () => [groupWithJobs("acme.com", "Acme", 1), groupWithJobs("globex.com", "Globex", 1)],
     });
     const results = await sendEmailFollowDigests(
       { q: new FakeQueryable(), sinceIso: "2026-08-01T00:00:00Z", excludeEmails: new Set() },
@@ -155,7 +158,7 @@ describe("sendEmailFollowDigests — multiple recipients", () => {
         recipient({ email: "a@example.com" }),
         recipient({ email: "b@example.com" }),
       ],
-      listNewRoles: async () => [groupWithJobs("acme.com", "Acme", 1)],
+      listNewRolesForFollows: async () => [groupWithJobs("acme.com", "Acme", 1)],
     });
     const results = await sendEmailFollowDigests(
       { q: new FakeQueryable(), sinceIso: "2026-08-01T00:00:00Z", excludeEmails: new Set(["a@example.com"]) },
