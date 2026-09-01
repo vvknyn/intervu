@@ -14,6 +14,7 @@ export type EmailKind =
   | "welcome"
   | "transactional"
   | "verify_follow"
+  | "verify_search_alert"
   | "verify_email"
   | "password_reset";
 
@@ -47,6 +48,7 @@ const EMAIL_KIND_POLICY: Record<EmailKind, EmailKindPolicy> = {
   // "transactional") so send.ts's logging and any future suppression carve
   // out stay legible per-kind.
   verify_follow: { suppressible: false, requiresUnsubscribeHeader: false },
+  verify_search_alert: { suppressible: false, requiresUnsubscribeHeader: false },
   // "Confirm this address is yours" for an account that has no reachable one
   // (a legacy password signup, registered under a minted
   // <username>@intervu.cc). Same shape as verify_follow and for the same

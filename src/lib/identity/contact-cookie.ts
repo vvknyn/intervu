@@ -14,7 +14,7 @@
  */
 import { cookies } from "next/headers";
 import type { Queryable } from "../pg/pool";
-import { consumeVerifyToken, addEmailFollow } from "./store";
+import { consumeVerifyToken, addEmailFollow, consumeSearchAlertToken, upsertEmailSavedSearch } from "./store";
 
 export const CONTACT_COOKIE_NAME = "intervu_contact";
 const CONTACT_COOKIE_MAX_AGE_DAYS = 180;
@@ -57,6 +57,23 @@ export async function consumeAndFollow(
       displayName: follow.displayName,
     });
   }
+
+  return { redirectPath: consumed.redirectPath, contactToken: consumed.contactToken };
+}
+
+export async function consumeAndSaveSearchAlert(
+  q: Queryable,
+  rawToken: string,
+): Promise<{ redirectPath: string; contactToken: string } | null> {
+  const consumed = await consumeSearchAlertToken(q, rawToken);
+  if (!consumed) return null;
+
+  await upsertEmailSavedSearch(q, {
+    identityId: consumed.identityId,
+    searchHash: consumed.searchHash,
+    name: consumed.name,
+    href: consumed.href,
+  });
 
   return { redirectPath: consumed.redirectPath, contactToken: consumed.contactToken };
 }

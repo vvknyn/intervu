@@ -191,3 +191,15 @@ export const AUTH_RESET_REQUEST_MAX_REQUESTS = 5;
 
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the reset-request action's own store. */
 export const allowAuthResetRequest = createIpRateLimiter(AUTH_RESET_REQUEST_WINDOW_MS, AUTH_RESET_REQUEST_MAX_REQUESTS);
+
+/**
+ * Per-IP sliding-window rate limit for POST /api/search-alerts — its own
+ * store. Same budget as connect-waitlist: a real visitor submits once, maybe
+ * retries a typo — 5 per 10 minutes is generous for that and tight against a
+ * submit-loop that sends verification mail.
+ */
+export const SEARCH_ALERT_WINDOW_MS = 600_000;
+export const SEARCH_ALERT_MAX_REQUESTS = 5;
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the search-alert route's own store. */
+export const allowSearchAlertRequest = createIpRateLimiter(SEARCH_ALERT_WINDOW_MS, SEARCH_ALERT_MAX_REQUESTS);
