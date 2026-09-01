@@ -46,6 +46,11 @@ export default function PrivacyPage() {
           at any time via the <Link href="/contact">contact page</Link>.
         </p>
         <p>
+          If you sign up for weekly search alerts while browsing jobs without an account, we store the email
+          address you enter and the search you asked to watch, and use them only to send you new matching roles
+          each week until you unsubscribe.
+        </p>
+        <p>
           When you search, we read your IP address transiently for two things: to default your job search to your
           country so first results are nearby, and to rate-limit abusive traffic. Your IP is not stored with your
           account, your searches, or your tracked applications — the country lookup happens on our own server
