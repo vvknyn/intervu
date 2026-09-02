@@ -6,22 +6,23 @@ import {
     PRISTINE_FILTER_STATE,
     type FilterState,
 } from "../../src/components/jobs/FilterPanel";
+import { DATE_POSTED_SHORT_LABELS } from "../../src/components/jobs/SerpFilters";
 import { nextPostedBucket, postedChipLabel } from "../../src/components/jobs/FilterChipsRow";
 import { resolveBeyondWindow } from "../../src/lib/jobs/beyond-window";
 import { searchResultLine } from "../../src/lib/jobs/presentation";
 
 /**
- * The fresh-visit `postedBucket: "30d"` is a DISPLAY default nobody chose:
- * `buildJobSearchPayload` deliberately omits it from the request so the
- * corpus stays uncapped (search-payload.ts, "not a hard Meili recall cap").
- * Every surface that draws the Posted control must therefore agree it is
- * NOT applied — otherwise the SERP says "Past month" over results that
- * include 4-month-old rows, which is what a searcher reported 2026-08-31.
+ * The fresh-visit `postedBucket: "30d"` is the product default — a real
+ * request filter, not a display-only value. Every surface that draws the
+ * Posted control must agree it IS applied; only an explicit "Any date"
+ * (`postedBucket: undefined`, `postedExplicit: true`) lifts it. Measured on
+ * prod (velai.app, 2026-09-01), `?q=product+manager`: 14,682 roles labelled
+ * "Any date" with the default silently dropped, vs 5,820 once the month
+ * window is actually applied — the gap the default exists to hide.
  *
- * The rule had three homes before this file: the request gate, the chip
- * row, and nothing at all in the two pickers. `appliedPostedBucket` is now
- * the single one, and the structural guard below fails for any FUTURE
- * surface that draws the control without consulting it.
+ * The rule has one home, `appliedPostedBucket` (FilterPanel.tsx). Every
+ * consumer routes through it, and the structural guard below fails for any
+ * FUTURE surface that draws the control without consulting it.
  */
 
 const withPosted = (
@@ -29,9 +30,15 @@ const withPosted = (
     postedExplicit?: boolean,
 ): FilterState => ({ ...PRISTINE_FILTER_STATE, postedBucket, postedExplicit });
 
-test("the unchosen 30d default is not an applied window — the case the searcher hit", () => {
-    assert.equal(appliedPostedBucket(PRISTINE_FILTER_STATE), undefined);
-    assert.equal(appliedPostedBucket(withPosted("30d")), undefined);
+test("the unchosen 30d default IS the applied window — the fresh-visit product default", () => {
+    assert.equal(appliedPostedBucket(PRISTINE_FILTER_STATE), "30d");
+    assert.equal(appliedPostedBucket(withPosted("30d")), "30d");
+});
+
+test("the rail/facet-bar label reads 'Past month' for the applied fresh-visit default", () => {
+    const applied = appliedPostedBucket(PRISTINE_FILTER_STATE);
+    assert.equal(applied, "30d");
+    assert.equal(DATE_POSTED_SHORT_LABELS[applied!], "Past month");
 });
 
 test("the SAME 30d value IS applied once the searcher picks it — explicitness is the only difference", () => {
@@ -53,20 +60,20 @@ test("explicit 'Any' stays unapplied — clearing the window must not read back 
     assert.equal(appliedPostedBucket(withPosted(undefined, true)), undefined);
 });
 
-test("the mobile chip cycles from what is APPLIED, so its first tap narrows instead of no-opping", () => {
-    // Fresh visit: nothing is applied, so the next step is the tightest real
-    // window. Cycling from the raw "30d" sent it to "Any" — a tap that
-    // changed no results, on a chip that already claimed to be active.
-    assert.equal(nextPostedBucket(PRISTINE_FILTER_STATE), "1d");
+test("the mobile chip cycles from what is APPLIED, so a fresh visit's first tap widens to Any", () => {
+    // Fresh visit: the pristine 30d IS applied (the product default), so the
+    // next step in the cycle is the same widen-to-everything step a picked
+    // 30d already takes (sibling below) — cycling is identical either way.
+    assert.equal(nextPostedBucket(PRISTINE_FILTER_STATE), undefined);
     // Sibling: the cycle still advances normally from a chosen window, and
-    // still wraps at the top — the guard above must not pass by freezing it.
+    // still wraps at the top.
     assert.equal(nextPostedBucket(withPosted("1d", true)), "3d");
     assert.equal(nextPostedBucket(withPosted("30d", true)), undefined);
 });
 
-test("the quick chip's face names only an applied window", () => {
-    assert.equal(postedChipLabel(PRISTINE_FILTER_STATE), null, "fresh visit claims no window");
-    assert.equal(postedChipLabel(withPosted("30d", true)), "Last 30 days", "the chosen 30d is named");
+test("the quick chip's face names the applied window, including the fresh-visit default", () => {
+    assert.equal(postedChipLabel(PRISTINE_FILTER_STATE), "Last 30 days", "fresh visit now claims the applied default");
+    assert.equal(postedChipLabel(withPosted("30d", true)), "Last 30 days", "the chosen 30d reads identically");
     assert.equal(postedChipLabel(withPosted("7d")), "Last week", "a non-default window is named");
     assert.equal(postedChipLabel(withPosted(undefined, true)), null, "explicit Any claims nothing");
 });
