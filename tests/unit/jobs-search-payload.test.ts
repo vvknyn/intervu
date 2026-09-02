@@ -54,11 +54,11 @@ test("postedBucket is dropped when the corpus doesn't support date filtering, ev
     assert.equal(p.postedBucket, undefined);
 });
 
-// Phase 1-a #? (30d default): UI still shows 30d, but the quiet default must
-// not become a hard Meili posted_ts recall cap.
-test("the 30d UI default is omitted from the search payload when date filtering is supported", () => {
+// Phase 1-a #? (30d default): the pristine "30d" IS the product default and
+// must be sent — only an explicit "Any date" lifts it.
+test("the 30d UI default IS sent in the search payload when date filtering is supported", () => {
     const p = buildJobSearchPayload(PRISTINE_FILTER_STATE, "", "newest", true);
-    assert.equal(p.postedBucket, undefined);
+    assert.equal(p.postedBucket, "30d");
 });
 
 test("explicit 30d (postedExplicit: true) is sent as postedBucket 30d when date filtering is supported", () => {
