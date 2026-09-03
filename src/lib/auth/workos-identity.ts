@@ -17,6 +17,9 @@ export interface ServerUser {
   uid: string;
   email?: string;
   displayName?: string;
+  /** Google profile photo (or whatever avatar the identity provider hands
+   *  back) — absent for a password signup. See `toServerUser`. */
+  pictureUrl?: string;
 }
 
 /** The fields this resolver reads off a WorkOS user. */
@@ -31,6 +34,10 @@ export interface WorkosIdentity {
    *  field is surfaced back to the user in places (e.g. its dashboard) a
    *  made-up first name would look wrong. See `toServerUser`'s fallback. */
   metadata?: Record<string, string> | null;
+  /** `profilePictureUrl` on `@workos-inc/node`'s `User` interface
+   *  (node_modules/@workos-inc/node/lib/factory-VM3aexOH.d.mts) — set for
+   *  Google sign-in, null for a password signup. */
+  profilePictureUrl?: string | null;
 }
 
 /**
@@ -53,5 +60,6 @@ export function toServerUser(user: WorkosIdentity): ServerUser {
     uid: user.externalId || user.id,
     email: user.email ?? undefined,
     displayName: name || user.metadata?.username || undefined,
+    pictureUrl: user.profilePictureUrl ?? undefined,
   };
 }

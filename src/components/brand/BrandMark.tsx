@@ -49,11 +49,15 @@ export function BrandLockupMark({
 /** Mark + wordmark — the header lockup. Size/weight live here so TopBar,
  *  consent chrome, and email cannot drift. Email hosts a raster of this same
  *  geometry (`public/velai-logo.png`, regenerated from BRAND_MARK_* — SVG
- *  masks/currentColor don't render in Gmail/Outlook). */
-export function BrandLockup({ className }: { className?: string }) {
+ *  masks/currentColor don't render in Gmail/Outlook).
+ *
+ *  `markClassName` overrides just the mark's tile size (e.g. TopBar's 32px
+ *  lockup) without touching the default `h-7 w-7` every other call site
+ *  (error/not-found chrome, ConsentCards) relies on. */
+export function BrandLockup({ className, markClassName }: { className?: string; markClassName?: string }) {
     return (
         <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join("")}>
-            <BrandLockupMark />
+            <BrandLockupMark tileClassName={markClassName} />
             {/* Wordmark is the one rulebook exception: Libre Franklin 700,
                 caps, tight tracking. `--font-display` was retired to the sans
                 stack site-wide (rulebook v2 CORRECTIONS #2), so this reads
