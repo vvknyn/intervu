@@ -33,7 +33,7 @@ export function EmailNudgeMock() {
     return (
         <main className="mx-auto flex max-w-[820px] flex-col gap-6 p-8">
             <header>
-                <h1 className="font-display text-lg font-semibold">
+                <h1 className="text-lg font-semibold">
                     Account email prompt — every state
                 </h1>
                 <p className="mt-1 text-xs text-muted-foreground">

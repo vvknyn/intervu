@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { BrandLockupMark } from "@/components/brand/BrandMark";
+import Link from "next/link";
+import { BrandLockup } from "@/components/brand/BrandMark";
+import { Button } from "@/components/ui/button";
 
 /**
  * Route-segment error boundary. Catches render/runtime errors in any page and
@@ -26,37 +28,24 @@ export default function Error({
     // stops testing anything the day the wording is reworded.
     <div
       data-testid="error-boundary"
-      className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center"
+      className="mx-auto flex min-h-[70vh] max-w-[480px] flex-col items-center justify-center px-6 text-center"
     >
-      <BrandLockupMark tileClassName="h-12 w-12 rounded-none" markClassName="h-7 w-7" />
-      <span className="mt-4 font-display text-xs font-semibold text-muted-foreground">
-        velai
-      </span>
-      <h1 className="mt-3 font-display text-2xl font-semibold text-foreground">
-        Something went sideways
-      </h1>
-      <p className="mt-2 max-w-md text-text-2">
+      <BrandLockup />
+      <h1 className="mt-4 text-lg font-semibold text-foreground">Something went wrong</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
         This page hit an unexpected error. Nothing you did was lost — try again, and if
         it keeps happening, reload the app.
       </p>
       {error?.digest ? (
-        <p className="mt-3 text-xs text-text-3">
-          Reference: {error.digest}
-        </p>
+        <p className="mt-3 text-xs text-muted-foreground">Reference: {error.digest}</p>
       ) : null}
-      <div className="mt-8 flex flex-col items-center gap-3">
-        <button
-          onClick={() => reset()}
-          className="rounded-none bg-brand px-5 py-2.5 text-sm text-brand-foreground transition hover:opacity-90 focus-ring"
-        >
+      <div className="mt-8 flex items-center gap-3">
+        <Button asChild size="sm">
+          <Link href="/jobs">Go to jobs</Link>
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => reset()}>
           Try again
-        </button>
-        <a
-          href="/"
-          className="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
-        >
-          or go home
-        </a>
+        </Button>
       </div>
     </div>
   );

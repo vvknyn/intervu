@@ -3,7 +3,7 @@ import { BRAND_MARK_BRACKETS, BRAND_MARK_VIEWBOX, BrandMark } from "@/components
 
 function Wordmark() {
     return (
-        <span className="font-display text-2xl leading-none font-semibold">
+        <span className="text-2xl leading-none font-semibold">
             velai
         </span>
     );
@@ -59,7 +59,7 @@ export function LockupMock() {
     return (
         <main className="mx-auto flex max-w-[820px] flex-col gap-6 p-8">
             <header>
-                <h1 className="font-display text-lg font-semibold">
+                <h1 className="text-lg font-semibold">
                     Header lockup — four directions
                 </h1>
                 <p className="mt-1 text-xs text-muted-foreground">
