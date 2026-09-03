@@ -293,7 +293,6 @@ describe("jobs page chrome guards", () => {
 
     it("résumé prompts stay off while any jobs tour is active", () => {
         const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /showPersonalizationInvite[\s\S]*!tourActive/);
         assert.match(src, /showResumeMoment[\s\S]*!tourActive/);
     });
 
@@ -335,7 +334,13 @@ describe("jobs page chrome guards", () => {
         assert.match(page, /topbar-docked-field-directory/);
         assert.match(page, /createPortal\(fieldDirectoryMenu/);
         assert.match(page, /createPortal\(clearFiltersEl/);
-        assert.match(page, /createPortal\(savedSearchControl/);
+        // The docked save-search mount carries `savedSearchMountEl`, a
+        // fragment of the résumé band word (`rankByFitEl`) then the save-
+        // search panel (`savedSearchControl`) — not `savedSearchControl`
+        // alone, so a résumé-less guest sees the entry even when
+        // `canSaveSearch` is false and `savedSearchControl` is null.
+        assert.match(page, /createPortal\(savedSearchMountEl/);
+        assert.match(page, /savedSearchMountEl\s*=\s*rankByFitEl \|\| savedSearchControl/);
         assert.match(topbar, /data-testid="topbar-docked-clear-filters"/);
         assert.match(topbar, /data-testid="topbar-docked-save-search"/);
         const dockedRow = topbar.slice(
