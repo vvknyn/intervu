@@ -11,9 +11,10 @@ import { getServerUser } from "@/lib/auth/server-user";
  * the one place that answers that question, and this exposes it to the
  * browser.
  *
- * Returns only what the client actually renders — uid, email, display name.
- * Never a token: the session cookie is httpOnly precisely so script cannot
- * reach it, and handing back a credential here would undo that.
+ * Returns only what the client actually renders — uid, email, display name,
+ * profile picture URL. Never a token: the session cookie is httpOnly
+ * precisely so script cannot reach it, and handing back a credential here
+ * would undo that.
  *
  * POST (mint a session from a Firebase ID token) and DELETE (clear the
  * Firebase session cookie) were retired with Firebase Auth (2026-08-27

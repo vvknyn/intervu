@@ -3,20 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MagnifyingGlass, MapPin, Moon, Sun, CaretDown, CircleNotch } from "@phosphor-icons/react";
+import { MagnifyingGlass, MapPin, CaretDown } from "@phosphor-icons/react";
 import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
-import { FeedbackModal } from "@/components/modals/FeedbackModal";
+import { AccountMenu } from "@/components/layout/AccountMenu";
 import { Button } from "@/components/ui/button";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NAV_TABS, menuNavActive, menuNavTriggerLabel } from "@/components/layout/nav-tabs";
@@ -25,34 +24,7 @@ import { BrandLockup } from "@/components/brand/BrandMark";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
-import { GHOST_JOB_RESEARCH_TITLE } from "@/lib/seo/ghost-job-term";
-import { useShareControl } from "@/components/ui/share-action";
-import { withShareRef } from "@/lib/share/share-decision";
-import { getSiteUrl, SHARE_APP_TEXT, SITE_NAME } from "@/lib/seo/constants";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
-
-/** "Share Velai" account-menu entry — same share control as JobDetail's
- *  ShareAction (native sheet, clipboard fallback, honest failure), rendered
- *  as a plain DropdownMenuItem so it keeps this menu's own keyboard/click
- *  handling rather than nesting a second interactive element inside it.
- *  `onSelect` is prevented so the menu stays open long enough to show the
- *  transient "Copied"/"Couldn't share" text. */
-function ShareVelaiMenuItem() {
-    const { state, trigger } = useShareControl();
-    const label = state === "copied" ? "Copied!" : state === "failed" ? "Couldn't share" : "Share Velai";
-
-    return (
-        <DropdownMenuItem
-            onSelect={(e) => {
-                e.preventDefault();
-                trigger({ title: SITE_NAME, text: SHARE_APP_TEXT, url: withShareRef(getSiteUrl(), "app") });
-            }}
-            className="rounded-none"
-        >
-            {label}
-        </DropdownMenuItem>
-    );
-}
 
 /**
  * Frozen coherent chrome:
@@ -125,7 +97,7 @@ export function TopBar() {
                     data-testid="topbar-logo"
                     data-rulebook-exempt
                 >
-                    <BrandLockup />
+                    <BrandLockup markClassName="h-8 w-8" />
                 </Link>
 
                 {/* `flex-1` so the row's leftover width lands HERE rather than
@@ -177,7 +149,7 @@ export function TopBar() {
                                 controls (round-7 canvas correction). */}
                             <button
                                 type="submit"
-                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-xs font-semibold leading-none text-brand transition-colors hover:bg-muted"
+                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-sm font-semibold leading-none text-brand transition-colors hover:bg-muted"
                             >
                                 Search
                             </button>
@@ -260,73 +232,15 @@ export function TopBar() {
                            about who is signed in. */
                         <span aria-hidden data-testid="topbar-auth-pending" className="block h-10 w-8 shrink-0" />
                     ) : authChrome === "authenticated" && user ? (
-                        <>
-                            <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button
-                                    type="button"
-                                    data-testid="topbar-avatar"
-                                    title={user.displayName || user.email || "Account"}
-                                    aria-current={accountActive ? "page" : undefined}
-                                    className="whitespace-nowrap px-1 text-sm text-foreground transition-opacity hover:opacity-80"
-                                >
-                                    <span className={cn(accountActive && "border-b-2 border-brand font-semibold")}>
-                                        Account
-                                    </span>
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                                <DropdownMenuItem asChild>
-                                    <Link href="/settings">Account</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                    <Link href="/research/ghost-jobs">{GHOST_JOB_RESEARCH_TITLE}</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <FeedbackModal>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                        Feedback
-                                    </DropdownMenuItem>
-                                </FeedbackModal>
-                                <ShareVelaiMenuItem />
-                                <DropdownMenuItem asChild className="text-muted-foreground">
-                                    <Link href="/privacy">Privacy & Terms</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                {mounted && (
-                                    <DropdownMenuItem
-                                        onSelect={(e) => {
-                                            e.preventDefault();
-                                            toggleMode();
-                                        }}
-                                    >
-                                        <span className="flex w-full items-center gap-2">
-                                            {mode === "dark" ? <Sun /> : <Moon />}
-                                            <span>Dark mode</span>
-                                            <span className="ml-auto text-xs text-muted-foreground">
-                                                {mode === "dark" ? "On" : "Off"}
-                                            </span>
-                                        </span>
-                                    </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    onSelect={handleSignOut}
-                                    disabled={signingOut}
-                                    className="text-danger-text dark:text-danger-text"
-                                >
-                                    {signingOut ? (
-                                        <span className="flex items-center gap-2">
-                                            <CircleNotch className="animate-spin" aria-hidden />
-                                            Signing out…
-                                        </span>
-                                    ) : (
-                                        "Sign out"
-                                    )}
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        </>
+                        <AccountMenu
+                            user={user}
+                            active={accountActive}
+                            signingOut={signingOut}
+                            onSignOut={handleSignOut}
+                            mode={mode}
+                            mounted={mounted}
+                            toggleMode={toggleMode}
+                        />
                     ) : (
                         <>
                         {/* Same AuthPopover as the alerts CTA below, opened on

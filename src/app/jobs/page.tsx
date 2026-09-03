@@ -4348,7 +4348,7 @@ function JobsContent() {
                 suggest={suggestForBox}
                 seeds={searchSeeds}
                 placeholder={SEARCH_PLACEHOLDER}
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-xs font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
             {queryDraft && (
@@ -4362,9 +4362,9 @@ function JobsContent() {
                         setQueryDraft("");
                         submitSearch("");
                     }}
-                    className="mr-0.5 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-none text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    className="mr-0.5 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
                 >
-                    ✕
+                    <X size={20} aria-hidden />
                 </button>
             )}
         </div>
@@ -4378,7 +4378,7 @@ function JobsContent() {
                 onCommit={addLocation}
                 selected={chosenLocations}
                 data-testid="topbar-docked-location-input"
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 text-xs text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
             {(locationDraft || chosenLocations.length > 0) && (
@@ -4392,9 +4392,9 @@ function JobsContent() {
                         setLocationDraft("");
                         clearLocations();
                     }}
-                    className="mr-1 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-none text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    className="mr-1 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
                 >
-                    ✕
+                    <X size={20} aria-hidden />
                 </button>
             )}
         </div>
@@ -4612,7 +4612,7 @@ function JobsContent() {
                                     seeds={searchSeeds}
                                     placeholder={SEARCH_PLACEHOLDER}
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
-                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base md:text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 pr-8"
+                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 pr-8"
                                     containerClassName="min-w-0 w-full"
                                 />
                                 {/* NOT `results-clear-query` — that is the toolbar's
@@ -4629,10 +4629,10 @@ function JobsContent() {
                                             setQueryDraft("");
                                             submitSearch("");
                                         }}
-                                        className="absolute right-1.5 flex h-10 w-10 items-center justify-center rounded-none bg-muted text-muted-foreground hover:text-foreground text-xs z-10 lg:right-2.5 lg:h-6 lg:w-6"
+                                        className="absolute right-1.5 flex h-10 w-10 items-center justify-center rounded-none bg-muted text-muted-foreground hover:text-foreground z-10 lg:right-2.5 lg:h-6 lg:w-6"
                                         title="Clear query"
                                     >
-                                        ✕
+                                        <X size={20} aria-hidden />
                                     </button>
                                 )}
                             </div>
@@ -4667,7 +4667,7 @@ function JobsContent() {
                                     onCommit={addLocation}
                                     selected={chosenLocations}
                                     containerClassName="hidden lg:flex"
-                                    className="h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 sm:h-[56px] md:text-sm"
+                                    className="h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 sm:h-[56px]"
                                 />
                                 {/* Location's own one-tap clear, matching the query
                                     field's `search-input-clear`. The toolbar's "✕ clear
@@ -4693,9 +4693,9 @@ function JobsContent() {
                                             setLocationDraft("");
                                             clearLocations();
                                         }}
-                                        className="mr-2 hidden h-6 w-6 shrink-0 items-center justify-center rounded-none bg-muted text-xs text-muted-foreground transition-colors hover:text-foreground lg:flex"
+                                        className="mr-2 hidden h-6 w-6 shrink-0 items-center justify-center rounded-none bg-muted text-muted-foreground transition-colors hover:text-foreground lg:flex"
                                     >
-                                        ✕
+                                        <X size={20} aria-hidden />
                                     </button>
                                 )}
                             </div>
