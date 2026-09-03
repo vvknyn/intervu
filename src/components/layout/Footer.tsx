@@ -89,7 +89,7 @@ export function FooterContent() {
                             aria-label={mode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
                             className="inline-flex items-center gap-1.5 transition-colors duration-100 hover:text-foreground"
                         >
-                            {mode === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+                            {mode === "dark" ? <Sun /> : <Moon />}
                             <span>Dark mode {mode === "dark" ? "on" : "off"}</span>
                         </button>
                     )}

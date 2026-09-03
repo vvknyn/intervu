@@ -42,7 +42,7 @@ export function ContextHelp({ content, className, side = "top", icon, children, 
                             className,
                         )}
                     >
-                        {textTrigger ? children : (icon ?? <Question size={14} weight="regular" />)}
+                        {textTrigger ? children : (icon ?? <Question weight="regular" />)}
                         <span className="sr-only">More information</span>
                     </button>
                 </TooltipTrigger>
