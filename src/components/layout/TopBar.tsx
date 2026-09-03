@@ -149,7 +149,7 @@ export function TopBar() {
                                 controls (round-7 canvas correction). */}
                             <button
                                 type="submit"
-                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-xs font-semibold leading-none text-brand transition-colors hover:bg-muted"
+                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-sm font-semibold leading-none text-brand transition-colors hover:bg-muted"
                             >
                                 Search
                             </button>
