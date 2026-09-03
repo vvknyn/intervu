@@ -43,6 +43,7 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
     const pair = TILE_PALETTE[hashString(clean || "?") % TILE_PALETTE.length];
     return (
         <div
+            data-rulebook-exempt
             className={cn(
                 "flex shrink-0 items-center justify-center rounded-xl font-display text-lg font-bold",
                 className,

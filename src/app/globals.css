@@ -44,6 +44,19 @@
   --text-meta: 0.875rem; /* 14px captions — distinct from chrome text-xs */
   --text-meta--line-height: 1.35;
 
+  /* Jobs-SERP Carbon/HIG type ramp (RULEBOOK.md "Type ramp") — fixed
+     12/16, 14/20, 16/22, 20/28 pairs distinct from the sitewide-bumped
+     text-xs/text-sm and from --text-title/--text-body above, so the two
+     scales don't collide under one name. */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.25rem;
+  --text-headline: 1rem;
+  --text-headline--line-height: 1.375rem;
+  --text-title-sm: 1.25rem;
+  --text-title-sm--line-height: 1.75rem;
+
   /* Stock Tailwind scale overrides — xs/sm were 12px/14px; bumped for legibility. */
   --text-xs: 0.8125rem; /* 13px, was 12 */
   --text-sm: 0.9375rem; /* 15px, was 14 */
@@ -84,12 +97,16 @@
   --secondary: var(--chip);
   --secondary-foreground: var(--foreground);
   --muted: var(--chip);
-  --muted-foreground: 115 115 115;
+  --muted-foreground: 82 82 82; /* jobs-SERP secondary text #525252 (was 115 115 115) */
   --accent: var(--chip);
   --accent-foreground: var(--foreground);
   --destructive: 225 29 72;
   --destructive-foreground: 255 255 255;
-  --border: 229 229 229;
+  /* Rose/pink error language (33 call sites) — left as-is. #DA1E28 red-60
+     is a different hue for jobs-SERP error text, so it's a new token
+     rather than repointing this sitewide one. */
+  --danger-text: 218 30 40;
+  --border: 224 224 224; /* jobs-SERP hairline #E0E0E0 (was 229 229 229) */
   --input: 10 10 10;
   --ring: var(--brand);
 
@@ -121,8 +138,14 @@
   --text-3: var(--faint);
 
   /* Soft Signal accents */
-  --chip: 245 245 245;
+  --chip: 244 244 244; /* jobs-SERP layer #F4F4F4 (was 245 245 245); feeds --secondary/--muted/--accent above */
   --faint: 163 163 163;
+  /* No existing token carries a dedicated placeholder-text meaning — actual
+     inputs style placeholders via `placeholder:text-muted-foreground/70`,
+     an opacity modifier, not a distinct color. jobs-SERP field-01 wants an
+     opaque #8D8D8D placeholder, so this is a new token (wiring it into
+     input classNames is a later phase, not a globals.css change). */
+  --placeholder-text: 141 141 141;
   --live: 14 159 78;
   /* Named for the ROLE (the tint that accompanies --live), not for a hue.
      These held blue-50/blue-100/blue-200 under `--green-tint-*` names ever
@@ -284,6 +307,7 @@
   --color-accent-foreground: rgb(var(--accent-foreground));
   --color-destructive: rgb(var(--destructive));
   --color-destructive-foreground: rgb(var(--destructive-foreground));
+  --color-danger-text: rgb(var(--danger-text));
   --color-border: rgb(var(--border));
   --color-input: rgb(var(--input));
   --color-ring: rgb(var(--ring));
@@ -316,6 +340,7 @@
   --color-st-closed-soft: rgb(var(--st-closed-soft));
   --color-chip: rgb(var(--chip));
   --color-faint: rgb(var(--faint));
+  --color-placeholder-text: rgb(var(--placeholder-text));
   --color-live: rgb(var(--live));
   --color-live-tint-bg: rgb(var(--live-tint-bg));
   --color-live-tint-bg-alt: rgb(var(--live-tint-bg-alt));

@@ -484,6 +484,7 @@ export function JobDetail({
 
     return (
         <div
+            data-region="detail"
             className={cn(
                 "relative rounded-none border border-border/80 bg-card/75 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]",
                 collapseDescription && "flex min-h-0 flex-1 flex-col overflow-hidden",

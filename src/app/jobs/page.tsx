@@ -5273,6 +5273,7 @@ function JobsContent() {
                                     )}
                                 <div
                                     id="jobs-results-list"
+                                    data-region="list"
                                     ref={resultsListRef}
                                     tabIndex={0}
                                     role="listbox"

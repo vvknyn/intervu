@@ -119,12 +119,19 @@ export function TopBar() {
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
                 on most pages, edge to edge on one that declares it. Writing a
-                `max-w-*` here again would reintroduce the crooked frame. */}
-            <div className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6">
+                `max-w-*` here again would reintroduce the crooked frame.
+                `data-region="header"` sits here (the top row) rather than on
+                the outer `<header>` — the docked filter band below is a DOM
+                child of that same `<header>` (for one sticky positioning
+                context), so tagging the outer element would nest the band
+                region inside the header region and double-count everything
+                in it, plus fold the band's own height into "header height". */}
+            <div data-region="header" className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6">
                 <Link
                     href="/"
                     className="flex shrink-0 items-center gap-2 text-brand transition-opacity hover:opacity-90"
                     data-testid="topbar-logo"
+                    data-rulebook-exempt
                 >
                     <BrandLockup />
                 </Link>
@@ -375,7 +382,7 @@ export function TopBar() {
                 that changes. Chip-less (a fresh search, nothing narrowed
                 yet) still renders the row for the "Filters" button alone. */}
             {docked && (
-                <div className="hidden border-t border-border/60 bg-background/60 lg:block">
+                <div data-region="band" className="hidden border-t border-border/60 bg-background/60 lg:block">
                     <div className="shell-row flex min-h-9 flex-nowrap items-center gap-1.5 overflow-x-auto py-1">
                         <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
                         <button
