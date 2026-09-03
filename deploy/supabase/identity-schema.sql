@@ -81,10 +81,10 @@ CREATE TABLE IF NOT EXISTS intervu.company_read_budgets (
 
 -- ROLE SETUP — run manually as postgres, password set interactively, never committed:
 --   CREATE ROLE intervu_web LOGIN PASSWORD '<set interactively>';
---   GRANT USAGE ON SCHEMA intervu TO intervu_web;
---   GRANT SELECT, INSERT, UPDATE, DELETE ON intervu.identities, intervu.auth_tokens,
---     intervu.email_follows, intervu.email_saved_searches, intervu.resume_parse_counters,
---     intervu.company_read_budgets TO intervu_web;
+-- Schema/table grants for intervu_web are executable SQL at the end of this
+-- file, not a comment — re-applying this whole file (after creating the role
+-- above, or after adding a new intervu.* table anywhere above) keeps grants
+-- current without anyone having to remember a manual GRANT step.
 
 -- Existing deployments: extend auth_tokens for verify_search_alert intent columns.
 ALTER TABLE intervu.auth_tokens ADD COLUMN IF NOT EXISTS intent_name text;
@@ -109,3 +109,20 @@ ALTER TABLE intervu.auth_tokens ADD CONSTRAINT auth_tokens_purpose_check
 -- Default-deny: do NOT add the `intervu` schema to PostgREST "Exposed
 -- schemas" in the Supabase dashboard. These tables are reached only through
 -- the app's own pg pool, never through the Supabase REST/GraphQL surface.
+
+-- Grants for intervu_web — idempotent and re-runnable, and enumerates no
+-- table names, so a table added anywhere above this point is covered by
+-- ALL TABLES IN SCHEMA immediately, and one added later (via a fresh
+-- CREATE TABLE run as postgres) is covered by ALTER DEFAULT PRIVILEGES
+-- without this file needing another edit. Guarded on pg_roles so this file
+-- can be applied before intervu_web exists (e.g. first-time project setup)
+-- without erroring; re-run it after creating the role to pick up the grants.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'intervu_web') THEN
+    GRANT USAGE ON SCHEMA intervu TO intervu_web;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA intervu TO intervu_web;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA intervu
+      GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO intervu_web;
+  END IF;
+END $$;
