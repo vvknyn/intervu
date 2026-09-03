@@ -835,6 +835,23 @@ select {
   }
 }
 
+/* Tailwind v4 draws an uncoloured border utility (`border`, `border-t`,
+   `divide-y`) in currentColor, so a bare `border-t` on a divider paints ink.
+   The rulebook has exactly one resting edge colour, the hairline, so it is the
+   default here; a utility that names a colour (border-input, border-brand,
+   border-transparent) still wins because utilities sit above @layer base.
+   28 bare sites across 8 files at the time of writing (login-form divider,
+   jobs page, resume preview, mocks). */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border);
+  }
+}
+
 /* Respect users who ask for less motion (vestibular safety + WCAG 2.3.3).
    Neutralizes our custom fade-in, the staggered delays, and any CSS
    animation/transition site-wide. framer-motion springs are skipped
