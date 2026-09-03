@@ -603,38 +603,16 @@ h4 {
   animation-delay: 0.5s;
 }
 
-/* Skeleton shimmer (in-flow loading states, 2026-08-01) — the SERP's 5
-   job-card placeholders (JobsListSplash, app/page.tsx), the detail panel's
-   loading skeleton (JobDetailSkeleton, JobDetail.tsx), and the FitDrawer
-   signed-out preview (FitDrawer.tsx) all share this one class rather than
-   each hand-rolling its own pulse. A moving gradient sweep (background-
-   position), not a layout-affecting property, so it's cheap and never
-   causes reflow. The site-wide `prefers-reduced-motion` rule below already
-   collapses its animation-duration to ~0, so it needs no separate opt-out
-   here. */
-@keyframes skeleton-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-
-  to {
-    background-position: -200% 0;
-  }
-}
-
+/* Skeleton bars (in-flow loading states) — SERP placeholders, JobDetailSkeleton,
+   route loading.tsx files and FitDrawer all share this one class. Redefined
+   2026-09-03 (rulebook v2) from a gradient sweep to the Skeleton primitive's
+   flat pulse; the site-wide `prefers-reduced-motion` rule below still
+   collapses the animation, so no separate opt-out is needed here. */
 .skeleton-bar {
-  /* Squared design-system pass — a placeholder shape should match the
-     squared geometry of whatever it's standing in for (THE RULES #1). */
-  border-radius: 0;
-  background-color: rgb(var(--muted));
-  background-image: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgb(var(--foreground) / 0.06) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  /* Same look as the Skeleton primitive (src/components/ui/skeleton.tsx):
+     flat layer block that pulses. Rulebook v2: no shimmer gradient, no
+     radius, no depth — a placeholder is a quiet rectangle. */
+  @apply bg-muted animate-pulse rounded-none;
 }
 
 /* Panel/dialog enter (Job 1e, 2026-08-01) — a small fade + settle applied on
