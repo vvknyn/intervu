@@ -14,7 +14,7 @@ export function CompanyChangeEventTeaser({ event }: { event: CompanyChangeEvent 
 
   const label = eventTypeLabel(event.event_type);
   const date = eventDate(event.occurred_at);
-  const { chip } = directionStyle(event.direction);
+  const { label: tone } = directionStyle(event.direction);
 
   return (
     <div
@@ -23,19 +23,14 @@ export function CompanyChangeEventTeaser({ event }: { event: CompanyChangeEvent 
     >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         {label && (
-          <span
-            className={cn(
-              "border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-              chip,
-            )}
-          >
+          <span className={cn("text-xs font-semibold", tone)}>
             {label}
           </span>
         )}
-        <span className="text-[14px] leading-snug text-foreground">
+        <span className="text-sm leading-snug text-foreground">
           {humanizeProjectorHeadline(event.headline)}
         </span>
-        {date && <span className="text-[11px] text-muted-foreground">· {date}</span>}
+        {date && <span className="text-xs text-muted-foreground">· {date}</span>}
       </div>
     </div>
   );

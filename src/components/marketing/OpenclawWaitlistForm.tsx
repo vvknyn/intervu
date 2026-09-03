@@ -44,7 +44,7 @@ export function OpenclawWaitlistForm({
   return (
     <div className={className}>
       {outcome?.kind === "success" ? (
-        <p className="text-sm font-medium text-brand" data-testid="openclaw-waitlist-success">
+        <p className="text-sm text-foreground" data-testid="openclaw-waitlist-success">
           {successMessage}
         </p>
       ) : (
@@ -58,19 +58,15 @@ export function OpenclawWaitlistForm({
               placeholder="you@company.com"
               disabled={pending}
               aria-label="Email address"
-              className="min-h-11 rounded-lg border border-slate-300 bg-card text-foreground placeholder:text-muted-foreground sm:min-w-0 sm:flex-1 dark:border-slate-700 shadow-2xs"
+              className="h-10 sm:min-w-0 sm:flex-1"
             />
-            <Button
-              type="submit"
-              disabled={pending}
-              className="min-h-11 w-full shrink-0 rounded-lg bg-slate-900 px-4 text-[13px] font-semibold text-white hover:bg-slate-800 sm:w-auto dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-2xs"
-            >
+            <Button type="submit" disabled={pending} className="h-10 w-full shrink-0 font-semibold sm:w-auto">
               {pending ? "Joining…" : ctaLabel}
             </Button>
           </form>
           <TurnstileWidget onVerify={setTurnstileToken} />
           {outcome?.kind === "error" ? (
-            <p className="mt-2 text-sm text-foreground" data-testid="openclaw-waitlist-error">
+            <p className="mt-2 text-sm text-destructive" data-testid="openclaw-waitlist-error">
               {outcome.message}
             </p>
           ) : null}

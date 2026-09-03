@@ -29,7 +29,7 @@ const CLIENT_LABEL: Record<McpHandoffClient, string> = {
 };
 
 const outlineButtonCls =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-none border border-border-strong px-4 text-xs font-bold uppercase tracking-wider transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60";
+    "inline-flex h-11 items-center justify-center gap-2 rounded-none border border-border-strong px-4 text-xs font-semibold transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60";
 
 /**
  * Shown once, at the moment someone commits to applying. Handing the role to
@@ -102,7 +102,7 @@ export function ApplyIntentDialog({
             <DialogContent className="flex max-h-[85vh] flex-col rounded-none sm:max-w-lg">
                 <DialogHeader className="shrink-0">
                     <DialogTitle className="text-title">Tailor your résumé — free, bring your own agent</DialogTitle>
-                    <DialogDescription className="text-[13.5px] leading-relaxed">
+                    <DialogDescription className="text-sm leading-relaxed">
                         Connect Claude or ChatGPT over MCP and it can read your résumé, tailor it
                         for this role, and save the result back to your account.
                     </DialogDescription>
@@ -132,7 +132,7 @@ export function ApplyIntentDialog({
                         <button
                             type="button"
                             onClick={() => setChoosing(true)}
-                            className="self-start text-[11px] uppercase tracking-wider text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                            className="self-start text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
                         >
                             Use a different AI
                         </button>
@@ -162,7 +162,7 @@ export function ApplyIntentDialog({
                         Continue to the posting
                     </button>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                         <Link
                             href="/connect"
                             className="text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"

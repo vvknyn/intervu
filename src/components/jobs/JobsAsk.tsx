@@ -25,17 +25,17 @@ export function JobsAsk({
 }) {
     return (
         <div data-testid="jobs-ask" className="max-w-xl py-10">
-            <h2 className="font-display text-[22px] font-semibold leading-tight tracking-[-0.02em]">
+            <h2 className="font-display text-lg font-semibold leading-tight">
                 What role are you after?
             </h2>
-            <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 Type a position in the line above
                 {corpusCount ? <> and we&apos;ll search {formatCorpusCount(corpusCount)} live-checked roles</> : <> to search live-checked roles</>}
                 .
             </p>
 
             <div className="mt-6 border-t border-border pt-6">
-                <p className="text-[14px] leading-relaxed text-muted-foreground">
+                <p className="text-sm leading-relaxed text-muted-foreground">
                     Or upload your résumé and we&apos;ll rank every live role by how well it fits you.
                 </p>
                 <Button type="button" onClick={onUpload} className="mt-3">

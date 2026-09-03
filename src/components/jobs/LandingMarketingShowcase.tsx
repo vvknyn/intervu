@@ -73,7 +73,7 @@ export function LandingMarketingShowcase({
               key={cat.q}
               type="button"
               onClick={() => onSelectQuery(cat.q)}
-              className={cn(chipVariants({ active: false }), "h-auto min-h-7 px-2.5 py-1 font-medium text-foreground")}
+              className={cn(chipVariants({ active: false }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
             >
               {cat.title}
             </button>
@@ -90,7 +90,7 @@ export function LandingMarketingShowcase({
           <button
             type="button"
             onClick={() => onSelectBoard("elite")}
-            className={cn(chipVariants({ active: false }), "h-auto min-h-7 px-2.5 py-1 font-medium text-foreground")}
+            className={cn(chipVariants({ active: false }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
           >
             Top companies
           </button>
@@ -98,7 +98,7 @@ export function LandingMarketingShowcase({
           <button
             type="button"
             onClick={onSelectRemote}
-            className={cn(chipVariants({ active: false }), "h-auto min-h-7 px-2.5 py-1 font-medium text-foreground")}
+            className={cn(chipVariants({ active: false }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
           >
             Remote jobs only
           </button>
@@ -106,7 +106,7 @@ export function LandingMarketingShowcase({
           <button
             type="button"
             onClick={() => onSelectSalaryMin(150000)}
-            className={cn(chipVariants({ active: false }), "h-auto min-h-7 px-2.5 py-1 font-medium text-foreground")}
+            className={cn(chipVariants({ active: false }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
           >
             Pays $150k or more
           </button>

@@ -260,12 +260,12 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             className={cn(
                 // Height subtracts only global chrome (TopBar + mobile tab bar).
                 // Page header/tabs are hidden while this editor is open.
-                "relative flex h-[calc(100dvh-7.25rem-env(safe-area-inset-bottom,0px))] min-h-0 flex-col overflow-hidden rounded-none border border-border bg-card shadow-none lg:h-[calc(100dvh-4.5rem)]",
+                "relative flex h-[calc(100dvh-7.25rem-env(safe-area-inset-bottom,0px))] min-h-0 flex-col overflow-hidden rounded-none border border-border bg-card lg:h-[calc(100dvh-4.5rem)]",
                 className,
             )}
         >
             {/* Top Toolbar */}
-            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background/80 px-3 py-2.5 sm:px-6 sm:py-3 backdrop-blur-md">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 py-2.5 sm:px-6 sm:py-3">
                 <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                     <Button
                         type="button"
@@ -274,20 +274,20 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         onClick={onClose}
                         className="shrink-0 gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-none"
                     >
-                        <ArrowLeft size={14} /> Back
+                        <ArrowLeft /> Back
                     </Button>
                     <div className="hidden sm:block h-4 w-px shrink-0 bg-border" />
                     <div className="flex min-w-0 items-center gap-2">
-                        <span className="hidden truncate text-xs font-bold uppercase tracking-wider text-foreground sm:inline">
+                        <span className="hidden truncate text-xs font-semibold text-foreground sm:inline">
                             Live template editor
                         </span>
                         {hasUnsavedChanges ? (
-                            <span className="shrink-0 rounded-none bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            <span className="shrink-0 rounded-none bg-muted px-2 py-0.5 text-xs font-semibold text-warn dark:text-warn border border-warn">
                                 Unsaved
                             </span>
                         ) : (
-                            <span className="inline-flex shrink-0 items-center gap-1 rounded-none bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                                <Check size={10} weight="bold" /> Saved
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-none bg-muted px-2 py-0.5 text-xs font-semibold text-live dark:text-live border border-live">
+                                <Check weight="bold" /> Saved
                             </span>
                         )}
                     </div>
@@ -304,7 +304,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         className="gap-1 text-xs rounded-none"
                         title="Versions & diffs"
                     >
-                        <ClockCounterClockwise size={14} />
+                        <ClockCounterClockwise />
                         <span className="hidden sm:inline">Versions & diffs</span>
                     </Button>
 
@@ -316,11 +316,11 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         onClick={() => setShowDiffs(!showDiffs)}
                         className={cn(
                             "gap-1 text-xs rounded-none",
-                            showDiffs && "border-amber-500 text-amber-600 dark:text-amber-400",
+                            showDiffs && "border-warn text-warn dark:text-warn",
                         )}
                         title="Toggle visual diff highlights"
                     >
-                        <GitDiff size={14} />
+                        <GitDiff />
                         <span className="hidden md:inline">{showDiffs ? "Diffs on" : "Show diffs"}</span>
                     </Button>
 
@@ -329,9 +329,9 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         variant="outline"
                         size="sm"
                         onClick={handleDownloadPdf}
-                        className="hidden sm:inline-flex gap-1 text-xs rounded-none shadow-none"
+                        className="hidden sm:inline-flex gap-1 text-xs rounded-none"
                     >
-                        <DownloadSimple size={13} /> .pdf
+                        <DownloadSimple /> .pdf
                     </Button>
 
                     <Button
@@ -339,9 +339,9 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         variant="outline"
                         size="sm"
                         onClick={handleDownloadDocx}
-                        className="hidden lg:inline-flex gap-1 text-xs rounded-none shadow-none"
+                        className="hidden lg:inline-flex gap-1 text-xs rounded-none"
                     >
-                        <DownloadSimple size={13} /> .docx
+                        <DownloadSimple /> .docx
                     </Button>
 
                     <Button
@@ -350,9 +350,9 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         size="sm"
                         onClick={handleDownloadJson}
                         title="Download the structured resume data"
-                        className="hidden xl:inline-flex gap-1 text-xs rounded-none shadow-none"
+                        className="hidden xl:inline-flex gap-1 text-xs rounded-none"
                     >
-                        <DownloadSimple size={13} /> .json
+                        <DownloadSimple /> .json
                     </Button>
 
                     <Button
@@ -362,7 +362,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         disabled={saving}
                         className="gap-1.5 text-xs font-semibold rounded-none"
                     >
-                        {saving ? <CircleNotch size={14} className="animate-spin" /> : <FloppyDisk size={14} />}
+                        {saving ? <CircleNotch className="animate-spin" /> : <FloppyDisk />}
                         <span className="sm:hidden">{saving ? "Saving…" : "Save"}</span>
                         <span className="hidden sm:inline">{saving ? "Saving…" : "Save changes"}</span>
                     </Button>
@@ -370,7 +370,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             </div>
 
             {/* Mobile View Selector */}
-            <div className="flex lg:hidden border-b border-border bg-muted/20 p-1">
+            <div className="flex lg:hidden border-b border-border bg-muted p-1">
                 <button
                     type="button"
                     onClick={() => setMobileTab("edit")}
@@ -381,7 +381,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                             : "text-muted-foreground hover:text-foreground",
                     )}
                 >
-                    <PencilSimple size={14} /> Editor
+                    <PencilSimple /> Editor
                 </button>
                 <button
                     type="button"
@@ -393,7 +393,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                             : "text-muted-foreground hover:text-foreground",
                     )}
                 >
-                    <Eye size={14} /> Live Preview
+                    <Eye /> Live Preview
                 </button>
             </div>
 
@@ -417,19 +417,19 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                 {/* Right Side: Live Template Preview */}
                 <div
                     className={cn(
-                        "flex-1 bg-muted/30 p-4 sm:p-6 lg:p-8 overflow-y-auto overflow-x-hidden items-start justify-center",
+                        "flex-1 bg-muted p-4 sm:p-6 lg:p-8 overflow-y-auto overflow-x-hidden items-start justify-center",
                         mobileTab === "preview" ? "flex" : "hidden lg:flex",
                     )}
                 >
                     <div className="w-full max-w-[8.5in] transition-all">
                         <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground px-1">
-                            <span className="text-[10.5px] uppercase tracking-wider">
+                            <span className="text-xs">
                                 Standard US Letter Layout
                             </span>
                             <div className="flex items-center gap-3">
                                 {showDiffs && (
-                                    <span className="text-[10.5px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                                        <GitDiff size={12} />
+                                    <span className="text-xs text-warn dark:text-warn font-semibold flex items-center gap-1">
+                                        <GitDiff />
                                         <span className="max-w-[13rem] truncate">
                                             {compareBaseline ? `Comparing to "${compareBaseline.label}"` : "Comparing to last saved"}
                                         </span>
@@ -445,7 +445,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         )}
                                     </span>
                                 )}
-                                <span className="text-[10.5px]">Click any section to edit</span>
+                                <span className="text-xs">Click any section to edit</span>
                             </div>
                         </div>
                         <LiveResumePreview
@@ -463,12 +463,12 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
 
                 {/* Version History Drawer / Slide-Over */}
                 {versionsOpen && (
-                    <div className="absolute inset-y-0 right-0 z-40 w-full sm:w-[380px] bg-background border-l border-border flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+                    <div className="absolute inset-y-0 right-0 z-40 w-full sm:w-[380px] bg-background border-l border-border flex flex-col animate-in slide-in-from-right duration-200">
                         {/* Drawer Header */}
                         <div className="flex items-center justify-between border-b border-border p-4">
                             <div className="flex items-center gap-2">
-                                <ClockCounterClockwise size={18} className="text-foreground" />
-                                <h3 className="font-bold text-sm uppercase tracking-tight text-foreground">
+                                <ClockCounterClockwise className="text-foreground" />
+                                <h3 className="font-semibold text-sm text-foreground">
                                     Version History & Diffs
                                 </h3>
                             </div>
@@ -485,8 +485,8 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         <div className="flex-1 overflow-y-auto p-4 space-y-5">
                             {/* Save current state as named snapshot */}
                             <div className="rounded-none border border-border bg-card p-3.5 space-y-2.5">
-                                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-foreground">
-                                    <BookmarkSimple size={14} />
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                    <BookmarkSimple />
                                     <span>Save Current as New Version</span>
                                 </div>
                                 <div className="flex gap-2">
@@ -517,11 +517,11 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                             {/* Saved Versions List */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span className="uppercase font-semibold">Saved Snapshots ({versions.length})</span>
+                                    <span className="font-semibold">Saved Snapshots ({versions.length})</span>
                                     <button
                                         type="button"
                                         onClick={loadVersions}
-                                        className="hover:underline text-[11px]"
+                                        className="hover:underline text-xs"
                                     >
                                         Refresh
                                     </button>
@@ -532,7 +532,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         <CircleNotch size={16} className="animate-spin" /> Loading history…
                                     </div>
                                 ) : versions.length === 0 ? (
-                                    <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-border p-4">
+                                    <div className="py-8 text-center text-xs text-muted-foreground border border-border p-4">
                                         No saved versions on file yet. Save a version above to track iterations.
                                     </div>
                                 ) : (
@@ -540,21 +540,21 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         {versions.map((ver) => (
                                             <div
                                                 key={ver.id}
-                                                className="rounded-none border border-border bg-card p-3 space-y-2 text-xs transition-colors hover:border-foreground/40"
+                                                className="rounded-none border border-border bg-card p-3 space-y-2 text-xs transition-colors hover:border-foreground"
                                             >
                                                 <div className="flex items-start justify-between gap-2">
                                                     <span className="font-semibold text-foreground leading-tight">
                                                         {ver.label}
                                                     </span>
-                                                    <span className="text-[10px] text-muted-foreground shrink-0">
+                                                    <span className="text-xs text-muted-foreground shrink-0">
                                                         {formatDate(ver.saved_at)}
                                                     </span>
                                                 </div>
 
-                                                <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+                                                <div className="flex items-center gap-2 pt-1 border-t border-border">
                                                     {confirmDeleteId === ver.id ? (
                                                         <>
-                                                            <span className="flex-1 text-[11px] font-semibold text-destructive">
+                                                            <span className="flex-1 text-xs font-semibold text-danger-text">
                                                                 Delete this version?
                                                             </span>
                                                             <Button
@@ -562,7 +562,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => setConfirmDeleteId(null)}
-                                                                className="h-7 text-[11px] rounded-none"
+                                                                className="h-7 text-xs rounded-none"
                                                             >
                                                                 Cancel
                                                             </Button>
@@ -572,12 +572,12 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 size="sm"
                                                                 disabled={deletingId === ver.id}
                                                                 onClick={() => void handleDeleteVersion(ver)}
-                                                                className="h-7 text-[11px] gap-1 rounded-none"
+                                                                className="h-7 text-xs gap-1 rounded-none"
                                                             >
                                                                 {deletingId === ver.id ? (
-                                                                    <CircleNotch size={12} className="animate-spin" />
+                                                                    <CircleNotch className="animate-spin" />
                                                                 ) : (
-                                                                    <Trash size={12} />
+                                                                    <Trash />
                                                                 )}
                                                                 Delete
                                                             </Button>
@@ -589,18 +589,18 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => handleRecallVersion(ver)}
-                                                                className="h-7 text-[11px] gap-1 rounded-none flex-1"
+                                                                className="h-7 text-xs gap-1 rounded-none flex-1"
                                                             >
-                                                                <ArrowCounterClockwise size={12} /> Recall
+                                                                <ArrowCounterClockwise /> Recall
                                                             </Button>
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => handleCompareVersion(ver)}
-                                                                className="h-7 text-[11px] gap-1 rounded-none flex-1 text-amber-600 dark:text-amber-400"
+                                                                className="h-7 text-xs gap-1 rounded-none flex-1 text-warn dark:text-warn"
                                                             >
-                                                                <GitDiff size={12} /> Compare
+                                                                <GitDiff /> Compare
                                                             </Button>
                                                             <Button
                                                                 type="button"
@@ -608,9 +608,9 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 size="sm"
                                                                 title={`Delete "${ver.label}"`}
                                                                 onClick={() => setConfirmDeleteId(ver.id)}
-                                                                className="h-7 w-7 p-0 shrink-0 rounded-none text-muted-foreground hover:text-destructive"
+                                                                className="h-7 w-7 p-0 shrink-0 rounded-none text-muted-foreground hover:text-danger-text"
                                                             >
-                                                                <Trash size={12} />
+                                                                <Trash />
                                                             </Button>
                                                         </>
                                                     )}

@@ -44,7 +44,7 @@ export function ResumeUpsellCard({
                     onClick={onUpload}
                     className="text-foreground underline underline-offset-4 hover:text-foreground"
                 >
-                    upload résumé →
+                    Upload résumé
                 </button>
             </span>
             <button

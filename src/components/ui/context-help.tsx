@@ -42,8 +42,15 @@ export function ContextHelp({ content, className, side = "top", icon, children, 
                             className,
                         )}
                     >
-                        {textTrigger ? children : (icon ?? <Question size={14} weight="regular" />)}
-                        <span className="sr-only">More information</span>
+                        {textTrigger ? children : (icon ?? <Question weight="regular" />)}
+                        {/* Tailwind's `.sr-only` clip technique is `margin: -1px` by
+                            construction — an off-Carbon-scale value the rulebook's
+                            spacing probe can't tell apart from a real layout bug, on an
+                            element with zero visual footprint. `data-rulebook-exempt`
+                            (the same mechanism CompanyLogo/ReportListingButton already
+                            use) opts this one always-invisible node out rather than
+                            widening the scale or hiding real offenders. */}
+                        <span className="sr-only" data-rulebook-exempt>More information</span>
                     </button>
                 </TooltipTrigger>
                 <TooltipContent side={side} className="max-w-xs text-xs">

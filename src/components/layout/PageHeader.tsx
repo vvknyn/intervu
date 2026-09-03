@@ -43,8 +43,8 @@ export function PageHeader({
       <h1
         className={
           display
-            ? "font-display text-[28px] font-extrabold tracking-[-0.02em]"
-            : "truncate text-lg font-semibold tracking-tight"
+            ? "font-display text-2xl font-semibold"
+            : "truncate text-lg font-semibold"
         }
       >
         {title}
@@ -53,7 +53,7 @@ export function PageHeader({
         (display ? (
           <div className="mt-1.5 text-meta text-muted-foreground">{description}</div>
         ) : (
-          <p className="truncate text-sm text-muted-foreground">{description}</p>
+          <p className="text-sm text-muted-foreground">{description}</p>
         ))}
     </div>
   );
@@ -80,7 +80,7 @@ export function PageHeader({
       {trailing}
     </div>
   ) : (
-    <div className="flex h-16 items-center justify-between">
+    <div className="flex min-h-16 items-center justify-between py-2">
       {titleBlock}
       {trailing && <div className="ml-4 flex shrink-0 items-center gap-2">{trailing}</div>}
     </div>
@@ -98,7 +98,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        display ? "border-b border-border bg-background/75 backdrop-blur-2xl backdrop-saturate-180" : "bg-background/75 backdrop-blur-2xl backdrop-saturate-180 border-b border-border/80",
+        "border-b border-border bg-background",
         sticky && "sticky top-0 z-50",
       )}
     >

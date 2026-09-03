@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { TREND_CAUTION } from "./chart-palette";
 
 /**
  * Shared /trends section grammar (data-surfaces redesign proposal, §02 +
@@ -35,13 +36,13 @@ export function TrendSection({
       data-testid={testId}
       className="rounded-none border border-border bg-card p-6 transition-colors"
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border-strong pb-2">
-        <span className="mono-data text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border pb-2">
+        <span className="text-base font-semibold text-foreground">
           {label}
         </span>
-        {asOf && <span className="mono-data text-[11px] text-muted-foreground">{asOf}</span>}
+        {asOf && <span className="mono-data text-sm text-muted-foreground">{asOf}</span>}
       </div>
-      {intro && <div className="mt-2 text-[13px] text-muted-foreground">{intro}</div>}
+      {intro && <div className="mt-2 text-xs text-muted-foreground">{intro}</div>}
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -60,14 +61,22 @@ export type BarRowTone = "good" | "warn" | "neutral";
 
 const DOT_TONE: Record<BarRowTone, string> = {
   good: "bg-st-offer",
-  warn: "bg-st-intv",
-  neutral: "bg-muted-foreground/40",
+  warn: "",
+  neutral: "bg-muted-foreground",
 };
 
 const FILL_TONE: Record<BarRowTone, string> = {
   good: "bg-st-offer",
-  warn: "bg-st-intv",
-  neutral: "bg-muted-foreground/40",
+  warn: "",
+  neutral: "bg-muted-foreground",
+};
+
+/** Inline-style companion to `DOT_TONE`/`FILL_TONE` for tones whose color
+ *  isn't reachable through a Tailwind token — `warn` resolves through
+ *  `--warn`, which doesn't match the rulebook's caution color (see
+ *  `chart-palette.ts`), so it's applied as a literal instead. */
+const TONE_BG_STYLE: Partial<Record<BarRowTone, CSSProperties>> = {
+  warn: { backgroundColor: TREND_CAUTION },
 };
 
 /**
@@ -105,34 +114,40 @@ export function BarRow({
       className={cn(
         "grid grid-cols-[minmax(120px,210px)_1fr_44px_88px] items-center gap-3 py-2 text-xs transition-colors",
         !quiet && "border-b border-border",
-        href && "hover:bg-muted/40",
+        href && "hover:bg-muted",
       )}
     >
       <span
         className={cn(
           "flex min-w-0 items-center gap-2 truncate",
-          quiet ? "font-normal text-muted-foreground" : "font-medium text-foreground",
+          quiet ? "font-normal text-muted-foreground" : "text-foreground",
         )}
       >
         {typeof rank === "number" && (
-          <span className="mono-data w-4 shrink-0 text-[11px] text-muted-foreground">
+          <span className="mono-data w-4 shrink-0 text-xs text-muted-foreground">
             {String(rank).padStart(2, "0")}
           </span>
         )}
-        {tone && <span className={cn("h-2 w-2 shrink-0 rounded-none", DOT_TONE[tone])} aria-hidden />}
+        {tone && (
+          <span
+            className={cn("h-2 w-2 shrink-0 rounded-none", DOT_TONE[tone])}
+            style={TONE_BG_STYLE[tone]}
+            aria-hidden
+          />
+        )}
         <span className={cn("truncate", href && "group-hover:text-brand")}>{label}</span>
       </span>
-      <span className="h-1.5 overflow-hidden rounded-none bg-muted/80">
+      <span className="h-1.5 overflow-hidden rounded-none bg-muted">
         <span
           className={cn(
             "block h-full rounded-none transition-all",
-            tone ? FILL_TONE[tone] : "bg-slate-700 dark:bg-slate-300",
+            tone ? FILL_TONE[tone] : "bg-foreground dark:bg-foreground",
           )}
-          style={{ width: `${pct}%` }}
+          style={{ width: `${pct}%`, ...(tone ? TONE_BG_STYLE[tone] : undefined) }}
         />
       </span>
-      <span className="mono-data text-right text-[11px] text-muted-foreground">{pctLabel ?? `${pct}%`}</span>
-      <span className="mono-data text-right text-xs font-bold text-foreground">{count}</span>
+      <span className="mono-data text-right text-xs text-muted-foreground">{pctLabel ?? `${pct}%`}</span>
+      <span className="mono-data text-right text-xs font-semibold text-foreground">{count}</span>
     </div>
   );
 

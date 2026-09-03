@@ -102,8 +102,8 @@ export function SearchAlertCapture({
   if (status === "sent") {
     return (
       <div data-testid="search-alert-capture" className="mt-4 max-w-md text-left">
-        <p className="text-sm font-medium">Check your inbox to confirm.</p>
-        <p className="mt-1 text-[12px] text-muted-foreground">
+        <p className="text-sm">Check your inbox to confirm.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
           We sent a one-click link — confirm it and weekly alerts start.
         </p>
       </div>
@@ -112,8 +112,8 @@ export function SearchAlertCapture({
 
   return (
     <div data-testid="search-alert-capture" className="mt-4 max-w-md text-left">
-      <p className="text-sm font-medium">Get new matches by email</p>
-      <p className="mt-1 text-[12px] text-muted-foreground">
+      <p className="text-sm">Get new matches by email</p>
+      <p className="mt-1 text-xs text-muted-foreground">
         Weekly. Unsubscribe anytime.
       </p>
       <form onSubmit={handleSubmit} className="mt-3 flex flex-wrap items-center gap-2">

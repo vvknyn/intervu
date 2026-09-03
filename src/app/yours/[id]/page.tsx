@@ -39,7 +39,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
     const versions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
     return (
         <div className="border border-border bg-card p-6">
-            <div className="mb-3 text-[11px] uppercase tracking-[0.1em] text-muted-foreground">Resume used</div>
+            <div className="mb-3 text-xs text-muted-foreground">Resume used</div>
             {versions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No resume version on file for this application.</p>
             ) : (
@@ -47,8 +47,8 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                     {versions.map((version, i) => (
                         <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                             <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-foreground">{version.label}</p>
-                                <p className="text-[11px] text-muted-foreground">
+                                <p className="truncate text-sm text-foreground">{version.label}</p>
+                                <p className="text-xs text-muted-foreground">
                                     {new Date(version.saved_at).toLocaleDateString(undefined, {
                                         year: "numeric",
                                         month: "short",
@@ -69,7 +69,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                                 <button
                                     type="button"
                                     onClick={() => downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
-                                    className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                                 >
                                     .md
                                 </button>
@@ -234,12 +234,10 @@ export default function PursuitDetailPage() {
 
     const identity = (
         <>
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-none bg-brand/10 text-brand">
-                <Buildings size={26} />
-            </div>
+            <Buildings size={24} className="mt-0.5 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-bold tracking-tight">{companyName}</h1>
-                <p className="text-muted-foreground">{pursuit.position}</p>
+                <h1 className="text-xl font-semibold">{companyName}</h1>
+                <p className="text-sm text-muted-foreground">{pursuit.position}</p>
                 {snapshot?.location && <p className="mt-1 text-xs text-muted-foreground">{snapshot.location}</p>}
             </div>
         </>
@@ -335,8 +333,8 @@ export default function PursuitDetailPage() {
 
                 {snapshot?.description && (
                     <div className="rounded-none border border-border bg-card p-6">
-                        <div className="mb-2 text-[13px] font-semibold">About this role</div>
-                        <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-muted-foreground">
+                        <div className="mb-2 text-xs font-semibold">About this role</div>
+                        <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
                             {snapshot.description}
                         </p>
                     </div>

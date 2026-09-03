@@ -45,7 +45,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
                 setTimeout(() => setCopied(false), 2000);
             }}
         >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? <Check /> : <Copy />}
             {label}
         </Button>
     );
@@ -140,9 +140,9 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
     if (!user) {
         return (
             <section className="pt-6 border-t border-border">
-                <h2 className="text-lg font-semibold mb-1">Connected agents</h2>
+                <h2 className="text-base font-semibold mb-1">Connected agents</h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand/80">
+                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
                         login
                     </button>{" "}
                     to connect Claude or another AI agent to your velai account.
@@ -156,7 +156,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
 
     return (
         <section className="pt-6 border-t border-border">
-            <h2 className="text-lg font-semibold mb-1">Connected agents</h2>
+            <h2 className="text-base font-semibold mb-1">Connected agents</h2>
             <p className="text-sm text-muted-foreground mb-4">
                 Let Claude or another AI agent search jobs and update your tracker on your behalf. It can never see your
                 resume, stories, or anything else in your account.
@@ -177,10 +177,10 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 {credentials?.map((c) => (
                     <div
                         key={c.id}
-                        className="flex items-center justify-between gap-4 rounded-lg border border-border p-3"
+                        className="flex items-center justify-between gap-4 rounded-none border border-border p-3"
                     >
                         <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{displayName(c)}</p>
+                            <p className="text-sm truncate">{displayName(c)}</p>
                             <p className="text-xs text-muted-foreground">
                                 {kindLabel(c)} · connected {formatDate(c.createdAt)} · last used {formatDate(c.lastUsedAt)}
                             </p>
@@ -188,11 +188,11 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs px-2.5 shrink-0 text-muted-foreground hover:text-destructive"
+                            className="h-7 text-xs px-2.5 shrink-0 text-muted-foreground hover:text-danger-text"
                             disabled={revokingId === c.id}
                             onClick={() => handleRevoke(c)}
                         >
-                            {revokingId === c.id ? <CircleNotch size={13} className="animate-spin" /> : <Trash size={13} />}
+                            {revokingId === c.id ? <CircleNotch className="animate-spin" /> : <Trash />}
                             Revoke
                         </Button>
                     </div>
@@ -201,18 +201,18 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
 
             <div className="mb-6">
                 <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating}>
-                    {generating ? <CircleNotch size={14} className="animate-spin" /> : null}
+                    {generating ? <CircleNotch className="animate-spin" /> : null}
                     {generating ? "Generating..." : "Generate manual token"}
                 </Button>
 
                 {newSecret && (
-                    <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
-                        <p className="text-xs font-medium flex items-center gap-1.5 text-amber-600 dark:text-amber-500">
-                            <WarningCircle size={14} weight="fill" />
+                    <div className="mt-3 rounded-none border border-warn bg-muted p-3 space-y-2">
+                        <p className="text-xs flex items-center gap-1.5 text-warn dark:text-warn">
+                            <WarningCircle weight="fill" />
                             Copy this now — we can&apos;t show it to you again.
                         </p>
                         <div className="flex items-center gap-2">
-                            <code className="flex-1 min-w-0 truncate rounded-md bg-muted px-2.5 py-1.5 text-xs">
+                            <code className="flex-1 min-w-0 truncate rounded-none bg-muted px-2.5 py-1.5 text-xs">
                                 {newSecret}
                             </code>
                             <CopyButton value={newSecret} label="Copy" />
@@ -227,26 +227,26 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 )}
             </div>
 
-            <div className="rounded-lg border border-border p-4 space-y-3 text-sm">
-                <p className="font-medium">Connect an agent</p>
+            <div className="rounded-none border border-border p-4 space-y-3 text-sm">
+                <p className="">Connect an agent</p>
                 <div className="flex items-center gap-2">
-                    <code className="flex-1 min-w-0 truncate rounded-md bg-muted px-2.5 py-1.5 text-xs">
+                    <code className="flex-1 min-w-0 truncate rounded-none bg-muted px-2.5 py-1.5 text-xs">
                         {mcpUrl}
                     </code>
                     <CopyButton value={mcpUrl} label="Copy URL" />
                 </div>
                 <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4">
                     <li>
-                        <span className="text-foreground font-medium">Claude Code:</span>{" "}
+                        <span className="text-foreground">Claude Code:</span>{" "}
                         <code className="">{claudeCodeConnectCommand(mcpUrl)}</code>
                     </li>
                     <li>
-                        <span className="text-foreground font-medium">Chat apps with custom connectors:</span>{" "}
+                        <span className="text-foreground">Chat apps with custom connectors:</span>{" "}
                         {chatAppInstruction.primary} {chatAppInstruction.alternate}
                     </li>
                 </ul>
-                <a href="/connect" className="inline-block text-xs text-brand underline hover:text-brand/80">
-                    Full setup instructions →
+                <a href="/connect" className="inline-block text-xs text-brand underline hover:text-brand">
+                    Full setup instructions
                 </a>
             </div>
         </section>

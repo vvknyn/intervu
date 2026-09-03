@@ -67,29 +67,27 @@ export function ResetPasswordForm() {
 
     if (success) {
         return (
-            <div className="min-h-screen flex items-center justify-center px-4">
-                <div className="w-full max-w-xs text-center">
+            <main className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 pt-[72px]">
+                <div className="w-full max-w-[400px] border border-border bg-card p-8 text-center">
                     <div className="mb-6 flex justify-center">
-                        <div className="w-12 h-12 bg-verdict-good-bg flex items-center justify-center">
-                            <CheckCircle size={24} weight="fill" className="text-verdict-good" />
-                        </div>
+                        <CheckCircle size={24} weight="fill" className="text-live" />
                     </div>
-                    <h2 className="text-lg font-semibold text-foreground mb-2">
+                    <h2 className="text-xl font-semibold text-foreground mb-2">
                         Password updated
                     </h2>
                     <p className="text-sm text-muted-foreground">
                         Redirecting you to the app...
                     </p>
                 </div>
-            </div>
+            </main>
         );
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center px-4">
-            <div className="w-full max-w-xs">
+        <main className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 pt-[72px]">
+            <div className="w-full max-w-[400px] border border-border bg-card p-8">
                 <div className="mb-8 text-center">
-                    <h1 className="text-lg font-semibold text-foreground">
+                    <h1 className="text-xl font-semibold text-foreground">
                         Set new password
                     </h1>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -152,7 +150,7 @@ export function ResetPasswordForm() {
                     </Field>
 
                     {error && (
-                        <div className="mt-2 text-xs text-destructive text-center">
+                        <div className="mt-2 text-xs text-danger-text text-center">
                             {error}
                         </div>
                     )}
@@ -167,6 +165,6 @@ export function ResetPasswordForm() {
                 </form>
                 )}
             </div>
-        </div>
+        </main>
     );
 }

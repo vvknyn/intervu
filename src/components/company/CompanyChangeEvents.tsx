@@ -61,15 +61,15 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
   if (evidence.metrics.length === 0 && !hasFooter) return null;
 
   return (
-    <div className="mt-3 border-t border-border/60 pt-3">
+    <div className="mt-3 border-t border-border pt-3">
       {evidence.metrics.length > 0 && (
         <dl className="space-y-1.5">
           {evidence.metrics.map((m) => (
             <div key={m.label} className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-              <dt className="min-w-[84px] text-[10px] uppercase tracking-wide text-muted-foreground">
+              <dt className="min-w-[84px] text-xs text-muted-foreground">
                 {m.label}
               </dt>
-              <dd className="text-[13px] tabular-nums text-foreground">{m.value}</dd>
+              <dd className="text-xs tabular-nums text-foreground">{m.value}</dd>
             </div>
           ))}
         </dl>
@@ -78,7 +78,7 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
       {hasFooter && (
         <p
           className={cn(
-            "text-[10px] text-muted-foreground",
+            "text-xs text-muted-foreground",
             evidence.metrics.length > 0 && "mt-2.5",
           )}
         >
@@ -113,24 +113,18 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
  *  brand blue (that's reserved for interactive elements) or a hardcoded hue. */
 export function directionStyle(direction: CompanyChangeEvent["direction"]): {
   Icon: typeof TrendUp;
-  chip: string;
+  /** Word color for the event-type label — status reads as a plain colored
+   *  word, never a bordered/filled pill (rulebook: status = words). */
+  label: string;
   icon: string;
 } {
   switch (direction) {
     case "improving":
-      return {
-        Icon: TrendUp,
-        chip: "border-verdict-good/30 bg-verdict-good-bg/80 text-verdict-good",
-        icon: "text-verdict-good",
-      };
+      return { Icon: TrendUp, label: "text-verdict-good", icon: "text-verdict-good" };
     case "declining":
-      return {
-        Icon: TrendDown,
-        chip: "border-verdict-caution/30 bg-verdict-caution-bg/80 text-verdict-caution",
-        icon: "text-verdict-caution",
-      };
+      return { Icon: TrendDown, label: "text-verdict-caution", icon: "text-verdict-caution" };
     default:
-      return { Icon: Minus, chip: "border-border bg-chip text-muted-foreground", icon: "text-muted-foreground" };
+      return { Icon: Minus, label: "text-muted-foreground", icon: "text-muted-foreground" };
   }
 }
 
@@ -161,14 +155,14 @@ export function CompanyChangeEvents({
 
   return (
     <section data-testid="company-change-events" className="mb-8">
-      <h2 className="mb-1 font-display text-[20px] font-semibold">Recent changes</h2>
-      <p className="mb-4 text-[11px] text-muted-foreground">
+      <h2 className="mb-1 font-display text-lg font-semibold">Recent changes</h2>
+      <p className="mb-4 text-xs text-muted-foreground">
         Observed shifts in {companyName}&apos;s hiring, from postings we track over time.
       </p>
 
       <ul className="space-y-2.5">
         {events.map((event, idx) => {
-          const { Icon, chip, icon } = directionStyle(event.direction);
+          const { Icon, label: tone, icon } = directionStyle(event.direction);
           const label = eventTypeLabel(event.event_type);
           const date = eventDate(event.occurred_at);
           return (
@@ -183,18 +177,13 @@ export function CompanyChangeEvents({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   {label && (
-                    <span
-                      className={cn(
-                        "border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                        chip,
-                      )}
-                    >
+                    <span className={cn("text-xs font-semibold", tone)}>
                       {label}
                     </span>
                   )}
-                  {date && <span className="text-[11px] text-muted-foreground">{date}</span>}
+                  {date && <span className="text-xs text-muted-foreground">{date}</span>}
                 </div>
-                <p className="mt-1.5 text-[15px] leading-snug text-foreground">
+                <p className="mt-1.5 text-sm leading-snug text-foreground">
                   {humanizeProjectorHeadline(event.headline)}
                 </p>
                 {event.evidence && <EventEvidence evidence={event.evidence} />}

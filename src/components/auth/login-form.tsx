@@ -8,12 +8,13 @@ import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CircleNotch, Fingerprint } from '@phosphor-icons/react'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
 import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface LoginFormProps {
     onSuccess?: () => void;
@@ -27,7 +28,7 @@ interface LoginFormProps {
  *  it. Inline, no dark-mode variant needed (the mark itself is brand-fixed). */
 function GoogleGlyph() {
     return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+        <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden data-rulebook-exempt>
             <path
                 fill="#4285F4"
                 d="M23.52 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.87c2.27-2.09 3.58-5.17 3.58-8.82Z"
@@ -155,10 +156,10 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     return (
         <div className="space-y-5 pt-1">
             <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
+                <p className="text-xs font-semibold text-brand">
                     {copy.eyebrow}
                 </p>
-                <h3 className="font-bold text-xl tracking-tight text-foreground">
+                <h3 className="font-semibold text-xl text-foreground">
                     {copy.title}
                 </h3>
                 {activeTab === "signup" && (
@@ -167,7 +168,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
             </div>
 
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "login" | "signup"); setMessage(null); }} className="w-full">
-                <TabsList variant="block" className="grid w-full grid-cols-2 mb-5">
+                <TabsList variant="line" className="mb-5">
                     <TabsTrigger value="login">{authCardCopy("login").tabLabel}</TabsTrigger>
                     <TabsTrigger value="signup">{authCardCopy("signup").tabLabel}</TabsTrigger>
                 </TabsList>
@@ -187,7 +188,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         the dashboard — not an app-side name, and not validated
                         here, because WorkOS is the authority on which
                         providers an environment actually has. */}
-                    <Button variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                    <Button variant="outline" size="lg" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
                         {authKitPending === "GoogleOAuth" ? (
                             <CircleNotch size={16} className="mr-2 animate-spin" />
                         ) : (
@@ -202,6 +203,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         enabled for the environment. */}
                     <Button
                         variant="outline"
+                        size="lg"
                         type="button"
                         className="w-full"
                         disabled={isPending || authKitPending !== null}
@@ -215,7 +217,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         Use a passkey or email code
                     </Button>
                     {onGuestAccess && (
-                        <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
+                        <Button variant="outline" size="lg" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
                             Continue as Guest
                         </Button>
                     )}
@@ -225,9 +227,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     <div className="absolute inset-0 flex items-center">
                         <span className="w-full border-t" />
                     </div>
-                    <div className="relative flex justify-center text-xs uppercase">
+                    <div className="relative flex justify-center text-xs">
                         <span className="bg-background px-2 text-muted-foreground">
-                            Or
+                            or
                         </span>
                     </div>
                 </div>
@@ -288,10 +290,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                             {activeTab === "signup" && (
                                 <TurnstileWidget onVerify={setTurnstileToken} />
                             )}
-                            <Button
-                                disabled={isPending}
-                                className="w-full bg-brand text-brand-foreground hover:bg-brand hover:opacity-90 dark:bg-brand dark:text-brand-foreground dark:hover:bg-brand"
-                            >
+                            <Button disabled={isPending} size="lg" className="w-full">
                                 {isPending && (
                                     <CircleNotch size={16} className="mr-2 animate-spin" />
                                 )}
@@ -315,9 +314,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
             </Tabs>
 
             {message && (
-                <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm justify-center">
-                    <p>{message}</p>
-                </div>
+                <Alert variant="destructive" className="text-center">
+                    <AlertDescription>{message}</AlertDescription>
+                </Alert>
             )}
         </div>
     )

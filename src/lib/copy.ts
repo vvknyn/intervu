@@ -330,7 +330,7 @@ export const BANNER_QUOTES = [
     "If you don't understand the question, ask them to repeat it. It's not a quiz show.",
     "The best interviewees ask great questions. The worst say 'Nah, I'm good.'",
     // --- Tech industry specific ---
-    "'We're like a family here' means the boundaries are blurry.",
+    "'We're like a family here' means the boundaries are ry.",
     "LeetCode is not personality. But it might get you hired.",
     "'Agile' means different things to different people. None of them agree.",
     "The whiteboard interview: where developers pretend markers aren't awful.",

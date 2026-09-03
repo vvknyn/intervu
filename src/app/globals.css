@@ -12,41 +12,105 @@
      touches nothing here. */
   --font-sans: var(--font-sans-face), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
-  --font-display: var(--font-display-face), var(--font-sans);
+  /* Display face retired (rulebook v2 CORRECTIONS #2, 2026-09-03): every
+     `font-display` consumer now resolves to the same Source Sans 3 stack as
+     body text. `--font-display-face` (Libre Franklin, next/font in
+     app/layout.tsx) is kept wired for exactly one consumer — BrandMark.tsx's
+     wordmark span, which reads it directly via an arbitrary `font-[family-
+     name:var(--font-display-face)]` utility rather than through this token —
+     so the variable/import stay in place with no call site left pointing at
+     them through `font-display`. */
+  --font-display: var(--font-sans);
 
-  /* Display scale addition (visual-identity pass) — the landing-hero
-     wordmark morph (app/page.tsx) and the /trends h1 both size off this one
-     clamp instead of each hand-rolling its own arbitrary text-[Npx]; a
-     third "display" heading gets covered by construction, not by adding a
-     second scale. Weight stays an explicit font-extrabold/font-bold utility
-     at the call site (matching how every other heading in this app pairs a
-     size utility with a weight utility) rather than a --font-weight
-     companion here, which would race font-extrabold for the cascade slot. */
-  --text-display: clamp(2.125rem, 4vw, 2.75rem);
-  --text-display--line-height: 1.05;
-  --text-display--letter-spacing: -0.02em;
+  /* Rulebook type scale (Type ramp: 12/16 · 14/20 · 16/22 · 20/28, weights
+     400/600 only) plus an expressive scale for content headings
+     (28/36 · 32/40 · 42/50). One flat scale for the whole stock ramp so no
+     call site needs an arbitrary text-[Npx]; lg and xl share one size
+     (20/28), 4xl..9xl share the top expressive step (42/50) rather than
+     growing past it. xs/sm had been bumped to 13px/15px for legibility
+     ("13px, was 12") — reverted on purpose: the rulebook fixes one
+     12/14/16/20 ramp app-wide. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.25rem;
+  --text-3xl: 2rem;
+  --text-3xl--line-height: 2.5rem;
+  --text-4xl: 2.625rem;
+  --text-4xl--line-height: 3.125rem;
+  --text-5xl: 2.625rem;
+  --text-5xl--line-height: 3.125rem;
+  --text-6xl: 2.625rem;
+  --text-6xl--line-height: 3.125rem;
+  --text-7xl: 2.625rem;
+  --text-7xl--line-height: 3.125rem;
+  --text-8xl: 2.625rem;
+  --text-8xl--line-height: 3.125rem;
+  --text-9xl: 2.625rem;
+  --text-9xl--line-height: 3.125rem;
 
-  /* Title scale (DESIGN-LANGUAGE.md "Type" table names this role —
-     page/section headings in the app, distinct from the one marketing
-     --text-display hero — but it had never been wired into the Tailwind
-     theme, so `text-title` was a silent no-op everywhere the doc's own
-     table told a component to use it. Registered here, once, rather than
-     letting a call site fall back to an arbitrary text-[Npx]. */
-  --text-title: clamp(1.375rem, 2.4vw, 1.75rem);
-  --text-title--line-height: 1.2;
-  --text-title--letter-spacing: -0.01em;
-
-  /* Body + meta roles (DESIGN-LANGUAGE.md "Type — one scale") — wired here so
-     `text-body` / `text-meta` utilities exist and stock xs/sm inherit the bump
-     without touching every call site. */
+  /* Named roles onto the same scale above (DESIGN-LANGUAGE.md "Type" table)
+     — display=4xl, title=2xl, body=base, meta=sm. These used to be a
+     clamp() plus a --letter-spacing companion each for a fluid hero/heading
+     feel; the rulebook fixes the scale and sets tracking to normal
+     everywhere except the wordmark (BrandMark.tsx), so both the clamp and
+     the letter-spacing companions are gone. */
+  --text-display: 2.625rem;
+  --text-display--line-height: 3.125rem;
+  --text-title: 1.75rem;
+  --text-title--line-height: 2.25rem;
+  --text-title-lg: 2rem;
+  --text-title-lg--line-height: 2.5rem;
   --text-body: 1rem;
-  --text-body--line-height: 1.5;
-  --text-meta: 0.875rem; /* 14px captions — distinct from chrome text-xs */
-  --text-meta--line-height: 1.35;
+  --text-body--line-height: 1.375rem;
+  --text-meta: 0.875rem;
+  --text-meta--line-height: 1.25rem;
 
-  /* Stock Tailwind scale overrides — xs/sm were 12px/14px; bumped for legibility. */
-  --text-xs: 0.8125rem; /* 13px, was 12 */
-  --text-sm: 0.9375rem; /* 15px, was 14 */
+  /* Jobs-SERP Carbon/HIG type ramp (RULEBOOK.md "Type ramp") — fixed
+     12/16, 14/20, 16/22, 20/28 pairs, kept as named roles for call sites
+     already written against text-caption/text-body-sm/etc. */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.25rem;
+  --text-headline: 1rem;
+  --text-headline--line-height: 1.375rem;
+  --text-title-sm: 1.25rem;
+  --text-title-sm--line-height: 1.75rem;
+
+  /* Weights: rulebook uses 400/600 only (Carbon has no 500 either). */
+  --font-weight-medium: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 600;
+  --font-weight-black: 600;
+
+  /* Tracking: normal everywhere except the wordmark (BrandMark.tsx keeps an
+     explicit tracking-tight utility on the wordmark span only). */
+  --tracking-tighter: 0em;
+  --tracking-tight: 0em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0em;
+  --tracking-wider: 0em;
+  --tracking-widest: 0em;
+
+  /* No blur anywhere (rulebook: no translucent/frosted surfaces). */
+  --blur-xs: 0px;
+  --blur-sm: 0px;
+  --blur-md: 0px;
+  --blur-lg: 0px;
+  --blur-xl: 0px;
+  --blur-2xl: 0px;
+  --blur-3xl: 0px;
+  --blur: 0px;
 }
 
 
@@ -59,7 +123,7 @@
      Restating it is what broke expanding the docked search: the observer
      knew the header was 64px and the scroll that followed did not, so the
      search box landed underneath it. */
-  --topbar-h: 64px;
+  --topbar-h: 48px;
   --jobs-sticky-offset: var(--topbar-h);
   --jobs-filter-row-h: 36px;
   --jobs-bar-content-gap: 8px;
@@ -73,7 +137,7 @@
      read as a slightly dirty card. Biasing the ground toward the accent gives
      it a temperature, and `--card` (pure 255) now reads as genuinely white
      against it. Picked from /mock/surface at true scale. */
-  --background: 246 248 252;
+  --background: 255 255 255; /* rulebook page colour #FFFFFF (was a blue-tinted 246 248 252) */
   --foreground: 10 10 10;
   --card: 255 255 255;
   --card-foreground: var(--foreground);
@@ -84,19 +148,28 @@
   --secondary: var(--chip);
   --secondary-foreground: var(--foreground);
   --muted: var(--chip);
-  --muted-foreground: 115 115 115;
+  --muted-foreground: 82 82 82; /* jobs-SERP secondary text #525252 (was 115 115 115) */
   --accent: var(--chip);
   --accent-foreground: var(--foreground);
   --destructive: 225 29 72;
   --destructive-foreground: 255 255 255;
-  --border: 229 229 229;
-  --input: 10 10 10;
+  /* Rose/pink error language (33 call sites) — left as-is. #DA1E28 red-60
+     is a different hue for jobs-SERP error text, so it's a new token
+     rather than repointing this sitewide one. */
+  --danger-text: 218 30 40;
+  --border: 224 224 224; /* jobs-SERP hairline #E0E0E0 (was 229 229 229) */
+  --input: 141 141 141; /* field-01 rest edge #8D8D8D (was ink) */
   --ring: var(--brand);
 
   /* Brand / accent — International Klein Blue (#002FA7) & Safety Signal Orange (#FF4400) */
   --brand: 0 47 167;
   --brand-foreground: 255 255 255;
   --brand-muted: 37 99 235;
+  /* Filled-button hover state (Group B): Klein −10% lightness, #002585. A
+     dedicated token rather than an opacity/brightness filter on --brand so
+     `hover:bg-brand-hover` composes with every other utility on the same
+     element the way `hover:bg-muted` etc. already do. */
+  --brand-hover: 0 37 133;
   /* Named for the ROLE, not the hue — these are the blue-50/blue-100 tints
      that `--live-tint-*` carried before the Ledger palette (2026-08-27) gave
      green exactly one meaning ("this fact is live/verified") and moved every
@@ -113,7 +186,7 @@
 
   /* Surface + text levels */
   --surface: 255 255 255;
-  --surface-hover: 245 245 245;
+  --surface-hover: 244 244 244; /* rulebook layer #F4F4F4, matches --chip */
   --surface-2: 245 245 245;
   --surface-3: 212 212 212;
   --border-strong: 10 10 10;
@@ -121,8 +194,14 @@
   --text-3: var(--faint);
 
   /* Soft Signal accents */
-  --chip: 245 245 245;
+  --chip: 244 244 244; /* jobs-SERP layer #F4F4F4 (was 245 245 245); feeds --secondary/--muted/--accent above */
   --faint: 163 163 163;
+  /* No existing token carries a dedicated placeholder-text meaning — actual
+     inputs style placeholders via `placeholder:text-muted-foreground/70`,
+     an opacity modifier, not a distinct color. jobs-SERP field-01 wants an
+     opaque #8D8D8D placeholder, so this is a new token (wiring it into
+     input classNames is a later phase, not a globals.css change). */
+  --placeholder-text: 141 141 141;
   --live: 14 159 78;
   /* Named for the ROLE (the tint that accompanies --live), not for a hue.
      These held blue-50/blue-100/blue-200 under `--green-tint-*` names ever
@@ -137,15 +216,15 @@
   --live-tint-bg: 240 253 244;
   --live-tint-bg-alt: 236 253 245;
   --live-tint-border: 187 247 208;
-  --warn: 217 119 6;
+  --warn: 180 83 9;
   --warn-dot: 245 158 11;
   --danger-tint-border: 254 205 211;
 
   /* Verdict channel */
   --verdict-live: var(--live);
-  --verdict-good: 21 128 61;
-  --verdict-caution: 217 119 6;
-  --verdict-risk: 225 29 72;
+  --verdict-good: var(--live);
+  --verdict-caution: var(--warn);
+  --verdict-risk: 218 30 40;
   --verdict-live-bg: var(--live-tint-bg);
   --verdict-good-bg: 232 245 236;
   --verdict-caution-bg: 254 243 199;
@@ -166,14 +245,11 @@
   --transition-fast: 100ms;
   --transition-panel: 150ms;
 
-  /* Overlay elevation — the ONE shadow value in the system. A shadow means
-     "this floats above the page": reserved for surfaces that render in a
-     portal with nothing behind them (dialog, sheet, tooltip, select,
-     dropdown-menu, popover, the SearchAutocomplete results panel). Every
-     in-flow surface stays flat and separates by --border + whitespace; hover
-     affordance in-flow is border-darkening, never a lift. See
-     docs/design/ATTENTION.md. */
-  --shadow-overlay: 0 8px 30px 0 rgba(10, 10, 10, 0.14);
+  /* Overlay elevation — rulebook: no shadow anywhere, including overlays
+     (dialog, sheet, tooltip, select, dropdown-menu, popover). Was the one
+     shadow value in the system; separation now comes from --border alone,
+     same as every in-flow surface. See docs/design/ATTENTION.md. */
+  --shadow-overlay: none;
 }
 
 .dark {
@@ -215,6 +291,8 @@
   --brand: 45 104 255;
   --brand-foreground: 255 255 255;
   --brand-muted: 37 99 235;
+  /* Dark mirror of --brand-hover: lighter, not darker, on a dark ground. */
+  --brand-hover: 66 105 220;
   /* See the light-mode comment above — same tints --live-tint-* carried
      before the Ledger palette, now under the honest --brand-tint-* name. */
   --brand-tint-bg: 15 23 42;
@@ -261,10 +339,8 @@
   --st-offer: var(--brand);               --st-offer-soft: var(--brand-tint-bg-alt);
   --st-closed: var(--destructive);        --st-closed-soft: 42 16 22;
 
-  /* Overlay elevation (dark) — stronger than the light value since a drop
-     shadow reads on a dark ground only when it is darker still than the
-     surface it separates from. */
-  --shadow-overlay: 0 12px 40px 0 rgba(0, 0, 0, 0.55);
+  /* Overlay elevation (dark) — rulebook: no shadow, same as light. */
+  --shadow-overlay: none;
 }
 
 @theme inline {
@@ -284,6 +360,7 @@
   --color-accent-foreground: rgb(var(--accent-foreground));
   --color-destructive: rgb(var(--destructive));
   --color-destructive-foreground: rgb(var(--destructive-foreground));
+  --color-danger-text: rgb(var(--danger-text));
   --color-border: rgb(var(--border));
   --color-input: rgb(var(--input));
   --color-ring: rgb(var(--ring));
@@ -295,6 +372,7 @@
   --color-brand: rgb(var(--brand));
   --color-brand-foreground: rgb(var(--brand-foreground));
   --color-brand-muted: rgb(var(--brand-muted));
+  --color-brand-hover: rgb(var(--brand-hover));
   --color-chrome: rgb(var(--chrome));
   --color-chrome-foreground: rgb(var(--chrome-foreground));
   --color-surface: rgb(var(--surface));
@@ -316,6 +394,7 @@
   --color-st-closed-soft: rgb(var(--st-closed-soft));
   --color-chip: rgb(var(--chip));
   --color-faint: rgb(var(--faint));
+  --color-placeholder-text: rgb(var(--placeholder-text));
   --color-live: rgb(var(--live));
   --color-live-tint-bg: rgb(var(--live-tint-bg));
   --color-live-tint-bg-alt: rgb(var(--live-tint-bg-alt));
@@ -405,7 +484,6 @@ body {
   /* 16px — DESIGN-LANGUAGE `text-body` role; matches the iOS 16px form-control floor below. */
   font-size: 16px;
   line-height: 1.5;
-  letter-spacing: -0.006em;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -467,57 +545,6 @@ h1,
 h2,
 h3,
 h4 {
-  letter-spacing: -0.025em;
-}
-
-/* Complete Tinted Glassmorphic Design System */
-/* The outer edge must be DARKER than the page, the inset sheen lighter.
-   This started as a white 0.6 border, which on our light ground
-   (--background is a near-white cool paper) is lighter than the page behind it — so the
-   edge erased itself and every glass surface read as a white rectangle on
-   a white page. Glass only refracts when there is content behind it to
-   refract; over a flat fill it degrades to a plain translucent panel, and
-   then the border and shadow are the only separators left. */
-.glass-panel,
-.glass-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(10, 10, 10, 0.1);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.8),
-    inset 0 0 12px 0 rgba(255, 255, 255, 0.3);
-}
-
-.dark .glass-panel,
-.dark .glass-card {
-  background: rgba(18, 18, 18, 0.6);
-  backdrop-filter: blur(24px) saturate(190%);
-  -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 0 20px 0 rgba(255, 255, 255, 0.02);
-}
-
-/* Interactive glass cards (job rows, LaunchBanner) are in-flow, not
-   overlays, so hover affordance is border-darkening only — no outer shadow,
-   no lift. The inset sheen is replaced too (not layered) so it stays
-   consistent rather than double-stacking. The active-row `.glass-tint-blue`
-   rule uses `!important`, so it always wins over this hover state — an open
-   row's border never changes on hover. */
-.glass-card:hover {
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 0 12px 0 rgba(255, 255, 255, 0.35);
-  border-color: rgba(10, 10, 10, 0.18);
-}
-
-.dark .glass-card:hover {
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 0 20px 0 rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.20);
 }
 
 /* Detail pane at xl+ — outer drop shadow that lifts it above the list
@@ -536,147 +563,6 @@ h4 {
     0 0 0 1px rgba(255, 255, 255, 0.06),
     0 4px 32px -6px rgba(0, 0, 0, 0.65),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.10);
-}
-
-/* The focal surface of a page — the one panel that has to read as the
-   primary action rather than merely be visible. Layers elevation on top of
-   the glass instead of replacing it: near-opaque fill so the panel is the
-   brightest thing on screen, a definite edge, and a real drop shadow that
-   lifts it off the ground. Stays achromatic so it does not compete with
-   the accent colours the content itself carries.
-
-   Use it ONCE per page. A spotlight that is everywhere is not a spotlight,
-   it is just a heavier default — which is how .glass-panel ended up
-   edgeless in the first place. */
-.glass-panel-raised {
-  /* Carries the same cool bias as `--background`, offset ~21 points darker so
-     the surface still reads as raised. It was a pure neutral grey, tuned when
-     the ground was neutral too; once the ground gained a temperature
-     (2026-08-24) the page's single focal surface became the one element with
-     none, and a colourless box on a tinted page reads as unfinished rather
-     than as raised. Alpha and every other value here are unchanged. */
-  background: rgba(225, 227, 231, 0.85);
-  border: 1px solid rgba(10, 10, 10, 0.22);
-  box-shadow:
-    0 1px 2px 0 rgba(10, 10, 10, 0.06),
-    0 6px 16px -10px rgba(10, 10, 10, 0.12),
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-/* Accent edge for the page's primary surface — the /jobs search box (Vivek,
-   2026-08-24). Declared here rather than as a `border-t-[3px] border-t-brand`
-   utility on the element because `.glass-panel-raised` above sets the `border`
-   SHORTHAND, which expands to all four sides and beats a single-side utility
-   in the cascade; the utility applied cleanly to the markup and painted
-   nothing. `rgb(var(--brand))` follows the token, so dark mode swaps with it. */
-.glass-panel-accent-top {
-  border-top: 3px solid rgb(var(--brand));
-}
-
-.dark .glass-panel-raised {
-  background: rgba(26, 26, 26, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow:
-    0 1px 2px 0 rgba(0, 0, 0, 0.4),
-    0 6px 16px -10px rgba(0, 0, 0, 0.4),
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.26);
-}
-
-/* Tinted Color Glass Variants */
-.glass-tint-blue {
-  background: rgba(45, 104, 255, 0.12) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(45, 104, 255, 0.35) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(147, 197, 253, 0.4),
-    inset 0 0 14px 0 rgba(45, 104, 255, 0.14) !important;
-  color: rgb(37, 99, 235) !important;
-}
-
-.dark .glass-tint-blue {
-  background: rgba(45, 104, 255, 0.18) !important;
-  border: 1px solid rgba(96, 165, 250, 0.4) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(191, 219, 254, 0.35),
-    inset 0 0 16px 0 rgba(45, 104, 255, 0.22) !important;
-  color: rgb(147, 197, 253) !important;
-}
-
-.glass-tint-emerald {
-  background: rgba(16, 185, 129, 0.12) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(16, 185, 129, 0.35) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(167, 243, 208, 0.45),
-    inset 0 0 14px 0 rgba(16, 185, 129, 0.14) !important;
-  color: rgb(5, 150, 105) !important;
-}
-
-.dark .glass-tint-emerald {
-  background: rgba(16, 185, 129, 0.18) !important;
-  border: 1px solid rgba(52, 211, 153, 0.4) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(167, 243, 208, 0.35),
-    inset 0 0 16px 0 rgba(16, 185, 129, 0.22) !important;
-  color: rgb(110, 231, 183) !important;
-}
-
-.glass-tint-amber {
-  background: rgba(245, 158, 11, 0.12) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(245, 158, 11, 0.35) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(253, 230, 138, 0.45),
-    inset 0 0 14px 0 rgba(245, 158, 11, 0.14) !important;
-  color: rgb(217, 119, 6) !important;
-}
-
-.dark .glass-tint-amber {
-  background: rgba(245, 158, 11, 0.18) !important;
-  border: 1px solid rgba(251, 191, 36, 0.4) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(253, 230, 138, 0.35),
-    inset 0 0 16px 0 rgba(245, 158, 11, 0.22) !important;
-  color: rgb(252, 211, 77) !important;
-}
-
-.glass-tint-purple {
-  background: rgba(168, 85, 247, 0.12) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(168, 85, 247, 0.35) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(216, 180, 254, 0.45),
-    inset 0 0 14px 0 rgba(168, 85, 247, 0.14) !important;
-  color: rgb(147, 51, 234) !important;
-}
-
-.dark .glass-tint-purple {
-  background: rgba(168, 85, 247, 0.18) !important;
-  border: 1px solid rgba(192, 132, 252, 0.4) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(216, 180, 254, 0.35),
-    inset 0 0 16px 0 rgba(168, 85, 247, 0.22) !important;
-  color: rgb(216, 180, 254) !important;
-}
-
-.glass-tint-muted {
-  background: rgba(255, 255, 255, 0.05) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.15) !important;
-}
-
-.dark .glass-tint-muted {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.10) !important;
 }
 
 /* Minimalist Animation */
@@ -717,38 +603,16 @@ h4 {
   animation-delay: 0.5s;
 }
 
-/* Skeleton shimmer (in-flow loading states, 2026-08-01) — the SERP's 5
-   job-card placeholders (JobsListSplash, app/page.tsx), the detail panel's
-   loading skeleton (JobDetailSkeleton, JobDetail.tsx), and the FitDrawer
-   signed-out preview (FitDrawer.tsx) all share this one class rather than
-   each hand-rolling its own pulse. A moving gradient sweep (background-
-   position), not a layout-affecting property, so it's cheap and never
-   causes reflow. The site-wide `prefers-reduced-motion` rule below already
-   collapses its animation-duration to ~0, so it needs no separate opt-out
-   here. */
-@keyframes skeleton-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-
-  to {
-    background-position: -200% 0;
-  }
-}
-
+/* Skeleton bars (in-flow loading states) — SERP placeholders, JobDetailSkeleton,
+   route loading.tsx files and FitDrawer all share this one class. Redefined
+   2026-09-03 (rulebook v2) from a gradient sweep to the Skeleton primitive's
+   flat pulse; the site-wide `prefers-reduced-motion` rule below still
+   collapses the animation, so no separate opt-out is needed here. */
 .skeleton-bar {
-  /* Squared design-system pass — a placeholder shape should match the
-     squared geometry of whatever it's standing in for (THE RULES #1). */
-  border-radius: 0;
-  background-color: rgb(var(--muted));
-  background-image: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgb(var(--foreground) / 0.06) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  /* Same look as the Skeleton primitive (src/components/ui/skeleton.tsx):
+     flat layer block that pulses. Rulebook v2: no shimmer gradient, no
+     radius, no depth — a placeholder is a quiet rectangle. */
+  @apply bg-muted animate-pulse rounded-none;
 }
 
 /* Panel/dialog enter (Job 1e, 2026-08-01) — a small fade + settle applied on
@@ -892,6 +756,54 @@ textarea::selection {
   font-variant-numeric: tabular-nums;
 }
 
+/* Prose/article typography binding (rulebook clause 8: prose bound to
+   tokens) — @tailwindcss/typography ships hardcoded hex defaults (its own
+   grays, not this theme) plus a 500 link weight with underline always on.
+   `.prose`/`.prose-sm`/`dark:prose-invert` are used ONLY by /about,
+   /research/ghost-jobs, /privacy and /terms (grep-confirmed), so this is
+   the single fix for every article body on the site. `--tw-prose-invert-*`
+   is set alongside the base var, not on a separate `.prose-invert`
+   selector, because `dark:prose-invert` compiles to a class literally named
+   `dark:prose-invert` (not `prose-invert`) — the invert vars just need to
+   be in scope on `.prose` for that generated rule to pick them up, and
+   they resolve to the correct dark-mode shade for free because `--foreground`
+   etc. are themselves redefined under `.dark`. */
+.prose {
+  --tw-prose-body: rgb(var(--foreground));
+  --tw-prose-headings: rgb(var(--foreground));
+  --tw-prose-links: rgb(var(--brand));
+  --tw-prose-bold: rgb(var(--foreground));
+  --tw-prose-bullets: rgb(var(--border));
+  --tw-prose-counters: rgb(var(--muted-foreground));
+  --tw-prose-invert-body: rgb(var(--foreground));
+  --tw-prose-invert-headings: rgb(var(--foreground));
+  --tw-prose-invert-links: rgb(var(--brand));
+  --tw-prose-invert-bold: rgb(var(--foreground));
+  --tw-prose-invert-bullets: rgb(var(--border));
+  --tw-prose-invert-counters: rgb(var(--muted-foreground));
+}
+
+/* Body copy at the rulebook's 16/22, overriding `.prose-sm`'s 14px (every
+   call site uses the `-sm` modifier for its list/heading spacing). Absolute
+   `rem` values rather than touching the modifier's own em-relative base
+   font-size, which every other `.prose-sm` measurement (h2/h3/table/code)
+   is computed relative to — changing the base would rescale all of them. */
+.prose :where(p, li):not(:where([class~="not-prose"] *)) {
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+}
+
+/* Links: Klein, underline on hover only, 400/600 weight (the plugin's
+   default is a permanent underline at font-weight 500, which isn't on the
+   rulebook's ramp). */
+.prose :where(a):not(:where([class~="not-prose"] *)) {
+  font-weight: 400;
+  text-decoration: none;
+}
+.prose :where(a):not(:where([class~="not-prose"] *)):hover {
+  text-decoration: underline;
+}
+
 /* Mobile zoom: two DIFFERENT iOS Safari behaviours, two different fixes.
    Neither is solved by `user-scalable=no` / `maximum-scale=1` on the viewport
    — that is a WCAG 1.4.4 failure (it takes pinch-zoom away from people who
@@ -946,6 +858,23 @@ select {
   samp,
   pre {
     font-family: var(--font-mono);
+  }
+}
+
+/* Tailwind v4 draws an uncoloured border utility (`border`, `border-t`,
+   `divide-y`) in currentColor, so a bare `border-t` on a divider paints ink.
+   The rulebook has exactly one resting edge colour, the hairline, so it is the
+   default here; a utility that names a colour (border-input, border-brand,
+   border-transparent) still wins because utilities sit above @layer base.
+   28 bare sites across 8 files at the time of writing (login-form divider,
+   jobs page, resume preview, mocks). */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border);
   }
 }
 

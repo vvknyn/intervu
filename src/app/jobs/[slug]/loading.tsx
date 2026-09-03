@@ -1,4 +1,5 @@
 import { JobDetailSkeleton } from "@/components/jobs/JobDetail";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Loading() {
     return (
@@ -8,10 +9,10 @@ export default function Loading() {
             aria-busy="true"
         >
             <span className="sr-only">Loading job page</span>
-            <div className="skeleton-bar mb-4 h-4 w-40" aria-hidden />
+            <Skeleton className="mb-4 h-5 w-40" />
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
                 <JobDetailSkeleton />
-                <div className="hidden lg:block skeleton-bar h-64" aria-hidden />
+                <Skeleton className="hidden h-64 lg:block" />
             </div>
         </main>
     );

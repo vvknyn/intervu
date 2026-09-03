@@ -24,8 +24,8 @@ export function ReceiptShell({
     return (
         <div className="border border-border bg-card">
             <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-                <span className="mono-data text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
-                <span className={cn("inline-flex items-center px-2 py-0.5 text-xs font-bold uppercase tracking-wider", statusClassName)}>
+                <span className="mono-data text-xs font-semibold text-muted-foreground">{label}</span>
+                <span className={cn("inline-flex items-center px-2 py-0.5 text-xs font-semibold", statusClassName)}>
                     {status}
                 </span>
             </div>

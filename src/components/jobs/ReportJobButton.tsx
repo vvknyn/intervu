@@ -68,9 +68,9 @@ export function ReportJobButton({
         return (
             <span
                 data-testid="report-job-done"
-                className={cn("inline-flex items-center gap-1.5 text-[12px] text-muted-foreground", className)}
+                className={cn("inline-flex items-center gap-1.5 text-xs text-muted-foreground", className)}
             >
-                <FlagIcon size={13} weight="fill" />
+                <FlagIcon weight="fill" />
                 Reported ✓
             </span>
         );
@@ -123,7 +123,7 @@ export function ReportJobButton({
                 data-testid="report-job-trigger"
                 className={cn("gap-1.5 text-muted-foreground", className)}
             >
-                <FlagIcon size={13} />
+                <FlagIcon />
                 Report listing
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>

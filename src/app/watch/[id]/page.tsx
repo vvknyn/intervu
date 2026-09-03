@@ -11,6 +11,7 @@
  * exactly when they are least likely to already have a session cookie.
  */
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { getServerUser } from "@/lib/auth/server-user";
 import { WatchCanvas } from "@/components/viewer/watch-canvas";
 
@@ -20,19 +21,16 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
 
     if (!user) {
         return (
-            <main className="min-h-dvh bg-black text-white flex items-center justify-center p-6">
+            <main className="min-h-dvh bg-background flex items-center justify-center p-6">
                 <div className="max-w-sm text-center space-y-4" data-testid="watch-login-required">
-                    <h1 className="text-lg font-medium">Sign in to watch</h1>
-                    <p className="text-sm text-white/60">
+                    <h1 className="text-lg font-semibold text-foreground">Sign in to watch</h1>
+                    <p className="text-sm text-muted-foreground">
                         Sign in to velai on this phone, then open this link again to see the
                         application being filled in.
                     </p>
-                    <Link
-                        href="/"
-                        className="inline-block rounded-md bg-white px-4 py-2 text-sm font-medium text-black"
-                    >
-                        Go to velai
-                    </Link>
+                    <Button asChild>
+                        <Link href="/">Go to velai</Link>
+                    </Button>
                 </div>
             </main>
         );

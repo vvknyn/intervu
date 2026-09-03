@@ -209,13 +209,13 @@ export function FollowButton({
         className={cn(
           "inline-flex items-center justify-center gap-2",
           variant === "elite" &&
-            "border px-4 py-2 text-[13.5px] font-semibold transition-colors",
+            "border px-4 py-2 text-sm font-semibold transition-colors",
           variant === "elite" &&
             (following
               ? "border-[color:var(--elite-ink)] bg-[color:var(--elite-ink)] text-[color:var(--elite-surface)]"
               : "border-[color:var(--elite-ink)] bg-[color:var(--elite-card)] text-[color:var(--elite-ink)] hover:bg-[color:var(--elite-rule)]"),
           variant === "pill" &&
-            "rounded-md border px-3 py-1.5 text-[12.5px] font-medium transition-colors",
+            "rounded-none border px-3 py-1.5 text-xs transition-colors",
           variant === "pill" &&
             (following
               ? "border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] text-[color:var(--elite-brand)]"
@@ -223,7 +223,7 @@ export function FollowButton({
           className,
         )}
       >
-        {showSpinner && <CircleNotch size={14} className="animate-spin shrink-0" aria-hidden />}
+        {showSpinner && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
         {displayLabel}
       </button>
     ) : (
@@ -241,11 +241,11 @@ export function FollowButton({
         className={cn(
           following &&
             variant === "outline" &&
-            "border-brand/25 bg-brand/10 text-brand hover:bg-brand/15 hover:text-brand",
+            "border-brand bg-muted text-brand hover:bg-muted hover:text-brand",
           className,
         )}
       >
-        {showSpinner && <CircleNotch size={14} className="animate-spin shrink-0" aria-hidden />}
+        {showSpinner && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
         {displayLabel}
       </Button>
     );

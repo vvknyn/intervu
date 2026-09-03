@@ -42,7 +42,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         return (
             <div className="w-full max-w-xs mx-auto text-center">
                 <div className="mb-6 flex justify-center">
-                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center shadow-2xs">
+                    <div className="w-12 h-12 rounded-none bg-muted flex items-center justify-center">
                         <EnvelopeSimple size={24} className="text-foreground" />
                     </div>
                 </div>
@@ -54,7 +54,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 </p>
                 <button
                     onClick={onBack}
-                    className="text-xs text-faint hover:text-foreground transition-colors"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                     Back to login
                 </button>
@@ -67,9 +67,9 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
             <div className="mb-8">
                 <button
                     onClick={onBack}
-                    className="flex items-center gap-1 text-xs text-faint hover:text-foreground transition-colors mb-4"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-4"
                 >
-                    <ArrowLeft size={12} />
+                    <ArrowLeft />
                     Back
                 </button>
                 <h2 className="text-lg font-semibold text-foreground text-center">
@@ -94,7 +94,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 </Field>
 
                 {error && (
-                    <div className="mt-2 text-xs text-destructive text-center">
+                    <div className="mt-2 text-xs text-danger-text text-center">
                         {error}
                     </div>
                 )}

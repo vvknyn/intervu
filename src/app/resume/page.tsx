@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 const RESUME_SUBCOPY = "Your one base resume. Connect your AI to tailor a version for each role.";
 
 function ResumeHeader() {
-    return <PageHeader size="display" fullWidth sticky={false} title="Resume" description={RESUME_SUBCOPY} />;
+    return <PageHeader fullWidth sticky={false} title="Resume" description={RESUME_SUBCOPY} />;
 }
 
 function ResumeAuthSkeleton() {
@@ -31,13 +31,11 @@ function ResumeAuthSkeleton() {
 
 function SignedOutState({ onLoginClick }: { onLoginClick: () => void }) {
     return (
-        <div className="space-y-4 rounded-none border border-dashed border-border bg-card p-8 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground">
-                <FileText size={24} />
-            </div>
-            <div className="space-y-1 max-w-sm mx-auto">
-                <h3 className="text-sm font-semibold text-foreground">Sign in to see your resume</h3>
-                <p className="text-xs text-muted-foreground">
+        <div className="mx-auto max-w-[480px] space-y-4 rounded-none border border-border bg-card p-8 text-center">
+            <FileText size={24} className="mx-auto text-muted-foreground" />
+            <div className="space-y-1">
+                <h3 className="text-base font-semibold text-foreground">Sign in to see your resume</h3>
+                <p className="text-sm text-muted-foreground">
                     Your resume and any versions you tailor for a role live on your account.
                 </p>
             </div>

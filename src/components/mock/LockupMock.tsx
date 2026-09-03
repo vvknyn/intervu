@@ -1,9 +1,9 @@
 import Image from "next/image";
-import { BRAND_MARK_PATHS, BRAND_MARK_VIEWBOX, BrandMark } from "@/components/brand/BrandMark";
+import { BRAND_MARK_BRACKETS, BRAND_MARK_VIEWBOX, BrandMark } from "@/components/brand/BrandMark";
 
 function Wordmark() {
     return (
-        <span className="font-display text-[28px] leading-none font-bold uppercase tracking-tight">
+        <span className="text-2xl leading-none font-semibold">
             velai
         </span>
     );
@@ -13,19 +13,12 @@ function LockupRow({ children }: { children: React.ReactNode }) {
     return <span className="flex items-center gap-2 text-brand">{children}</span>;
 }
 
-/** Stroke geometry has no closed fill — thicker stroke approximates a solid mark. */
+/** Brackets only, no live dot — a no-signal variant of the canonical mark. */
 function FilledWeightStandInMark() {
     return (
-        <svg viewBox={BRAND_MARK_VIEWBOX} fill="none" aria-hidden className="h-7 w-7">
-            {BRAND_MARK_PATHS.map((d) => (
-                <path
-                    key={d}
-                    d={d}
-                    stroke="currentColor"
-                    strokeWidth={22}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                />
+        <svg viewBox={BRAND_MARK_VIEWBOX} aria-hidden className="h-7 w-7">
+            {BRAND_MARK_BRACKETS.map((d) => (
+                <path key={d} d={d} fill="currentColor" />
             ))}
         </svg>
     );
@@ -36,7 +29,7 @@ function LiveSignalMark() {
         <span className="relative inline-flex h-7 w-7 shrink-0">
             <BrandMark className="h-7 w-7 text-current" />
             <span
-                className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-live"
+                className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-none bg-live"
                 aria-hidden
             />
         </span>
@@ -54,7 +47,7 @@ function Option({
 }) {
     return (
         <section className="border border-border bg-card p-5">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <h2 className="text-xs font-semibold text-muted-foreground">
                 {n}. {title}
             </h2>
             <div className="mt-4 border-t border-dashed border-border pt-4">{children}</div>
@@ -66,10 +59,10 @@ export function LockupMock() {
     return (
         <main className="mx-auto flex max-w-[820px] flex-col gap-6 p-8">
             <header>
-                <h1 className="font-display text-[22px] font-semibold tracking-tight">
+                <h1 className="text-lg font-semibold">
                     Header lockup — four directions
                 </h1>
-                <p className="mt-1 text-[13px] text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                     Compare-only fixture at header scale. Not linked from anywhere and not indexed.
                 </p>
             </header>
@@ -81,7 +74,7 @@ export function LockupMock() {
                         width={28}
                         height={28}
                         alt=""
-                        className="h-7 w-7 rounded-md"
+                        className="h-7 w-7 rounded-none"
                     />
                     <Wordmark />
                 </LockupRow>

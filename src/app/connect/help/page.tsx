@@ -40,7 +40,7 @@ function HelpSection({
 }) {
   return (
     <section id={id} className="scroll-mt-8 border-t border-border py-8 first:border-t-0 first:pt-0">
-      <h2 className="text-title font-semibold tracking-tight text-foreground">{title}</h2>
+      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       <div className="mt-3 space-y-3 text-sm leading-relaxed text-foreground">{children}</div>
     </section>
   );
@@ -51,7 +51,7 @@ function HelpSection({
  *  this page has no client-side state, so there's no copy button here. */
 function Command({ children }: { children: string }) {
   return (
-    <code className="block overflow-x-auto rounded-none border border-border bg-muted/40 px-3.5 py-2.5 text-sm text-foreground shadow-2xs">
+    <code className="block overflow-x-auto rounded-none bg-muted px-3.5 py-2.5 text-sm text-foreground">
       {children}
     </code>
   );
@@ -65,10 +65,10 @@ export default function ConnectHelpPage() {
   const OPENCLAW_INSTALL_COMMAND = openclawInstallCommand(issuer);
   return (
     <main data-testid="connect-help-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+      <p className="text-xs font-semibold text-muted-foreground">
         Setup help
       </p>
-      <h1 className="mt-2 text-title font-semibold tracking-tight text-foreground">
+      <h1 className="mt-2 text-title-lg font-semibold text-foreground">
         Connecting your AI to velai
       </h1>
       <p className="mt-3 max-w-xl text-sm text-muted-foreground">
@@ -76,14 +76,14 @@ export default function ConnectHelpPage() {
         agent you install on your own Mac. If an install failed and sent you here, find the
         section it named below — each one covers what happened, why, and what to do next. Start
         at{" "}
-        <Link href="/connect" className="font-medium text-brand underline-offset-4 hover:underline">
+        <Link href="/connect" className="text-brand underline-offset-4 hover:underline">
           /connect
         </Link>{" "}
         if you haven&apos;t begun yet.
       </p>
 
       <nav aria-label="On this page" className="mt-8 border border-border p-5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-foreground">On this page</p>
+        <p className="text-xs font-semibold text-foreground">On this page</p>
         <ol className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
           {SECTIONS.map((s) => (
             <li key={s.id}>
@@ -180,10 +180,10 @@ export default function ConnectHelpPage() {
           <p>
             This installer no longer asks you to do that. If Node isn&apos;t already on your Mac, it
             downloads its own private copy into a folder that belongs only to you
-            (<code className="text-[13px]">~/.openclaw/runtime</code>), checks it against
+            (<code className="text-xs">~/.openclaw/runtime</code>), checks it against
             the official checksum published by nodejs.org so you know it wasn&apos;t tampered with,
             and adds one line to a personal settings file
-            (<code className="text-[13px]">~/.zprofile</code>, marked &ldquo;# intervu
+            (<code className="text-xs">~/.zprofile</code>, marked &ldquo;# intervu
             installer: local Node runtime&rdquo;) so your Terminal can find it every time you open a
             new window. No admin password, nothing installed system-wide.
           </p>
@@ -308,8 +308,8 @@ export default function ConnectHelpPage() {
           <Command>rm -rf ~/.openclaw ~/.mcporter</Command>
           <p>
             Then open{" "}
-            <code className="text-[13px]">~/.zprofile</code> in a text editor, find the
-            line that reads <code className="text-[13px]">
+            <code className="text-xs">~/.zprofile</code> in a text editor, find the
+            line that reads <code className="text-xs">
               # intervu installer: local Node runtime
             </code>
             , and delete that line and the one right after it. If your Mac already had Node

@@ -70,7 +70,7 @@ export function WatchingWall({ className }: { className?: string }) {
           them near the top, since flex children don't stretch to fill
           remaining space by default; the rest of a 100dvh container would
           render with no wall in it at all. */}
-      <div className="flex h-full flex-col justify-between whitespace-nowrap text-[13px] uppercase tracking-[0.08em] text-foreground/[0.05]">
+      <div className="flex h-full flex-col justify-between whitespace-nowrap text-xs text-foreground/[0.05]">
         {[0, 1, 2, 3, 4, 5].map((row) => (
           <div
             key={row}
