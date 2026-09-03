@@ -20,10 +20,8 @@ function Field({
   ...props
 }: React.ComponentProps<"div"> & { label: string; htmlFor: string }) {
   return (
-    <div className={cn("space-y-1.5", className)} {...props}>
-      <Label htmlFor={htmlFor} className="text-xs font-semibold text-foreground">
-        {label}
-      </Label>
+    <div className={cn("flex flex-col gap-2", className)} {...props}>
+      <Label htmlFor={htmlFor}>{label}</Label>
       {children}
     </div>
   )

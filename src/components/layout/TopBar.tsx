@@ -10,6 +10,7 @@ import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
+import { Button } from "@/components/ui/button";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import {
     DropdownMenu,
@@ -29,15 +30,6 @@ import { useShareControl } from "@/components/ui/share-action";
 import { withShareRef } from "@/lib/share/share-decision";
 import { getSiteUrl, SHARE_APP_TEXT, SITE_NAME } from "@/lib/seo/constants";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
-
-function initialsOf(user: User): string {
-    const src = (user.displayName || user.email || "?").trim();
-    const parts = src.split(/\s+/);
-    if (parts.length >= 2 && parts[0] && parts[1]) {
-        return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return src.slice(0, 1).toUpperCase();
-}
 
 /** "Share Velai" account-menu entry — same share control as JobDetail's
  *  ShareAction (native sheet, clipboard fallback, honest failure), rendered
@@ -114,7 +106,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-50 shrink-0 border-b border-border bg-background backdrop-saturate-180 transition-colors"
+            className="sticky top-0 z-50 shrink-0 border-b border-border bg-background transition-colors"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
@@ -141,15 +133,17 @@ export function TopBar() {
                     nav and the account controls against the right edge exactly
                     as before when nothing is docked; the only thing that can
                     grow is the docked search below. */}
-                <div className="flex min-w-0 flex-1 items-center justify-end gap-3 sm:gap-5">
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-3 sm:gap-6">
                     {/* The docked search. Shows what you searched for and puts
                         it back one click away.
 
                         It takes the WHOLE empty span of the bar (`flex-1`) and
-                        wears the search field's own chrome — card ground,
-                        `border-border` at rest, a full-height inverted SEARCH
-                        block on the trailing edge. Sized in the header's own
-                        token so it can't drift from the bar. As a 380px pill
+                        wears the real field's own chrome — field-01 (h-8,
+                        `bg-muted`, a `border-border-strong` underline) — with
+                        a plain-text "Search" trailing edge, not a filled
+                        block: the header carries zero filled controls.
+                        Sized in the header's own token so it can't drift from
+                        the bar. As a 380px pill
                         with a small grey "Edit" it read as a status label, not
                         a control (Vivek, 2026-08-24: "it is not at all obvious
                         that this is a search bar"): width and field vocabulary
@@ -166,22 +160,24 @@ export function TopBar() {
                             }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="hidden h-10 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-none border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="hidden h-8 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-none border-0 border-b border-border-strong bg-muted text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
-                                <MagnifyingGlass size={15} weight="bold" className="shrink-0 self-center text-foreground" />
+                                <MagnifyingGlass className="shrink-0 self-center text-foreground" />
                                 <div
                                     data-testid="topbar-docked-query"
                                     className="relative flex h-full min-w-0 flex-1 items-stretch overflow-visible"
                                 />
                             </div>
                             <div className="flex h-full w-[min(210px,28%)] shrink-0 items-stretch border-l border-border pr-1">
-                                <MapPin size={15} weight="bold" aria-hidden className="ml-2.5 shrink-0 self-center text-muted-foreground" />
+                                <MapPin aria-hidden className="ml-3 shrink-0 self-center text-muted-foreground" />
                                 <div data-testid="topbar-docked-location" className="relative flex h-full min-w-0 flex-1 items-stretch overflow-visible" />
                             </div>
+                            {/* Ghost, not filled — the header carries zero filled
+                                controls (round-7 canvas correction). */}
                             <button
                                 type="submit"
-                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap bg-brand px-4 py-0 text-xs font-semibold leading-none text-brand-foreground transition-colors hover:bg-brand"
+                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-xs font-semibold leading-none text-brand transition-colors hover:bg-muted"
                             >
                                 Search
                             </button>
@@ -195,27 +191,27 @@ export function TopBar() {
                         <DropdownMenu>
                             <DropdownMenuTrigger
                                 className={cn(
-                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-none px-3 py-1 text-xs font-semibold transition-colors outline-none",
+                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-none px-3 py-1 text-sm transition-colors outline-none",
                                     menuActive
-                                        ? "text-brand font-semibold"
-                                        : "text-muted-foreground hover:text-foreground",
+                                        ? "font-semibold text-foreground"
+                                        : "font-normal text-muted-foreground hover:text-foreground",
                                 )}
                             >
                                 <span className={cn(menuActive && "border-b-2 border-brand")}>{menuTriggerLabel}</span>
-                                <CaretDown size={12} weight="bold" aria-hidden />
+                                <CaretDown aria-hidden />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="min-w-[9rem] rounded-none border border-border bg-card p-1">
+                            <DropdownMenuContent align="start" className="min-w-[9rem]">
                                 {menuTabs.map((tab) => {
                                     const active = tab.match(pathname);
                                     return (
-                                        <DropdownMenuItem key={tab.href + tab.label} asChild className="rounded-none">
+                                        <DropdownMenuItem key={tab.href + tab.label} asChild>
                                             <Link
                                                 href={tab.href}
                                                 data-testid={tab.testId}
                                                 aria-current={active ? "page" : undefined}
                                                 className={cn(
-                                                    "flex w-full items-center whitespace-nowrap text-xs font-semibold",
-                                                    active && "text-brand",
+                                                    "flex w-full items-center whitespace-nowrap",
+                                                    active && "font-semibold text-foreground",
                                                 )}
                                             >
                                                 {tab.label}
@@ -244,10 +240,10 @@ export function TopBar() {
                                     aria-current={active ? "page" : undefined}
                                     data-nav-current={active ? "true" : undefined}
                                     className={cn(
-                                        "whitespace-nowrap rounded-none px-3 py-1 text-xs font-semibold transition-colors",
+                                        "whitespace-nowrap rounded-none px-3 py-1 text-sm transition-colors",
                                         active
-                                            ? "text-brand font-semibold"
-                                            : "text-muted-foreground hover:text-foreground",
+                                            ? "font-semibold text-foreground"
+                                            : "font-normal text-muted-foreground hover:text-foreground",
                                     )}
                                 >
                                     <span className={cn(active && "border-b-2 border-brand")}>{tab.label}</span>
@@ -268,32 +264,32 @@ export function TopBar() {
                             <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button
+                                    type="button"
                                     data-testid="topbar-avatar"
                                     title={user.displayName || user.email || "Account"}
                                     aria-current={accountActive ? "page" : undefined}
-                                    className={cn(
-                                        "grid h-8 w-8 place-items-center rounded-none bg-foreground text-xs font-semibold text-white outline-none transition-all hover:opacity-90 focus-visible:ring-2 focus-visible:ring-live dark:bg-foreground dark:text-muted-foreground",
-                                        accountActive && "ring-2 ring-live ring-offset-2 ring-offset-background",
-                                    )}
+                                    className="whitespace-nowrap px-1 text-sm text-foreground transition-opacity hover:opacity-80"
                                 >
-                                    {initialsOf(user)}
+                                    <span className={cn(accountActive && "border-b-2 border-brand font-semibold")}>
+                                        Account
+                                    </span>
                                 </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 rounded-none border border-border bg-card p-1">
-                                <DropdownMenuItem asChild className="rounded-none">
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuItem asChild>
                                     <Link href="/settings">Account</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="rounded-none">
+                                <DropdownMenuItem asChild>
                                     <Link href="/research/ghost-jobs">{GHOST_JOB_RESEARCH_TITLE}</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <FeedbackModal>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="rounded-none">
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                         Feedback
                                     </DropdownMenuItem>
                                 </FeedbackModal>
                                 <ShareVelaiMenuItem />
-                                <DropdownMenuItem asChild className="rounded-none text-muted-foreground text-xs">
+                                <DropdownMenuItem asChild className="text-muted-foreground">
                                     <Link href="/privacy">Privacy & Terms</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -303,10 +299,9 @@ export function TopBar() {
                                             e.preventDefault();
                                             toggleMode();
                                         }}
-                                        className="rounded-none"
                                     >
                                         <span className="flex w-full items-center gap-2">
-                                            {mode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                                            {mode === "dark" ? <Sun /> : <Moon />}
                                             <span>Dark mode</span>
                                             <span className="ml-auto text-xs text-muted-foreground">
                                                 {mode === "dark" ? "On" : "Off"}
@@ -318,7 +313,7 @@ export function TopBar() {
                                 <DropdownMenuItem
                                     onSelect={handleSignOut}
                                     disabled={signingOut}
-                                    className="rounded-none text-danger-text dark:text-danger-text"
+                                    className="text-danger-text dark:text-danger-text"
                                 >
                                     {signingOut ? (
                                         <span className="flex items-center gap-2">
@@ -350,21 +345,25 @@ export function TopBar() {
                                 setAuthTab("login");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="whitespace-nowrap px-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                            className="whitespace-nowrap px-1 text-sm text-foreground transition-opacity hover:opacity-80"
                         >
                             Sign in
                         </button>
-                        <button
+                        {/* Ghost, not filled — the header carries zero filled
+                            controls (round-7 canvas correction). */}
+                        <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
                             data-testid="topbar-alerts-cta"
                             onClick={() => {
                                 setAuthTab("signup");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="hidden h-10 box-border items-center justify-center whitespace-nowrap rounded-none bg-brand px-3.5 text-xs font-semibold text-brand-foreground transition-colors hover:bg-brand lg:inline-flex"
+                            className="hidden lg:inline-flex"
                         >
                             Get job alerts
-                        </button>
+                        </Button>
                         </>
                     )}
                     </div>

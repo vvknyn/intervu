@@ -12,7 +12,15 @@
      touches nothing here. */
   --font-sans: var(--font-sans-face), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
-  --font-display: var(--font-display-face), var(--font-sans);
+  /* Display face retired (rulebook v2 CORRECTIONS #2, 2026-09-03): every
+     `font-display` consumer now resolves to the same Source Sans 3 stack as
+     body text. `--font-display-face` (Libre Franklin, next/font in
+     app/layout.tsx) is kept wired for exactly one consumer — BrandMark.tsx's
+     wordmark span, which reads it directly via an arbitrary `font-[family-
+     name:var(--font-display-face)]` utility rather than through this token —
+     so the variable/import stay in place with no call site left pointing at
+     them through `font-display`. */
+  --font-display: var(--font-sans);
 
   /* Rulebook type scale (Type ramp: 12/16 · 14/20 · 16/22 · 20/28, weights
      400/600 only) plus an expressive scale for content headings
@@ -115,7 +123,7 @@
      Restating it is what broke expanding the docked search: the observer
      knew the header was 64px and the scroll that followed did not, so the
      search box landed underneath it. */
-  --topbar-h: 64px;
+  --topbar-h: 48px;
   --jobs-sticky-offset: var(--topbar-h);
   --jobs-filter-row-h: 36px;
   --jobs-bar-content-gap: 8px;
@@ -129,7 +137,7 @@
      read as a slightly dirty card. Biasing the ground toward the accent gives
      it a temperature, and `--card` (pure 255) now reads as genuinely white
      against it. Picked from /mock/surface at true scale. */
-  --background: 246 248 252;
+  --background: 255 255 255; /* rulebook page colour #FFFFFF (was a blue-tinted 246 248 252) */
   --foreground: 10 10 10;
   --card: 255 255 255;
   --card-foreground: var(--foreground);
@@ -150,13 +158,18 @@
      rather than repointing this sitewide one. */
   --danger-text: 218 30 40;
   --border: 224 224 224; /* jobs-SERP hairline #E0E0E0 (was 229 229 229) */
-  --input: 10 10 10;
+  --input: 141 141 141; /* field-01 rest edge #8D8D8D (was ink) */
   --ring: var(--brand);
 
   /* Brand / accent — International Klein Blue (#002FA7) & Safety Signal Orange (#FF4400) */
   --brand: 0 47 167;
   --brand-foreground: 255 255 255;
   --brand-muted: 37 99 235;
+  /* Filled-button hover state (Group B): Klein −10% lightness, #002585. A
+     dedicated token rather than an opacity/brightness filter on --brand so
+     `hover:bg-brand-hover` composes with every other utility on the same
+     element the way `hover:bg-muted` etc. already do. */
+  --brand-hover: 0 37 133;
   /* Named for the ROLE, not the hue — these are the blue-50/blue-100 tints
      that `--live-tint-*` carried before the Ledger palette (2026-08-27) gave
      green exactly one meaning ("this fact is live/verified") and moved every
@@ -173,7 +186,7 @@
 
   /* Surface + text levels */
   --surface: 255 255 255;
-  --surface-hover: 245 245 245;
+  --surface-hover: 244 244 244; /* rulebook layer #F4F4F4, matches --chip */
   --surface-2: 245 245 245;
   --surface-3: 212 212 212;
   --border-strong: 10 10 10;
@@ -278,6 +291,8 @@
   --brand: 45 104 255;
   --brand-foreground: 255 255 255;
   --brand-muted: 37 99 235;
+  /* Dark mirror of --brand-hover: lighter, not darker, on a dark ground. */
+  --brand-hover: 66 105 220;
   /* See the light-mode comment above — same tints --live-tint-* carried
      before the Ledger palette, now under the honest --brand-tint-* name. */
   --brand-tint-bg: 15 23 42;
@@ -357,6 +372,7 @@
   --color-brand: rgb(var(--brand));
   --color-brand-foreground: rgb(var(--brand-foreground));
   --color-brand-muted: rgb(var(--brand-muted));
+  --color-brand-hover: rgb(var(--brand-hover));
   --color-chrome: rgb(var(--chrome));
   --color-chrome-foreground: rgb(var(--chrome-foreground));
   --color-surface: rgb(var(--surface));
@@ -468,7 +484,6 @@ body {
   /* 16px — DESIGN-LANGUAGE `text-body` role; matches the iOS 16px form-control floor below. */
   font-size: 16px;
   line-height: 1.5;
-  letter-spacing: -0.006em;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -530,7 +545,6 @@ h1,
 h2,
 h3,
 h4 {
-  letter-spacing: -0.025em;
 }
 
 /* Detail pane at xl+ — outer drop shadow that lifts it above the list

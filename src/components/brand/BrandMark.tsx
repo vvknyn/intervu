@@ -54,13 +54,18 @@ export function BrandLockup({ className }: { className?: string }) {
     return (
         <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join("")}>
             <BrandLockupMark />
-            {/* Wordmark is the one rulebook exception: 700 weight, caps, tight
-                tracking. font-[700] (not font-bold, now 600) + data-rulebook-exempt
-                covers the runtime probe; design-lint-allow covers the static gate. */}
+            {/* Wordmark is the one rulebook exception: Libre Franklin 700,
+                caps, tight tracking. `--font-display` was retired to the sans
+                stack site-wide (rulebook v2 CORRECTIONS #2), so this reads
+                `--font-display-face` (the Libre Franklin next/font variable
+                from app/layout.tsx) directly instead of through that token —
+                the one call site still allowed to. font-[700] (not
+                font-bold, now 600) + data-rulebook-exempt covers the runtime
+                probe; design-lint-allow covers the static gate. */}
             {/* design-lint-allow */}
             <span
                 data-rulebook-exempt
-                className="font-display text-[28px] leading-none font-[700] uppercase tracking-tight"
+                className="font-[family-name:var(--font-display-face)] text-[28px] leading-none font-[700] uppercase tracking-tight"
             >
                 velai
             </span>

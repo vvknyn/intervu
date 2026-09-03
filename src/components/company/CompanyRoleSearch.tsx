@@ -372,7 +372,7 @@ export function CompanyRoleSearch({
                 source="co"
                 onOpenRelated={handleOpenRelated}
                 collapseDescription={false}
-                detailClassName="border-0 bg-transparent shadow-none"
+                detailClassName="border-0 bg-transparent"
               />
             )}
           </div>

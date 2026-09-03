@@ -51,7 +51,7 @@ const REGIONS = ['header', 'band', 'list', 'detail'] as const;
 type Region = (typeof REGIONS)[number];
 // Region -> required count of the one filled #002FA7 button (rulebook: one
 // in header, one in detail, zero in band and list).
-const EXPECTED_FILLED_BUTTONS: Record<Region, number> = { header: 1, band: 0, list: 0, detail: 1 };
+const EXPECTED_FILLED_BUTTONS: Record<Region, number> = { header: 0, band: 0, list: 0, detail: 1 };
 
 function hexToRgbString(hex: string): string {
     const n = parseInt(hex.slice(1), 16);

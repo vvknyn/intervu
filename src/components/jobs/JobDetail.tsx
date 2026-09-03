@@ -486,7 +486,7 @@ export function JobDetail({
         <div
             data-region="detail"
             className={cn(
-                "relative rounded-none border border-border bg-card backdrop-saturate-150",
+                "relative rounded-none border border-border bg-card",
                 collapseDescription && "flex min-h-0 flex-1 flex-col overflow-hidden",
                 className,
             )}

@@ -260,7 +260,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             className={cn(
                 // Height subtracts only global chrome (TopBar + mobile tab bar).
                 // Page header/tabs are hidden while this editor is open.
-                "relative flex h-[calc(100dvh-7.25rem-env(safe-area-inset-bottom,0px))] min-h-0 flex-col overflow-hidden rounded-none border border-border bg-card shadow-none lg:h-[calc(100dvh-4.5rem)]",
+                "relative flex h-[calc(100dvh-7.25rem-env(safe-area-inset-bottom,0px))] min-h-0 flex-col overflow-hidden rounded-none border border-border bg-card lg:h-[calc(100dvh-4.5rem)]",
                 className,
             )}
         >
@@ -329,7 +329,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         variant="outline"
                         size="sm"
                         onClick={handleDownloadPdf}
-                        className="hidden sm:inline-flex gap-1 text-xs rounded-none shadow-none"
+                        className="hidden sm:inline-flex gap-1 text-xs rounded-none"
                     >
                         <DownloadSimple size={13} /> .pdf
                     </Button>
@@ -339,7 +339,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         variant="outline"
                         size="sm"
                         onClick={handleDownloadDocx}
-                        className="hidden lg:inline-flex gap-1 text-xs rounded-none shadow-none"
+                        className="hidden lg:inline-flex gap-1 text-xs rounded-none"
                     >
                         <DownloadSimple size={13} /> .docx
                     </Button>
@@ -350,7 +350,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         size="sm"
                         onClick={handleDownloadJson}
                         title="Download the structured resume data"
-                        className="hidden xl:inline-flex gap-1 text-xs rounded-none shadow-none"
+                        className="hidden xl:inline-flex gap-1 text-xs rounded-none"
                     >
                         <DownloadSimple size={13} /> .json
                     </Button>

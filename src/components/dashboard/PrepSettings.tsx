@@ -396,7 +396,7 @@ function SettingRow({ label, hint, value, min, max, onChange, help }: SettingRow
                 <button
                     onClick={() => onChange(Math.max(min, value - 1))}
                     disabled={value <= min}
-                    className="w-6 h-6 flex items-center justify-center rounded-none hover:bg-white disabled:opacity-30 disabled:hover:shadow-none transition-all text-muted-foreground hover:text-foreground"
+                    className="w-6 h-6 flex items-center justify-center rounded-none hover:bg-white disabled:opacity-30 transition-all text-muted-foreground hover:text-foreground"
                 >
                     -
                 </button>
@@ -404,7 +404,7 @@ function SettingRow({ label, hint, value, min, max, onChange, help }: SettingRow
                 <button
                     onClick={() => onChange(Math.min(max, value + 1))}
                     disabled={value >= max}
-                    className="w-6 h-6 flex items-center justify-center rounded-none hover:bg-white disabled:opacity-30 disabled:hover:shadow-none transition-all text-muted-foreground hover:text-foreground"
+                    className="w-6 h-6 flex items-center justify-center rounded-none hover:bg-white disabled:opacity-30 transition-all text-muted-foreground hover:text-foreground"
                 >
                     +
                 </button>

@@ -424,27 +424,10 @@ test("shadow means floating: outer utility shadows only appear as the overlay to
             `surface genuinely outside this change's scope — add it to tests/unit/shadow-preset-baseline.json.`,
     );
 
-    // Coverage half of the invariant: the primitives that are genuinely
-    // floating (portal-rendered, nothing behind them) must actually carry the
-    // token, not just fail to violate it — an explicit list of the surfaces
-    // docs/design/ATTENTION.md names as overlays.
-    const OVERLAY_PRIMITIVE_FILES = [
-        "src/components/ui/dialog.tsx",
-        "src/components/ui/sheet.tsx",
-        "src/components/ui/tooltip.tsx",
-        "src/components/ui/select.tsx",
-        "src/components/ui/dropdown-menu.tsx",
-        "src/components/ui/popover.tsx",
-        "src/components/search/SearchAutocomplete.tsx",
-    ];
-    const missingToken = OVERLAY_PRIMITIVE_FILES.filter(
-        (rel) => !readFileSync(path.join(ROOT, rel), "utf8").includes("shadow-[var(--shadow-overlay)]"),
-    );
-    assert.deepEqual(
-        missingToken,
-        [],
-        `overlay primitive(s) missing the shadow-[var(--shadow-overlay)] treatment: ${missingToken.join(", ")}`,
-    );
+    // No "must carry the overlay token" half any more: rulebook clause 4 resolves
+    // every shadow token, --shadow-overlay included, to none on both themes, so
+    // an overlay carrying the class renders identically to one without it. The
+    // classifier still treats the token as sanctioned wherever it survives.
 });
 
 test("shadow classifier: survives an inset sheen, catches a hardcoded outer shadow", () => {
@@ -571,6 +554,7 @@ const {
     rules: bannedClasses,
     ALLOW_WINDOW_LINES,
     EXCLUDED_DIRS,
+    FILE_EXEMPTIONS,
     walkTsxFiles,
     stripComments,
     isFileAllowed,
@@ -581,6 +565,7 @@ const {
     rules: BannedRule[];
     ALLOW_WINDOW_LINES: number;
     EXCLUDED_DIRS: Set<string>;
+    FILE_EXEMPTIONS: { file: string; why: string }[];
     walkTsxFiles: (dir: string) => string[];
     stripComments: (src: string) => string;
     isFileAllowed: (raw: string) => boolean;
@@ -707,4 +692,23 @@ test("scrim/allow classifiers: shape-based, proven on fixtures other than the re
     assert.equal(isLineAllowed(fixtureLines, 5), true, "marker 5 lines above the match falls inside the 6-line window");
     assert.equal(isLineAllowed(fixtureLines, 6), false, "marker 6 lines above the match falls outside the 6-line window");
     assert.equal(isLineAllowed(["x", "// design-lint-allow-file"], 0), false, "the file-level marker must not also satisfy a line-level lookup");
+});
+
+test("FILE_EXEMPTIONS is the complete, exact set of design-lint-allow-file files", () => {
+    // The whole-file marker is itself an escape hatch from every rule above —
+    // this ratchet is what keeps that escape hatch from growing unreviewed.
+    // A new `design-lint-allow-file` marker with no matching FILE_EXEMPTIONS
+    // entry (or vice versa) fails here instead of silently widening the gate.
+    const markedFiles = walkTsxFiles(path.join(ROOT, "src"))
+        .filter((f) => isFileAllowed(readFileSync(f, "utf8")))
+        .map((f) => path.relative(ROOT, f))
+        .sort();
+    const declaredFiles = FILE_EXEMPTIONS.map((e) => e.file).sort();
+    assert.deepEqual(
+        markedFiles,
+        declaredFiles,
+        `design-lint-allow-file marker(s) and banned-classes.cjs's FILE_EXEMPTIONS list have drifted apart — ` +
+            `marked: [${markedFiles.join(", ")}], declared: [${declaredFiles.join(", ")}]. Add/remove the file on ` +
+            `both sides together.`,
+    );
 });

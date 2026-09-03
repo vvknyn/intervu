@@ -4153,7 +4153,7 @@ function JobsContent() {
                     onClose={onClose}
                     reportJobEnabled={reportJobEnabled}
                     collapseDescription={collapseDescription}
-                    className="border-0 bg-transparent shadow-none"
+                    className="border-0 bg-transparent"
                 />
                 {!collapseDescription && (
                 <JobDetailActionBar
@@ -4339,7 +4339,7 @@ function JobsContent() {
                 suggest={suggestForBox}
                 seeds={searchSeeds}
                 placeholder={SEARCH_PLACEHOLDER}
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-xs font-semibold text-foreground shadow-none placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-xs font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
             {queryDraft && (
@@ -4369,7 +4369,7 @@ function JobsContent() {
                 onCommit={addLocation}
                 selected={chosenLocations}
                 data-testid="topbar-docked-location-input"
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 text-xs text-foreground shadow-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 text-xs text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
             {(locationDraft || chosenLocations.length > 0) && (
@@ -4584,7 +4584,7 @@ function JobsContent() {
                                     seeds={searchSeeds}
                                     placeholder={SEARCH_PLACEHOLDER}
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
-                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base md:text-sm text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 pr-8"
+                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base md:text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 pr-8"
                                     containerClassName="min-w-0 w-full"
                                 />
                                 {/* NOT `results-clear-query` — that is the toolbar's
@@ -4639,7 +4639,7 @@ function JobsContent() {
                                     onCommit={addLocation}
                                     selected={chosenLocations}
                                     containerClassName="hidden lg:flex"
-                                    className="h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground shadow-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 sm:h-[56px] md:text-sm"
+                                    className="h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 sm:h-[56px] md:text-sm"
                                 />
                                 {/* Location's own one-tap clear, matching the query
                                     field's `search-input-clear`. The toolbar's "✕ clear
@@ -4936,7 +4936,7 @@ function JobsContent() {
                     {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"
-                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border xl:border-border xl:bg-card xl:backdrop-saturate-150 detail-pane-raised"
+                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border xl:border-border xl:bg-card detail-pane-raised"
                         >
                             {detailMountSite === "pane" ? (
                                 renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
@@ -5476,7 +5476,7 @@ function JobsContent() {
             {!isLgUp && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query) && (
                 <div
                     data-testid="mobile-search-cta"
-                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] border-t border-border bg-card px-4 py-2.5 shadow-none lg:hidden"
+                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] border-t border-border bg-card px-4 py-2.5 lg:hidden"
                 >
                     <Button
                         type="button"

@@ -18,6 +18,20 @@ const EXCLUDED_DIRS = new Set([path.join(ROOT, "src/lib/email")]);
 
 const ALLOW_WINDOW_LINES = 6;
 
+// The one deliberate enumerated-name exception in this file (per the coding
+// rules' "never gate by enumerating names except the one deliberate
+// FILE_EXEMPTIONS ratchet"): the whole-file `design-lint-allow-file` marker
+// is itself an escape hatch from the class-shape rules below, so THIS list
+// is what keeps that escape hatch from growing silently — a test
+// (design-language.test.ts) asserts it stays equal to the actual set of
+// files carrying the marker, so an unreviewed new whole-file exemption fails
+// the gate instead of slipping in unnoticed.
+const FILE_EXEMPTIONS = [
+    { file: "src/components/marketing/WhatsAppThreadHero.tsx", why: "Decorative marketing mock of a WhatsApp thread — raw pixel values recreate a third-party chat UI, not this app's own surfaces." },
+    { file: "src/components/mock/AuthGateMock.tsx", why: "Decorative onboarding mockup — intentional raw values too dense/scattered for a per-line marker." },
+    { file: "src/components/mock/CompletenessMock.tsx", why: "Decorative onboarding mockup — same as AuthGateMock.tsx." },
+];
+
 function walkTsxFiles(dir, out = []) {
     for (const entry of readdirSync(dir)) {
         const full = path.join(dir, entry);
@@ -179,6 +193,18 @@ const rules = [
         why: "globals.css's .glass-tint-muted sets no `color` override, so bg-muted alone is a faithful mapping.",
     },
     {
+        name: "backdrop-* filter utility",
+        pattern: /(?:[\w-]+:)*\bbackdrop-[a-z][a-zA-Z0-9-]*(?![a-zA-Z0-9-])/g,
+        replace: "",
+        why: "No blur/saturate/brightness/etc. backdrop filter survives outside the sanctioned overlay scrim, which uses a plain bg-black/50 (no backdrop-* utility at all) — see the scrim classifier above.",
+    },
+    {
+        name: "shadow-none (inert, leaves a transparent shadow stack)",
+        pattern: /(?:[\w-]+:)*\bshadow-none\b/g,
+        replace: "",
+        why: "Every shadow token resolves to none at the theme, so shadow-none overrides nothing; it only sets the --tw-shadow stack, which the computed-style probe then reads as a box-shadow.",
+    },
+    {
         name: "colour/NN opacity suffix",
         pattern: new RegExp(`\\b((?:${OPACITY_PREFIXES.join("|")})-[a-zA-Z][a-zA-Z-]*)\\/[0-9]{1,3}\\b`, "g"),
         replace: (match, base, ...rest) => {
@@ -199,6 +225,7 @@ module.exports = {
     ROOT,
     EXCLUDED_DIRS,
     ALLOW_WINDOW_LINES,
+    FILE_EXEMPTIONS,
     rules,
     walkTsxFiles,
     stripComments,

@@ -97,7 +97,7 @@ export function ContactForm() {
     }
 
     return (
-        <div className="mt-8 rounded-none border border-border bg-card p-6 sm:p-8 backdrop-saturate-150">
+        <div className="mt-8 rounded-none border border-border bg-card p-6 sm:p-8">
             {isBugReport && (
                 <div className="mb-5">
                     <h2 className="text-base font-semibold text-foreground">Report a bug</h2>

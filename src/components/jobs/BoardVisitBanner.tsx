@@ -62,7 +62,7 @@ export function BoardVisitBanner() {
             data-testid="board-visit-banner"
             role="status"
             aria-live="polite"
-            className="fixed bottom-6 right-6 z-50 flex max-w-sm items-center justify-between gap-3 rounded-none bg-card border border-border px-4 py-3 backdrop-saturate-180 animate-in fade-in slide-in-from-bottom-4 duration-300"
+            className="fixed bottom-6 right-6 z-50 flex max-w-sm items-center justify-between gap-3 rounded-none bg-card border border-border px-4 py-3 animate-in fade-in slide-in-from-bottom-4 duration-300"
         >
             <div className="flex items-center gap-2.5">
                 <span className="h-2 w-2 rounded-none bg-brand" aria-hidden />
