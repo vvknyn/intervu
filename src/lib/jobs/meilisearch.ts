@@ -999,115 +999,101 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   }
 
   const intent = await resolveCompanyIntentResult(p.id ? undefined : p.q);
-  const companyScoped = intent.companyScoped;
-  const searchParams = applyCompanyDomainPin(p, intent);
 
-  const runSearch = async (params: JobSearchParams = searchParams): Promise<JobSearchResult> => {
-    const needsDomain = needsDomainFilters(params);
+  // Inferred company narrowing (attributesToSearchOn:["company"] + the
+  // company_domain pin below) can zero out a query that plainly has hits —
+  // e.g. an employer whose postings don't lead with the bare company name in
+  // the title/description. `runWithIntent` re-runs the whole pass with a
+  // no-op intent when that happens, so the fallback covers every path below
+  // (lanes' early return included), not just the plain-search tail. An
+  // EXPLICIT `companyDomain`/`board` param never reaches here scoped — only
+  // an inferred `intent.companyScoped` triggers the retry.
+  const runWithIntent = async (intent: CompanyIntentResult): Promise<JobSearchResult> => {
+    const companyScoped = intent.companyScoped;
+    const searchParams = applyCompanyDomainPin(p, intent);
 
-    const runDomainPostFilter = (wholeDocument = false) =>
-      searchWithDomainPostFilter(h, params, wholeDocument);
+    const runSearch = async (params: JobSearchParams = searchParams): Promise<JobSearchResult> => {
+      const needsDomain = needsDomainFilters(params);
 
-    if (companyDomainFilterUnsupported && needsDomain) {
-      const strict = await runDomainPostFilter();
-      if (!shouldRelaxSearch(strict.total, params.q ?? "")) return strict;
-      const expanded = await runDomainPostFilter(true);
-      return mergeExpandedIntoStrict(strict, expanded);
-    }
+      const runDomainPostFilter = (wholeDocument = false) =>
+        searchWithDomainPostFilter(h, params, wholeDocument);
 
-    // One extra round trip, memoized per query across requests
-    // (`resolveCompanyIntentResult`), and only for free-text queries: an id probe,
-    // a plain browse or a board/domain browse never asks. The domain
-    // post-filter path above is deliberately excluded — those are
-    // `board`/`companyDomain` browses that are ALREADY constrained to one
-    // employer, so company-scoping the query text would add nothing.
-    const runPass = async (wholeDocument = false): Promise<JobSearchResult> => {
-      const post = (legacy: boolean) =>
-        meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
-          method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
-          cache: "no-store",
-          body: JSON.stringify(
-            buildSearchBody(params, legacy, "all", { companyScoped, ...(wholeDocument ? { wholeDocument: true } : {}) }),
-          ),
-        });
+      if (companyDomainFilterUnsupported && needsDomain) {
+        const strict = await runDomainPostFilter();
+        if (!shouldRelaxSearch(strict.total, params.q ?? "")) return strict;
+        const expanded = await runDomainPostFilter(true);
+        return mergeExpandedIntoStrict(strict, expanded);
+      }
 
-      let res = await post(false);
-      if (!res.ok && res.status === 400) {
-        const text = await res.text().catch(() => "");
-        // TRANSITIONAL: posted_ts isn't sortable/filterable on the live index yet
-        // (the settings PATCH + reindex run on the sync box, separately from this
-        // deploy). Retry once without it instead of 400ing every search. Safe to
-        // delete this branch once that reindex has landed.
-        if (/posted_ts/i.test(text)) {
-          console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
-          res = await post(true);
-        } else if (/company_domain/i.test(text) && needsDomain) {
-          companyDomainFilterUnsupported = true;
-          console.warn("company_domain not yet filterable — falling back to local post-filter");
-          return runDomainPostFilter(wholeDocument);
-        } else {
+      // One extra round trip, memoized per query across requests
+      // (`resolveCompanyIntentResult`), and only for free-text queries: an id probe,
+      // a plain browse or a board/domain browse never asks. The domain
+      // post-filter path above is deliberately excluded — those are
+      // `board`/`companyDomain` browses that are ALREADY constrained to one
+      // employer, so company-scoping the query text would add nothing.
+      const runPass = async (wholeDocument = false): Promise<JobSearchResult> => {
+        const post = (legacy: boolean) =>
+          meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+            method: "POST",
+            headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+            cache: "no-store",
+            body: JSON.stringify(
+              buildSearchBody(params, legacy, "all", { companyScoped, ...(wholeDocument ? { wholeDocument: true } : {}) }),
+            ),
+          });
+
+        let res = await post(false);
+        if (!res.ok && res.status === 400) {
+          const text = await res.text().catch(() => "");
+          // TRANSITIONAL: posted_ts isn't sortable/filterable on the live index ye
+          // (the settings PATCH + reindex run on the sync box, separately from this
+          // deploy). Retry once without it instead of 400ing every search. Safe to
+          // delete this branch once that reindex has landed.
+          if (/posted_ts/i.test(text)) {
+            console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
+            res = await post(true);
+          } else if (/company_domain/i.test(text) && needsDomain) {
+            companyDomainFilterUnsupported = true;
+            console.warn("company_domain not yet filterable — falling back to local post-filter");
+            return runDomainPostFilter(wholeDocument);
+          } else {
+            throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
+          }
+        }
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
           throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
         }
-      }
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
-      }
-      const body = (await res.json()) as {
-        hits: PublicJob[];
-        estimatedTotalHits?: number;
-        totalHits?: number;
-        facetDistribution?: Record<string, Record<string, number>>;
+        const body = (await res.json()) as {
+          hits: PublicJob[];
+          estimatedTotalHits?: number;
+          totalHits?: number;
+          facetDistribution?: Record<string, Record<string, number>>;
+        };
+        return {
+          hits: body.hits ?? [],
+          total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
+          backend: "meilisearch",
+          configured: true,
+          facetDistribution: body.facetDistribution as FacetDistribution | undefined,
+        };
       };
-      return {
-        hits: body.hits ?? [],
-        total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
-        backend: "meilisearch",
-        configured: true,
-        facetDistribution: body.facetDistribution as FacetDistribution | undefined,
-      };
+
+      const strict = await runPass();
+      if (!shouldRelaxSearch(strict.total, params.q ?? "")) return strict;
+
+      // Strict/scoped pass returned zero — one whole-document expand pass
+      // (`matchingStrategy: "all"`, no attribute scoping) merged onto stric
+      // hits rather than replacing them. Flagged `widened` only when extras land.
+      const expanded = await runPass(true);
+      return mergeExpandedIntoStrict(strict, expanded);
     };
 
-    const strict = await runPass();
-    if (!shouldRelaxSearch(strict.total, params.q ?? "")) return strict;
+    const isRelevance = resolveEffectiveSort(p) === "relevance";
+    let result: JobSearchResult;
 
-    // Strict/scoped pass returned zero — one whole-document expand pass
-    // (`matchingStrategy: "all"`, no attribute scoping) merged onto strict
-    // hits rather than replacing them. Flagged `widened` only when extras land.
-    const expanded = await runPass(true);
-    return mergeExpandedIntoStrict(strict, expanded);
-  };
-
-  const isRelevance = resolveEffectiveSort(p) === "relevance";
-  let result: JobSearchResult;
-
-  if (shouldRunCompanyScopedLanes(companyScoped, searchParams)) {
-    const { hits: laneHits, facetDistribution } = await fetchCompanyScopedLaneHits(h, searchParams, companyScoped);
-    const seen = new Set<string>();
-    const unique: PublicJob[] = [];
-    for (const hit of laneHits) {
-      if (seen.has(hit.id)) continue;
-      seen.add(hit.id);
-      unique.push(hit);
-    }
-    const ranked = isRelevance ? applyRelevanceQualityReranking(unique, p.q ?? "") : unique;
-    const offset = p.offset ?? 0;
-    const limit = p.limit ?? 40;
-    // Lane-priority order IS the ranking for every sort — skip applySortIntegrityGuard
-    // (same as relevance role-title lane; guard would flatten newest/salary lanes).
-    return {
-      hits: pageRoleTitleHits(ranked, offset, limit),
-      total: ranked.length,
-      backend: "meilisearch",
-      configured: true,
-      facetDistribution,
-    };
-  }
-
-  if (isRelevance) {
-    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
-      const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, searchParams, companyScoped);
+    if (shouldRunCompanyScopedLanes(companyScoped, searchParams)) {
+      const { hits: laneHits, facetDistribution } = await fetchCompanyScopedLaneHits(h, searchParams, companyScoped);
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
       for (const hit of laneHits) {
@@ -1115,27 +1101,62 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         seen.add(hit.id);
         unique.push(hit);
       }
-      const ranked = applyRelevanceQualityReranking(unique, p.q ?? "");
+      const ranked = isRelevance ? applyRelevanceQualityReranking(unique, p.q ?? "") : unique;
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
-      result = {
+      // Lane-priority order IS the ranking for every sort — skip applySortIntegrityGuard
+      // (same as relevance role-title lane; guard would flatten newest/salary lanes).
+      return {
         hits: pageRoleTitleHits(ranked, offset, limit),
         total: ranked.length,
         backend: "meilisearch",
         configured: true,
         facetDistribution,
       };
+    }
+
+    if (isRelevance) {
+      if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
+        const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, searchParams, companyScoped);
+        const seen = new Set<string>();
+        const unique: PublicJob[] = [];
+        for (const hit of laneHits) {
+          if (seen.has(hit.id)) continue;
+          seen.add(hit.id);
+          unique.push(hit);
+        }
+        const ranked = applyRelevanceQualityReranking(unique, p.q ?? "");
+        const offset = p.offset ?? 0;
+        const limit = p.limit ?? 40;
+        result = {
+          hits: pageRoleTitleHits(ranked, offset, limit),
+          total: ranked.length,
+          backend: "meilisearch",
+          configured: true,
+          facetDistribution,
+        };
+      } else {
+        result = await runSearch();
+        if (result.hits.length > 0) {
+          result.hits = applyRelevanceQualityReranking(result.hits, p.q);
+        }
+      }
     } else {
       result = await runSearch();
-      if (result.hits.length > 0) {
-        result.hits = applyRelevanceQualityReranking(result.hits, p.q);
-      }
     }
-  } else {
-    result = await runSearch();
-  }
 
-  return applySortIntegrityGuard(result, p, () => runSearch());
+    return applySortIntegrityGuard(result, p, () => runSearch());
+  };
+
+  const result = await runWithIntent(intent);
+  if (intent.companyScoped && result.total === 0) {
+    const fallback = await runWithIntent({ companyScoped: false, companyDomains: [] });
+    return {
+      ...fallback,
+      companyIntent: { domains: intent.companyDomains, scopedTotal: 0, fallback: true },
+    };
+  }
+  return result;
 }
 
 export function pageRoleTitleHits(ranked: PublicJob[], offset: number, limit: number): PublicJob[] {

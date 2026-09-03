@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, describe, it, mock } from "node:test";
 import { normalizeCompanySearchQuery, searchCompanies } from "../../src/lib/companies/company-search";
+import {
+    resetCompanyDomainFilterSupportForTests,
+    resetCompanyIntentCacheForTests,
+    searchMeili,
+} from "../../src/lib/jobs/meilisearch";
+import type { PublicJob } from "../../src/lib/jobs/types";
 import type { Queryable } from "../../src/lib/pg/pool";
 
 function jsonResponse(status: number, body: unknown) {
@@ -164,5 +170,163 @@ describe("searchCompanies", () => {
         } finally {
             if (prevHost !== undefined) process.env.MEILISEARCH_HOST = prevHost;
         }
+    });
+});
+
+/**
+ * 2026-09-03: inferred company-name scoping ("oracle" -> attributesToSearchOn
+ * ["company"] + a company_domain pin, see company-intent.ts) can zero out a
+ * query that plainly has hits — live trace: q="oracle" probed 1,675 company
+ * matches, scoped to companyDomains=["oracle.com"], then the scoped pass
+ * (with the default 30d posted_ts clause) returned 0 while 4,378 jobs
+ * mention oracle. `searchMeili` must fall back to the unscoped search when
+ * (and only when) the INFERRED narrowing is what zeroed the result — an
+ * employer whose scoped pass genuinely has hits (e.g. "sap") must keep its
+ * scoped result untouched.
+ */
+function fullJob(overrides: Partial<PublicJob> & Pick<PublicJob, "id">): PublicJob {
+    return {
+        title: "Engineer",
+        company: "Acme",
+        company_domain: null,
+        location: null,
+        location_city: null,
+        location_state: null,
+        location_country: null,
+        work_type: "remote",
+        description: null,
+        employment_type: "full_time",
+        experience_level: "mid",
+        salary_min: null,
+        salary_max: null,
+        salary_currency: null,
+        salary_period: null,
+        visa_sponsorship: null,
+        tags: [],
+        apply_url: "https://example.com",
+        source: "test",
+        posted_at: null,
+        first_seen_at: null,
+        updated_at: null,
+        vacancy_status: "open",
+        ghost_badge: "unscored",
+        ...overrides,
+    };
+}
+
+/** company-intent probe request (probeCompanyNames) — the one call site that
+ *  sends `hitsPerPage` instead of `limit`/`offset`. */
+function isProbeBody(body: Record<string, unknown>): boolean {
+    return body.hitsPerPage !== undefined;
+}
+
+/** Any main-search-body request (buildSearchBody) pinned to an inferred
+ *  employer domain, scoped lane call included. */
+function isCompanyScopedBody(body: Record<string, unknown>): boolean {
+    return Array.isArray(body.filter) && (body.filter as string[]).some((f) => f.includes("company_domain"));
+}
+
+function companyProbeResponse(name: string, domain: string, total: number) {
+    return jsonResponse(200, {
+        hits: Array(10).fill({ company: name, company_domain: domain }),
+        totalHits: total,
+    });
+}
+
+describe("searchMeili — inferred company-intent zero-hit fallback", () => {
+    before(() => {
+        process.env.MEILISEARCH_HOST = "https://meili.test";
+        process.env.MEILISEARCH_SEARCH_KEY = "k";
+    });
+
+    afterEach(() => {
+        mock.reset();
+        resetCompanyDomainFilterSupportForTests();
+        resetCompanyIntentCacheForTests();
+    });
+
+    it("falls back to the unscoped search when a generic inferred company query scopes to zero hits", async () => {
+        const bodies: Record<string, unknown>[] = [];
+        mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+            bodies.push(body);
+            if (isProbeBody(body)) return companyProbeResponse("Globex Corporation", "globex.com", 500);
+            if (isCompanyScopedBody(body)) return jsonResponse(200, { hits: [], totalHits: 0 });
+            return jsonResponse(200, { hits: [], totalHits: 42 });
+        });
+
+        const result = await searchMeili({ q: "globex" });
+
+        const fallbackCall = bodies.find((b) => !isProbeBody(b) && !isCompanyScopedBody(b));
+        assert.ok(fallbackCall, "expected an unscoped fallback fetch");
+        assert.equal(fallbackCall!.attributesToSearchOn, undefined, "fallback must not scope to the company attribute");
+        assert.equal(result.total, 42);
+        assert.deepEqual(result.companyIntent, { domains: ["globex.com"], scopedTotal: 0, fallback: true });
+    });
+
+    it("falls back to the unscoped search for q=oracle (regression pin — the live-trace incident)", async () => {
+        const bodies: Record<string, unknown>[] = [];
+        mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+            bodies.push(body);
+            if (isProbeBody(body)) return companyProbeResponse("Oracle", "oracle.com", 1675);
+            if (isCompanyScopedBody(body)) return jsonResponse(200, { hits: [], totalHits: 0 });
+            return jsonResponse(200, { hits: [], totalHits: 4378 });
+        });
+
+        const result = await searchMeili({ q: "oracle" });
+
+        const fallbackCall = bodies.find((b) => !isProbeBody(b) && !isCompanyScopedBody(b));
+        assert.ok(fallbackCall, "expected an unscoped fallback fetch");
+        assert.equal(result.total, 4378);
+        assert.deepEqual(result.companyIntent, { domains: ["oracle.com"], scopedTotal: 0, fallback: true });
+    });
+
+    it("keeps the company-scoped result untouched when the scoped pass has hits", async () => {
+        const bodies: Record<string, unknown>[] = [];
+        const hits = [fullJob({ id: "1" }), fullJob({ id: "2" }), fullJob({ id: "3" })];
+        mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+            bodies.push(body);
+            if (isProbeBody(body)) return companyProbeResponse("SAP", "sap.com", 48);
+            if (isCompanyScopedBody(body)) return jsonResponse(200, { hits, totalHits: 3 });
+            throw new Error("must not fall back — the scoped pass already has hits");
+        });
+
+        const result = await searchMeili({ q: "sap" });
+
+        assert.equal(result.total, 3);
+        assert.equal(result.companyIntent, undefined);
+        assert.equal(bodies.length, 2, "probe + one scoped pass — no fallback fetch");
+    });
+
+    it("does not fall back when the query was never company-scoped in the first place", async () => {
+        mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+            if (isProbeBody(body)) return jsonResponse(200, { hits: [], totalHits: 0 });
+            return jsonResponse(200, { hits: [], totalHits: 0 });
+        });
+
+        const result = await searchMeili({ q: "underwater basket weaving" });
+
+        assert.equal(result.total, 0);
+        assert.equal(result.companyIntent, undefined);
+    });
+
+    it("falls back when the company-scoped lanes' early return yields zero hits", async () => {
+        const bodies: Record<string, unknown>[] = [];
+        const hits = [fullJob({ id: "1" }), fullJob({ id: "2" })];
+        mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+            bodies.push(body);
+            if (isProbeBody(body)) return companyProbeResponse("Initech", "initech.com", 60);
+            if (isCompanyScopedBody(body)) return jsonResponse(200, { hits: [], totalHits: 0 });
+            return jsonResponse(200, { hits, totalHits: 2 });
+        });
+
+        const result = await searchMeili({ q: "initech", facets: { work_type: ["remote"] } });
+
+        assert.equal(result.total, 2);
+        assert.deepEqual(result.companyIntent, { domains: ["initech.com"], scopedTotal: 0, fallback: true });
     });
 });

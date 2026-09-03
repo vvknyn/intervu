@@ -400,4 +400,9 @@ export interface JobSearchResult {
    * paths, where no query was ever actually searched.
    */
   effectiveQ?: string;
+  /** Set only when an inferred company-name query scoped to zero hits and the
+   *  search fell back to the unscoped result (see `searchMeili`'s
+   *  `runWithIntent` retry). `domains` are the probed employer domains the
+   *  scoped pass pinned to; `scopedTotal` is always 0 (the trigger). */
+  companyIntent?: { domains: string[]; scopedTotal: number; fallback: boolean };
 }
