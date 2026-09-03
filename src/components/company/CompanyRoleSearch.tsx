@@ -9,7 +9,7 @@ import { MatchChip } from "@/components/jobs/MatchChip";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CircleNotch } from "@phosphor-icons/react";
+import { MagnifyingGlass, X } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate } from "@/lib/jobs/presentation";
@@ -193,7 +193,7 @@ export function CompanyRoleSearch({
       <h2 className="mb-4 flex items-baseline justify-between font-display text-lg font-semibold">
         Open roles
         {jobs.length > 0 && (
-          <span className="text-xs font-normal text-muted-foreground" aria-live="polite">
+          <span className="text-sm font-normal text-muted-foreground" aria-live="polite">
             {roleCountLabel(displayed.length, matched.length, hasQuery, openCountLabel)}
           </span>
         )}
@@ -204,16 +204,24 @@ export function CompanyRoleSearch({
           <label htmlFor="company-role-search" className="sr-only">
             Search {companyName}&apos;s open roles by title, location, or level
           </label>
-          <Input
-            id="company-role-search"
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setQuery("");
-            }}
-            placeholder={`Search ${companyName}'s open roles…`}
-          />
+          <div className="relative">
+            <MagnifyingGlass
+              size={16}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              id="company-role-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setQuery("");
+              }}
+              placeholder={`Search ${companyName}'s open roles…`}
+              className="h-10 pl-9"
+            />
+          </div>
           {searchesPartialWindow && hasQuery && (
             <p className="mt-2 text-xs text-muted-foreground">
               Searching the {jobs.length} most recent roles —{" "}
@@ -233,7 +241,7 @@ export function CompanyRoleSearch({
               No open roles match &ldquo;{trimmedQuery}&rdquo;.
             </p>
             <Link href={jobsSearchUrl} className="mt-2 inline-block text-sm text-brand hover:underline">
-              Search all jobs at {companyName} →
+              Search all jobs at {companyName}
             </Link>
           </div>
         ) : (
@@ -251,7 +259,7 @@ export function CompanyRoleSearch({
           </div>
         )
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="divide-y divide-border border-t border-border">
           {displayed.map((job) => {
             const meta = companyRowMetaSegments(job);
             // Exception-only status: the routine "clear, currently checked"
@@ -264,7 +272,7 @@ export function CompanyRoleSearch({
                 <button
                   type="button"
                   onClick={() => setSelectedJob(job)}
-                  className="w-full text-left flex items-center gap-4 border border-border bg-card px-5 py-4 transition-all hover:border-border-strong hover:bg-chip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
+                  className="w-full text-left flex items-center gap-4 px-3 py-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -274,25 +282,25 @@ export function CompanyRoleSearch({
                       {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />}
                     </div>
                     {meta.length > 0 && (
+                      // Pay leads this line same as everywhere else it's
+                      // sourced from `companyRowMetaSegments`, but a role row
+                      // reads as one plain secondary caption here — never
+                      // bolded, per the rulebook's "pay NOT bold" rule.
                       <div className="mt-1 text-sm text-muted-foreground">
                         {meta.map((segment, i) => (
                           <span key={i}>
-                            {i > 0 && <span className="mx-1 text-muted-foreground" aria-hidden>·</span>}
-                            <span className={segment.emphasis ? "font-semibold text-foreground" : undefined}>
-                              {segment.text}
-                            </span>
+                            {i > 0 && <span className="mx-1" aria-hidden>·</span>}
+                            {segment.text}
                           </span>
                         ))}
                       </div>
                     )}
                     {exception && (
-                      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        ● {exception.label}
-                      </div>
+                      <div className="mt-1.5 text-xs text-muted-foreground">{exception.label}</div>
                     )}
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground group-hover:text-brand group-hover:translate-x-0.5 transition-all" aria-hidden>
-                    View role →
+                  <span className="shrink-0 text-sm text-brand" aria-hidden>
+                    View role
                   </span>
                 </button>
               </li>
@@ -311,9 +319,9 @@ export function CompanyRoleSearch({
               Screened for postings that aren&apos;t really hiring, plus freshness and verified salary transparency.
             </p>
           </div>
-          <Button asChild variant="brand" size="lg" className="h-11 px-6 font-semibold shrink-0">
+          <Button asChild variant="brand" size="lg" className="shrink-0">
             <Link href={jobsSearchUrl}>
-              View all {openCountLabel} jobs →
+              View all {openCountLabel} jobs
             </Link>
           </Button>
         </div>
@@ -329,7 +337,7 @@ export function CompanyRoleSearch({
         >
           <div className="shrink-0 border-b border-border">
             <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-              <span className="h-1.5 w-10 rounded-none bg-border dark:bg-border" />
+              <span className="h-1.5 w-10 rounded-none bg-border" />
             </div>
             <div className="flex items-center gap-2 px-4 pb-3">
               <div className="min-w-0 flex-1">
@@ -350,9 +358,9 @@ export function CompanyRoleSearch({
                 type="button"
                 aria-label="Close"
                 onClick={() => setSelectedJob(null)}
-                className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80"
+                className="flex h-11 w-11 shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
               >
-                ×
+                <X size={16} weight="bold" aria-hidden />
               </button>
             </div>
           </div>

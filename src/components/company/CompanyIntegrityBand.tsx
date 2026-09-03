@@ -36,7 +36,7 @@ export function CompanyIntegrityBand({
                   How roles closed (90 days)
                 </th>
                 <th className="border-b border-border-strong pb-2 text-right text-xs font-semibold text-muted-foreground">
-                  count
+                  Count
                 </th>
               </tr>
             </thead>

@@ -1,7 +1,6 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { LockSimple } from "@phosphor-icons/react/dist/ssr";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { useCompanyFollowChannel } from "@/components/companies/CompanyFollowChannelProvider";
 import { resolveFollowingState } from "@/components/companies/FollowButton";
@@ -95,12 +94,7 @@ function CompanyIntelGateInner({
             <p className="text-xs leading-relaxed text-muted-foreground">
               {description ?? `Recent hiring changes, funding, tech stack, and news for ${displayName} — visible once you follow.`}
             </p>
-            <div className="flex w-full items-center gap-2 border border-dashed border-border px-3 py-2">
-              <LockSimple className="h-3.5 w-3.5 shrink-0 text-muted-foreground" weight="bold" aria-hidden />
-              <span className="text-xs text-muted-foreground">
-                Followers only
-              </span>
-            </div>
+            <p className="text-xs font-semibold text-muted-foreground">Followers only</p>
             {showFollowButton && (
               <CompanyFollowControl
                 domain={domain}

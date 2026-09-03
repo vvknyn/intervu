@@ -24,19 +24,19 @@ export const metadata: Metadata = {
  */
 export default function WatchAnywherePage() {
     return (
-        <main className="min-h-dvh bg-black text-white flex items-center justify-center p-6">
+        <main className="min-h-dvh bg-background flex items-center justify-center p-6">
             <div className="max-w-sm space-y-6" data-testid="watch-anywhere-guide">
-                <h1 className="text-lg">Watch from anywhere</h1>
-                <p className="text-sm text-white">
+                <h1 className="text-lg font-semibold text-foreground">Watch from anywhere</h1>
+                <p className="text-sm text-muted-foreground">
                     Watch from anywhere runs over your own private network; nothing passes through
                     velai.
                 </p>
-                <ol className="space-y-3 text-sm text-white list-decimal list-inside">
+                <ol className="space-y-2 text-sm text-foreground list-decimal list-inside">
                     <li>Install the Tailscale app on this device.</li>
                     <li>Sign in with the same account your agent shows you.</li>
                 </ol>
-                <p className="text-sm text-white">
-                    Your agent walks you through it — reply <span className="text-white">setup</span> to
+                <p className="text-sm text-muted-foreground">
+                    Your agent walks you through it — reply <span className="font-semibold text-foreground">setup</span> to
                     it whenever you&apos;re ready.
                 </p>
             </div>

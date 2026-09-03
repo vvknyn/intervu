@@ -87,7 +87,7 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
       {profile.roles.length === 0 ? (
         <>
           <p
-            className="mt-8 border-t border-foreground pt-6 text-sm text-muted-foreground"
+            className="mt-8 border-t border-border pt-6 text-sm text-muted-foreground"
             data-testid="company-empty-state"
           >
             We haven&apos;t verified enough about this company yet.

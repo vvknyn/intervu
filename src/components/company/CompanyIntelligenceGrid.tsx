@@ -78,7 +78,7 @@ export function CompanyIntelligenceGrid({
                     Capital & Stage
                   </span>
                   {funding.stage && (
-                    <span className="border border-border bg-chip px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                    <span className="text-xs font-semibold text-muted-foreground">
                       {funding.stage}
                     </span>
                   )}
@@ -107,16 +107,9 @@ export function CompanyIntelligenceGrid({
                     <div className="text-xs text-muted-foreground">
                       Notable Backers
                     </div>
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      {funding.investors.map((inv) => (
-                        <span
-                          key={inv}
-                          className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-xs text-foreground"
-                        >
-                          {inv}
-                        </span>
-                      ))}
-                    </div>
+                    <p className="mt-1.5 text-xs text-foreground">
+                      {funding.investors.join(" · ")}
+                    </p>
                   </div>
                 )}
               </div>
@@ -161,24 +154,9 @@ export function CompanyIntelligenceGrid({
                   Tech stack
                 </span>
 
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {techStack.languages.slice(0, 5).map((lang) => (
-                    <span
-                      key={lang}
-                      className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-xs text-foreground"
-                    >
-                      {lang}
-                    </span>
-                  ))}
-                  {techStack.infrastructure.slice(0, 3).map((infra) => (
-                    <span
-                      key={infra}
-                      className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-xs text-muted-foreground"
-                    >
-                      {infra}
-                    </span>
-                  ))}
-                </div>
+                <p className="mt-4 text-xs text-foreground">
+                  {[...techStack.languages.slice(0, 5), ...techStack.infrastructure.slice(0, 3)].join(" · ")}
+                </p>
               </div>
 
               <div className="mt-5 pt-2 text-xs text-muted-foreground">
@@ -212,7 +190,7 @@ export function CompanyIntelligenceGrid({
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="border border-brand bg-muted px-2 py-0.5 text-xs font-semibold text-brand">
+                    <span className="text-xs font-semibold text-brand">
                       {item.publisher}
                     </span>
                     {dateLabel && (
@@ -232,7 +210,7 @@ export function CompanyIntelligenceGrid({
                 </div>
                 <div className="mt-3 flex items-center gap-1 text-xs text-brand">
                   <span>Read article</span>
-                  <ArrowUpRight className="h-3.5 w-3.5" />
+                  <ArrowUpRight className="h-4 w-4" />
                 </div>
               </a>
               );

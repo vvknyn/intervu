@@ -3,7 +3,7 @@ import type { TechFacts } from "@/lib/companies/exhaust";
 /**
  * Band 8 (gated) — "Hiring infrastructure", at the consumer altitude the
  * design freeze specifies (DC2): the pipeline's tech-fingerprint checks
- * feed a couple of plain sentences and a chip list here, never the 14-check
+ * feed a couple of plain sentences and a plain word list here, never the 14-check
  * forensic grid (that stays a subspace-only surface).
  */
 export function CompanyTechStackBand({
@@ -27,13 +27,7 @@ export function CompanyTechStackBand({
         {techTier ? ` · ${techTier} tier` : ""}.
       </p>
       {groups.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {groups.map((g) => (
-            <span key={g} className="border border-border bg-chip px-2.5 py-1 text-xs text-foreground">
-              {g}
-            </span>
-          ))}
-        </div>
+        <p className="mt-3 text-xs text-foreground">{groups.join(" · ")}</p>
       )}
       <p className="mono-data mt-3 text-xs text-muted-foreground">{techStack.source}</p>
     </section>

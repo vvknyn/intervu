@@ -113,24 +113,18 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
  *  brand blue (that's reserved for interactive elements) or a hardcoded hue. */
 export function directionStyle(direction: CompanyChangeEvent["direction"]): {
   Icon: typeof TrendUp;
-  chip: string;
+  /** Word color for the event-type label — status reads as a plain colored
+   *  word, never a bordered/filled pill (rulebook: status = words). */
+  label: string;
   icon: string;
 } {
   switch (direction) {
     case "improving":
-      return {
-        Icon: TrendUp,
-        chip: "border-verdict-good bg-verdict-good-bg text-verdict-good",
-        icon: "text-verdict-good",
-      };
+      return { Icon: TrendUp, label: "text-verdict-good", icon: "text-verdict-good" };
     case "declining":
-      return {
-        Icon: TrendDown,
-        chip: "border-verdict-caution bg-verdict-caution-bg text-verdict-caution",
-        icon: "text-verdict-caution",
-      };
+      return { Icon: TrendDown, label: "text-verdict-caution", icon: "text-verdict-caution" };
     default:
-      return { Icon: Minus, chip: "border-border bg-chip text-muted-foreground", icon: "text-muted-foreground" };
+      return { Icon: Minus, label: "text-muted-foreground", icon: "text-muted-foreground" };
   }
 }
 
@@ -168,7 +162,7 @@ export function CompanyChangeEvents({
 
       <ul className="space-y-2.5">
         {events.map((event, idx) => {
-          const { Icon, chip, icon } = directionStyle(event.direction);
+          const { Icon, label: tone, icon } = directionStyle(event.direction);
           const label = eventTypeLabel(event.event_type);
           const date = eventDate(event.occurred_at);
           return (
@@ -183,12 +177,7 @@ export function CompanyChangeEvents({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   {label && (
-                    <span
-                      className={cn(
-                        "border px-2 py-0.5 text-xs font-semibold",
-                        chip,
-                      )}
-                    >
+                    <span className={cn("text-xs font-semibold", tone)}>
                       {label}
                     </span>
                   )}

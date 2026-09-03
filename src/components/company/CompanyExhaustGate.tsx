@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { LockSimple } from "@phosphor-icons/react/dist/ssr";
 import { getServerUser } from "@/lib/auth/server-user";
+import { Button } from "@/components/ui/button";
 
 /**
  * One locked-band teaser row. `count` is a real, cheap aggregate computed
@@ -70,16 +70,10 @@ export async function CompanyExhaustGate({
           </div>
         ))}
       </div>
-      <a
-        href={nextHref}
-        className="mt-5 inline-flex items-center gap-2 border border-border-strong bg-foreground px-4 py-2 text-xs font-semibold text-background"
-      >
-        Sign in to open the record
-      </a>
-      <div className="mt-4 flex items-center gap-2 border border-dashed border-border px-3 py-2">
-        <LockSimple className="h-3.5 w-3.5 shrink-0 text-muted-foreground" weight="bold" aria-hidden />
-        <span className="text-xs text-muted-foreground">Signed-in members only</span>
-      </div>
+      <Button asChild className="mt-5">
+        <a href={nextHref}>Sign in to open the record</a>
+      </Button>
+      <p className="mt-4 text-xs font-semibold text-muted-foreground">Signed-in members only</p>
     </section>
   );
 }
