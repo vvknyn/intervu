@@ -1,55 +1,24 @@
 import { ImageResponse } from "next/og";
 import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { EMAIL_COLORS } from "@/lib/email/templates/palette";
+import { SITE_NAME } from "@/lib/seo/constants";
 
 /**
- * Shared OpenGraph/Twitter card shape for interior pages (company profiles,
- * trends) — one render function so the three `opengraph-image.tsx` routes
- * that use it (co/[slug], companies/[slug], trends) can't drift into three
- * near-identical layouts. The root `/opengraph-image.tsx` (indigo gradient +
- * V-mark) is a separate, older card kept as-is; this one is the current
- * identity: dark ink ground, wordmark, a signal-green accent rule, and
- * page-specific title text. Edge runtime, so no custom font loading — a bold
- * system sans reads fine at this size.
+ * Shared OpenGraph/Twitter card shape for interior pages (trends, jobs,
+ * companies/[slug], jobs/[slug], co/[slug]) — one render function so those
+ * routes can't drift into near-identical layouts. Same grammar as the root
+ * `/opengraph-image.tsx` card: white ground, ink type, Klein lockup — this
+ * one adds a page-specific title + meta line below it. Edge runtime, so no
+ * custom font loading — a system sans reads fine at this size.
  */
 
 export const OG_IMAGE_SIZE = { width: 1200, height: 630 };
 export const OG_IMAGE_CONTENT_TYPE = "image/png";
 
-// Same literal values as globals.css's dark-theme tokens (--background,
-// --foreground) and the brand green (--brand, light theme — the one
-// "signal-green #0D6E56" the product is anchored to) — hardcoded because
-// ImageResponse's Satori renderer can't resolve CSS custom properties from
-// an external stylesheet.
-const INK = "#0F1216";
-const FOREGROUND = "#ECEEF2";
-const MUTED = "rgba(236,238,242,0.6)";
-const SIGNAL_GREEN = "#0D6E56";
-
-/** The brand's mark — same geometry (BRAND_MARK_*) used by the root OG
- *  image and the error/not-found pages, so this card reads as the same
- *  product. */
-function BrandMark() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: 40,
-        height: 40,
-        borderRadius: 10,
-        background: "rgba(13,110,86,0.18)",
-      }}
-    >
-      <svg viewBox={BRAND_MARK_VIEWBOX} width={22} height={22}>
-        {BRAND_MARK_BRACKETS.map((d) => (
-          <path key={d} d={d} fill={FOREGROUND} />
-        ))}
-        <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
-      </svg>
-    </div>
-  );
-}
+// OG-card lockup scale — deliberately separate from BRAND_LOCKUP_MARK_PX /
+// BRAND_LOCKUP_WORDMARK_PX (those are the 28px in-app header size; a
+// 1200x630 card needs a bigger mark, not the header's).
+const OG_MARK_PX = 48;
 
 export function buildPageOgImage(title: string, eyebrow?: string): ImageResponse {
   return new ImageResponse(
@@ -61,50 +30,64 @@ export function buildPageOgImage(title: string, eyebrow?: string): ImageResponse
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          padding: "80px",
-          background: INK,
+          padding: "64px",
+          background: "#FFFFFF",
           fontFamily: "sans-serif",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <BrandMark />
+          <svg viewBox={BRAND_MARK_VIEWBOX} width={OG_MARK_PX} height={OG_MARK_PX}>
+            {BRAND_MARK_BRACKETS.map((d) => (
+              <path key={d} d={d} fill={EMAIL_COLORS.brand} />
+            ))}
+            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
+          </svg>
+          {/* Wordmark parity with BrandMark.tsx's on-page lockup: same
+              rulebook-sanctioned exception (uppercase, weight 700, tight
+              tracking) — just inline styles since Satori can't read
+              Tailwind classes. */}
           <span
             style={{
-              fontSize: 24,
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              color: FOREGROUND,
+              fontSize: OG_MARK_PX,
+              fontWeight: 700,
+              letterSpacing: "-0.025em",
+              // design-lint-allow
+              textTransform: "uppercase",
+              color: EMAIL_COLORS.brand,
             }}
           >
-            velai
+            {SITE_NAME}
           </span>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", maxWidth: 1000 }}>
-          <div style={{ width: 64, height: 4, background: SIGNAL_GREEN, marginBottom: 28 }} />
           {eyebrow && (
-            <div
-              style={{
-                display: "flex",
-                fontSize: 22,
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-                textTransform: "",
-                color: MUTED,
-                marginBottom: 16,
-              }}
-            >
-              {eyebrow}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: 28,
+                  lineHeight: "36px",
+                  fontWeight: 400,
+                  color: "#525252",
+                  marginBottom: 20,
+                }}
+              >
+                {eyebrow}
+              </div>
+              <div style={{ display: "flex", width: "100%", height: 1, background: "#E0E0E0", marginBottom: 24 }} />
             </div>
           )}
           <div
             style={{
-              display: "flex",
-              fontSize: 64,
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              lineHeight: 1.1,
-              color: FOREGROUND,
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 2,
+              overflow: "hidden",
+              fontSize: 56,
+              lineHeight: "64px",
+              fontWeight: 600,
+              color: "#0A0A0A",
             }}
           >
             {title}
