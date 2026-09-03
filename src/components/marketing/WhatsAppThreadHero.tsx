@@ -102,6 +102,7 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
       )}
       role="group"
       aria-label="Example WhatsApp conversation with the agent"
+      data-rulebook-exempt
     >
       <div className="overflow-hidden rounded-[27px] bg-[#0B141A]">
         {/* Status bar */}

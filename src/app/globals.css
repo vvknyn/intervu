@@ -778,6 +778,54 @@ textarea::selection {
   font-variant-numeric: tabular-nums;
 }
 
+/* Prose/article typography binding (rulebook clause 8: prose bound to
+   tokens) — @tailwindcss/typography ships hardcoded hex defaults (its own
+   grays, not this theme) plus a 500 link weight with underline always on.
+   `.prose`/`.prose-sm`/`dark:prose-invert` are used ONLY by /about,
+   /research/ghost-jobs, /privacy and /terms (grep-confirmed), so this is
+   the single fix for every article body on the site. `--tw-prose-invert-*`
+   is set alongside the base var, not on a separate `.prose-invert`
+   selector, because `dark:prose-invert` compiles to a class literally named
+   `dark:prose-invert` (not `prose-invert`) — the invert vars just need to
+   be in scope on `.prose` for that generated rule to pick them up, and
+   they resolve to the correct dark-mode shade for free because `--foreground`
+   etc. are themselves redefined under `.dark`. */
+.prose {
+  --tw-prose-body: rgb(var(--foreground));
+  --tw-prose-headings: rgb(var(--foreground));
+  --tw-prose-links: rgb(var(--brand));
+  --tw-prose-bold: rgb(var(--foreground));
+  --tw-prose-bullets: rgb(var(--border));
+  --tw-prose-counters: rgb(var(--muted-foreground));
+  --tw-prose-invert-body: rgb(var(--foreground));
+  --tw-prose-invert-headings: rgb(var(--foreground));
+  --tw-prose-invert-links: rgb(var(--brand));
+  --tw-prose-invert-bold: rgb(var(--foreground));
+  --tw-prose-invert-bullets: rgb(var(--border));
+  --tw-prose-invert-counters: rgb(var(--muted-foreground));
+}
+
+/* Body copy at the rulebook's 16/22, overriding `.prose-sm`'s 14px (every
+   call site uses the `-sm` modifier for its list/heading spacing). Absolute
+   `rem` values rather than touching the modifier's own em-relative base
+   font-size, which every other `.prose-sm` measurement (h2/h3/table/code)
+   is computed relative to — changing the base would rescale all of them. */
+.prose :where(p, li):not(:where([class~="not-prose"] *)) {
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+}
+
+/* Links: Klein, underline on hover only, 400/600 weight (the plugin's
+   default is a permanent underline at font-weight 500, which isn't on the
+   rulebook's ramp). */
+.prose :where(a):not(:where([class~="not-prose"] *)) {
+  font-weight: 400;
+  text-decoration: none;
+}
+.prose :where(a):not(:where([class~="not-prose"] *)):hover {
+  text-decoration: underline;
+}
+
 /* Mobile zoom: two DIFFERENT iOS Safari behaviours, two different fixes.
    Neither is solved by `user-scalable=no` / `maximum-scale=1` on the viewport
    — that is a WCAG 1.4.4 failure (it takes pinch-zoom away from people who

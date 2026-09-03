@@ -15,19 +15,19 @@ export const metadata: Metadata = {
 // one hairline border around the whole table, header cells uppercase with no
 // top border, every data-row cell gets a top hairline instead of a bottom one.
 const RTABLE_TH = "px-4 py-3 text-left text-xs font-semibold text-muted-foreground";
-const RTABLE_TD = "border-t border-foreground px-4 py-3 align-top";
+const RTABLE_TD = "border-t border-border px-4 py-3 align-top";
 
-// Section labels read as small uppercase caps, never mono (typography.test.ts
-// bans font-mono outside <code>) — `:where()` in the typography plugin keeps
-// its own h2 styling at zero specificity, so these utilities win outright.
-const ASEC = "mt-8 mb-3 text-xs font-semibold text-muted-foreground";
+// Full section headings (per-page note: "/about ... sections 20/28 600") —
+// `:where()` in the typography plugin keeps its own h2 styling at zero
+// specificity, so this utility wins outright.
+const ASEC = "mt-8 mb-3 text-xl font-semibold text-foreground";
 
 export default function AboutPage() {
   return (
     <main data-testid="about-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <p className="text-xs font-semibold text-brand">About velai</p>
+      <p className="text-xs font-semibold text-muted-foreground">About velai</p>
       <h1 className="mt-3 font-display text-display font-semibold text-foreground">About velai</h1>
-      <p className="mt-1.5 text-sm italic text-muted-foreground">
+      <p className="mt-1.5 text-xl text-muted-foreground">
         An honest layer over the real job market: what&apos;s actually posted, flagged when it looks stale, out of
         the way otherwise.
       </p>
@@ -65,7 +65,7 @@ export default function AboutPage() {
       </article>
 
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-foreground text-sm">
+        <table className="w-full border-collapse border border-border text-sm">
           <thead>
             <tr>
               <th className={RTABLE_TH}></th>

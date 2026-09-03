@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
+import { LegalDocHeader, LEGAL_H2 } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Privacy Policy";
 const DESCRIPTION = "How velai collects, uses, and protects your data.";
@@ -26,7 +26,7 @@ export default function PrivacyPage() {
           anything here is unclear, use the contact page — we read every message ourselves.
         </p>
 
-        <h2>What we collect</h2>
+        <h2 className={LEGAL_H2}>What we collect</h2>
         <p>
           When you create an account, we collect the email address and profile information you provide. You can
           sign in with Google, a passkey, an email code, or a username and password. Google, passkey, and
@@ -63,7 +63,7 @@ export default function PrivacyPage() {
           anyone.
         </p>
 
-        <h2>How we use it</h2>
+        <h2 className={LEGAL_H2}>How we use it</h2>
         <p>
           We use your account data to run the product: to show your tracked applications and keep your resumes and
           prep answers where you left them. velai is free to use — nothing you do draws on a balance or requires
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
           advertising profiles.
         </p>
 
-        <h2>AI processing</h2>
+        <h2 className={LEGAL_H2}>AI processing</h2>
         <p>
           Some features — resume parsing (when you upload one) and resume tailoring — work by sending the relevant
           text (your resume, a job description) to an AI provider to generate a response. We use OpenRouter and Groq
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
           them.
         </p>
 
-        <h2>Connected AI clients</h2>
+        <h2 className={LEGAL_H2}>Connected AI clients</h2>
         <p>
           If you pair an AI client with velai from the <Link href="/connect">connect page</Link> (Claude,
           ChatGPT, Gemini, or another app that speaks MCP), that client can — after you sign in and approve the
@@ -93,7 +93,7 @@ export default function PrivacyPage() {
           further access.
         </p>
 
-        <h2>Email</h2>
+        <h2 className={LEGAL_H2}>Email</h2>
         <p>
           We send email through Resend, a transactional email provider, which processes your address and message
           content on our behalf under its own processor terms. Beyond your address itself, we store which kind of
@@ -108,7 +108,7 @@ export default function PrivacyPage() {
           <Link href="/settings">account settings</Link>.
         </p>
 
-        <h2>Cookies &amp; analytics</h2>
+        <h2 className={LEGAL_H2}>Cookies &amp; analytics</h2>
         <p>
           We use a session cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts) and
           identifies your session — nothing more. The jobs board sets one more tiny cookie the first time you
@@ -138,7 +138,7 @@ export default function PrivacyPage() {
           jobs arrive or to follow up on your feedback; the field is optional, and every survey works without it.
         </p>
 
-        <h2>Retention &amp; deletion</h2>
+        <h2 className={LEGAL_H2}>Retention &amp; deletion</h2>
         <p>
           We keep your data for as long as your account is active. You can delete your account and everything tied
           to it at any time from <Link href="/settings">account settings</Link> — it&apos;s self-serve, not a
@@ -146,13 +146,13 @@ export default function PrivacyPage() {
           systems.
         </p>
 
-        <h2>Your choices</h2>
+        <h2 className={LEGAL_H2}>Your choices</h2>
         <p>
           You control your data: edit or remove anything you&apos;ve created, delete your account outright, or
           contact us with any question or request — including one we haven&apos;t anticipated here.
         </p>
 
-        <h2>Contact</h2>
+        <h2 className={LEGAL_H2}>Contact</h2>
         <p>
           Questions: use the <Link href="/contact">contact page</Link>.
         </p>
