@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { BRAND_MARK_PATHS, BRAND_MARK_VIEWBOX, BrandMark } from "@/components/brand/BrandMark";
+import { BRAND_MARK_BRACKETS, BRAND_MARK_VIEWBOX, BrandMark } from "@/components/brand/BrandMark";
 
 function Wordmark() {
     return (
@@ -13,19 +13,12 @@ function LockupRow({ children }: { children: React.ReactNode }) {
     return <span className="flex items-center gap-2 text-brand">{children}</span>;
 }
 
-/** Stroke geometry has no closed fill — thicker stroke approximates a solid mark. */
+/** Brackets only, no live dot — a no-signal variant of the canonical mark. */
 function FilledWeightStandInMark() {
     return (
-        <svg viewBox={BRAND_MARK_VIEWBOX} fill="none" aria-hidden className="h-7 w-7">
-            {BRAND_MARK_PATHS.map((d) => (
-                <path
-                    key={d}
-                    d={d}
-                    stroke="currentColor"
-                    strokeWidth={22}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                />
+        <svg viewBox={BRAND_MARK_VIEWBOX} aria-hidden className="h-7 w-7">
+            {BRAND_MARK_BRACKETS.map((d) => (
+                <path key={d} d={d} fill="currentColor" />
             ))}
         </svg>
     );

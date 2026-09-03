@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_MARK_PATHS, BRAND_MARK_STROKE_WIDTH, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
 
 /**
  * Shared OpenGraph/Twitter card shape for interior pages (company profiles,
@@ -41,17 +41,11 @@ function BrandMark() {
         background: "rgba(13,110,86,0.18)",
       }}
     >
-      <svg viewBox={BRAND_MARK_VIEWBOX} width={22} height={22} fill="none">
-        {BRAND_MARK_PATHS.map((d) => (
-          <path
-            key={d}
-            d={d}
-            stroke={FOREGROUND}
-            strokeWidth={BRAND_MARK_STROKE_WIDTH}
-            strokeLinecap="butt"
-            strokeLinejoin="round"
-          />
+      <svg viewBox={BRAND_MARK_VIEWBOX} width={22} height={22}>
+        {BRAND_MARK_BRACKETS.map((d) => (
+          <path key={d} d={d} fill={FOREGROUND} />
         ))}
+        <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
       </svg>
     </div>
   );

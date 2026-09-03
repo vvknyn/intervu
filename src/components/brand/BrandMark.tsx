@@ -1,47 +1,39 @@
-/** Velai mark — the "va" ligature stroke. Follows currentColor so it adapts
- *  to light/dark surfaces. Replaces the old bracket-gate [ · ] lockup
- *  (2026-08-27 rebrand); the live-signal dot that design carried had no
- *  equivalent in this glyph and was dropped, not relocated — the `--live`
- *  token and its other consumers (status pills, verdict badges) are
- *  unaffected. */
+/** Locked logo #3 — bracket gate [ · ]: structured boundary holding a live
+ *  signal. Brackets follow currentColor so the mark adapts to light/dark
+ *  surfaces. Restored 2026-09-03 (reverts the 2026-08-27 "va" ligature
+ *  rebrand's mark; the Velai wordmark rename itself stays). */
 
-// Canonical geometry — the ONLY place the mark's path data is allowed to
-// live. Every other rendering of the mark (Satori/next-og OG cards, the
+// Canonical geometry — the ONLY place the bracket-gate path data is allowed
+// to live. Every other rendering of the mark (Satori/next-og OG cards, the
 // error/not-found fallbacks, anything that can't use this component directly)
 // must import these instead of hand-copying path strings, so a future
 // brand-mark change is a one-file edit, not a repo-wide find-and-replace.
-export const BRAND_MARK_VIEWBOX = "0 0 128 128";
-export const BRAND_MARK_PATHS = [
-    "M 52 50 H 30 A 18 18 0 1 1 58 64 C 60 74 62 84 64 94 A 20 18 0 0 0 102 90 V 36",
+export const BRAND_MARK_VIEWBOX = "0 0 64 64";
+export const BRAND_MARK_BRACKETS = [
+    "M22 16H10v32h12v-6h-6V22h6z",
+    "M42 16h12v32H42v-6h6V22h-6z",
 ] as const;
-export const BRAND_MARK_STROKE_WIDTH = 16;
+export const BRAND_MARK_DOT = { cx: 32, cy: 32, r: 7 } as const;
 
-// Email headers use the raster at public/velai-logo.png (SVG unsupported there);
-// that PNG is a display icon, not this stroke geometry.
+// The dot's FILL belongs to that same canon: it's a literal, not
+// rgb(var(--live)), because Satori (next/og) renders these same constants
+// with no CSS custom properties available — an OG card has no theme to
+// follow, so it takes the light-mode value. In-app the component below uses
+// `fill-live` instead, which resolves the SAME token per theme.
+export const BRAND_MARK_DOT_FILL = "#0E9F4E";
+
 /** Lockup box — `h-7` mark and the wordmark share this pixel size. */
 export const BRAND_LOCKUP_MARK_PX = 28;
 export const BRAND_LOCKUP_WORDMARK_PX = 28;
 
-/** Paint `velai-logo.png` in `currentColor` so the mark tracks the wordmark. */
-const MARK_MASK = {
-    maskImage: "url(/velai-logo.png)",
-    WebkitMaskImage: "url(/velai-logo.png)",
-    maskMode: "luminance",
-    WebkitMaskSourceType: "luminance",
-    maskSize: "contain",
-    WebkitMaskSize: "contain",
-    maskRepeat: "no-repeat",
-    maskPosition: "center",
-} as const;
-
-/** The in-app mark is `public/velai-logo.png` — one file, every lockup. */
 export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
     return (
-        <span
-            aria-hidden
-            className={["inline-block shrink-0 bg-current", className].filter(Boolean).join(" ")}
-            style={MARK_MASK}
-        />
+        <svg viewBox={BRAND_MARK_VIEWBOX} aria-hidden className={className}>
+            {BRAND_MARK_BRACKETS.map((d) => (
+                <path key={d} d={d} fill="currentColor" />
+            ))}
+            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} className="fill-live" />
+        </svg>
     );
 }
 
@@ -55,8 +47,9 @@ export function BrandLockupMark({
 }
 
 /** Mark + wordmark — the header lockup. Size/weight live here so TopBar,
- *  consent chrome, and email cannot drift. Header uses the same app-icon
- *  raster as email (`velai-logo.png`). */
+ *  consent chrome, and email cannot drift. Email hosts a raster of this same
+ *  geometry (`public/velai-logo.png`, regenerated from BRAND_MARK_* — SVG
+ *  masks/currentColor don't render in Gmail/Outlook). */
 export function BrandLockup({ className }: { className?: string }) {
     return (
         <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join(" ")}>

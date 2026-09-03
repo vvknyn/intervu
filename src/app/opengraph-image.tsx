@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_MARK_PATHS, BRAND_MARK_STROKE_WIDTH, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
 import { SITE_NAME } from "@/lib/seo/constants";
 
 // Route segment config + image metadata (Next reads these by convention).
@@ -42,17 +42,11 @@ export default function OpengraphImage() {
             background: "rgba(255,255,255,0.14)",
           }}
         >
-          <svg viewBox={BRAND_MARK_VIEWBOX} width="72" height="72" fill="none">
-            {BRAND_MARK_PATHS.map((d) => (
-              <path
-                key={d}
-                d={d}
-                stroke="#ffffff"
-                strokeWidth={BRAND_MARK_STROKE_WIDTH}
-                strokeLinecap="butt"
-                strokeLinejoin="round"
-              />
+          <svg viewBox={BRAND_MARK_VIEWBOX} width="72" height="72">
+            {BRAND_MARK_BRACKETS.map((d) => (
+              <path key={d} d={d} fill="#ffffff" />
             ))}
+            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
           </svg>
         </div>
         <div

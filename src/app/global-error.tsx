@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { BRAND_MARK_PATHS, BRAND_MARK_STROKE_WIDTH, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
 import { EMAIL_COLORS } from "@/lib/email/templates/palette";
 
 /**
@@ -41,17 +41,11 @@ export default function GlobalError({
             "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
         }}
       >
-        <svg viewBox={BRAND_MARK_VIEWBOX} width="44" height="44" fill="none" aria-hidden="true">
-          {BRAND_MARK_PATHS.map((d) => (
-            <path
-              key={d}
-              d={d}
-              stroke={EMAIL_COLORS.brand}
-              strokeWidth={BRAND_MARK_STROKE_WIDTH}
-              strokeLinecap="butt"
-              strokeLinejoin="round"
-            />
+        <svg viewBox={BRAND_MARK_VIEWBOX} width="44" height="44" aria-hidden="true">
+          {BRAND_MARK_BRACKETS.map((d) => (
+            <path key={d} d={d} fill={EMAIL_COLORS.brand} />
           ))}
+          <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
         </svg>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 600, margin: 0 }}>
           Velai hit a snag
