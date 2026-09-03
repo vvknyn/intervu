@@ -40,7 +40,7 @@ function HelpSection({
 }) {
   return (
     <section id={id} className="scroll-mt-8 border-t border-border py-8 first:border-t-0 first:pt-0">
-      <h2 className="text-title font-semibold text-foreground">{title}</h2>
+      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       <div className="mt-3 space-y-3 text-sm leading-relaxed text-foreground">{children}</div>
     </section>
   );
@@ -51,7 +51,7 @@ function HelpSection({
  *  this page has no client-side state, so there's no copy button here. */
 function Command({ children }: { children: string }) {
   return (
-    <code className="block overflow-x-auto rounded-none border border-border bg-muted px-3.5 py-2.5 text-sm text-foreground">
+    <code className="block overflow-x-auto rounded-none bg-muted px-3.5 py-2.5 text-sm text-foreground">
       {children}
     </code>
   );
@@ -68,7 +68,7 @@ export default function ConnectHelpPage() {
       <p className="text-xs font-semibold text-muted-foreground">
         Setup help
       </p>
-      <h1 className="mt-2 text-title font-semibold text-foreground">
+      <h1 className="mt-2 text-title-lg font-semibold text-foreground">
         Connecting your AI to velai
       </h1>
       <p className="mt-3 max-w-xl text-sm text-muted-foreground">

@@ -1,24 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowSquareOut, Copy, Sparkle, ShieldCheck, Code, TerminalWindow } from "@phosphor-icons/react";
+import { ArrowSquareOut, Copy } from "@phosphor-icons/react";
 import { useSearchParams } from "next/navigation";
 import { CopyCommand } from "@/components/marketing/CopyCommand";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
 import { PlatformInstallPanel } from "@/components/marketing/PlatformInstallPanel";
 import { Button } from "@/components/ui/button";
-import { chipVariants } from "@/components/ui/chip";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseConnectClientParam } from "@/lib/auth/landing-intent";
 import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
 import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-handoff";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
-import { cn } from "@/lib/utils";
+import { TREND_CAUTION } from "@/components/trends/chart-palette";
 
 const MCP_CLIENTS = CONNECT_CLIENTS.filter((c) => c.kind === "mcp");
 
@@ -123,11 +123,10 @@ export function ConnectClient({
     <div className="space-y-8 w-full">
       {/* Header Banner */}
       <div>
-        <div className={cn(chipVariants({ active: true }), "mb-3 h-auto gap-2 px-3 py-1")}>
-          <Sparkle size={13} weight="fill" className="text-brand" />
-          Model Context Protocol (MCP) & Local Agents
-        </div>
-        <h1 className="font-display text-2xl font-semibold text-foreground sm:text-3xl lg:text-4xl">
+        <p className="mb-3 text-xs font-semibold text-muted-foreground">
+          Model context protocol (MCP) and local agents
+        </p>
+        <h1 className="font-display text-4xl font-semibold text-foreground">
           Connect your AI to live, verified job data
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground leading-relaxed">
@@ -148,9 +147,9 @@ export function ConnectClient({
             <button
               type="button"
               onClick={() => setFilm("mcp")}
-              className="text-xs font-semibold text-brand hover:text-brand underline underline-offset-4"
+              className="text-xs font-semibold text-brand hover:underline underline-offset-4"
             >
-              How MCP works →
+              How MCP works
             </button>
           </div>
 
@@ -164,17 +163,11 @@ export function ConnectClient({
           <ol className="space-y-5">
             {!signedIn && (
               <li data-testid="connect-signin-step" className="flex gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-xs font-semibold text-foreground">
-                  1
-                </span>
+                <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">1.</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="text-xs font-semibold text-foreground">Sign in to velai</h3>
-                    <Button
-                      asChild
-                      size="sm"
-                      className="shrink-0 gap-1.5 bg-brand px-3.5 text-xs font-semibold text-brand-foreground hover:bg-brand"
-                    >
+                    <Button asChild size="sm" className="shrink-0">
                       <a href={`/login?next=${encodeURIComponent("/connect")}`}>Sign in</a>
                     </Button>
                   </div>
@@ -187,9 +180,7 @@ export function ConnectClient({
             )}
 
             <li className="flex gap-4">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-xs font-semibold text-foreground">
-                2
-              </span>
+              <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">2.</span>
               <div className="min-w-0 flex-1">
                 <h3 className="text-xs font-semibold text-foreground">Copy the endpoint</h3>
                 <div className="mt-2">
@@ -199,48 +190,34 @@ export function ConnectClient({
             </li>
 
             <li className="flex gap-4">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-xs font-semibold text-foreground">
-                3
-              </span>
+              <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">3.</span>
               <div className="min-w-0 flex-1 space-y-3">
                 <h3 className="text-xs font-semibold text-foreground">Paste it into your AI client</h3>
                 <p className="text-xs text-muted-foreground">Pick your client for its exact steps.</p>
 
-                <div className="flex flex-wrap gap-1.5">
-                  {MCP_CLIENTS.map((client) => {
-                    const active = selectedClient === client.id;
-                    return (
-                      <button
-                        key={client.id}
-                        type="button"
-                        onClick={() => handleSelectClient(client.id)}
-                        className={cn(chipVariants({ active }), "")}
-                      >
+                <Tabs
+                  value={selectedClient}
+                  onValueChange={(value) => handleSelectClient(value as ConnectClientId)}
+                >
+                  <TabsList variant="line">
+                    {MCP_CLIENTS.map((client) => (
+                      <TabsTrigger key={client.id} value={client.id}>
                         {client.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
 
                 {/* Instructions Box */}
                 <div className="rounded-none border border-border bg-muted p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-4 w-4 items-center justify-center rounded-none bg-brand text-xs font-semibold text-brand-foreground">
-                        ✓
-                      </span>
-                      <h4 className="text-xs font-semibold text-foreground">
-                        {currentInstruction.title} Setup
-                      </h4>
-                    </div>
+                    <h4 className="text-xs font-semibold text-foreground">
+                      {currentInstruction.title} Setup
+                    </h4>
                     {currentMeta.openUrl && (
-                      <Button
-                        asChild
-                        size="xs"
-                        className="gap-1 bg-brand font-semibold text-brand-foreground hover:bg-brand"
-                      >
+                      <Button asChild size="xs" variant="ghost" className="gap-1 font-semibold">
                         <a href={currentMeta.openUrl} target="_blank" rel="noopener noreferrer">
-                          Open {currentMeta.label} <ArrowSquareOut size={12} />
+                          Open {currentMeta.label} <ArrowSquareOut size={16} />
                         </a>
                       </Button>
                     )}
@@ -249,8 +226,8 @@ export function ConnectClient({
                   <ol className="space-y-1.5 text-xs text-foreground">
                     {currentInstruction.steps.map((step, idx) => (
                       <li key={idx} className="flex items-start gap-2">
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-none bg-card border border-border text-xs font-semibold text-foreground">
-                          {idx + 1}
+                        <span className="w-4 shrink-0 text-xs font-semibold text-muted-foreground">
+                          {idx + 1}.
                         </span>
                         <span className="leading-snug">{step}</span>
                       </li>
@@ -258,7 +235,7 @@ export function ConnectClient({
                   </ol>
 
                   {currentInstruction.note && (
-                    <p className="text-xs text-warn dark:text-warn bg-muted dark:bg-warn border border-muted dark:border-warn rounded-none px-2 py-0.5 inline-block">
+                    <p className="text-xs font-semibold inline-block" style={{ color: TREND_CAUTION }}>
                       Note: {currentInstruction.note}
                     </p>
                   )}
@@ -274,18 +251,17 @@ export function ConnectClient({
           <section className="rounded-none border border-border bg-card p-6 sm:p-7 space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
               <div className="flex items-center gap-2">
-                <TerminalWindow size={18} weight="duotone" className="text-brand" />
                 <h2 className="text-sm font-semibold text-foreground">OpenClaw (Autonomous Mac Agent)</h2>
-                <span className="whitespace-nowrap rounded-none border border-border bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-                  Self-Hosted
+                <span className="whitespace-nowrap text-xs font-semibold text-muted-foreground">
+                  Self-hosted
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setFilm("claw")}
-                className="text-xs font-semibold text-brand hover:text-brand underline underline-offset-4"
+                className="text-xs font-semibold text-brand hover:underline underline-offset-4"
               >
-                Watch the demo →
+                Watch the demo
               </button>
             </div>
 
@@ -297,18 +273,10 @@ export function ConnectClient({
           </section>
 
           {/* Accordion Panels for Sample Prompts & Security */}
-          <Accordion type="single" collapsible className="space-y-3">
+          <Accordion type="single" collapsible>
             {/* Sample Prompts */}
-            <AccordionItem
-              value="sample-prompts"
-              className="rounded-none border border-border bg-card px-4"
-            >
-              <AccordionTrigger className="py-3 text-xs font-semibold text-foreground hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <Sparkle size={14} weight="duotone" className="text-brand" />
-                  <span>Sample prompts</span>
-                </div>
-              </AccordionTrigger>
+            <AccordionItem value="sample-prompts">
+              <AccordionTrigger>Sample prompts</AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
                 <div className="space-y-1.5">
                   {TRY_THESE_PROMPTS.map((prompt, idx) => (
@@ -322,9 +290,9 @@ export function ConnectClient({
                         variant="ghost"
                         size="xs"
                         onClick={() => navigator.clipboard.writeText(prompt)}
-                        className="h-6 shrink-0 gap-1 whitespace-nowrap px-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                        className="shrink-0 gap-1 whitespace-nowrap px-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
                       >
-                        <Copy size={11} /> Copy
+                        <Copy size={16} /> Copy
                       </Button>
                     </div>
                   ))}
@@ -333,57 +301,42 @@ export function ConnectClient({
             </AccordionItem>
 
             {/* Privacy & Permissions Guarantees */}
-            <AccordionItem
-              value="privacy-security"
-              className="rounded-none border border-border bg-card px-4"
-            >
-              <AccordionTrigger className="py-3 text-xs font-semibold text-foreground hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={14} weight="duotone" className="text-brand" />
-                  <span>Permissions and privacy</span>
-                </div>
-              </AccordionTrigger>
+            <AccordionItem value="privacy-security">
+              <AccordionTrigger>Permissions and privacy</AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
                 <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li className="flex items-start gap-1.5">
                     <span className="text-brand font-semibold">✓</span>
-                    <span><strong>Read-only search:</strong> Your AI queries public verified job data only.</span>
+                    <span><span className="font-semibold text-foreground">Read-only search:</span> Your AI queries public verified job data only.</span>
                   </li>
                   <li className="flex items-start gap-1.5">
                     <span className="text-brand font-semibold">✓</span>
-                    <span><strong>No auto-submit:</strong> Never submits applications automatically without manual approval.</span>
+                    <span><span className="font-semibold text-foreground">No auto-submit:</span> Never submits applications automatically without manual approval.</span>
                   </li>
                   <li className="flex items-start gap-1.5">
                     <span className="text-brand font-semibold">✓</span>
-                    <span><strong>Stateless queries:</strong> Zero tracking and never used for model training.</span>
+                    <span><span className="font-semibold text-foreground">Stateless queries:</span> Zero tracking and never used for model training.</span>
                   </li>
                 </ul>
               </AccordionContent>
             </AccordionItem>
 
             {/* Raw JSON Config */}
-            <AccordionItem
-              value="json-config"
-              className="rounded-none border border-border bg-card px-4"
-            >
-              <AccordionTrigger className="py-3 text-xs font-semibold text-foreground hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <Code size={14} weight="duotone" className="text-brand" />
-                  <span>Raw JSON config</span>
-                </div>
-              </AccordionTrigger>
+            <AccordionItem value="json-config">
+              <AccordionTrigger>Raw JSON config</AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
                 <div className="relative">
-                  <pre className="overflow-x-auto rounded-none border border-border bg-foreground p-3 text-xs text-muted-foreground">
+                  <pre className="overflow-x-auto rounded-none bg-muted p-3 text-xs text-foreground">
                     <code>{jsonConfig}</code>
                   </pre>
                   <Button
                     type="button"
+                    variant="ghost"
                     size="xs"
                     onClick={() => navigator.clipboard.writeText(jsonConfig)}
-                    className="absolute right-2 top-2 h-6 gap-1 whitespace-nowrap rounded-none bg-card px-2 text-xs font-semibold text-foreground hover:bg-muted"
+                    className="absolute right-2 top-2 gap-1 whitespace-nowrap"
                   >
-                    <Copy size={11} /> Copy
+                    <Copy size={16} /> Copy
                   </Button>
                 </div>
               </AccordionContent>

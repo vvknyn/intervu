@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Clock } from "@phosphor-icons/react/dist/ssr";
 import { getCachedMarketTrends } from "@/lib/jobs/market-trends";
 import {
   captureDailySnapshotIfAbsent,
@@ -100,10 +99,7 @@ export default async function TrendsPage() {
         title="Market trends"
         description="Live stats from the jobs corpus we track — from companies' own career pages, not curated."
         actions={
-          <span className="mono-data flex items-center gap-1.5 rounded-none border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground">
-            <Clock size={13} weight="bold" />
-            counts refresh every 15 minutes
-          </span>
+          <span className="text-xs text-muted-foreground">counts refresh every 15 minutes</span>
         }
       />
 

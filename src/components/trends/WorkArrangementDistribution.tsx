@@ -1,9 +1,10 @@
 "use client";
 
-import { GlobeHemisphereWest, CheckCircle } from "@phosphor-icons/react";
+import { Check } from "@phosphor-icons/react";
 import type { TrendFacetItem } from "@/lib/jobs/market-trends";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { BarRow, TrendSection } from "./TrendSection";
+import { TREND_SERIES } from "./chart-palette";
 
 interface WorkArrangementDistributionProps {
   workTypes?: TrendFacetItem[];
@@ -14,11 +15,10 @@ interface WorkArrangementDistributionProps {
   };
 }
 
-const SEGMENT_COLORS: Record<string, string> = {
-  remote: "bg-foreground",
-  hybrid: "bg-muted-foreground dark:bg-muted-foreground",
-  onsite: "bg-border dark:bg-border",
-};
+/** Position-based, not name-based — any set of work-type categories gets a
+ *  color from the shared categorical series, so a new category is covered
+ *  by construction instead of needing a new named entry. */
+const segmentColor = (index: number) => TREND_SERIES[index % TREND_SERIES.length];
 
 export function WorkArrangementDistribution({
   workTypes = [],
@@ -33,21 +33,21 @@ export function WorkArrangementDistribution({
       {/* High-contrast multi-segment visual breakdown — a proportion picture
           the row grammar below can't replace, kept as its own shape. */}
       <div className="flex h-2 w-full overflow-hidden rounded-none bg-muted">
-        {workTypes.map((item) => (
+        {workTypes.map((item, i) => (
           <div
             key={item.key}
-            style={{ width: `${item.pct}%` }}
-            className={SEGMENT_COLORS[item.key] || "bg-muted-foreground"}
+            style={{ width: `${item.pct}%`, backgroundColor: segmentColor(i) }}
             title={`${item.label}: ${item.pct}% (${item.count.toLocaleString()} roles)`}
           />
         ))}
       </div>
 
       <ul className="mt-2 mb-4 flex flex-wrap gap-x-4 gap-y-1" aria-label="Workplace flexibility legend">
-        {workTypes.map((item) => (
+        {workTypes.map((item, i) => (
           <li key={`legend-${item.key}`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <span
-              className={`h-2 w-2 shrink-0 rounded-none ${SEGMENT_COLORS[item.key] || "bg-muted-foreground"}`}
+              className="h-2 w-2 shrink-0 rounded-none"
+              style={{ backgroundColor: segmentColor(i) }}
               aria-hidden
             />
             <span className="text-foreground">{item.label}</span>
@@ -69,12 +69,9 @@ export function WorkArrangementDistribution({
 
       {visaSponsorship && visaSponsorship.sponsoredCount > 0 && (
         <div className="mt-4 flex items-center justify-between rounded-none border border-border bg-muted p-3">
-          <div className="flex items-center gap-2">
-            <GlobeHemisphereWest className="h-4 w-4 text-foreground" weight="duotone" />
-            <span className="text-xs text-foreground">Visa sponsorship verified</span>
-          </div>
+          <span className="text-xs text-foreground">Visa sponsorship verified</span>
           <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            <CheckCircle className="h-3.5 w-3.5 text-live dark:text-live" weight="fill" />
+            <Check size={16} weight="bold" className="text-live dark:text-live" />
             <span>{visaSponsorship.sponsoredPct}%</span>
             <span className="text-muted-foreground font-normal">({visaSponsorship.sponsoredCount.toLocaleString()})</span>
           </span>

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const DEFAULT_ERROR = "Failed to send your message. Please try again.";
 
@@ -87,12 +88,12 @@ export function ContactForm() {
 
     if (status === "success") {
         return (
-            <div className="mt-8 rounded-none border border-brand bg-muted p-6 text-foreground">
-                <p className="text-sm font-semibold text-brand">Message Sent Successfully</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Got it — we read everything and reply directly from <span className="text-foreground">hello@thesubspace.io</span>.
-                </p>
-            </div>
+            <Alert variant="live" className="mt-8">
+                <AlertTitle>Message sent successfully</AlertTitle>
+                <AlertDescription>
+                    Got it — we read everything and reply directly from hello@thesubspace.io.
+                </AlertDescription>
+            </Alert>
         );
     }
 
@@ -113,7 +114,6 @@ export function ContactForm() {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Your name"
-                        className="h-11 rounded-none border-border bg-background px-3.5 focus:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
                     />
                 </Field>
 
@@ -126,7 +126,6 @@ export function ContactForm() {
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@company.com"
                         required
-                        className="h-11 rounded-none border-border bg-background px-3.5 focus:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
                     />
                 </Field>
 
@@ -140,7 +139,7 @@ export function ContactForm() {
                                 ? "What went wrong, and what did you expect to happen instead?"
                                 : "Questions, feedback, corrections, or partnerships..."
                         }
-                        className="min-h-[140px] rounded-none border-border bg-background p-3.5 focus:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
+                        className="min-h-[140px]"
                         required
                         minLength={10}
                     />
@@ -162,7 +161,9 @@ export function ContactForm() {
                 <TurnstileWidget onVerify={setTurnstileToken} />
 
                 {status === "error" && error && (
-                    <p className="text-xs text-destructive">{error}</p>
+                    <Alert variant="destructive">
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
                 )}
 
                 {isBugReport && (
@@ -171,8 +172,8 @@ export function ContactForm() {
                     </p>
                 )}
 
-                <Button type="submit" size="lg" disabled={isSubmitting} className="h-11 rounded-none bg-primary text-primary-foreground text-xs font-semibold px-7 hover:bg-primary transition-colors">
-                    {isSubmitting ? "Sending…" : isBugReport ? "Send report →" : "Send message →"}
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Sending…" : isBugReport ? "Send report" : "Send message"}
                 </Button>
             </form>
         </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Briefcase } from "@phosphor-icons/react";
 import type { TrendFacetItem } from "@/lib/jobs/market-trends";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { BarRow, TrendSection } from "./TrendSection";
@@ -34,11 +33,10 @@ export function ExperienceSeniorityDistribution({
 
       {employmentTypes.length > 0 && (
         <div className="mt-4 border-t border-border pt-4">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Briefcase size={14} weight="duotone" />
+          <div className="text-xs text-muted-foreground">
             <span>Employment contract types</span>
           </div>
-          <div className="mt-2.5 flex flex-wrap gap-2">
+          <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5">
             {employmentTypes.map((type) => {
               const href = `/${serializeJobsUrl({
                 ...DEFAULT_URL_STATE,
@@ -49,7 +47,7 @@ export function ExperienceSeniorityDistribution({
                 <Link
                   key={type.key}
                   href={href}
-                  className="inline-flex items-center gap-1.5 rounded-none border border-border bg-muted px-2.5 py-1 text-xs text-foreground transition-colors hover:border-border-strong hover:bg-muted"
+                  className="inline-flex items-center gap-1.5 text-xs text-foreground transition-colors hover:text-brand"
                 >
                   <span>{type.label}</span>
                   <span className="text-xs font-semibold text-muted-foreground tabular-nums">
