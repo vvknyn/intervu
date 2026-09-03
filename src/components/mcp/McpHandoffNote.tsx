@@ -47,7 +47,7 @@ export function McpHandoffNote({
             <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
                 {VARIANT_COPY[variant]}{" "}
                 <Link href="/connect" className="font-semibold text-brand underline underline-offset-4 hover:text-brand">
-                    Connect it once →
+                    Connect it once
                 </Link>
             </div>
         );

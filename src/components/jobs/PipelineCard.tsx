@@ -74,7 +74,7 @@ export function PipelineCard({ nowMs }: { nowMs: number }) {
             <div className="mb-2 flex items-baseline justify-between">
                 <span className="text-xs text-muted-foreground">Pipeline</span>
                 <Link href="/yours" className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground">
-                    open tracker →
+                    Open tracker
                 </Link>
             </div>
             <p className="text-xs text-foreground">

@@ -76,7 +76,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                 <p className="text-xs text-muted-foreground">
                     First time?{" "}
                     <Link href="/connect" className="font-semibold text-foreground underline underline-offset-4 hover:opacity-80">
-                        Connect once →
+                        Connect once
                     </Link>
                 </p>
             </div>
@@ -91,7 +91,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                     onClick={handlePrimary}
                     className="inline-flex h-8 items-center justify-center rounded-none bg-brand px-3 text-xs font-semibold text-brand-foreground hover:bg-brand transition-colors cursor-pointer"
                 >
-                    Open in {CLIENT_LABEL[savedClient]} →
+                    Open in {CLIENT_LABEL[savedClient]}
                 </button>
                 <button
                     type="button"
@@ -111,7 +111,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                 onClick={handlePrimary}
                 className="inline-flex h-8 items-center justify-center rounded-none bg-brand px-3.5 text-xs font-semibold text-brand-foreground hover:bg-brand transition-colors cursor-pointer"
             >
-                Open in your AI →
+                Open in your AI
             </button>
         </div>
     );

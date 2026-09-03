@@ -246,7 +246,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                     </li>
                 </ul>
                 <a href="/connect" className="inline-block text-xs text-brand underline hover:text-brand">
-                    Full setup instructions →
+                    Full setup instructions
                 </a>
             </div>
         </section>

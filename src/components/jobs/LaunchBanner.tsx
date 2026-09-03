@@ -32,7 +32,7 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
                         href="/connect"
                         className="inline-flex items-center gap-1.5 rounded-none bg-muted text-live px-3 py-1 text-xs font-semibold hover:underline"
                     >
-                        Connect your AI →
+                        Connect your AI
                     </Link>
                 </div>
             </div>

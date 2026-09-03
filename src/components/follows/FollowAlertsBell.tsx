@@ -174,7 +174,7 @@ export function FollowAlertsBell() {
             onClick={acknowledge}
             className="block w-full rounded-none bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
           >
-            View followed roles →
+            View followed roles
           </Link>
         </div>
       </PopoverContent>
