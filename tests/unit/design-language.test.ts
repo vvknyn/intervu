@@ -712,3 +712,42 @@ test("FILE_EXEMPTIONS is the complete, exact set of design-lint-allow-file files
             `both sides together.`,
     );
 });
+
+/**
+ * Loading placeholders are quiet rectangles (rulebook v2, Sep 2026): a
+ * skeleton is a flat layer block that pulses. What broke this was ONE CSS
+ * class (`.skeleton-bar`, 30 call sites) painting a moving gradient — so the
+ * guard reads every rule in globals.css rather than one class name: a rule
+ * that both animates and paints a gradient is a shimmer, and a keyframes
+ * block that moves background-position is a sweep, whatever either is called.
+ */
+function shimmerRules(css: string): string[] {
+    const src = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const offenders: string[] = [];
+    for (const m of src.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const selector = m[1].trim().split("\n").pop()!.trim();
+        if (/animation(?:-name)?\s*:/.test(m[2]) && /gradient\(/.test(m[2])) offenders.push(selector);
+    }
+    for (const m of src.matchAll(/@keyframes\s+([a-zA-Z0-9_-]+)\s*\{([\s\S]*?)\}\s*\}/g)) {
+        if (/background-position\s*:/.test(m[2])) offenders.push(`@keyframes ${m[1]}`);
+    }
+    return offenders;
+}
+
+test("loading placeholders are flat: no rule in globals.css animates a gradient or sweeps background-position", () => {
+    assert.deepEqual(
+        shimmerRules(GLOBALS),
+        [],
+        "a shimmer/sweep survives in globals.css — placeholders are flat bg-muted blocks that pulse (see .skeleton-bar and ui/skeleton.tsx)",
+    );
+});
+
+test("shimmer classifier: catches a sweep and an animated gradient under any name, passes a flat pulse", () => {
+    const fixture = `
+.card-ghost { background-image: linear-gradient(90deg, transparent, rgb(0 0 0 / .06), transparent); animation: sweep 1s infinite; }
+@keyframes sweep { from { background-position: 200% 0; } 50% { opacity: .9; } to { background-position: -200% 0; } }
+.quiet { background-color: rgb(var(--muted)); animation: var(--animate-pulse); }
+@keyframes pulse { 50% { opacity: .5; } }
+/* .commented-out { background: linear-gradient(red, blue); animation: x 1s; } */`;
+    assert.deepEqual(shimmerRules(fixture), [".card-ghost", "@keyframes sweep"]);
+});
