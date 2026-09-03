@@ -2,6 +2,7 @@ import { handleAuth } from "@workos-inc/authkit-nextjs";
 import { after } from "next/server";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisioning";
+import { withDirectHitGuard } from "@/lib/auth/callback-guard";
 
 /**
  * WorkOS AuthKit OAuth callback route.
@@ -28,14 +29,20 @@ import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisionin
  * same reasoning as `signIn`/`signUp`'s own provisioning calls: it must never
  * turn a successful WorkOS exchange into a redirect error, and a person
  * finishing sign-in should not wait on Resend or Firestore to land on the app.
+ *
+ * `withDirectHitGuard` (src/lib/auth/callback-guard.ts) redirects a request
+ * that carries neither `code` nor `error` straight to /login instead of
+ * letting it fall into handleAuth's generic 500 — see that file for why.
  */
-export const GET = handleAuth({
-    baseURL: getSiteUrl(),
-    onSuccess: async ({ user }) => {
-        after(() =>
-            realProvisioningDeps()
-                .then((deps) => provisionAppAccess(deps, user))
-                .catch((err) => console.error("[Auth] callback provisioning failed:", err)),
-        );
-    },
-});
+export const GET = withDirectHitGuard(
+    handleAuth({
+        baseURL: getSiteUrl(),
+        onSuccess: async ({ user }) => {
+            after(() =>
+                realProvisioningDeps()
+                    .then((deps) => provisionAppAccess(deps, user))
+                    .catch((err) => console.error("[Auth] callback provisioning failed:", err)),
+            );
+        },
+    }),
+);
