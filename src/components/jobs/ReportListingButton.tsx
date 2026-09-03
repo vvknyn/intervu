@@ -106,7 +106,7 @@ export function ReportListingButton({
               className,
             )}
           >
-            <FlagIcon size={14} aria-hidden />
+            <FlagIcon size={16} aria-hidden />
           </button>
         </TooltipTrigger>
         <TooltipContent

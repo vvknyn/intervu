@@ -158,7 +158,7 @@ function PursuitDetailBody({
                         <SheetTitle className="truncate text-lg font-semibold">{pursuit.position}</SheetTitle>
                         <SheetDescription className="truncate text-meta">{pursuit.company_name}</SheetDescription>
                     </SheetHeader>
-                    <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80">
+                    <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-muted-foreground transition-opacity hover:opacity-80">
                         <span aria-hidden="true">×</span>
                         <span className="sr-only">Close</span>
                     </SheetClose>
@@ -188,16 +188,16 @@ function PursuitDetailBody({
 
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-none bg-muted p-3.5">
                     <div>
-                        <dt className="mb-1 whitespace-nowrap text-xs text-[#8b939e]">In tracker</dt>
+                        <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">In tracker</dt>
                         <dd className="text-meta">{days}d</dd>
                     </div>
                     <div>
-                        <dt className="mb-1 whitespace-nowrap text-xs text-[#8b939e]">Resume</dt>
+                        <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">Resume</dt>
                         <dd className="text-meta">{resumeLabel ?? "— none linked"}</dd>
                     </div>
                     {stale && (
                         <div className="col-span-2">
-                            <dt className="mb-1 whitespace-nowrap text-xs text-[#8b939e]">Update</dt>
+                            <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">Update</dt>
                             <dd className="text-meta">no update in {daysSinceUpdate(pursuit)}d</dd>
                         </div>
                     )}
@@ -205,7 +205,7 @@ function PursuitDetailBody({
 
                 <div>
                     <div className="mb-1.5 flex items-center justify-between">
-                        <Label className="block whitespace-nowrap text-xs text-[#8b939e]">Note</Label>
+                        <Label className="block whitespace-nowrap text-xs text-muted-foreground">Note</Label>
                         {noteIndicator && (
                             <span className="text-xs text-muted-foreground" aria-live="polite">
                                 {noteIndicator === "saving" ? "saving…" : "saved"}
@@ -224,7 +224,7 @@ function PursuitDetailBody({
                 </div>
 
                 <div>
-                    <Label className="mb-1.5 block whitespace-nowrap text-xs text-[#8b939e]">
+                    <Label className="mb-1.5 block whitespace-nowrap text-xs text-muted-foreground">
                         Interview date
                     </Label>
                     <div className="flex flex-wrap items-center gap-2">

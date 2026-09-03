@@ -381,8 +381,8 @@ export function TopBar() {
                 that changes. Chip-less (a fresh search, nothing narrowed
                 yet) still renders the row for the "Filters" button alone. */}
             {docked && (
-                <div data-region="band" className="hidden border-t border-border bg-background lg:block">
-                    <div className="shell-row flex min-h-9 flex-nowrap items-center gap-1.5 overflow-x-auto py-1">
+                <div data-region="band" className="hidden bg-background lg:block">
+                    <div className="shell-row box-border flex h-10 flex-nowrap items-center gap-4 overflow-x-auto border-t border-border">
                         <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
                         <button
                             type="button"
@@ -393,8 +393,7 @@ export function TopBar() {
                             className={cn(
                                 chipVariants({ active: docked.filtersExpanded || docked.filterCount > 0 }),
                                 toolbarControlHeight,
-                                "box-border shrink-0 items-center justify-center gap-1.5 rounded-none px-3 text-xs font-semibold lg:px-2",
-                                docked.filtersExpanded && "border-brand bg-brand text-brand-foreground",
+                                "box-border shrink-0 items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold lg:px-3",
                             )}
                         >
                             <FunnelSimple size={12} weight="bold" aria-hidden />
@@ -405,7 +404,7 @@ export function TopBar() {
                                 </span>
                             )}
                         </button>
-                        <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-1.5" />
+                        <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
                         {docked.chips.map((chip) => (
                             <span
                                 key={chip.key}
@@ -413,15 +412,15 @@ export function TopBar() {
                                 className={cn(
                                     chipVariants({ active: false }),
                                     toolbarControlHeight,
-                                    "box-border items-center gap-1.5 px-3 lg:px-2",
+                                    "box-border items-center gap-2 px-3 lg:px-3",
                                 )}
                             >
                                 {chip.label}
                                 <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
                             </span>
                         ))}
-                        <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-1.5" />
-                        <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-1.5" />
+                        <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />
+                        <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-2" />
                         <div className="min-w-0 flex-1" aria-hidden />
                         <div data-testid="topbar-docked-sort" className="flex shrink-0 items-center gap-2" />
                         <div data-testid="topbar-docked-extras" className="flex shrink-0 items-center gap-2" />

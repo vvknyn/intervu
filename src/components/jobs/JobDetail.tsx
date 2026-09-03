@@ -2,9 +2,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, BookmarkSimple, Check } from "@phosphor-icons/react";
+import { ArrowSquareOut } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { chipVariants } from "@/components/ui/chip";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
@@ -12,6 +11,7 @@ import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { ReportListingButton } from "@/components/jobs/ReportListingButton";
+import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
@@ -109,7 +109,7 @@ export function JobDetailSkeleton() {
             <div className="border-b border-border p-6">
                 <div className="flex items-start gap-4">
                     <div className="skeleton-bar h-12 w-12 shrink-0" />
-                    <div className="min-w-0 flex-1 space-y-2.5">
+                    <div className="min-w-0 flex-1 space-y-2">
                         <div className="skeleton-bar h-5 w-2/3" />
                         <div className="skeleton-bar h-3.5 w-1/3" />
                         <div className="flex flex-wrap gap-2 pt-1">
@@ -125,7 +125,7 @@ export function JobDetailSkeleton() {
                     <div className="skeleton-bar h-9 w-32" />
                 </div>
             </div>
-            <div className="space-y-2.5 p-6">
+            <div className="space-y-2 p-6">
                 <div className="skeleton-bar h-3.5 w-full" />
                 <div className="skeleton-bar h-3.5 w-full" />
                 <div className="skeleton-bar h-3.5 w-5/6" />
@@ -160,10 +160,19 @@ export function JobDetailSkeleton() {
 export function JobDetailActionBar({
     job,
     onOpenPosting,
+    onGoAfter,
+    pursuit,
+    goingAfter,
     signedIn = true,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
+    onGoAfter: () => void;
+    /** The existing pursuit for this job, if the user already went after it —
+     *  same contract as `JobDetail`'s own prop (see there); drives the same
+     *  bookmark control rendered inline above. */
+    pursuit: Pursuit | undefined;
+    goingAfter: boolean;
     /** When false, the apply CTA reads "Sign in to apply" (handler still gates). */
     signedIn?: boolean;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
@@ -174,14 +183,17 @@ export function JobDetailActionBar({
     return (
         <div
             data-testid="job-detail-action-bar"
-            className="sticky bottom-0 z-20 flex gap-2 border-t border-border bg-card p-3.5"
+            className="sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-card px-4"
         >
             {job.apply_url && (
-                <Button className="h-11 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors lg:h-10" onClick={onOpenPosting}>
+                <Button className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
                     <ArrowSquareOut size={18} weight="bold" />
                     {signedIn ? "Apply on Company Site →" : "Sign in to apply →"}
                 </Button>
             )}
+            {/* Same 40px icon-only ghost bookmark as the desktop action row —
+                one control, restyled once, not a second hand-copy. */}
+            <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
         </div>
     );
 }
@@ -501,7 +513,7 @@ export function JobDetail({
             >
                 {/* Identity header */}
                 <div className="px-4 pb-3.5 pt-4 sm:px-6 sm:pb-4">
-                    <div className="flex items-start gap-3 sm:gap-3.5">
+                    <div className="flex items-start gap-3">
                         <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                         <div className="min-w-0 flex-1">
                             <h1 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{decodeText(job.title)}</h1>
@@ -593,10 +605,10 @@ export function JobDetail({
                                 shared with JobCard's row. Salary stays bold and first; a relisted
                                 posted-date turns amber (the caution signal), same token used by
                                 the meter pip and receipt row below. */}
-                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
                                 {salary && (
-                                    <span data-tour="jobs-pay" className="inline-flex items-center gap-1.5 text-xs">
-                                        <FACT_CHIP_ICON.salary size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                                    <span data-tour="jobs-pay" className="inline-flex items-center gap-2 text-xs">
+                                        <FACT_CHIP_ICON.salary size={16} className="shrink-0 text-muted-foreground" aria-hidden />
                                         <span className="mono-data font-semibold text-foreground">{salary}</span>
                                     </span>
                                 )}
@@ -606,9 +618,9 @@ export function JobDetail({
                                     return (
                                         <span
                                             key={c.kind}
-                                            className={cn("inline-flex items-center gap-1.5 text-xs", caution && LISTING_STATE_TEXT.relisted)}
+                                            className={cn("inline-flex items-center gap-2 text-xs", caution && LISTING_STATE_TEXT.relisted)}
                                         >
-                                            <FactIcon size={14} className={cn("shrink-0", !caution && "text-muted-foreground")} aria-hidden />
+                                            <FactIcon size={16} className={cn("shrink-0", !caution && "text-muted-foreground")} aria-hidden />
                                             <span className={cn("mono-data", !caution && "text-foreground")}>
                                                 {c.label}
                                             </span>
@@ -638,7 +650,7 @@ export function JobDetail({
                             </div>
 
                         </div>
-                        <div className="flex shrink-0 items-center gap-1.5">
+                        <div className="flex shrink-0 items-center gap-2">
                             <ReportListingButton
                                 job={job}
                                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-none border border-border bg-card text-muted-foreground hover:text-foreground"
@@ -678,25 +690,20 @@ export function JobDetail({
                             the quietest element on the page. Save is the
                             secondary action: a plain 1px outline. */}
                         {job.apply_url && (
-                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none bg-brand text-brand-foreground hover:bg-brand text-xs font-semibold transition-colors">
+                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-4 rounded-none bg-brand text-brand-foreground hover:bg-brand text-xs font-semibold transition-colors">
                                 <ArrowSquareOut size={16} />
                                 {signedIn ? "Apply" : "Sign in to apply"}
                             </Button>
                         )}
-                        {pursuit ? (
-                            <Link
-                                href={`/yours/${pursuit.id}`}
-                                className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-none bg-muted text-live px-4 text-xs font-semibold"
-                            >
-                                <Check size={16} weight="bold" />
-                                Saved
-                            </Link>
-                        ) : (
-                            <Button variant="outline" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none text-xs font-semibold transition-colors">
-                                <BookmarkSimple size={16} />
-                                {goingAfter ? "Saving…" : "Save"}
-                            </Button>
-                        )}
+                        {/* Bookmark: 40px icon-only ghost control (rulebook — icon
+                            carries the state, no label chrome competing with Apply's
+                            one inverted-ink block above). Klein-filled glyph + link to
+                            the saved record when `pursuit` exists; muted outline glyph
+                            + the existing `onGoAfter` handler otherwise. Same
+                            `pursuit`/`goingAfter`/`onGoAfter` contract every caller
+                            already threads for the row-level equivalent — no new
+                            plumbing, only the restyle. */}
+                        <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
                         {reportJobEnabled && job.apply_url && (
                             <ReportJobButton
                                 jobUrl={job.apply_url}
@@ -711,20 +718,20 @@ export function JobDetail({
 
             <div
                 className={cn(
-                    "px-4 pb-6 pt-4 sm:px-5",
+                    "px-4 pb-6 pt-4",
                     collapseDescription && "min-h-0 flex-1 overflow-y-auto custom-scrollbar",
                 )}
             >
                 {/* Ghost check module: a tinted glass check ledger */}
                 {ghost && (
-                    <div data-tour="jobs-posting-check" className="mb-5 overflow-hidden rounded-none bg-card border border-border p-4">
-                        <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                    <div data-tour="jobs-posting-check" className="mb-4 overflow-hidden rounded-none bg-card border border-border p-4">
+                        <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-xs font-semibold text-muted-foreground">
                                     posting check
                                 </span>
                                 {ghostSignals.length > 0 && (
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-2">
                                         <span aria-hidden className="flex items-center gap-1">
                                             {ghostSignals.map((s, i) => (
                                                 <i
@@ -759,7 +766,13 @@ export function JobDetail({
                                 )}
                             </div>
                             <div className="flex items-center justify-between gap-2 sm:justify-end">
-                                <span className={cn("inline-flex items-center rounded-none px-2.5 py-0.5 text-xs font-semibold", ghost.cls)}>
+                                {/* Verdict as a plain colored WORD, not a bordered/bg pill
+                                    (rulebook: one attention-grabbing filled/bordered
+                                    treatment per view, already spent on Apply) — the color
+                                    still comes from `ghost.cls`, the single tone source
+                                    every other verdict surface reads, so this can never
+                                    disagree with the row badge on what color a tone is. */}
+                                <span className={cn("text-xs font-semibold", ghost.cls.split(" ").find((c) => c.startsWith("text-")))}>
                                     {ghost.label}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
@@ -771,10 +784,10 @@ export function JobDetail({
                             already the unremarkable "clear and current" case — the
                             meter + pill above already say enough there. */}
                         {!(job.ghost_badge === "clear" && !staleCheck) && (
-                            <div className="px-3.5 pt-2.5 text-xs text-muted-foreground">{ghost.explain}</div>
+                            <div className="px-4 pt-3 text-xs text-muted-foreground">{ghost.explain}</div>
                         )}
                         {ghostSignals.length > 0 && (
-                            <div className="mono-data grid grid-cols-1 gap-x-5 gap-y-2 px-4 py-3 text-xs sm:grid-cols-2">
+                            <div className="mono-data grid grid-cols-1 gap-x-4 gap-y-2 px-4 py-3 text-xs sm:grid-cols-2">
                                 {ghostSignals.map((s) => {
                                     const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
                                     return (
@@ -789,7 +802,7 @@ export function JobDetail({
                                             {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unknown" ? "·" : "—"}
                                         </span>
                                         <div className="min-w-0 flex-1 leading-snug">
-                                            <b className="text-xs font-semibold text-foreground mr-1.5">{s.kind}</b>
+                                            <b className="text-xs font-semibold text-foreground mr-2">{s.kind}</b>
                                             <span className={cn("text-xs", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
                                                 {s.text}
                                                 {!relistCaution && s.status === "unfavorable" && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
@@ -802,13 +815,19 @@ export function JobDetail({
                                 })}
                             </div>
                         )}
-                        <div className="px-3.5 pb-3.5 pt-2.5">
+                        <div className="px-4 pb-4 pt-3">
                             {/* WHEN this verdict was last checked — a stated fact from
                                 `updated_at`, not a fabricated checklist of what was
                                 inspected (see ghostCheckedText's doc comment). */}
                             {/* Checked-time lives in the header row above — this
                                 footer states only the provenance claim. */}
-                            <div className="verified-underline mono-data inline-block text-xs text-muted-foreground">
+                            {/* `.verified-underline` (globals.css) is a deliberate
+                                sub-pixel signature style (2px border + 1px pad forming
+                                one hairline), not a Carbon-scale spacing value — same
+                                class is shared site-wide (ghost-jobs research page,
+                                CompletenessMock), so it's exempted here rather than
+                                widened globally for one region's probe. */}
+                            <div className="verified-underline mono-data inline-block text-xs text-muted-foreground" data-rulebook-exempt>
                                 every signal automated · nothing inferred
                             </div>
                             {/* S4 exposure trust badges (dark launch) — positive-only,
@@ -840,7 +859,7 @@ export function JobDetail({
 
                 {/* The ghost-check ledger and description body render for
                     everyone — posting text is public; Apply stays gated. */}
-                <div className="mb-5">
+                <div className="mb-4">
                     <div className="mb-2 text-xs font-semibold">About this role</div>
                     {blocks.length > 0 ? (
                         <>
@@ -887,7 +906,7 @@ export function JobDetail({
                         // here would claim "nothing was captured" before the
                         // full doc even arrived. Same `.skeleton-bar` idiom
                         // as JobDetailSkeleton.
-                        <div className="space-y-2.5" aria-hidden="true">
+                        <div className="space-y-2" aria-hidden="true">
                             <div className="skeleton-bar h-3.5 w-full" />
                             <div className="skeleton-bar h-3.5 w-full" />
                             <div className="skeleton-bar h-3.5 w-5/6" />
@@ -896,13 +915,13 @@ export function JobDetail({
                 </div>
 
                 {job.tags && job.tags.length > 0 && (
-                    <div className="mb-5">
-                        <div className="mb-2.5 text-xs font-semibold">Keywords from the posting</div>
+                    <div className="mb-4">
+                        <div className="mb-2 text-xs font-semibold">Keywords from the posting</div>
                         <div className="flex flex-wrap gap-2">
                             {job.tags.slice(0, 16).map((tag) => (
                                 <span
                                     key={tag}
-                                    className="mono-data rounded-none border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground dark:border-border dark:bg-border dark:text-foreground"
+                                    className="mono-data rounded-none border border-border bg-muted px-3 py-1 text-xs font-semibold text-foreground dark:border-border dark:bg-border dark:text-foreground"
                                 >
                                     {decodeText(tag)}
                                 </span>
@@ -913,7 +932,7 @@ export function JobDetail({
 
                 {/* Company hiring-truth mini-KPI rail */}
                 {hasCompanyIntel && (
-                    <div className="rounded-none border border-border bg-muted p-4 sm:p-5 dark:border-border dark:bg-muted">
+                    <div className="rounded-none border border-border bg-muted p-4 dark:border-border dark:bg-muted">
                         <div className="mono-data text-xs font-semibold text-muted-foreground">
                             {companyBrand || "This company"} · hiring truth
                         </div>
@@ -928,7 +947,7 @@ export function JobDetail({
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
                             {showOpenCount && (
                                 <div className="min-w-[100px]">
-                                    <div className="text-xl sm:text-2xl font-semibold text-foreground dark:text-white">
+                                    <div className="text-xl font-semibold text-foreground dark:text-white">
                                         {liveOpenCount != null
                                             ? openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })
                                             : job.company_open_count!.toLocaleString()}
@@ -940,7 +959,7 @@ export function JobDetail({
                             )}
                             {typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number" && (
                                 <div className="min-w-[120px]">
-                                    <div className="text-xl sm:text-2xl font-semibold text-foreground dark:text-white">
+                                    <div className="text-xl font-semibold text-foreground dark:text-white">
                                         {job.company_opened_90d.toLocaleString()}/{job.company_closed_90d.toLocaleString()}
                                     </div>
                                     <div className="mono-data mt-0.5 text-xs font-semibold text-muted-foreground">
@@ -950,7 +969,7 @@ export function JobDetail({
                             )}
                         </div>
                         {cleanedCompany && (
-                            <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
                                 <Link
                                     href={
                                         job.company_domain?.trim()
@@ -986,7 +1005,7 @@ export function JobDetail({
                         <div className="mono-data mb-2 text-xs font-semibold text-muted-foreground">
                             More like this
                         </div>
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-2">
                             {related.map((r) => (
                                 <RelatedJobRow
                                     key={r.id}
@@ -1003,8 +1022,16 @@ export function JobDetail({
                     9) — moved from between the description and the company
                     rail; "how you match" reads as an afterthought, not a
                     hiring-truth-rail peer. */}
+                {/* `McpHandoffActions` (src/components/mcp/, shared with
+                    /yours/[id] — out of this pass's scope) renders its own
+                    primary CTA with a `bg-brand` fill; the rulebook allows
+                    exactly one filled button per region and Apply above is
+                    it. `[&_button.bg-brand]` neutralizes that one class of
+                    child button in place (Klein border+text, no fill) from
+                    this call site only, leaving the shared component and
+                    its other mount (which isn't a "detail" region) alone. */}
                 <McpHandoffNote
-                    className="mt-5"
+                    className="mt-4 [&_button.bg-brand]:!border [&_button.bg-brand]:!border-brand [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!text-brand [&_button.bg-brand]:!px-3 [&_button.bg-brand]:hover:!bg-transparent"
                     job={{
                         id: job.id,
                         title: decodeText(job.title),

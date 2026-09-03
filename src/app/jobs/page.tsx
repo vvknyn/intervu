@@ -52,7 +52,8 @@ import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
 import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
-import { hasReachedStage, buildJobSnapshot } from "@/lib/pursuits/types";
+import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
+import { hasReachedStage, buildJobSnapshot, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
@@ -108,10 +109,7 @@ import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
-import {
-    toolbarControlHeight,
-    toolbarSegmentGroupClass,
-} from "@/lib/jobs/toolbar-control-height";
+import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
@@ -346,13 +344,11 @@ function ToolbarSegment({
             onClick={onClick}
             title={title}
             className={cn(
-                "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-1.5 rounded-none px-3 text-xs font-semibold leading-none transition-all duration-150",
-                pressed
-                    ? "bg-brand text-brand-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold leading-none transition-all duration-150",
+                pressed ? "text-brand" : "text-muted-foreground hover:text-foreground",
             )}
         >
-            {pending && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
+            {pending && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
             {label}
         </button>
     );
@@ -470,7 +466,7 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 /* ----------------------------- ledger row ----------------------------- */
 
 /** Squared mono `key value` fact-chip base */
-const FACT_BOX = "inline-flex items-center gap-1.5 rounded-none px-2.5 py-0.5 text-xs leading-tight bg-muted transition-colors";
+const FACT_BOX = "inline-flex items-center gap-2 rounded-none px-3 py-0.5 text-xs leading-tight bg-muted transition-colors";
 
 /**
  * Quiet replay for the /jobs guided tour — lives on the filters row, not
@@ -529,6 +525,9 @@ export function JobCard({
     tourAnchor = false,
     matchScore = null,
     matchAsOfDate = null,
+    pursuit,
+    onGoAfter,
+    goingAfter = false,
 }: {
     job: PublicJob;
     active: boolean;
@@ -557,6 +556,14 @@ export function JobCard({
     matchScore?: MatchScore | null;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
+    /** Existing pursuit for this job, if any — same contract JobDetail's
+     *  bookmark reads. Optional (unlike JobDetail's required prop): the
+     *  direct-construction unit test (jobs-card-posted-age.test.ts) renders
+     *  `JobCard` without wiring pursuits, and the row's bookmark control
+     *  simply doesn't render without a save handler rather than faking one. */
+    pursuit?: Pursuit;
+    onGoAfter?: () => void;
+    goingAfter?: boolean;
 }) {
     const presented = presentJob(job);
     const accessibleName = `${presented.title} at ${presented.company.name}`;
@@ -571,20 +578,23 @@ export function JobCard({
     const locationKnown = job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
     // Icon-fact grammar (board-redesign.html §rollout stage 1) — same
     // `buildFactChips` chokepoint JobDetail uses, so a card and the pane it
-    // opens can never disagree about how work_type/employment_type/
-    // experience_level/salary read. `null, null` skips the posted/first_seen
-    // kinds (`age`, below, already covers that on the row). Work-type is its
-    // own chip here, so location is deliberately plain (no `locationWithMode`
-    // fold-in) — showing "Hybrid" in both the location text AND its own
-    // chip would say the same fact twice.
-    const factChips = buildFactChips(job, null, null);
+    // opens can never disagree about how a given fact's label reads. `null,
+    // null` skips the posted/first_seen kinds (`age`, below, already covers
+    // that on the row, in its own untouched format — folding buildFactChips'
+    // `Posted ${age}` label in here would reintroduce the literal "Posted"
+    // string jobs-card-posted-age.test.ts forbids). The rulebook's list-row
+    // anatomy names exactly two facts for this line — pay, work mode — so
+    // employment_type/experience_level (still shown in the detail pane) are
+    // filtered out here rather than in the shared chokepoint. Work-type is
+    // its own chip here, so location is deliberately plain (no
+    // `locationWithMode` fold-in) — showing "Hybrid" in both the location
+    // text AND its own chip would say the same fact twice.
+    const factChips = buildFactChips(job, null, null).filter((c) => c.kind === "work_type" || c.kind === "salary");
     const freshness = classifyPostingFreshness(job, now);
     // Positive-only trust signal (mirrors `rowTrustChip`'s own doc comment:
     // "review"/"ghost" verdicts already surface via `exceptionMark` above,
     // not duplicated here).
     const activelyPosted = rowTrustChip(job, now) === "clear";
-    const topSkills = (job.must_have_skills ?? []).slice(0, 3);
-    const extraSkillCount = Math.max(0, (job.must_have_skills?.length ?? 0) - topSkills.length);
 
     return (
         <div
@@ -604,11 +614,11 @@ export function JobCard({
                 }
             }}
             className={cn(
-                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] rounded-none bg-card border border-border text-left transition-all duration-150 hover:border-foreground mb-2.5 gap-x-3.5 gap-y-2 px-4 py-3",
-                active && "border-brand border-l-4 border-l-brand bg-muted text-brand",
+                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] rounded-none bg-card border border-border text-left transition-all duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand mb-2 gap-x-3 gap-y-2 px-4 py-4",
+                active && "border-l-[3px] border-l-brand bg-muted text-brand",
             )}
         >
-            <div className="row-span-2 self-start">
+            <div className="self-start">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
             <div className="min-w-0">
@@ -664,7 +674,7 @@ export function JobCard({
                         </span>
                     )}
                 </span>
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-left text-sm text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-left text-sm text-muted-foreground">
                     {onCompany ? (
                         <button
                             type="button"
@@ -679,32 +689,104 @@ export function JobCard({
                     ) : (
                         <span>{presented.company.name}</span>
                     )}
-                    {/* "New" reads the SAME 7-day `classifyPostingFreshness`
-                        window everything else on the row already uses — not
-                        the mock's literal "today," which this data can't
-                        honestly claim (posting-freshness.ts's FRESH_WINDOW_MS
-                        is 7 days, not 1). */}
-                    {freshness.kind === "fresh" && (
-                        <span
-                            data-testid="freshness-badge"
-                            className="mono-data inline-flex items-center rounded-none border border-live bg-muted px-1.5 py-0.5 text-xs font-semibold text-live dark:text-live"
-                        >
-                            New
-                        </span>
+                    {/* Location joins the identity line, not the facts line
+                        below — a pin prefix is the one icon the rulebook's
+                        row anatomy allows ("HIG prefix before the place,
+                        never icon+word for the same fact twice"), so it's
+                        marked exempt from the list region's zero-icon count
+                        rather than counted as a "fact icon." */}
+                    {locationKnown && (
+                        <>
+                            <span aria-hidden>·</span>
+                            <span data-rulebook-exempt className="inline-flex items-center gap-1">
+                                <FACT_CHIP_ICON.location size={14} className="shrink-0" aria-hidden />
+                                {presented.location}
+                            </span>
+                        </>
                     )}
                 </div>
+                {/* Facts + status, one 14/20-scale secondary line joined by
+                    " · " (rulebook row anatomy) — no per-fact icons, no
+                    boxes/pills. Salary is the one bold value (matches
+                    JobDetail's own facts row treatment); status words carry
+                    their state in color alone, same as the detail pane's
+                    verdict word — sharing this line with the facts (instead
+                    of a second row) is what keeps the comfortable row inside
+                    the rulebook's 96-112px band. */}
+                {(factChips.length > 0 || freshness.kind === "fresh" || activelyPosted) && (
+                    <div className="mt-1 flex flex-wrap items-baseline text-xs text-muted-foreground">
+                        {factChips.map((c, i) => (
+                            <span key={c.kind} className="flex items-baseline">
+                                {i > 0 && (
+                                    <span className="mx-1" aria-hidden>
+                                        ·
+                                    </span>
+                                )}
+                                <span className={cn(c.kind === "salary" && "font-semibold text-foreground")}>{c.label}</span>
+                            </span>
+                        ))}
+                        {/* "New" reads the SAME 7-day `classifyPostingFreshness`
+                            window everything else on the row already uses. */}
+                        {freshness.kind === "fresh" && (
+                            <span className="flex items-baseline">
+                                {factChips.length > 0 && (
+                                    <span className="mx-1" aria-hidden>
+                                        ·
+                                    </span>
+                                )}
+                                <span data-testid="freshness-badge" className="font-semibold text-muted-foreground">
+                                    New
+                                </span>
+                            </span>
+                        )}
+                        {activelyPosted && (
+                            <span className="flex items-baseline">
+                                {(factChips.length > 0 || freshness.kind === "fresh") && (
+                                    <span className="mx-1" aria-hidden>
+                                        ·
+                                    </span>
+                                )}
+                                <span className="text-live dark:text-live">Actively posted</span>
+                            </span>
+                        )}
+                    </div>
+                )}
+                {variantCount > 0 && (
+                    <button
+                        type="button"
+                        data-testid="cluster-toggle"
+                        className={cn(FACT_BOX, "mt-1 border-border bg-muted text-foreground hover:border-placeholder-text hover:bg-border dark:border-border dark:bg-border dark:text-foreground dark:hover:bg-border")}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleExpand?.();
+                        }}
+                    >
+                        {expanded ? "hide" : clusterLabel}
+                    </button>
+                )}
             </div>
-            {/* Posted age, not a trust chip (badge inversion, Task C1) —
-                the trust state is now the icon beside the title above; this
-                slot is purely "how stale," reads as metadata rather than a
-                claim. Monospace is reserved for <code> (see typography.test);
-                `.mono-data` gets the same "figures line up" property from
-                tabular-nums on the sans face instead. */}
-            {/* Match chip stacks above the age line in this same meta
-                column — no new row, no layout shift when a résumé isn't on
-                file (`matchScore` is simply `null` then). */}
+            {/* Right meta column: bookmark (rulebook's 40px icon-only row
+                control) + report trigger share one row (both are compact
+                icon-only controls, not stacked fact lines) so this column's
+                height tracks the mid column's text instead of driving the
+                row past the rulebook's 96-112px band; match receipt and
+                posted age sit below. The report trigger and bookmark are
+                real interactive controls, not decorative fact icons —
+                exempted from the list region's svg count the same way
+                ContextHelp's sr-only text and CompanyLogo already are,
+                without touching ReportListingButton's own (deliberately
+                untouched, see GROUP-C) exemption logic. */}
             <span className="flex h-fit flex-col items-end gap-1 self-start">
-                <ReportListingButton job={job} className="h-6 w-6" />
+                <span className="flex items-center gap-1">
+                    {onGoAfter && (
+                        <span data-rulebook-exempt>
+                            <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
+                        </span>
+                    )}
+                    <span data-rulebook-exempt>
+                        <ReportListingButton job={job} className="h-6 w-6" />
+                    </span>
+                </span>
                 {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />}
                 {age && (
                     <span
@@ -718,73 +800,6 @@ export function JobCard({
                     </span>
                 )}
             </span>
-            {/* Icon-fact row (board-redesign.html §1) — replaces the quiet
-                prose meta line: one icon set (`FACT_CHIP_ICON`, shared with
-                JobDetail), no box/border, salary bold. Each fact renders
-                only when known (absence is silence, same rule the prose
-                line followed). No posted-age fallback here: `age` already
-                renders once, unconditionally, in the meta column above —
-                repeating it as "Posted {age}" when no other fact is known
-                would just print the same value twice, and for the 18% of
-                jobs with a null `posted_at` it's actually a first-seen date
-                (`derivePostedTs`), not a fact this row should assert as
-                "Posted". */}
-            <div className="col-span-full flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
-                {locationKnown && (
-                    <span className="inline-flex items-center gap-1.5 text-xs">
-                        <FACT_CHIP_ICON.location size={14} className="shrink-0 text-muted-foreground" aria-hidden />
-                        <span className="mono-data text-muted-foreground">{presented.location}</span>
-                    </span>
-                )}
-                {factChips.map((c) => {
-                    const FactIcon = FACT_CHIP_ICON[c.kind];
-                    const isSalary = c.kind === "salary";
-                    return (
-                        <span key={c.kind} className="inline-flex items-center gap-1.5 text-xs">
-                            <FactIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden />
-                            <span className={cn("mono-data", isSalary ? "font-semibold text-foreground" : "text-muted-foreground")}>
-                                {c.label}
-                            </span>
-                        </span>
-                    );
-                })}
-                {variantCount > 0 && (
-                    <button
-                        type="button"
-                        data-testid="cluster-toggle"
-                        className={cn(FACT_BOX, "border-border bg-muted text-foreground hover:border-placeholder-text hover:bg-border dark:border-border dark:bg-border dark:text-foreground dark:hover:bg-border")}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleExpand?.();
-                        }}
-                    >
-                        {expanded ? "hide" : clusterLabel}
-                    </button>
-                )}
-            </div>
-            {/* Skill chips + trust check (board-redesign.html §1 row3).
-                Renders only when there's something to show on either side —
-                no empty spacer row. */}
-            {(topSkills.length > 0 || activelyPosted) && (
-                <div className="col-span-full flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 pt-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        {topSkills.map((skill) => (
-                            <span key={skill} className="inline-flex items-center rounded-none bg-chip px-2.5 py-0.5 text-xs leading-tight text-foreground">
-                                {decodeText(skill)}
-                            </span>
-                        ))}
-                        {extraSkillCount > 0 && (
-                            <span className="mono-data text-xs text-muted-foreground">+{extraSkillCount}</span>
-                        )}
-                    </div>
-                    {activelyPosted && (
-                        <span className="mono-data inline-flex shrink-0 items-center gap-1 text-xs text-live dark:text-live">
-                            <Check size={12} weight="bold" aria-hidden />
-                            Actively posted
-                        </span>
-                    )}
-                </div>
-            )}
         </div>
     );
 }
@@ -4099,6 +4114,9 @@ function JobsContent() {
             tourAnchor={tourAnchor}
             matchScore={matchScores?.get(j.id) ?? null}
             matchAsOfDate={resumeAsOfDate}
+            pursuit={pursuitsByJobId.get(j.id)}
+            onGoAfter={() => handleGoAfter(j)}
+            goingAfter={goingAfterId === j.id}
         />
     );
 
@@ -4160,6 +4178,9 @@ function JobsContent() {
                     job={detailJob}
                     signedIn={Boolean(user)}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
+                    onGoAfter={() => handleGoAfter(detailJob)}
+                    pursuit={detailPursuit}
+                    goingAfter={goingAfterId === detailJob.id}
                 />
                 )}
             </>
@@ -4260,7 +4281,7 @@ function JobsContent() {
                     )}
                 >
                     {activeCategory ? activeCategory.title : "Browse by field"}
-                    <CaretDown size={10} weight="bold" aria-hidden />
+                    <CaretDown size={16} weight="bold" aria-hidden />
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-[180px]">
@@ -4301,10 +4322,10 @@ function JobsContent() {
             onClick={panelClearAll}
             className={cn(
                 toolbarControlHeight,
-                "inline-flex shrink-0 items-center whitespace-nowrap px-2 text-xs text-muted-foreground transition-colors hover:text-foreground",
+                "inline-flex shrink-0 items-center whitespace-nowrap px-2 text-xs text-danger-text transition-colors hover:opacity-80",
             )}
         >
-            Clear filters ({activeCount})
+            Clear ({activeCount})
         </button>
     ) : null;
 
@@ -4391,33 +4412,63 @@ function JobsContent() {
         </div>
     );
 
+    // "Sort: Relevance" text + chevron opening the standard DropdownMenu
+    // primitive (rulebook: a menu, not a segmented/pressed control — a
+    // segmented group always has exactly one filled segment, which reads as
+    // a filled button living in a region required to carry zero).
+    const relevanceLabel = resumeOnFile === true ? "Best match" : "Relevance";
+    const sortLabel =
+        !fitActive && effectiveSort === "newest"
+            ? "Freshest"
+            : !fitActive && effectiveSort === "salary_desc"
+              ? "Top pay"
+              : relevanceLabel;
     const sortEl = result?.configured ? (
-        <div
-            role="group"
-            aria-label="Sort"
-            data-testid="jobs-sort-segments"
-            className={cn(toolbarSegmentGroupClass, "hidden lg:flex")}
-        >
-            {postedDateSupported && (
-                <ToolbarSegment
-                    label="freshest"
-                    pressed={!fitActive && effectiveSort === "newest"}
-                    onClick={() => chooseSort("newest")}
-                />
-            )}
-            <ToolbarSegment
-                label="top pay"
-                pressed={!fitActive && effectiveSort === "salary_desc"}
-                onClick={() => chooseSort("salary_desc")}
-            />
-            <ToolbarSegment
-                label={resumeOnFile === true ? "best match" : "relevance"}
-                title={resumeOnFile === true ? "Matched by your résumé" : undefined}
-                pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
-                onClick={chooseBestMatch}
-                pending={fitResolving}
-            />
-        </div>
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    aria-label="Sort"
+                    data-testid="jobs-sort-trigger"
+                    className="hidden shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand lg:inline-flex"
+                >
+                    {fitResolving && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
+                    Sort: {sortLabel}
+                    <CaretDown size={16} aria-hidden />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                {postedDateSupported && (
+                    <DropdownMenuItem
+                        data-testid="jobs-sort-newest"
+                        onSelect={() => chooseSort("newest")}
+                        className="flex items-center justify-between gap-3 text-sm"
+                    >
+                        <span>Freshest</span>
+                        {!fitActive && effectiveSort === "newest" && <Check size={12} weight="bold" aria-hidden />}
+                    </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                    data-testid="jobs-sort-salary"
+                    onSelect={() => chooseSort("salary_desc")}
+                    className="flex items-center justify-between gap-3 text-sm"
+                >
+                    <span>Top pay</span>
+                    {!fitActive && effectiveSort === "salary_desc" && <Check size={12} weight="bold" aria-hidden />}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    data-testid="jobs-sort-relevance"
+                    onSelect={chooseBestMatch}
+                    title={resumeOnFile === true ? "Matched by your résumé" : undefined}
+                    className="flex items-center justify-between gap-3 text-sm"
+                >
+                    <span>{relevanceLabel}</span>
+                    {(fitActive || (!fitActive && effectiveSort === "relevance")) && (
+                        <Check size={12} weight="bold" aria-hidden />
+                    )}
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     ) : null;
 
     // "scored against your résumé of {date} · update to rescore" — the
@@ -4461,7 +4512,7 @@ function JobsContent() {
             data-testid="search-live-count"
             className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-semibold text-brand transition-colors hover:text-brand"
         >
-            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
+            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-live" />
             {formatCorpusCount(liveJobsCount)} live roles
         </Link>
     );
@@ -4764,7 +4815,7 @@ function JobsContent() {
                     data-testid="jobs-toolbar"
                     className={cn(
                         showJobsToolbarRow &&
-                            "mt-3 border-y border-border bg-muted/[0.14] py-2 lg:px-0.5 lg:py-1.5",
+                            "mt-3 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5",
                     )}
                 >
                     {showJobsToolbarRow && (
@@ -4790,12 +4841,11 @@ function JobsContent() {
                             className={cn(
                                 chipVariants({ active: filtersOpen || activeCount > 0 }),
                                 toolbarControlHeight,
-                                "box-border shrink-0 px-3.5 rounded-none font-semibold text-foreground inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
-                                filtersOpen && "border-brand bg-brand text-brand-foreground hover:border-brand hover:bg-brand",
+                                "box-border shrink-0 px-3.5 rounded-none font-semibold text-foreground inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
                                 activeCount > 0 && "has-active",
                             )}
                         >
-                            <FunnelSimple size={14} weight="bold" aria-hidden />
+                            <FunnelSimple size={16} weight="bold" aria-hidden />
                             <span className="lg:hidden">Filters</span>
                             <span className="hidden lg:inline">All filters</span>
                             {activeCount > 0 && (
@@ -4803,7 +4853,7 @@ function JobsContent() {
                                     {activeCount}
                                 </span>
                             )}
-                            {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
+                            {filtersOpen ? <CaretUp size={16} weight="bold" aria-hidden /> : <CaretDown size={16} weight="bold" aria-hidden />}
                         </button>
                         )}
                         {!showLandingMarketing && !headerDockActive && fieldDirectoryMenu}
@@ -4936,7 +4986,7 @@ function JobsContent() {
                     {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"
-                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border xl:border-border xl:bg-card detail-pane-raised"
+                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border xl:border-border xl:bg-card"
                         >
                             {detailMountSite === "pane" ? (
                                 renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
@@ -5201,7 +5251,7 @@ function JobsContent() {
                                     {!isSerpAsk && (
                                         <>
                                             {/* Consolidated Swiss Glass Status Ribbon */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-none border-b border-border bg-muted/[0.18] px-3.5 py-2 text-xs">
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-none border-b border-border bg-muted px-3.5 py-2 text-xs">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"

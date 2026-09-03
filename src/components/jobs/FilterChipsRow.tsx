@@ -171,7 +171,7 @@ export function FilterChipsRow({
                     onClick={() => onPostedBucket(nextPostedBucket(state))}
                 >
                     {postedLabel ?? "Posted"}
-                    <CaretDown size={11} weight="bold" />
+                    <CaretDown size={16} weight="bold" />
                 </Chip>
             )}
             <Chip
@@ -188,7 +188,7 @@ export function FilterChipsRow({
                 onClick={() => onSalaryMin(nextSalaryPreset(state.salaryMin))}
             >
                 {salaryLabel ?? "Salary"}
-                <CaretDown size={11} weight="bold" />
+                <CaretDown size={16} weight="bold" />
             </Chip>
         </div>
     );

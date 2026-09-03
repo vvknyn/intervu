@@ -82,7 +82,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                             <SheetTitle className="truncate text-lg font-semibold">Track a role</SheetTitle>
                             <SheetDescription className="truncate text-xs">One step. Link the posting — skip the essay.</SheetDescription>
                         </SheetHeader>
-                        <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80">
+                        <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-muted-foreground transition-opacity hover:opacity-80">
                             <span aria-hidden="true">×</span>
                             <span className="sr-only">Close</span>
                         </SheetClose>
@@ -90,19 +90,19 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                 </div>
                 <div className="space-y-3 px-5 py-4 pb-7">
                     <div>
-                        <Label className="mb-1.5 block text-xs text-[#8b939e]">Company</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Company</Label>
                         <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" className={fieldClass} />
                     </div>
                     <div>
-                        <Label className="mb-1.5 block text-xs text-[#8b939e]">Role</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Role</Label>
                         <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Staff Software Engineer" className={fieldClass} />
                     </div>
                     <div>
-                        <Label className="mb-1.5 block text-xs text-[#8b939e]">Job URL</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Job URL</Label>
                         <Input value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://boards.greenhouse.io/…" className={fieldClass} />
                     </div>
                     <div>
-                        <Label className="mb-1.5 block text-xs text-[#8b939e]">Status</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Status</Label>
                         <Select value={status} onValueChange={(v) => setStatus(v as PursuitStage)}>
                             <SelectTrigger className={fieldClass}>
                                 <SelectValue />
@@ -117,7 +117,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                         </Select>
                     </div>
                     <div>
-                        <Label className="mb-1.5 block text-xs text-[#8b939e]">Note (optional)</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Note (optional)</Label>
                         <Textarea
                             value={note}
                             onChange={(e) => setNote(e.target.value)}

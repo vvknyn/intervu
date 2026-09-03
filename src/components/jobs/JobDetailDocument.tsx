@@ -123,13 +123,16 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
  * The posting-check ledger, restyled as a receipt (spec Section 2, `.receipt`
  * grammar) — same derivation as JobDetail.tsx's glass-panel ghost module
  * (`deriveGhostSignals`/`assessedGhostSignals`/`ghostCheckedText`, all pure,
- * unchanged), a different box. The verdict pill reuses `ghost.cls`
- * (STATUS_PILL, via `ghostBadgeTone`) rather than `Badge variant="verdict-*"`
- * — that variant set only covers two of the three real ghost states
- * (good/caution; there is no "verdict-bad"), and STATUS_PILL is already the
- * one map with all three (offer/intv/closed) wired to dark mode. Introducing
- * a second, narrower status system for this one pill would be the drift
- * `lib/ui/status-tokens.ts`'s own doc comment describes fixing.
+ * unchanged), a different box. The verdict reuses `ghost.cls`'s `text-*`
+ * class (STATUS_PILL, via `ghostBadgeTone`) rather than `Badge
+ * variant="verdict-*"` — that variant set only covers two of the three real
+ * ghost states (good/caution; there is no "verdict-bad"), and STATUS_PILL is
+ * already the one map with all three (offer/intv/closed) wired to dark mode.
+ * Introducing a second, narrower status system for this word would be the
+ * drift `lib/ui/status-tokens.ts`'s own doc comment describes fixing.
+ * Rendered as a plain colored WORD, not the bordered/soft-bg pill `ghost.cls`
+ * also carries — same rulebook call, same idiom, as JobDetail.tsx's own
+ * verdict line (see its doc comment there).
  */
 function Receipt({ job, now }: { job: PublicJob; now: number }) {
     const freshness = classifyPostingFreshness(job, now);
@@ -150,7 +153,7 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
         <div data-testid="job-detail-receipt" className="border border-border bg-card">
             <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
                 <span className="mono-data text-xs font-semibold text-muted-foreground">Posting check</span>
-                <span className={cn("inline-flex items-center px-2 py-0.5 text-xs font-semibold", ghost.cls)}>{ghost.label}</span>
+                <span className={cn("text-xs font-semibold", ghost.cls.split(" ").find((c) => c.startsWith("text-")))}>{ghost.label}</span>
             </div>
             {signals.length > 0 && (
                 <div className="mono-data divide-y divide-border">
@@ -318,7 +321,7 @@ export function JobDetailDocument({
                         )}
                         {" · "}
                         {countryFlag && <span aria-hidden className="mr-1">{countryFlag}</span>}
-                        <MapPin size={13} className="mr-0.5 inline-block align-[-1px] text-muted-foreground" aria-hidden />
+                        <MapPin size={16} className="mr-0.5 inline-block align-[-1px] text-muted-foreground" aria-hidden />
                         {locationClamped ? (
                             <>
                                 {(locationExpanded ? [...locationDisclosure.visible, ...locationDisclosure.hidden] : locationDisclosure.visible).map((segment, i) => (
@@ -368,7 +371,7 @@ export function JobDetailDocument({
                     const Icon = FACT_CHIP_ICON[c.kind];
                     return (
                         <span key={c.kind} className="inline-flex items-center gap-1.5 border border-border bg-background px-2.5 py-1 text-xs text-foreground">
-                            <Icon size={13} weight="bold" className="text-muted-foreground" aria-hidden />
+                            <Icon size={16} weight="bold" className="text-muted-foreground" aria-hidden />
                             {c.label}
                         </span>
                     );

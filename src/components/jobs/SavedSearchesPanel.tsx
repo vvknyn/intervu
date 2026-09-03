@@ -155,11 +155,11 @@ export function SavedSearchesPanel({
                     onClick={startSave}
                     className={cn(
                         compact
-                            ? cn(toolbarControlHeight, "inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2 text-xs leading-none text-muted-foreground transition-colors hover:text-foreground")
+                            ? cn(toolbarControlHeight, "inline-flex shrink-0 items-center justify-center whitespace-nowrap px-2 text-xs leading-none text-brand transition-colors hover:opacity-80")
                             : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none bg-muted px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
                     )}
                 >
-                    <BookmarkSimple size={compact ? 12 : 14} aria-hidden />
+                    {!compact && <BookmarkSimple size={14} aria-hidden />}
                     Save search
                 </button>
             )}

@@ -4,7 +4,6 @@
  */
 
 import { boardColumn, type BoardColumn, type Pursuit, type PursuitStage } from "./types";
-import { STATUS_PILL, applicationStatusTone } from "@/lib/ui/status-tokens";
 
 export type TrackerFilter = "all" | "saved" | "applied" | "interviewing" | "offer";
 
@@ -82,12 +81,17 @@ export function trackerStatusLabel(status: PursuitStage): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-/** Status pill classes — delegates to the shared `STATUS_PILL` token map
- *  (`lib/ui/status-tokens.ts`) instead of hand-picked raw hex, so this pill
- *  carries a dark-mode variant and stays on the one status→color scale
- *  every other status pill in the app already uses. */
-export function trackerStatusBadgeClass(status: PursuitStage): string {
-    return STATUS_PILL[applicationStatusTone(status)];
+/**
+ * Status → text colour only (no pill, no badge) — the tracker's own spec
+ * comment in `types.ts` (`stageLabel`): "no pill confetti, no badges...
+ * Status is typography." Progress states (applied/interviewing/offer)
+ * render in ink; saved (not yet applied) and closed (rejected/withdrawn)
+ * render in secondary — the rulebook's list-row status rule for tracker
+ * rows and history rows alike, so both surfaces call this one function.
+ */
+export function trackerStatusColorClass(status: PursuitStage): string {
+    const column = boardColumn({ status });
+    return column === "saved" || column === "closed" ? "text-muted-foreground" : "text-foreground";
 }
 
 export function matchesTrackerFilter(p: Pursuit, filter: TrackerFilter): boolean {

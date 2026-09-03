@@ -339,6 +339,9 @@ export function PublicJobDetail({
                         job={job}
                         signedIn={Boolean(user)}
                         onOpenPosting={() => handleOpenPosting(job)}
+                        onGoAfter={() => handleGoAfter(job)}
+                        pursuit={byJobId.get(job.id)}
+                        goingAfter={goingAfter}
                     />
                 </div>
             ) : (
@@ -346,6 +349,9 @@ export function PublicJobDetail({
                     job={job}
                     signedIn={Boolean(user)}
                     onOpenPosting={() => handleOpenPosting(job)}
+                    onGoAfter={() => handleGoAfter(job)}
+                    pursuit={byJobId.get(job.id)}
+                    goingAfter={goingAfter}
                 />
             )}
         </>
