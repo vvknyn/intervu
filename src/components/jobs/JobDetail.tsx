@@ -187,7 +187,7 @@ export function JobDetailActionBar({
         >
             {job.apply_url && (
                 <Button className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
-                    <ArrowSquareOut size={18} weight="bold" />
+                    <ArrowSquareOut weight="bold" />
                     {signedIn ? "Apply on Company Site →" : "Sign in to apply →"}
                 </Button>
             )}

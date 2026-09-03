@@ -339,7 +339,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const renderParsingStep = () => (
         <div className="py-12 text-center space-y-4">
             <div className="w-16 h-16 rounded-none bg-muted flex items-center justify-center mx-auto animate-pulse">
-                <Sparkle size={32} weight="fill" className="text-brand" />
+                <Sparkle size={24} weight="fill" className="text-brand" />
             </div>
             <div>
                 <p className="text-foreground">Parsing your resume...</p>
@@ -585,7 +585,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                         ) : (
                             <>
                                 <div className="w-8 h-8 rounded-none bg-muted flex items-center justify-center">
-                                    <Upload size={18} weight="bold" className="text-brand" />
+                                    <Upload weight="bold" className="text-brand" />
                                 </div>
                                 Import Resume
                             </>

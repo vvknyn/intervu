@@ -820,7 +820,7 @@ export function JobCard({
 function SimilarRolesCta({ onClick }: { onClick: () => void }) {
     return (
         <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={onClick}>
-            <Compass size={14} />
+            <Compass />
             Browse live roles
         </Button>
     );
@@ -841,7 +841,7 @@ function SimilarRolesCta({ onClick }: { onClick: () => void }) {
 function DeadJobTombstone({ onSimilarRoles }: { onSimilarRoles: () => void }) {
     return (
         <div className="flex flex-col items-center justify-center rounded-none border border-dashed border-border bg-card px-6 py-16 text-center">
-            <WarningCircle size={22} className="mb-3 text-muted-foreground" />
+            <WarningCircle size={24} className="mb-3 text-muted-foreground" />
             <h3 className="text-sm font-semibold">{DEAD_JOB_TOMBSTONE_TEXT}</h3>
             <SimilarRolesCta onClick={onSimilarRoles} />
         </div>
@@ -874,7 +874,7 @@ function DeadJobUnresolved({
             {checking ? (
                 <span className="mb-3 h-5 w-5 animate-spin rounded-none border-2 border-brand border-t-brand" />
             ) : (
-                <MagnifyingGlass size={22} className="mb-3 text-muted-foreground" />
+                <MagnifyingGlass size={24} className="mb-3 text-muted-foreground" />
             )}
             <h3 className="text-sm font-semibold">
                 {checking ? "Checking this role…" : "Can't confirm this role's status right now."}
@@ -4296,7 +4296,7 @@ function JobsContent() {
                             className="flex items-center justify-between gap-3 text-sm"
                         >
                             <span>{cat.title}</span>
-                            {isMatch && <Check size={12} weight="bold" aria-hidden />}
+                            {isMatch && <Check weight="bold" aria-hidden />}
                         </DropdownMenuItem>
                     );
                 })}
@@ -4445,7 +4445,7 @@ function JobsContent() {
                         className="flex items-center justify-between gap-3 text-sm"
                     >
                         <span>Freshest</span>
-                        {!fitActive && effectiveSort === "newest" && <Check size={12} weight="bold" aria-hidden />}
+                        {!fitActive && effectiveSort === "newest" && <Check weight="bold" aria-hidden />}
                     </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
@@ -4454,7 +4454,7 @@ function JobsContent() {
                     className="flex items-center justify-between gap-3 text-sm"
                 >
                     <span>Top pay</span>
-                    {!fitActive && effectiveSort === "salary_desc" && <Check size={12} weight="bold" aria-hidden />}
+                    {!fitActive && effectiveSort === "salary_desc" && <Check weight="bold" aria-hidden />}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     data-testid="jobs-sort-relevance"
@@ -4464,7 +4464,7 @@ function JobsContent() {
                 >
                     <span>{relevanceLabel}</span>
                     {(fitActive || (!fitActive && effectiveSort === "relevance")) && (
-                        <Check size={12} weight="bold" aria-hidden />
+                        <Check weight="bold" aria-hidden />
                     )}
                 </DropdownMenuItem>
             </DropdownMenuContent>

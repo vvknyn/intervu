@@ -297,7 +297,7 @@ export function EditingPanel({
                                         onClick={() => moveSection(sec, "up")}
                                         className="rounded-none p-1 text-muted-foreground hover:bg-muted disabled:opacity-20"
                                     >
-                                        <ArrowUp size={13} />
+                                        <ArrowUp />
                                     </button>
                                     <button
                                         type="button"
@@ -305,7 +305,7 @@ export function EditingPanel({
                                         onClick={() => moveSection(sec, "down")}
                                         className="rounded-none p-1 text-muted-foreground hover:bg-muted disabled:opacity-20"
                                     >
-                                        <ArrowDown size={13} />
+                                        <ArrowDown />
                                     </button>
                                 </div>
                             </div>
@@ -492,7 +492,7 @@ export function EditingPanel({
                         disabled={!newSkillCategory.trim()}
                         className="gap-1 text-xs"
                     >
-                        <Plus size={14} /> Add Category
+                        <Plus /> Add Category
                     </Button>
                 </div>
 
@@ -520,7 +520,7 @@ export function EditingPanel({
                                         onClick={() => removeCategory(catIdx)}
                                         className="h-8 text-danger-text hover:text-danger-text"
                                     >
-                                        <Trash size={14} />
+                                        <Trash />
                                     </Button>
                                 </div>
 
@@ -537,7 +537,7 @@ export function EditingPanel({
                                                 onClick={() => removeSkillFromCategory(catIdx, skillIdx)}
                                                 className="hover:text-danger-text"
                                             >
-                                                <X size={10} />
+                                                <X />
                                             </button>
                                         </span>
                                     ))}
@@ -617,7 +617,7 @@ export function EditingPanel({
                         {experience.length} position{experience.length === 1 ? "" : "s"} listed
                     </span>
                     <Button type="button" size="sm" onClick={addExperience} className="gap-1 text-xs">
-                        <Plus size={14} /> Add Position
+                        <Plus /> Add Position
                     </Button>
                 </div>
 
@@ -643,7 +643,7 @@ export function EditingPanel({
                                         onClick={() => removeExp(exp.id)}
                                         className="h-7 text-danger-text hover:text-danger-text"
                                     >
-                                        <Trash size={14} />
+                                        <Trash />
                                     </Button>
                                 </div>
 
@@ -727,7 +727,7 @@ export function EditingPanel({
                         {education.length} credential{education.length === 1 ? "" : "s"} listed
                     </span>
                     <Button type="button" size="sm" onClick={addEducation} className="gap-1 text-xs">
-                        <Plus size={14} /> Add Education
+                        <Plus /> Add Education
                     </Button>
                 </div>
 
@@ -753,7 +753,7 @@ export function EditingPanel({
                                         onClick={() => removeEdu(edu.id)}
                                         className="h-7 text-danger-text hover:text-danger-text"
                                     >
-                                        <Trash size={14} />
+                                        <Trash />
                                     </Button>
                                 </div>
 

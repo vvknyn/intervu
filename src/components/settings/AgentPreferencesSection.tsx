@@ -430,7 +430,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                             onClick={() => removeCustomRow(row.id)}
                                             aria-label="Remove"
                                         >
-                                            <Trash size={14} />
+                                            <Trash />
                                         </Button>
                                     </div>
                                 </div>

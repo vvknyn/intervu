@@ -74,7 +74,7 @@ export function CompanyIntelligenceGrid({
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                    <CurrencyDollar className="h-4 w-4 text-brand" weight="bold" />
+                    <CurrencyDollar className="h-4 w-4 text-brand" weight="bold" size={16} />
                     Capital & Stage
                   </span>
                   {funding.stage && (
@@ -125,7 +125,7 @@ export function CompanyIntelligenceGrid({
             <div className="flex flex-col justify-between border border-border bg-card p-6 sm:p-7 transition-colors hover:border-border-strong">
               <div>
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                  <GlobeHemisphereWest className="h-4 w-4 text-brand" weight="bold" />
+                  <GlobeHemisphereWest className="h-4 w-4 text-brand" weight="bold" size={16} />
                   Visa & Immigration
                 </span>
 
@@ -150,7 +150,7 @@ export function CompanyIntelligenceGrid({
             <div className="flex flex-col justify-between border border-border bg-card p-6 sm:p-7 transition-colors hover:border-border-strong">
               <div>
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                  <Code className="h-4 w-4 text-brand" weight="bold" />
+                  <Code className="h-4 w-4 text-brand" weight="bold" size={16} />
                   Tech stack
                 </span>
 
@@ -171,7 +171,7 @@ export function CompanyIntelligenceGrid({
       {news.length > 0 && (
         <div className="mt-6 border border-border bg-card p-6 sm:p-7">
           <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-            <Newspaper className="h-4 w-4 text-brand" weight="bold" />
+            <Newspaper className="h-4 w-4 text-brand" weight="bold" size={16} />
             {companyName} in the News
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -210,7 +210,7 @@ export function CompanyIntelligenceGrid({
                 </div>
                 <div className="mt-3 flex items-center gap-1 text-xs text-brand">
                   <span>Read article</span>
-                  <ArrowUpRight className="h-4 w-4" />
+                  <ArrowUpRight className="h-4 w-4" size={16} weight="bold" />
                 </div>
               </a>
               );

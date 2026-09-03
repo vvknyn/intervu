@@ -159,7 +159,7 @@ export function SavedSearchesPanel({
                             : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none bg-muted px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
                     )}
                 >
-                    {!compact && <BookmarkSimple size={14} aria-hidden />}
+                    {!compact && <BookmarkSimple aria-hidden />}
                     Save search
                 </button>
             )}
@@ -196,7 +196,7 @@ export function SavedSearchesPanel({
                                 : "inline-flex h-7 items-center gap-1 rounded-none bg-muted text-brand px-2.5 text-xs font-semibold whitespace-nowrap disabled:opacity-50",
                         )}
                     >
-                        {saving && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
+                        {saving && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
                         {saving ? "Saving…" : "Save"}
                     </button>
                     <button
@@ -253,9 +253,9 @@ export function SavedSearchesPanel({
                                 aria-label={`Remove saved search ${s.name}`}
                             >
                                 {removingId === s.id ? (
-                                    <CircleNotch size={11} className="animate-spin" aria-hidden />
+                                    <CircleNotch className="animate-spin" aria-hidden />
                                 ) : (
-                                    <X size={11} />
+                                    <X />
                                 )}
                             </button>
                         </li>

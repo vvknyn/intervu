@@ -93,14 +93,14 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                         className="text-xs"
                         disabled={activeStories.length === 0}
                     >
-                        <DownloadSimple size={14} className="mr-2" /> Export
+                        <DownloadSimple className="mr-2" /> Export
                     </Button>
                     <Button
                         onClick={handleCreate}
                         size="sm"
                         className="text-xs"
                     >
-                        <Plus size={14} className="mr-2" /> New Story
+                        <Plus className="mr-2" /> New Story
                     </Button>
                 </div>
             </div>

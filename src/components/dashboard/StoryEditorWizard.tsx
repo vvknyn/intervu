@@ -103,7 +103,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                         i < currentStepIndex ? "bg-primary border-primary text-primary-foreground" :
                                             i === currentStepIndex ? "border-primary text-primary" : "border-muted-foreground"
                                     )}>
-                                        {i < currentStepIndex ? <Check size={10} weight="bold" /> : i + 1}
+                                        {i < currentStepIndex ? <Check weight="bold" /> : i + 1}
                                     </div>
                                     <span className="hidden sm:inline">{s.label}</span>
                                     {i < steps.length - 1 && <div className="w-4 h-px bg-muted-foreground mx-1" />}

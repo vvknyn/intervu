@@ -84,7 +84,7 @@ export function AdminPanel() {
                     actions={
                         <Link href="/">
                             <Button variant="outline" size="sm" className="gap-2">
-                                <ArrowLeft size={14} />
+                                <ArrowLeft />
                                 Back
                             </Button>
                         </Link>

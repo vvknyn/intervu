@@ -28,7 +28,7 @@ function Field({ compact = false, queryOnly = false }: { compact?: boolean; quer
                 slot with wrappable text is how the facet rail overlapped, and a
                 placeholder is exactly the kind of string that outgrows its box. */}
             <div className="flex min-w-0 flex-1 items-center">
-                <MagnifyingGlass size={14} weight="bold" className="ml-2.5 shrink-0 text-muted-foreground" />
+                <MagnifyingGlass weight="bold" className="ml-2.5 shrink-0 text-muted-foreground" />
                 <div className={cn(h, "flex min-w-0 flex-1 items-center px-2.5")}>
                     <span className="truncate text-xs text-muted-foreground">
                         {compact ? "Software Engineer" : "What kind of work are you looking for?"}
@@ -41,7 +41,7 @@ function Field({ compact = false, queryOnly = false }: { compact?: boolean; quer
             {!queryOnly && (
                 <>
                     <div className={cn("flex shrink-0 items-center", compact ? "w-[132px]" : "w-[260px]")}>
-                        <MapPin size={14} weight="bold" className="ml-2.5 shrink-0 text-muted-foreground" />
+                        <MapPin weight="bold" className="ml-2.5 shrink-0 text-muted-foreground" />
                         <div className={cn(h, "flex min-w-0 flex-1 items-center px-2.5")}>
                             <span className="truncate text-xs text-muted-foreground">
                                 {compact ? "Toronto" : "City, state, or remote"}
@@ -67,7 +67,7 @@ function Pill() {
             type="button"
             className="flex h-8 min-w-0 max-w-[420px] flex-1 items-center gap-2 rounded-none border border-foreground bg-card px-3 text-left"
         >
-            <MagnifyingGlass size={13} weight="bold" className="shrink-0 text-foreground" />
+            <MagnifyingGlass weight="bold" className="shrink-0 text-foreground" />
             <span className="truncate text-xs font-semibold text-foreground">Software Engineer</span>
             <span className="text-muted-foreground">·</span>
             <span className="truncate text-xs text-muted-foreground">Toronto</span>
@@ -131,7 +131,7 @@ function Header({ docked, treatment }: { docked: boolean; treatment: Treatment }
                             ···
                         </span>
                     )}
-                    <Moon size={15} className="shrink-0 text-muted-foreground" />
+                    <Moon className="shrink-0 text-muted-foreground" />
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none bg-foreground text-xs font-semibold text-background">
                         VN
                     </span>

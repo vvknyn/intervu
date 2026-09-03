@@ -331,10 +331,10 @@ function ResumeSummaryBody({
                 </div>
                 <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
                     <Button size="sm" onClick={onOpenEditor} className="w-full gap-1.5 text-xs font-semibold rounded-none sm:w-auto">
-                        <PencilSimple size={14} /> Edit template
+                        <PencilSimple /> Edit template
                     </Button>
                     <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 text-xs rounded-none sm:w-auto">
-                        <Upload size={14} /> Upload
+                        <Upload /> Upload
                     </Button>
                 </div>
             </div>
@@ -349,10 +349,10 @@ function ResumeSummaryBody({
                 onClick={onOpenEditor}
                 className="w-full gap-1.5 text-xs font-semibold rounded-none sm:w-auto"
             >
-                <PencilSimple size={13} /> Edit template
+                <PencilSimple /> Edit template
             </Button>
             <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 text-xs rounded-none sm:w-auto">
-                <Upload size={13} /> Replace
+                <Upload /> Replace
             </Button>
             {confirmingDelete ? (
                 <InlineConfirm
@@ -369,7 +369,7 @@ function ResumeSummaryBody({
                     onClick={() => setConfirmingDelete(true)}
                     className="w-full gap-1.5 text-xs text-danger-text hover:text-danger-text rounded-none sm:w-auto"
                 >
-                    <Trash size={13} />
+                    <Trash />
                     Delete
                 </Button>
             )}
@@ -482,7 +482,7 @@ function ResumeUploadForm({
                     }}
                 />
                 <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={busy} className="w-full gap-1.5 text-xs rounded-none sm:w-auto">
-                    <Upload size={14} />
+                    <Upload />
                     {extracting ? "Reading…" : "Choose file"}
                 </Button>
                 {fileName && <span className="text-xs text-muted-foreground break-all">{fileName}</span>}

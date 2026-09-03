@@ -128,7 +128,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                     </div>
                     <div className="flex flex-wrap gap-2 pt-1">
                         <Button onClick={() => void handleSave()} disabled={saving || !company.trim() || !position.trim()}>
-                            {saving && <CircleNotch size={14} className="mr-2 animate-spin" />}
+                            {saving && <CircleNotch className="mr-2 animate-spin" />}
                             {saving ? "Saving…" : "Save to tracker"}
                         </Button>
                         <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

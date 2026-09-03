@@ -223,7 +223,7 @@ export function FollowButton({
           className,
         )}
       >
-        {showSpinner && <CircleNotch size={14} className="animate-spin shrink-0" aria-hidden />}
+        {showSpinner && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
         {displayLabel}
       </button>
     ) : (
@@ -245,7 +245,7 @@ export function FollowButton({
           className,
         )}
       >
-        {showSpinner && <CircleNotch size={14} className="animate-spin shrink-0" aria-hidden />}
+        {showSpinner && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
         {displayLabel}
       </Button>
     );

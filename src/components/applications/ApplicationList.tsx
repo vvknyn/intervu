@@ -80,7 +80,7 @@ export function ApplicationList({ applications, onEdit, onRefresh }: Application
             <div className="bg-card rounded-none border border-dashed border-border">
                 <div className="flex flex-col items-center justify-center p-12 text-center">
                     <div className="w-16 h-16 rounded-none bg-muted flex items-center justify-center mb-4 text-brand">
-                        <Briefcase size={32} />
+                        <Briefcase size={24} />
                     </div>
                     <h3 className="text-lg font-semibold mb-2">{emptyHeading}</h3>
                     <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
@@ -106,12 +106,12 @@ export function ApplicationList({ applications, onEdit, onRefresh }: Application
                                 </div>
                                 <div className="flex items-center text-sm text-muted-foreground gap-4">
                                     <span className="flex items-center gap-1">
-                                        <Briefcase size={12} />
+                                        <Briefcase />
                                         {app.company_name}
                                     </span>
                                     {app.applied_at && (
                                         <span className="flex items-center gap-1">
-                                            <Calendar size={12} />
+                                            <Calendar />
                                             {new Date(app.applied_at).toLocaleDateString()}
                                         </span>
                                     )}
@@ -123,7 +123,7 @@ export function ApplicationList({ applications, onEdit, onRefresh }: Application
                                             className="flex items-center gap-1 text-brand hover:underline"
                                             onClick={(e) => e.stopPropagation()}
                                         >
-                                            <ArrowSquareOut size={12} />
+                                            <ArrowSquareOut />
                                             Job Link
                                         </a>
                                     )}

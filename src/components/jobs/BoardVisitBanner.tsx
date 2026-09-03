@@ -76,7 +76,7 @@ export function BoardVisitBanner() {
                 aria-label="Dismiss"
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
             >
-                <X size={14} aria-hidden />
+                <X aria-hidden />
             </button>
         </div>
     );

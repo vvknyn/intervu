@@ -108,15 +108,15 @@ function resolveConfirm(ok: boolean) {
 
 const VARIANT_META: Record<ToastVariant, { icon: React.ReactNode; cls: string }> = {
     success: {
-        icon: <CheckCircle size={18} weight="fill" className="text-live shrink-0" />,
+        icon: <CheckCircle weight="fill" className="text-live shrink-0" />,
         cls: "border-live",
     },
     error: {
-        icon: <WarningCircle size={18} weight="fill" className="text-danger-text shrink-0" />,
+        icon: <WarningCircle weight="fill" className="text-danger-text shrink-0" />,
         cls: "border-danger-text",
     },
     info: {
-        icon: <Info size={18} weight="fill" className="text-brand shrink-0" />,
+        icon: <Info weight="fill" className="text-brand shrink-0" />,
         cls: "border-brand",
     },
 };
@@ -158,7 +158,7 @@ export function Toaster() {
                                 className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
                                 aria-label="Dismiss"
                             >
-                                <X size={14} weight="bold" />
+                                <X weight="bold" />
                             </button>
                         </div>
                     );

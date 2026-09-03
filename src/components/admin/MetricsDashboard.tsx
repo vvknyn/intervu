@@ -100,7 +100,7 @@ export function MetricsDashboard() {
                     )}
                 </h3>
                 <Button variant="outline" size="sm" className="gap-2" onClick={refresh} disabled={isLoading}>
-                    <ArrowsClockwise size={14} className={isLoading ? "animate-spin" : undefined} />
+                    <ArrowsClockwise className={isLoading ? "animate-spin" : undefined} />
                     Refresh
                 </Button>
             </div>

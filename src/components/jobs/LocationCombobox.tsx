@@ -238,7 +238,7 @@ export function LocationCombobox({
                                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                                         {item.count.toLocaleString()}
                                     </span>
-                                    {chosen && <Check size={14} weight="bold" className="shrink-0 text-foreground" aria-label="Already filtered" />}
+                                    {chosen && <Check weight="bold" className="shrink-0 text-foreground" aria-label="Already filtered" />}
                                 </li>
                             );
                         })}

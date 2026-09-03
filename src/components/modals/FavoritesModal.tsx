@@ -98,12 +98,12 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                     <ScrollArea className="flex-1 p-6">
                         {loading ? (
                             <div className="flex items-center justify-center py-12">
-                                <CircleNotch size={32} className="animate-spin text-muted-foreground" />
+                                <CircleNotch size={24} className="animate-spin text-muted-foreground" />
                             </div>
                         ) : favorites.length === 0 ? (
                             <div className="text-center py-12">
                                 <div className="w-16 h-16 rounded-none bg-muted flex items-center justify-center mx-auto mb-4">
-                                    <ChatCircleDots size={32} className="text-muted-foreground" />
+                                    <ChatCircleDots size={24} className="text-muted-foreground" />
                                 </div>
                                 <h3 className="text-lg mb-2">No favorites yet</h3>
                                 <p className="text-sm text-muted-foreground max-w-sm mx-auto">
@@ -186,7 +186,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                                     >
                                                         {savingNotes ? (
                                                             <>
-                                                                <CircleNotch size={14} className="animate-spin mr-1" />
+                                                                <CircleNotch className="animate-spin mr-1" />
                                                                 Saving...
                                                             </>
                                                         ) : (

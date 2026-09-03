@@ -88,7 +88,7 @@ function SectionWrapper({
             {children}
             {isHovered && !isSelected && (
                 <span className="absolute top-1 right-1 flex items-center gap-1 rounded-none bg-foreground text-white px-1.5 py-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                    <PencilSimple size={10} /> Edit
+                    <PencilSimple /> Edit
                 </span>
             )}
         </div>

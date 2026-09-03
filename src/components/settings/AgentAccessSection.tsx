@@ -45,7 +45,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
                 setTimeout(() => setCopied(false), 2000);
             }}
         >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? <Check /> : <Copy />}
             {label}
         </Button>
     );
@@ -192,7 +192,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                             disabled={revokingId === c.id}
                             onClick={() => handleRevoke(c)}
                         >
-                            {revokingId === c.id ? <CircleNotch size={13} className="animate-spin" /> : <Trash size={13} />}
+                            {revokingId === c.id ? <CircleNotch className="animate-spin" /> : <Trash />}
                             Revoke
                         </Button>
                     </div>
@@ -201,14 +201,14 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
 
             <div className="mb-6">
                 <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating}>
-                    {generating ? <CircleNotch size={14} className="animate-spin" /> : null}
+                    {generating ? <CircleNotch className="animate-spin" /> : null}
                     {generating ? "Generating..." : "Generate manual token"}
                 </Button>
 
                 {newSecret && (
                     <div className="mt-3 rounded-none border border-warn bg-muted p-3 space-y-2">
                         <p className="text-xs flex items-center gap-1.5 text-warn dark:text-warn">
-                            <WarningCircle size={14} weight="fill" />
+                            <WarningCircle weight="fill" />
                             Copy this now — we can&apos;t show it to you again.
                         </p>
                         <div className="flex items-center gap-2">

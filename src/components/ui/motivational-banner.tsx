@@ -60,7 +60,7 @@ export function MotivationalBanner() {
                 className="opacity-0 group-hover/banner:opacity-100 p-0.5 rounded-none text-muted-foreground hover:text-muted-foreground transition-opacity duration-200"
                 aria-label="Dismiss"
             >
-                <X size={10} />
+                <X />
             </button>
         </div>
     );

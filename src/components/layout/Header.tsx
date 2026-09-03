@@ -118,11 +118,10 @@ export function Header({
                       />
                     </div>
                   ) : (
-                    <MagnifyingGlass
-                      size={18}
-                      className="ml-1 text-muted-foreground"
-                      weight="regular"
-                    />
+                    <MagnifyingGlass 
+ 
+ className="ml-1 text-muted-foreground"
+ weight="regular" />
                   )}
                 </div>
                 <Input
@@ -176,7 +175,7 @@ export function Header({
               className="group hidden md:inline-flex items-center h-9 px-2.5 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150"
               title="Start Over"
             >
-              <Eraser size={18} weight="regular" className="shrink-0" />
+              <Eraser weight="regular" className="shrink-0" />
               <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
                 <span className="overflow-hidden whitespace-nowrap text-sm pl-1.5">Clear</span>
               </span>
@@ -193,7 +192,7 @@ export function Header({
               {isRegeneratingAll ? (
                 <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-none animate-spin shrink-0"></div>
               ) : (
-                <ArrowsClockwise size={18} weight="bold" className="shrink-0" />
+                <ArrowsClockwise weight="bold" className="shrink-0" />
               )}
               <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
                 <span className="overflow-hidden whitespace-nowrap text-sm pl-1.5">Regenerate</span>
@@ -211,7 +210,7 @@ export function Header({
               {isExportingPDF ? (
                 <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-none animate-spin shrink-0"></div>
               ) : (
-                <DownloadSimple size={18} weight="regular" className="shrink-0" />
+                <DownloadSimple weight="regular" className="shrink-0" />
               )}
               <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
                 <span className="overflow-hidden whitespace-nowrap text-sm pl-1.5">PDF</span>
@@ -223,7 +222,7 @@ export function Header({
           <Popover>
             <PopoverTrigger asChild>
               <button className="sm:hidden flex items-center justify-center w-9 h-9 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                <DotsThreeVertical size={22} weight="bold" />
+                <DotsThreeVertical size={24} weight="bold" />
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-auto min-w-[10rem] p-1.5 sm:hidden">
@@ -236,7 +235,7 @@ export function Header({
                   {isRegeneratingAll ? (
                     <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-none animate-spin shrink-0" />
                   ) : (
-                    <ArrowsClockwise size={18} weight="bold" className="shrink-0 text-muted-foreground" />
+                    <ArrowsClockwise weight="bold" className="shrink-0 text-muted-foreground" />
                   )}
                   Regenerate All
                 </button>
@@ -251,7 +250,7 @@ export function Header({
                   {isExportingPDF ? (
                     <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-none animate-spin shrink-0" />
                   ) : (
-                    <DownloadSimple size={18} weight="regular" className="shrink-0 text-muted-foreground" />
+                    <DownloadSimple weight="regular" className="shrink-0 text-muted-foreground" />
                   )}
                   Export PDF
                 </button>
@@ -262,7 +261,7 @@ export function Header({
                   onClick={onReset}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-none hover:bg-muted transition-colors text-destructive"
                 >
-                  <Eraser size={18} weight="regular" className="shrink-0" />
+                  <Eraser weight="regular" className="shrink-0" />
                   Clear All
                 </button>
               )}
@@ -276,7 +275,7 @@ export function Header({
       {error && (
         <div className="px-4 pb-2">
           <div className="flex items-center gap-2 px-3 py-2 rounded-none bg-muted text-destructive text-xs">
-            <WarningCircle size={14} weight="fill" className="shrink-0" />
+            <WarningCircle weight="fill" className="shrink-0" />
             <span>{error}</span>
           </div>
         </div>

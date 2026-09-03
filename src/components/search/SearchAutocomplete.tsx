@@ -376,7 +376,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                                     ),
                                                 )}
                                             </span>
-                                            {index === activeIndex && <CaretRight size={14} className="opacity-50" />}
+                                            {index === activeIndex && <CaretRight className="opacity-50" />}
                                         </li>
                                     </Fragment>
                                 );

@@ -48,7 +48,7 @@ export function InlineConfirm({
                     onClick={onConfirm}
                     className="w-full gap-1.5 rounded-none sm:w-auto"
                 >
-                    {busy ? <CircleNotch size={12} className="animate-spin" /> : <Trash size={12} />}
+                    {busy ? <CircleNotch className="animate-spin" /> : <Trash />}
                     {busy ? busyLabel : confirmLabel}
                 </Button>
                 <Button

@@ -42,7 +42,7 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
                 aria-label="Dismiss launch banner"
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
             >
-                <X size={13} aria-hidden />
+                <X aria-hidden />
             </button>
         </div>
     );

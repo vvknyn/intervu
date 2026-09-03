@@ -317,7 +317,7 @@ export function TopBar() {
                                 >
                                     {signingOut ? (
                                         <span className="flex items-center gap-2">
-                                            <CircleNotch size={14} className="animate-spin" aria-hidden />
+                                            <CircleNotch className="animate-spin" aria-hidden />
                                             Signing out…
                                         </span>
                                     ) : (
@@ -396,7 +396,7 @@ export function TopBar() {
                                 "box-border shrink-0 items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold lg:px-3",
                             )}
                         >
-                            <FunnelSimple size={12} weight="bold" aria-hidden />
+                            <FunnelSimple weight="bold" aria-hidden />
                             Filters
                             {docked.filterCount > 0 && (
                                 <span className="ml-0.5 inline-flex min-w-[16px] items-center justify-center rounded-none border border-brand bg-muted px-1 text-xs font-semibold text-brand">

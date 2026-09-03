@@ -187,7 +187,7 @@ export function PrepSettings({
                 )}
                 title="Configure preparation settings & context"
             >
-                <Sliders size={18} weight={hasJobContext ? "fill" : "regular"} />
+                <Sliders weight={hasJobContext ? "fill" : "regular"} />
                 {activePreset !== "standard" && !hasJobContext && (
                     <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-none" />
                 )}
@@ -213,7 +213,7 @@ export function PrepSettings({
                             <div className="p-4 border-b border-border space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                        <LinkIcon size={14} className="text-brand" />
+                                        <LinkIcon className="text-brand" />
                                         Job Context
                                         <ContextHelp content="Paste the job description or URL to get questions tailored to this specific role." />
                                     </div>
@@ -263,7 +263,7 @@ export function PrepSettings({
 
                                     {jobContext && !isFetchingJob && (
                                         <div className={cn("mt-2 flex items-center gap-1.5 text-xs px-2 py-1 rounded-none", STATUS_PILL.offer)}>
-                                            <FileText size={12} />
+                                            <FileText />
                                             Context Active ({jobContext.length} chars)
                                         </div>
                                     )}

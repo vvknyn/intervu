@@ -169,7 +169,7 @@ export function TourOverlay() {
               className="p-1 -mr-1 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               aria-label="Close tour"
             >
-              <X size={14} weight="bold" />
+              <X weight="bold" />
             </button>
           </div>
 

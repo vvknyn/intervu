@@ -78,7 +78,7 @@ export function TourTrigger() {
         onClick={handlePillClick}
         className="flex items-center gap-1.5 rounded-none py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
-        {minimizedTour ? <Play size={12} weight="fill" /> : <Question size={14} weight="bold" />}
+        {minimizedTour ? <Play weight="fill" /> : <Question weight="bold" />}
         <span className="">{label}</span>
       </button>
       <button
@@ -90,7 +90,7 @@ export function TourTrigger() {
           minimizedTour ? "text-brand-foreground hover:text-brand-foreground" : "hover:text-foreground",
         )}
       >
-        <X size={12} weight="bold" />
+        <X weight="bold" />
         {!minimizedTour && !hasSeen && (
           <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-none bg-brand opacity-60 motion-safe:animate-ping" />
         )}

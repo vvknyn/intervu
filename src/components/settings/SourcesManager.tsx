@@ -380,9 +380,9 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                     onClick={() => setShowDiscovered(v => !v)}
                                                     className="flex items-center gap-2 w-full text-sm text-left"
                                                 >
-                                                    {showDiscovered ? <CaretUp size={14} /> : <CaretDown size={14} />}
+                                                    {showDiscovered ? <CaretUp /> : <CaretDown />}
                                                     Related pages found ({discoveredLinks.length})
-                                                    {isDiscovering && <Spinner className="animate-spin" size={14} />}
+                                                    {isDiscovering && <Spinner className="animate-spin" />}
                                                 </button>
 
                                                 {showDiscovered && discoveredLinks.length > 0 && (
@@ -400,7 +400,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                                     className="text-xs h-7"
                                                                 >
                                                                     {isFetchingSelected
-                                                                        ? <><Spinner className="animate-spin mr-1" size={12} /> Fetching...</>
+                                                                        ? <><Spinner className="animate-spin mr-1" /> Fetching...</>
                                                                         : `Fetch Selected (${selectedCount})`
                                                                     }
                                                                 </Button>
@@ -424,8 +424,8 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                                         <p className="truncate text-xs">{link.title}</p>
                                                                         <p className="truncate text-xs text-muted-foreground">{link.url}</p>
                                                                     </div>
-                                                                    {link.status === 'loading' && <Spinner className="animate-spin shrink-0" size={14} />}
-                                                                    {link.status === 'success' && <Check className="text-live shrink-0" size={14} />}
+                                                                    {link.status === 'loading' && <Spinner className="animate-spin shrink-0" />}
+                                                                    {link.status === 'success' && <Check className="text-live shrink-0" />}
                                                                     {link.status === 'error' && (
                                                                         <span className="text-danger-text text-xs shrink-0" title={link.error}>Failed</span>
                                                                     )}
@@ -468,7 +468,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-danger-text"
                                         onClick={(e) => handleDelete(source.id, e)}
                                     >
-                                        <Trash size={14} />
+                                        <Trash />
                                     </Button>
                                 </div>
                                 <p className="text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded-none">
@@ -512,7 +512,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                         </div>
                     ) : communitySources.length === 0 ? (
                         <div className="py-12 text-center text-muted-foreground border border-border rounded-none">
-                            <Globe size={32} className="mx-auto mb-2 opacity-50" />
+                            <Globe size={24} className="mx-auto mb-2 opacity-50" />
                             <p>No public sources found.</p>
                             <p className="text-sm">Share your sources with the community by setting visibility to Public.</p>
                         </div>
@@ -535,9 +535,9 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                             onClick={() => handleAddFromCommunity(source.id)}
                                         >
                                             {addingSourceId === source.id ? (
-                                                <Spinner className="animate-spin" size={12} />
+                                                <Spinner className="animate-spin" />
                                             ) : (
-                                                <><Plus size={12} className="mr-1" /> Add</>
+                                                <><Plus className="mr-1" /> Add</>
                                             )}
                                         </Button>
                                     </div>

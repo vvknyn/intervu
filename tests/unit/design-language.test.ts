@@ -751,3 +751,46 @@ test("shimmer classifier: catches a sweep and an animated gradient under any nam
 /* .commented-out { background: linear-gradient(red, blue); animation: x 1s; } */`;
     assert.deepEqual(shimmerRules(fixture), [".card-ghost", "@keyframes sweep"]);
 });
+
+// ─── Icon sizes (rulebook v2 clause 6: 16 · 20 in a 40px control · 24 display) ──
+// Detection lives in scripts/design/icon-sizes.cjs next to its `--apply`
+// codemod, so the gate and the fix share one import-aware scanner: only JSX
+// tags imported from @phosphor-icons/react are inspected, never a `size` prop
+// on some other component. Same `require` reasoning as banned-classes above.
+const { scanSource: scanIconSizes, findIconSizeOffenders } = require("../../scripts/design/icon-sizes.cjs") as {
+    scanSource: (src: string) => { offenders: { line: number; tag: string; detail: string }[]; rewritten: string };
+    findIconSizeOffenders: (dir: string) => string[];
+};
+
+test("icons are 16/20/24: no Phosphor element under src/ carries another size prop or a sub-16px Tailwind size", () => {
+    assert.deepEqual(findIconSizeOffenders(path.join(ROOT, "src")), []);
+});
+
+test("icon-size classifier: catches small, large and Tailwind-sized icons; leaves allowed sizes and non-icon size props alone", () => {
+    const fixture = [
+        'import { Bell, Check } from "@phosphor-icons/react";',
+        'import { Avatar } from "@/components/ui/avatar";',
+        "export const X = () => (<>",
+        '  <Check size={12} className="h-3 w-3 shrink-0" />',
+        '  <Bell size={20} weight="fill" />',
+        '  <Bell size={40} className="text-brand" />',
+        "  <Avatar size={12} />",
+        "</>);",
+    ].join("\n");
+    const { offenders, rewritten } = scanIconSizes(fixture);
+    assert.deepEqual(offenders.map((o) => `${o.line} ${o.tag} ${o.detail}`), [
+        '4 Check size 12→default(16); className "h-3 w-3 shrink-0"→"shrink-0"',
+        "6 Bell size 40→24",
+    ]);
+    assert.match(rewritten, /<Check className="shrink-0" \/>/);
+    assert.match(rewritten, /<Bell size=\{20\} weight="fill" \/>/);
+    assert.match(rewritten, /<Bell size=\{24\} className="text-brand" \/>/);
+    assert.match(rewritten, /<Avatar size=\{12\} \/>/);
+});
+
+test("icon-size classifier: an ssr-entry icon gets the explicit 16px + bold that IconDefaultsProvider cannot reach", () => {
+    const fixture = 'import { House } from "@phosphor-icons/react/dist/ssr";\nexport const Y = () => <House size={14} />;';
+    const { offenders, rewritten } = scanIconSizes(fixture);
+    assert.deepEqual(offenders.map((o) => o.detail), ['size 14→16 (ssr entry, explicit); ssr entry: weight="bold" added']);
+    assert.match(rewritten, /<House size=\{16\} weight="bold" \/>/);
+});

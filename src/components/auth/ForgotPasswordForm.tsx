@@ -69,7 +69,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                     onClick={onBack}
                     className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-4"
                 >
-                    <ArrowLeft size={12} />
+                    <ArrowLeft />
                     Back
                 </button>
                 <h2 className="text-lg font-semibold text-foreground text-center">
