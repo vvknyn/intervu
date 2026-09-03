@@ -324,6 +324,16 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(page).toHaveURL(/sort=relevance/);
     });
 
+    // The deleted foot-of-list "add your résumé to rank by fit" invite had
+    // no entry point above the fold at all — a résumé-less guest had to
+    // scroll and open jobs before being asked. `jobs-rank-by-fit` (the band
+    // ghost word) replaces it as the always-visible entry.
+    test("a signed-out visitor with no résumé sees the band's Rank by fit word, and the deleted foot-of-list invite is gone", async ({ page }) => {
+        await page.goto('/jobs');
+        await expect(page.getByTestId("jobs-rank-by-fit")).toBeVisible();
+        await expect(page.getByTestId("resume-personalize-invite")).toHaveCount(0);
+    });
+
     // Task 6/7 + the Jul 24 incident fix (fd42534): the fresh-visit default
     // filter is `posted=30d`, kept OFF the URL and out of the "All filters"
     // pill's count (`activeFilterEntries` treats the default as a resting
