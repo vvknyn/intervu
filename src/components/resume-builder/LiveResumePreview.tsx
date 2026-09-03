@@ -197,7 +197,7 @@ export function LiveResumePreview({
         const changeStatus = getChangeStatus("summary");
         return (
             <SectionWrapper id="summary" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
-                <h2 className="text-xs font-semibold text-center border-b border-placeholder-text pb-0.5 mb-1">
+                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
                     Professional Summary
                 </h2>
                 {data.generatedSummary ? (
@@ -219,7 +219,7 @@ export function LiveResumePreview({
         const changeStatus = getChangeStatus("skills");
         return (
             <SectionWrapper id="skills" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
-                <h2 className="text-xs font-semibold text-center border-b border-placeholder-text pb-0.5 mb-1">
+                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
                     Core Competencies
                 </h2>
                 {hasSkills ? (
@@ -245,7 +245,7 @@ export function LiveResumePreview({
         if (!hasExp && !onEdit && removedExperiences.length === 0) return null;
         return (
             <SectionWrapper id="experience" className="mb-2.5" ctx={ctx}>
-                <h2 className="text-xs font-semibold text-center border-b border-placeholder-text pb-0.5 mb-1">
+                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
                     Professional Experience
                 </h2>
                 {hasExp || removedExperiences.length > 0 ? (
@@ -295,7 +295,7 @@ export function LiveResumePreview({
                                                 .split("\n")
                                                 .filter((line) => line.trim())
                                                 .map((line, i) => (
-                                                    <li key={i} className="flex leading-[1.35]">
+                                                    <li key={i} className="flex leading-snug">
                                                         <span className="mr-1.5 text-muted-foreground shrink-0">•</span>
                                                         <span className="text-justify">{line.replace(/^[•\-\*]\s*/, "")}</span>
                                                     </li>
@@ -342,7 +342,7 @@ export function LiveResumePreview({
         if (!hasEdu && !onEdit && removedEducations.length === 0) return null;
         return (
             <SectionWrapper id="education" className="mb-2.5" ctx={ctx}>
-                <h2 className="text-xs font-semibold text-center border-b border-placeholder-text pb-0.5 mb-1">
+                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
                     Education & Professional Development
                 </h2>
                 {hasEdu || removedEducations.length > 0 ? (
@@ -353,7 +353,7 @@ export function LiveResumePreview({
                                 <div
                                     key={edu.id || index}
                                     className={cn(
-                                        "flex justify-between items-baseline leading-[1.3] rounded-none",
+                                        "flex justify-between items-baseline leading-snug rounded-none",
                                         itemStatus === "modified" &&
                                             "bg-muted border-l-2 border-warn pl-1 -ml-1",
                                         itemStatus === "new" &&
@@ -382,7 +382,7 @@ export function LiveResumePreview({
                         {removedEducations.map((edu, index) => (
                             <div
                                 key={`removed-edu-${edu.id || index}`}
-                                className="flex justify-between items-baseline leading-[1.3] opacity-50 bg-muted border-l-2 border-danger-text pl-1 -ml-1 line-through"
+                                className="flex justify-between items-baseline leading-snug opacity-50 bg-muted border-l-2 border-danger-text pl-1 -ml-1 line-through"
                             >
                                 <div>
                                     <span className="font-semibold">{edu.degree}</span>
@@ -433,7 +433,7 @@ export function LiveResumePreview({
         >
             <div className={printMode ? "px-6 py-4 text-foreground" : "px-7 py-6 min-h-[10.5in] text-foreground"}>
                 {/* Header Section */}
-                <SectionWrapper id="header" className="text-center pb-2 mb-2.5 border-b border-placeholder-text" changeStatus={headerChangeStatus} ctx={ctx}>
+                <SectionWrapper id="header" className="text-center pb-2 mb-2.5 border-b border-foreground" changeStatus={headerChangeStatus} ctx={ctx}>
                     <h1 className="text-lg font-semibold text-foreground mb-0.5">
                         {data.profile?.name || "Your Name"}
                     </h1>

@@ -5,6 +5,7 @@ import { StarStory } from "@/types";
 import { StoryList } from "@/components/dashboard/StoryList";
 import { StoryEditorWizard } from "@/components/dashboard/StoryEditorWizard";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, DownloadSimple } from "@phosphor-icons/react";
 import { exportStoriesToText } from "@/lib/export-utils";
 
@@ -80,7 +81,7 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                             onClick={() => setClearConfirmOpen(true)}
                             variant="ghost"
                             size="sm"
-                            className="text-xs text-muted-foreground hover:text-destructive hover:bg-muted"
+                            className="text-xs text-muted-foreground hover:text-danger-text hover:bg-muted"
                         >
                             Clear All
                         </Button>
@@ -119,24 +120,24 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
             />
 
             {/* Clear All Confirmation Dialog */}
-            {clearConfirmOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-background rounded-none max-w-sm w-full p-6 border border-border">
-                        <h3 className="text-lg font-semibold mb-2">Clear All Stories?</h3>
-                        <p className="text-sm text-muted-foreground mb-6">
+            <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Clear All Stories?</DialogTitle>
+                        <DialogDescription>
                             Are you sure you want to remove all your stories? This action will move them to trash.
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            <Button variant="outline" onClick={() => setClearConfirmOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button variant="destructive" onClick={handleClearAll}>
-                                Clear All
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setClearConfirmOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleClearAll}>
+                            Clear All
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

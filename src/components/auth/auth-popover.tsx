@@ -36,7 +36,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     };
 
     const valueLineNode = valueLine && (
-        <p className="mb-4 text-sm leading-[1.55] text-muted-foreground">{valueLine}</p>
+        <p className="mb-4 text-sm leading-normal text-muted-foreground">{valueLine}</p>
     );
 
     // When no trigger, use a Dialog instead (e.g. programmatic open from buttons)

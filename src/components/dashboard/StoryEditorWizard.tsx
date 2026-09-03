@@ -226,13 +226,13 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                             {/* Story Title */}
                             <div className="space-y-1.5">
                                 <Label className="text-xs font-semibold text-muted-foreground">
-                                    Story Title <span className="text-destructive">*</span>
+                                    Story Title <span className="text-danger-text">*</span>
                                 </Label>
                                 <Input
                                     value={formData.title || ''}
                                     onChange={e => setFormData({ ...formData, title: e.target.value })}
                                     placeholder="e.g. Critical Bug Fix"
-                                    className="text-lg font-semibold h-11 border-input"
+                                    className="text-base font-semibold h-10 border-input"
                                 />
                                 <p className="text-xs text-muted-foreground">
                                     A short, memorable name for you to reference this story.

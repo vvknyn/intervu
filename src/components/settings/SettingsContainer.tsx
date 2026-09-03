@@ -11,6 +11,7 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { onAuthChange, signOut, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SettingsLoading } from "@/components/settings/SettingsLoading";
 import { SETTINGS_MESSAGES } from "@/lib/copy";
 import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
@@ -31,29 +32,14 @@ function parseAccountTab(value: string | null): AccountTab {
 }
 
 function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) => void }) {
-    const tabs: { key: AccountTab; label: string }[] = [
-        { key: "resume", label: "Resume" },
-        { key: "prefs", label: "Preferences" },
-        { key: "account", label: "Account" },
-    ];
     return (
-        <div className="mb-4 flex rounded-none border border-border bg-card p-1" role="tablist">
-            {tabs.map(({ key, label }) => (
-                <button
-                    key={key}
-                    type="button"
-                    role="tab"
-                    aria-selected={tab === key}
-                    onClick={() => onChange(key)}
-                    className={cn(
-                        "flex-1 min-w-0 whitespace-nowrap rounded-none px-2 py-2 text-xs font-semibold text-muted-foreground transition-colors sm:px-3.5",
-                        tab === key && "bg-foreground text-background font-semibold",
-                    )}
-                >
-                    {label}
-                </button>
-            ))}
-        </div>
+        <Tabs value={tab} onValueChange={(v) => onChange(v as AccountTab)} className="mb-4">
+            <TabsList variant="line">
+                <TabsTrigger value="resume">Resume</TabsTrigger>
+                <TabsTrigger value="prefs">Preferences</TabsTrigger>
+                <TabsTrigger value="account">Account</TabsTrigger>
+            </TabsList>
+        </Tabs>
     );
 }
 
@@ -171,10 +157,10 @@ export function SettingsContainer() {
                 {!resumeEditorOpen && (
                     <>
                         <div className="mb-5">
-                            <PageHeader title="Settings" description={ACCOUNT_SUBCOPY} size="display" bare />
+                            <PageHeader title="Settings" description={ACCOUNT_SUBCOPY} bare />
                         </div>
                         {message && (
-                            <div className={`mb-4 text-sm ${message.type === "success" ? "text-foreground" : "text-destructive"}`}>
+                            <div className={`mb-4 text-sm ${message.type === "success" ? "text-foreground" : "text-danger-text"}`}>
                                 {message.text}
                             </div>
                         )}
@@ -219,7 +205,7 @@ export function SettingsContainer() {
                                 </Button>
                             </div>
                             {resetMessage && (
-                                <p className={`mt-2 text-xs ${resetMessage.type === "success" ? "text-foreground" : "text-destructive"}`}>
+                                <p className={`mt-2 text-xs ${resetMessage.type === "success" ? "text-foreground" : "text-danger-text"}`}>
                                     {resetMessage.text}
                                 </p>
                             )}
@@ -236,11 +222,7 @@ export function SettingsContainer() {
                         <SettingsCard>
                             <h2 className="mb-1 text-sm font-semibold">Danger zone</h2>
                             <p className="mb-4 text-xs text-muted-foreground">Permanent. No recovery.</p>
-                            <Button
-                                variant="outline"
-                                className="text-destructive border-destructive hover:text-destructive"
-                                onClick={() => setShowDeleteDialog(true)}
-                            >
+                            <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
                                 Delete account
                             </Button>
                         </SettingsCard>
@@ -259,7 +241,7 @@ export function SettingsContainer() {
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
-                                <WarningOctagon size={20} className="text-destructive" />
+                                <WarningOctagon size={20} className="text-danger-text" />
                                 Delete Account
                             </DialogTitle>
                             <DialogDescription>

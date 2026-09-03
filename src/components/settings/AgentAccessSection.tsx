@@ -140,7 +140,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
     if (!user) {
         return (
             <section className="pt-6 border-t border-border">
-                <h2 className="text-lg font-semibold mb-1">Connected agents</h2>
+                <h2 className="text-base font-semibold mb-1">Connected agents</h2>
                 <p className="text-sm text-muted-foreground">
                     <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
                         login
@@ -156,7 +156,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
 
     return (
         <section className="pt-6 border-t border-border">
-            <h2 className="text-lg font-semibold mb-1">Connected agents</h2>
+            <h2 className="text-base font-semibold mb-1">Connected agents</h2>
             <p className="text-sm text-muted-foreground mb-4">
                 Let Claude or another AI agent search jobs and update your tracker on your behalf. It can never see your
                 resume, stories, or anything else in your account.
@@ -188,7 +188,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs px-2.5 shrink-0 text-muted-foreground hover:text-destructive"
+                            className="h-7 text-xs px-2.5 shrink-0 text-muted-foreground hover:text-danger-text"
                             disabled={revokingId === c.id}
                             onClick={() => handleRevoke(c)}
                         >

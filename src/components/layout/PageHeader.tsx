@@ -53,7 +53,7 @@ export function PageHeader({
         (display ? (
           <div className="mt-1.5 text-meta text-muted-foreground">{description}</div>
         ) : (
-          <p className="truncate text-sm text-muted-foreground">{description}</p>
+          <p className="text-sm text-muted-foreground">{description}</p>
         ))}
     </div>
   );
@@ -80,7 +80,7 @@ export function PageHeader({
       {trailing}
     </div>
   ) : (
-    <div className="flex h-16 items-center justify-between">
+    <div className="flex min-h-16 items-center justify-between py-2">
       {titleBlock}
       {trailing && <div className="ml-4 flex shrink-0 items-center gap-2">{trailing}</div>}
     </div>

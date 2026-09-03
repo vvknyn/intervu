@@ -54,7 +54,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 </p>
                 <button
                     onClick={onBack}
-                    className="text-xs text-faint hover:text-foreground transition-colors"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                     Back to login
                 </button>
@@ -67,7 +67,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
             <div className="mb-8">
                 <button
                     onClick={onBack}
-                    className="flex items-center gap-1 text-xs text-faint hover:text-foreground transition-colors mb-4"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-4"
                 >
                     <ArrowLeft size={12} />
                     Back
@@ -94,7 +94,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 </Field>
 
                 {error && (
-                    <div className="mt-2 text-xs text-destructive text-center">
+                    <div className="mt-2 text-xs text-danger-text text-center">
                         {error}
                     </div>
                 )}

@@ -273,7 +273,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                 if (v === 'community') loadCommunity();
             }}>
                 <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold">Knowledge Sources</h2>
+                    <h2 className="text-base font-semibold">Knowledge Sources</h2>
                     <TabsList>
                         <TabsTrigger value="my-sources">My Sources</TabsTrigger>
                         <TabsTrigger value="community">Community</TabsTrigger>
@@ -317,14 +317,14 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                             </div>
 
                             {error && (
-                                <div className="text-destructive text-sm mb-4 bg-muted p-2 rounded-none">
+                                <div className="text-danger-text text-sm mb-4 bg-muted p-2 rounded-none">
                                     {error}
                                 </div>
                             )}
 
                             <div className="space-y-4">
                                 {addType === 'file' ? (
-                                    <div className="border-2 border-dashed border-border rounded-none p-8 text-center hover:bg-muted transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                    <div className="border border-border rounded-none p-8 text-center hover:bg-muted transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                                         <input
                                             type="file"
                                             className="hidden"
@@ -427,7 +427,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                                     {link.status === 'loading' && <Spinner className="animate-spin shrink-0" size={14} />}
                                                                     {link.status === 'success' && <Check className="text-live shrink-0" size={14} />}
                                                                     {link.status === 'error' && (
-                                                                        <span className="text-destructive text-xs shrink-0" title={link.error}>Failed</span>
+                                                                        <span className="text-danger-text text-xs shrink-0" title={link.error}>Failed</span>
                                                                     )}
                                                                 </label>
                                                             ))}
@@ -465,7 +465,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-danger-text"
                                         onClick={(e) => handleDelete(source.id, e)}
                                     >
                                         <Trash size={14} />
@@ -481,7 +481,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                         ))}
 
                         {sources.length === 0 && !isAdding && (
-                            <div className="col-span-full py-12 text-center text-muted-foreground border border-dashed border-border rounded-none">
+                            <div className="col-span-full py-12 text-center text-muted-foreground border border-border rounded-none">
                                 <p>No sources added yet.</p>
                                 <p className="text-sm">Add documents, URLs, or notes to give more context to the AI.</p>
                             </div>
@@ -511,7 +511,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                             <Spinner className="animate-spin mr-2" /> Loading community sources...
                         </div>
                     ) : communitySources.length === 0 ? (
-                        <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-none">
+                        <div className="py-12 text-center text-muted-foreground border border-border rounded-none">
                             <Globe size={32} className="mx-auto mb-2 opacity-50" />
                             <p>No public sources found.</p>
                             <p className="text-sm">Share your sources with the community by setting visibility to Public.</p>

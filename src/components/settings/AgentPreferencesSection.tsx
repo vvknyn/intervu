@@ -202,7 +202,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
     if (!user) {
         return (
             <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-                <h2 className={embedded ? "text-sm font-semibold mb-1" : "text-lg font-semibold mb-1"}>
+                <h2 className={embedded ? "text-sm font-semibold mb-1" : "text-base font-semibold mb-1"}>
                     {embedded ? "Job search" : "Your agent's answers"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
@@ -219,7 +219,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
         <section className={embedded ? undefined : "pt-6 border-t border-border"}>
             {!embedded && (
                 <>
-                    <h2 className="text-lg font-semibold mb-1">Your agent&apos;s answers</h2>
+                    <h2 className="text-base font-semibold mb-1">Your agent&apos;s answers</h2>
                     <p className="text-sm text-muted-foreground mb-4">
                         What your AI fills into applications for you. It learns these when you first talk to it — or set
                         them here.
@@ -425,8 +425,8 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                         <Button
                                             type="button"
                                             variant="ghost"
-                                            size="sm"
-                                            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+                                            size="icon"
+                                            className="shrink-0 text-muted-foreground hover:text-danger-text"
                                             onClick={() => removeCustomRow(row.id)}
                                             aria-label="Remove"
                                         >

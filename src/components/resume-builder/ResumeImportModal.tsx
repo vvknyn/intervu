@@ -268,7 +268,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-border rounded-none p-8 text-center cursor-pointer hover:border-brand hover:bg-muted transition-colors"
+                    className="border border-border rounded-none p-8 text-center cursor-pointer hover:border-brand hover:bg-muted transition-colors"
                 >
                     <input
                         ref={fileInputRef}
@@ -291,7 +291,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     e.stopPropagation();
                                     setSelectedFile(null);
                                 }}
-                                className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                                className="text-xs text-muted-foreground hover:text-danger-text transition-colors"
                             >
                                 Remove
                             </button>
@@ -328,7 +328,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             )}
 
             {error && (
-                <div className="p-3 rounded-none bg-muted border border-destructive text-destructive text-sm flex items-center gap-2">
+                <div className="p-3 rounded-none bg-muted border border-danger-text text-danger-text text-sm flex items-center gap-2">
                     <Warning size={16} weight="bold" />
                     {error}
                 </div>
@@ -391,7 +391,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.name || ""}
                                         onChange={(e) => updateProfile('name', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -399,7 +399,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.profession}
                                         onChange={(e) => updateProfile('profession', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -408,7 +408,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                         type="number"
                                         value={editedData.profile.yearsOfExperience}
                                         onChange={(e) => updateProfile('yearsOfExperience', parseInt(e.target.value) || 0)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -416,7 +416,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.location}
                                         onChange={(e) => updateProfile('location', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -424,7 +424,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.email}
                                         onChange={(e) => updateProfile('email', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -432,7 +432,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.phone}
                                         onChange={(e) => updateProfile('phone', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -440,7 +440,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.linkedin || ""}
                                         onChange={(e) => updateProfile('linkedin', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                             </div>
@@ -504,7 +504,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                             value={comp.skills.join(', ')}
                                             onChange={(e) => updateCompetency(idx, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
                                             placeholder="Skills (comma separated)"
-                                            className="h-9 text-base md:text-sm"
+                                            className="h-8 text-base md:text-sm"
                                         />
                                     </div>
                                 ))}

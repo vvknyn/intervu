@@ -234,12 +234,10 @@ export default function PursuitDetailPage() {
 
     const identity = (
         <>
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-none bg-muted text-brand">
-                <Buildings size={26} />
-            </div>
+            <Buildings size={24} className="mt-0.5 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
                 <h1 className="text-xl font-semibold">{companyName}</h1>
-                <p className="text-muted-foreground">{pursuit.position}</p>
+                <p className="text-sm text-muted-foreground">{pursuit.position}</p>
                 {snapshot?.location && <p className="mt-1 text-xs text-muted-foreground">{snapshot.location}</p>}
             </div>
         </>

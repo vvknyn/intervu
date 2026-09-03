@@ -31,7 +31,7 @@ const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still st
 
 function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
     return (
-        <PageHeader size="display" fullWidth sticky={false} title="Tracker" description={TRACKER_SUBCOPY} actions={actions} />
+        <PageHeader fullWidth sticky={false} title="Tracker" description={TRACKER_SUBCOPY} actions={actions} />
     );
 }
 
@@ -61,7 +61,7 @@ import { BookmarkSimple, MagnifyingGlass } from "@phosphor-icons/react";
 function AppliedThisWeekBadge({ count }: { count: number }) {
     if (count < 1) return null;
     return (
-        <span className="inline-flex items-center rounded-none border border-brand bg-muted px-3 py-0.5 text-xs font-semibold text-brand">
+        <span className="text-xs font-semibold text-brand">
             {count} applied this week
         </span>
     );
@@ -76,19 +76,17 @@ function TrackerEmptyState({
 }) {
     const guestCount = listGuestPursuits().length;
     return (
-        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="rounded-none border border-border bg-card p-8 text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand">
-                <BookmarkSimple size={24} weight="duotone" />
-            </div>
+        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="mx-auto max-w-[480px] rounded-none border border-border bg-card p-8 text-center space-y-6">
+            <BookmarkSimple size={24} weight="duotone" className="mx-auto text-muted-foreground" />
 
-            <div className="space-y-1 max-w-md mx-auto">
-                <h3 className="text-lg font-semibold text-foreground">Your tracker is empty</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+            <div className="space-y-1">
+                <h3 className="text-base font-semibold text-foreground">Your tracker is empty</h3>
+                <p className="text-sm text-muted-foreground">
                     Save roles while browsing verified jobs, then pick up where you left off here.
                 </p>
             </div>
 
-            <Button asChild className="rounded-none font-semibold">
+            <Button asChild variant="outline" size="sm" className="font-semibold">
                 <Link href="/jobs">Browse verified roles</Link>
             </Button>
 
@@ -98,7 +96,7 @@ function TrackerEmptyState({
                     <button
                         type="button"
                         onClick={onLoginClick}
-                        className="font-semibold text-foreground underline underline-offset-4 hover:text-brand"
+                        className="font-semibold text-brand underline-offset-4 hover:underline"
                     >
                         Sign in
                     </button>{" "}
@@ -310,7 +308,7 @@ function YoursContent() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search company or role in your tracker..."
-                            className="h-10 rounded-none border-border bg-card pl-9 text-base dark:border-border md:text-xs"
+                            className="h-8 rounded-none border-border bg-card pl-9 text-base dark:border-border md:text-xs"
                         />
                     </div>
                     <AppliedThisWeekBadge count={appliedThisWeek} />

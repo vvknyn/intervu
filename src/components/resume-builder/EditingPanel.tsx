@@ -518,7 +518,7 @@ export function EditingPanel({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeCategory(catIdx)}
-                                        className="h-8 text-destructive hover:text-destructive"
+                                        className="h-8 text-danger-text hover:text-danger-text"
                                     >
                                         <Trash size={14} />
                                     </Button>
@@ -535,7 +535,7 @@ export function EditingPanel({
                                             <button
                                                 type="button"
                                                 onClick={() => removeSkillFromCategory(catIdx, skillIdx)}
-                                                className="hover:text-destructive"
+                                                className="hover:text-danger-text"
                                             >
                                                 <X size={10} />
                                             </button>
@@ -641,7 +641,7 @@ export function EditingPanel({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeExp(exp.id)}
-                                        className="h-7 text-destructive hover:text-destructive"
+                                        className="h-7 text-danger-text hover:text-danger-text"
                                     >
                                         <Trash size={14} />
                                     </Button>
@@ -751,7 +751,7 @@ export function EditingPanel({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeEdu(edu.id)}
-                                        className="h-7 text-destructive hover:text-destructive"
+                                        className="h-7 text-danger-text hover:text-danger-text"
                                     >
                                         <Trash size={14} />
                                     </Button>

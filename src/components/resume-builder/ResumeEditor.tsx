@@ -532,7 +532,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         <CircleNotch size={16} className="animate-spin" /> Loading history…
                                     </div>
                                 ) : versions.length === 0 ? (
-                                    <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-border p-4">
+                                    <div className="py-8 text-center text-xs text-muted-foreground border border-border p-4">
                                         No saved versions on file yet. Save a version above to track iterations.
                                     </div>
                                 ) : (
@@ -554,7 +554,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                 <div className="flex items-center gap-2 pt-1 border-t border-border">
                                                     {confirmDeleteId === ver.id ? (
                                                         <>
-                                                            <span className="flex-1 text-xs font-semibold text-destructive">
+                                                            <span className="flex-1 text-xs font-semibold text-danger-text">
                                                                 Delete this version?
                                                             </span>
                                                             <Button
@@ -608,7 +608,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 size="sm"
                                                                 title={`Delete "${ver.label}"`}
                                                                 onClick={() => setConfirmDeleteId(ver.id)}
-                                                                className="h-7 w-7 p-0 shrink-0 rounded-none text-muted-foreground hover:text-destructive"
+                                                                className="h-7 w-7 p-0 shrink-0 rounded-none text-muted-foreground hover:text-danger-text"
                                                             >
                                                                 <Trash size={12} />
                                                             </Button>

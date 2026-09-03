@@ -1,6 +1,5 @@
 import { StarStory } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { PencilSimple, Trash, CaretUp, CaretDown, Star, DotsThreeVertical } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import {
@@ -35,14 +34,14 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
         return 0; // Keep original order if importance is same
     });
 
-    const getImportanceBadge = (importance?: string) => {
+    const getImportanceLabel = (importance?: string) => {
         switch (importance) {
             case 'high':
-                return <Badge variant="default" className="bg-warn hover:bg-warn text-white border-none h-5 px-1.5 text-xs">High</Badge>;
+                return <span className="text-xs font-semibold text-warn">High</span>;
             case 'medium':
-                return <Badge variant="secondary" className="bg-muted text-warn dark:text-warn border-none h-5 px-1.5 text-xs">Med</Badge>;
+                return <span className="text-xs font-semibold text-warn">Med</span>;
             case 'low':
-                return <Badge variant="outline" className="text-muted-foreground border-border h-5 px-1.5 text-xs">Low</Badge>;
+                return <span className="text-xs font-semibold text-muted-foreground">Low</span>;
             default:
                 return null;
         }
@@ -50,7 +49,7 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
 
     if (sortedStories.length === 0) {
         return (
-            <div className="text-center py-12 border border-dashed border-border rounded-none">
+            <div className="text-center py-12 border border-border rounded-none">
                 <p className="text-muted-foreground text-sm">No stories added yet.</p>
                 <p className="text-muted-foreground text-xs mt-1">Add stories manually or import them with AI</p>
             </div>
@@ -88,10 +87,10 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
 
                         {/* Metadata/Badges */}
                         <div className="flex items-center gap-2 shrink-0">
-                            {getImportanceBadge(story.importance)}
+                            {getImportanceLabel(story.importance)}
 
                             {story.type === 'blob' && (
-                                <Badge variant="secondary" className="h-5 px-1.5 text-xs font-semibold text-muted-foreground">Draft</Badge>
+                                <span className="text-xs font-semibold text-muted-foreground">Draft</span>
                             )}
                         </div>
 
@@ -122,7 +121,7 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
                                 <DropdownMenuItem onClick={() => onEdit(story)}>
                                     Edit Story
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => onDelete(story.id)} className="text-destructive focus:text-destructive">
+                                <DropdownMenuItem onClick={() => onDelete(story.id)} className="text-danger-text focus:text-danger-text">
                                     Delete
                                 </DropdownMenuItem>
                             </DropdownMenuContent>

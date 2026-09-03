@@ -319,7 +319,7 @@ function ResumeSummaryBody({
 
     if (summary.source === "none") {
         return (
-            <div className="space-y-4 rounded-none border border-dashed border-border bg-card p-6 text-center">
+            <div className="space-y-4 rounded-none border border-border bg-card p-6 text-center">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-border bg-muted text-foreground">
                     <FileText size={24} />
                 </div>
@@ -367,7 +367,7 @@ function ResumeSummaryBody({
                     variant="outline"
                     size="sm"
                     onClick={() => setConfirmingDelete(true)}
-                    className="w-full gap-1.5 text-xs text-destructive hover:text-destructive rounded-none sm:w-auto"
+                    className="w-full gap-1.5 text-xs text-danger-text hover:text-danger-text rounded-none sm:w-auto"
                 >
                     <Trash size={13} />
                     Delete
@@ -487,7 +487,7 @@ function ResumeUploadForm({
                 </Button>
                 {fileName && <span className="text-xs text-muted-foreground break-all">{fileName}</span>}
             </div>
-            {error && <p className="text-xs text-destructive">{error}</p>}
+            {error && <p className="text-xs text-danger-text">{error}</p>}
             <div className="flex flex-col gap-2 sm:flex-row">
                 <Button size="sm" disabled={busy || !text.trim()} onClick={handleSave} className="w-full text-xs font-semibold rounded-none sm:w-auto">
                     {pending ? "Saving…" : "Save"}
