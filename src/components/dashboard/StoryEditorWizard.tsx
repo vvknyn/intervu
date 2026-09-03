@@ -97,7 +97,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                         <div className="flex items-center gap-2 text-xs">
                             {steps.map((s, i) => (
                                 <div key={s.id} className={cn("flex items-center gap-1",
-                                    i <= currentStepIndex ? "text-primary font-medium" : "text-muted-foreground"
+                                    i <= currentStepIndex ? "text-primary" : "text-muted-foreground"
                                 )}>
                                     <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border",
                                         i < currentStepIndex ? "bg-primary border-primary text-primary-foreground" :
@@ -124,53 +124,53 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Situation</Label>
-                                            <span className="text-[10px] text-muted-foreground/60">The Setup</span>
+                                            <Label className="text-xs font-semibold text-muted-foreground">Situation</Label>
+                                            <span className="text-xs text-muted-foreground/60">The Setup</span>
                                         </div>
                                         <Textarea
                                             value={formData.situation || ''}
                                             onChange={e => setFormData({ ...formData, situation: e.target.value })}
                                             placeholder="Context and background..."
-                                            className="h-28 text-base md:text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
+                                            className="h-28 text-base md:text-sm resize-none bg-muted focus:bg-background transition-colors"
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Task</Label>
-                                            <span className="text-[10px] text-muted-foreground/60">The Goal</span>
+                                            <Label className="text-xs font-semibold text-muted-foreground">Task</Label>
+                                            <span className="text-xs text-muted-foreground/60">The Goal</span>
                                         </div>
                                         <Textarea
                                             value={formData.task || ''}
                                             onChange={e => setFormData({ ...formData, task: e.target.value })}
                                             placeholder="Your specific role and goal..."
-                                            className="h-28 text-base md:text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
+                                            className="h-28 text-base md:text-sm resize-none bg-muted focus:bg-background transition-colors"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Action</Label>
-                                        <span className="text-[10px] text-muted-foreground/60">The Execution (Most Important)</span>
+                                        <Label className="text-xs font-semibold text-muted-foreground">Action</Label>
+                                        <span className="text-xs text-muted-foreground/60">The Execution (Most Important)</span>
                                     </div>
                                     <Textarea
                                         value={formData.action || ''}
                                         onChange={e => setFormData({ ...formData, action: e.target.value })}
                                         placeholder="What you did (use 'I', not 'We')..."
-                                        className="h-32 text-base md:text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
+                                        className="h-32 text-base md:text-sm resize-none bg-muted focus:bg-background transition-colors"
                                     />
                                 </div>
 
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Result</Label>
-                                        <span className="text-[10px] text-muted-foreground/60">The Impact</span>
+                                        <Label className="text-xs font-semibold text-muted-foreground">Result</Label>
+                                        <span className="text-xs text-muted-foreground/60">The Impact</span>
                                     </div>
                                     <Textarea
                                         value={formData.result || ''}
                                         onChange={e => setFormData({ ...formData, result: e.target.value })}
                                         placeholder="Outcome, metrics, and impact..."
-                                        className="h-24 text-base md:text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
+                                        className="h-24 text-base md:text-sm resize-none bg-muted focus:bg-background transition-colors"
                                     />
                                 </div>
                             </div>
@@ -181,7 +181,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                         <div className="space-y-6">
                             {/* Question Dropdown */}
                             <div className="space-y-1.5">
-                                <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
+                                <Label className="text-xs font-semibold text-muted-foreground">
                                     Question Answered
                                 </Label>
                                 <div className="relative group/question">
@@ -196,16 +196,16 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                             setTimeout(() => setIsTitleFocused(false), 200);
                                         }}
                                         placeholder="e.g. Tell me about a time you failed..."
-                                        className="bg-muted/30 border-input/60 focus:bg-background focus:border-brand/50 transition-all"
+                                        className="bg-muted border-input focus:bg-background focus:border-brand transition-all"
                                     />
                                     {isTitleFocused && (
-                                        <div className="absolute z-10 w-full mt-1 bg-popover/95 backdrop-blur-sm border border-border/50 rounded-lg shadow-xl max-h-60 overflow-y-auto p-1">
+                                        <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-lg shadow-xl max-h-60 overflow-y-auto p-1">
                                             {COMMON_QUESTIONS.filter(q =>
                                                 !formData.question || q.toLowerCase().includes(formData.question.toLowerCase())
                                             ).map((q, i) => (
                                                 <button
                                                     key={i}
-                                                    className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-brand/10 hover:text-brand transition-colors text-foreground/80"
+                                                    className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-muted hover:text-brand transition-colors text-foreground"
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
                                                         setFormData({ ...formData, question: q });
@@ -218,30 +218,30 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                         </div>
                                     )}
                                 </div>
-                                <p className="text-[10px] text-muted-foreground">
+                                <p className="text-xs text-muted-foreground">
                                     Categorizing your story makes it easier to find later when you're prepping for a specific question.
                                 </p>
                             </div>
 
                             {/* Story Title */}
                             <div className="space-y-1.5">
-                                <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
+                                <Label className="text-xs font-semibold text-muted-foreground">
                                     Story Title <span className="text-destructive">*</span>
                                 </Label>
                                 <Input
                                     value={formData.title || ''}
                                     onChange={e => setFormData({ ...formData, title: e.target.value })}
                                     placeholder="e.g. Critical Bug Fix"
-                                    className="text-lg font-semibold h-11 border-input/60"
+                                    className="text-lg font-semibold h-11 border-input"
                                 />
-                                <p className="text-[10px] text-muted-foreground">
+                                <p className="text-xs text-muted-foreground">
                                     A short, memorable name for you to reference this story.
                                 </p>
                             </div>
 
                             {/* Importance */}
                             <div className="space-y-1.5">
-                                <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
+                                <Label className="text-xs font-semibold text-muted-foreground">
                                     Importance
                                 </Label>
                                 <Select

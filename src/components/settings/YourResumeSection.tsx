@@ -202,9 +202,9 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
     if (!user) {
         const guestContent = (
             <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-                <h2 className="text-[15px] font-semibold tracking-[-0.02em] mb-1">Your resume</h2>
+                <h2 className="text-sm font-semibold mb-1">Your resume</h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand/80">
+                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
                         login
                     </button>{" "}
                     to see the resume your agent has on file.
@@ -235,8 +235,8 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
 
     const content = (
         <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-            <h2 className="text-[15px] font-semibold tracking-[-0.02em] mb-1">Your resume</h2>
-            <p className="text-[13px] text-muted-foreground mb-4">
+            <h2 className="text-sm font-semibold mb-1">Your resume</h2>
+            <p className="text-xs text-muted-foreground mb-4">
                 {embedded
                     ? "One base file. Edit the template in the browser, or upload a PDF or Word file."
                     : "The resume your agent has on file."}
@@ -320,7 +320,7 @@ function ResumeSummaryBody({
     if (summary.source === "none") {
         return (
             <div className="space-y-4 rounded-none border border-dashed border-border bg-card p-6 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-border bg-muted text-foreground">
                     <FileText size={24} />
                 </div>
                 <div className="space-y-1 max-w-sm mx-auto">
@@ -385,7 +385,7 @@ function ResumeSummaryBody({
     return (
         <div className="space-y-3">
             {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
-            <div className="max-h-[32rem] overflow-y-auto bg-muted/30 p-4">
+            <div className="max-h-[32rem] overflow-y-auto bg-muted p-4">
                 <LiveResumePreview data={resumeData} />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">

@@ -46,8 +46,8 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
                     aria-selected={tab === key}
                     onClick={() => onChange(key)}
                     className={cn(
-                        "flex-1 min-w-0 whitespace-nowrap rounded-none px-2 py-2 text-[13px] font-semibold text-muted-foreground transition-colors sm:px-3.5",
-                        tab === key && "bg-foreground text-background font-bold",
+                        "flex-1 min-w-0 whitespace-nowrap rounded-none px-2 py-2 text-xs font-semibold text-muted-foreground transition-colors sm:px-3.5",
+                        tab === key && "bg-foreground text-background font-semibold",
                     )}
                 >
                     {label}
@@ -200,14 +200,14 @@ export function SettingsContainer() {
                 {tab === "account" && (
                     <>
                         <SettingsCard>
-                            <h2 className="mb-1 text-[15px] font-semibold tracking-[-0.02em]">Sign-in</h2>
-                            <p className="mb-4 text-[13px] text-muted-foreground">
+                            <h2 className="mb-1 text-sm font-semibold">Sign-in</h2>
+                            <p className="mb-4 text-xs text-muted-foreground">
                                 Email is how we reach you for resets. Password stays with you.
                             </p>
-                            <dl className="mb-4 grid grid-cols-1 gap-y-2 text-[13px] sm:grid-cols-[120px_1fr] sm:gap-x-3.5 sm:gap-y-2">
-                                <dt className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">Email</dt>
+                            <dl className="mb-4 grid grid-cols-1 gap-y-2 text-xs sm:grid-cols-[120px_1fr] sm:gap-x-3.5 sm:gap-y-2">
+                                <dt className="text-xs text-muted-foreground">Email</dt>
                                 <dd className="min-w-0 break-words">{user.email}</dd>
-                                <dt className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">Username</dt>
+                                <dt className="text-xs text-muted-foreground">Username</dt>
                                 <dd className="min-w-0 break-words">{user.displayName || user.email?.split("@")[0]}</dd>
                             </dl>
                             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -219,7 +219,7 @@ export function SettingsContainer() {
                                 </Button>
                             </div>
                             {resetMessage && (
-                                <p className={`mt-2 text-[12px] ${resetMessage.type === "success" ? "text-foreground" : "text-destructive"}`}>
+                                <p className={`mt-2 text-xs ${resetMessage.type === "success" ? "text-foreground" : "text-destructive"}`}>
                                     {resetMessage.text}
                                 </p>
                             )}
@@ -234,11 +234,11 @@ export function SettingsContainer() {
                         </SettingsCard>
 
                         <SettingsCard>
-                            <h2 className="mb-1 text-[15px] font-semibold tracking-[-0.02em]">Danger zone</h2>
-                            <p className="mb-4 text-[13px] text-muted-foreground">Permanent. No recovery.</p>
+                            <h2 className="mb-1 text-sm font-semibold">Danger zone</h2>
+                            <p className="mb-4 text-xs text-muted-foreground">Permanent. No recovery.</p>
                             <Button
                                 variant="outline"
-                                className="text-destructive border-destructive/50 hover:text-destructive"
+                                className="text-destructive border-destructive hover:text-destructive"
                                 onClick={() => setShowDeleteDialog(true)}
                             >
                                 Delete account

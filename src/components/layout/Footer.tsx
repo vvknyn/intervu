@@ -75,7 +75,7 @@ export function FooterContent() {
     return (
         <footer
             data-testid="site-footer"
-            className="shrink-0 border-t border-border/80 bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
+            className="shrink-0 border-t border-border bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
         >
             {/* Same `shell-row` as TopBar — the two bands frame the page, so
                 they have to share its gutter or the frame is crooked. */}

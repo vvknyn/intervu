@@ -51,9 +51,9 @@ type TouchState = { startX: number; startY: number; lastY: number; accDy: number
  */
 type StatusTone = "live" | "pending" | "ended";
 const STATUS_TONE_STYLE: Record<StatusTone, { dot: string; text: string }> = {
-    live: { dot: "bg-emerald-400", text: "text-emerald-400" },
-    pending: { dot: "bg-amber-400", text: "text-amber-400" },
-    ended: { dot: "bg-white/40", text: "text-white/70" },
+    live: { dot: "bg-live", text: "text-live" },
+    pending: { dot: "bg-warn", text: "text-warn" },
+    ended: { dot: "bg-white", text: "text-white" },
 };
 
 /** How long to wait for the laptop to post its offer, in 1s attempts. The
@@ -353,7 +353,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
 
     return (
         <main className="min-h-dvh bg-black text-white">
-            <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-white/10 bg-black px-4 py-3 text-sm">
+            <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-white bg-black px-4 py-3 text-sm">
                 <span className={`h-2 w-2 flex-none rounded-full ${STATUS_TONE_STYLE[statusTone].dot}`} />
                 <span data-testid="watch-status" className={STATUS_TONE_STYLE[statusTone].text}>
                     {statusText}
@@ -362,7 +362,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                     type="button"
                     data-testid="watch-control-toggle"
                     onClick={toggleControl}
-                    className="rounded-full border border-white/20 px-3 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5B8CFF]"
+                    className="rounded-full border border-white px-3 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5B8CFF]"
                 >
                     {controlOn ? "watching only" : "take control"}
                 </button>
@@ -374,7 +374,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                     type="button"
                     data-testid="watch-zoom-chip"
                     onClick={() => setFollow((f) => !f)}
-                    className="ml-auto text-xs text-white/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5B8CFF]"
+                    className="ml-auto text-xs text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5B8CFF]"
                 >
                     {follow ? "tap to zoom out" : "tap to follow field"}
                 </button>

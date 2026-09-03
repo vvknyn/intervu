@@ -29,10 +29,10 @@ export default function Error({
       className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center"
     >
       <BrandLockupMark tileClassName="h-12 w-12 rounded-2xl" markClassName="h-7 w-7" />
-      <span className="mt-4 font-display text-[13px] font-extrabold tracking-tight text-muted-foreground">
+      <span className="mt-4 font-display text-xs font-semibold text-muted-foreground">
         velai
       </span>
-      <h1 className="mt-3 font-display text-2xl font-extrabold tracking-[-0.02em] text-foreground">
+      <h1 className="mt-3 font-display text-2xl font-semibold text-foreground">
         Something went sideways
       </h1>
       <p className="mt-2 max-w-md text-text-2">
@@ -47,7 +47,7 @@ export default function Error({
       <div className="mt-8 flex flex-col items-center gap-3">
         <button
           onClick={() => reset()}
-          className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-brand-foreground shadow-sm transition hover:opacity-90 focus-ring"
+          className="rounded-lg bg-brand px-5 py-2.5 text-sm text-brand-foreground shadow-sm transition hover:opacity-90 focus-ring"
         >
           Try again
         </button>

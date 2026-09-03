@@ -104,7 +104,7 @@ export function ConsentCard({ clientName, params }: { clientName: string; params
                 <CardTitle>Connect this agent to your account</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <div className="border border-border bg-muted/40 p-3">
+                <div className="border border-border bg-muted p-3">
                     <dl className="grid grid-cols-[7.5rem_1fr] gap-y-1.5 text-xs">
                         <dt className="text-muted-foreground">says it is</dt>
                         <dd className="text-foreground">&quot;{clientName}&quot;</dd>

@@ -213,7 +213,7 @@ export function LocationCombobox({
                     .reduce((n, g) => n + g.items.length, 0);
                 return (
                     <Fragment key={group.field}>
-                        <li aria-hidden className="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <li aria-hidden className="px-4 pt-2.5 pb-1 text-xs font-semibold text-muted-foreground">
                             {group.heading}
                         </li>
                         {group.items.map((item, i) => {
@@ -228,7 +228,7 @@ export function LocationCombobox({
                                         "flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors",
                                         index === activeIndex
                                             ? "bg-muted text-foreground"
-                                            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
                                     )}
                                     onMouseEnter={() => setActiveIndex(index)}
                                     onMouseDown={(e) => e.preventDefault()}
@@ -287,7 +287,7 @@ export function LocationCombobox({
                 typeof document !== "undefined" &&
                 createPortal(
                     <div
-                        className="fixed z-[100] min-w-[280px] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
+                        className="fixed z-[100] min-w-[280px] overflow-hidden border border-border-strong bg-popover animate-in fade-in slide-in-from-top-1"
                         style={{
                             top: overlayRect.top,
                             left: overlayRect.left,

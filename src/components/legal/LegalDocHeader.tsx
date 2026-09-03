@@ -8,8 +8,8 @@
 export function LegalDocHeader({ title, lastUpdated }: { title: string; lastUpdated: string }) {
     return (
         <div className="mb-6">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">legal</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground">{title}</h1>
+            <p className="text-xs font-semibold text-brand">legal</p>
+            <h1 className="mt-1 text-3xl font-semibold text-foreground">{title}</h1>
             <p className="mono-data mt-3 border-b border-border pb-4 text-xs text-muted-foreground">
                 Last updated: {lastUpdated}
             </p>

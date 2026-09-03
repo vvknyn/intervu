@@ -44,7 +44,7 @@ export function OpenclawWaitlistForm({
   return (
     <div className={className}>
       {outcome?.kind === "success" ? (
-        <p className="text-sm font-medium text-brand" data-testid="openclaw-waitlist-success">
+        <p className="text-sm text-brand" data-testid="openclaw-waitlist-success">
           {successMessage}
         </p>
       ) : (
@@ -58,12 +58,12 @@ export function OpenclawWaitlistForm({
               placeholder="you@company.com"
               disabled={pending}
               aria-label="Email address"
-              className="min-h-11 rounded-lg border border-slate-300 bg-card text-foreground placeholder:text-muted-foreground sm:min-w-0 sm:flex-1 dark:border-slate-700 shadow-2xs"
+              className="min-h-11 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground sm:min-w-0 sm:flex-1 dark:border-border shadow-2xs"
             />
             <Button
               type="submit"
               disabled={pending}
-              className="min-h-11 w-full shrink-0 rounded-lg bg-slate-900 px-4 text-[13px] font-semibold text-white hover:bg-slate-800 sm:w-auto dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-2xs"
+              className="min-h-11 w-full shrink-0 rounded-lg bg-foreground px-4 text-xs font-semibold text-white hover:bg-foreground sm:w-auto dark:bg-white dark:text-muted-foreground dark:hover:bg-foreground shadow-2xs"
             >
               {pending ? "Joining…" : ctaLabel}
             </Button>

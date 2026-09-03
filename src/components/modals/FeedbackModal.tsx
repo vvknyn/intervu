@@ -93,8 +93,8 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
 
                 {status === "success" ? (
                     <div className="flex flex-col items-center justify-center py-6 space-y-2 text-center">
-                        <CheckCircle size={48} className="text-green-500" weight="fill" />
-                        <h3 className="font-medium text-lg">Thank you!</h3>
+                        <CheckCircle size={48} className="text-live" weight="fill" />
+                        <h3 className="text-lg">Thank you!</h3>
                         <p className="text-sm text-muted-foreground">
                             Your feedback has been submitted successfully.
                         </p>
@@ -135,7 +135,7 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
                         </div>
 
                         {status === "error" && (
-                            <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+                            <div className="flex items-center gap-2 text-sm text-destructive bg-muted p-2 rounded-md">
                                 <WarningCircle size={16} weight="fill" />
                                 <span>Failed to submit feedback. Please try again.</span>
                             </div>

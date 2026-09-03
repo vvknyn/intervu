@@ -89,7 +89,7 @@ export function buildPageOgImage(title: string, eyebrow?: string): ImageResponse
                 fontSize: 22,
                 fontWeight: 600,
                 letterSpacing: "0.06em",
-                textTransform: "uppercase",
+                textTransform: "",
                 color: MUTED,
                 marginBottom: 16,
               }}

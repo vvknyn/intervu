@@ -161,12 +161,12 @@ export function TourOverlay() {
           <div className={arrowClass} style={arrowPosStyle} />
 
           <div className="flex shrink-0 items-center justify-between px-4 pt-3 pb-1">
-            <span className="text-xs text-muted-foreground font-medium">
+            <span className="text-xs text-muted-foreground">
               Step {currentStep + 1} of {steps.length}
             </span>
             <button
               onClick={minimize}
-              className="p-1 -mr-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              className="p-1 -mr-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               aria-label="Close tour"
             >
               <X size={14} weight="bold" />
@@ -194,7 +194,7 @@ export function TourOverlay() {
               <button
                 onClick={prevStep}
                 disabled={isFirst}
-                className="text-xs font-medium px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                className="text-xs px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none"
               >
                 Previous
               </button>
@@ -205,7 +205,7 @@ export function TourOverlay() {
             {!isSingleStep && (
             <button
               onClick={minimize}
-              className="text-xs font-medium px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              className="text-xs px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               Minimize
             </button>

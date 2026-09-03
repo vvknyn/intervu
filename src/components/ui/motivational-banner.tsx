@@ -51,7 +51,7 @@ export function MotivationalBanner() {
     return (
         <div className="flex items-center justify-center gap-2 py-2 mb-2 group/banner">
             <p
-                className={`text-[11px] text-muted-foreground/80 tracking-wide text-center leading-relaxed select-none transition-opacity duration-400 ${fading ? "opacity-0" : "opacity-100"}`}
+                className={`text-xs text-muted-foreground/80 text-center leading-relaxed select-none transition-opacity duration-400 ${fading ? "opacity-0" : "opacity-100"}`}
             >
                 {text}
             </p>

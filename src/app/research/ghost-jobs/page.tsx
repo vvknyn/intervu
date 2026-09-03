@@ -34,10 +34,10 @@ const articleJsonLd = buildArticleJsonLd({
 // bottom one so hairlines live inside the table, never floating outside it.
 // Single source of truth for all three tables on this page.
 const RTABLE_TH =
-  "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
-const RTABLE_TD = "border-t border-foreground/10 px-4 py-3";
+  "px-4 py-3 text-left text-xs font-semibold text-muted-foreground";
+const RTABLE_TD = "border-t border-foreground px-4 py-3";
 const RTABLE = {
-  table: "w-full border-collapse border border-foreground/10 text-[13.5px]",
+  table: "w-full border-collapse border border-foreground text-sm",
   th: RTABLE_TH,
   thNum: `${RTABLE_TH} text-right`,
   td: RTABLE_TD,
@@ -53,7 +53,7 @@ const RTABLE = {
 // selector, so a plain className on the element overrides it without an
 // `!important` fight.
 const DOC_SECTION_LABEL =
-  "mono-data mb-3 mt-10 border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-brand";
+  "mono-data mb-3 mt-10 border-b border-border pb-2 text-xs font-semibold text-brand";
 
 export default function GhostJobsResearchPage() {
   return (
@@ -62,10 +62,10 @@ export default function GhostJobsResearchPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
       />
-      <p className="mono-data text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
+      <p className="mono-data text-xs font-semibold text-brand">
         From our research · corpus snapshot
       </p>
-      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">
+      <h1 className="mt-3 font-display text-display font-semibold text-foreground">
         Ghost Jobs Aren&apos;t the Problem. Wasted Applications Are.
       </h1>
       <p className="mt-1.5 text-sm italic text-muted-foreground">
@@ -75,7 +75,7 @@ export default function GhostJobsResearchPage() {
       </p>
       <p
         data-testid="ghost-jobs-asof"
-        className="mono-data mb-6 mt-3 border-b border-border pb-3 text-[11.5px] text-muted-foreground"
+        className="mono-data mb-6 mt-3 border-b border-border pb-3 text-xs text-muted-foreground"
       >
         snapshot: {stats.asOfLabel} · grading queries re-run on refresh — the numbers update, the argument
         doesn&apos;t have to
@@ -335,7 +335,7 @@ export default function GhostJobsResearchPage() {
           This page is a {stats.asOfLabel} snapshot. For live, market-wide numbers, see{" "}
           <Link href="/trends">market trends</Link>.
         </p>
-        <div className="not-prose mt-6 flex items-center gap-2.5 text-[13px] text-muted-foreground">
+        <div className="not-prose mt-6 flex items-center gap-2.5 text-xs text-muted-foreground">
           <span className="h-[9px] w-[9px] bg-brand" aria-hidden />
           data · the Subspace jobs corpus
         </div>

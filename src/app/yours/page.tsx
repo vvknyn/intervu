@@ -61,7 +61,7 @@ import { BookmarkSimple, MagnifyingGlass } from "@phosphor-icons/react";
 function AppliedThisWeekBadge({ count }: { count: number }) {
     if (count < 1) return null;
     return (
-        <span className="inline-flex items-center rounded-none border border-brand/40 bg-brand/10 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-brand">
+        <span className="inline-flex items-center rounded-none border border-brand bg-muted px-3 py-0.5 text-xs font-semibold text-brand">
             {count} applied this week
         </span>
     );
@@ -77,12 +77,12 @@ function TrackerEmptyState({
     const guestCount = listGuestPursuits().length;
     return (
         <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="rounded-none border border-border bg-card p-8 shadow-xs text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand/20 bg-brand/10 text-brand shadow-2xs">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand shadow-2xs">
                 <BookmarkSimple size={24} weight="duotone" />
             </div>
 
             <div className="space-y-1 max-w-md mx-auto">
-                <h3 className="text-lg font-bold text-foreground tracking-tight">Your tracker is empty</h3>
+                <h3 className="text-lg font-semibold text-foreground">Your tracker is empty</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                     Save roles while browsing verified jobs, then pick up where you left off here.
                 </p>
@@ -310,7 +310,7 @@ function YoursContent() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search company or role in your tracker..."
-                            className="h-10 rounded-none border-slate-300 bg-card pl-9 text-base font-medium shadow-2xs dark:border-slate-700 md:text-xs"
+                            className="h-10 rounded-none border-border bg-card pl-9 text-base shadow-2xs dark:border-border md:text-xs"
                         />
                     </div>
                     <AppliedThisWeekBadge count={appliedThisWeek} />

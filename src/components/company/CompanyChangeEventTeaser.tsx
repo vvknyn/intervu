@@ -25,17 +25,17 @@ export function CompanyChangeEventTeaser({ event }: { event: CompanyChangeEvent 
         {label && (
           <span
             className={cn(
-              "border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+              "border px-2 py-0.5 text-xs font-semibold",
               chip,
             )}
           >
             {label}
           </span>
         )}
-        <span className="text-[14px] leading-snug text-foreground">
+        <span className="text-sm leading-snug text-foreground">
           {humanizeProjectorHeadline(event.headline)}
         </span>
-        {date && <span className="text-[11px] text-muted-foreground">· {date}</span>}
+        {date && <span className="text-xs text-muted-foreground">· {date}</span>}
       </div>
     </div>
   );

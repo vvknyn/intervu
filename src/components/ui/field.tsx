@@ -21,7 +21,7 @@ function Field({
 }: React.ComponentProps<"div"> & { label: string; htmlFor: string }) {
   return (
     <div className={cn("space-y-1.5", className)} {...props}>
-      <Label htmlFor={htmlFor} className="text-xs font-bold uppercase tracking-wider text-foreground">
+      <Label htmlFor={htmlFor} className="text-xs font-semibold text-foreground">
         {label}
       </Label>
       {children}

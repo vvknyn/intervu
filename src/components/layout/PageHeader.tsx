@@ -43,8 +43,8 @@ export function PageHeader({
       <h1
         className={
           display
-            ? "font-display text-[28px] font-extrabold tracking-[-0.02em]"
-            : "truncate text-lg font-semibold tracking-tight"
+            ? "font-display text-2xl font-semibold"
+            : "truncate text-lg font-semibold"
         }
       >
         {title}
@@ -98,7 +98,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        display ? "border-b border-border bg-background/75 backdrop-blur-2xl backdrop-saturate-180" : "bg-background/75 backdrop-blur-2xl backdrop-saturate-180 border-b border-border/80",
+        display ? "border-b border-border bg-background backdrop-saturate-180" : "bg-background backdrop-saturate-180 border-b border-border",
         sticky && "sticky top-0 z-50",
       )}
     >

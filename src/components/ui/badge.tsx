@@ -7,20 +7,20 @@ import { cn } from "@/lib/utils"
 const badgeVariants = cva(
   // Same rule as Chip: a badge is a label, so sans — with tabular figures for
   // the counts badges often carry.
-  "inline-flex items-center justify-center rounded-none border border-transparent px-2 py-0.5 text-[11px] tabular-nums font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none transition-colors",
+  "inline-flex items-center justify-center rounded-none border border-transparent px-2 py-0.5 text-xs tabular-nums w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none transition-colors",
   {
     variants: {
       variant: {
-        default: "bg-primary/90 text-primary-foreground [a&]:hover:bg-primary",
+        default: "bg-primary text-primary-foreground [a&]:hover:bg-primary",
         secondary:
-          "bg-secondary/70 text-secondary-foreground [a&]:hover:bg-secondary/90 border border-border/50",
+          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary border border-border",
         destructive:
-          "bg-destructive/80 text-white [a&]:hover:bg-destructive dark:bg-destructive/60",
+          "bg-destructive text-white [a&]:hover:bg-destructive dark:bg-destructive",
         outline:
-          "border-border/80 bg-background/50 text-foreground [a&]:hover:bg-muted/70",
-        ghost: "[a&]:hover:bg-muted/60 text-foreground",
+          "border-border bg-background text-foreground [a&]:hover:bg-muted",
+        ghost: "[a&]:hover:bg-muted text-foreground",
         link: "text-primary underline-offset-4 [a&]:hover:underline",
-        brand: "bg-brand/15 text-brand border-brand/25 [a&]:hover:bg-brand/25",
+        brand: "bg-muted text-brand border-brand [a&]:hover:bg-muted",
         // Status variants — design-token backed, dark-mode correct (see lib/ui/status-tokens.ts).
         "st-saved": "bg-st-saved-soft/80 text-st-saved border-st-saved/30",
         "st-applied": "bg-st-applied-soft/80 text-st-applied border-st-applied/30",

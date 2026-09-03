@@ -67,7 +67,7 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-border">
+            <div className="flex justify-between items-center bg-muted p-4 rounded-lg border border-border">
                 <div>
                     <h3 className="font-semibold text-foreground">Your Career Stories</h3>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -80,7 +80,7 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                             onClick={() => setClearConfirmOpen(true)}
                             variant="ghost"
                             size="sm"
-                            className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            className="text-xs text-muted-foreground hover:text-destructive hover:bg-muted"
                         >
                             Clear All
                         </Button>

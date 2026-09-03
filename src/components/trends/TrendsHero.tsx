@@ -31,7 +31,7 @@ export function TrendsHero({
       value: totalTracked,
       testId: "trends-stat-total",
       icon: <Database size={16} weight="duotone" className="text-foreground" />,
-      indicator: "bg-slate-400 dark:bg-slate-500",
+      indicator: "bg-placeholder-text dark:bg-muted-foreground",
     },
     {
       label: "Possibly stale",
@@ -55,12 +55,12 @@ export function TrendsHero({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className={cn("h-1.5 w-1.5 rounded-none", tile.indicator)} aria-hidden />
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-xs font-semibold text-muted-foreground">
                     {tile.label}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted">
                     {tile.icon}
                   </div>
                   {tile.href && (
@@ -71,7 +71,7 @@ export function TrendsHero({
                   )}
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-bold tracking-tight text-foreground tabular-nums">
+              <p className="mt-3 text-3xl font-semibold text-foreground tabular-nums">
                 {formatCorpusCount(tile.value)}
               </p>
             </div>

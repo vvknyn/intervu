@@ -58,13 +58,13 @@ import type { Pursuit } from "@/lib/pursuits/types";
  *  the structure. See lib/jobs/format-description.ts. */
 export function JobDescription({ blocks }: { blocks: DescBlock[] }) {
     return (
-        <div className="text-[14px] leading-relaxed sm:text-[13.5px] text-muted-foreground">
+        <div className="text-sm leading-relaxed sm:text-sm text-muted-foreground">
             {blocks.map((b, i) => {
                 if (b.type === "heading") {
                     return (
                         <h4
                             key={i}
-                            className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-[0.06em] text-foreground first:mt-0"
+                            className="mb-1.5 mt-4 text-xs font-semibold text-foreground first:mt-0"
                         >
                             {b.text}
                         </h4>
@@ -174,10 +174,10 @@ export function JobDetailActionBar({
     return (
         <div
             data-testid="job-detail-action-bar"
-            className="sticky bottom-0 z-20 flex gap-2 border-t border-border bg-card/80 p-3.5 backdrop-blur-xl"
+            className="sticky bottom-0 z-20 flex gap-2 border-t border-border bg-card p-3.5"
         >
             {job.apply_url && (
-                <Button className="h-11 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-bold uppercase tracking-wider hover:bg-brand/90 transition-colors lg:h-10" onClick={onOpenPosting}>
+                <Button className="h-11 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors lg:h-10" onClick={onOpenPosting}>
                     <ArrowSquareOut size={18} weight="bold" />
                     {signedIn ? "Apply on Company Site →" : "Sign in to apply →"}
                 </Button>
@@ -212,7 +212,7 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
                 e.stopPropagation();
                 onClick();
             }}
-            className="flex w-full flex-col gap-0.5 rounded-none border border-slate-300/80 bg-card px-3.5 py-2.5 text-left transition-all hover:border-brand hover:bg-chip/50 dark:border-slate-700 dark:bg-slate-900/60 cursor-pointer group"
+            className="flex w-full flex-col gap-0.5 rounded-none border border-border bg-card px-3.5 py-2.5 text-left transition-all hover:border-brand hover:bg-chip dark:border-border dark:bg-muted cursor-pointer group"
         >
             <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{decodeText(job.title)}</span>
             <span className="mono-data truncate text-xs text-muted-foreground">
@@ -486,7 +486,7 @@ export function JobDetail({
         <div
             data-region="detail"
             className={cn(
-                "relative rounded-none border border-border/80 bg-card/75 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]",
+                "relative rounded-none border border-border bg-card backdrop-saturate-150",
                 collapseDescription && "flex min-h-0 flex-1 flex-col overflow-hidden",
                 className,
             )}
@@ -504,13 +504,13 @@ export function JobDetail({
                     <div className="flex items-start gap-3 sm:gap-3.5">
                         <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                         <div className="min-w-0 flex-1">
-                            <h1 className="text-xl sm:text-[22px] font-bold leading-snug sm:leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h1>
+                            <h1 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{decodeText(job.title)}</h1>
                             {matchScore && (
                                 <div className="mt-1.5">
                                     <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
                                 </div>
                             )}
-                            <div className="mt-1 text-sm font-medium text-muted-foreground">
+                            <div className="mt-1 text-sm text-muted-foreground">
                                 {cleanedCompany ? (
                                     <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
                                         {companyBrand}
@@ -537,7 +537,7 @@ export function JobDetail({
                                         <button
                                             type="button"
                                             onClick={() => setLocationExpanded((v) => !v)}
-                                            className="mt-0.5 block text-xs font-medium text-brand hover:underline cursor-pointer"
+                                            className="mt-0.5 block text-xs text-brand hover:underline cursor-pointer"
                                         >
                                             {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
                                         </button>
@@ -551,14 +551,14 @@ export function JobDetail({
                                     data-tour="row-exception"
                                     data-exception={exceptionMark.kind}
                                     className={cn(
-                                        "mt-1.5 rounded-none border px-2.5 py-1 text-xs font-medium",
+                                        "mt-1.5 rounded-none border px-2.5 py-1 text-xs",
                                         exceptionMark.kind === "both"
                                             ? STATUS_PILL.closed
                                             : exceptionMark.kind === "relisted"
                                               ? LISTING_STATE_CHIP.relisted
                                               : exceptionMark.kind === "stale"
                                                 ? STATUS_PILL.closed
-                                                : "border-border/80 bg-background/50",
+                                                : "border-border bg-background",
                                     )}
                                 >
                                     <span className="inline-flex flex-wrap items-center gap-x-1 text-xs font-semibold">
@@ -609,22 +609,22 @@ export function JobDetail({
                                             className={cn("inline-flex items-center gap-1.5 text-xs", caution && LISTING_STATE_TEXT.relisted)}
                                         >
                                             <FactIcon size={14} className={cn("shrink-0", !caution && "text-muted-foreground")} aria-hidden />
-                                            <span className={cn("mono-data font-medium", !caution && "text-foreground")}>
+                                            <span className={cn("mono-data", !caution && "text-foreground")}>
                                                 {c.label}
                                             </span>
                                         </span>
                                     );
                                 })}
                                 {alsoIn && (
-                                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-xs overflow-hidden">
-                                        <span className="bg-muted/70 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">also in</span>
-                                        <span className="px-2 py-0.5 font-medium text-foreground">{alsoIn}</span>
+                                    <span className="inline-flex items-center rounded-none border border-border bg-background text-xs overflow-hidden">
+                                        <span className="bg-muted px-1.5 py-0.5 text-xs font-semibold text-muted-foreground border-r border-border">also in</span>
+                                        <span className="px-2 py-0.5 text-foreground">{alsoIn}</span>
                                     </span>
                                 )}
                                 {typeof job.report_count === "number" && job.report_count > 0 && (
-                                    <span className="inline-flex items-center rounded-none border border-amber-500/40 bg-amber-500/10 text-xs overflow-hidden">
-                                        <span className="bg-amber-500/20 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-amber-500 border-r border-amber-500/30">reported</span>
-                                        <span className="px-2 py-0.5 font-medium text-foreground">
+                                    <span className="inline-flex items-center rounded-none border border-warn bg-muted text-xs overflow-hidden">
+                                        <span className="bg-muted px-1.5 py-0.5 text-xs font-semibold text-warn border-r border-warn">reported</span>
+                                        <span className="px-2 py-0.5 text-foreground">
                                             {job.report_count} {job.report_count === 1 ? "user" : "users"}
                                         </span>
                                     </span>
@@ -668,7 +668,7 @@ export function JobDetail({
                 </div>
 
                 {/* Action row */}
-                <div className="border-t border-border/80 bg-card px-4 py-2.5 sm:px-6 sm:py-3">
+                <div className="border-t border-border bg-card px-4 py-2.5 sm:px-6 sm:py-3">
                     <div className="flex flex-wrap items-center gap-2">
                         {/* House attention system (docs/design/ATTENTION.md,
                             channel 2): exactly one inverted-ink block per
@@ -678,7 +678,7 @@ export function JobDetail({
                             the quietest element on the page. Save is the
                             secondary action: a plain 1px outline. */}
                         {job.apply_url && (
-                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none bg-brand text-brand-foreground hover:bg-brand/90 text-xs font-bold uppercase tracking-wider transition-colors">
+                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none bg-brand text-brand-foreground hover:bg-brand text-xs font-semibold transition-colors">
                                 <ArrowSquareOut size={16} />
                                 {signedIn ? "Apply" : "Sign in to apply"}
                             </Button>
@@ -686,13 +686,13 @@ export function JobDetail({
                         {pursuit ? (
                             <Link
                                 href={`/yours/${pursuit.id}`}
-                                className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-none glass-tint-emerald px-4 text-xs font-bold uppercase tracking-wider"
+                                className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-none glass-tint-emerald px-4 text-xs font-semibold"
                             >
                                 <Check size={16} weight="bold" />
                                 Saved
                             </Link>
                         ) : (
-                            <Button variant="outline" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none text-xs font-bold uppercase tracking-wider transition-colors">
+                            <Button variant="outline" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none text-xs font-semibold transition-colors">
                                 <BookmarkSimple size={16} />
                                 {goingAfter ? "Saving…" : "Save"}
                             </Button>
@@ -718,9 +718,9 @@ export function JobDetail({
                 {/* Ghost check module: a tinted glass check ledger */}
                 {ghost && (
                     <div data-tour="jobs-posting-check" className="mb-5 overflow-hidden rounded-none glass-panel p-4">
-                        <div className="flex flex-col gap-2 border-b border-border/80 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-                                <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                <span className="text-xs font-semibold text-muted-foreground">
                                     posting check
                                 </span>
                                 {ghostSignals.length > 0 && (
@@ -732,21 +732,21 @@ export function JobDetail({
                                                     className={cn(
                                                         "h-2 w-3.5 rounded-full",
                                                         s.kind === "freshness" && freshness.kind === "relisted"
-                                                            ? "bg-amber-500 shadow-2xs"
+                                                            ? "bg-warn shadow-2xs"
                                                             : s.status === "favorable"
-                                                              ? "bg-emerald-500 shadow-2xs"
+                                                              ? "bg-live shadow-2xs"
                                                               : s.status === "unfavorable"
-                                                                ? "bg-slate-300 dark:bg-slate-600"
+                                                                ? "bg-border dark:bg-placeholder-text"
                                                                 // Unknown reads as an outline, not a filled
                                                                 // pip: nothing was measured, so there is no
                                                                 // result to shade either way.
-                                                                : "border border-dashed border-slate-300 dark:border-slate-700",
+                                                                : "border border-dashed border-border dark:border-border",
                                                     )}
                                                 />
                                             ))}
                                         </span>
                                         {assessedSignals.length > 0 && (
-                                            <span className="text-xs font-bold text-foreground">
+                                            <span className="text-xs font-semibold text-foreground">
                                                 {favorableSignalCount}/{assessedSignals.length} favorable
                                             </span>
                                         )}
@@ -759,7 +759,7 @@ export function JobDetail({
                                 )}
                             </div>
                             <div className="flex items-center justify-between gap-2 sm:justify-end">
-                                <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider", ghost.cls)}>
+                                <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold", ghost.cls)}>
                                     {ghost.label}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
@@ -779,7 +779,7 @@ export function JobDetail({
                                     const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
                                     return (
                                     <div key={s.text} className="flex items-start gap-2">
-                                        <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-bold text-xs", relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                                        <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-semibold text-xs", relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live dark:text-live" : "text-muted-foreground")}>
                                             {/* Three glyphs for three states. The meter above already
                                                 excludes unknowns from the ratio and labels them
                                                 "· N not tracked", but the ROW still marked them with the
@@ -789,7 +789,7 @@ export function JobDetail({
                                             {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unknown" ? "·" : "—"}
                                         </span>
                                         <div className="min-w-0 flex-1 leading-snug">
-                                            <b className="text-xs font-bold uppercase tracking-wide text-foreground mr-1.5">{s.kind}</b>
+                                            <b className="text-xs font-semibold text-foreground mr-1.5">{s.kind}</b>
                                             <span className={cn("text-xs", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
                                                 {s.text}
                                                 {!relistCaution && s.status === "unfavorable" && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
@@ -808,7 +808,7 @@ export function JobDetail({
                                 inspected (see ghostCheckedText's doc comment). */}
                             {/* Checked-time lives in the header row above — this
                                 footer states only the provenance claim. */}
-                            <div className="verified-underline mono-data inline-block text-xs font-medium text-muted-foreground">
+                            <div className="verified-underline mono-data inline-block text-xs text-muted-foreground">
                                 every signal automated · nothing inferred
                             </div>
                             {/* S4 exposure trust badges (dark launch) — positive-only,
@@ -821,7 +821,7 @@ export function JobDetail({
                                     {exposureBadges.map((b) => (
                                         <span
                                             key={b.label}
-                                            className="inline-flex items-center border border-border px-2 py-1 font-medium text-muted-foreground"
+                                            className="inline-flex items-center border border-border px-2 py-1 text-muted-foreground"
                                         >
                                             {b.label}
                                             <ContextHelp
@@ -841,7 +841,7 @@ export function JobDetail({
                 {/* The ghost-check ledger and description body render for
                     everyone — posting text is public; Apply stays gated. */}
                 <div className="mb-5">
-                    <div className="mb-2 text-[13px] font-semibold">About this role</div>
+                    <div className="mb-2 text-xs font-semibold">About this role</div>
                     {blocks.length > 0 ? (
                         <>
                             <div
@@ -857,14 +857,14 @@ export function JobDetail({
                                 <button
                                     type="button"
                                     onClick={() => setDescExpanded((v) => !v)}
-                                    className="mt-2 text-xs font-medium text-brand hover:underline cursor-pointer"
+                                    className="mt-2 text-xs text-brand hover:underline cursor-pointer"
                                 >
                                     {descExpanded ? "Show less" : "Show full description"}
                                 </button>
                             )}
                         </>
                     ) : hydrated ? (
-                        <div className="rounded-none border border-slate-300/80 bg-slate-50/70 p-4 text-[13.5px] text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 shadow-2xs">
+                        <div className="rounded-none border border-border bg-muted p-4 text-sm text-foreground dark:border-border dark:bg-muted dark:text-foreground shadow-2xs">
                             No description was captured for this role.{" "}
                             {job.apply_url ? (
                                 <>
@@ -897,12 +897,12 @@ export function JobDetail({
 
                 {job.tags && job.tags.length > 0 && (
                     <div className="mb-5">
-                        <div className="mb-2.5 text-[13px] font-semibold">Keywords from the posting</div>
+                        <div className="mb-2.5 text-xs font-semibold">Keywords from the posting</div>
                         <div className="flex flex-wrap gap-2">
                             {job.tags.slice(0, 16).map((tag) => (
                                 <span
                                     key={tag}
-                                    className="mono-data rounded-md border border-slate-300 bg-slate-100/90 px-2.5 py-1 text-xs font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                    className="mono-data rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground dark:border-border dark:bg-border dark:text-foreground"
                                 >
                                     {decodeText(tag)}
                                 </span>
@@ -913,8 +913,8 @@ export function JobDetail({
 
                 {/* Company hiring-truth mini-KPI rail */}
                 {hasCompanyIntel && (
-                    <div className="rounded-none border border-slate-300/90 bg-slate-50/80 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 shadow-2xs">
-                        <div className="mono-data text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                    <div className="rounded-none border border-border bg-muted p-4 sm:p-5 dark:border-border dark:bg-muted shadow-2xs">
+                        <div className="mono-data text-xs font-semibold text-muted-foreground">
                             {companyBrand || "This company"} · hiring truth
                         </div>
                         {/* Verbatim-or-absent (founding-wound law, about-line.ts) — a
@@ -923,27 +923,27 @@ export function JobDetail({
                             often here; that's the correct, honest behavior, not a
                             bug to work around. */}
                         {aboutLine && (
-                            <p className="mt-2 text-[13px] leading-snug text-foreground/90">&ldquo;{aboutLine}&rdquo;</p>
+                            <p className="mt-2 text-xs leading-snug text-foreground">&ldquo;{aboutLine}&rdquo;</p>
                         )}
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
                             {showOpenCount && (
                                 <div className="min-w-[100px]">
-                                    <div className="text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+                                    <div className="text-xl sm:text-2xl font-semibold text-foreground dark:text-white">
                                         {liveOpenCount != null
                                             ? openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })
                                             : job.company_open_count!.toLocaleString()}
                                     </div>
-                                    <div className="mono-data mt-0.5 text-xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                                    <div className="mono-data mt-0.5 text-xs font-semibold text-muted-foreground">
                                         Live roles
                                     </div>
                                 </div>
                             )}
                             {typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number" && (
                                 <div className="min-w-[120px]">
-                                    <div className="text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+                                    <div className="text-xl sm:text-2xl font-semibold text-foreground dark:text-white">
                                         {job.company_opened_90d.toLocaleString()}/{job.company_closed_90d.toLocaleString()}
                                     </div>
-                                    <div className="mono-data mt-0.5 text-xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                                    <div className="mono-data mt-0.5 text-xs font-semibold text-muted-foreground">
                                         Opened / closed, 90d
                                     </div>
                                 </div>
@@ -960,7 +960,7 @@ export function JobDetail({
                                     onClick={() => {
                                         if (onClose) onClose();
                                     }}
-                                    className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                    className="text-xs text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                                 >
                                     All jobs at {companyBrand || cleanedCompany}
                                 </Link>
@@ -969,7 +969,7 @@ export function JobDetail({
                                     onClick={() => {
                                         if (onClose) onClose();
                                     }}
-                                    className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                    className="text-xs text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                                 >
                                     {companyBrand || cleanedCompany}
                                 </Link>
@@ -983,7 +983,7 @@ export function JobDetail({
                     (see the fetch effect above's error handling too). */}
                 {related.length > 0 && (
                     <div className="mt-5">
-                        <div className="mono-data mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        <div className="mono-data mb-2 text-xs font-semibold text-muted-foreground">
                             More like this
                         </div>
                         <div className="flex flex-col gap-1.5">

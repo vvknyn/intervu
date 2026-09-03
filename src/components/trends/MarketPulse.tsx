@@ -49,7 +49,7 @@ export function MarketPulse({
               collection cadence, not market flow — a scraper-run artifact,
               not something employers did. Say so, rather than smoothing it
               away. */}
-          <span className="mt-1 block text-[11.5px] text-muted-foreground/80">
+          <span className="mt-1 block text-xs text-muted-foreground/80">
             Collection runs vary by day — swings here are ours, not the market&apos;s.
           </span>
         </>
@@ -62,18 +62,18 @@ export function MarketPulse({
           <li
             key={date}
             data-testid={`trends-pulse-day-${date}`}
-            className="group flex items-center gap-3 px-2 py-1 text-xs transition-colors hover:bg-muted/40"
+            className="group flex items-center gap-3 px-2 py-1 text-xs transition-colors hover:bg-muted"
           >
-            <span className="mono-data w-12 shrink-0 text-[11px] font-medium text-muted-foreground">
+            <span className="mono-data w-12 shrink-0 text-xs text-muted-foreground">
               {shortDayLabel(date)}
             </span>
-            <span className="h-1.5 flex-1 overflow-hidden rounded-none bg-muted/80">
+            <span className="h-1.5 flex-1 overflow-hidden rounded-none bg-muted">
               <span
-                className="block h-full rounded-none bg-slate-700 dark:bg-slate-300 transition-all"
+                className="block h-full rounded-none bg-foreground dark:bg-foreground transition-all"
                 style={{ width: `${(count.value / maxValue) * 100}%` }}
               />
             </span>
-            <span className="mono-data w-16 shrink-0 text-right text-xs font-bold text-foreground">
+            <span className="mono-data w-16 shrink-0 text-right text-xs font-semibold text-foreground">
               {formatCorpusCount(count)}
             </span>
           </li>
@@ -81,9 +81,9 @@ export function MarketPulse({
       </ol>
 
       {sourceCoverage.length > 0 && (
-        <div className="mt-4 rounded-none border border-border bg-muted/20 p-3">
-          <p data-testid="trends-pulse-coverage" className="text-[11px] leading-relaxed text-muted-foreground">
-            <span className="mr-1 font-bold uppercase tracking-wider text-foreground">
+        <div className="mt-4 rounded-none border border-border bg-muted p-3">
+          <p data-testid="trends-pulse-coverage" className="text-xs leading-relaxed text-muted-foreground">
+            <span className="mr-1 font-semibold text-foreground">
               Where these postings come from:
             </span>
             {sourceCoverage

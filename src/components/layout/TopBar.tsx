@@ -114,7 +114,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-50 shrink-0 border-b border-border/80 bg-background/75 backdrop-blur-2xl backdrop-saturate-180 shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)] transition-colors"
+            className="sticky top-0 z-50 shrink-0 border-b border-border bg-background backdrop-saturate-180 transition-colors"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
@@ -181,7 +181,7 @@ export function TopBar() {
                             </div>
                             <button
                                 type="submit"
-                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap bg-brand px-4 py-0 text-xs font-bold uppercase leading-none tracking-wider text-brand-foreground transition-colors hover:bg-brand/90"
+                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap bg-brand px-4 py-0 text-xs font-semibold leading-none text-brand-foreground transition-colors hover:bg-brand"
                             >
                                 Search
                             </button>
@@ -190,14 +190,14 @@ export function TopBar() {
                     <div className="flex shrink-0 items-center gap-3">
                     <nav
                         aria-label="Primary"
-                        className="hidden items-center gap-3 text-[13px] font-medium lg:flex"
+                        className="hidden items-center gap-3 text-xs lg:flex"
                     >
                         <DropdownMenu>
                             <DropdownMenuTrigger
                                 className={cn(
-                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-none px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors outline-none",
+                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-none px-3 py-1 text-xs font-semibold transition-colors outline-none",
                                     menuActive
-                                        ? "text-brand font-bold"
+                                        ? "text-brand font-semibold"
                                         : "text-muted-foreground hover:text-foreground",
                                 )}
                             >
@@ -214,7 +214,7 @@ export function TopBar() {
                                                 data-testid={tab.testId}
                                                 aria-current={active ? "page" : undefined}
                                                 className={cn(
-                                                    "flex w-full items-center whitespace-nowrap text-xs font-semibold uppercase tracking-wider",
+                                                    "flex w-full items-center whitespace-nowrap text-xs font-semibold",
                                                     active && "text-brand",
                                                 )}
                                             >
@@ -222,7 +222,7 @@ export function TopBar() {
                                                 {tab.badge && navBadges[tab.badge] > 0 && (
                                                     <span
                                                         data-testid={`${tab.testId}-badge`}
-                                                        className="ml-auto mono-data text-xs font-bold text-brand"
+                                                        className="ml-auto mono-data text-xs font-semibold text-brand"
                                                     >
                                                         {navBadges[tab.badge]}
                                                     </span>
@@ -244,9 +244,9 @@ export function TopBar() {
                                     aria-current={active ? "page" : undefined}
                                     data-nav-current={active ? "true" : undefined}
                                     className={cn(
-                                        "whitespace-nowrap rounded-none px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors",
+                                        "whitespace-nowrap rounded-none px-3 py-1 text-xs font-semibold transition-colors",
                                         active
-                                            ? "text-brand font-bold"
+                                            ? "text-brand font-semibold"
                                             : "text-muted-foreground hover:text-foreground",
                                     )}
                                 >
@@ -272,8 +272,8 @@ export function TopBar() {
                                     title={user.displayName || user.email || "Account"}
                                     aria-current={accountActive ? "page" : undefined}
                                     className={cn(
-                                        "grid h-8 w-8 place-items-center rounded-full bg-slate-900 text-[12px] font-semibold text-white shadow-xs outline-none transition-all hover:opacity-90 focus-visible:ring-2 focus-visible:ring-emerald-500 dark:bg-slate-100 dark:text-slate-900",
-                                        accountActive && "ring-2 ring-emerald-500 ring-offset-2 ring-offset-background",
+                                        "grid h-8 w-8 place-items-center rounded-full bg-foreground text-xs font-semibold text-white shadow-xs outline-none transition-all hover:opacity-90 focus-visible:ring-2 focus-visible:ring-live dark:bg-foreground dark:text-muted-foreground",
+                                        accountActive && "ring-2 ring-live ring-offset-2 ring-offset-background",
                                     )}
                                 >
                                     {initialsOf(user)}
@@ -318,7 +318,7 @@ export function TopBar() {
                                 <DropdownMenuItem
                                     onSelect={handleSignOut}
                                     disabled={signingOut}
-                                    className="rounded-lg text-rose-600 dark:text-rose-400"
+                                    className="rounded-lg text-danger-text dark:text-danger-text"
                                 >
                                     {signingOut ? (
                                         <span className="flex items-center gap-2">
@@ -350,7 +350,7 @@ export function TopBar() {
                                 setAuthTab("login");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="whitespace-nowrap px-1 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                            className="whitespace-nowrap px-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                         >
                             Sign in
                         </button>
@@ -361,7 +361,7 @@ export function TopBar() {
                                 setAuthTab("signup");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="hidden h-10 box-border items-center justify-center whitespace-nowrap rounded-none bg-brand px-3.5 text-xs font-bold uppercase tracking-wider text-brand-foreground transition-colors hover:bg-brand/90 lg:inline-flex"
+                            className="hidden h-10 box-border items-center justify-center whitespace-nowrap rounded-none bg-brand px-3.5 text-xs font-semibold text-brand-foreground transition-colors hover:bg-brand lg:inline-flex"
                         >
                             Get job alerts
                         </button>
@@ -382,7 +382,7 @@ export function TopBar() {
                 that changes. Chip-less (a fresh search, nothing narrowed
                 yet) still renders the row for the "Filters" button alone. */}
             {docked && (
-                <div data-region="band" className="hidden border-t border-border/60 bg-background/60 lg:block">
+                <div data-region="band" className="hidden border-t border-border bg-background lg:block">
                     <div className="shell-row flex min-h-9 flex-nowrap items-center gap-1.5 overflow-x-auto py-1">
                         <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
                         <button
@@ -394,14 +394,14 @@ export function TopBar() {
                             className={cn(
                                 chipVariants({ active: docked.filtersExpanded || docked.filterCount > 0 }),
                                 toolbarControlHeight,
-                                "box-border shrink-0 items-center justify-center gap-1.5 rounded-none px-3 text-xs font-semibold uppercase tracking-wider lg:px-2",
+                                "box-border shrink-0 items-center justify-center gap-1.5 rounded-none px-3 text-xs font-semibold lg:px-2",
                                 docked.filtersExpanded && "border-brand bg-brand text-brand-foreground",
                             )}
                         >
                             <FunnelSimple size={12} weight="bold" aria-hidden />
                             Filters
                             {docked.filterCount > 0 && (
-                                <span className="ml-0.5 inline-flex min-w-[16px] items-center justify-center rounded-none border border-brand/40 bg-brand/10 px-1 text-xs font-bold leading-[14px] text-brand">
+                                <span className="ml-0.5 inline-flex min-w-[16px] items-center justify-center rounded-none border border-brand bg-muted px-1 text-xs font-semibold text-brand">
                                     {docked.filterCount}
                                 </span>
                             )}

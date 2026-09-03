@@ -56,7 +56,7 @@ export function CompanyIntelligenceGrid({
 
   return (
     <section aria-label="Company details" className={cn("space-y-5", className)}>
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="text-xs font-semibold text-muted-foreground">
         Company details
       </h2>
 
@@ -73,12 +73,12 @@ export function CompanyIntelligenceGrid({
             <div className="flex flex-col justify-between border border-border bg-card p-6 sm:p-7 transition-colors hover:border-border-strong">
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                     <CurrencyDollar className="h-4 w-4 text-brand" weight="bold" />
                     Capital & Stage
                   </span>
                   {funding.stage && (
-                    <span className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span className="border border-border bg-chip px-2.5 py-1 text-xs font-semibold text-muted-foreground">
                       {funding.stage}
                     </span>
                   )}
@@ -86,17 +86,17 @@ export function CompanyIntelligenceGrid({
 
                 <div className="mt-4">
                   {funding.totalRaisedText ? (
-                    <div className="font-display text-[24px] sm:text-[26px] font-bold tracking-tight text-foreground">
+                    <div className="font-display text-lg sm:text-2xl font-semibold text-foreground">
                       {funding.totalRaisedText}
                     </div>
                   ) : (
-                    <div className="font-display text-[20px] font-semibold text-foreground">
+                    <div className="font-display text-lg font-semibold text-foreground">
                       {funding.stage}
                     </div>
                   )}
 
                   {funding.valuationText && (
-                    <div className="mt-1.5 text-[13px] font-medium text-muted-foreground">
+                    <div className="mt-1.5 text-xs text-muted-foreground">
                       {funding.valuationText}
                     </div>
                   )}
@@ -104,14 +104,14 @@ export function CompanyIntelligenceGrid({
 
                 {funding.investors.length > 0 && (
                   <div className="mt-5 border-t border-border pt-4">
-                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       Notable Backers
                     </div>
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {funding.investors.map((inv) => (
                         <span
                           key={inv}
-                          className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-[11.5px] text-foreground"
+                          className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-xs text-foreground"
                         >
                           {inv}
                         </span>
@@ -121,7 +121,7 @@ export function CompanyIntelligenceGrid({
                 )}
               </div>
 
-              <div className="mt-5 pt-2 text-[11.5px] text-muted-foreground">
+              <div className="mt-5 pt-2 text-xs text-muted-foreground">
                 Stage reported on the company&apos;s own job listings
               </div>
             </div>
@@ -131,22 +131,22 @@ export function CompanyIntelligenceGrid({
           {visa && (
             <div className="flex flex-col justify-between border border-border bg-card p-6 sm:p-7 transition-colors hover:border-border-strong">
               <div>
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                   <GlobeHemisphereWest className="h-4 w-4 text-brand" weight="bold" />
                   Visa & Immigration
                 </span>
 
                 <div className="mt-4">
-                  <div className="font-display text-[24px] sm:text-[26px] font-bold tracking-tight text-foreground">
+                  <div className="font-display text-lg sm:text-2xl font-semibold text-foreground">
                     {visa.sponsoredRolesRatioPct}% Roles Sponsored
                   </div>
-                  <div className="mt-1.5 text-[13px] text-muted-foreground">
+                  <div className="mt-1.5 text-xs text-muted-foreground">
                     Flagged as visa-sponsoring on the career page
                   </div>
                 </div>
               </div>
 
-              <div className="mt-5 pt-2 text-[11.5px] text-muted-foreground">
+              <div className="mt-5 pt-2 text-xs text-muted-foreground">
                 Computed from this company&apos;s own open roles
               </div>
             </div>
@@ -156,7 +156,7 @@ export function CompanyIntelligenceGrid({
           {hasTechCard && techStack && (techStack.languages.length > 0 || techStack.infrastructure.length > 0) && (
             <div className="flex flex-col justify-between border border-border bg-card p-6 sm:p-7 transition-colors hover:border-border-strong">
               <div>
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                   <Code className="h-4 w-4 text-brand" weight="bold" />
                   Tech stack
                 </span>
@@ -165,7 +165,7 @@ export function CompanyIntelligenceGrid({
                   {techStack.languages.slice(0, 5).map((lang) => (
                     <span
                       key={lang}
-                      className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-[11.5px] font-medium text-foreground"
+                      className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-xs text-foreground"
                     >
                       {lang}
                     </span>
@@ -173,7 +173,7 @@ export function CompanyIntelligenceGrid({
                   {techStack.infrastructure.slice(0, 3).map((infra) => (
                     <span
                       key={infra}
-                      className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-[11.5px] text-muted-foreground"
+                      className="inline-flex items-center border border-border bg-chip px-2.5 py-1 text-xs text-muted-foreground"
                     >
                       {infra}
                     </span>
@@ -181,7 +181,7 @@ export function CompanyIntelligenceGrid({
                 </div>
               </div>
 
-              <div className="mt-5 pt-2 text-[11.5px] text-muted-foreground">
+              <div className="mt-5 pt-2 text-xs text-muted-foreground">
                 From active job listings
               </div>
             </div>
@@ -192,7 +192,7 @@ export function CompanyIntelligenceGrid({
       {/* COMPANY NEWS FEED — real articles from the Subspace news API */}
       {news.length > 0 && (
         <div className="mt-6 border border-border bg-card p-6 sm:p-7">
-          <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
             <Newspaper className="h-4 w-4 text-brand" weight="bold" />
             {companyName} in the News
           </h3>
@@ -208,29 +208,29 @@ export function CompanyIntelligenceGrid({
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex flex-col justify-between border border-border/70 bg-background/50 p-4 transition-colors hover:border-border-strong"
+                className="flex flex-col justify-between border border-border bg-background p-4 transition-colors hover:border-border-strong"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-brand">
+                    <span className="border border-brand bg-muted px-2 py-0.5 text-xs font-semibold text-brand">
                       {item.publisher}
                     </span>
                     {dateLabel && (
-                      <span className="text-[10.5px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {dateLabel}
                       </span>
                     )}
                   </div>
-                  <h4 className="mt-2.5 text-[13.5px] font-semibold leading-snug text-foreground">
+                  <h4 className="mt-2.5 text-sm font-semibold leading-snug text-foreground">
                     {item.title}
                   </h4>
                   {item.summary && (
-                    <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
+                    <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                       {item.summary}
                     </p>
                   )}
                 </div>
-                <div className="mt-3 flex items-center gap-1 text-[11px] font-medium text-brand">
+                <div className="mt-3 flex items-center gap-1 text-xs text-brand">
                   <span>Read article</span>
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </div>

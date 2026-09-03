@@ -26,7 +26,7 @@ export function PrivacyNotice() {
         <div className="relative bg-card rounded-xl p-4 mb-6 animate-in fade-in duration-300">
             <button
                 onClick={handleDismiss}
-                className="absolute top-3 right-3 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                className="absolute top-3 right-3 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 aria-label="Dismiss"
             >
                 <X size={16} />
@@ -37,7 +37,7 @@ export function PrivacyNotice() {
                     <ShieldCheck size={20} className="text-brand" />
                 </div>
                 <div className="space-y-1.5">
-                    <p className="text-sm font-medium">Your data stays yours</p>
+                    <p className="text-sm">Your data stays yours</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                         AI features — resume parsing and resume tailoring — send the relevant text (your resume, a
                         job description) to an AI provider (OpenRouter or Groq) to

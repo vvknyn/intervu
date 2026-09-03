@@ -32,7 +32,7 @@ function ResumeAuthSkeleton() {
 function SignedOutState({ onLoginClick }: { onLoginClick: () => void }) {
     return (
         <div className="space-y-4 rounded-none border border-dashed border-border bg-card p-8 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-border bg-muted text-foreground">
                 <FileText size={24} />
             </div>
             <div className="space-y-1 max-w-sm mx-auto">

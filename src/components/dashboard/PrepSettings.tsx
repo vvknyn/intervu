@@ -181,9 +181,9 @@ export function PrepSettings({
                 onClick={() => setIsExpanded(!isExpanded)}
                 className={cn(
                     "flex items-center justify-center w-8 h-8 rounded-md transition-all relative",
-                    "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                    "text-muted-foreground hover:text-foreground hover:bg-muted",
                     isExpanded && "bg-muted text-foreground",
-                    hasJobContext && !isExpanded && "text-brand bg-brand/10 hover:bg-brand/20"
+                    hasJobContext && !isExpanded && "text-brand bg-muted hover:bg-muted"
                 )}
                 title="Configure preparation settings & context"
             >
@@ -204,7 +204,7 @@ export function PrepSettings({
                         style={panelPos && window.innerWidth >= 640 ? { top: panelPos.top, left: panelPos.left, maxHeight: panelPos.maxHeight } : undefined}
                     >
                         {/* Header */}
-                        <div className="p-3 border-b border-border bg-muted/30 rounded-t-lg">
+                        <div className="p-3 border-b border-border bg-muted rounded-t-lg">
                             <h3 className="text-sm font-semibold">Interview Configuration</h3>
                         </div>
 
@@ -219,7 +219,7 @@ export function PrepSettings({
                                     </div>
                                     <button
                                         onClick={() => setJobInputMode(mode => mode === 'url' ? 'text' : 'url')}
-                                        className="text-[10px] text-muted-foreground hover:text-brand transition-colors underline decoration-dotted underline-offset-2"
+                                        className="text-xs text-muted-foreground hover:text-brand transition-colors underline decoration-dotted underline-offset-2"
                                     >
                                         {jobInputMode === 'url' ? 'Paste text instead' : 'Paste URL instead'}
                                     </button>
@@ -262,7 +262,7 @@ export function PrepSettings({
                                     )}
 
                                     {jobContext && !isFetchingJob && (
-                                        <div className={cn("mt-2 flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded", STATUS_PILL.offer)}>
+                                        <div className={cn("mt-2 flex items-center gap-1.5 text-xs px-2 py-1 rounded", STATUS_PILL.offer)}>
                                             <FileText size={12} />
                                             Context Active ({jobContext.length} chars)
                                         </div>
@@ -277,7 +277,7 @@ export function PrepSettings({
                                         Preparation Intensity
                                         <ContextHelp content="Choose how deep you want to go. 'Panic Mode' is great for last-minute cramming." />
                                     </p>
-                                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                                         {totalQuestions} questions
                                     </span>
                                 </div>
@@ -293,17 +293,17 @@ export function PrepSettings({
                                                 className={cn(
                                                     "flex flex-col items-center p-2 rounded-md border transition-all text-center",
                                                     isActive
-                                                        ? "border-brand bg-brand/5 text-brand shadow-sm"
-                                                        : "border-border/50 hover:border-border hover:bg-muted/30 text-muted-foreground"
+                                                        ? "border-brand bg-muted text-brand shadow-sm"
+                                                        : "border-border hover:border-border hover:bg-muted text-muted-foreground"
                                                 )}
                                             >
                                                 <Icon size={20} weight={isActive ? "fill" : "regular"} className="mb-1.5" />
-                                                <span className="text-[11px] font-medium">{preset.label}</span>
+                                                <span className="text-xs">{preset.label}</span>
                                             </button>
                                         );
                                     })}
                                 </div>
-                                <p className="text-[10px] text-muted-foreground mt-2 text-center italic">
+                                <p className="text-xs text-muted-foreground mt-2 text-center italic">
                                     {activePreset !== "custom" ? PRESETS[activePreset].description : "Custom configuration"}
                                 </p>
                             </div>
@@ -355,7 +355,7 @@ export function PrepSettings({
                         </div>
 
                         {/* Footer */}
-                        <div className="px-4 py-3 bg-muted/10 border-t border-border flex justify-end items-center rounded-b-lg">
+                        <div className="px-4 py-3 bg-muted border-t border-border flex justify-end items-center rounded-b-lg">
                             <Button
                                 variant="default"
                                 size="sm"
@@ -387,12 +387,12 @@ function SettingRow({ label, hint, value, min, max, onChange, help }: SettingRow
         <div className="flex items-center justify-between group">
             <div className="flex-1 min-w-0 mr-4">
                 <div className="flex items-center">
-                    <p className="text-xs font-medium truncate text-foreground/80">{label}</p>
+                    <p className="text-xs truncate text-foreground">{label}</p>
                     {help && <ContextHelp content={help} className="ml-1.5" />}
                 </div>
-                <p className="text-[10px] text-muted-foreground truncate">{hint}</p>
+                <p className="text-xs text-muted-foreground truncate">{hint}</p>
             </div>
-            <div className="flex items-center gap-1 bg-muted/20 rounded p-0.5 border border-border/50 group-hover:border-border transition-colors">
+            <div className="flex items-center gap-1 bg-muted rounded p-0.5 border border-border group-hover:border-border transition-colors">
                 <button
                     onClick={() => onChange(Math.max(min, value - 1))}
                     disabled={value <= min}
@@ -400,7 +400,7 @@ function SettingRow({ label, hint, value, min, max, onChange, help }: SettingRow
                 >
                     -
                 </button>
-                <span className="w-8 text-center text-xs font-medium tabular-nums">{value}</span>
+                <span className="w-8 text-center text-xs tabular-nums">{value}</span>
                 <button
                     onClick={() => onChange(Math.min(max, value + 1))}
                     disabled={value >= max}

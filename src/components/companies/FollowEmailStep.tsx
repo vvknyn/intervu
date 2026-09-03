@@ -109,7 +109,7 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
           size="sm"
           data-testid="follow-email-signin"
           onClick={onSignInInstead}
-          className="mt-1 h-auto px-0 py-0 text-xs font-medium text-muted-foreground"
+          className="mt-1 h-auto px-0 py-0 text-xs text-muted-foreground"
         >
           Have an account? Sign in
         </Button>

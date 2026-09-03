@@ -202,11 +202,11 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
     if (!user) {
         return (
             <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-                <h2 className={embedded ? "text-[15px] font-semibold tracking-[-0.02em] mb-1" : "text-lg font-semibold mb-1"}>
+                <h2 className={embedded ? "text-sm font-semibold mb-1" : "text-lg font-semibold mb-1"}>
                     {embedded ? "Job search" : "Your agent's answers"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand/80">
+                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
                         login
                     </button>{" "}
                     to see and edit what your AI fills into applications for you.
@@ -253,9 +253,9 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
 
                     <div className="space-y-4">
                         <div>
-                            <p className="text-[15px] font-semibold tracking-[-0.02em]">Job search</p>
+                            <p className="text-sm font-semibold">Job search</p>
                             {embedded && (
-                                <p className="mt-1 text-[13px] text-muted-foreground">
+                                <p className="mt-1 text-xs text-muted-foreground">
                                     Defaults for the board filters and overnight search. Same language as Jobs.
                                 </p>
                             )}
@@ -327,7 +327,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                         </div>
 
                         <div className="flex items-center justify-between gap-4">
-                            <p className="text-sm font-medium">Remote only</p>
+                            <p className="text-sm">Remote only</p>
                             <button
                                 type="button"
                                 onClick={() => setRemoteOnly((v) => !v)}
@@ -342,9 +342,9 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
 
                     <div className="space-y-4">
                         <div>
-                            <p className="text-[15px] font-semibold tracking-[-0.02em]">Standing answers</p>
+                            <p className="text-sm font-semibold">Standing answers</p>
                             {embedded && (
-                                <p className="mt-1 text-[13px] text-muted-foreground">
+                                <p className="mt-1 text-xs text-muted-foreground">
                                     What forms ask every time. Keep short — your agent fills these in.
                                 </p>
                             )}

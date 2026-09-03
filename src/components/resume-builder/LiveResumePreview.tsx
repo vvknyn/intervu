@@ -56,12 +56,12 @@ function SectionWrapper({
 
     const diffBadge =
         changeStatus === "modified" ? (
-            <span className="absolute -top-1 -right-1 rounded bg-amber-500 text-white px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider shadow-xs">
-                ✏️ Diff
+            <span className="absolute -top-1 -right-1 rounded bg-warn text-white px-1 py-0.5 text-xs font-semibold shadow-xs">
+                Diff
             </span>
         ) : changeStatus === "new" ? (
-            <span className="absolute -top-1 -right-1 rounded bg-emerald-600 text-white px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider shadow-xs">
-                ✨ New
+            <span className="absolute -top-1 -right-1 rounded bg-live text-white px-1 py-0.5 text-xs font-semibold shadow-xs">
+                New
             </span>
         ) : null;
 
@@ -70,13 +70,13 @@ function SectionWrapper({
             className={cn(
                 "relative group cursor-pointer transition-all duration-150 rounded-xs p-1 -m-1",
                 isSelected
-                    ? "ring-2 ring-emerald-500/80 bg-emerald-500/5 dark:bg-emerald-500/10"
+                    ? "ring-2 ring-live bg-muted dark:bg-muted"
                     : isHovered
-                        ? "ring-1 ring-slate-400/60 bg-slate-100/50 dark:bg-slate-800/30"
+                        ? "ring-1 ring-placeholder-text bg-muted dark:bg-border"
                         : changeStatus === "modified"
-                            ? "bg-amber-50/40 ring-1 ring-amber-300/70"
+                            ? "bg-muted ring-1 ring-warn"
                             : changeStatus === "new"
-                                ? "bg-emerald-50/40 ring-1 ring-emerald-300/70"
+                                ? "bg-muted ring-1 ring-live"
                                 : "",
                 wrapperClass,
             )}
@@ -87,7 +87,7 @@ function SectionWrapper({
             {diffBadge}
             {children}
             {isHovered && !isSelected && (
-                <span className="absolute top-1 right-1 flex items-center gap-1 rounded bg-slate-900/90 text-white px-1.5 py-0.5 text-[9px] tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="absolute top-1 right-1 flex items-center gap-1 rounded bg-foreground text-white px-1.5 py-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                     <PencilSimple size={10} /> Edit
                 </span>
             )}
@@ -197,15 +197,15 @@ export function LiveResumePreview({
         const changeStatus = getChangeStatus("summary");
         return (
             <SectionWrapper id="summary" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
-                <h2 className="text-[11px] font-bold text-center border-b border-slate-400 pb-0.5 mb-1 tracking-wider uppercase">
+                <h2 className="text-xs font-semibold text-center border-b border-placeholder-text pb-0.5 mb-1">
                     Professional Summary
                 </h2>
                 {data.generatedSummary ? (
-                    <p className="text-[9.5px] leading-relaxed text-justify text-slate-800 dark:text-slate-900 whitespace-pre-line">
+                    <p className="text-xs leading-relaxed text-justify text-foreground dark:text-muted-foreground whitespace-pre-line">
                         {data.generatedSummary}
                     </p>
                 ) : (
-                    <p className="text-slate-400 italic text-[9px] text-center py-1">
+                    <p className="text-placeholder-text italic text-xs text-center py-1">
                         Click to add professional summary
                     </p>
                 )}
@@ -219,20 +219,20 @@ export function LiveResumePreview({
         const changeStatus = getChangeStatus("skills");
         return (
             <SectionWrapper id="skills" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
-                <h2 className="text-[11px] font-bold text-center border-b border-slate-400 pb-0.5 mb-1 tracking-wider uppercase">
+                <h2 className="text-xs font-semibold text-center border-b border-placeholder-text pb-0.5 mb-1">
                     Core Competencies
                 </h2>
                 {hasSkills ? (
-                    <div className="space-y-0.5 text-[9.5px] leading-snug text-slate-800 dark:text-slate-900">
+                    <div className="space-y-0.5 text-xs leading-snug text-foreground dark:text-muted-foreground">
                         {data.competencies.map((comp, index) => (
                             <div key={comp.category || index}>
-                                <span className="font-bold">{comp.category}: </span>
+                                <span className="font-semibold">{comp.category}: </span>
                                 <span>{comp.skills.join(", ")}</span>
                             </div>
                         ))}
                     </div>
                 ) : (
-                    <p className="text-slate-400 italic text-[9px] text-center py-1">
+                    <p className="text-placeholder-text italic text-xs text-center py-1">
                         Click to add core competencies & skills
                     </p>
                 )}
@@ -245,11 +245,11 @@ export function LiveResumePreview({
         if (!hasExp && !onEdit && removedExperiences.length === 0) return null;
         return (
             <SectionWrapper id="experience" className="mb-2.5" ctx={ctx}>
-                <h2 className="text-[11px] font-bold text-center border-b border-slate-400 pb-0.5 mb-1 tracking-wider uppercase">
+                <h2 className="text-xs font-semibold text-center border-b border-placeholder-text pb-0.5 mb-1">
                     Professional Experience
                 </h2>
                 {hasExp || removedExperiences.length > 0 ? (
-                    <div className="space-y-2 text-slate-800 dark:text-slate-900">
+                    <div className="space-y-2 text-foreground dark:text-muted-foreground">
                         {data.experience.map((exp, index) => {
                             const itemStatus = getChangeStatus("experience", exp.id);
                             return (
@@ -258,45 +258,45 @@ export function LiveResumePreview({
                                     className={cn(
                                         "space-y-0.5 relative transition-colors rounded-xs",
                                         itemStatus === "modified" &&
-                                            "bg-amber-50/70 border-l-2 border-amber-500 pl-1 -ml-1",
+                                            "bg-muted border-l-2 border-warn pl-1 -ml-1",
                                         itemStatus === "new" &&
-                                            "bg-emerald-50/70 border-l-2 border-emerald-500 pl-1 -ml-1",
+                                            "bg-muted border-l-2 border-live pl-1 -ml-1",
                                     )}
                                 >
-                                    <div className="flex justify-between items-baseline text-[9.5px]">
+                                    <div className="flex justify-between items-baseline text-xs">
                                         <div>
-                                            <span className="font-bold">{exp.role || "Job Title"}</span>
+                                            <span className="font-semibold">{exp.role || "Job Title"}</span>
                                             {exp.company && (
                                                 <>
-                                                    <span className="mx-1 text-slate-400">|</span>
-                                                    <span className="font-medium">{exp.company}</span>
+                                                    <span className="mx-1 text-placeholder-text">|</span>
+                                                    <span className="">{exp.company}</span>
                                                 </>
                                             )}
                                             {itemStatus === "modified" && (
-                                                <span className="ml-1.5 text-[8px] text-amber-700 bg-amber-200/60 px-1 py-0.5 rounded font-semibold">
+                                                <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded font-semibold">
                                                     Edited
                                                 </span>
                                             )}
                                             {itemStatus === "new" && (
-                                                <span className="ml-1.5 text-[8px] text-emerald-700 bg-emerald-200/60 px-1 py-0.5 rounded font-semibold">
+                                                <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded font-semibold">
                                                     New
                                                 </span>
                                             )}
                                         </div>
                                         {exp.dates && (
-                                            <span className="text-[9px] italic text-slate-600 dark:text-slate-700 whitespace-nowrap ml-2">
+                                            <span className="text-xs italic text-muted-foreground dark:text-border whitespace-nowrap ml-2">
                                                 {exp.dates}
                                             </span>
                                         )}
                                     </div>
                                     {exp.description && (
-                                        <ul className="text-[9.5px] space-y-0.5 pl-0">
+                                        <ul className="text-xs space-y-0.5 pl-0">
                                             {exp.description
                                                 .split("\n")
                                                 .filter((line) => line.trim())
                                                 .map((line, i) => (
                                                     <li key={i} className="flex leading-[1.35]">
-                                                        <span className="mr-1.5 text-slate-500 shrink-0">•</span>
+                                                        <span className="mr-1.5 text-muted-foreground shrink-0">•</span>
                                                         <span className="text-justify">{line.replace(/^[•\-\*]\s*/, "")}</span>
                                                     </li>
                                                 ))}
@@ -310,18 +310,18 @@ export function LiveResumePreview({
                         {removedExperiences.map((exp, index) => (
                             <div
                                 key={`removed-${exp.id || index}`}
-                                className="space-y-0.5 opacity-50 bg-rose-50/50 border-l-2 border-rose-500 pl-1 -ml-1 line-through"
+                                className="space-y-0.5 opacity-50 bg-muted border-l-2 border-danger-text pl-1 -ml-1 line-through"
                             >
-                                <div className="flex justify-between items-baseline text-[9.5px]">
+                                <div className="flex justify-between items-baseline text-xs">
                                     <div>
-                                        <span className="font-bold">{exp.role || "Job Title"}</span>
+                                        <span className="font-semibold">{exp.role || "Job Title"}</span>
                                         <span className="mx-1">|</span>
                                         <span>{exp.company || "Company"}</span>
-                                        <span className="ml-1.5 text-[8px] text-rose-700 bg-rose-200/60 px-1 py-0.5 rounded font-semibold not-italic no-underline inline-block">
+                                        <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded font-semibold not-italic no-underline inline-block">
                                             Removed
                                         </span>
                                     </div>
-                                    <span className="text-[9px] italic whitespace-nowrap ml-2">
+                                    <span className="text-xs italic whitespace-nowrap ml-2">
                                         {exp.dates}
                                     </span>
                                 </div>
@@ -329,7 +329,7 @@ export function LiveResumePreview({
                         ))}
                     </div>
                 ) : (
-                    <p className="text-slate-400 italic text-[9px] text-center py-1">
+                    <p className="text-placeholder-text italic text-xs text-center py-1">
                         Click to add professional experience
                     </p>
                 )}
@@ -342,11 +342,11 @@ export function LiveResumePreview({
         if (!hasEdu && !onEdit && removedEducations.length === 0) return null;
         return (
             <SectionWrapper id="education" className="mb-2.5" ctx={ctx}>
-                <h2 className="text-[11px] font-bold text-center border-b border-slate-400 pb-0.5 mb-1 tracking-wider uppercase">
+                <h2 className="text-xs font-semibold text-center border-b border-placeholder-text pb-0.5 mb-1">
                     Education & Professional Development
                 </h2>
                 {hasEdu || removedEducations.length > 0 ? (
-                    <div className="space-y-1 text-[9.5px] text-slate-800 dark:text-slate-900">
+                    <div className="space-y-1 text-xs text-foreground dark:text-muted-foreground">
                         {data.education.map((edu, index) => {
                             const itemStatus = getChangeStatus("education", edu.id);
                             return (
@@ -355,26 +355,26 @@ export function LiveResumePreview({
                                     className={cn(
                                         "flex justify-between items-baseline leading-[1.3] rounded-xs",
                                         itemStatus === "modified" &&
-                                            "bg-amber-50/70 border-l-2 border-amber-500 pl-1 -ml-1",
+                                            "bg-muted border-l-2 border-warn pl-1 -ml-1",
                                         itemStatus === "new" &&
-                                            "bg-emerald-50/70 border-l-2 border-emerald-500 pl-1 -ml-1",
+                                            "bg-muted border-l-2 border-live pl-1 -ml-1",
                                     )}
                                 >
                                     <div>
-                                        <span className="font-bold">{edu.degree}</span>
-                                        {edu.institution && <span className="text-slate-600"> | {edu.institution}</span>}
+                                        <span className="font-semibold">{edu.degree}</span>
+                                        {edu.institution && <span className="text-muted-foreground"> | {edu.institution}</span>}
                                         {itemStatus === "modified" && (
-                                            <span className="ml-1.5 text-[8px] text-amber-700 bg-amber-200/60 px-1 py-0.5 rounded font-semibold">
+                                            <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded font-semibold">
                                                 Edited
                                             </span>
                                         )}
                                         {itemStatus === "new" && (
-                                            <span className="ml-1.5 text-[8px] text-emerald-700 bg-emerald-200/60 px-1 py-0.5 rounded font-semibold">
+                                            <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded font-semibold">
                                                 New
                                             </span>
                                         )}
                                     </div>
-                                    {edu.year && <span className="text-[9px] italic text-slate-600">({edu.year})</span>}
+                                    {edu.year && <span className="text-xs italic text-muted-foreground">({edu.year})</span>}
                                 </div>
                             );
                         })}
@@ -382,21 +382,21 @@ export function LiveResumePreview({
                         {removedEducations.map((edu, index) => (
                             <div
                                 key={`removed-edu-${edu.id || index}`}
-                                className="flex justify-between items-baseline leading-[1.3] opacity-50 bg-rose-50/50 border-l-2 border-rose-500 pl-1 -ml-1 line-through"
+                                className="flex justify-between items-baseline leading-[1.3] opacity-50 bg-muted border-l-2 border-danger-text pl-1 -ml-1 line-through"
                             >
                                 <div>
-                                    <span className="font-bold">{edu.degree}</span>
+                                    <span className="font-semibold">{edu.degree}</span>
                                     {edu.institution && <span> | {edu.institution}</span>}
-                                    <span className="ml-1.5 text-[8px] text-rose-700 bg-rose-200/60 px-1 py-0.5 rounded font-semibold not-italic no-underline inline-block">
+                                    <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded font-semibold not-italic no-underline inline-block">
                                         Removed
                                     </span>
                                 </div>
-                                {edu.year && <span className="text-[9px] italic">({edu.year})</span>}
+                                {edu.year && <span className="text-xs italic">({edu.year})</span>}
                             </div>
                         ))}
                     </div>
                 ) : (
-                    <p className="text-slate-400 italic text-[9px] text-center py-1">
+                    <p className="text-placeholder-text italic text-xs text-center py-1">
                         Click to add education & credentials
                     </p>
                 )}
@@ -425,33 +425,33 @@ export function LiveResumePreview({
         <div
             className={cn(
                 printMode
-                    ? "bg-white text-slate-950 w-full"
-                    : "bg-white text-slate-950 border border-slate-300 dark:border-slate-700 shadow-md rounded-none w-full max-w-[8.5in] mx-auto",
+                    ? "bg-white text-foreground w-full"
+                    : "bg-white text-foreground border border-border dark:border-border shadow-md rounded-none w-full max-w-[8.5in] mx-auto",
                 className,
             )}
             style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}
         >
-            <div className={printMode ? "px-6 py-4 text-slate-950" : "px-7 py-6 min-h-[10.5in] text-slate-950"}>
+            <div className={printMode ? "px-6 py-4 text-foreground" : "px-7 py-6 min-h-[10.5in] text-foreground"}>
                 {/* Header Section */}
-                <SectionWrapper id="header" className="text-center pb-2 mb-2.5 border-b border-slate-400" changeStatus={headerChangeStatus} ctx={ctx}>
-                    <h1 className="text-[19px] font-bold tracking-tight text-slate-950 uppercase mb-0.5">
+                <SectionWrapper id="header" className="text-center pb-2 mb-2.5 border-b border-placeholder-text" changeStatus={headerChangeStatus} ctx={ctx}>
+                    <h1 className="text-lg font-semibold text-foreground mb-0.5">
                         {data.profile?.name || "Your Name"}
                     </h1>
                     {data.profile?.profession && (
-                        <div className="text-[10.5px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                        <div className="text-xs font-semibold text-foreground mb-1">
                             {data.profile.profession}
                         </div>
                     )}
-                    <div className="text-[9.5px] text-slate-700 flex flex-wrap items-center justify-center gap-x-1.5">
+                    <div className="text-xs text-foreground flex flex-wrap items-center justify-center gap-x-1.5">
                         {contactItems.length > 0 ? (
                             contactItems.map((item, idx) => (
                                 <React.Fragment key={idx}>
-                                    {idx > 0 && <span className="text-slate-400">|</span>}
+                                    {idx > 0 && <span className="text-placeholder-text">|</span>}
                                     <span>{item}</span>
                                 </React.Fragment>
                             ))
                         ) : (
-                            <span className="text-slate-400 italic">Click to add contact details</span>
+                            <span className="text-placeholder-text italic">Click to add contact details</span>
                         )}
                     </div>
                 </SectionWrapper>

@@ -69,12 +69,12 @@ function PlatformRow({
     <div
       className={cn(
         "rounded-none border p-3.5 transition-colors",
-        highlighted ? "border-brand/40 bg-brand/5" : "border-border bg-muted/40",
+        highlighted ? "border-brand bg-muted" : "border-border bg-muted",
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <span className="mr-2 text-xs font-bold text-foreground">{status.row}</span>
+          <span className="mr-2 text-xs font-semibold text-foreground">{status.row}</span>
           <span className="text-xs text-muted-foreground">{status.body}</span>
         </div>
         <Badge variant={pillVariant}>{status.pill}</Badge>

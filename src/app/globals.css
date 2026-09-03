@@ -14,40 +14,59 @@
   --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
   --font-display: var(--font-display-face), var(--font-sans);
 
-  /* Display scale addition (visual-identity pass) — the landing-hero
-     wordmark morph (app/page.tsx) and the /trends h1 both size off this one
-     clamp instead of each hand-rolling its own arbitrary text-[Npx]; a
-     third "display" heading gets covered by construction, not by adding a
-     second scale. Weight stays an explicit font-extrabold/font-bold utility
-     at the call site (matching how every other heading in this app pairs a
-     size utility with a weight utility) rather than a --font-weight
-     companion here, which would race font-extrabold for the cascade slot. */
-  --text-display: clamp(2.125rem, 4vw, 2.75rem);
-  --text-display--line-height: 1.05;
-  --text-display--letter-spacing: -0.02em;
+  /* Rulebook type scale (Type ramp: 12/16 · 14/20 · 16/22 · 20/28, weights
+     400/600 only) plus an expressive scale for content headings
+     (28/36 · 32/40 · 42/50). One flat scale for the whole stock ramp so no
+     call site needs an arbitrary text-[Npx]; lg and xl share one size
+     (20/28), 4xl..9xl share the top expressive step (42/50) rather than
+     growing past it. xs/sm had been bumped to 13px/15px for legibility
+     ("13px, was 12") — reverted on purpose: the rulebook fixes one
+     12/14/16/20 ramp app-wide. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.25rem;
+  --text-3xl: 2rem;
+  --text-3xl--line-height: 2.5rem;
+  --text-4xl: 2.625rem;
+  --text-4xl--line-height: 3.125rem;
+  --text-5xl: 2.625rem;
+  --text-5xl--line-height: 3.125rem;
+  --text-6xl: 2.625rem;
+  --text-6xl--line-height: 3.125rem;
+  --text-7xl: 2.625rem;
+  --text-7xl--line-height: 3.125rem;
+  --text-8xl: 2.625rem;
+  --text-8xl--line-height: 3.125rem;
+  --text-9xl: 2.625rem;
+  --text-9xl--line-height: 3.125rem;
 
-  /* Title scale (DESIGN-LANGUAGE.md "Type" table names this role —
-     page/section headings in the app, distinct from the one marketing
-     --text-display hero — but it had never been wired into the Tailwind
-     theme, so `text-title` was a silent no-op everywhere the doc's own
-     table told a component to use it. Registered here, once, rather than
-     letting a call site fall back to an arbitrary text-[Npx]. */
-  --text-title: clamp(1.375rem, 2.4vw, 1.75rem);
-  --text-title--line-height: 1.2;
-  --text-title--letter-spacing: -0.01em;
-
-  /* Body + meta roles (DESIGN-LANGUAGE.md "Type — one scale") — wired here so
-     `text-body` / `text-meta` utilities exist and stock xs/sm inherit the bump
-     without touching every call site. */
+  /* Named roles onto the same scale above (DESIGN-LANGUAGE.md "Type" table)
+     — display=4xl, title=2xl, body=base, meta=sm. These used to be a
+     clamp() plus a --letter-spacing companion each for a fluid hero/heading
+     feel; the rulebook fixes the scale and sets tracking to normal
+     everywhere except the wordmark (BrandMark.tsx), so both the clamp and
+     the letter-spacing companions are gone. */
+  --text-display: 2.625rem;
+  --text-display--line-height: 3.125rem;
+  --text-title: 1.75rem;
+  --text-title--line-height: 2.25rem;
   --text-body: 1rem;
-  --text-body--line-height: 1.5;
-  --text-meta: 0.875rem; /* 14px captions — distinct from chrome text-xs */
-  --text-meta--line-height: 1.35;
+  --text-body--line-height: 1.375rem;
+  --text-meta: 0.875rem;
+  --text-meta--line-height: 1.25rem;
 
   /* Jobs-SERP Carbon/HIG type ramp (RULEBOOK.md "Type ramp") — fixed
-     12/16, 14/20, 16/22, 20/28 pairs distinct from the sitewide-bumped
-     text-xs/text-sm and from --text-title/--text-body above, so the two
-     scales don't collide under one name. */
+     12/16, 14/20, 16/22, 20/28 pairs, kept as named roles for call sites
+     already written against text-caption/text-body-sm/etc. */
   --text-caption: 0.75rem;
   --text-caption--line-height: 1rem;
   --text-body-sm: 0.875rem;
@@ -57,9 +76,31 @@
   --text-title-sm: 1.25rem;
   --text-title-sm--line-height: 1.75rem;
 
-  /* Stock Tailwind scale overrides — xs/sm were 12px/14px; bumped for legibility. */
-  --text-xs: 0.8125rem; /* 13px, was 12 */
-  --text-sm: 0.9375rem; /* 15px, was 14 */
+  /* Weights: rulebook uses 400/600 only (Carbon has no 500 either). */
+  --font-weight-medium: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 600;
+  --font-weight-black: 600;
+
+  /* Tracking: normal everywhere except the wordmark (BrandMark.tsx keeps an
+     explicit tracking-tight utility on the wordmark span only). */
+  --tracking-tighter: 0em;
+  --tracking-tight: 0em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0em;
+  --tracking-wider: 0em;
+  --tracking-widest: 0em;
+
+  /* No blur anywhere (rulebook: no translucent/frosted surfaces). */
+  --blur-xs: 0px;
+  --blur-sm: 0px;
+  --blur-md: 0px;
+  --blur-lg: 0px;
+  --blur-xl: 0px;
+  --blur-2xl: 0px;
+  --blur-3xl: 0px;
+  --blur: 0px;
 }
 
 
@@ -189,14 +230,11 @@
   --transition-fast: 100ms;
   --transition-panel: 150ms;
 
-  /* Overlay elevation — the ONE shadow value in the system. A shadow means
-     "this floats above the page": reserved for surfaces that render in a
-     portal with nothing behind them (dialog, sheet, tooltip, select,
-     dropdown-menu, popover, the SearchAutocomplete results panel). Every
-     in-flow surface stays flat and separates by --border + whitespace; hover
-     affordance in-flow is border-darkening, never a lift. See
-     docs/design/ATTENTION.md. */
-  --shadow-overlay: 0 8px 30px 0 rgba(10, 10, 10, 0.14);
+  /* Overlay elevation — rulebook: no shadow anywhere, including overlays
+     (dialog, sheet, tooltip, select, dropdown-menu, popover). Was the one
+     shadow value in the system; separation now comes from --border alone,
+     same as every in-flow surface. See docs/design/ATTENTION.md. */
+  --shadow-overlay: none;
 }
 
 .dark {
@@ -284,10 +322,8 @@
   --st-offer: var(--brand);               --st-offer-soft: var(--brand-tint-bg-alt);
   --st-closed: var(--destructive);        --st-closed-soft: 42 16 22;
 
-  /* Overlay elevation (dark) — stronger than the light value since a drop
-     shadow reads on a dark ground only when it is darker still than the
-     surface it separates from. */
-  --shadow-overlay: 0 12px 40px 0 rgba(0, 0, 0, 0.55);
+  /* Overlay elevation (dark) — rulebook: no shadow, same as light. */
+  --shadow-overlay: none;
 }
 
 @theme inline {
@@ -495,54 +531,22 @@ h4 {
   letter-spacing: -0.025em;
 }
 
-/* Complete Tinted Glassmorphic Design System */
-/* The outer edge must be DARKER than the page, the inset sheen lighter.
-   This started as a white 0.6 border, which on our light ground
-   (--background is a near-white cool paper) is lighter than the page behind it — so the
-   edge erased itself and every glass surface read as a white rectangle on
-   a white page. Glass only refracts when there is content behind it to
-   refract; over a flat fill it degrades to a plain translucent panel, and
-   then the border and shadow are the only separators left. */
+/* Flat surface system (rulebook: no blur, no shadow, no translucency).
+   Class names kept so callers don't change; every value reads a semantic
+   token, so light/dark both resolve correctly with no .dark duplicate. */
 .glass-panel,
 .glass-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(10, 10, 10, 0.1);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.8),
-    inset 0 0 12px 0 rgba(255, 255, 255, 0.3);
-}
-
-.dark .glass-panel,
-.dark .glass-card {
-  background: rgba(18, 18, 18, 0.6);
-  backdrop-filter: blur(24px) saturate(190%);
-  -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 0 20px 0 rgba(255, 255, 255, 0.02);
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--border));
 }
 
 /* Interactive glass cards (job rows, LaunchBanner) are in-flow, not
-   overlays, so hover affordance is border-darkening only — no outer shadow,
-   no lift. The inset sheen is replaced too (not layered) so it stays
-   consistent rather than double-stacking. The active-row `.glass-tint-blue`
-   rule uses `!important`, so it always wins over this hover state — an open
-   row's border never changes on hover. */
+   overlays — hover affordance is a flat background shift, not a lift or a
+   translucency trick. The active-row `.glass-tint-blue` rule uses
+   `!important`, so it always wins over this hover state — an open row's
+   background never changes on hover. */
 .glass-card:hover {
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 0 12px 0 rgba(255, 255, 255, 0.35);
-  border-color: rgba(10, 10, 10, 0.18);
-}
-
-.dark .glass-card:hover {
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 0 20px 0 rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.20);
+  background: rgb(var(--surface-hover));
 }
 
 /* Detail pane at xl+ — outer drop shadow that lifts it above the list
@@ -572,20 +576,11 @@ h4 {
 
    Use it ONCE per page. A spotlight that is everywhere is not a spotlight,
    it is just a heavier default — which is how .glass-panel ended up
-   edgeless in the first place. */
+   edgeless in the first place. Flat now (rulebook: no shadow/translucency):
+   separation comes from --border alone, same as every other surface. */
 .glass-panel-raised {
-  /* Carries the same cool bias as `--background`, offset ~21 points darker so
-     the surface still reads as raised. It was a pure neutral grey, tuned when
-     the ground was neutral too; once the ground gained a temperature
-     (2026-08-24) the page's single focal surface became the one element with
-     none, and a colourless box on a tinted page reads as unfinished rather
-     than as raised. Alpha and every other value here are unchanged. */
-  background: rgba(225, 227, 231, 0.85);
-  border: 1px solid rgba(10, 10, 10, 0.22);
-  box-shadow:
-    0 1px 2px 0 rgba(10, 10, 10, 0.06),
-    0 6px 16px -10px rgba(10, 10, 10, 0.12),
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--border));
 }
 
 /* Accent edge for the page's primary surface — the /jobs search box (Vivek,
@@ -598,110 +593,39 @@ h4 {
   border-top: 3px solid rgb(var(--brand));
 }
 
-.dark .glass-panel-raised {
-  background: rgba(26, 26, 26, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow:
-    0 1px 2px 0 rgba(0, 0, 0, 0.4),
-    0 6px 16px -10px rgba(0, 0, 0, 0.4),
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.26);
-}
-
-/* Tinted Color Glass Variants */
+/* Tinted variants — flat (rulebook: no blur/shadow/translucency). Background
+   collapses to the one neutral --muted layer for all five; the tint now
+   lives only in `color`, mapped onto the rulebook's chromatic roles
+   (brand/live/warn) so it can't drift to an off-palette hue. No rulebook
+   role exists for purple (also zero call sites today), so it reads
+   --foreground rather than inventing one. */
 .glass-tint-blue {
-  background: rgba(45, 104, 255, 0.12) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(45, 104, 255, 0.35) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(147, 197, 253, 0.4),
-    inset 0 0 14px 0 rgba(45, 104, 255, 0.14) !important;
-  color: rgb(37, 99, 235) !important;
-}
-
-.dark .glass-tint-blue {
-  background: rgba(45, 104, 255, 0.18) !important;
-  border: 1px solid rgba(96, 165, 250, 0.4) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(191, 219, 254, 0.35),
-    inset 0 0 16px 0 rgba(45, 104, 255, 0.22) !important;
-  color: rgb(147, 197, 253) !important;
+  background: rgb(var(--muted)) !important;
+  border: 1px solid rgb(var(--border)) !important;
+  color: rgb(var(--brand)) !important;
 }
 
 .glass-tint-emerald {
-  background: rgba(16, 185, 129, 0.12) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(16, 185, 129, 0.35) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(167, 243, 208, 0.45),
-    inset 0 0 14px 0 rgba(16, 185, 129, 0.14) !important;
-  color: rgb(5, 150, 105) !important;
-}
-
-.dark .glass-tint-emerald {
-  background: rgba(16, 185, 129, 0.18) !important;
-  border: 1px solid rgba(52, 211, 153, 0.4) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(167, 243, 208, 0.35),
-    inset 0 0 16px 0 rgba(16, 185, 129, 0.22) !important;
-  color: rgb(110, 231, 183) !important;
+  background: rgb(var(--muted)) !important;
+  border: 1px solid rgb(var(--border)) !important;
+  color: rgb(var(--live)) !important;
 }
 
 .glass-tint-amber {
-  background: rgba(245, 158, 11, 0.12) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(245, 158, 11, 0.35) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(253, 230, 138, 0.45),
-    inset 0 0 14px 0 rgba(245, 158, 11, 0.14) !important;
-  color: rgb(217, 119, 6) !important;
-}
-
-.dark .glass-tint-amber {
-  background: rgba(245, 158, 11, 0.18) !important;
-  border: 1px solid rgba(251, 191, 36, 0.4) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(253, 230, 138, 0.35),
-    inset 0 0 16px 0 rgba(245, 158, 11, 0.22) !important;
-  color: rgb(252, 211, 77) !important;
+  background: rgb(var(--muted)) !important;
+  border: 1px solid rgb(var(--border)) !important;
+  color: rgb(var(--warn)) !important;
 }
 
 .glass-tint-purple {
-  background: rgba(168, 85, 247, 0.12) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(168, 85, 247, 0.35) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(216, 180, 254, 0.45),
-    inset 0 0 14px 0 rgba(168, 85, 247, 0.14) !important;
-  color: rgb(147, 51, 234) !important;
-}
-
-.dark .glass-tint-purple {
-  background: rgba(168, 85, 247, 0.18) !important;
-  border: 1px solid rgba(192, 132, 252, 0.4) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(216, 180, 254, 0.35),
-    inset 0 0 16px 0 rgba(168, 85, 247, 0.22) !important;
-  color: rgb(216, 180, 254) !important;
+  background: rgb(var(--muted)) !important;
+  border: 1px solid rgb(var(--border)) !important;
+  color: rgb(var(--foreground)) !important;
 }
 
 .glass-tint-muted {
-  background: rgba(255, 255, 255, 0.05) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.15) !important;
-}
-
-.dark .glass-tint-muted {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.10) !important;
+  background: rgb(var(--muted)) !important;
+  border: 1px solid rgb(var(--border)) !important;
 }
 
 /* Minimalist Animation */

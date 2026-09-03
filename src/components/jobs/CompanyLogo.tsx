@@ -45,7 +45,7 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
         <div
             data-rulebook-exempt
             className={cn(
-                "flex shrink-0 items-center justify-center rounded-xl font-display text-lg font-bold",
+                "flex shrink-0 items-center justify-center rounded-xl font-display text-lg font-semibold",
                 className,
             )}
             style={{ background: pair.bg, color: pair.fg }}
@@ -94,7 +94,7 @@ export function CompanyLogo({
             <CompanyInitialTile
                 name={cleanedName}
                 className={cn(
-                    "border border-slate-200/80 shadow-2xs dark:border-slate-700/80",
+                    "border border-border shadow-2xs dark:border-border",
                     sizeCls,
                 )}
             />
@@ -104,7 +104,7 @@ export function CompanyLogo({
     return (
         <div
             className={cn(
-                "flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/80 bg-white shadow-2xs dark:border-slate-700/80 dark:bg-slate-800",
+                "flex shrink-0 items-center justify-center overflow-hidden border border-border bg-white shadow-2xs dark:border-border dark:bg-border",
                 sizeCls,
             )}
         >

@@ -36,12 +36,12 @@ export function TrendSection({
       className="rounded-none border border-border bg-card p-6 transition-colors"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border-strong pb-2">
-        <span className="mono-data text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">
+        <span className="mono-data text-xs font-semibold text-brand">
           {label}
         </span>
-        {asOf && <span className="mono-data text-[11px] text-muted-foreground">{asOf}</span>}
+        {asOf && <span className="mono-data text-xs text-muted-foreground">{asOf}</span>}
       </div>
-      {intro && <div className="mt-2 text-[13px] text-muted-foreground">{intro}</div>}
+      {intro && <div className="mt-2 text-xs text-muted-foreground">{intro}</div>}
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -105,34 +105,34 @@ export function BarRow({
       className={cn(
         "grid grid-cols-[minmax(120px,210px)_1fr_44px_88px] items-center gap-3 py-2 text-xs transition-colors",
         !quiet && "border-b border-border",
-        href && "hover:bg-muted/40",
+        href && "hover:bg-muted",
       )}
     >
       <span
         className={cn(
           "flex min-w-0 items-center gap-2 truncate",
-          quiet ? "font-normal text-muted-foreground" : "font-medium text-foreground",
+          quiet ? "font-normal text-muted-foreground" : "text-foreground",
         )}
       >
         {typeof rank === "number" && (
-          <span className="mono-data w-4 shrink-0 text-[11px] text-muted-foreground">
+          <span className="mono-data w-4 shrink-0 text-xs text-muted-foreground">
             {String(rank).padStart(2, "0")}
           </span>
         )}
         {tone && <span className={cn("h-2 w-2 shrink-0 rounded-none", DOT_TONE[tone])} aria-hidden />}
         <span className={cn("truncate", href && "group-hover:text-brand")}>{label}</span>
       </span>
-      <span className="h-1.5 overflow-hidden rounded-none bg-muted/80">
+      <span className="h-1.5 overflow-hidden rounded-none bg-muted">
         <span
           className={cn(
             "block h-full rounded-none transition-all",
-            tone ? FILL_TONE[tone] : "bg-slate-700 dark:bg-slate-300",
+            tone ? FILL_TONE[tone] : "bg-foreground dark:bg-foreground",
           )}
           style={{ width: `${pct}%` }}
         />
       </span>
-      <span className="mono-data text-right text-[11px] text-muted-foreground">{pctLabel ?? `${pct}%`}</span>
-      <span className="mono-data text-right text-xs font-bold text-foreground">{count}</span>
+      <span className="mono-data text-right text-xs text-muted-foreground">{pctLabel ?? `${pct}%`}</span>
+      <span className="mono-data text-right text-xs font-semibold text-foreground">{count}</span>
     </div>
   );
 

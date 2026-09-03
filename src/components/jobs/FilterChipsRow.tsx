@@ -101,8 +101,8 @@ function Chip({
                 chipVariants({ active }),
                 toolbarChipClass,
                 "shrink-0 leading-none gap-1",
-                !active && "border-foreground/20 bg-background text-foreground/80",
-                active && "border-brand/70 bg-brand/15 text-brand shadow-[inset_0_1px_0_0_rgba(255,255,255,0.32)]",
+                !active && "border-foreground bg-background text-foreground",
+                active && "border-brand bg-muted text-brand",
                 className,
             )}
         >

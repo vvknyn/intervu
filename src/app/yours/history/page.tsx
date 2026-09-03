@@ -44,11 +44,11 @@ function HistoryHeader() {
 function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
     return (
         <div className="rounded-none border border-border bg-card p-8 shadow-xs text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand/20 bg-brand/10 text-brand shadow-2xs">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand shadow-2xs">
                 <ClockCounterClockwise size={24} weight="duotone" />
             </div>
             <div className="space-y-1 max-w-md mx-auto">
-                <h3 className="text-lg font-bold text-foreground tracking-tight">Sign in to see your history</h3>
+                <h3 className="text-lg font-semibold text-foreground">Sign in to see your history</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                     We keep track of every job you open so you can find your way back to it.
                 </p>
@@ -63,11 +63,11 @@ function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
 function HistoryEmptyState() {
     return (
         <div data-testid="history-empty" className="rounded-none border border-border bg-card p-8 shadow-xs text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand/20 bg-brand/10 text-brand shadow-2xs">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand shadow-2xs">
                 <ClockCounterClockwise size={24} weight="duotone" />
             </div>
             <div className="space-y-1 max-w-md mx-auto">
-                <h3 className="text-lg font-bold text-foreground tracking-tight">Jobs you open will show up here.</h3>
+                <h3 className="text-lg font-semibold text-foreground">Jobs you open will show up here.</h3>
             </div>
             <Button asChild className="rounded-none font-semibold">
                 <Link href="/jobs">Browse verified roles</Link>
@@ -94,17 +94,17 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
             className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-1.5 rounded-none border border-border bg-card p-4"
         >
             <div className="min-w-0">
-                <Link href={href} className="block truncate text-[15px] font-semibold tracking-[-0.02em] hover:text-brand">
+                <Link href={href} className="block truncate text-sm font-semibold hover:text-brand">
                     {snapshot.title}
                 </Link>
-                <div className="truncate text-[13px] text-muted-foreground">{companyName}</div>
+                <div className="truncate text-xs text-muted-foreground">{companyName}</div>
             </div>
             {stage && (
                 <Badge variant={STATUS_BADGE_VARIANT[applicationStatusTone(stage.status)]}>
                     {stageLabel(stage, Date.now())}
                 </Badge>
             )}
-            <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-[#8b939e]">
+            <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-[#8b939e]">
                 <span>{formatRelativeAge(view.last_viewed_at, Date.now())}</span>
                 {view.view_count > 1 && (
                     <>

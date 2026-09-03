@@ -50,7 +50,7 @@ function Field({ compact = false, queryOnly = false }: { compact?: boolean; quer
                     </div>
                     <button
                         type="button"
-                        className={cn(h, "shrink-0 rounded-none bg-foreground px-4 text-[10px] font-bold uppercase tracking-wider text-background")}
+                        className={cn(h, "shrink-0 rounded-none bg-foreground px-4 text-xs font-semibold text-background")}
                     >
                         Search
                     </button>
@@ -71,7 +71,7 @@ function Pill() {
             <span className="truncate text-xs font-semibold text-foreground">Software Engineer</span>
             <span className="text-muted-foreground">·</span>
             <span className="truncate text-xs text-muted-foreground">Toronto</span>
-            <span className="ml-auto shrink-0 mono-data text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span className="ml-auto shrink-0 mono-data text-xs text-muted-foreground">
                 Edit
             </span>
         </button>
@@ -82,10 +82,10 @@ type Treatment = "full" | "pill" | "query";
 
 function Header({ docked, treatment }: { docked: boolean; treatment: Treatment }) {
     return (
-        <header className="sticky top-0 z-20 h-14 border-b border-border bg-background/95 backdrop-blur">
+        <header className="sticky top-0 z-20 h-14 border-b border-border bg-background">
             <div className="flex h-14 items-center gap-3 px-4">
                 {/* Wordmark collapses to the mark alone to free the centre. */}
-                <div className="flex shrink-0 items-center gap-1.5 font-bold tracking-tight text-foreground">
+                <div className="flex shrink-0 items-center gap-1.5 font-semibold text-foreground">
                     <span className="mono-data text-sm">[•]</span>
                     <span
                         className={cn(
@@ -104,7 +104,7 @@ function Header({ docked, treatment }: { docked: boolean; treatment: Treatment }
                             {treatment === "pill" ? <Pill /> : <Field compact queryOnly={treatment === "query"} />}
                         </div>
                     ) : (
-                        <span className="whitespace-nowrap border border-brand/30 bg-brand/10 px-2.5 py-1 mono-data text-[10px] font-bold uppercase tracking-wider text-brand">
+                        <span className="whitespace-nowrap border border-brand bg-muted px-2.5 py-1 mono-data text-xs font-semibold text-brand">
                             2,071,759 live roles
                         </span>
                     )}
@@ -118,7 +118,7 @@ function Header({ docked, treatment }: { docked: boolean; treatment: Treatment }
                         <span
                             key={n}
                             className={cn(
-                                "overflow-hidden whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider transition-all duration-300 motion-reduce:transition-none",
+                                "overflow-hidden whitespace-nowrap text-xs font-semibold transition-all duration-300 motion-reduce:transition-none",
                                 n === "Jobs" ? "text-foreground" : "text-muted-foreground",
                                 docked && n !== "Jobs" ? "max-w-0 opacity-0" : "max-w-[90px] opacity-100",
                             )}
@@ -127,12 +127,12 @@ function Header({ docked, treatment }: { docked: boolean; treatment: Treatment }
                         </span>
                     ))}
                     {docked && (
-                        <span className="text-xs font-bold text-muted-foreground" aria-label="More">
+                        <span className="text-xs font-semibold text-muted-foreground" aria-label="More">
                             ···
                         </span>
                     )}
                     <Moon size={15} className="shrink-0 text-muted-foreground" />
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground text-[9px] font-bold text-background">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
                         VN
                     </span>
                 </nav>
@@ -154,9 +154,9 @@ function Rows() {
         <div className="space-y-2 p-4">
             {rows.map(([t, c, p]) => (
                 <div key={t} className="border border-border bg-card px-3 py-2.5">
-                    <div className="text-xs font-bold text-foreground">{t}</div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">{c}</div>
-                    <div className="mt-1 mono-data text-[10px] text-foreground">{p}</div>
+                    <div className="text-xs font-semibold text-foreground">{t}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{c}</div>
+                    <div className="mt-1 mono-data text-xs text-foreground">{p}</div>
                 </div>
             ))}
         </div>
@@ -190,7 +190,7 @@ function DockFrame({ treatment, forceDocked }: { treatment: Treatment; forceDock
                 )}
             >
                 <div className="overflow-hidden">
-                    <div className="border-b border-border bg-muted/40 p-3">
+                    <div className="border-b border-border bg-muted p-3">
                         <Field />
                     </div>
                 </div>
@@ -201,7 +201,7 @@ function DockFrame({ treatment, forceDocked }: { treatment: Treatment; forceDock
             {treatment === "query" && (
                 <div className="flex items-center gap-2 border-b border-border bg-background px-3 py-2">
                     {["Toronto", "Past month", "Remote", "All filters"].map((chip) => (
-                        <span key={chip} className="border border-border px-2 py-1 text-[10px] text-muted-foreground">
+                        <span key={chip} className="border border-border px-2 py-1 text-xs text-muted-foreground">
                             {chip}
                         </span>
                     ))}
@@ -237,7 +237,7 @@ const TREATMENTS: { id: Treatment; name: string; how: string; cost: string }[] =
 export function SearchDockMock() {
     return (
         <div className="mx-auto max-w-6xl px-8 py-10">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="text-2xl font-semibold text-foreground">
                 Docking the search into the header on scroll
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
@@ -250,7 +250,7 @@ export function SearchDockMock() {
                 {TREATMENTS.map((t, i) => (
                     <div key={t.id}>
                         <div className="flex items-baseline gap-3 border-b border-foreground pb-2">
-                            <span className="mono-data text-[11px] text-muted-foreground">
+                            <span className="mono-data text-xs text-muted-foreground">
                                 {String(i + 1).padStart(2, "0")}
                             </span>
                             <span className="text-sm font-semibold text-foreground">{t.name}</span>
@@ -264,13 +264,13 @@ export function SearchDockMock() {
                             the columns were making treatment 01 look worse than it is. */}
                         <div className="mt-5 space-y-4">
                             <div>
-                                <div className="mb-1.5 mono-data text-[10px] uppercase tracking-wider text-muted-foreground">
+                                <div className="mb-1.5 mono-data text-xs text-muted-foreground">
                                     At rest — scroll me
                                 </div>
                                 <DockFrame treatment={t.id} />
                             </div>
                             <div>
-                                <div className="mb-1.5 mono-data text-[10px] uppercase tracking-wider text-muted-foreground">
+                                <div className="mb-1.5 mono-data text-xs text-muted-foreground">
                                     Docked
                                 </div>
                                 <DockFrame treatment={t.id} forceDocked />

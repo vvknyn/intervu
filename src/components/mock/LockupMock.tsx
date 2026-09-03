@@ -3,7 +3,7 @@ import { BRAND_MARK_BRACKETS, BRAND_MARK_VIEWBOX, BrandMark } from "@/components
 
 function Wordmark() {
     return (
-        <span className="font-display text-[28px] leading-none font-bold uppercase tracking-tight">
+        <span className="font-display text-2xl leading-none font-semibold">
             velai
         </span>
     );
@@ -47,7 +47,7 @@ function Option({
 }) {
     return (
         <section className="border border-border bg-card p-5">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <h2 className="text-xs font-semibold text-muted-foreground">
                 {n}. {title}
             </h2>
             <div className="mt-4 border-t border-dashed border-border pt-4">{children}</div>
@@ -59,10 +59,10 @@ export function LockupMock() {
     return (
         <main className="mx-auto flex max-w-[820px] flex-col gap-6 p-8">
             <header>
-                <h1 className="font-display text-[22px] font-semibold tracking-tight">
+                <h1 className="font-display text-lg font-semibold">
                     Header lockup — four directions
                 </h1>
-                <p className="mt-1 text-[13px] text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                     Compare-only fixture at header scale. Not linked from anywhere and not indexed.
                 </p>
             </header>

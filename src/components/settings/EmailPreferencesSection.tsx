@@ -65,8 +65,8 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
 
     return (
         <div>
-            <h2 className="mb-1 text-[15px] font-semibold tracking-[-0.02em]">Email</h2>
-            <p className="mb-4 text-[13px] text-muted-foreground">Which emails velai sends you.</p>
+            <h2 className="mb-1 text-sm font-semibold">Email</h2>
+            <p className="mb-4 text-xs text-muted-foreground">Which emails velai sends you.</p>
 
             {prefs ? (
                 prefs.needsEmail ? (
@@ -86,8 +86,8 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                 ) : (
                     <div className="flex items-center justify-between gap-4">
                         <div>
-                            <p className="text-sm font-medium">Weekly digest</p>
-                            <p className="text-[12px] text-muted-foreground">
+                            <p className="text-sm">Weekly digest</p>
+                            <p className="text-xs text-muted-foreground">
                                 New roles from your followed companies and saved searches.
                                 {prefs.blockedGlobally && " Blocked — you've unsubscribed from all velai emails."}
                             </p>
@@ -96,7 +96,7 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                     </div>
                 )
             ) : (
-                <p className="text-[13px] text-muted-foreground">Loading…</p>
+                <p className="text-xs text-muted-foreground">Loading…</p>
             )}
         </div>
     );

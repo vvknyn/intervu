@@ -35,18 +35,18 @@ export function CopyCommand({ command, label }: { command: string; label?: strin
     <div className="flex items-stretch border-2 border-foreground">
       <div className="min-w-0 flex-1 overflow-x-auto px-3 py-2.5">
         {label && (
-          <div className="mb-1 whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <div className="mb-1 whitespace-nowrap text-xs font-semibold text-muted-foreground">
             {label}
           </div>
         )}
         <pre>
-          <code className="text-[13px] text-foreground">{command}</code>
+          <code className="text-xs text-foreground">{command}</code>
         </pre>
       </div>
       <button
         type="button"
         onClick={handleCopy}
-        className="shrink-0 border-l-2 border-foreground px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-foreground transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="shrink-0 border-l-2 border-foreground px-3 py-2.5 text-xs font-semibold text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         {copied ? "Copied" : "Copy"}
       </button>

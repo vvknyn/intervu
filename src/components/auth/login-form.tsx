@@ -155,10 +155,10 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     return (
         <div className="space-y-5 pt-1">
             <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
+                <p className="text-xs font-semibold text-brand">
                     {copy.eyebrow}
                 </p>
-                <h3 className="font-bold text-xl tracking-tight text-foreground">
+                <h3 className="font-semibold text-xl text-foreground">
                     {copy.title}
                 </h3>
                 {activeTab === "signup" && (
@@ -225,7 +225,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     <div className="absolute inset-0 flex items-center">
                         <span className="w-full border-t" />
                     </div>
-                    <div className="relative flex justify-center text-xs uppercase">
+                    <div className="relative flex justify-center text-xs">
                         <span className="bg-background px-2 text-muted-foreground">
                             Or
                         </span>
@@ -315,7 +315,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
             </Tabs>
 
             {message && (
-                <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm justify-center">
+                <div className="flex items-center gap-2 p-3 rounded-md bg-muted text-destructive text-sm justify-center">
                     <p>{message}</p>
                 </div>
             )}

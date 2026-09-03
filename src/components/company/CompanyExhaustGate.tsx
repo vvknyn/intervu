@@ -51,34 +51,34 @@ export async function CompanyExhaustGate({
       data-testid="company-exhaust-gate"
       className="border border-border-strong bg-card px-6 py-7 sm:px-8"
     >
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="text-xs font-semibold text-muted-foreground">
         The full record
       </h2>
-      <p className="mt-2 text-[14px] leading-relaxed text-foreground">
+      <p className="mt-2 text-sm leading-relaxed text-foreground">
         Sign in to open {displayName}&apos;s full hiring record — free.
       </p>
       <div className="mt-4 divide-y divide-border">
         {teasers.map((t) => (
           <div key={t.title} className="flex items-baseline justify-between gap-4 py-3">
             <div className="min-w-0">
-              <p className="text-[14px] font-semibold text-foreground">{t.title}</p>
-              <p className="mt-0.5 text-[12.5px] leading-snug text-muted-foreground">{t.description}</p>
+              <p className="text-sm font-semibold text-foreground">{t.title}</p>
+              <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{t.description}</p>
             </div>
             {t.count && (
-              <span className="mono-data whitespace-nowrap text-[12px] text-muted-foreground">{t.count}</span>
+              <span className="mono-data whitespace-nowrap text-xs text-muted-foreground">{t.count}</span>
             )}
           </div>
         ))}
       </div>
       <a
         href={nextHref}
-        className="mt-5 inline-flex items-center gap-2 border border-border-strong bg-foreground px-4 py-2 text-[13px] font-semibold text-background"
+        className="mt-5 inline-flex items-center gap-2 border border-border-strong bg-foreground px-4 py-2 text-xs font-semibold text-background"
       >
         Sign in to open the record
       </a>
       <div className="mt-4 flex items-center gap-2 border border-dashed border-border px-3 py-2">
         <LockSimple className="h-3.5 w-3.5 shrink-0 text-muted-foreground" weight="bold" aria-hidden />
-        <span className="text-[10.5px] uppercase tracking-wide text-muted-foreground">Signed-in members only</span>
+        <span className="text-xs text-muted-foreground">Signed-in members only</span>
       </div>
     </section>
   );

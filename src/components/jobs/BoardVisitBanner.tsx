@@ -62,12 +62,12 @@ export function BoardVisitBanner() {
             data-testid="board-visit-banner"
             role="status"
             aria-live="polite"
-            className="fixed bottom-6 right-6 z-50 flex max-w-sm items-center justify-between gap-3 rounded-none glass-panel border border-border/80 bg-card/85 px-4 py-3 shadow-2xl backdrop-blur-2xl backdrop-saturate-180 animate-in fade-in slide-in-from-bottom-4 duration-300"
+            className="fixed bottom-6 right-6 z-50 flex max-w-sm items-center justify-between gap-3 rounded-none glass-panel border border-border bg-card px-4 py-3 shadow-2xl backdrop-saturate-180 animate-in fade-in slide-in-from-bottom-4 duration-300"
         >
             <div className="flex items-center gap-2.5">
                 <span className="h-2 w-2 rounded-none bg-brand" aria-hidden />
-                <p className="text-xs font-medium text-foreground">
-                    <span className="font-bold text-brand tabular-nums">{count}</span> new role{count === 1 ? "" : "s"} posted since your last visit
+                <p className="text-xs text-foreground">
+                    <span className="font-semibold text-brand tabular-nums">{count}</span> new role{count === 1 ? "" : "s"} posted since your last visit
                 </p>
             </div>
             <button

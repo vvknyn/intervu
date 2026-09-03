@@ -155,7 +155,7 @@ function PursuitDetailBody({
                 </div>
                 <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
                     <SheetHeader className="min-w-0 flex-1 space-y-0 text-left">
-                        <SheetTitle className="truncate text-lg font-semibold tracking-[-0.03em]">{pursuit.position}</SheetTitle>
+                        <SheetTitle className="truncate text-lg font-semibold">{pursuit.position}</SheetTitle>
                         <SheetDescription className="truncate text-meta">{pursuit.company_name}</SheetDescription>
                     </SheetHeader>
                     <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80">
@@ -176,7 +176,7 @@ function PursuitDetailBody({
                                 disabled={saving}
                                 onClick={() => void onStatusChange(stage)}
                                 className={cn(
-                                    "whitespace-nowrap rounded-full border border-border px-2.5 py-1.5 text-xs uppercase tracking-[0.04em] text-muted-foreground transition-colors",
+                                    "whitespace-nowrap rounded-full border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors",
                                     pressed && "border-primary bg-primary text-primary-foreground",
                                 )}
                             >
@@ -188,16 +188,16 @@ function PursuitDetailBody({
 
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-none bg-muted p-3.5">
                     <div>
-                        <dt className="mb-1 whitespace-nowrap text-xs uppercase tracking-[0.06em] text-[#8b939e]">In tracker</dt>
+                        <dt className="mb-1 whitespace-nowrap text-xs text-[#8b939e]">In tracker</dt>
                         <dd className="text-meta">{days}d</dd>
                     </div>
                     <div>
-                        <dt className="mb-1 whitespace-nowrap text-xs uppercase tracking-[0.06em] text-[#8b939e]">Resume</dt>
+                        <dt className="mb-1 whitespace-nowrap text-xs text-[#8b939e]">Resume</dt>
                         <dd className="text-meta">{resumeLabel ?? "— none linked"}</dd>
                     </div>
                     {stale && (
                         <div className="col-span-2">
-                            <dt className="mb-1 whitespace-nowrap text-xs uppercase tracking-[0.06em] text-[#8b939e]">Update</dt>
+                            <dt className="mb-1 whitespace-nowrap text-xs text-[#8b939e]">Update</dt>
                             <dd className="text-meta">no update in {daysSinceUpdate(pursuit)}d</dd>
                         </div>
                     )}
@@ -205,7 +205,7 @@ function PursuitDetailBody({
 
                 <div>
                     <div className="mb-1.5 flex items-center justify-between">
-                        <Label className="block whitespace-nowrap text-xs uppercase tracking-[0.07em] text-[#8b939e]">Note</Label>
+                        <Label className="block whitespace-nowrap text-xs text-[#8b939e]">Note</Label>
                         {noteIndicator && (
                             <span className="text-xs text-muted-foreground" aria-live="polite">
                                 {noteIndicator === "saving" ? "saving…" : "saved"}
@@ -224,7 +224,7 @@ function PursuitDetailBody({
                 </div>
 
                 <div>
-                    <Label className="mb-1.5 block whitespace-nowrap text-xs uppercase tracking-[0.07em] text-[#8b939e]">
+                    <Label className="mb-1.5 block whitespace-nowrap text-xs text-[#8b939e]">
                         Interview date
                     </Label>
                     <div className="flex flex-wrap items-center gap-2">
@@ -282,7 +282,7 @@ function PursuitDetailBody({
                     />
                 )}
                 {!hasResumeLinked(pursuit) && (
-                    <p className="text-[12px] text-muted-foreground">No resume version on file for this application.</p>
+                    <p className="text-xs text-muted-foreground">No resume version on file for this application.</p>
                 )}
             </div>
         </>

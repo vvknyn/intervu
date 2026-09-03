@@ -1,5 +1,10 @@
 "use client";
 
+// design-lint-allow-file: decorative mockup, not product chrome -- depicts a
+// WhatsApp phone thread on its own fixed palette matching WhatsApp's own
+// chrome. Retains raw hex colours and arbitrary radius values by design;
+// exempt from the repo-wide banned-utility gate (tests/unit/design-language.test.ts).
+
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -105,8 +110,8 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
             aria-hidden="true"
             className="absolute left-1/2 top-0.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-black"
           />
-          <span className="text-[10px] font-medium text-white/80">8:10</span>
-          <span className="flex items-center gap-1 text-white/70" aria-hidden="true">
+          <span className="text-xs text-white">8:10</span>
+          <span className="flex items-center gap-1 text-white" aria-hidden="true">
             <WifiHigh size={11} weight="bold" />
             <CellSignalFull size={11} weight="bold" />
             <BatteryFull size={13} weight="bold" />
@@ -114,16 +119,16 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
         </div>
 
         {/* Chat header */}
-        <div className="flex items-center gap-2.5 border-b border-black/20 bg-[#1F2C34] px-3 py-1.5">
-          <ArrowLeft size={17} className="shrink-0 text-white/80" aria-hidden="true" />
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2A3942] text-[11px] font-semibold text-white/80">
+        <div className="flex items-center gap-2.5 border-b border-black bg-[#1F2C34] px-3 py-1.5">
+          <ArrowLeft size={17} className="shrink-0 text-white" aria-hidden="true" />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2A3942] text-xs font-semibold text-white">
             in
           </span>
           <span className="flex min-w-0 flex-1 flex-col leading-tight">
-            <span className="truncate text-[13px] font-medium text-white">velai — your agent</span>
-            <span className="text-[10px] text-[#8AAB9A]">online</span>
+            <span className="truncate text-xs text-white">velai — your agent</span>
+            <span className="text-xs text-[#8AAB9A]">online</span>
           </span>
-          <span className="flex shrink-0 items-center gap-3 text-white/75" aria-hidden="true">
+          <span className="flex shrink-0 items-center gap-3 text-white" aria-hidden="true">
             <VideoCamera size={16} />
             <Phone size={15} />
             <DotsThreeVertical size={16} weight="bold" />
@@ -139,7 +144,7 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
           />
           <div className="relative flex flex-col">
             {/* Date pill — part of the fixed shell, always rendered. */}
-            <span className="mx-auto mb-0.5 mt-1.5 rounded-md bg-[#1F2C34] px-2.5 py-0.5 text-[10px] text-white/55">
+            <span className="mx-auto mb-0.5 mt-1.5 rounded-md bg-[#1F2C34] px-2.5 py-0.5 text-xs text-white">
               Today
             </span>
             {/* Fixed-height clipping viewport — bottom-anchored so the
@@ -168,7 +173,7 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
                     >
                       <div
                         className={cn(
-                          "relative max-w-[80%] rounded-lg px-2.5 py-1 text-[13px] leading-[1.2] text-white",
+                          "relative max-w-[80%] rounded-lg px-2.5 py-1 text-xs leading-[1.2] text-white",
                           msg.role === "user"
                             ? cn("bg-[#005C4B]", isFirstOfRun && "rounded-br-none")
                             : cn("bg-[#202C33]", isFirstOfRun && "rounded-bl-none"),
@@ -190,20 +195,20 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
                           <div
                             role="img"
                             aria-label={msg.attachment}
-                            className="mt-1 flex items-center gap-2 rounded-lg bg-black/20 px-2 py-1"
+                            className="mt-1 flex items-center gap-2 rounded-lg bg-muted px-2 py-1"
                           >
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10">
-                              <FileText size={13} weight="bold" className="text-white/80" aria-hidden="true" />
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted">
+                              <FileText size={13} weight="bold" className="text-white" aria-hidden="true" />
                             </span>
                             <span className="flex min-w-0 flex-col leading-tight">
-                              <span className="truncate text-[11.5px] text-white">resume.pdf</span>
-                              <span className="text-[9.5px] text-white/50">128 kB · pdf</span>
+                              <span className="truncate text-xs text-white">resume.pdf</span>
+                              <span className="text-xs text-white">128 kB · pdf</span>
                             </span>
                           </div>
                         ) : null}
                         {msg.followText ? <p className="mt-0.5">{msg.followText}</p> : null}
                         <div className="flex items-center justify-end gap-1">
-                          {time ? <span className="text-[10px] text-white/45">{time}</span> : null}
+                          {time ? <span className="text-xs text-white">{time}</span> : null}
                           {msg.role === "user" ? (
                             <Checks size={13} className="text-[#53BDEB]" aria-hidden="true" />
                           ) : null}
@@ -219,12 +224,12 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
 
         {/* Composer */}
         <div className="flex items-center gap-2 bg-[#1F2C34] px-3 py-1">
-          <span className="flex-1 truncate rounded-full bg-[#2A3942] px-3 py-1 text-[12px] text-white/40">
+          <span className="flex-1 truncate rounded-full bg-[#2A3942] px-3 py-1 text-xs text-white">
             Message
           </span>
           <span
             aria-hidden="true"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white/70"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white"
           >
             <Microphone size={16} />
           </span>

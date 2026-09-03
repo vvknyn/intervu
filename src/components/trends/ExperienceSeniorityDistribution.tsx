@@ -33,8 +33,8 @@ export function ExperienceSeniorityDistribution({
       ))}
 
       {employmentTypes.length > 0 && (
-        <div className="mt-4 border-t border-border/60 pt-4">
-          <div className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
+        <div className="mt-4 border-t border-border pt-4">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Briefcase size={14} weight="duotone" />
             <span>Employment contract types</span>
           </div>
@@ -49,10 +49,10 @@ export function ExperienceSeniorityDistribution({
                 <Link
                   key={type.key}
                   href={href}
-                  className="inline-flex items-center gap-1.5 rounded-none border border-border bg-muted/20 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-border-strong hover:bg-muted/50"
+                  className="inline-flex items-center gap-1.5 rounded-none border border-border bg-muted px-2.5 py-1 text-xs text-foreground transition-colors hover:border-border-strong hover:bg-muted"
                 >
                   <span>{type.label}</span>
-                  <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
+                  <span className="text-xs font-semibold text-muted-foreground tabular-nums">
                     {type.pct}%
                   </span>
                 </Link>

@@ -34,7 +34,7 @@ export function InlineConfirm({
     return (
         <div
             className={cn(
-                "flex w-full flex-col gap-2 rounded-none border border-border bg-muted/30 p-3 sm:w-auto sm:flex-row sm:items-center",
+                "flex w-full flex-col gap-2 rounded-none border border-border bg-muted p-3 sm:w-auto sm:flex-row sm:items-center",
                 className,
             )}
         >

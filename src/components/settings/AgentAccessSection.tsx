@@ -142,7 +142,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             <section className="pt-6 border-t border-border">
                 <h2 className="text-lg font-semibold mb-1">Connected agents</h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand/80">
+                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
                         login
                     </button>{" "}
                     to connect Claude or another AI agent to your velai account.
@@ -180,7 +180,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         className="flex items-center justify-between gap-4 rounded-lg border border-border p-3"
                     >
                         <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{displayName(c)}</p>
+                            <p className="text-sm truncate">{displayName(c)}</p>
                             <p className="text-xs text-muted-foreground">
                                 {kindLabel(c)} · connected {formatDate(c.createdAt)} · last used {formatDate(c.lastUsedAt)}
                             </p>
@@ -206,8 +206,8 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 </Button>
 
                 {newSecret && (
-                    <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
-                        <p className="text-xs font-medium flex items-center gap-1.5 text-amber-600 dark:text-amber-500">
+                    <div className="mt-3 rounded-lg border border-warn bg-muted p-3 space-y-2">
+                        <p className="text-xs flex items-center gap-1.5 text-warn dark:text-warn">
                             <WarningCircle size={14} weight="fill" />
                             Copy this now — we can&apos;t show it to you again.
                         </p>
@@ -228,7 +228,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             </div>
 
             <div className="rounded-lg border border-border p-4 space-y-3 text-sm">
-                <p className="font-medium">Connect an agent</p>
+                <p className="">Connect an agent</p>
                 <div className="flex items-center gap-2">
                     <code className="flex-1 min-w-0 truncate rounded-md bg-muted px-2.5 py-1.5 text-xs">
                         {mcpUrl}
@@ -237,15 +237,15 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 </div>
                 <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4">
                     <li>
-                        <span className="text-foreground font-medium">Claude Code:</span>{" "}
+                        <span className="text-foreground">Claude Code:</span>{" "}
                         <code className="">{claudeCodeConnectCommand(mcpUrl)}</code>
                     </li>
                     <li>
-                        <span className="text-foreground font-medium">Chat apps with custom connectors:</span>{" "}
+                        <span className="text-foreground">Chat apps with custom connectors:</span>{" "}
                         {chatAppInstruction.primary} {chatAppInstruction.alternate}
                     </li>
                 </ul>
-                <a href="/connect" className="inline-block text-xs text-brand underline hover:text-brand/80">
+                <a href="/connect" className="inline-block text-xs text-brand underline hover:text-brand">
                     Full setup instructions →
                 </a>
             </div>

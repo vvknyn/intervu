@@ -38,7 +38,7 @@ export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
 }
 
 export function BrandLockupMark({
-    tileClassName = "h-7 w-7 rounded-[6px]",
+    tileClassName = "h-7 w-7",
 }: {
     tileClassName?: string;
     markClassName?: string;
@@ -52,9 +52,16 @@ export function BrandLockupMark({
  *  masks/currentColor don't render in Gmail/Outlook). */
 export function BrandLockup({ className }: { className?: string }) {
     return (
-        <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join(" ")}>
+        <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join("")}>
             <BrandLockupMark />
-            <span className="font-display text-[28px] leading-none font-bold uppercase tracking-tight">
+            {/* Wordmark is the one rulebook exception: 700 weight, caps, tight
+                tracking. font-[700] (not font-bold, now 600) + data-rulebook-exempt
+                covers the runtime probe; design-lint-allow covers the static gate. */}
+            {/* design-lint-allow */}
+            <span
+                data-rulebook-exempt
+                className="font-display text-[28px] leading-none font-[700] uppercase tracking-tight"
+            >
                 velai
             </span>
         </span>

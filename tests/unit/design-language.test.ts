@@ -56,8 +56,8 @@ test("type scale: body default and theme tokens wired at the chokepoint", () => 
     const themeBlock = GLOBALS.slice(GLOBALS.indexOf("@theme {"), GLOBALS.indexOf("\n}", GLOBALS.indexOf("@theme {")) + 2);
     assert.match(themeBlock, /--text-body:\s*1rem;/, "@theme must register --text-body");
     assert.match(themeBlock, /--text-meta:\s*0\.875rem;/, "@theme must register --text-meta");
-    assert.match(themeBlock, /--text-xs:\s*0\.8125rem;/, "@theme must override --text-xs to 0.8125rem (13px)");
-    assert.match(themeBlock, /--text-sm:\s*0\.9375rem;/, "@theme must override --text-sm to 0.9375rem (15px)");
+    assert.match(themeBlock, /--text-xs:\s*0\.75rem;/, "@theme must override --text-xs to 0.75rem (12px)");
+    assert.match(themeBlock, /--text-sm:\s*0\.875rem;/, "@theme must override --text-sm to 0.875rem (14px)");
 });
 
 test("elevation is none: every --shadow-* scale key resolves to none", () => {
@@ -333,42 +333,46 @@ function isForbiddenNamedShadowPreset(utility: string, scaleDefaults: Map<string
 }
 
 test("shadow means floating: .glass-panel/.glass-card never regain an outer shadow", () => {
-    // Direct regression guard for the fix: these four blocks (base × hover,
-    // light × dark) are the exact surfaces the owner's complaint named — every
-    // job row cast a real drop shadow, and hover added more shadow plus a
-    // lift. Only the inset sheen may remain.
+    // Direct regression guard for the fix: these two blocks (base, hover) are
+    // the exact surfaces the owner's complaint named — every job row cast a
+    // real drop shadow, and hover added more shadow plus a lift. Rulebook
+    // (no blur/shadow/translucency) later went further than "inset sheen
+    // only": every value now reads a semantic token, so light/dark resolve
+    // from the SAME declaration with no `.dark` duplicate block, and no
+    // box-shadow survives at all — flat is the whole story.
     const blocks: Array<[string, RegExp]> = [
-        ["light base", /^\.glass-panel,\n\.glass-card \{[\s\S]*?\n\}/m],
-        ["dark base", /^\.dark \.glass-panel,\n\.dark \.glass-card \{[\s\S]*?\n\}/m],
-        ["light hover", /^\.glass-card:hover \{[\s\S]*?\n\}/m],
-        ["dark hover", /^\.dark \.glass-card:hover \{[\s\S]*?\n\}/m],
+        ["base", /^\.glass-panel,\n\.glass-card \{[\s\S]*?\n\}/m],
+        ["hover", /^\.glass-card:hover \{[\s\S]*?\n\}/m],
     ];
 
     for (const [label, pattern] of blocks) {
         const match = GLOBALS.match(pattern);
         assert.ok(match, `could not find the ${label} .glass-panel/.glass-card block`);
-        const shadowMatch = match[0].match(/box-shadow\s*:\s*([^;]+);/);
-        assert.ok(shadowMatch, `${label} block has no box-shadow declaration`);
-        const offenders = splitShadowLayers(shadowMatch[1]).filter(isForbiddenOuterShadowLayer);
-        assert.deepEqual(
-            offenders,
-            [],
-            `${label} .glass-panel/.glass-card casts an outer shadow again: ${offenders.join(", ")}. ` +
-                `In-flow surfaces are flat — separation is border + whitespace, hover is border-darkening.`,
+        assert.doesNotMatch(
+            match[0],
+            /box-shadow\s*:/,
+            `${label} .glass-panel/.glass-card casts a shadow again — in-flow surfaces are flat — ` +
+                `separation is border + whitespace, hover is border-darkening.`,
         );
     }
 
-    // The hover blocks must not lift either — a lift is the other half of
+    // No `.dark` duplicate should reappear either — that was the whole point
+    // of moving to semantic tokens (single declaration, both themes).
+    assert.doesNotMatch(
+        GLOBALS,
+        /\.dark\s+\.glass-(?:panel|card)\b/,
+        "a .dark .glass-panel/.glass-card override reappeared — light/dark should resolve from the same token-based declaration",
+    );
+
+    // The hover block must not lift either — a lift is the other half of
     // "floating," and the rule bans it from in-flow surfaces on its own.
-    const hoverBlocks = GLOBALS.match(/\.glass-card:hover \{[\s\S]*?\n\}/g) ?? [];
-    assert.ok(hoverBlocks.length >= 2, "expected a light and dark .glass-card:hover block");
-    for (const block of hoverBlocks) {
-        assert.doesNotMatch(
-            block,
-            /transform\s*:\s*translateY/,
-            "a .glass-card:hover block still lifts on hover — hover affordance is border-darkening only",
-        );
-    }
+    const hoverBlock = GLOBALS.match(/\.glass-card:hover \{[\s\S]*?\n\}/)?.[0];
+    assert.ok(hoverBlock, "expected a .glass-card:hover block");
+    assert.doesNotMatch(
+        hoverBlock,
+        /transform\s*:\s*translateY/,
+        "a .glass-card:hover block still lifts on hover — hover affordance is border-darkening only",
+    );
 });
 
 test("shadow means floating: outer utility shadows only appear as the overlay token", () => {
@@ -557,4 +561,212 @@ test("/co: no rounded-2xl/rounded-3xl survives in the company-page family", () =
             `Every --radius-* key is 0px already — drop the class (or use rounded-none where dropping it ` +
             `would leave the element non-square by default).`,
     );
+});
+
+/**
+ * Repo-wide static gate for docs/design/DESIGN-LANGUAGE.md's mechanical
+ * rules — the same categories the one-time src/-wide sweep fixed by hand in
+ * this change, kept from silently regressing one class at a time. Matches on
+ * class SHAPE (a Tailwind utility name/value pattern), never an enumerated
+ * file list, so a new component is covered by construction.
+ *
+ * Two exemption markers, both living in a comment so they must be looked up
+ * against RAW (unstripped) source — comment-stripping first would make a
+ * marker permanently invisible to its own exemption check:
+ *   - `// design-lint-allow` within ALLOW_WINDOW_LINES lines above a match
+ *     exempts that one line (e.g. BrandMark.tsx's wordmark, the one
+ *     rulebook-sanctioned uppercase/tracking exception).
+ *   - `design-lint-allow-file` anywhere in a file exempts the whole file
+ *     (decorative mockups whose intentional raw values are too dense/
+ *     scattered for a per-line marker).
+ */
+
+const ALLOW_WINDOW_LINES = 6;
+
+// Transactional emails are raw HTML strings styled with literal inline CSS
+// (`style="text-transform:uppercase;..."`), not Tailwind utility classes --
+// a wholly separate styling system with its own already-established wordmark
+// convention (EMAIL_WORDMARK). The sweep itself carved this out (it never
+// rewrites a string region containing a literal `;`, i.e. a CSS declaration
+// block); this gate mirrors that carve-out at the directory level since a
+// bare CSS keyword like "uppercase" can otherwise collide with the
+// Tailwind-utility-shaped patterns below.
+const EXCLUDED_DIRS = new Set([path.join(ROOT, "src/lib/email")]);
+
+function walkTsxFiles(dir: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir)) {
+        const full = path.join(dir, entry);
+        if (EXCLUDED_DIRS.has(full)) continue;
+        if (statSync(full).isDirectory()) {
+            walkTsxFiles(full, out);
+        } else if (/\.tsx?$/.test(entry)) {
+            out.push(full);
+        }
+    }
+    return out;
+}
+
+/** Blank out `//` and `/* *\/` comment CONTENT (keep line breaks/length) so a
+ *  doc comment that legitimately names a banned class in prose (e.g. "used to
+ *  be bg-blue-100") can't trip a pattern match, while line numbers stay
+ *  aligned with the raw source. */
+function stripComments(src: string): string {
+    return src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " ")).replace(/\/\/[^\n]*/g, (m) => " ".repeat(m.length));
+}
+
+function isFileAllowed(raw: string): boolean {
+    return /design-lint-allow-file/.test(raw);
+}
+
+/** True when a `design-lint-allow` comment sits within the window of RAW
+ *  lines ending at (and including) `lineIdx` (0-based) — same backward-window
+ *  contract the sweep itself used. Excludes the file-level marker so a
+ *  `design-lint-allow-file` line can't also satisfy a line-level lookup. */
+function isLineAllowed(rawLines: string[], lineIdx: number): boolean {
+    const start = Math.max(0, lineIdx - ALLOW_WINDOW_LINES + 1);
+    for (let i = start; i <= lineIdx; i++) {
+        if (/design-lint-allow(?!-file)/.test(rawLines[i])) return true;
+    }
+    return false;
+}
+
+/** True for the one sanctioned translucent surface (modal/sheet scrim): a
+ *  bg-black|white/NN opacity class co-occurring with `fixed` + an `inset-*`
+ *  class on the SAME line — the exact structural test the sweep used to spare
+ *  these sites, not a filename list. */
+function isScrimLine(line: string): boolean {
+    return /\bbg-(?:black|white)\/[0-9]{1,3}\b/.test(line) && /\bfixed\b/.test(line) && /\binset-(?:0|x-0|y-0)\b/.test(line);
+}
+
+/**
+ * Scans every .tsx?/.ts? file under `dir` for `pattern`, honouring both
+ * exemption markers, and returns `path:line: match` strings. `opts.skip`
+ * lets a caller add one further structural exemption (the scrim carve-out).
+ */
+function findOffenders(dir: string, pattern: RegExp, opts: { skip?: (strippedLine: string, rawLine: string) => boolean } = {}): string[] {
+    const offenders: string[] = [];
+    for (const file of walkTsxFiles(dir)) {
+        const raw = readFileSync(file, "utf8");
+        if (isFileAllowed(raw)) continue;
+        const rawLines = raw.split("\n");
+        const strippedLines = stripComments(raw).split("\n");
+        for (let i = 0; i < strippedLines.length; i++) {
+            const m = strippedLines[i].match(pattern);
+            if (!m) continue;
+            if (isLineAllowed(rawLines, i)) continue;
+            if (opts.skip?.(strippedLines[i], rawLines[i])) continue;
+            offenders.push(`${path.relative(ROOT, file)}:${i + 1}: ${m[0]}`);
+        }
+    }
+    return offenders;
+}
+
+test("no arbitrary text-size or leading value survives outside an allow marker", () => {
+    const offenders = [
+        ...findOffenders(path.join(ROOT, "src"), /\btext-\[[0-9.]+(?:px|rem|em)\]/),
+        ...findOffenders(path.join(ROOT, "src"), /\bleading-\[[0-9.]+(?:px|rem|em)\]/),
+    ];
+    assert.deepEqual(
+        offenders,
+        [],
+        `arbitrary text-size/leading value(s): ${offenders.join("; ")}. Round to the nearest scale rung ` +
+            `(12/16 · 14/20 · 16/22 · 20/28, or the expressive 28/36 · 32/40 · 42/50).`,
+    );
+});
+
+test("no uppercase or tracking-* utility survives outside the wordmark exemption", () => {
+    const offenders = [
+        ...findOffenders(path.join(ROOT, "src"), /\buppercase\b/),
+        ...findOffenders(path.join(ROOT, "src"), /\btracking-(?:tighter|tight|normal|wide|wider|widest|\[[^\]]+\])/),
+    ];
+    assert.deepEqual(
+        offenders,
+        [],
+        `uppercase/tracking-* survives: ${offenders.join("; ")}. Rulebook: sentence case, normal tracking ` +
+            `everywhere except the wordmark (data-rulebook-exempt + design-lint-allow).`,
+    );
+});
+
+test("no retired font weight survives", () => {
+    const offenders = [
+        ...findOffenders(path.join(ROOT, "src"), /\bfont-medium\b/),
+        ...findOffenders(path.join(ROOT, "src"), /\bfont-(?:bold|extrabold|black)\b/),
+    ];
+    assert.deepEqual(
+        offenders,
+        [],
+        `retired font weight survives: ${offenders.join("; ")}. Only font-normal/font-semibold (400/600) remain.`,
+    );
+});
+
+test("no blur, backdrop-blur, drop-shadow, or arbitrary shadow utility survives", () => {
+    // shadow-[var(--shadow-overlay)] is the one sanctioned non-zero shadow —
+    // the same overlay token the "outer utility shadows" test above requires
+    // on every floating portal primitive — so it's exempt by its exact
+    // value, not by file, mirroring the scrim carve-out for translucency. A
+    // line skips only when EVERY banned-pattern match on it is that token,
+    // so a real violation sharing a line with the token still gets caught.
+    const bannedBlurShadow = /\b(?:backdrop-blur(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|blur(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|drop-shadow(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|shadow-\[[^\]]*\])\b/g;
+    const offenders = findOffenders(path.join(ROOT, "src"), bannedBlurShadow, {
+        skip: (strippedLine) => {
+            const matches = strippedLine.match(bannedBlurShadow) ?? [];
+            return matches.length > 0 && matches.every((m) => m === "shadow-[var(--shadow-overlay)]");
+        },
+    });
+    assert.deepEqual(
+        offenders,
+        [],
+        `blur/shadow utility survives: ${offenders.join("; ")}. No blur, no drop-shadow, no arbitrary shadow — ` +
+            `elevation is border + whitespace (see the outer-shadow guard above for named-preset shadow-*).`,
+    );
+});
+
+test("no raw Tailwind palette class survives — every colour resolves to a semantic role", () => {
+    const prefixes = ["bg", "text", "border", "ring", "divide", "outline", "decoration", "fill", "stroke", "accent", "caret", "from", "via", "to", "placeholder"];
+    const families = ["slate", "gray", "zinc", "neutral", "stone", "blue", "indigo", "sky", "violet", "purple", "green", "emerald", "teal", "amber", "yellow", "orange", "red", "rose", "pink"];
+    const offenders = findOffenders(path.join(ROOT, "src"), new RegExp(`\\b(?:${prefixes.join("|")})-(?:${families.join("|")})-[0-9]+\\b`));
+    assert.deepEqual(
+        offenders,
+        [],
+        `raw palette class survives: ${offenders.join("; ")}. Use a semantic token (brand/live/warn/danger-text/` +
+            `muted/muted-foreground/border/foreground/placeholder-text) instead of a raw Tailwind colour name.`,
+    );
+});
+
+test("no opacity-modified colour survives outside the modal/sheet scrim", () => {
+    const prefixes = ["bg", "text", "border", "ring", "divide", "outline", "decoration", "fill", "stroke", "accent", "caret", "from", "via", "to", "placeholder"];
+    const offenders = findOffenders(path.join(ROOT, "src"), new RegExp(`\\b(?:${prefixes.join("|")})-[a-zA-Z]+(?:-[0-9]+)?/[0-9]{1,3}\\b`), {
+        skip: (strippedLine) => isScrimLine(strippedLine),
+    });
+    assert.deepEqual(
+        offenders,
+        [],
+        `translucent colour survives: ${offenders.join("; ")}. No opacity-modified colour except the modal/` +
+            `sheet scrim (bg-black|white/NN on a line that is also fixed + inset-0/x-0/y-0).`,
+    );
+});
+
+test("no arbitrary rounded-[...] radius survives (rounded-[inherit] is exempt by shape)", () => {
+    const offenders = findOffenders(path.join(ROOT, "src"), /\brounded(?:-[tblrse]{1,2})?-\[[0-9.]+(?:px|rem|em|%)\]/);
+    assert.deepEqual(
+        offenders,
+        [],
+        `arbitrary rounded-[...] radius survives: ${offenders.join("; ")}. Every --radius-* key is 0px — use ` +
+            `rounded-none, or a keyword value (rounded-[inherit]) which this rule does not flag.`,
+    );
+});
+
+test("scrim/allow classifiers: shape-based, proven on fixtures other than the real sites", () => {
+    assert.equal(isScrimLine('<div className="fixed inset-0 z-50 bg-black/60" />'), true, "fixed + inset-0 + bg-black/NN is the sanctioned scrim shape");
+    assert.equal(isScrimLine('<div className="fixed top-4 right-4 bg-black/60" />'), false, "fixed without inset-* must not read as a scrim");
+    assert.equal(isScrimLine('<div className="inset-0 bg-black/60" />'), false, "inset-0 without fixed must not read as a scrim");
+    assert.equal(isScrimLine('<div className="fixed inset-0 bg-brand/60" />'), false, "a non-black/white opacity colour is not the sanctioned scrim");
+
+    // Window is 6 lines ending at (and including) the match line, so a marker
+    // at index 0 is inside the window for a match at index 5 (6 lines: 0..5)
+    // and just outside it for a match at index 6 (window becomes 1..6).
+    const fixtureLines = ["// design-lint-allow", "b", "c", "d", "e", "f — 5 lines below the marker", "g — 6 lines below the marker"];
+    assert.equal(isLineAllowed(fixtureLines, 5), true, "marker 5 lines above the match falls inside the 6-line window");
+    assert.equal(isLineAllowed(fixtureLines, 6), false, "marker 6 lines above the match falls outside the 6-line window");
+    assert.equal(isLineAllowed(["x", "// design-lint-allow-file"], 0), false, "the file-level marker must not also satisfy a line-level lookup");
 });

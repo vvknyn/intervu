@@ -288,7 +288,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                     </div>
 
                     {isAdding && (
-                        <div className="border border-border rounded-lg p-4 bg-muted/30 animate-in slide-in-from-top-2">
+                        <div className="border border-border rounded-lg p-4 bg-muted animate-in slide-in-from-top-2">
                             <div className="flex gap-4 mb-4">
                                 <Button variant={addType === 'text' ? "default" : "ghost"} size="sm" onClick={() => setAddType('text')}>
                                     <Note className="mr-2" /> Text
@@ -317,14 +317,14 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                             </div>
 
                             {error && (
-                                <div className="text-destructive text-sm mb-4 bg-destructive/10 p-2 rounded">
+                                <div className="text-destructive text-sm mb-4 bg-muted p-2 rounded">
                                     {error}
                                 </div>
                             )}
 
                             <div className="space-y-4">
                                 {addType === 'file' ? (
-                                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-muted transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                                         <input
                                             type="file"
                                             className="hidden"
@@ -340,7 +340,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         ) : (
                                             <div className="flex flex-col items-center gap-2">
                                                 <FileText className="h-8 w-8 text-muted-foreground" />
-                                                <p className="text-sm font-medium">Click to upload text file</p>
+                                                <p className="text-sm">Click to upload text file</p>
                                                 <p className="text-xs text-muted-foreground">Extracted text will be added as a source</p>
                                             </div>
                                         )}
@@ -375,10 +375,10 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
 
                                         {/* Discovered links section */}
                                         {(isDiscovering || discoveredLinks.length > 0) && (
-                                            <div className="border border-border rounded-lg p-3 bg-muted/20">
+                                            <div className="border border-border rounded-lg p-3 bg-muted">
                                                 <button
                                                     onClick={() => setShowDiscovered(v => !v)}
-                                                    className="flex items-center gap-2 w-full text-sm font-medium text-left"
+                                                    className="flex items-center gap-2 w-full text-sm text-left"
                                                 >
                                                     {showDiscovered ? <CaretUp size={14} /> : <CaretDown size={14} />}
                                                     Related pages found ({discoveredLinks.length})
@@ -411,7 +411,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                             {discoveredLinks.map((link, i) => (
                                                                 <label
                                                                     key={link.url}
-                                                                    className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer text-sm"
+                                                                    className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer text-sm"
                                                                 >
                                                                     <input
                                                                         type="checkbox"
@@ -421,13 +421,13 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                                         className="rounded"
                                                                     />
                                                                     <div className="flex-1 min-w-0">
-                                                                        <p className="truncate font-medium text-xs">{link.title}</p>
-                                                                        <p className="truncate text-[10px] text-muted-foreground">{link.url}</p>
+                                                                        <p className="truncate text-xs">{link.title}</p>
+                                                                        <p className="truncate text-xs text-muted-foreground">{link.url}</p>
                                                                     </div>
                                                                     {link.status === 'loading' && <Spinner className="animate-spin shrink-0" size={14} />}
-                                                                    {link.status === 'success' && <Check className="text-green-500 shrink-0" size={14} />}
+                                                                    {link.status === 'success' && <Check className="text-live shrink-0" size={14} />}
                                                                     {link.status === 'error' && (
-                                                                        <span className="text-destructive text-[10px] shrink-0" title={link.error}>Failed</span>
+                                                                        <span className="text-destructive text-xs shrink-0" title={link.error}>Failed</span>
                                                                     )}
                                                                 </label>
                                                             ))}
@@ -454,12 +454,12 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                             <div key={source.id} className="group border border-border rounded-lg p-4 hover:border-foreground transition-colors relative bg-card">
                                 <div className="flex items-start justify-between mb-2">
                                     <div className="flex items-center gap-2">
-                                        {source.type === 'url' && <LinkIcon className="text-blue-400" />}
-                                        {source.type === 'file' && <FileText className="text-orange-400" />}
-                                        {source.type === 'text' && <Note className="text-green-400" />}
-                                        <h3 className="font-medium truncate max-w-[200px]" title={source.title}>{source.title}</h3>
+                                        {source.type === 'url' && <LinkIcon className="text-brand" />}
+                                        {source.type === 'file' && <FileText className="text-warn" />}
+                                        {source.type === 'text' && <Note className="text-live" />}
+                                        <h3 className="truncate max-w-[200px]" title={source.title}>{source.title}</h3>
                                         {source.visibility === 'public' && (
-                                            <Badge variant="brand" className="text-[10px] px-1.5 py-0">Public</Badge>
+                                            <Badge variant="brand" className="text-xs px-1.5 py-0">Public</Badge>
                                         )}
                                     </div>
                                     <Button
@@ -471,10 +471,10 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         <Trash size={14} />
                                     </Button>
                                 </div>
-                                <p className="text-xs text-muted-foreground line-clamp-3 bg-muted/30 p-2 rounded">
+                                <p className="text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded">
                                     {source.content}
                                 </p>
-                                <div className="mt-2 text-[10px] text-muted-foreground flex justify-end">
+                                <div className="mt-2 text-xs text-muted-foreground flex justify-end">
                                     {source.created_at ? new Date(source.created_at).toLocaleDateString() : 'Just now'}
                                 </div>
                             </div>
@@ -522,10 +522,10 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                 <div key={source.id} className="border border-border rounded-lg p-4 bg-card">
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex items-center gap-2">
-                                            {source.type === 'url' && <LinkIcon className="text-blue-400" />}
-                                            {source.type === 'file' && <FileText className="text-orange-400" />}
-                                            {source.type === 'text' && <Note className="text-green-400" />}
-                                            <h3 className="font-medium truncate max-w-[200px]" title={source.title}>{source.title}</h3>
+                                            {source.type === 'url' && <LinkIcon className="text-brand" />}
+                                            {source.type === 'file' && <FileText className="text-warn" />}
+                                            {source.type === 'text' && <Note className="text-live" />}
+                                            <h3 className="truncate max-w-[200px]" title={source.title}>{source.title}</h3>
                                         </div>
                                         <Button
                                             variant="outline"
@@ -541,10 +541,10 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                             )}
                                         </Button>
                                     </div>
-                                    <p className="text-xs text-muted-foreground line-clamp-3 bg-muted/30 p-2 rounded">
+                                    <p className="text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded">
                                         {source.content}
                                     </p>
-                                    <div className="mt-2 text-[10px] text-muted-foreground flex justify-end">
+                                    <div className="mt-2 text-xs text-muted-foreground flex justify-end">
                                         {source.created_at ? new Date(source.created_at).toLocaleDateString() : ''}
                                     </div>
                                 </div>

@@ -87,20 +87,20 @@ export function ContactForm() {
 
     if (status === "success") {
         return (
-            <div className="mt-8 rounded-none border border-brand/40 bg-brand/10 p-6 text-foreground backdrop-blur-xl">
-                <p className="text-sm font-bold uppercase tracking-wider text-brand">Message Sent Successfully</p>
+            <div className="mt-8 rounded-none border border-brand bg-muted p-6 text-foreground">
+                <p className="text-sm font-semibold text-brand">Message Sent Successfully</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    Got it — we read everything and reply directly from <span className="text-foreground font-medium">hello@thesubspace.io</span>.
+                    Got it — we read everything and reply directly from <span className="text-foreground">hello@thesubspace.io</span>.
                 </p>
             </div>
         );
     }
 
     return (
-        <div className="mt-8 rounded-none border border-border/80 bg-card/75 p-6 sm:p-8 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+        <div className="mt-8 rounded-none border border-border bg-card p-6 sm:p-8 backdrop-saturate-150">
             {isBugReport && (
                 <div className="mb-5">
-                    <h2 className="text-base font-bold text-foreground">Report a bug</h2>
+                    <h2 className="text-base font-semibold text-foreground">Report a bug</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
                         Tell us what went wrong and what you expected to happen instead.
                     </p>
@@ -166,12 +166,12 @@ export function ContactForm() {
                 )}
 
                 {isBugReport && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                         Your browser and the page you came from are included to help us debug.
                     </p>
                 )}
 
-                <Button type="submit" size="lg" disabled={isSubmitting} className="h-11 rounded-none bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider px-7 hover:bg-primary/90 transition-colors">
+                <Button type="submit" size="lg" disabled={isSubmitting} className="h-11 rounded-none bg-primary text-primary-foreground text-xs font-semibold px-7 hover:bg-primary transition-colors">
                     {isSubmitting ? "Sending…" : isBugReport ? "Send report →" : "Send message →"}
                 </Button>
             </form>

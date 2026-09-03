@@ -61,15 +61,15 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
   if (evidence.metrics.length === 0 && !hasFooter) return null;
 
   return (
-    <div className="mt-3 border-t border-border/60 pt-3">
+    <div className="mt-3 border-t border-border pt-3">
       {evidence.metrics.length > 0 && (
         <dl className="space-y-1.5">
           {evidence.metrics.map((m) => (
             <div key={m.label} className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-              <dt className="min-w-[84px] text-[10px] uppercase tracking-wide text-muted-foreground">
+              <dt className="min-w-[84px] text-xs text-muted-foreground">
                 {m.label}
               </dt>
-              <dd className="text-[13px] tabular-nums text-foreground">{m.value}</dd>
+              <dd className="text-xs tabular-nums text-foreground">{m.value}</dd>
             </div>
           ))}
         </dl>
@@ -78,7 +78,7 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
       {hasFooter && (
         <p
           className={cn(
-            "text-[10px] text-muted-foreground",
+            "text-xs text-muted-foreground",
             evidence.metrics.length > 0 && "mt-2.5",
           )}
         >
@@ -161,8 +161,8 @@ export function CompanyChangeEvents({
 
   return (
     <section data-testid="company-change-events" className="mb-8">
-      <h2 className="mb-1 font-display text-[20px] font-semibold">Recent changes</h2>
-      <p className="mb-4 text-[11px] text-muted-foreground">
+      <h2 className="mb-1 font-display text-lg font-semibold">Recent changes</h2>
+      <p className="mb-4 text-xs text-muted-foreground">
         Observed shifts in {companyName}&apos;s hiring, from postings we track over time.
       </p>
 
@@ -185,16 +185,16 @@ export function CompanyChangeEvents({
                   {label && (
                     <span
                       className={cn(
-                        "border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                        "border px-2 py-0.5 text-xs font-semibold",
                         chip,
                       )}
                     >
                       {label}
                     </span>
                   )}
-                  {date && <span className="text-[11px] text-muted-foreground">{date}</span>}
+                  {date && <span className="text-xs text-muted-foreground">{date}</span>}
                 </div>
-                <p className="mt-1.5 text-[15px] leading-snug text-foreground">
+                <p className="mt-1.5 text-sm leading-snug text-foreground">
                   {humanizeProjectorHeadline(event.headline)}
                 </p>
                 {event.evidence && <EventEvidence evidence={event.evidence} />}

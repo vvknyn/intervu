@@ -17,10 +17,10 @@ export function CompanyTechStackBand({
 
   return (
     <section data-testid="company-tech-stack-band" className="border border-border bg-card px-6 py-6 sm:px-8">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="text-xs font-semibold text-muted-foreground">
         What their site runs on
       </h2>
-      <p className="mt-2 text-[14px] leading-relaxed text-foreground">
+      <p className="mt-2 text-sm leading-relaxed text-foreground">
         {totalLiveTechs != null
           ? `${totalLiveTechs} active tools detected on their site`
           : "Tools detected on their site"}
@@ -29,13 +29,13 @@ export function CompanyTechStackBand({
       {groups.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {groups.map((g) => (
-            <span key={g} className="border border-border bg-chip px-2.5 py-1 text-[11.5px] text-foreground">
+            <span key={g} className="border border-border bg-chip px-2.5 py-1 text-xs text-foreground">
               {g}
             </span>
           ))}
         </div>
       )}
-      <p className="mono-data mt-3 text-[11px] text-muted-foreground">{techStack.source}</p>
+      <p className="mono-data mt-3 text-xs text-muted-foreground">{techStack.source}</p>
     </section>
   );
 }

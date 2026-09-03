@@ -125,7 +125,7 @@ export function MetricsDashboard() {
                 report &&
                 groupMetrics(report.metrics).map(({ group, metrics }) => (
                     <section key={group} className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-                        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <h4 className="mb-3 text-xs font-semibold text-muted-foreground">
                             {group}
                         </h4>
                         <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">

@@ -322,7 +322,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 typeof document !== "undefined" &&
                 createPortal(
                     <div
-                        className="fixed z-[100] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
+                        className="fixed z-[100] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] animate-in fade-in slide-in-from-top-1"
                         style={{
                             top: overlayRect.top,
                             left: overlayRect.left,
@@ -343,7 +343,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                 return (
                                     <Fragment key={index}>
                                         {showLabel && (
-                                            <li aria-hidden className="whitespace-nowrap px-4 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                            <li aria-hidden className="whitespace-nowrap px-4 pt-2.5 pb-1 text-xs font-semibold text-muted-foreground">
                                                 {label}
                                             </li>
                                         )}
@@ -352,7 +352,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                             aria-selected={index === activeIndex}
                                             className={cn(
                                                 "flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors",
-                                                index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                                                index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                                             )}
                                             onClick={() => handleSelect(suggestion.text)}
                                             onMouseEnter={() => setActiveIndex(index)}

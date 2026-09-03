@@ -8,11 +8,11 @@ export const toolbarControlHeight = "h-11 lg:h-7";
 
 /** Peers of the Filters control on the toolbar row. */
 export const toolbarChipClass =
-    `inline-flex box-border items-center justify-center whitespace-nowrap ${toolbarControlHeight} px-3 text-xs font-medium rounded-none lg:px-2`;
+    `inline-flex box-border items-center justify-center whitespace-nowrap ${toolbarControlHeight} px-3 text-xs rounded-none lg:px-2`;
 
 /** Sort segmented groups on the toolbar row. */
 export const toolbarSegmentGroupClass =
-    `flex box-border items-center rounded-none border border-border/80 bg-muted/40 p-px ${toolbarControlHeight}`;
+    `flex box-border items-center rounded-none border border-border bg-muted p-px ${toolbarControlHeight}`;
 
 /** Docked header search form + its trailing CTA peer. */
 export const topbarDockedSearchHeight = "h-10";

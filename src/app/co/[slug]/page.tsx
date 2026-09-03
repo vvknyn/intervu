@@ -183,13 +183,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           <div className="flex min-w-0 gap-5">
             <CompanyLogo domain={data.domain} name={data.name} size="lg" />
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-[32px] sm:text-[36px] font-semibold tracking-tight">{data.name}</h1>
+              <h1 className="font-display text-3xl sm:text-3xl font-semibold">{data.name}</h1>
               {data.oneLiner && (
-                <p className="mt-1.5 text-[15px] sm:text-[16px] italic leading-snug text-muted-foreground">
+                <p className="mt-1.5 text-sm sm:text-base italic leading-snug text-muted-foreground">
                   {data.oneLiner}
                 </p>
               )}
-              <p className="mt-3 flex items-center gap-2 text-[16px] sm:text-[17px] font-medium leading-snug text-foreground">
+              <p className="mt-3 flex items-center gap-2 text-base sm:text-base leading-snug text-foreground">
                 {hiring.hasOpenRoles && (
                   <span className="h-2 w-2 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
                 )}
@@ -200,7 +200,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                   discrete, iconed facts. Absence is still silence: a fact
                   with nothing behind it (`buildCompanyFacts`) just doesn't
                   render its <span>. */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12.5px] text-muted-foreground">
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
                 <a
                   href={`https://${facts.domain}`}
                   target="_blank"
@@ -234,14 +234,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
               {(data.stage || headerChips.length > 0) && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {data.stage && (
-                    <span className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span className="border border-border bg-chip px-2.5 py-1 text-xs font-semibold text-muted-foreground">
                       {data.stage}
                     </span>
                   )}
                   {headerChips.map((chip) => (
                     <span
                       key={chip}
-                      className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground"
+                      className="border border-border bg-chip px-2.5 py-1 text-xs font-semibold text-muted-foreground"
                     >
                       {chip}
                     </span>
@@ -323,12 +323,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                     "Hiring activity" section drew from, now its own named
                     rail box instead of a shared block with the intel grid. */}
                 <section data-testid="company-hiring-activity" className="border border-border bg-chip px-5 py-4">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <h2 className="text-xs font-semibold text-muted-foreground">
                     The hiring record — last 90 days
                   </h2>
-                  <p className="mt-2 text-[14px] leading-relaxed text-foreground">{hiring.trackRecord}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-foreground">{hiring.trackRecord}</p>
                   {hiring.freshness && (
-                    <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{hiring.freshness}</p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{hiring.freshness}</p>
                   )}
                   {/* The 90-day provenance note describes this track record
                       specifically, and that is the one thing this page cannot
@@ -338,7 +338,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                       that was never made — so it renders only when there is a
                       track record for it to describe. */}
                   {data.hasTrackRecord && (
-                    <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                       Metrics derived from observed job postings over 90 days — not fundraising data,
                       employee reviews, or third-party valuations.
                     </p>
@@ -349,10 +349,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                     instead of a bare, jargon-labelled percentage tile. */}
                 {staleShare && (
                   <section className="border border-border bg-chip px-5 py-4">
-                    <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <h2 className="text-xs font-semibold text-muted-foreground">
                       List health
                     </h2>
-                    <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{staleShare}</p>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{staleShare}</p>
                   </section>
                 )}
               </div>

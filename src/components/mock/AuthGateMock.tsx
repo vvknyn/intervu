@@ -1,5 +1,10 @@
 "use client";
 
+// design-lint-allow-file: decorative mockup, not product chrome -- depicts a
+// generic dark-mode auth screen on its own fixed palette. Retains raw hex
+// colours and arbitrary radius/tracking values by design; exempt from the
+// repo-wide banned-utility gate (tests/unit/design-language.test.ts).
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/brand/BrandMark";
@@ -148,13 +153,13 @@ function MockJobRow({ job, onClick }: { job: PublicJob; onClick: () => void }) {
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
             <div className="min-w-0 text-left">
-                <div className="text-[15px] font-semibold leading-snug tracking-tight">{decodeText(job.title)}</div>
-                <div className="mt-1 text-[13px] text-muted-foreground">{cleanCompany(job.company)}</div>
+                <div className="text-sm font-semibold leading-snug">{decodeText(job.title)}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{cleanCompany(job.company)}</div>
             </div>
-            <span className="inline-flex h-fit items-center rounded-full border border-live-tint-border bg-live-tint-bg px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-verdict-live">
+            <span className="inline-flex h-fit items-center rounded-full border border-live-tint-border bg-live-tint-bg px-1.5 py-0.5 text-xs text-verdict-live">
                 verified
             </span>
-            <div className="col-span-full flex flex-wrap gap-x-3 text-[11px] text-faint">
+            <div className="col-span-full flex flex-wrap gap-x-3 text-xs text-faint">
                 <span>{locationText(job)}</span>
                 {age && <span>· {age}</span>}
                 <span>· {salary ? `from ${salary}` : "pay n/a"}</span>
@@ -227,7 +232,7 @@ export function AuthGateMock() {
             }}
         >
             <div className={cn("border-b px-4 py-2 text-center text-xs", siteChrome.border, siteChrome.bar, siteChrome.muted)}>
-                <span className="uppercase tracking-wider">Auth-gate mock — not live</span>
+                <span className="">Auth-gate mock — not live</span>
                 {" · "}
                 <button type="button" onClick={reset} className="text-brand underline-offset-2 hover:underline">
                     Reset to signed-out
@@ -243,17 +248,17 @@ export function AuthGateMock() {
                     <div className="mb-9 flex flex-col items-center">
                         <div className="flex items-center gap-5">
                             <BrandMark className="h-24 w-24 text-[#ececec] sm:h-28 sm:w-28" />
-                            <span className="text-[52px] font-semibold leading-none tracking-[-0.045em] sm:text-[60px]">
+                            <span className="text-4xl font-semibold leading-none sm:text-4xl">
                                 velai
                             </span>
                         </div>
                         <p
-                            className="mt-4 whitespace-nowrap text-center text-[15px] leading-none tracking-[-0.015em] text-[#c4c9d1]"
+                            className="mt-4 whitespace-nowrap text-center text-sm leading-none text-[#c4c9d1]"
                             data-testid="mock-landing-meta"
                         >
                             {INSTRUMENT_META}
                         </p>
-                        <p className="mt-2.5 max-w-[34ch] text-center text-[13px] leading-snug text-[#8b919a]">
+                        <p className="mt-2.5 max-w-[34ch] text-center text-xs leading-snug text-[#8b919a]">
                             {INSTRUMENT_SUPPORT}
                         </p>
                     </div>
@@ -270,7 +275,7 @@ export function AuthGateMock() {
                                     role="tab"
                                     aria-selected={lane === id}
                                     onClick={() => setLane(id)}
-                                    className="cursor-pointer rounded-none border-0 px-2.5 py-3.5 text-center text-[13px] font-medium"
+                                    className="cursor-pointer rounded-none border-0 px-2.5 py-3.5 text-center text-xs"
                                     style={lane === id ? tabActive : tabIdle}
                                 >
                                     {label}
@@ -283,7 +288,7 @@ export function AuthGateMock() {
                         type="button"
                         data-testid="mock-sign-in-cta"
                         onClick={handleLandingCta}
-                        className="cursor-pointer rounded-none border-0 px-6 py-3.5 text-[14px] font-medium text-[#12151a]"
+                        className="cursor-pointer rounded-none border-0 px-6 py-3.5 text-sm text-[#12151a]"
                         style={{ background: "#ececec" }}
                     >
                         {signInCtaLabel(lane)}
@@ -293,8 +298,8 @@ export function AuthGateMock() {
 
             {phase === "bounce" && (
                 <main className="flex min-h-[calc(100dvh-40px)] flex-col items-center justify-center px-5 text-center">
-                    <h1 className="text-2xl font-semibold tracking-tight">Sign in to connect your AI</h1>
-                    <p className="mt-3 max-w-md text-[15px] text-[#8b919a]">
+                    <h1 className="text-2xl font-semibold">Sign in to connect your AI</h1>
+                    <p className="mt-3 max-w-md text-sm text-[#8b919a]">
                         After sign-in you open Connect to pair {agentLabel(lane === "board" ? "mcp" : lane)}.
                     </p>
                     <p className="mt-1 text-xs text-[#5c636e]">next={pendingNext}</p>
@@ -313,7 +318,7 @@ export function AuthGateMock() {
                         <button
                             type="button"
                             onClick={() => setPhase("landing")}
-                            className="text-[13px] text-[#8b919a] underline-offset-2 hover:underline"
+                            className="text-xs text-[#8b919a] underline-offset-2 hover:underline"
                         >
                             Back
                         </button>
@@ -327,9 +332,9 @@ export function AuthGateMock() {
                         <div className="mx-auto flex h-16 w-full max-w-[920px] items-center justify-between px-5 sm:px-7">
                             <div className="flex items-center gap-2.5">
                                 <BrandMark className="h-10 w-10" />
-                                <span className="text-[22px] font-semibold tracking-[-0.03em]">velai</span>
+                                <span className="text-lg font-semibold">velai</span>
                             </div>
-                            <nav className="flex items-center gap-4 text-[13px]">
+                            <nav className="flex items-center gap-4 text-xs">
                                 <button
                                     type="button"
                                     onClick={() => setPanel("jobs")}
@@ -370,7 +375,7 @@ export function AuthGateMock() {
 
                     {panel === "jobs" && (
                         <main className="mx-auto w-full max-w-[720px] px-5 py-8 sm:px-7">
-                            <p className="mb-4 text-xs uppercase tracking-wider text-[#8b919a]">
+                            <p className="mb-4 text-xs text-[#8b919a]">
                                 Mock SERP · browse free · detail needs sign-in
                             </p>
                             {MOCK_JOBS.map((job) => (
@@ -387,8 +392,8 @@ export function AuthGateMock() {
                             </p>
 
                             {consent === "pending" ? (
-                                <div className="mt-8 max-w-md rounded-none border border-[#3a4049] bg-black/30 p-6">
-                                    <p className="text-sm font-medium text-[#ececec]">
+                                <div className="mt-8 max-w-md rounded-none border border-[#3a4049] bg-muted p-6">
+                                    <p className="text-sm text-[#ececec]">
                                         Allow {agentLabel(lane === "board" ? "mcp" : lane)} to access velai?
                                     </p>
                                     <Button
@@ -421,7 +426,7 @@ export function AuthGateMock() {
                                 <div
                                     className={cn(
                                         "px-5 pb-6 pt-4",
-                                        !signedIn && "pointer-events-none select-none blur-[6px]",
+                                        !signedIn && "pointer-events-none select-none",
                                     )}
                                     aria-hidden={!signedIn}
                                 >
@@ -438,16 +443,16 @@ export function AuthGateMock() {
                                             </p>
                                         </div>
                                     </div>
-                                    <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
+                                    <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
                                         {selectedJob.description}
                                     </p>
                                 </div>
                                 {!signedIn && (
                                     <div
                                         data-testid="mock-detail-signin-gate"
-                                        className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card/55 px-6 text-center"
+                                        className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card px-6 text-center"
                                     >
-                                        <p className="text-[15px] font-semibold text-foreground">
+                                        <p className="text-sm font-semibold text-foreground">
                                             Sign in to view this role
                                         </p>
                                         <Button

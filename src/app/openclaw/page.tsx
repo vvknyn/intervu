@@ -35,7 +35,7 @@ export default function OpenclawPage() {
       {/* Hero */}
       <section className="mx-auto flex max-w-3xl flex-col items-center px-4 pb-14 pt-16 text-center sm:px-6">
         <OpenclawStatusBadge />
-        <h1 className="mt-4 max-w-2xl font-display text-[clamp(28px,4.4vw,44px)] font-extrabold leading-[1.1] text-foreground">
+        <h1 className="mt-4 max-w-2xl font-display text-[clamp(28px,4.4vw,44px)] font-semibold leading-[1.1] text-foreground">
           {OPENCLAW_HEADLINE}
         </h1>
         <p className="mt-4 max-w-xl text-sm text-muted-foreground">
@@ -51,14 +51,14 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="while-you-slept-heading"
-            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+            className="text-xs font-semibold text-muted-foreground"
           >
             While you slept
           </h2>
           <ol className="mt-8 flex flex-col gap-6">
             {WHILE_YOU_SLEPT_STEPS.map((step, i) => (
               <li key={step.title} className="flex gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-[12px] font-bold text-foreground">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-xs font-semibold text-foreground">
                   {i + 1}
                 </span>
                 <div>
@@ -76,7 +76,7 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="wont-do-heading"
-            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+            className="text-xs font-semibold text-muted-foreground"
           >
             What it won&apos;t do
           </h2>
@@ -107,7 +107,7 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="runs-local-heading"
-            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+            className="text-xs font-semibold text-muted-foreground"
           >
             Runs on your machine
           </h2>
@@ -120,14 +120,14 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="setup-heading"
-            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+            className="text-xs font-semibold text-muted-foreground"
           >
             Setup in 3 steps
           </h2>
           <ol className="mt-8 flex flex-col gap-6">
             {SETUP_STEPS.map((step, i) => (
               <li key={step.title} className="flex gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-[12px] font-bold text-foreground">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-xs font-semibold text-foreground">
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -150,7 +150,7 @@ export default function OpenclawPage() {
           same page just walked through (D1). */}
       <section aria-label="Install OpenClaw" className="border-t border-border py-16">
         <div className="mx-auto flex max-w-2xl flex-col items-center px-4 text-center sm:px-6">
-          <h2 className="font-display text-[clamp(22px,3vw,30px)] font-bold text-foreground">
+          <h2 className="font-display text-[clamp(22px,3vw,30px)] font-semibold text-foreground">
             Install OpenClaw
           </h2>
           <p className="mt-2 max-w-md text-sm text-muted-foreground">
@@ -162,7 +162,7 @@ export default function OpenclawPage() {
           <p className="mt-8 text-xs text-muted-foreground">
             <Check size={12} weight="bold" className="mr-1 inline text-brand" aria-hidden="true" />
             Already using velai&apos;s search?{" "}
-            <Link href="/" className="font-medium text-foreground underline underline-offset-2">
+            <Link href="/" className="text-foreground underline underline-offset-2">
               Back to jobs
             </Link>
           </p>

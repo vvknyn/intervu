@@ -79,7 +79,7 @@ export function ApplicationList({ applications, onEdit, onRefresh }: Application
         return (
             <div className="bg-card rounded-xl border border-dashed border-border">
                 <div className="flex flex-col items-center justify-center p-12 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center mb-4 text-brand">
+                    <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4 text-brand">
                         <Briefcase size={32} />
                     </div>
                     <h3 className="text-lg font-semibold mb-2">{emptyHeading}</h3>
@@ -142,7 +142,7 @@ export function ApplicationList({ applications, onEdit, onRefresh }: Application
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="text-destructive hover:text-destructive/90"
+                                    className="text-destructive hover:text-destructive"
                                     onClick={(e) => requestDelete(app.id, e)}
                                     disabled={deletingId === app.id}
                                 >

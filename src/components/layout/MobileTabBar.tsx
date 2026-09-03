@@ -23,7 +23,7 @@ export function MobileTabBar() {
             data-testid="mobile-tabbar"
             aria-label="Primary"
             style={{ gridTemplateColumns: `repeat(${MOBILE_TABS.length}, minmax(0, 1fr))` }}
-            className="fixed inset-x-0 bottom-0 z-50 grid border-t border-border/80 bg-background px-1 pb-[env(safe-area-inset-bottom,0px)] lg:hidden"
+            className="fixed inset-x-0 bottom-0 z-50 grid border-t border-border bg-background px-1 pb-[env(safe-area-inset-bottom,0px)] lg:hidden"
         >
             {MOBILE_TABS.map((tab) => {
                 const active = tab.match(pathname);
@@ -42,7 +42,7 @@ export function MobileTabBar() {
                         aria-current={active ? "page" : undefined}
                         className={cn(
                             "relative flex h-14 flex-col items-center justify-center gap-0.5 whitespace-nowrap text-xs font-semibold transition-colors duration-100 [&_svg]:h-[22px] [&_svg]:w-[22px]",
-                            active ? "font-bold text-brand" : "text-muted-foreground",
+                            active ? "font-semibold text-brand" : "text-muted-foreground",
                         )}
                     >
                         {active && (
@@ -61,7 +61,7 @@ export function MobileTabBar() {
                                 {tab.badge && navBadges[tab.badge] > 0 && (
                                     <span
                                         data-testid={`mobile-${tab.testId}-badge`}
-                                        className="absolute -right-2.5 -top-1 mono-data rounded-none bg-brand px-1 text-[9px] font-bold leading-[14px] text-brand-foreground"
+                                        className="absolute -right-2.5 -top-1 mono-data rounded-none bg-brand px-1 text-xs font-semibold text-brand-foreground"
                                     >
                                         {navBadges[tab.badge]}
                                     </span>

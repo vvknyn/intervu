@@ -38,11 +38,11 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
     const getImportanceBadge = (importance?: string) => {
         switch (importance) {
             case 'high':
-                return <Badge variant="default" className="bg-orange-500 hover:bg-orange-600 text-white border-none h-5 px-1.5 text-[10px]">High</Badge>;
+                return <Badge variant="default" className="bg-warn hover:bg-warn text-white border-none h-5 px-1.5 text-xs">High</Badge>;
             case 'medium':
-                return <Badge variant="secondary" className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-none h-5 px-1.5 text-[10px]">Med</Badge>;
+                return <Badge variant="secondary" className="bg-muted text-warn dark:text-warn border-none h-5 px-1.5 text-xs">Med</Badge>;
             case 'low':
-                return <Badge variant="outline" className="text-muted-foreground border-border h-5 px-1.5 text-[10px]">Low</Badge>;
+                return <Badge variant="outline" className="text-muted-foreground border-border h-5 px-1.5 text-xs">Low</Badge>;
             default:
                 return null;
         }
@@ -63,8 +63,8 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
                 <div
                     key={story.id}
                     className={cn(
-                        "group flex items-center gap-3 p-3 transition-colors hover:bg-muted/30",
-                        index !== sortedStories.length - 1 && "border-b border-border/50"
+                        "group flex items-center gap-3 p-3 transition-colors hover:bg-muted",
+                        index !== sortedStories.length - 1 && "border-b border-border"
                     )}
                 >
                     {/* Rank / Index */}
@@ -77,11 +77,11 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
                         {/* Title & Question */}
                         <div className="min-w-0 flex flex-col gap-0.5" onClick={() => onEdit(story)}>
                             {story.question && (
-                                <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider truncate max-w-[400px]">
+                                <div className="text-xs text-muted-foreground truncate max-w-[400px]">
                                     {story.question}
                                 </div>
                             )}
-                            <div className="font-medium text-sm text-foreground truncate cursor-pointer hover:underline decoration-muted-foreground/50 underline-offset-4">
+                            <div className="text-sm text-foreground truncate cursor-pointer hover:underline decoration-muted-foreground/50 underline-offset-4">
                                 {story.title || "Untitled Story"}
                             </div>
                         </div>
@@ -91,7 +91,7 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
                             {getImportanceBadge(story.importance)}
 
                             {story.type === 'blob' && (
-                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Draft</Badge>
+                                <Badge variant="secondary" className="h-5 px-1.5 text-xs font-semibold text-muted-foreground">Draft</Badge>
                             )}
                         </div>
 

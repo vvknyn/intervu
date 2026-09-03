@@ -72,12 +72,12 @@ export function PipelineCard({ nowMs }: { nowMs: number }) {
     return (
         <div className="border-t border-foreground pt-2.5">
             <div className="mb-2 flex items-baseline justify-between">
-                <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Pipeline</span>
+                <span className="text-xs text-muted-foreground">Pipeline</span>
                 <Link href="/yours" className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground">
                     open tracker →
                 </Link>
             </div>
-            <p className="text-[12.5px] text-foreground">
+            <p className="text-xs text-foreground">
                 {counts.map((tile, i) => (
                     <span key={tile.label}>
                         {i > 0 && " · "}
@@ -89,17 +89,17 @@ export function PipelineCard({ nowMs }: { nowMs: number }) {
                 <div className="mt-3 flex flex-col gap-2.5">
                     {ordered.map((p) => (
                         <Link key={p.id} href={`/yours/${p.id}`} className="block transition-colors duration-100 hover:text-foreground">
-                            <div className="truncate text-[13px] font-medium">
+                            <div className="truncate text-xs">
                                 {pursuitTitle(p)} · {pursuitCompany(p)}
                             </div>
-                            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                            <div className="mt-0.5 truncate text-xs text-muted-foreground">
                                 {statusLine(p, nowMs)}
                             </div>
                         </Link>
                     ))}
                 </div>
             ) : (
-                <p className="mt-3 text-[13px] text-muted-foreground">
+                <p className="mt-3 text-xs text-muted-foreground">
                     Nothing saved. Save a role from the ledger and it appears here.
                 </p>
             )}
