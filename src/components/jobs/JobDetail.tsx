@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowSquareOut } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,7 @@ import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, clampLocationSegments, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { presentJob } from "@/lib/presentation";
-import { countryToFlag } from "@/lib/jobs/country-flag";
-import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
+import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { withShareRef } from "@/lib/share/share-decision";
@@ -58,13 +57,13 @@ import type { Pursuit } from "@/lib/pursuits/types";
  *  the structure. See lib/jobs/format-description.ts. */
 export function JobDescription({ blocks }: { blocks: DescBlock[] }) {
     return (
-        <div className="text-sm leading-relaxed sm:text-sm text-muted-foreground">
+        <div className="text-base leading-normal text-foreground">
             {blocks.map((b, i) => {
                 if (b.type === "heading") {
                     return (
                         <h4
                             key={i}
-                            className="mb-1.5 mt-4 text-xs font-semibold text-foreground first:mt-0"
+                            className="mb-2 mt-4 text-xs font-semibold text-foreground first:mt-0"
                         >
                             {b.text}
                         </h4>
@@ -86,6 +85,116 @@ export function JobDescription({ blocks }: { blocks: DescBlock[] }) {
                     </p>
                 );
             })}
+        </div>
+    );
+}
+
+/**
+ * The single "· "-joining seam for every flowing facts/meta line in the jobs
+ * surfaces (SERP row, SERP detail panel, /jobs/[slug] hero) — rulebook item a.
+ * Each caller supplies its own ordered, already-filtered list of nodes (or
+ * `false`/`null` for an absent fact); this component drops the absent ones
+ * and attaches the "·" to the END of the item that precedes it, inside that
+ * item's own inline-flex span, so a wrapped line always starts with real
+ * content — never an orphaned leading "·" (the bug this replaces: three
+ * separate hand-written joins, one of which didn't separate at all, another
+ * of which put the dot at the START of each item and let it wrap alone). */
+export function MetaLine({ items }: { items: Array<ReactNode | null | false | undefined> }) {
+    const visible = items.filter((n): n is ReactNode => n != null && n !== false);
+    return (
+        <>
+            {visible.map((node, i) => (
+                <span key={i} className="inline-flex items-baseline">
+                    {node}
+                    {i < visible.length - 1 && (
+                        // `mx-1`, not `ml-1`: the dot's own spacing must be
+                        // symmetric and self-contained, not depend on the
+                        // caller's flex container also carrying `gap-x-*`
+                        // (the SERP row's container didn't, so with a
+                        // one-sided `ml-1` its line rendered "Onsite
+                        // ·Actively posted" — no space after the dot).
+                        <span className="mx-1" aria-hidden>
+                            ·
+                        </span>
+                    )}
+                </span>
+            ))}
+        </>
+    );
+}
+
+/**
+ * The "posting check" signals grid — the one seam shared by JobDetail.tsx's
+ * SERP panel and JobDetailDocument.tsx's Receipt (both previously hand-wrote
+ * an identical `grid-cols-1 ... sm:grid-cols-2` wrapper around their own
+ * `signals.map(...)`, only the per-cell content differs between the two).
+ * `sm:` is a VIEWPORT breakpoint, so on a desktop viewport it went 2-column
+ * even when the caller's own rendered width was the narrow ~320px
+ * `/jobs/[slug]` right rail — wrapping "Reposts ..." over four lines. A
+ * `@container` query measures this wrapper's OWN width instead: the SERP
+ * detail column (~800px) still gets 2 columns, the narrow rail collapses to
+ * 1. (Container queries can't target the container element's own box, so
+ * the containment and the queried grid have to be two nested elements.) */
+export function PostingCheckSignalsGrid({ children }: { children: ReactNode }) {
+    return (
+        <div className="@container">
+            <div className="mono-data grid grid-cols-1 gap-x-4 gap-y-2 pt-3 text-sm @min-[480px]:grid-cols-2">{children}</div>
+        </div>
+    );
+}
+
+/**
+ * The "posting check" header row — title + ratio on one side, verdict word +
+ * checked-time on the other — another seam shared by JobDetail.tsx's SERP
+ * panel and JobDetailDocument.tsx's Receipt (both previously hand-wrote an
+ * identical `sm:flex-row sm:items-center sm:justify-between` wrapper here
+ * too). Same `sm:` VIEWPORT-breakpoint bug as the signals grid above: the
+ * narrow ~320px `/jobs/[slug]` rail sits at a desktop viewport width, so
+ * `sm:` (640px) fired and forced the row horizontal into 320px, wrapping
+ * "Actively posted" onto its own line. Reuses the grid's own `@min-[480px]`
+ * container threshold — the same narrow-container condition, not a second
+ * invented breakpoint — so the rail stacks (as mobile already did) while the
+ * ~800px SERP column still goes horizontal. */
+export function PostingCheckHeader({
+    favorableCount,
+    assessedCount,
+    unknownCount,
+    verdictLabel,
+    verdictClassName,
+    checkedText,
+}: {
+    favorableCount: number;
+    assessedCount: number;
+    unknownCount: number;
+    verdictLabel: string;
+    verdictClassName: string;
+    checkedText: string;
+}) {
+    return (
+        <div className="@container">
+            <div className="flex flex-col gap-2 @min-[480px]:flex-row @min-[480px]:items-center @min-[480px]:justify-between @min-[480px]:gap-3">
+                <div className="flex flex-wrap items-baseline gap-1 text-sm">
+                    <span className="font-semibold text-foreground">Posting check</span>
+                    {assessedCount > 0 && (
+                        <span className="text-muted-foreground">
+                            · {favorableCount}/{assessedCount} favorable
+                            {unknownCount > 0 && ` · ${unknownCount} not tracked`}
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center justify-between gap-2 @min-[480px]:justify-end">
+                    {/* Verdict as a plain colored WORD, not a bordered/bg pill
+                        (rulebook: one attention-grabbing filled/bordered treatment
+                        per view, already spent on Apply) — the color still comes
+                        from the caller's own `ghost.cls`, the single tone source
+                        every other verdict surface reads, so this can never
+                        disagree with the row badge on what color a tone is. */}
+                    <span className={cn("text-sm font-semibold", verdictClassName)}>{verdictLabel}</span>
+                    <span className="text-xs text-muted-foreground">
+                        {checkedText.charAt(0).toLowerCase()}{checkedText.slice(1)}
+                    </span>
+                </div>
+            </div>
         </div>
     );
 }
@@ -164,6 +273,7 @@ export function JobDetailActionBar({
     pursuit,
     goingAfter,
     signedIn = true,
+    className,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
@@ -179,16 +289,22 @@ export function JobDetailActionBar({
      *  so callers built before the removal — e.g. app/page.tsx, out of this
      *  change's scope — still typecheck without editing their call sites. */
     onPrep?: () => void;
+    /** Merged over the base classes (rulebook item a's `cn()` override
+     *  pattern) — the only caller that needs this today is the standalone
+     *  `/jobs/[slug]` document, which stacks this bar above the sitewide
+     *  `MobileTabBar` (`bottom-12` instead of the Sheet caller's `bottom-0`,
+     *  since that Sheet paints over the tab bar and this document doesn't). */
+    className?: string;
 }) {
     return (
         <div
             data-testid="job-detail-action-bar"
-            className="sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-card px-4"
+            className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-card px-4", className)}
         >
             {job.apply_url && (
                 <Button className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
                     <ArrowSquareOut weight="bold" />
-                    {signedIn ? "Apply on Company Site →" : "Sign in to apply →"}
+                    {signedIn ? "Apply on Company Site" : "Sign in to apply"}
                 </Button>
             )}
             {/* Same 40px icon-only ghost bookmark as the desktop action row —
@@ -224,7 +340,7 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
                 e.stopPropagation();
                 onClick();
             }}
-            className="flex w-full flex-col gap-0.5 rounded-none border border-border bg-card px-3.5 py-2.5 text-left transition-all hover:border-brand hover:bg-chip dark:border-border dark:bg-muted cursor-pointer group"
+            className="flex w-full flex-col gap-0.5 rounded-none px-0 py-3 text-left transition-colors hover:bg-muted cursor-pointer group"
         >
             <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{decodeText(job.title)}</span>
             <span className="mono-data truncate text-xs text-muted-foreground">
@@ -376,6 +492,12 @@ export function JobDetail({
     // pass) rather than a chip among chips — filtered out here so it never
     // appears twice.
     const nonSalaryChips = chips.filter((c) => c.kind !== "salary");
+    // Meta-line ordering (rulebook item a: "location · work mode · level ·
+    // pay · posted · first seen") — split around where `salary` (rendered
+    // separately, see above) sits, rather than reordering `buildFactChips`'
+    // own field order.
+    const preSalaryChips = nonSalaryChips.filter((c) => c.kind !== "posted" && c.kind !== "first_seen");
+    const postSalaryChips = nonSalaryChips.filter((c) => c.kind === "posted" || c.kind === "first_seen");
     const salary = salaryText(job);
     // `cleanedCompany` keeps its legal suffix (e.g. "Qualys, Inc.") — it
     // feeds `jobCompanyHref` below, which uses it to build the `/companies/`
@@ -393,9 +515,6 @@ export function JobDetail({
         () => extractCompanyAboutLine([job], companyBrand || cleanedCompany || job.company || ""),
         [job, companyBrand, cleanedCompany],
     );
-    // Himalayas-style flag chip (visual-identity pass) — see JobCard's
-    // matching comment in app/page.tsx for the null-safety rationale.
-    const countryFlag = countryToFlag(job.location_country);
     const alsoIn = alsoInLabel(job, variants);
     // EXPANDED ghost module (docs-mockup.html Comp B2) — honest, derived
     // signal list; see deriveGhostSignals's doc comment for why each line
@@ -498,27 +617,32 @@ export function JobDetail({
         <div
             data-region="detail"
             className={cn(
-                "relative rounded-none border border-border bg-card",
+                "relative rounded-none bg-card",
                 collapseDescription && "flex min-h-0 flex-1 flex-col overflow-hidden",
                 className,
             )}
         >
             {/* Identity block — pinned outside the scroll subtree when the pane
                 owns scrolling (flex split); the mobile sheet keeps everything
-                in one flow and passes collapseDescription={false}. */}
-            <div
-                className={cn(
-                    "shrink-0 border-b border-border bg-card",
-                )}
-            >
+                in one flow and passes collapseDescription={false}. Rulebook item d:
+                this used to be its own bordered/filled panel; it now sits on page
+                bg like every other section — the border-t below the identity
+                content is the only divider it draws. */}
+            <div className="shrink-0">
                 {/* Identity header */}
-                <div className="px-4 pb-3.5 pt-4 sm:px-6 sm:pb-4">
+                <div className="px-4 pb-4 pt-4 sm:px-6 sm:pb-4">
                     <div className="flex items-start gap-3">
-                        <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
+                        {/* CompanyLogo's "lg" (56px) tile exceeds the rulebook's
+                            48px card-size floor by construction (it's a fixed-size
+                            avatar, not an authored panel) — exempted the same way
+                            the SERP row exempts its own logo tile. */}
+                        <div data-rulebook-exempt>
+                            <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
+                        </div>
                         <div className="min-w-0 flex-1">
                             <h1 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{decodeText(job.title)}</h1>
                             {matchScore && (
-                                <div className="mt-1.5">
+                                <div className="mt-2">
                                     <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
                                 </div>
                             )}
@@ -529,52 +653,16 @@ export function JobDetail({
                                     </Link>
                                 ) : (
                                     "Unknown company"
-                                )}{" "}
-                                ·{" "}
-                                {countryFlag && (
-                                    <span aria-hidden className="mr-1">
-                                        {countryFlag}
-                                    </span>
-                                )}
-                                {locationClamped ? (
-                                    <>
-                                        {(locationExpanded
-                                            ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
-                                            : locationDisclosure.visible
-                                        ).map((segment, i) => (
-                                            <span key={i} className="block">
-                                                {segment}
-                                            </span>
-                                        ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => setLocationExpanded((v) => !v)}
-                                            className="mt-0.5 block text-xs text-brand hover:underline cursor-pointer"
-                                        >
-                                            {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
-                                        </button>
-                                    </>
-                                ) : (
-                                    locationDisplay
                                 )}
                             </div>
                             {exceptionMark && (
-                                <div
-                                    data-tour="row-exception"
-                                    data-exception={exceptionMark.kind}
-                                    className={cn(
-                                        "mt-1.5 rounded-none border px-2.5 py-1 text-xs",
-                                        exceptionMark.kind === "both"
-                                            ? STATUS_PILL.closed
-                                            : exceptionMark.kind === "relisted"
-                                              ? LISTING_STATE_CHIP.relisted
-                                              : exceptionMark.kind === "stale"
-                                                ? STATUS_PILL.closed
-                                                : "border-border bg-background",
-                                    )}
-                                >
-                                    <span className="inline-flex flex-wrap items-center gap-x-1 text-xs font-semibold">
-                                        <ContextHelp content={exceptionMark.explain} side="right">
+                                // Rulebook: status reads as a plain colored WORD, not a
+                                // bordered/bg pill — each part already carries its own
+                                // tone via `part.className` (row-exception.ts), so the
+                                // wrapper needs no border/background of its own.
+                                <div data-tour="row-exception" data-exception={exceptionMark.kind} className="mt-2 text-xs font-semibold">
+                                    <ContextHelp content={exceptionMark.explain} side="right">
+                                        <span className="inline-flex flex-wrap items-center gap-x-1">
                                             {exceptionMark.parts.map((part, i) => (
                                                 <span key={part.text} className="inline-flex items-center">
                                                     {i > 0 && (
@@ -585,8 +673,8 @@ export function JobDetail({
                                                     <span className={part.className}>{part.text}</span>
                                                 </span>
                                             ))}
-                                        </ContextHelp>
-                                    </span>
+                                        </span>
+                                    </ContextHelp>
                                     {(exceptionMark.kind === "relisted" || exceptionMark.kind === "both") &&
                                         freshness.postedMs != null &&
                                         firstSeenRelative && (
@@ -598,62 +686,80 @@ export function JobDetail({
                                 </div>
                             )}
 
-                            {/* Icon-fact grammar (board-redesign.html / serp-readout-redesign.html
-                                §3: "`key value` chip becomes `icon value`... one icon set, used
-                                everywhere" — supersedes the bordered key/value box this replaced).
-                                No box/border: `FACT_CHIP_ICON` is the single icon-set chokepoint
-                                shared with JobCard's row. Salary stays bold and first; a relisted
-                                posted-date turns amber (the caution signal), same token used by
-                                the meter pip and receipt row below. */}
-                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-                                {salary && (
-                                    <span data-tour="jobs-pay" className="inline-flex items-center gap-2 text-xs">
-                                        <FACT_CHIP_ICON.salary size={16} className="shrink-0 text-muted-foreground" aria-hidden />
-                                        <span className="mono-data font-semibold text-foreground">{salary}</span>
-                                    </span>
-                                )}
-                                {nonSalaryChips.map((c) => {
-                                    const caution = c.kind === "posted" && freshness.kind === "relisted";
-                                    const FactIcon = FACT_CHIP_ICON[c.kind];
-                                    return (
-                                        <span
-                                            key={c.kind}
-                                            className={cn("inline-flex items-center gap-2 text-xs", caution && LISTING_STATE_TEXT.relisted)}
-                                        >
-                                            <FactIcon size={16} className={cn("shrink-0", !caution && "text-muted-foreground")} aria-hidden />
-                                            <span className={cn("mono-data", !caution && "text-foreground")}>
-                                                {c.label}
+                            {/* Meta line (rulebook item a): every fact JobCard's row
+                                already renders as flowing text — location, work type,
+                                employment type, level, pay, posted, first seen, plus
+                                the also-in/reported notes — joined by the shared
+                                `MetaLine` "· " seam (job-detail-facts.ts's sibling in
+                                this file), no per-fact icon or box. The one exception
+                                is the leading location pin (item b): at most one 16px
+                                HIG prefix glyph, never a second icon after it.
+                                `preSalaryChips`/`postSalaryChips` place `salary`
+                                between level and posted per the rulebook's stated
+                                order without reordering `buildFactChips`' own list. */}
+                            <div className="mt-2 flex flex-wrap items-baseline text-sm text-muted-foreground">
+                                <MetaLine
+                                    items={[
+                                        location && (
+                                            <span className="inline-flex items-baseline gap-1" data-rulebook-exempt>
+                                                <FACT_CHIP_ICON.location size={16} weight="bold" className="relative top-0.5 shrink-0" aria-hidden />
+                                                {locationClamped ? (
+                                                    <span className="inline-flex flex-col">
+                                                        {(locationExpanded
+                                                            ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
+                                                            : locationDisclosure.visible
+                                                        ).map((segment, i) => (
+                                                            <span key={i}>{segment}</span>
+                                                        ))}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setLocationExpanded((v) => !v)}
+                                                            className="mt-0.5 text-left text-xs text-brand hover:underline cursor-pointer"
+                                                        >
+                                                            {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
+                                                        </button>
+                                                    </span>
+                                                ) : (
+                                                    <span>{locationDisplay}</span>
+                                                )}
                                             </span>
-                                        </span>
-                                    );
-                                })}
-                                {alsoIn && (
-                                    <span className="inline-flex items-center rounded-none border border-border bg-background text-xs overflow-hidden">
-                                        <span className="bg-muted px-1.5 py-0.5 text-xs font-semibold text-muted-foreground border-r border-border">also in</span>
-                                        <span className="px-2 py-0.5 text-foreground">{alsoIn}</span>
-                                    </span>
-                                )}
-                                {typeof job.report_count === "number" && job.report_count > 0 && (
-                                    <span className="inline-flex items-center rounded-none border border-warn bg-muted text-xs overflow-hidden">
-                                        <span className="bg-muted px-1.5 py-0.5 text-xs font-semibold text-warn border-r border-warn">reported</span>
-                                        <span className="px-2 py-0.5 text-foreground">
-                                            {job.report_count} {job.report_count === 1 ? "user" : "users"}
-                                        </span>
-                                    </span>
-                                )}
+                                        ),
+                                        ...preSalaryChips.map((c) => <span key={c.kind}>{c.label}</span>),
+                                        salary && (
+                                            <span data-tour="jobs-pay" className="font-semibold text-foreground">
+                                                {salary}
+                                            </span>
+                                        ),
+                                        ...postSalaryChips.map((c) => {
+                                            const caution = c.kind === "posted" && freshness.kind === "relisted";
+                                            return (
+                                                <span key={c.kind} className={caution ? LISTING_STATE_TEXT.relisted : undefined}>
+                                                    {c.label}
+                                                </span>
+                                            );
+                                        }),
+                                        alsoIn && <span>also in {alsoIn}</span>,
+                                        typeof job.report_count === "number" && job.report_count > 0 && (
+                                            <span className="text-warn">
+                                                reported {job.report_count} {job.report_count === 1 ? "user" : "users"}
+                                            </span>
+                                        ),
+                                    ]}
+                                />
                                 {nonSalaryChips.some((c) => c.kind === "posted") && nonSalaryChips.some((c) => c.kind === "first_seen") && (
                                     <ContextHelp
                                         content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
-                                        className="self-center"
+                                        className="ml-1 self-center"
                                     />
                                 )}
                             </div>
-
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
+                            {/* Rulebook item f: these were hairline-boxed 44px
+                                squares — ghost 40px icon-only controls, no border. */}
                             <ReportListingButton
                                 job={job}
-                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-none border border-border bg-card text-muted-foreground hover:text-foreground"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                             />
                             <ShareAction
                                 title={`${job.title} at ${companyBrand}`}
@@ -663,7 +769,7 @@ export function JobDetail({
                                     "job",
                                 )}
                                 jobId={job.id}
-                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-none border border-border bg-card text-muted-foreground hover:text-foreground"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                             />
                             {onClose && (
                                 <button
@@ -680,7 +786,7 @@ export function JobDetail({
                 </div>
 
                 {/* Action row */}
-                <div className="border-t border-border bg-card px-4 py-2.5 sm:px-6 sm:py-3">
+                <div className="border-t border-border px-4 py-3 sm:px-6 sm:py-3">
                     <div className="flex flex-wrap items-center gap-2">
                         {/* House attention system (docs/design/ATTENTION.md,
                             channel 2): exactly one inverted-ink block per
@@ -722,88 +828,56 @@ export function JobDetail({
                     collapseDescription && "min-h-0 flex-1 overflow-y-auto custom-scrollbar",
                 )}
             >
-                {/* Ghost check module: a tinted glass check ledger */}
+                {/* Posting check (rulebook item e): plain flowing text, no
+                    card/panel and no segmented progress bar — the ratio and
+                    per-signal rows carry the same facts as sentence-case
+                    text instead. First section in this scroll body, so it
+                    draws no leading divider of its own. */}
                 {ghost && (
-                    <div data-tour="jobs-posting-check" className="mb-4 overflow-hidden rounded-none bg-card border border-border p-4">
-                        <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-xs font-semibold text-muted-foreground">
-                                    posting check
-                                </span>
-                                {ghostSignals.length > 0 && (
-                                    <div className="flex items-center gap-2">
-                                        <span aria-hidden className="flex items-center gap-1">
-                                            {ghostSignals.map((s, i) => (
-                                                <i
-                                                    key={i}
-                                                    className={cn(
-                                                        "h-2 w-3.5 rounded-none",
-                                                        s.kind === "freshness" && freshness.kind === "relisted"
-                                                            ? "bg-warn"
-                                                            : s.status === "favorable"
-                                                              ? "bg-live"
-                                                              : s.status === "unfavorable"
-                                                                ? "bg-border dark:bg-placeholder-text"
-                                                                // Unknown reads as an outline, not a filled
-                                                                // pip: nothing was measured, so there is no
-                                                                // result to shade either way.
-                                                                : "border border-dashed border-border dark:border-border",
-                                                    )}
-                                                />
-                                            ))}
-                                        </span>
-                                        {assessedSignals.length > 0 && (
-                                            <span className="text-xs font-semibold text-foreground">
-                                                {favorableSignalCount}/{assessedSignals.length} favorable
-                                            </span>
-                                        )}
-                                        {unknownSignalCount > 0 && (
-                                            <span className="text-xs text-muted-foreground">
-                                                · {unknownSignalCount} not tracked
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex items-center justify-between gap-2 sm:justify-end">
-                                {/* Verdict as a plain colored WORD, not a bordered/bg pill
-                                    (rulebook: one attention-grabbing filled/bordered
-                                    treatment per view, already spent on Apply) — the color
-                                    still comes from `ghost.cls`, the single tone source
-                                    every other verdict surface reads, so this can never
-                                    disagree with the row badge on what color a tone is. */}
-                                <span className={cn("text-xs font-semibold", ghost.cls.split(" ").find((c) => c.startsWith("text-")))}>
-                                    {ghost.label}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    {checkedText.charAt(0).toLowerCase()}{checkedText.slice(1)}
-                                </span>
-                            </div>
-                        </div>
+                    <div data-tour="jobs-posting-check" className="pb-6">
+                        <PostingCheckHeader
+                            favorableCount={favorableSignalCount}
+                            assessedCount={ghostSignals.length > 0 ? assessedSignals.length : 0}
+                            unknownCount={unknownSignalCount}
+                            verdictLabel={ghost.label}
+                            verdictClassName={ghost.cls.split(" ").find((c) => c.startsWith("text-")) ?? ""}
+                            checkedText={checkedText}
+                        />
                         {/* Explain copy only earns its place when the verdict isn't
                             already the unremarkable "clear and current" case — the
-                            meter + pill above already say enough there. */}
+                            ratio + verdict above already say enough there. */}
                         {!(job.ghost_badge === "clear" && !staleCheck) && (
-                            <div className="px-4 pt-3 text-xs text-muted-foreground">{ghost.explain}</div>
+                            <div className="pt-2 text-sm text-muted-foreground">{ghost.explain}</div>
                         )}
                         {ghostSignals.length > 0 && (
-                            <div className="mono-data grid grid-cols-1 gap-x-4 gap-y-2 px-4 py-3 text-xs sm:grid-cols-2">
+                            <PostingCheckSignalsGrid>
                                 {ghostSignals.map((s) => {
                                     const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
                                     return (
                                     <div key={s.text} className="flex items-start gap-2">
-                                        <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-none font-semibold text-xs", relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live dark:text-live" : "text-muted-foreground")}>
-                                            {/* Three glyphs for three states. The meter above already
-                                                excludes unknowns from the ratio and labels them
-                                                "· N not tracked", but the ROW still marked them with the
-                                                same "—" as a real negative — so a reader scanning the
-                                                column tallied our missing data as findings against the
-                                                employer, which is the misread the ratio fix was for. */}
-                                            {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unknown" ? "·" : "—"}
+                                        {/* Three glyphs for two real states — the ratio above
+                                            already excludes unknowns and states them as
+                                            "N not tracked"; a "not tracked" row renders no
+                                            glyph at all (rulebook item e), not the old shared
+                                            "·" that read as a real (if neutral) finding. */}
+                                        <span
+                                            className={cn(
+                                                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-sm font-semibold",
+                                                relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live" : "text-muted-foreground",
+                                            )}
+                                            aria-hidden={s.status !== "unknown"}
+                                        >
+                                            {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unfavorable" ? "—" : null}
                                         </span>
                                         <div className="min-w-0 flex-1 leading-snug">
-                                            <b className="text-xs font-semibold text-foreground mr-2">{s.kind}</b>
-                                            <span className={cn("text-xs", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
+                                            {/* `s.kind` (job-detail-facts.ts) is always lowercase
+                                                ("freshness"/"reposts"/"description"/"pay") — that
+                                                module is a shared, out-of-fence source also read
+                                                by JobDetailDocument.tsx, so sentence case is
+                                                applied here at the render call site instead of
+                                                changing the shared string. */}
+                                            <b className="text-sm font-semibold capitalize text-foreground mr-2">{s.kind}</b>
+                                            <span className={cn("text-sm", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
                                                 {s.text}
                                                 {!relistCaution && s.status === "unfavorable" && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
                                                     <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="ml-1 inline-block align-middle" />
@@ -813,35 +887,31 @@ export function JobDetail({
                                     </div>
                                     );
                                 })}
-                            </div>
+                            </PostingCheckSignalsGrid>
                         )}
-                        <div className="px-4 pb-4 pt-3">
+                        <div className="pt-3">
                             {/* WHEN this verdict was last checked — a stated fact from
                                 `updated_at`, not a fabricated checklist of what was
-                                inspected (see ghostCheckedText's doc comment). */}
-                            {/* Checked-time lives in the header row above — this
-                                footer states only the provenance claim. */}
-                            {/* `.verified-underline` (globals.css) is a deliberate
-                                sub-pixel signature style (2px border + 1px pad forming
-                                one hairline), not a Carbon-scale spacing value — same
-                                class is shared site-wide (ghost-jobs research page,
-                                CompletenessMock), so it's exempted here rather than
-                                widened globally for one region's probe. */}
-                            <div className="verified-underline mono-data inline-block text-xs text-muted-foreground" data-rulebook-exempt>
+                                inspected (see ghostCheckedText's doc comment). Plain
+                                12/16 secondary caption, no underline signature
+                                (rulebook item e). */}
+                            <div className="text-xs text-muted-foreground">
                                 every signal automated · nothing inferred
                             </div>
                             {/* S4 exposure trust badges (dark launch) — positive-only,
-                                same quiet mono/squared house style as the fact chips,
-                                same ContextHelp tooltip mechanism as elsewhere in this
+                                same quiet mono house style as the fact chips, same
+                                ContextHelp tooltip mechanism as elsewhere in this
                                 panel. Renders nothing until deriveExposureBadges has
                                 something to say (see its doc comment). */}
                             {exposureBadges.length > 0 && (
-                                <div className="mono-data mt-2.5 flex flex-wrap items-center gap-2 text-xs">
-                                    {exposureBadges.map((b) => (
-                                        <span
-                                            key={b.label}
-                                            className="inline-flex items-center border border-border px-2 py-1 text-muted-foreground"
-                                        >
+                                <div className="mono-data mt-3 flex flex-wrap items-center text-xs text-muted-foreground">
+                                    {exposureBadges.map((b, i) => (
+                                        <span key={b.label} className="inline-flex items-center">
+                                            {i > 0 && (
+                                                <span className="mx-1" aria-hidden>
+                                                    ·
+                                                </span>
+                                            )}
                                             {b.label}
                                             <ContextHelp
                                                 content={`We check whether this posting appears in ${
@@ -859,13 +929,16 @@ export function JobDetail({
 
                 {/* The ghost-check ledger and description body render for
                     everyone — posting text is public; Apply stays gated. */}
-                <div className="mb-4">
-                    <div className="mb-2 text-xs font-semibold">About this role</div>
+                {/* Rulebook item d: sections stack on page bg, separated by a
+                    hairline top border + 24px vertical padding — no card/panel
+                    per section. Body copy sits at a 640px reading measure. */}
+                <div className="border-t border-border py-6">
+                    <div className="mb-2 text-sm font-semibold text-foreground">About this role</div>
                     {blocks.length > 0 ? (
                         <>
                             <div
                                 data-testid="job-detail-description"
-                                className={cn("relative", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
+                                className={cn("relative max-w-[640px]", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
                             >
                                 <JobDescription blocks={blocks} />
                                 {collapsible && !descExpanded && (
@@ -876,14 +949,14 @@ export function JobDetail({
                                 <button
                                     type="button"
                                     onClick={() => setDescExpanded((v) => !v)}
-                                    className="mt-2 text-xs text-brand hover:underline cursor-pointer"
+                                    className="mt-2 text-sm text-brand hover:underline cursor-pointer"
                                 >
                                     {descExpanded ? "Show less" : "Show full description"}
                                 </button>
                             )}
                         </>
                     ) : hydrated ? (
-                        <div className="rounded-none border border-border bg-muted p-4 text-sm text-foreground dark:border-border dark:bg-muted dark:text-foreground">
+                        <p className="max-w-[640px] text-base leading-normal text-foreground">
                             No description was captured for this role.{" "}
                             {job.apply_url ? (
                                 <>
@@ -896,13 +969,13 @@ export function JobDetail({
                             ) : (
                                 "Try the original posting for full details."
                             )}
-                        </div>
+                        </p>
                     ) : (
                         // Not hydrated yet (the SERP's list-scope stub has no
                         // `description` field, meilisearch.ts's
                         // JOB_LIST_ATTRIBUTES_TO_RETRIEVE) — distinct from a
                         // hydrated job that genuinely has no description
-                        // (case above). Rendering the neutral empty-state box
+                        // (case above). Rendering the neutral empty-state copy
                         // here would claim "nothing was captured" before the
                         // full doc even arrived. Same `.skeleton-bar` idiom
                         // as JobDetailSkeleton.
@@ -915,25 +988,22 @@ export function JobDetail({
                 </div>
 
                 {job.tags && job.tags.length > 0 && (
-                    <div className="mb-4">
-                        <div className="mb-2 text-xs font-semibold">Keywords from the posting</div>
-                        <div className="flex flex-wrap gap-2">
-                            {job.tags.slice(0, 16).map((tag) => (
-                                <span
-                                    key={tag}
-                                    className="mono-data rounded-none border border-border bg-muted px-3 py-1 text-xs font-semibold text-foreground dark:border-border dark:bg-border dark:text-foreground"
-                                >
-                                    {decodeText(tag)}
-                                </span>
-                            ))}
+                    <div className="border-t border-border py-6">
+                        {/* Rulebook item c: no bordered tag chips — a sentence-case
+                            label plus one flowing secondary line joined by " · ". */}
+                        <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
+                        <div className="mono-data text-sm text-muted-foreground">
+                            {job.tags.slice(0, 16).map(decodeText).join(" · ")}
                         </div>
                     </div>
                 )}
 
-                {/* Company hiring-truth mini-KPI rail */}
+                {/* Company hiring-truth mini-KPI rail (rulebook item g): keep
+                    content, render on page bg with a hairline top divider
+                    instead of a bordered/bg panel. */}
                 {hasCompanyIntel && (
-                    <div className="rounded-none border border-border bg-muted p-4 dark:border-border dark:bg-muted">
-                        <div className="mono-data text-xs font-semibold text-muted-foreground">
+                    <div className="border-t border-border py-6">
+                        <div className="text-base font-semibold text-foreground">
                             {companyBrand || "This company"} · hiring truth
                         </div>
                         {/* Verbatim-or-absent (founding-wound law, about-line.ts) — a
@@ -942,7 +1012,7 @@ export function JobDetail({
                             often here; that's the correct, honest behavior, not a
                             bug to work around. */}
                         {aboutLine && (
-                            <p className="mt-2 text-xs leading-snug text-foreground">&ldquo;{aboutLine}&rdquo;</p>
+                            <p className="mt-2 max-w-[640px] text-sm leading-snug text-foreground">&ldquo;{aboutLine}&rdquo;</p>
                         )}
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
                             {showOpenCount && (
@@ -952,7 +1022,7 @@ export function JobDetail({
                                             ? openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })
                                             : job.company_open_count!.toLocaleString()}
                                     </div>
-                                    <div className="mono-data mt-0.5 text-xs font-semibold text-muted-foreground">
+                                    <div className="mono-data mt-0.5 text-sm text-muted-foreground">
                                         Live roles
                                     </div>
                                 </div>
@@ -962,7 +1032,7 @@ export function JobDetail({
                                     <div className="text-xl font-semibold text-foreground dark:text-white">
                                         {job.company_opened_90d.toLocaleString()}/{job.company_closed_90d.toLocaleString()}
                                     </div>
-                                    <div className="mono-data mt-0.5 text-xs font-semibold text-muted-foreground">
+                                    <div className="mono-data mt-0.5 text-sm text-muted-foreground">
                                         Opened / closed, 90d
                                     </div>
                                 </div>
@@ -979,7 +1049,7 @@ export function JobDetail({
                                     onClick={() => {
                                         if (onClose) onClose();
                                     }}
-                                    className="text-xs text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                    className="text-sm text-brand hover:underline"
                                 >
                                     All jobs at {companyBrand || cleanedCompany}
                                 </Link>
@@ -988,7 +1058,7 @@ export function JobDetail({
                                     onClick={() => {
                                         if (onClose) onClose();
                                     }}
-                                    className="text-xs text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                    className="text-sm text-brand hover:underline"
                                 >
                                     {companyBrand || cleanedCompany}
                                 </Link>
@@ -1001,11 +1071,14 @@ export function JobDetail({
                     Effect). Zero related → render nothing, no empty shell
                     (see the fetch effect above's error handling too). */}
                 {related.length > 0 && (
-                    <div className="mt-5">
-                        <div className="mono-data mb-2 text-xs font-semibold text-muted-foreground">
+                    <div className="border-t border-border py-6">
+                        <div className="mb-2 text-sm font-semibold text-foreground">
                             More like this
                         </div>
-                        <div className="flex flex-col gap-2">
+                        {/* Rulebook item h: rows separated only by a hairline,
+                            not bordered cards — same divide-y idiom as the SERP
+                            list, applied here via RelatedJobRow's own anatomy. */}
+                        <div className="divide-y divide-border">
                             {related.map((r) => (
                                 <RelatedJobRow
                                     key={r.id}
@@ -1026,19 +1099,21 @@ export function JobDetail({
                     /yours/[id] — out of this pass's scope) renders its own
                     primary CTA with a `bg-brand` fill; the rulebook allows
                     exactly one filled button per region and Apply above is
-                    it. `[&_button.bg-brand]` neutralizes that one class of
-                    child button in place (Klein border+text, no fill) from
-                    this call site only, leaving the shared component and
-                    its other mount (which isn't a "detail" region) alone. */}
-                <McpHandoffNote
-                    className="mt-4 [&_button.bg-brand]:!border [&_button.bg-brand]:!border-brand [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!text-brand [&_button.bg-brand]:!px-3 [&_button.bg-brand]:hover:!bg-transparent"
-                    job={{
-                        id: job.id,
-                        title: decodeText(job.title),
-                        company: companyBrand || job.company || "Unknown company",
-                        location: locationText(job) || null,
-                    }}
-                />
+                    it, so this second CTA reads as plain Klein text — no
+                    fill, no border (rulebook item f) — from this call site
+                    only, leaving the shared component and its other mount
+                    (which isn't a "detail" region) alone. */}
+                <div className="border-t border-border py-6">
+                    <McpHandoffNote
+                        className="border-0 bg-transparent p-0 [&_button.bg-brand]:!border-0 [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!px-0 [&_button.bg-brand]:!text-brand [&_button.bg-brand]:hover:!bg-transparent [&_button.bg-brand]:hover:!underline"
+                        job={{
+                            id: job.id,
+                            title: decodeText(job.title),
+                            company: companyBrand || job.company || "Unknown company",
+                            location: locationText(job) || null,
+                        }}
+                    />
+                </div>
             </div>
         </div>
     );

@@ -59,13 +59,13 @@ function hexToRgbString(hex: string): string {
 }
 
 type Offender = { tag: string; className: string; detail: string };
-type TypeResult = { violations: number; offenders: Offender[] };
-type DepthResult = { violations: number; offenders: Offender[] };
-type SpacingResult = { violations: number; offenders: Offender[] };
+type CountResult = { violations: number; offenders: Offender[] };
 type RegionReport = {
-    type: TypeResult;
-    depth: DepthResult;
-    spacing: SpacingResult;
+    type: CountResult;
+    depth: CountResult;
+    spacing: CountResult;
+    cards: CountResult;
+    chips: CountResult;
     filledButtons: number;
     geometryHeight: number | null;
 };
@@ -176,13 +176,55 @@ async function measure(page: Page, allowedColors: string[]): Promise<Report> {
                     (el) => (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') && isFilled(el),
                 ).length;
 
-                // Check 6 — geometry: this region root's own rendered height.
+                // Boxed shapes share one shape test — a ~1px border on all
+                // four sides — and split into "card" vs "chip" purely by
+                // size. (Computed `display` is NOT used to spot authored
+                // inline-flex pills: CSS blockifies inline/inline-flex to
+                // block/flex on any element that is itself a flex or grid
+                // item — https://developer.mozilla.org/en-US/docs/Web/CSS/display
+                // — which every chip/badge in this tree is, since they all
+                // sit inside a flex or grid row. Gating on the post-
+                // blockification value would make the check pass on every
+                // real chip in the tree, the exact "test derived from the
+                // code that can't falsify it" failure mode Step 0 exists to
+                // rule out.)
+                const bordersOf = (cs: CSSStyleDeclaration) =>
+                    [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth].map((w) => Math.round(parseFloat(w)));
+                const boxedOnAllSides = (el: Element) => bordersOf(getComputedStyle(el)).every((w) => w === 1);
+
+                // Check 5 — no cards: a boxed element wider than 48px (36-48px
+                // company/logo tiles are the documented size floor and stay
+                // under it).
+                const cardOffenders: ReturnType<typeof offender>[] = [];
+                for (const el of scoped) {
+                    if (!boxedOnAllSides(el)) continue;
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width > 48) cardOffenders.push(offender(el, `card border=1px×4 width=${Math.round(rect.width)}px`));
+                }
+
+                // Check 6 — no chips: a boxed element short enough (<=32px)
+                // and small-text enough (<=14px) to read as a pill/tag rather
+                // than a panel (band chips are out of scope for this loop's
+                // list/detail assertions below).
+                const chipOffenders: ReturnType<typeof offender>[] = [];
+                for (const el of scoped) {
+                    if (!boxedOnAllSides(el)) continue;
+                    const rect = el.getBoundingClientRect();
+                    const fontSize = Math.round(parseFloat(getComputedStyle(el).fontSize));
+                    if (rect.height <= 32 && fontSize <= 14) {
+                        chipOffenders.push(offender(el, `chip height=${Math.round(rect.height)}px font-size=${fontSize}px`));
+                    }
+                }
+
+                // Check 7 — geometry: this region root's own rendered height.
                 const geometryHeight = roots.length ? Math.round(roots[0].getBoundingClientRect().height) : null;
 
                 regionOut[name] = {
                     type: { violations: typeOffenders.length, offenders: typeOffenders.slice(0, 3) },
                     depth: { violations: depthOffenders.length, offenders: depthOffenders.slice(0, 3) },
                     spacing: { violations: spacingOffenders.length, offenders: spacingOffenders.slice(0, 3) },
+                    cards: { violations: cardOffenders.length, offenders: cardOffenders.slice(0, 3) },
+                    chips: { violations: chipOffenders.length, offenders: chipOffenders.slice(0, 3) },
                     filledButtons,
                     geometryHeight,
                 };
@@ -280,6 +322,39 @@ for (const region of REGIONS) {
         expect(got, `${region} filled-button count`).toBe(want);
     });
 }
+
+// Cards/chips are only asserted for list + detail: band's quick-filter and
+// facet chips are the rulebook's one explicitly-allowed chip surface, and
+// header carries no card/chip content to begin with.
+const CARD_CHIP_REGIONS = ['list', 'detail'] as const;
+for (const region of CARD_CHIP_REGIONS) {
+    test(`${region} / no cards: bordered boxes wider than 48px`, () => {
+        const r = report.regions[region].cards;
+        logViolations(`${region}/cards`, r.violations, r.offenders);
+        expect(r.violations, `${region}/cards violations`).toBe(0);
+    });
+
+    test(`${region} / no chips: bordered inline pills`, () => {
+        const r = report.regions[region].chips;
+        logViolations(`${region}/chips`, r.violations, r.offenders);
+        expect(r.violations, `${region}/chips violations`).toBe(0);
+    });
+}
+
+// Positive control: the two absence checks above (list/detail "no chips")
+// only prove anything if the SAME chip detector (boxedOnAllSides + <=32px
+// height + <=14px font-size) actually fires on a real chip somewhere. The
+// band's five quick-filter chips (h-8, 14px, 1px border on four sides —
+// CARD_CHIP_REGIONS' own comment names this as the rulebook's one allowed
+// chip surface) are that known-positive case; band is excluded from the
+// absence checks above, but `measure()` still computes its chip count
+// unconditionally, so this reads the same field the loop above reads for
+// list/detail. If this fails, the detector itself is wrong, not the band.
+test('band / chip detector sanity: real chips are detected', () => {
+    const r = report.regions.band.chips;
+    console.log(`band/chips (positive control): ${r.violations} chips found`);
+    expect(r.violations, 'band chip count').toBeGreaterThan(0);
+});
 
 test('list / svg icon count (rows must carry no icons)', () => {
     console.log(`list/svg: ${report.svgInList} violations`);

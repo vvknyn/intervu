@@ -10,7 +10,6 @@ import {
     Compass,
     CaretDown,
     CaretUp,
-    FunnelSimple,
     MapPin,
     X,
     Check,
@@ -135,7 +134,7 @@ import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
+import { JobDetail, JobDetailActionBar, JobDetailSkeleton, MetaLine } from "@/components/jobs/JobDetail";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { rowTrustChip } from "@/lib/jobs/badges";
@@ -465,9 +464,6 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 
 /* ----------------------------- ledger row ----------------------------- */
 
-/** Squared mono `key value` fact-chip base */
-const FACT_BOX = "inline-flex items-center gap-2 rounded-none px-3 py-0.5 text-xs leading-tight bg-muted transition-colors";
-
 /**
  * Quiet replay for the /jobs guided tour — lives on the filters row, not
  *  the global floating pill (which collides with SIGN IN TO APPLY). */
@@ -480,9 +476,8 @@ function JobsTourReplayButton() {
             aria-label="How these listings work"
             onClick={() => startTour()}
             className={cn(
-                chipVariants({ active: false }),
                 toolbarControlHeight,
-                "inline-flex w-11 shrink-0 items-center justify-center leading-none rounded-none p-0 text-muted-foreground transition-colors hover:text-foreground lg:w-7",
+                "inline-flex w-11 shrink-0 items-center justify-center whitespace-nowrap rounded-none p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:w-7",
             )}
         >
             <Question size={16} weight="bold" aria-hidden />
@@ -614,13 +609,19 @@ export function JobCard({
                 }
             }}
             className={cn(
-                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] rounded-none bg-card border border-border text-left transition-all duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand mb-2 gap-x-3 gap-y-2 px-4 py-4",
+                // Rows are hairline-separated, not bordered cards (rulebook
+                // item h): the divider lives on the content wrapper below,
+                // inset past the tile, so this outer grid carries no border
+                // or bottom margin of its own — rows touch, the line between
+                // them starts at the title's x, not the tile's.
+                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-card text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand gap-x-3 px-4 pt-4",
                 active && "border-l-[3px] border-l-brand bg-muted text-brand",
             )}
         >
             <div className="self-start">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-4">
             <div className="min-w-0">
                 <span className="inline-flex flex-wrap items-baseline gap-x-1">
                     <Link
@@ -706,63 +707,50 @@ export function JobCard({
                     )}
                 </div>
                 {/* Facts + status, one 14/20-scale secondary line joined by
-                    " · " (rulebook row anatomy) — no per-fact icons, no
-                    boxes/pills. Salary is the one bold value (matches
-                    JobDetail's own facts row treatment); status words carry
-                    their state in color alone, same as the detail pane's
-                    verdict word — sharing this line with the facts (instead
-                    of a second row) is what keeps the comfortable row inside
-                    the rulebook's 96-112px band. */}
-                {(factChips.length > 0 || freshness.kind === "fresh" || activelyPosted) && (
+                    the shared `MetaLine` "· " seam (JobDetail.tsx) — no
+                    per-fact icons, no boxes/pills. Salary is the one bold
+                    value (matches JobDetail's own facts row treatment);
+                    status words carry their state in color alone, same as
+                    the detail pane's verdict word — sharing this line with
+                    the facts (instead of a second row) is what keeps the
+                    comfortable row inside the rulebook's 96-112px band. */}
+                {(factChips.length > 0 || freshness.kind === "fresh" || activelyPosted || variantCount > 0) && (
                     <div className="mt-1 flex flex-wrap items-baseline text-xs text-muted-foreground">
-                        {factChips.map((c, i) => (
-                            <span key={c.kind} className="flex items-baseline">
-                                {i > 0 && (
-                                    <span className="mx-1" aria-hidden>
-                                        ·
+                        <MetaLine
+                            items={[
+                                ...factChips.map((c) => (
+                                    <span key={c.kind} className={cn(c.kind === "salary" && "font-semibold text-foreground")}>
+                                        {c.label}
                                     </span>
-                                )}
-                                <span className={cn(c.kind === "salary" && "font-semibold text-foreground")}>{c.label}</span>
-                            </span>
-                        ))}
-                        {/* "New" reads the SAME 7-day `classifyPostingFreshness`
-                            window everything else on the row already uses. */}
-                        {freshness.kind === "fresh" && (
-                            <span className="flex items-baseline">
-                                {factChips.length > 0 && (
-                                    <span className="mx-1" aria-hidden>
-                                        ·
+                                )),
+                                // "New" reads the SAME 7-day `classifyPostingFreshness`
+                                // window everything else on the row already uses.
+                                freshness.kind === "fresh" && (
+                                    <span data-testid="freshness-badge" className="font-semibold text-muted-foreground">
+                                        New
                                     </span>
-                                )}
-                                <span data-testid="freshness-badge" className="font-semibold text-muted-foreground">
-                                    New
-                                </span>
-                            </span>
-                        )}
-                        {activelyPosted && (
-                            <span className="flex items-baseline">
-                                {(factChips.length > 0 || freshness.kind === "fresh") && (
-                                    <span className="mx-1" aria-hidden>
-                                        ·
-                                    </span>
-                                )}
-                                <span className="text-live dark:text-live">Actively posted</span>
-                            </span>
-                        )}
+                                ),
+                                activelyPosted && <span className="text-live dark:text-live">Actively posted</span>,
+                                // "+N location(s)"/"+N opening(s)" joins the same
+                                // flowing meta line as plain text (rulebook item k)
+                                // instead of a boxed chip — still the cluster
+                                // expand/collapse control, just unstyled as a button.
+                                variantCount > 0 && (
+                                    <button
+                                        type="button"
+                                        data-testid="cluster-toggle"
+                                        className="hover:text-foreground hover:underline"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleExpand?.();
+                                        }}
+                                    >
+                                        {expanded ? "hide" : clusterLabel}
+                                    </button>
+                                ),
+                            ]}
+                        />
                     </div>
-                )}
-                {variantCount > 0 && (
-                    <button
-                        type="button"
-                        data-testid="cluster-toggle"
-                        className={cn(FACT_BOX, "mt-1 border-border bg-muted text-foreground hover:border-placeholder-text hover:bg-border dark:border-border dark:bg-border dark:text-foreground dark:hover:bg-border")}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleExpand?.();
-                        }}
-                    >
-                        {expanded ? "hide" : clusterLabel}
-                    </button>
                 )}
             </div>
             {/* Right meta column: bookmark (rulebook's 40px icon-only row
@@ -800,6 +788,7 @@ export function JobCard({
                     </span>
                 )}
             </span>
+            </div>
         </div>
     );
 }
@@ -902,21 +891,20 @@ const RESUME_MOMENT_OPENS = 3;
  */
 function JobCardSkeleton() {
     return (
-        <div
-            aria-hidden="true"
-            className="mb-2.5 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none bg-card border border-border p-4"
-        >
-            <div className="row-span-2 self-start">
+        <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-card pt-4">
+            <div className="self-start">
                 <div className="skeleton-bar h-12 w-12 rounded-none" />
             </div>
-            <div className="min-w-0 space-y-2">
-                <div className="skeleton-bar h-4 w-3/4" />
-                <div className="skeleton-bar h-3 w-1/3" />
-            </div>
-            <div className="skeleton-bar h-5 w-14 self-start" />
-            <div className="col-span-full flex gap-2">
-                <div className="skeleton-bar h-3 w-24" />
-                <div className="skeleton-bar h-3 w-16" />
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 border-b border-border pb-4">
+                <div className="min-w-0 space-y-2">
+                    <div className="skeleton-bar h-4 w-3/4" />
+                    <div className="skeleton-bar h-3 w-1/3" />
+                </div>
+                <div className="skeleton-bar h-5 w-14 self-start" />
+                <div className="col-span-full flex gap-2">
+                    <div className="skeleton-bar h-3 w-24" />
+                    <div className="skeleton-bar h-3 w-16" />
+                </div>
             </div>
         </div>
     );
@@ -4766,7 +4754,17 @@ function JobsContent() {
                         the filter toggles to its right which AND onto existing results.
                         `handleClearSearch` is the same path the "✕ clear search" toolbar
                         button uses — reused, not a third clear path. */}
-                    {!showLandingMarketing && (activeCategory || canSaveSearch) && (
+                    {/* Outer gate mirrors the OR of what the two children below
+                        actually render (`activeCategory`, and
+                        `!showJobsToolbarRow && savedSearchControl` — the latter
+                        is exactly `!showJobsToolbarRow && canSaveSearch` since
+                        `savedSearchControl` is `canSaveSearch ? ... : null`).
+                        A looser `canSaveSearch` alone let this div render with
+                        forced `min-h-[2.75rem]` and zero visible children
+                        whenever the toolbar row below (which shows its own
+                        `savedSearchControl`) was already the one rendering it —
+                        the mobile SERP's blank ~44px band under the search bar. */}
+                    {!showLandingMarketing && (activeCategory || (!showJobsToolbarRow && canSaveSearch)) && (
                         <div
                             data-testid="active-category-indicator"
                             className="mt-1 flex min-h-[2.75rem] flex-wrap items-center gap-1.5 px-0.5 text-xs text-muted-foreground sm:min-h-0"
@@ -4845,7 +4843,6 @@ function JobsContent() {
                                 activeCount > 0 && "has-active",
                             )}
                         >
-                            <FunnelSimple size={16} weight="bold" aria-hidden />
                             <span className="lg:hidden">Filters</span>
                             <span className="hidden lg:inline">All filters</span>
                             {activeCount > 0 && (
@@ -4986,7 +4983,7 @@ function JobsContent() {
                     {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"
-                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border xl:border-border xl:bg-card"
+                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border-l xl:border-border"
                         >
                             {detailMountSite === "pane" ? (
                                 renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
@@ -5250,8 +5247,9 @@ function JobsContent() {
                                 <>
                                     {!isSerpAsk && (
                                         <>
-                                            {/* Consolidated Swiss Glass Status Ribbon */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-none border-b border-border bg-muted px-3.5 py-2 text-xs">
+                                            {/* Count line: plain secondary text, no panel (rulebook
+                                                item i) — "show all" reads as the one Klein text link. */}
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 py-2 text-sm text-muted-foreground">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
@@ -5264,7 +5262,7 @@ function JobsContent() {
                                                             type="button"
                                                             data-testid="beyond-window-show-all"
                                                             onClick={() => panelPostedBucket(undefined)}
-                                                            className="text-muted-foreground hover:text-foreground underline underline-offset-2"
+                                                            className="text-brand hover:underline"
                                                         >
                                                             ({beyondWindowText} — show all)
                                                         </button>
@@ -5283,11 +5281,8 @@ function JobsContent() {
                                                     disclosure matters most (zero results). */}
                                                 {companyDomain && (
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <span
-                                                            data-testid="company-scope-chip"
-                                                            className="inline-flex items-center gap-2 rounded-none border border-border bg-chip px-2 py-1 text-xs"
-                                                        >
-                                                            <span className="whitespace-nowrap text-xs font-semibold text-muted-foreground">
+                                                        <span data-testid="company-scope-chip" className="flex items-center gap-2">
+                                                            <span className="whitespace-nowrap font-semibold text-foreground">
                                                                 employer
                                                             </span>
                                                             <span className="text-foreground">{companyDomain}</span>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FunnelSimple, MagnifyingGlass, MapPin, Moon, Sun, CaretDown, CircleNotch } from "@phosphor-icons/react";
+import { MagnifyingGlass, MapPin, Moon, Sun, CaretDown, CircleNotch } from "@phosphor-icons/react";
 import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
@@ -396,7 +396,6 @@ export function TopBar() {
                                 "box-border shrink-0 items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold lg:px-3",
                             )}
                         >
-                            <FunnelSimple weight="bold" aria-hidden />
                             Filters
                             {docked.filterCount > 0 && (
                                 <span className="ml-0.5 inline-flex min-w-[16px] items-center justify-center rounded-none border border-brand bg-muted px-1 text-xs font-semibold text-brand">

@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, BookmarkSimple, Check, MapPin } from "@phosphor-icons/react";
+import { ArrowSquareOut, MapPin } from "@phosphor-icons/react";
 import { getCompanyRailAction, getRelatedJobsAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
-import { JobDescription, RelatedJobRow } from "@/components/jobs/JobDetail";
+import { JobDescription, JobDetailActionBar, MetaLine, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobRow } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
+import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import type { MatchScore } from "@/lib/match/score";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
@@ -35,10 +35,10 @@ import {
     displayCompanyBrand,
     ghostMetaFor,
     locationText,
+    salaryText,
 } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
-import { countryToFlag } from "@/lib/jobs/country-flag";
-import { STATUS_PILL, LISTING_STATE_CHIP } from "@/lib/ui/status-tokens";
+import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { cn } from "@/lib/utils";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -73,21 +73,25 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
     const showOpenCount = openCount != null && !shouldSuppressOpenCount(openCount.value, job.vacancy_status === "closed");
     const hasTrackRecord = typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number";
 
+    // Rulebook item g: keep the content, render on page bg with a hairline
+    // top divider instead of a bordered/bg panel; name 16/22 600 ink,
+    // numbers 20/28 600 ink, captions 14/20 secondary, links as plain Klein
+    // text with no forced underline decoration.
     return (
-        <div data-testid="job-detail-employer-card" className="border border-border bg-card p-4 sm:p-5">
-            <div className="mono-data text-xs font-semibold text-muted-foreground">
+        <div data-testid="job-detail-employer-card" className="border-t border-border py-6">
+            <div className="text-base font-semibold text-foreground">
                 {companyBrand || "This company"}
             </div>
-            {rail?.aboutLine && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{rail.aboutLine}</p>}
+            {rail?.aboutLine && <p className="mt-2 max-w-[640px] text-sm leading-relaxed text-muted-foreground">{rail.aboutLine}</p>}
             {(showOpenCount || hasTrackRecord) && (
-                <div className="mt-3.5 flex flex-wrap gap-4 border-t border-border pt-3.5">
+                <div className="mt-4 flex flex-wrap gap-4">
                     {showOpenCount && openCount && (
                         <div className="min-w-[90px]">
                             <div className="text-xl font-semibold tabular-nums text-foreground">
                                 {openCountText({ openCount: openCount.value, openCountIsLowerBound: openCount.isLowerBound })}
                             </div>
-                            <div className="mono-data mt-0.5 text-xs font-semibold text-muted-foreground">
-                                Open roles
+                            <div className="mono-data mt-0.5 text-sm text-muted-foreground">
+                                Live roles
                             </div>
                         </div>
                     )}
@@ -96,7 +100,7 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
                             <div className="text-xl font-semibold tabular-nums text-foreground">
                                 {job.company_opened_90d.toLocaleString()}/{job.company_closed_90d.toLocaleString()}
                             </div>
-                            <div className="mono-data mt-0.5 text-xs font-semibold text-muted-foreground">
+                            <div className="mono-data mt-0.5 text-sm text-muted-foreground">
                                 Opened / closed, 90d
                             </div>
                         </div>
@@ -110,9 +114,9 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
                             ? buildCompanyJobsUrl({ domain: job.company_domain.trim() })
                             : jobCompanyHref(cleanedCompany, job.company_domain)
                     }
-                    className="mt-3.5 inline-block text-xs text-foreground underline underline-offset-[3px] hover:opacity-80"
+                    className="mt-4 inline-block text-sm text-brand hover:underline"
                 >
-                    All jobs at {companyBrand || cleanedCompany} →
+                    All jobs at {companyBrand || cleanedCompany}
                 </Link>
             )}
         </div>
@@ -149,51 +153,54 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
     const checkedText = ghostCheckedText(job, now);
     const exposureBadges = deriveExposureBadges(job, now);
 
+    // Rulebook item e: plain flowing text, no card/panel and no segmented
+    // progress bar — the ratio and per-signal rows carry the same facts as
+    // sentence-case text instead.
     return (
-        <div data-testid="job-detail-receipt" className="border border-border bg-card">
-            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-                <span className="mono-data text-xs font-semibold text-muted-foreground">Posting check</span>
-                <span className={cn("text-xs font-semibold", ghost.cls.split(" ").find((c) => c.startsWith("text-")))}>{ghost.label}</span>
-            </div>
+        <div data-testid="job-detail-receipt" className="border-t border-border py-6">
+            <PostingCheckHeader
+                favorableCount={favorableCount}
+                assessedCount={assessed.length}
+                unknownCount={unknownCount}
+                verdictLabel={ghost.label}
+                verdictClassName={ghost.cls.split(" ").find((c) => c.startsWith("text-")) ?? ""}
+                checkedText={checkedText}
+            />
             {signals.length > 0 && (
-                <div className="mono-data divide-y divide-border">
+                <PostingCheckSignalsGrid>
                     {signals.map((s) => {
                         const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
-                        const glyph = relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unknown" ? "·" : "—";
                         return (
-                            <div key={s.text} className="flex items-start gap-2.5 px-4 py-2.5 text-xs">
+                            <div key={s.text} className="flex items-start gap-2">
+                                {/* "not tracked" (unknown) renders no glyph at all
+                                    (rulebook item e) — the ratio above already
+                                    states it as "N not tracked". */}
                                 <span
                                     className={cn(
-                                        "mt-0.5 w-3 shrink-0 text-center font-semibold",
-                                        relistCaution
-                                            ? "text-brand dark:text-brand"
-                                            : s.status === "favorable"
-                                              ? "text-live dark:text-live"
-                                              : "text-muted-foreground",
+                                        "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-sm font-semibold",
+                                        relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live" : "text-muted-foreground",
                                     )}
+                                    aria-hidden={s.status !== "unknown"}
                                 >
-                                    {glyph}
+                                    {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unfavorable" ? "—" : null}
                                 </span>
                                 <div className="min-w-0 flex-1 leading-snug">
-                                    <b className="mr-1.5 font-semibold text-foreground">{s.kind}</b>
-                                    <span className="text-muted-foreground">{s.text}</span>
+                                    {/* `s.kind` (job-detail-facts.ts) is always
+                                        lowercase — sentence case applied here at
+                                        the render call site, same as JobDetail.tsx. */}
+                                    <b className="mr-2 text-sm font-semibold capitalize text-foreground">{s.kind}</b>
+                                    <span className={cn("text-sm", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>{s.text}</span>
                                 </div>
                             </div>
                         );
                     })}
-                </div>
+                </PostingCheckSignalsGrid>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
-                <span className="mono-data text-xs text-muted-foreground">
-                    {assessed.length > 0 ? `${favorableCount}/${assessed.length} favorable` : "not yet scored"}
-                    {unknownCount > 0 && <> · {unknownCount} not tracked</>}
-                </span>
-                <span className="text-xs text-muted-foreground">{checkedText.charAt(0).toLowerCase()}{checkedText.slice(1)}</span>
-            </div>
             {exposureBadges.length > 0 && (
-                <div className="mono-data flex flex-wrap items-center gap-2 border-t border-border px-4 py-2.5 text-xs">
-                    {exposureBadges.map((b) => (
-                        <span key={b.label} className="inline-flex items-center border border-border px-2 py-1 text-muted-foreground">
+                <div className="mono-data mt-3 flex flex-wrap items-center text-xs text-muted-foreground">
+                    {exposureBadges.map((b, i) => (
+                        <span key={b.label} className="inline-flex items-center">
+                            {i > 0 && <span className="mx-1" aria-hidden>·</span>}
                             {b.label}
                         </span>
                     ))}
@@ -263,9 +270,16 @@ export function JobDetailDocument({
     const postedRelative = freshness.postedMs != null ? formatRelativeAge(new Date(freshness.postedMs).toISOString(), now) : null;
     const firstSeenRelative = freshness.firstSeenMs != null ? formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), now) : null;
     const chips = buildFactChips(job, postedRelative, firstSeenRelative);
+    // Meta-line ordering (rulebook item a: "location · work mode · level ·
+    // pay · posted · first seen") — same preSalary/postSalary split as
+    // JobDetail.tsx's SERP panel, so the two "job detail column" surfaces
+    // read identically.
+    const nonSalaryChips = chips.filter((c) => c.kind !== "salary");
+    const preSalaryChips = nonSalaryChips.filter((c) => c.kind !== "posted" && c.kind !== "first_seen");
+    const postSalaryChips = nonSalaryChips.filter((c) => c.kind === "posted" || c.kind === "first_seen");
+    const salary = salaryText(job);
     const cleanedCompany = displayCompany(job.company, job.company_domain);
     const companyBrand = displayCompanyBrand(job.company, job.company_domain, job.title);
-    const countryFlag = countryToFlag(job.location_country);
     const location = locationText(job);
     const locationDisclosure = clampLocationSegments(location);
     const locationClamped = locationDisclosure.hidden.length > 0;
@@ -301,17 +315,17 @@ export function JobDetailDocument({
     }, [job.id, job.company_domain, job.title]);
 
     const heroEl = (
-        <div className="border border-border bg-card p-5 sm:p-6">
-            <div className="flex items-start gap-3.5 sm:gap-4">
+        <div className="pb-6">
+            <div className="flex items-start gap-4">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                 <div className="min-w-0 flex-1">
                     <h1 className="text-xl font-semibold leading-snug text-foreground sm:text-2xl">{decodeText(job.title)}</h1>
                     {matchScore && (
-                        <div className="mt-1.5">
+                        <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
                         </div>
                     )}
-                    <div className="mt-1.5 text-sm text-muted-foreground">
+                    <div className="mt-2 text-sm text-muted-foreground">
                         {cleanedCompany ? (
                             <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
                                 {companyBrand}
@@ -320,7 +334,8 @@ export function JobDetailDocument({
                             "Unknown company"
                         )}
                         {" · "}
-                        {countryFlag && <span aria-hidden className="mr-1">{countryFlag}</span>}
+                        {/* Rulebook item b: at most one 16px pin as HIG prefix,
+                            no flag emoji ahead of it. */}
                         <MapPin size={16} className="mr-0.5 inline-block align-[-1px] text-muted-foreground" aria-hidden />
                         {locationClamped ? (
                             <>
@@ -336,23 +351,19 @@ export function JobDetailDocument({
                         )}
                     </div>
                 </div>
+                {/* Rulebook item f: 40px bordered square → ghost 40px icon-only,
+                    no border. */}
                 <ReportListingButton
                     job={job}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-card"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 />
             </div>
 
             {exceptionMark && (
-                <div
-                    className={cn(
-                        "mt-3.5 border px-3 py-2 text-xs",
-                        exceptionMark.kind === "both" || exceptionMark.kind === "stale"
-                            ? STATUS_PILL.closed
-                            : exceptionMark.kind === "relisted"
-                              ? LISTING_STATE_CHIP.relisted
-                              : "border-border bg-background",
-                    )}
-                >
+                // Status reads as a plain colored WORD, not a bordered/bg pill
+                // (rulebook) — each part already carries its own tone via
+                // `part.className` (row-exception.ts).
+                <div className="mt-4 text-xs font-semibold">
                     <ContextHelp content={exceptionMark.explain} side="right">
                         <span className="inline-flex flex-wrap items-center gap-x-1">
                             {exceptionMark.parts.map((part, i) => (
@@ -366,59 +377,82 @@ export function JobDetailDocument({
                 </div>
             )}
 
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-                {chips.map((c) => {
-                    const Icon = FACT_CHIP_ICON[c.kind];
-                    return (
-                        <span key={c.kind} className="inline-flex items-center gap-1.5 border border-border bg-background px-2.5 py-1 text-xs text-foreground">
-                            <Icon size={16} weight="bold" className="text-muted-foreground" aria-hidden />
-                            {c.label}
-                        </span>
-                    );
-                })}
+            {/* Meta line (rulebook item a): every fact as flowing text joined
+                by the shared `MetaLine` "· " seam (JobDetail.tsx), no
+                per-fact icon or box. */}
+            <div className="mt-3 flex flex-wrap items-baseline text-sm text-muted-foreground">
+                <MetaLine
+                    items={[
+                        ...preSalaryChips.map((c) => <span key={c.kind}>{c.label}</span>),
+                        salary && (
+                            <span data-tour="jobs-pay" className="font-semibold text-foreground">
+                                {salary}
+                            </span>
+                        ),
+                        ...postSalaryChips.map((c) => {
+                            const caution = c.kind === "posted" && freshness.kind === "relisted";
+                            return (
+                                <span key={c.kind} className={caution ? LISTING_STATE_TEXT.relisted : undefined}>
+                                    {c.label}
+                                </span>
+                            );
+                        }),
+                    ]}
+                />
             </div>
 
             {job.must_have_skills && job.must_have_skills.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border pt-4">
-                    {job.must_have_skills.slice(0, 12).map((skill) => (
-                        <span key={skill} className="mono-data border border-brand bg-muted px-2.5 py-1 text-xs font-semibold text-brand">
-                            {decodeText(skill)}
-                        </span>
-                    ))}
+                <div className="mt-4 border-t border-border pt-4">
+                    {/* Rulebook item c's pattern applied to this chip list too:
+                        a sentence-case label + one flowing secondary line, no
+                        bordered chips. */}
+                    <div className="mb-1 text-sm font-semibold text-foreground">Must-have skills</div>
+                    <div className="mono-data text-sm text-muted-foreground">
+                        {job.must_have_skills.slice(0, 12).map(decodeText).join(" · ")}
+                    </div>
                 </div>
             )}
         </div>
     );
 
     const applyCardEl = closed ? (
-        <div data-testid="job-detail-apply-card" className="border border-border bg-card p-4">
-            <p className="mb-3 text-xs text-muted-foreground">This role is closed — it's no longer accepting applications.</p>
+        <div data-testid="job-detail-apply-card" className="border-t border-border py-4">
+            <p className="mb-3 text-sm text-muted-foreground">This role is closed — it&apos;s no longer accepting applications.</p>
             {job.company_domain && (
                 <Button asChild className="h-11 w-full gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
-                    <Link href={buildCompanyJobsUrl({ domain: job.company_domain.trim() })}>See open roles at {companyBrand || cleanedCompany} →</Link>
+                    <Link href={buildCompanyJobsUrl({ domain: job.company_domain.trim() })}>See open roles at {companyBrand || cleanedCompany}</Link>
                 </Button>
             )}
         </div>
     ) : (
-        <div data-testid="job-detail-apply-card" className="border border-border bg-card p-4">
-            <div className="flex flex-wrap items-center gap-2">
+        <div
+            data-testid="job-detail-apply-card"
+            className={cn(
+                "border-t border-border py-4",
+                // Below `lg` the inline pair below is hidden (the sticky
+                // `JobDetailActionBar` mounted at the foot of the mobile
+                // stack is the one filled button + bookmark for that
+                // viewport, so the viewport never shows two filled buttons
+                // at once) and the report button is the only thing this
+                // card can show there — hide the WRAPPER itself (border +
+                // padding included) whenever that won't render either, or
+                // mobile gets a hairline-and-padding "dead" gap between
+                // Must-have skills and Posting check with nothing inside it.
+                !(reportJobEnabled && job.apply_url) && "hidden lg:block",
+            )}
+        >
+            <div className="hidden items-center gap-2 lg:flex">
                 {job.apply_url && (
                     <Button onClick={onOpenPosting} className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
                         <ArrowSquareOut size={16} />
                         {signedIn ? "Apply on Company Site" : "Sign in to apply"}
                     </Button>
                 )}
-                {pursuit ? (
-                    <Link href={`/yours/${pursuit.id}`} className="bg-muted text-live inline-flex h-10 items-center gap-1.5 rounded-none px-4 text-xs font-semibold">
-                        <Check size={16} weight="bold" />
-                        Saved
-                    </Link>
-                ) : (
-                    <Button variant="outline" onClick={onGoAfter} disabled={goingAfter} className="h-10 gap-2 rounded-none px-4 text-xs font-semibold">
-                        <BookmarkSimple size={16} />
-                        {goingAfter ? "Saving…" : "Save"}
-                    </Button>
-                )}
+                {/* Rulebook item f: Save outline → the same 40px icon-only
+                    ghost bookmark control every other surface (JobDetail's
+                    action row, JobCard's row) already uses — one chokepoint,
+                    no independent restyle. */}
+                <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
             </div>
             {reportJobEnabled && job.apply_url && (
                 <ReportJobButton jobUrl={job.apply_url} jobTitle={job.title} onRequireAuth={() => onRequestSignIn?.()} className="mt-2" />
@@ -429,25 +463,25 @@ export function JobDetailDocument({
     const receiptEl = <Receipt job={job} now={now} />;
 
     const postingEl = (
-        <div data-testid="job-detail-posting" className="border border-border bg-card p-5 sm:p-6">
-            <div className="mb-3 text-xs font-semibold text-foreground">About this role</div>
+        <div data-testid="job-detail-posting" className="border-t border-border py-6">
+            <div className="mb-2 text-sm font-semibold text-foreground">About this role</div>
             {blocks.length > 0 ? (
-                <JobDescription blocks={blocks} />
+                <div className="max-w-[640px]">
+                    <JobDescription blocks={blocks} />
+                </div>
             ) : (
-                <p className="text-sm text-muted-foreground">
+                <p className="max-w-[640px] text-base leading-normal text-foreground">
                     No description was captured for this role.{" "}
                     {job.apply_url ? "Use Apply to read the full details on the employer's site." : "Try the original posting for full details."}
                 </p>
             )}
             {job.tags && job.tags.length > 0 && (
                 <div className="mt-5 border-t border-border pt-4">
-                    <div className="mb-2.5 text-xs font-semibold text-foreground">Keywords from the posting</div>
-                    <div className="flex flex-wrap gap-2">
-                        {job.tags.slice(0, 16).map((tag) => (
-                            <span key={tag} className="mono-data rounded-none border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground dark:border-border dark:bg-border dark:text-foreground">
-                                {decodeText(tag)}
-                            </span>
-                        ))}
+                    {/* Rulebook item c: label + one flowing secondary line, no
+                        bordered chips. */}
+                    <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
+                    <div className="mono-data text-sm text-muted-foreground">
+                        {job.tags.slice(0, 16).map(decodeText).join(" · ")}
                     </div>
                 </div>
             )}
@@ -457,20 +491,31 @@ export function JobDetailDocument({
     const employerCardEl = <EmployerCard job={job} companyBrand={companyBrand} cleanedCompany={cleanedCompany ?? ""} />;
 
     const aiBoxEl = (
-        <McpHandoffNote
-            job={{
-                id: job.id,
-                title: decodeText(job.title),
-                company: companyBrand || job.company || "Unknown company",
-                location: locationText(job) || null,
-            }}
-        />
+        <div className="border-t border-border py-6">
+            {/* Rulebook item f: exactly one filled Klein button per region —
+                Apply above is it, so this CTA reads as plain Klein text, no
+                fill/border. Same call-site override as JobDetail.tsx's SERP
+                panel (see its doc comment); the shared component and its
+                other mount are left alone. */}
+            <McpHandoffNote
+                className="border-0 bg-transparent p-0 [&_button.bg-brand]:!border-0 [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!px-0 [&_button.bg-brand]:!text-brand [&_button.bg-brand]:hover:!bg-transparent [&_button.bg-brand]:hover:!underline"
+                job={{
+                    id: job.id,
+                    title: decodeText(job.title),
+                    company: companyBrand || job.company || "Unknown company",
+                    location: locationText(job) || null,
+                }}
+            />
+        </div>
     );
 
     const relatedEl = related.length > 0 && (
-        <div data-testid="job-detail-related">
-            <div className="mono-data mb-2 text-xs font-semibold text-muted-foreground">More like this</div>
-            <div className="flex flex-col gap-1.5">
+        <div data-testid="job-detail-related" className="border-t border-border py-6">
+            <div className="mb-2 text-sm font-semibold text-foreground">More like this</div>
+            {/* Rulebook item h: rows separated only by a hairline, not
+                bordered cards — RelatedJobRow itself carries no border now
+                (see JobDetail.tsx), so this wrapper supplies the dividers. */}
+            <div className="divide-y divide-border">
                 {related.map((r) => (
                     <RelatedJobRow key={r.id} job={r} now={now} onClick={() => onOpenRelated?.(r.id, r)} />
                 ))}
@@ -484,8 +529,10 @@ export function JobDetailDocument({
     // related).
     return (
         <div data-testid="job-detail-document">
-            {/* Mobile / tablet: single column, spec reading order. */}
-            <div className="flex flex-col gap-4 lg:hidden">
+            {/* Mobile / tablet: single column, spec reading order. Sections
+                self-space via their own hairline top border + padding
+                (rulebook item d), so this stack applies no extra gap. */}
+            <div className={cn("flex flex-col lg:hidden", !closed && "pb-12")}>
                 {heroEl}
                 {applyCardEl}
                 {receiptEl}
@@ -494,17 +541,39 @@ export function JobDetailDocument({
                 {employerCardEl}
                 {aiBoxEl}
                 {!closed && relatedEl}
+                {/* Sticky mobile action bar (rulebook "sticky mobile action
+                    bar"): the same chokepoint the SERP Sheet's mobile detail
+                    already mounts (JobDetail.tsx doc comment), stacked
+                    `bottom-12` — above the sitewide `MobileTabBar`'s 48px
+                    base height — since this document scrolls the real page,
+                    unlike the Sheet's own `overflow-y-auto` container that
+                    paints over the tab bar. `pb-12` above gives the last
+                    in-flow content the same clearance so nothing sits under
+                    either bar at full scroll. Closed jobs keep their own
+                    "See open roles" card inline — this bar doesn't model
+                    that state. */}
+                {!closed && (
+                    <JobDetailActionBar
+                        job={job}
+                        signedIn={signedIn}
+                        onOpenPosting={onOpenPosting}
+                        onGoAfter={onGoAfter}
+                        pursuit={pursuit}
+                        goingAfter={goingAfter}
+                        className="bottom-12"
+                    />
+                )}
             </div>
 
             {/* Desktop: two-column document, rail sticky. */}
             <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
-                <div className="flex min-w-0 flex-col gap-4">
+                <div className="flex min-w-0 flex-col">
                     {heroEl}
                     {closed && relatedEl}
                     {postingEl}
                     {!closed && relatedEl}
                 </div>
-                <div className="sticky top-6 flex flex-col gap-4">
+                <div className="sticky top-6 flex flex-col">
                     {applyCardEl}
                     {receiptEl}
                     {employerCardEl}
