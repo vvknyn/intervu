@@ -144,6 +144,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
+import { needsResumeEntry } from "@/lib/jobs/resume-entry";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import {
     isUnavailableJobsResult,
@@ -1858,6 +1859,13 @@ function JobsContent() {
     // tri-state answer as-is, `null` included.
     const resumeOnFile: boolean | null = hasUsableResume || resumeKnownOnServer;
 
+    // Single gate behind every résumé invite on this page (band ghost word,
+    // sort menu's fourth item, résumé-moment card) — see `needsResumeEntry`'s
+    // own doc comment for why it reads `resumeOnFile` (server-aware) rather
+    // than `hasUsableResume` (local-only): the latter told a returning
+    // signed-in user with a résumé already on the server to "add" one.
+    const showResumeEntry = needsResumeEntry({ signedIn: !!user, resumeOnFile, fitActive });
+
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
     // instead of a second `activeFilterEntries(filterState)` per render.
@@ -3342,18 +3350,6 @@ function JobsContent() {
     const showResumeMoment =
         !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS && !tourActive;
 
-    // Personalization invite — the quiet bottom-of-list nudge that precedes
-    // the résumé moment. Appears from the first search result (no opens gate),
-    // disappears once a résumé exists, fit is active, or the user dismisses.
-    // Never shown alongside `showResumeMoment` (which fires at 3 opens and
-    // is more specific) — mutually exclusive by the `!showResumeMoment` guard.
-    const showPersonalizationInvite =
-        !upsellDismissed &&
-        !fitActive &&
-        !hasUsableResume &&
-        !showResumeMoment &&
-        !tourActive;
-
     // Guest save upsell banner — shown after the first anonymous save (either
     // "Go after" or a saved search) until dismissed. Signed-in users never see
     // it; the `guestSaveCount` and `guestSaveBannerDismissed` states are
@@ -3911,7 +3907,11 @@ function JobsContent() {
         setResumeUpdatedAt(new Date().toISOString());
         setImportOpen(false);
         // Persist to the profile so returning users skip the upload step (best-effort).
-        void saveResumeData(data, source, confidence).catch(() => {});
+        // The capture rides the SAME promise, not a synchronous fire — a failed
+        // save must not report a success that didn't happen.
+        void saveResumeData(data, source, confidence)
+            .then(() => captureEvent("resume_uploaded", {}))
+            .catch(() => {});
         // `handleUploadClick` queued this because no usable résumé was on
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
@@ -4303,6 +4303,46 @@ function JobsContent() {
         />
     ) : null;
 
+    // Band ghost word — the résumé entry point that replaces the deleted
+    // foot-of-list invite. Same look as `SavedSearchesPanel`'s own compact
+    // trigger (SavedSearchesPanel.tsx's `save-search-trigger`): a ghost
+    // word, no icon, brand text. `handleRankByFit` already falls through to
+    // the uploader when no résumé resolves, so this is the one call every
+    // other résumé entry point on this page also uses.
+    //
+    // Composed at the two `savedSearchControl` mount sites below rather
+    // than folded into that variable itself: `savedSearchControl` is `null`
+    // whenever `canSaveSearch` is false (the pristine landing, no query/
+    // filters/sort yet) — exactly the moment a résumé-less visitor most
+    // needs this entry — and a THIRD mount site (the "active-category-
+    // indicator" row above) has its own outer render gate keyed to the
+    // documented `savedSearchControl ⟺ canSaveSearch` equivalence; folding
+    // this in there would either hide the word on that first landing or
+    // silently invalidate that gate. `savedSearchMountEl` carries both
+    // without touching either.
+    const rankByFitEl = showResumeEntry ? (
+        <button
+            type="button"
+            data-testid="jobs-rank-by-fit"
+            title="Add your résumé to rank these roles by fit"
+            onClick={() => void handleRankByFit()}
+            className={cn(
+                toolbarControlHeight,
+                "inline-flex shrink-0 items-center justify-center whitespace-nowrap px-2 text-xs leading-none text-brand transition-colors hover:opacity-80",
+            )}
+        >
+            Rank by fit
+        </button>
+    ) : null;
+
+    const savedSearchMountEl =
+        rankByFitEl || savedSearchControl ? (
+            <>
+                {rankByFitEl}
+                {savedSearchControl}
+            </>
+        ) : null;
+
     const clearFiltersEl = activeCount > 0 ? (
         <button
             type="button"
@@ -4455,6 +4495,16 @@ function JobsContent() {
                         <Check weight="bold" aria-hidden />
                     )}
                 </DropdownMenuItem>
+                {showResumeEntry && (
+                    <DropdownMenuItem
+                        data-testid="jobs-sort-fit"
+                        onSelect={() => void handleRankByFit()}
+                        className="flex items-center justify-between gap-3 text-sm"
+                    >
+                        <span>Rank by fit</span>
+                        <span className="text-xs text-muted-foreground">add résumé</span>
+                    </DropdownMenuItem>
+                )}
             </DropdownMenuContent>
         </DropdownMenu>
     ) : null;
@@ -4863,7 +4913,7 @@ function JobsContent() {
                             </span>
                         ))}
                         {!headerDockActive && clearFiltersEl}
-                        {!headerDockActive && savedSearchControl}
+                        {!headerDockActive && savedSearchMountEl}
                         </>
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
@@ -4931,8 +4981,8 @@ function JobsContent() {
                 {headerDockActive && dockedFacetsMount && createPortal(facetBarEl, dockedFacetsMount)}
                 {headerDockActive && showToolbarFilters && dockedClearFiltersMount && clearFiltersEl &&
                     createPortal(clearFiltersEl, dockedClearFiltersMount)}
-                {headerDockActive && dockedSaveSearchMount && savedSearchControl &&
-                    createPortal(savedSearchControl, dockedSaveSearchMount)}
+                {headerDockActive && dockedSaveSearchMount && savedSearchMountEl &&
+                    createPortal(savedSearchMountEl, dockedSaveSearchMount)}
                 {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
                 {headerDockActive && dockedExtrasMount &&
                     createPortal(
@@ -5000,7 +5050,7 @@ function JobsContent() {
 
                                 {/* Post-first-save upsell — appears once the anonymous visitor
                                     has made their first save (Go after or saved search). Calm
-                                    inline style matching `showPersonalizationInvite`. Dismissed
+                                    inline style matching the résumé-moment card below. Dismissed
                                     state is persisted so the banner doesn't reappear on reload.
                                     Signed-in users never see it (`showGuestSaveBanner` is false
                                     whenever `user` is truthy). */}
@@ -5387,28 +5437,6 @@ function JobsContent() {
                                         ever arrives at, so anchoring it there meant it would
                                         never render. The foot of what has actually been READ
                                         is the reachable equivalent. */}
-                                    {showPersonalizationInvite && (
-                                        <div
-                                            data-testid="resume-personalize-invite"
-                                            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-5 text-sm text-muted-foreground"
-                                        >
-                                            <span>See which of these roles actually fit your background —</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleUploadClick()}
-                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                            >
-                                                add your résumé to rank by fit
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={dismissUpsell}
-                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                            >
-                                                not now
-                                            </button>
-                                        </div>
-                                    )}
                                     {showResumeMoment && (
                                         <div
                                             data-testid="resume-moment"
@@ -5417,10 +5445,10 @@ function JobsContent() {
                                             <span>Want these ranked against your actual experience?</span>
                                             <button
                                                 type="button"
-                                                onClick={() => (hasUsableResume ? void handleRankByFit() : handleUploadClick())}
+                                                onClick={() => void handleRankByFit()}
                                                 className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                             >
-                                                {hasUsableResume ? "use the résumé on file" : "drop your résumé"}
+                                                {showResumeEntry ? "drop your résumé" : "use the résumé on file"}
                                             </button>
                                             <button
                                                 type="button"
