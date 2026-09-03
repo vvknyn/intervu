@@ -55,7 +55,7 @@ function ShareVelaiMenuItem() {
                 e.preventDefault();
                 trigger({ title: SITE_NAME, text: SHARE_APP_TEXT, url: withShareRef(getSiteUrl(), "app") });
             }}
-            className="rounded-lg"
+            className="rounded-none"
         >
             {label}
         </DropdownMenuItem>
@@ -176,7 +176,7 @@ export function TopBar() {
                                 />
                             </div>
                             <div className="flex h-full w-[min(210px,28%)] shrink-0 items-stretch border-l border-border pr-1">
-                                <MapPin size={15} weight="bold" aria-hidden className="ml-2.5 shrink-0 self-center text-muted-foreground/70" />
+                                <MapPin size={15} weight="bold" aria-hidden className="ml-2.5 shrink-0 self-center text-muted-foreground" />
                                 <div data-testid="topbar-docked-location" className="relative flex h-full min-w-0 flex-1 items-stretch overflow-visible" />
                             </div>
                             <button
@@ -272,28 +272,28 @@ export function TopBar() {
                                     title={user.displayName || user.email || "Account"}
                                     aria-current={accountActive ? "page" : undefined}
                                     className={cn(
-                                        "grid h-8 w-8 place-items-center rounded-full bg-foreground text-xs font-semibold text-white shadow-xs outline-none transition-all hover:opacity-90 focus-visible:ring-2 focus-visible:ring-live dark:bg-foreground dark:text-muted-foreground",
+                                        "grid h-8 w-8 place-items-center rounded-none bg-foreground text-xs font-semibold text-white outline-none transition-all hover:opacity-90 focus-visible:ring-2 focus-visible:ring-live dark:bg-foreground dark:text-muted-foreground",
                                         accountActive && "ring-2 ring-live ring-offset-2 ring-offset-background",
                                     )}
                                 >
                                     {initialsOf(user)}
                                 </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 rounded-xl border border-border bg-card p-1 shadow-lg">
-                                <DropdownMenuItem asChild className="rounded-lg">
+                            <DropdownMenuContent align="end" className="w-56 rounded-none border border-border bg-card p-1">
+                                <DropdownMenuItem asChild className="rounded-none">
                                     <Link href="/settings">Account</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="rounded-lg">
+                                <DropdownMenuItem asChild className="rounded-none">
                                     <Link href="/research/ghost-jobs">{GHOST_JOB_RESEARCH_TITLE}</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <FeedbackModal>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="rounded-lg">
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="rounded-none">
                                         Feedback
                                     </DropdownMenuItem>
                                 </FeedbackModal>
                                 <ShareVelaiMenuItem />
-                                <DropdownMenuItem asChild className="rounded-lg text-muted-foreground text-xs">
+                                <DropdownMenuItem asChild className="rounded-none text-muted-foreground text-xs">
                                     <Link href="/privacy">Privacy & Terms</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -303,7 +303,7 @@ export function TopBar() {
                                             e.preventDefault();
                                             toggleMode();
                                         }}
-                                        className="rounded-lg"
+                                        className="rounded-none"
                                     >
                                         <span className="flex w-full items-center gap-2">
                                             {mode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
@@ -318,7 +318,7 @@ export function TopBar() {
                                 <DropdownMenuItem
                                     onSelect={handleSignOut}
                                     disabled={signingOut}
-                                    className="rounded-lg text-danger-text dark:text-danger-text"
+                                    className="rounded-none text-danger-text dark:text-danger-text"
                                 >
                                     {signingOut ? (
                                         <span className="flex items-center gap-2">

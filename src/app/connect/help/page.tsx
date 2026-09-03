@@ -51,7 +51,7 @@ function HelpSection({
  *  this page has no client-side state, so there's no copy button here. */
 function Command({ children }: { children: string }) {
   return (
-    <code className="block overflow-x-auto rounded-none border border-border bg-muted px-3.5 py-2.5 text-sm text-foreground shadow-2xs">
+    <code className="block overflow-x-auto rounded-none border border-border bg-muted px-3.5 py-2.5 text-sm text-foreground">
       {children}
     </code>
   );

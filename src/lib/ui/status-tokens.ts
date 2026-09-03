@@ -22,11 +22,11 @@ export type StatusTone = "saved" | "applied" | "intv" | "offer" | "closed";
 
 /** Soft-background pill: soft tinted bg + colored foreground + matching border. */
 export const STATUS_PILL: Record<StatusTone, string> = {
-  saved: "bg-st-saved-soft text-st-saved border border-st-saved/20",
-  applied: "bg-st-applied-soft text-st-applied border border-st-applied/20",
-  intv: "bg-st-intv-soft text-st-intv border border-st-intv/20",
-  offer: "bg-st-offer-soft text-st-offer border border-st-offer/20",
-  closed: "bg-st-closed-soft text-st-closed border border-st-closed/20",
+  saved: "bg-st-saved-soft text-st-saved border border-st-saved",
+  applied: "bg-st-applied-soft text-st-applied border border-st-applied",
+  intv: "bg-st-intv-soft text-st-intv border border-st-intv",
+  offer: "bg-st-offer-soft text-st-offer border border-st-offer",
+  closed: "bg-st-closed-soft text-st-closed border border-st-closed",
 };
 
 /**

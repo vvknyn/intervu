@@ -59,6 +59,8 @@
   --text-display--line-height: 3.125rem;
   --text-title: 1.75rem;
   --text-title--line-height: 2.25rem;
+  --text-title-lg: 2rem;
+  --text-title-lg--line-height: 2.5rem;
   --text-body: 1rem;
   --text-body--line-height: 1.375rem;
   --text-meta: 0.875rem;
@@ -531,24 +533,6 @@ h4 {
   letter-spacing: -0.025em;
 }
 
-/* Flat surface system (rulebook: no blur, no shadow, no translucency).
-   Class names kept so callers don't change; every value reads a semantic
-   token, so light/dark both resolve correctly with no .dark duplicate. */
-.glass-panel,
-.glass-card {
-  background: rgb(var(--card));
-  border: 1px solid rgb(var(--border));
-}
-
-/* Interactive glass cards (job rows, LaunchBanner) are in-flow, not
-   overlays — hover affordance is a flat background shift, not a lift or a
-   translucency trick. The active-row `.glass-tint-blue` rule uses
-   `!important`, so it always wins over this hover state — an open row's
-   background never changes on hover. */
-.glass-card:hover {
-  background: rgb(var(--surface-hover));
-}
-
 /* Detail pane at xl+ — outer drop shadow that lifts it above the list
    column beside it, so the two columns read as foreground vs. tray rather
    than two equal sheets. Inset top highlight from the old inline shadow
@@ -565,67 +549,6 @@ h4 {
     0 0 0 1px rgba(255, 255, 255, 0.06),
     0 4px 32px -6px rgba(0, 0, 0, 0.65),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.10);
-}
-
-/* The focal surface of a page — the one panel that has to read as the
-   primary action rather than merely be visible. Layers elevation on top of
-   the glass instead of replacing it: near-opaque fill so the panel is the
-   brightest thing on screen, a definite edge, and a real drop shadow that
-   lifts it off the ground. Stays achromatic so it does not compete with
-   the accent colours the content itself carries.
-
-   Use it ONCE per page. A spotlight that is everywhere is not a spotlight,
-   it is just a heavier default — which is how .glass-panel ended up
-   edgeless in the first place. Flat now (rulebook: no shadow/translucency):
-   separation comes from --border alone, same as every other surface. */
-.glass-panel-raised {
-  background: rgb(var(--card));
-  border: 1px solid rgb(var(--border));
-}
-
-/* Accent edge for the page's primary surface — the /jobs search box (Vivek,
-   2026-08-24). Declared here rather than as a `border-t-[3px] border-t-brand`
-   utility on the element because `.glass-panel-raised` above sets the `border`
-   SHORTHAND, which expands to all four sides and beats a single-side utility
-   in the cascade; the utility applied cleanly to the markup and painted
-   nothing. `rgb(var(--brand))` follows the token, so dark mode swaps with it. */
-.glass-panel-accent-top {
-  border-top: 3px solid rgb(var(--brand));
-}
-
-/* Tinted variants — flat (rulebook: no blur/shadow/translucency). Background
-   collapses to the one neutral --muted layer for all five; the tint now
-   lives only in `color`, mapped onto the rulebook's chromatic roles
-   (brand/live/warn) so it can't drift to an off-palette hue. No rulebook
-   role exists for purple (also zero call sites today), so it reads
-   --foreground rather than inventing one. */
-.glass-tint-blue {
-  background: rgb(var(--muted)) !important;
-  border: 1px solid rgb(var(--border)) !important;
-  color: rgb(var(--brand)) !important;
-}
-
-.glass-tint-emerald {
-  background: rgb(var(--muted)) !important;
-  border: 1px solid rgb(var(--border)) !important;
-  color: rgb(var(--live)) !important;
-}
-
-.glass-tint-amber {
-  background: rgb(var(--muted)) !important;
-  border: 1px solid rgb(var(--border)) !important;
-  color: rgb(var(--warn)) !important;
-}
-
-.glass-tint-purple {
-  background: rgb(var(--muted)) !important;
-  border: 1px solid rgb(var(--border)) !important;
-  color: rgb(var(--foreground)) !important;
-}
-
-.glass-tint-muted {
-  background: rgb(var(--muted)) !important;
-  border: 1px solid rgb(var(--border)) !important;
 }
 
 /* Minimalist Animation */

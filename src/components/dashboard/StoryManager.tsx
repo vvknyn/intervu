@@ -67,7 +67,7 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center bg-muted p-4 rounded-lg border border-border">
+            <div className="flex justify-between items-center bg-muted p-4 rounded-none border border-border">
                 <div>
                     <h3 className="font-semibold text-foreground">Your Career Stories</h3>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -121,7 +121,7 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
             {/* Clear All Confirmation Dialog */}
             {clearConfirmOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-background rounded-lg max-w-sm w-full p-6 border border-border">
+                    <div className="bg-background rounded-none max-w-sm w-full p-6 border border-border">
                         <h3 className="text-lg font-semibold mb-2">Clear All Stories?</h3>
                         <p className="text-sm text-muted-foreground mb-6">
                             Are you sure you want to remove all your stories? This action will move them to trash.

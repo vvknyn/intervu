@@ -318,7 +318,7 @@ export function JobDetailDocument({
                         )}
                         {" · "}
                         {countryFlag && <span aria-hidden className="mr-1">{countryFlag}</span>}
-                        <MapPin size={13} className="mr-0.5 inline-block align-[-1px] text-muted-foreground/70" aria-hidden />
+                        <MapPin size={13} className="mr-0.5 inline-block align-[-1px] text-muted-foreground" aria-hidden />
                         {locationClamped ? (
                             <>
                                 {(locationExpanded ? [...locationDisclosure.visible, ...locationDisclosure.hidden] : locationDisclosure.visible).map((segment, i) => (
@@ -354,7 +354,7 @@ export function JobDetailDocument({
                         <span className="inline-flex flex-wrap items-center gap-x-1">
                             {exceptionMark.parts.map((part, i) => (
                                 <span key={part.text} className="inline-flex items-center">
-                                    {i > 0 && <span className="mx-1 text-muted-foreground/60" aria-hidden>·</span>}
+                                    {i > 0 && <span className="mx-1 text-muted-foreground" aria-hidden>·</span>}
                                     <span className={part.className}>{part.text}</span>
                                 </span>
                             ))}
@@ -406,7 +406,7 @@ export function JobDetailDocument({
                     </Button>
                 )}
                 {pursuit ? (
-                    <Link href={`/yours/${pursuit.id}`} className="glass-tint-emerald inline-flex h-10 items-center gap-1.5 rounded-none px-4 text-xs font-semibold">
+                    <Link href={`/yours/${pursuit.id}`} className="bg-muted text-live inline-flex h-10 items-center gap-1.5 rounded-none px-4 text-xs font-semibold">
                         <Check size={16} weight="bold" />
                         Saved
                     </Link>
@@ -441,7 +441,7 @@ export function JobDetailDocument({
                     <div className="mb-2.5 text-xs font-semibold text-foreground">Keywords from the posting</div>
                     <div className="flex flex-wrap gap-2">
                         {job.tags.slice(0, 16).map((tag) => (
-                            <span key={tag} className="mono-data rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground dark:border-border dark:bg-border dark:text-foreground">
+                            <span key={tag} className="mono-data rounded-none border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground dark:border-border dark:bg-border dark:text-foreground">
                                 {decodeText(tag)}
                             </span>
                         ))}

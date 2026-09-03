@@ -315,7 +315,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
             </Tabs>
 
             {message && (
-                <div className="flex items-center gap-2 p-3 rounded-md bg-muted text-destructive text-sm justify-center">
+                <div className="flex items-center gap-2 p-3 rounded-none bg-muted text-destructive text-sm justify-center">
                     <p>{message}</p>
                 </div>
             )}

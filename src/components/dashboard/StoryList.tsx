@@ -50,15 +50,15 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
 
     if (sortedStories.length === 0) {
         return (
-            <div className="text-center py-12 border border-dashed border-border rounded-lg">
+            <div className="text-center py-12 border border-dashed border-border rounded-none">
                 <p className="text-muted-foreground text-sm">No stories added yet.</p>
-                <p className="text-muted-foreground/70 text-xs mt-1">Add stories manually or import them with AI</p>
+                <p className="text-muted-foreground text-xs mt-1">Add stories manually or import them with AI</p>
             </div>
         );
     }
 
     return (
-        <div className="border border-border rounded-lg bg-background overflow-hidden">
+        <div className="border border-border rounded-none bg-background overflow-hidden">
             {sortedStories.map((story, index) => (
                 <div
                     key={story.id}
@@ -68,7 +68,7 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
                     )}
                 >
                     {/* Rank / Index */}
-                    <div className="text-muted-foreground/40 text-sm w-6 text-right shrink-0">
+                    <div className="text-muted-foreground text-sm w-6 text-right shrink-0">
                         {index + 1}.
                     </div>
 
@@ -81,7 +81,7 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
                                     {story.question}
                                 </div>
                             )}
-                            <div className="text-sm text-foreground truncate cursor-pointer hover:underline decoration-muted-foreground/50 underline-offset-4">
+                            <div className="text-sm text-foreground truncate cursor-pointer hover:underline decoration-muted-foreground underline-offset-4">
                                 {story.title || "Untitled Story"}
                             </div>
                         </div>

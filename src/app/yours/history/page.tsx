@@ -43,8 +43,8 @@ function HistoryHeader() {
 
 function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
     return (
-        <div className="rounded-none border border-border bg-card p-8 shadow-xs text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand shadow-2xs">
+        <div className="rounded-none border border-border bg-card p-8 text-center space-y-6">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand">
                 <ClockCounterClockwise size={24} weight="duotone" />
             </div>
             <div className="space-y-1 max-w-md mx-auto">
@@ -62,8 +62,8 @@ function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
 
 function HistoryEmptyState() {
     return (
-        <div data-testid="history-empty" className="rounded-none border border-border bg-card p-8 shadow-xs text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand shadow-2xs">
+        <div data-testid="history-empty" className="rounded-none border border-border bg-card p-8 text-center space-y-6">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand">
                 <ClockCounterClockwise size={24} weight="duotone" />
             </div>
             <div className="space-y-1 max-w-md mx-auto">

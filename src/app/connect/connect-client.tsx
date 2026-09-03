@@ -139,7 +139,7 @@ export function ConnectClient({
       {/* 2-Column Responsive Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
         {/* Left Column: Universal MCP Server Connection */}
-        <section className="rounded-none border border-border bg-card p-6 sm:p-7 shadow-xs space-y-6">
+        <section className="rounded-none border border-border bg-card p-6 sm:p-7 space-y-6">
           <div className="flex items-center justify-between border-b border-border pb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Universal MCP Server</h2>
@@ -214,7 +214,7 @@ export function ConnectClient({
                         key={client.id}
                         type="button"
                         onClick={() => handleSelectClient(client.id)}
-                        className={cn(chipVariants({ active }), "shadow-2xs")}
+                        className={cn(chipVariants({ active }), "")}
                       >
                         {client.label}
                       </button>
@@ -237,7 +237,7 @@ export function ConnectClient({
                       <Button
                         asChild
                         size="xs"
-                        className="gap-1 bg-brand font-semibold text-brand-foreground hover:bg-brand shadow-2xs"
+                        className="gap-1 bg-brand font-semibold text-brand-foreground hover:bg-brand"
                       >
                         <a href={currentMeta.openUrl} target="_blank" rel="noopener noreferrer">
                           Open {currentMeta.label} <ArrowSquareOut size={12} />
@@ -249,7 +249,7 @@ export function ConnectClient({
                   <ol className="space-y-1.5 text-xs text-foreground">
                     {currentInstruction.steps.map((step, idx) => (
                       <li key={idx} className="flex items-start gap-2">
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-none bg-card border border-border text-xs font-semibold text-foreground shadow-2xs">
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-none bg-card border border-border text-xs font-semibold text-foreground">
                           {idx + 1}
                         </span>
                         <span className="leading-snug">{step}</span>
@@ -271,7 +271,7 @@ export function ConnectClient({
         {/* Right Column: OpenClaw Local Agent & Accordions */}
         <div className="space-y-6">
           {/* OpenClaw Card */}
-          <section className="rounded-none border border-border bg-card p-6 sm:p-7 shadow-xs space-y-5">
+          <section className="rounded-none border border-border bg-card p-6 sm:p-7 space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
               <div className="flex items-center gap-2">
                 <TerminalWindow size={18} weight="duotone" className="text-brand" />
@@ -301,7 +301,7 @@ export function ConnectClient({
             {/* Sample Prompts */}
             <AccordionItem
               value="sample-prompts"
-              className="rounded-none border border-border bg-card px-4 shadow-2xs"
+              className="rounded-none border border-border bg-card px-4"
             >
               <AccordionTrigger className="py-3 text-xs font-semibold text-foreground hover:no-underline">
                 <div className="flex items-center gap-2">
@@ -335,7 +335,7 @@ export function ConnectClient({
             {/* Privacy & Permissions Guarantees */}
             <AccordionItem
               value="privacy-security"
-              className="rounded-none border border-border bg-card px-4 shadow-2xs"
+              className="rounded-none border border-border bg-card px-4"
             >
               <AccordionTrigger className="py-3 text-xs font-semibold text-foreground hover:no-underline">
                 <div className="flex items-center gap-2">
@@ -364,7 +364,7 @@ export function ConnectClient({
             {/* Raw JSON Config */}
             <AccordionItem
               value="json-config"
-              className="rounded-none border border-border bg-card px-4 shadow-2xs"
+              className="rounded-none border border-border bg-card px-4"
             >
               <AccordionTrigger className="py-3 text-xs font-semibold text-foreground hover:no-underline">
                 <div className="flex items-center gap-2">
@@ -374,7 +374,7 @@ export function ConnectClient({
               </AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
                 <div className="relative">
-                  <pre className="overflow-x-auto rounded-none border border-border bg-foreground p-3 text-xs text-muted-foreground shadow-2xs">
+                  <pre className="overflow-x-auto rounded-none border border-border bg-foreground p-3 text-xs text-muted-foreground">
                     <code>{jsonConfig}</code>
                   </pre>
                   <Button

@@ -22,16 +22,16 @@ const badgeVariants = cva(
         link: "text-primary underline-offset-4 [a&]:hover:underline",
         brand: "bg-muted text-brand border-brand [a&]:hover:bg-muted",
         // Status variants — design-token backed, dark-mode correct (see lib/ui/status-tokens.ts).
-        "st-saved": "bg-st-saved-soft/80 text-st-saved border-st-saved/30",
-        "st-applied": "bg-st-applied-soft/80 text-st-applied border-st-applied/30",
-        "st-intv": "bg-st-intv-soft/80 text-st-intv border-st-intv/30",
-        "st-offer": "bg-st-offer-soft/80 text-st-offer border-st-offer/30",
-        "st-closed": "bg-st-closed-soft/80 text-st-closed border-st-closed/30",
+        "st-saved": "bg-st-saved-soft text-st-saved border-st-saved",
+        "st-applied": "bg-st-applied-soft text-st-applied border-st-applied",
+        "st-intv": "bg-st-intv-soft text-st-intv border-st-intv",
+        "st-offer": "bg-st-offer-soft text-st-offer border-st-offer",
+        "st-closed": "bg-st-closed-soft text-st-closed border-st-closed",
         // Verdict variants — same soft-fill/ink/hairline shape as the st-*
         // set above, backed by the verdict-* tokens (globals.css) that every
         // favorable/caution signal on the site already reads from.
-        "verdict-good": "bg-verdict-good-bg/80 text-verdict-good border-verdict-good/30",
-        "verdict-caution": "bg-verdict-caution-bg/80 text-verdict-caution border-verdict-caution/30",
+        "verdict-good": "bg-verdict-good-bg text-verdict-good border-verdict-good",
+        "verdict-caution": "bg-verdict-caution-bg text-verdict-caution border-verdict-caution",
       },
     },
     defaultVariants: {

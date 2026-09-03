@@ -49,7 +49,7 @@ export function MarketPulse({
               collection cadence, not market flow — a scraper-run artifact,
               not something employers did. Say so, rather than smoothing it
               away. */}
-          <span className="mt-1 block text-xs text-muted-foreground/80">
+          <span className="mt-1 block text-xs text-muted-foreground">
             Collection runs vary by day — swings here are ours, not the market&apos;s.
           </span>
         </>

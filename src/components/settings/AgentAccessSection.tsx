@@ -177,7 +177,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 {credentials?.map((c) => (
                     <div
                         key={c.id}
-                        className="flex items-center justify-between gap-4 rounded-lg border border-border p-3"
+                        className="flex items-center justify-between gap-4 rounded-none border border-border p-3"
                     >
                         <div className="min-w-0">
                             <p className="text-sm truncate">{displayName(c)}</p>
@@ -206,13 +206,13 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 </Button>
 
                 {newSecret && (
-                    <div className="mt-3 rounded-lg border border-warn bg-muted p-3 space-y-2">
+                    <div className="mt-3 rounded-none border border-warn bg-muted p-3 space-y-2">
                         <p className="text-xs flex items-center gap-1.5 text-warn dark:text-warn">
                             <WarningCircle size={14} weight="fill" />
                             Copy this now — we can&apos;t show it to you again.
                         </p>
                         <div className="flex items-center gap-2">
-                            <code className="flex-1 min-w-0 truncate rounded-md bg-muted px-2.5 py-1.5 text-xs">
+                            <code className="flex-1 min-w-0 truncate rounded-none bg-muted px-2.5 py-1.5 text-xs">
                                 {newSecret}
                             </code>
                             <CopyButton value={newSecret} label="Copy" />
@@ -227,10 +227,10 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 )}
             </div>
 
-            <div className="rounded-lg border border-border p-4 space-y-3 text-sm">
+            <div className="rounded-none border border-border p-4 space-y-3 text-sm">
                 <p className="">Connect an agent</p>
                 <div className="flex items-center gap-2">
-                    <code className="flex-1 min-w-0 truncate rounded-md bg-muted px-2.5 py-1.5 text-xs">
+                    <code className="flex-1 min-w-0 truncate rounded-none bg-muted px-2.5 py-1.5 text-xs">
                         {mcpUrl}
                     </code>
                     <CopyButton value={mcpUrl} label="Copy URL" />

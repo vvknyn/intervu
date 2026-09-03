@@ -143,7 +143,7 @@ export function TourOverlay() {
 
         <motion.div
           ref={cardRef}
-          className="absolute pointer-events-auto flex flex-col bg-card text-card-foreground rounded-xl shadow-lg border border-border"
+          className="absolute pointer-events-auto flex flex-col bg-card text-card-foreground rounded-none border border-border"
           style={{
             width: cardWidth,
             maxHeight: cardMaxHeight,
@@ -166,16 +166,16 @@ export function TourOverlay() {
             </span>
             <button
               onClick={minimize}
-              className="p-1 -mr-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="p-1 -mr-1 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               aria-label="Close tour"
             >
               <X size={14} weight="bold" />
             </button>
           </div>
 
-          <div className="mx-4 h-1 shrink-0 rounded-full bg-muted overflow-hidden">
+          <div className="mx-4 h-1 shrink-0 rounded-none bg-muted overflow-hidden">
             <motion.div
-              className="h-full rounded-full bg-brand"
+              className="h-full rounded-none bg-brand"
               initial={false}
               animate={{ width: `${progress}%` }}
               transition={{ duration: reduceMotion ? 0 : 0.3, ease: "easeOut" }}
@@ -194,7 +194,7 @@ export function TourOverlay() {
               <button
                 onClick={prevStep}
                 disabled={isFirst}
-                className="text-xs px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                className="text-xs px-3 py-1.5 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none"
               >
                 Previous
               </button>
@@ -205,7 +205,7 @@ export function TourOverlay() {
             {!isSingleStep && (
             <button
               onClick={minimize}
-              className="text-xs px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="text-xs px-2 py-1.5 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               Minimize
             </button>
@@ -215,7 +215,7 @@ export function TourOverlay() {
 
             <button
               onClick={isSingleStep ? stopTour : nextStep}
-              className="text-xs font-semibold px-3 py-1.5 rounded-md bg-brand text-brand-foreground hover:opacity-90 transition-opacity"
+              className="text-xs font-semibold px-3 py-1.5 rounded-none bg-brand text-brand-foreground hover:opacity-90 transition-opacity"
             >
               {isSingleStep ? "Close" : isLast ? "Finish" : "Next"}
             </button>

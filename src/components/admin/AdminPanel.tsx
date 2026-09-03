@@ -97,13 +97,13 @@ export function AdminPanel() {
 
             {isLoading ? (
                 <div className="py-16 flex flex-col items-center justify-center text-muted-foreground gap-3">
-                    <div className="w-5 h-5 border border-border border-t-foreground rounded-full animate-spin" />
+                    <div className="w-5 h-5 border border-border border-t-foreground rounded-none animate-spin" />
                     <p className="text-sm">Loading config...</p>
                 </div>
             ) : (
                 <div className="space-y-6">
                     {message && (
-                        <div className={`p-3 rounded-lg text-sm ${message.type === "success" ? "bg-muted text-foreground" : "bg-muted text-destructive"}`}>
+                        <div className={`p-3 rounded-none text-sm ${message.type === "success" ? "bg-muted text-foreground" : "bg-muted text-destructive"}`}>
                             {message.text}
                         </div>
                     )}
@@ -119,10 +119,10 @@ export function AdminPanel() {
                                     role="switch"
                                     aria-checked={showDonation}
                                     onClick={() => setShowDonation(!showDonation)}
-                                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${showDonation ? "bg-live" : "bg-muted-foreground/30"}`}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-none transition-colors ${showDonation ? "bg-live" : "bg-muted-foreground"}`}
                                 >
                                     <span
-                                        className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform shadow-sm ${showDonation ? "translate-x-[18px]" : "translate-x-[3px]"}`}
+                                        className={`inline-block h-3.5 w-3.5 rounded-none bg-white transition-transform  ${showDonation ? "translate-x-[18px]" : "translate-x-[3px]"}`}
                                     />
                                 </button>
                                 <span className="text-sm">Show donation button</span>
@@ -166,7 +166,7 @@ export function AdminPanel() {
                                     <button
                                         key={filter}
                                         onClick={() => setFeedbackFilter(filter)}
-                                        className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                                        className={`px-2.5 py-1 text-xs rounded-none transition-colors ${
                                             feedbackFilter === filter
                                                 ? "bg-muted text-brand"
                                                 : "text-muted-foreground hover:bg-muted"
@@ -180,7 +180,7 @@ export function AdminPanel() {
 
                         {feedbackLoading ? (
                             <div className="py-8 flex flex-col items-center justify-center text-muted-foreground gap-2">
-                                <div className="w-4 h-4 border border-border border-t-foreground rounded-full animate-spin" />
+                                <div className="w-4 h-4 border border-border border-t-foreground rounded-none animate-spin" />
                                 <p className="text-xs">Loading feedback...</p>
                             </div>
                         ) : filteredFeedback.length === 0 ? (
@@ -193,9 +193,9 @@ export function AdminPanel() {
                                     const config = TYPE_CONFIG[item.type] || TYPE_CONFIG.other;
                                     const Icon = config.icon;
                                     return (
-                                        <div key={item.id} className="border border-border rounded-lg p-3 space-y-2">
+                                        <div key={item.id} className="border border-border rounded-none p-3 space-y-2">
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${config.color}`}>
+                                                <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-none ${config.color}`}>
                                                     <Icon size={12} weight="bold" />
                                                     {config.label}
                                                 </span>

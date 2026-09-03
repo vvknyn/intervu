@@ -17,13 +17,13 @@ function SearchLine({ invert = false, tall = false }: { invert?: boolean; tall?:
             <div className="flex flex-col rounded-none border border-border bg-card divide-y divide-border sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
                 <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                     <MagnifyingGlass size={16} weight="bold" className="ml-3 shrink-0 text-muted-foreground" />
-                    <div className={cn(h, "flex flex-1 items-center px-3 text-sm text-muted-foreground/70")}>
+                    <div className={cn(h, "flex flex-1 items-center px-3 text-sm text-muted-foreground")}>
                         Job title, skill, or company
                     </div>
                 </div>
                 <div className="relative flex min-w-0 w-full items-center sm:w-[300px]">
                     <MapPin size={16} weight="bold" className="ml-3 shrink-0 text-muted-foreground" />
-                    <div className={cn(h, "flex flex-1 items-center px-3 text-sm text-muted-foreground/70")}>
+                    <div className={cn(h, "flex flex-1 items-center px-3 text-sm text-muted-foreground")}>
                         City, state, or remote
                     </div>
                 </div>
@@ -62,7 +62,7 @@ const VARIANTS: {
         how: "A grey fill, a soft border, and a large drop shadow underneath.",
         tradeoff: "Shown only as the thing to compare against. Everything below drops the shadow.",
         render: () => (
-            <section className="rounded-none glass-panel glass-panel-raised p-2 sm:p-2.5">
+            <section className="rounded-none bg-card border border-border p-2 sm:p-2.5">
                 <SearchLine />
             </section>
         ),
@@ -167,7 +167,7 @@ export function SearchEmphasisMock() {
                             <span className="text-sm font-semibold text-foreground">{v.name}</span>
                         </div>
                         <p className="mt-3 text-xs text-muted-foreground">{v.how}</p>
-                        <p className="mt-1 text-xs text-muted-foreground/80">{v.tradeoff}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{v.tradeoff}</p>
                         <div className="mt-5 overflow-hidden">{v.render()}</div>
                     </div>
                 ))}

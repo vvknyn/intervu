@@ -120,13 +120,13 @@ export function directionStyle(direction: CompanyChangeEvent["direction"]): {
     case "improving":
       return {
         Icon: TrendUp,
-        chip: "border-verdict-good/30 bg-verdict-good-bg/80 text-verdict-good",
+        chip: "border-verdict-good bg-verdict-good-bg text-verdict-good",
         icon: "text-verdict-good",
       };
     case "declining":
       return {
         Icon: TrendDown,
-        chip: "border-verdict-caution/30 bg-verdict-caution-bg/80 text-verdict-caution",
+        chip: "border-verdict-caution bg-verdict-caution-bg text-verdict-caution",
         icon: "text-verdict-caution",
       };
     default:

@@ -57,7 +57,7 @@ export function CompanyRolesList({
                     <div className="mt-0.5 text-xs text-muted-foreground">
                       {meta.map((segment, i) => (
                         <span key={i}>
-                          {i > 0 && <span className="mx-1 text-muted-foreground/60" aria-hidden>·</span>}
+                          {i > 0 && <span className="mx-1 text-muted-foreground" aria-hidden>·</span>}
                           <span className={segment.emphasis ? "font-semibold text-foreground" : undefined}>
                             {segment.text}
                           </span>

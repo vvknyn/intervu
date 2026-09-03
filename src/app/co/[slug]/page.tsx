@@ -191,7 +191,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
               )}
               <p className="mt-3 flex items-center gap-2 text-base sm:text-base leading-snug text-foreground">
                 {hiring.hasOpenRoles && (
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
+                  <span className="h-2 w-2 shrink-0 rounded-none bg-brand animate-pulse" aria-hidden />
                 )}
                 {humanizeProjectorHeadline(hiring.headline)}
               </p>

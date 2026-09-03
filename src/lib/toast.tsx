@@ -149,13 +149,13 @@ export function Toaster() {
                         <div
                             key={t.id}
                             role="status"
-                            className={`pointer-events-auto flex items-start gap-2.5 rounded-xl border bg-background px-4 py-3 text-sm shadow-lg animate-in slide-in-from-bottom-2 fade-in ${meta.cls}`}
+                            className={`pointer-events-auto flex items-start gap-2.5 rounded-none border bg-background px-4 py-3 text-sm  animate-in slide-in-from-bottom-2 fade-in ${meta.cls}`}
                         >
                             {meta.icon}
                             <span className="flex-1 leading-snug text-foreground">{t.message}</span>
                             <button
                                 onClick={() => dismissToast(t.id)}
-                                className="shrink-0 text-muted-foreground/60 transition-colors hover:text-foreground"
+                                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
                                 aria-label="Dismiss"
                             >
                                 <X size={14} weight="bold" />

@@ -33,14 +33,14 @@ export function ConfidenceIndicator({ score, showLabel = true, size = 'md', clas
     return (
         <div
             className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border",
+                "inline-flex items-center gap-1.5 rounded-none border",
                 bgColor,
                 borderColor,
                 sizeClasses[size].badge,
                 className
             )}
         >
-            <span className={cn("rounded-full shrink-0", color, sizeClasses[size].dot)} />
+            <span className={cn("rounded-none shrink-0", color, sizeClasses[size].dot)} />
             {showLabel && (
                 <span className={cn("whitespace-nowrap", textColor)}>
                     {label}
@@ -80,7 +80,7 @@ export function ConfidenceBadge({ score, section, className }: ConfidenceBadgePr
             className={cn("inline-flex items-center gap-1 text-xs", getColor(score), className)}
             title={`${section}: ${score}% confidence`}
         >
-            <span className={cn("w-1.5 h-1.5 rounded-full", getDot(score))} />
+            <span className={cn("w-1.5 h-1.5 rounded-none", getDot(score))} />
             {score}%
         </span>
     );
@@ -101,12 +101,12 @@ export function WarningBanner({ warnings, className, onDismiss }: WarningBannerP
     return (
         <div
             className={cn(
-                "p-4 rounded-lg border bg-muted dark:bg-muted border-muted dark:border-warn",
+                "p-4 rounded-none border bg-muted dark:bg-muted border-muted dark:border-warn",
                 className
             )}
         >
             <div className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-5 h-5 rounded-none bg-muted flex items-center justify-center shrink-0 mt-0.5">
                     <svg className="w-3.5 h-3.5 text-warn dark:text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>

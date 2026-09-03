@@ -56,11 +56,11 @@ function SectionWrapper({
 
     const diffBadge =
         changeStatus === "modified" ? (
-            <span className="absolute -top-1 -right-1 rounded bg-warn text-white px-1 py-0.5 text-xs font-semibold shadow-xs">
+            <span className="absolute -top-1 -right-1 rounded-none bg-warn text-white px-1 py-0.5 text-xs font-semibold">
                 Diff
             </span>
         ) : changeStatus === "new" ? (
-            <span className="absolute -top-1 -right-1 rounded bg-live text-white px-1 py-0.5 text-xs font-semibold shadow-xs">
+            <span className="absolute -top-1 -right-1 rounded-none bg-live text-white px-1 py-0.5 text-xs font-semibold">
                 New
             </span>
         ) : null;
@@ -68,7 +68,7 @@ function SectionWrapper({
     return (
         <div
             className={cn(
-                "relative group cursor-pointer transition-all duration-150 rounded-xs p-1 -m-1",
+                "relative group cursor-pointer transition-all duration-150 rounded-none p-1 -m-1",
                 isSelected
                     ? "ring-2 ring-live bg-muted dark:bg-muted"
                     : isHovered
@@ -87,7 +87,7 @@ function SectionWrapper({
             {diffBadge}
             {children}
             {isHovered && !isSelected && (
-                <span className="absolute top-1 right-1 flex items-center gap-1 rounded bg-foreground text-white px-1.5 py-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="absolute top-1 right-1 flex items-center gap-1 rounded-none bg-foreground text-white px-1.5 py-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                     <PencilSimple size={10} /> Edit
                 </span>
             )}
@@ -256,7 +256,7 @@ export function LiveResumePreview({
                                 <div
                                     key={exp.id || index}
                                     className={cn(
-                                        "space-y-0.5 relative transition-colors rounded-xs",
+                                        "space-y-0.5 relative transition-colors rounded-none",
                                         itemStatus === "modified" &&
                                             "bg-muted border-l-2 border-warn pl-1 -ml-1",
                                         itemStatus === "new" &&
@@ -273,12 +273,12 @@ export function LiveResumePreview({
                                                 </>
                                             )}
                                             {itemStatus === "modified" && (
-                                                <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded font-semibold">
+                                                <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded-none font-semibold">
                                                     Edited
                                                 </span>
                                             )}
                                             {itemStatus === "new" && (
-                                                <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded font-semibold">
+                                                <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded-none font-semibold">
                                                     New
                                                 </span>
                                             )}
@@ -317,7 +317,7 @@ export function LiveResumePreview({
                                         <span className="font-semibold">{exp.role || "Job Title"}</span>
                                         <span className="mx-1">|</span>
                                         <span>{exp.company || "Company"}</span>
-                                        <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded font-semibold not-italic no-underline inline-block">
+                                        <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded-none font-semibold not-italic no-underline inline-block">
                                             Removed
                                         </span>
                                     </div>
@@ -353,7 +353,7 @@ export function LiveResumePreview({
                                 <div
                                     key={edu.id || index}
                                     className={cn(
-                                        "flex justify-between items-baseline leading-[1.3] rounded-xs",
+                                        "flex justify-between items-baseline leading-[1.3] rounded-none",
                                         itemStatus === "modified" &&
                                             "bg-muted border-l-2 border-warn pl-1 -ml-1",
                                         itemStatus === "new" &&
@@ -364,12 +364,12 @@ export function LiveResumePreview({
                                         <span className="font-semibold">{edu.degree}</span>
                                         {edu.institution && <span className="text-muted-foreground"> | {edu.institution}</span>}
                                         {itemStatus === "modified" && (
-                                            <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded font-semibold">
+                                            <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded-none font-semibold">
                                                 Edited
                                             </span>
                                         )}
                                         {itemStatus === "new" && (
-                                            <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded font-semibold">
+                                            <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded-none font-semibold">
                                                 New
                                             </span>
                                         )}
@@ -387,7 +387,7 @@ export function LiveResumePreview({
                                 <div>
                                     <span className="font-semibold">{edu.degree}</span>
                                     {edu.institution && <span> | {edu.institution}</span>}
-                                    <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded font-semibold not-italic no-underline inline-block">
+                                    <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded-none font-semibold not-italic no-underline inline-block">
                                         Removed
                                     </span>
                                 </div>
@@ -426,7 +426,7 @@ export function LiveResumePreview({
             className={cn(
                 printMode
                     ? "bg-white text-foreground w-full"
-                    : "bg-white text-foreground border border-border dark:border-border shadow-md rounded-none w-full max-w-[8.5in] mx-auto",
+                    : "bg-white text-foreground border border-border dark:border-border rounded-none w-full max-w-[8.5in] mx-auto",
                 className,
             )}
             style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}

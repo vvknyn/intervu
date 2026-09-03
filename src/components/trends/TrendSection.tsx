@@ -61,13 +61,13 @@ export type BarRowTone = "good" | "warn" | "neutral";
 const DOT_TONE: Record<BarRowTone, string> = {
   good: "bg-st-offer",
   warn: "bg-st-intv",
-  neutral: "bg-muted-foreground/40",
+  neutral: "bg-muted-foreground",
 };
 
 const FILL_TONE: Record<BarRowTone, string> = {
   good: "bg-st-offer",
   warn: "bg-st-intv",
-  neutral: "bg-muted-foreground/40",
+  neutral: "bg-muted-foreground",
 };
 
 /**

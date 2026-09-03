@@ -135,7 +135,7 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
                         </div>
 
                         {status === "error" && (
-                            <div className="flex items-center gap-2 text-sm text-destructive bg-muted p-2 rounded-md">
+                            <div className="flex items-center gap-2 text-sm text-destructive bg-muted p-2 rounded-none">
                                 <WarningCircle size={16} weight="fill" />
                                 <span>Failed to submit feedback. Please try again.</span>
                             </div>

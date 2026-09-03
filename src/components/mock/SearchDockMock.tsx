@@ -30,7 +30,7 @@ function Field({ compact = false, queryOnly = false }: { compact?: boolean; quer
             <div className="flex min-w-0 flex-1 items-center">
                 <MagnifyingGlass size={14} weight="bold" className="ml-2.5 shrink-0 text-muted-foreground" />
                 <div className={cn(h, "flex min-w-0 flex-1 items-center px-2.5")}>
-                    <span className="truncate text-xs text-muted-foreground/70">
+                    <span className="truncate text-xs text-muted-foreground">
                         {compact ? "Software Engineer" : "What kind of work are you looking for?"}
                     </span>
                 </div>
@@ -43,7 +43,7 @@ function Field({ compact = false, queryOnly = false }: { compact?: boolean; quer
                     <div className={cn("flex shrink-0 items-center", compact ? "w-[132px]" : "w-[260px]")}>
                         <MapPin size={14} weight="bold" className="ml-2.5 shrink-0 text-muted-foreground" />
                         <div className={cn(h, "flex min-w-0 flex-1 items-center px-2.5")}>
-                            <span className="truncate text-xs text-muted-foreground/70">
+                            <span className="truncate text-xs text-muted-foreground">
                                 {compact ? "Toronto" : "City, state, or remote"}
                             </span>
                         </div>
@@ -132,7 +132,7 @@ function Header({ docked, treatment }: { docked: boolean; treatment: Treatment }
                         </span>
                     )}
                     <Moon size={15} className="shrink-0 text-muted-foreground" />
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none bg-foreground text-xs font-semibold text-background">
                         VN
                     </span>
                 </nav>
@@ -256,7 +256,7 @@ export function SearchDockMock() {
                             <span className="text-sm font-semibold text-foreground">{t.name}</span>
                         </div>
                         <p className="mt-3 max-w-3xl text-xs text-muted-foreground">{t.how}</p>
-                        <p className="mt-1 max-w-3xl text-xs text-muted-foreground/80">{t.cost}</p>
+                        <p className="mt-1 max-w-3xl text-xs text-muted-foreground">{t.cost}</p>
 
                         {/* Stacked, NOT side by side. Two half-width frames made the
                             docked query field truncate to "Soft…" purely because each

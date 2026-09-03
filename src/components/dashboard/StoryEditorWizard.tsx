@@ -99,14 +99,14 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                 <div key={s.id} className={cn("flex items-center gap-1",
                                     i <= currentStepIndex ? "text-primary" : "text-muted-foreground"
                                 )}>
-                                    <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border",
+                                    <div className={cn("w-5 h-5 rounded-none flex items-center justify-center border",
                                         i < currentStepIndex ? "bg-primary border-primary text-primary-foreground" :
-                                            i === currentStepIndex ? "border-primary text-primary" : "border-muted-foreground/30"
+                                            i === currentStepIndex ? "border-primary text-primary" : "border-muted-foreground"
                                     )}>
                                         {i < currentStepIndex ? <Check size={10} weight="bold" /> : i + 1}
                                     </div>
                                     <span className="hidden sm:inline">{s.label}</span>
-                                    {i < steps.length - 1 && <div className="w-4 h-px bg-muted-foreground/20 mx-1" />}
+                                    {i < steps.length - 1 && <div className="w-4 h-px bg-muted-foreground mx-1" />}
                                 </div>
                             ))}
                         </div>
@@ -125,7 +125,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
                                             <Label className="text-xs font-semibold text-muted-foreground">Situation</Label>
-                                            <span className="text-xs text-muted-foreground/60">The Setup</span>
+                                            <span className="text-xs text-muted-foreground">The Setup</span>
                                         </div>
                                         <Textarea
                                             value={formData.situation || ''}
@@ -137,7 +137,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
                                             <Label className="text-xs font-semibold text-muted-foreground">Task</Label>
-                                            <span className="text-xs text-muted-foreground/60">The Goal</span>
+                                            <span className="text-xs text-muted-foreground">The Goal</span>
                                         </div>
                                         <Textarea
                                             value={formData.task || ''}
@@ -151,7 +151,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <Label className="text-xs font-semibold text-muted-foreground">Action</Label>
-                                        <span className="text-xs text-muted-foreground/60">The Execution (Most Important)</span>
+                                        <span className="text-xs text-muted-foreground">The Execution (Most Important)</span>
                                     </div>
                                     <Textarea
                                         value={formData.action || ''}
@@ -164,7 +164,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <Label className="text-xs font-semibold text-muted-foreground">Result</Label>
-                                        <span className="text-xs text-muted-foreground/60">The Impact</span>
+                                        <span className="text-xs text-muted-foreground">The Impact</span>
                                     </div>
                                     <Textarea
                                         value={formData.result || ''}
@@ -199,13 +199,13 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                         className="bg-muted border-input focus:bg-background focus:border-brand transition-all"
                                     />
                                     {isTitleFocused && (
-                                        <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-lg shadow-xl max-h-60 overflow-y-auto p-1">
+                                        <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-none max-h-60 overflow-y-auto p-1">
                                             {COMMON_QUESTIONS.filter(q =>
                                                 !formData.question || q.toLowerCase().includes(formData.question.toLowerCase())
                                             ).map((q, i) => (
                                                 <button
                                                     key={i}
-                                                    className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-muted hover:text-brand transition-colors text-foreground"
+                                                    className="w-full text-left px-3 py-2 text-sm rounded-none hover:bg-muted hover:text-brand transition-colors text-foreground"
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
                                                         setFormData({ ...formData, question: q });

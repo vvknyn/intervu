@@ -284,7 +284,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 starts") measures this and is the regression gate. */}
             <div className="relative flex h-full w-full items-center">
                 {leadingIcon && (
-                    <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
+                    <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
                         {leadingIcon}
                     </span>
                 )}

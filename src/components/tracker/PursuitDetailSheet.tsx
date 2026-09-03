@@ -151,7 +151,7 @@ function PursuitDetailBody({
         <>
             <div className="shrink-0 border-b border-border">
                 <div className="flex justify-center pb-1 pt-2.5">
-                    <span className="h-1 w-9 rounded-full bg-[#d0d6de]" aria-hidden="true" />
+                    <span className="h-1 w-9 rounded-none bg-[#d0d6de]" aria-hidden="true" />
                 </div>
                 <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
                     <SheetHeader className="min-w-0 flex-1 space-y-0 text-left">
@@ -176,7 +176,7 @@ function PursuitDetailBody({
                                 disabled={saving}
                                 onClick={() => void onStatusChange(stage)}
                                 className={cn(
-                                    "whitespace-nowrap rounded-full border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors",
+                                    "whitespace-nowrap rounded-none border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors",
                                     pressed && "border-primary bg-primary text-primary-foreground",
                                 )}
                             >

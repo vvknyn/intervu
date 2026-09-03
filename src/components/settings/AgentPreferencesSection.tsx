@@ -331,11 +331,11 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                             <button
                                 type="button"
                                 onClick={() => setRemoteOnly((v) => !v)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${remoteOnly ? "bg-brand" : "bg-muted"}`}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-none transition-colors ${remoteOnly ? "bg-brand" : "bg-muted"}`}
                                 role="switch"
                                 aria-checked={remoteOnly}
                             >
-                                <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${remoteOnly ? "translate-x-6" : "translate-x-1"}`} />
+                                <span className={`inline-block h-4 w-4 rounded-none bg-white transition-transform ${remoteOnly ? "translate-x-6" : "translate-x-1"}`} />
                             </button>
                         </div>
                     </div>

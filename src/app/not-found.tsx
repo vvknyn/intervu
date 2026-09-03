@@ -8,7 +8,7 @@ import { BrandLockupMark } from "@/components/brand/BrandMark";
 export default function NotFound() {
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
-      <BrandLockupMark tileClassName="h-12 w-12 rounded-2xl" markClassName="h-7 w-7" />
+      <BrandLockupMark tileClassName="h-12 w-12 rounded-none" markClassName="h-7 w-7" />
       <span className="mt-4 font-display text-xs font-semibold text-muted-foreground">
         velai
       </span>
@@ -21,7 +21,7 @@ export default function NotFound() {
       </p>
       <Link
         href="/"
-        className="mt-8 rounded-lg bg-brand px-5 py-2.5 text-sm text-brand-foreground shadow-sm transition hover:opacity-90 focus-ring"
+        className="mt-8 rounded-none bg-brand px-5 py-2.5 text-sm text-brand-foreground transition hover:opacity-90 focus-ring"
       >
         Back to home
       </Link>

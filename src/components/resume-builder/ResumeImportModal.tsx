@@ -268,7 +268,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-brand hover:bg-muted transition-colors"
+                    className="border-2 border-dashed border-border rounded-none p-8 text-center cursor-pointer hover:border-brand hover:bg-muted transition-colors"
                 >
                     <input
                         ref={fileInputRef}
@@ -279,7 +279,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     />
                     {selectedFile ? (
                         <div className="space-y-2">
-                            <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center mx-auto">
+                            <div className="w-12 h-12 rounded-none bg-muted flex items-center justify-center mx-auto">
                                 <FileText size={24} weight="duotone" className="text-brand" />
                             </div>
                             <p className="text-foreground">{selectedFile.name}</p>
@@ -298,7 +298,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center mx-auto">
+                            <div className="w-12 h-12 rounded-none bg-secondary flex items-center justify-center mx-auto">
                                 <Upload size={24} weight="duotone" className="text-muted-foreground" />
                             </div>
                             <div>
@@ -328,7 +328,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             )}
 
             {error && (
-                <div className="p-3 rounded-lg bg-muted border border-destructive text-destructive text-sm flex items-center gap-2">
+                <div className="p-3 rounded-none bg-muted border border-destructive text-destructive text-sm flex items-center gap-2">
                     <Warning size={16} weight="bold" />
                     {error}
                 </div>
@@ -338,7 +338,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     const renderParsingStep = () => (
         <div className="py-12 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto animate-pulse">
+            <div className="w-16 h-16 rounded-none bg-muted flex items-center justify-center mx-auto animate-pulse">
                 <Sparkle size={32} weight="fill" className="text-brand" />
             </div>
             <div>
@@ -347,8 +347,8 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     AI is extracting structured information
                 </p>
             </div>
-            <div className="w-48 h-1 bg-secondary rounded-full mx-auto overflow-hidden">
-                <div className="h-full bg-primary rounded-full animate-[progress_2s_ease-in-out_infinite]" style={{ width: '60%' }} />
+            <div className="w-48 h-1 bg-secondary rounded-none mx-auto overflow-hidden">
+                <div className="h-full bg-primary rounded-none animate-[progress_2s_ease-in-out_infinite]" style={{ width: '60%' }} />
             </div>
         </div>
     );
@@ -456,7 +456,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </div>
                             <div className="space-y-4">
                                 {editedData.experience.map((exp, idx) => (
-                                    <div key={exp.id} className="p-3 bg-muted rounded-lg space-y-2">
+                                    <div key={exp.id} className="p-3 bg-muted rounded-none space-y-2">
                                         <div className="grid grid-cols-2 gap-2">
                                             <Input
                                                 value={exp.company}
@@ -521,7 +521,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </div>
                             <div className="space-y-3">
                                 {editedData.education.map((edu, idx) => (
-                                    <div key={edu.id} className="p-3 bg-muted rounded-lg space-y-2">
+                                    <div key={edu.id} className="p-3 bg-muted rounded-none space-y-2">
                                         <Input
                                             value={edu.degree}
                                             onChange={(e) => updateEducation(idx, 'degree', e.target.value)}
@@ -584,7 +584,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             title
                         ) : (
                             <>
-                                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-none bg-muted flex items-center justify-center">
                                     <Upload size={18} weight="bold" className="text-brand" />
                                 </div>
                                 Import Resume
@@ -628,7 +628,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             <Button onClick={handleParse} disabled={!canProceed() || isProcessing}>
                                 {isProcessing ? (
                                     <>
-                                        <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin mr-2" />
+                                        <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-none animate-spin mr-2" />
                                         Processing...
                                     </>
                                 ) : (

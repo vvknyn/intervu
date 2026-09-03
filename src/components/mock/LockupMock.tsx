@@ -29,7 +29,7 @@ function LiveSignalMark() {
         <span className="relative inline-flex h-7 w-7 shrink-0">
             <BrandMark className="h-7 w-7 text-current" />
             <span
-                className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-live"
+                className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-none bg-live"
                 aria-hidden
             />
         </span>
@@ -74,7 +74,7 @@ export function LockupMock() {
                         width={28}
                         height={28}
                         alt=""
-                        className="h-7 w-7 rounded-md"
+                        className="h-7 w-7 rounded-none"
                     />
                     <Wordmark />
                 </LockupRow>

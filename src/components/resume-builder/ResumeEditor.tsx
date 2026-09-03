@@ -463,7 +463,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
 
                 {/* Version History Drawer / Slide-Over */}
                 {versionsOpen && (
-                    <div className="absolute inset-y-0 right-0 z-40 w-full sm:w-[380px] bg-background border-l border-border flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+                    <div className="absolute inset-y-0 right-0 z-40 w-full sm:w-[380px] bg-background border-l border-border flex flex-col animate-in slide-in-from-right duration-200">
                         {/* Drawer Header */}
                         <div className="flex items-center justify-between border-b border-border p-4">
                             <div className="flex items-center gap-2">

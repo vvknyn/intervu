@@ -77,9 +77,9 @@ export function Header({
         {onOpenSidebar && (
           <Button variant="ghost" size="icon" className="lg:hidden -ml-2 text-muted-foreground" onClick={onOpenSidebar} aria-label="Open menu">
             <div className="space-y-1.5">
-              <div className="w-5 h-0.5 bg-current rounded-full"></div>
-              <div className="w-5 h-0.5 bg-current rounded-full"></div>
-              <div className="w-5 h-0.5 bg-current rounded-full"></div>
+              <div className="w-5 h-0.5 bg-current rounded-none"></div>
+              <div className="w-5 h-0.5 bg-current rounded-none"></div>
+              <div className="w-5 h-0.5 bg-current rounded-none"></div>
             </div>
           </Button>
         )}
@@ -140,16 +140,16 @@ export function Header({
                     data-tour="analyze-button"
                     onClick={onAnalyze}
                     disabled={isAnalyzing}
-                    className={`group/btn relative flex items-center justify-center w-7 sm:w-auto sm:justify-start h-7 sm:px-2 rounded-md disabled:opacity-50 transition-all duration-300 ${hasPendingChanges && !isAnalyzing ? 'bg-warn hover:bg-warn text-white ring-2 ring-warn' : 'bg-brand text-brand-foreground hover:bg-brand'}`}
+                    className={`group/btn relative flex items-center justify-center w-7 sm:w-auto sm:justify-start h-7 sm:px-2 rounded-none disabled:opacity-50 transition-all duration-300 ${hasPendingChanges && !isAnalyzing ? 'bg-warn hover:bg-warn text-white ring-2 ring-warn' : 'bg-brand text-brand-foreground hover:bg-brand'}`}
                   >
                     {hasPendingChanges && !isAnalyzing && (
                       <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-warn opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-warn"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-none bg-warn opacity-75"></span>
+                        <span className="relative inline-flex rounded-none h-2.5 w-2.5 bg-warn"></span>
                       </span>
                     )}
                     {isAnalyzing ? (
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-none animate-spin" />
                     ) : hasPendingChanges ? (
                       <ArrowsClockwise weight="bold" size={16} className="shrink-0" />
                     ) : (
@@ -173,7 +173,7 @@ export function Header({
           {onReset && (
             <button
               onClick={onReset}
-              className="group hidden md:inline-flex items-center h-9 px-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150"
+              className="group hidden md:inline-flex items-center h-9 px-2.5 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150"
               title="Start Over"
             >
               <Eraser size={18} weight="regular" className="shrink-0" />
@@ -187,11 +187,11 @@ export function Header({
             <button
               onClick={onRegenerateAll}
               disabled={isRegeneratingAll}
-              className="group hidden sm:inline-flex items-center h-9 px-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 disabled:opacity-50"
+              className="group hidden sm:inline-flex items-center h-9 px-2.5 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 disabled:opacity-50"
               title="Regenerate All Content"
             >
               {isRegeneratingAll ? (
-                <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin shrink-0"></div>
+                <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-none animate-spin shrink-0"></div>
               ) : (
                 <ArrowsClockwise size={18} weight="bold" className="shrink-0" />
               )}
@@ -205,11 +205,11 @@ export function Header({
             <button
               onClick={onExportPDF}
               disabled={isExportingPDF}
-              className="group hidden sm:inline-flex items-center h-9 px-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 disabled:opacity-50"
+              className="group hidden sm:inline-flex items-center h-9 px-2.5 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 disabled:opacity-50"
               title="Export PDF"
             >
               {isExportingPDF ? (
-                <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin shrink-0"></div>
+                <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-none animate-spin shrink-0"></div>
               ) : (
                 <DownloadSimple size={18} weight="regular" className="shrink-0" />
               )}
@@ -222,7 +222,7 @@ export function Header({
           {/* Mobile overflow menu (⋮) — contains all hidden actions */}
           <Popover>
             <PopoverTrigger asChild>
-              <button className="sm:hidden flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <button className="sm:hidden flex items-center justify-center w-9 h-9 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 <DotsThreeVertical size={22} weight="bold" />
               </button>
             </PopoverTrigger>
@@ -231,10 +231,10 @@ export function Header({
                 <button
                   onClick={onRegenerateAll}
                   disabled={isRegeneratingAll}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-none hover:bg-muted transition-colors disabled:opacity-50"
                 >
                   {isRegeneratingAll ? (
-                    <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin shrink-0" />
+                    <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-none animate-spin shrink-0" />
                   ) : (
                     <ArrowsClockwise size={18} weight="bold" className="shrink-0 text-muted-foreground" />
                   )}
@@ -246,10 +246,10 @@ export function Header({
                 <button
                   onClick={onExportPDF}
                   disabled={isExportingPDF}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-none hover:bg-muted transition-colors disabled:opacity-50"
                 >
                   {isExportingPDF ? (
-                    <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin shrink-0" />
+                    <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-none animate-spin shrink-0" />
                   ) : (
                     <DownloadSimple size={18} weight="regular" className="shrink-0 text-muted-foreground" />
                   )}
@@ -260,7 +260,7 @@ export function Header({
               {onReset && (
                 <button
                   onClick={onReset}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-md hover:bg-muted transition-colors text-destructive"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-none hover:bg-muted transition-colors text-destructive"
                 >
                   <Eraser size={18} weight="regular" className="shrink-0" />
                   Clear All
@@ -275,7 +275,7 @@ export function Header({
       {/* Error Banner - full width below header row */}
       {error && (
         <div className="px-4 pb-2">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-destructive text-xs">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-none bg-muted text-destructive text-xs">
             <WarningCircle size={14} weight="fill" className="shrink-0" />
             <span>{error}</span>
           </div>

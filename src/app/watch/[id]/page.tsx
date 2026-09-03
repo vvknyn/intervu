@@ -29,7 +29,7 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
                     </p>
                     <Link
                         href="/"
-                        className="inline-block rounded-md bg-white px-4 py-2 text-sm text-black"
+                        className="inline-block rounded-none bg-white px-4 py-2 text-sm text-black"
                     >
                         Go to velai
                     </Link>

@@ -51,13 +51,13 @@ export function MotivationalBanner() {
     return (
         <div className="flex items-center justify-center gap-2 py-2 mb-2 group/banner">
             <p
-                className={`text-xs text-muted-foreground/80 text-center leading-relaxed select-none transition-opacity duration-400 ${fading ? "opacity-0" : "opacity-100"}`}
+                className={`text-xs text-muted-foreground text-center leading-relaxed select-none transition-opacity duration-400 ${fading ? "opacity-0" : "opacity-100"}`}
             >
                 {text}
             </p>
             <button
                 onClick={dismiss}
-                className="opacity-0 group-hover/banner:opacity-100 p-0.5 rounded text-muted-foreground/70 hover:text-muted-foreground transition-opacity duration-200"
+                className="opacity-0 group-hover/banner:opacity-100 p-0.5 rounded-none text-muted-foreground hover:text-muted-foreground transition-opacity duration-200"
                 aria-label="Dismiss"
             >
                 <X size={10} />

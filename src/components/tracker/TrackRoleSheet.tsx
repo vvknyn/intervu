@@ -75,7 +75,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
             >
                 <div className="shrink-0 border-b border-border">
                     <div className="flex justify-center pb-1 pt-2.5">
-                        <span className="h-1 w-9 rounded-full bg-[#d0d6de]" aria-hidden="true" />
+                        <span className="h-1 w-9 rounded-none bg-[#d0d6de]" aria-hidden="true" />
                     </div>
                     <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
                         <SheetHeader className="min-w-0 flex-1 space-y-0 text-left">

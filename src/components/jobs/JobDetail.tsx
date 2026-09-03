@@ -496,7 +496,7 @@ export function JobDetail({
                 in one flow and passes collapseDescription={false}. */}
             <div
                 className={cn(
-                    "shrink-0 border-b border-border bg-card shadow-xs",
+                    "shrink-0 border-b border-border bg-card",
                 )}
             >
                 {/* Identity header */}
@@ -566,7 +566,7 @@ export function JobDetail({
                                             {exceptionMark.parts.map((part, i) => (
                                                 <span key={part.text} className="inline-flex items-center">
                                                     {i > 0 && (
-                                                        <span className="mx-1 text-muted-foreground/60" aria-hidden>
+                                                        <span className="mx-1 text-muted-foreground" aria-hidden>
                                                             ·
                                                         </span>
                                                     )}
@@ -641,7 +641,7 @@ export function JobDetail({
                         <div className="flex shrink-0 items-center gap-1.5">
                             <ReportListingButton
                                 job={job}
-                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-none border border-border bg-card text-muted-foreground hover:text-foreground"
                             />
                             <ShareAction
                                 title={`${job.title} at ${companyBrand}`}
@@ -651,14 +651,14 @@ export function JobDetail({
                                     "job",
                                 )}
                                 jobId={job.id}
-                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-none border border-border bg-card text-muted-foreground hover:text-foreground"
                             />
                             {onClose && (
                                 <button
                                     type="button"
                                     aria-label="Close"
                                     onClick={onClose}
-                                    className="flex h-10 w-10 items-center justify-center rounded-none glass-tint-muted text-base text-muted-foreground hover:text-foreground transition-colors"
+                                    className="flex h-10 w-10 items-center justify-center rounded-none bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
                                 >
                                     ×
                                 </button>
@@ -686,7 +686,7 @@ export function JobDetail({
                         {pursuit ? (
                             <Link
                                 href={`/yours/${pursuit.id}`}
-                                className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-none glass-tint-emerald px-4 text-xs font-semibold"
+                                className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-none bg-muted text-live px-4 text-xs font-semibold"
                             >
                                 <Check size={16} weight="bold" />
                                 Saved
@@ -717,7 +717,7 @@ export function JobDetail({
             >
                 {/* Ghost check module: a tinted glass check ledger */}
                 {ghost && (
-                    <div data-tour="jobs-posting-check" className="mb-5 overflow-hidden rounded-none glass-panel p-4">
+                    <div data-tour="jobs-posting-check" className="mb-5 overflow-hidden rounded-none bg-card border border-border p-4">
                         <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                                 <span className="text-xs font-semibold text-muted-foreground">
@@ -730,11 +730,11 @@ export function JobDetail({
                                                 <i
                                                     key={i}
                                                     className={cn(
-                                                        "h-2 w-3.5 rounded-full",
+                                                        "h-2 w-3.5 rounded-none",
                                                         s.kind === "freshness" && freshness.kind === "relisted"
-                                                            ? "bg-warn shadow-2xs"
+                                                            ? "bg-warn"
                                                             : s.status === "favorable"
-                                                              ? "bg-live shadow-2xs"
+                                                              ? "bg-live"
                                                               : s.status === "unfavorable"
                                                                 ? "bg-border dark:bg-placeholder-text"
                                                                 // Unknown reads as an outline, not a filled
@@ -759,7 +759,7 @@ export function JobDetail({
                                 )}
                             </div>
                             <div className="flex items-center justify-between gap-2 sm:justify-end">
-                                <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold", ghost.cls)}>
+                                <span className={cn("inline-flex items-center rounded-none px-2.5 py-0.5 text-xs font-semibold", ghost.cls)}>
                                     {ghost.label}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
@@ -779,7 +779,7 @@ export function JobDetail({
                                     const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
                                     return (
                                     <div key={s.text} className="flex items-start gap-2">
-                                        <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-semibold text-xs", relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live dark:text-live" : "text-muted-foreground")}>
+                                        <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-none font-semibold text-xs", relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live dark:text-live" : "text-muted-foreground")}>
                                             {/* Three glyphs for three states. The meter above already
                                                 excludes unknowns from the ratio and labels them
                                                 "· N not tracked", but the ROW still marked them with the
@@ -864,7 +864,7 @@ export function JobDetail({
                             )}
                         </>
                     ) : hydrated ? (
-                        <div className="rounded-none border border-border bg-muted p-4 text-sm text-foreground dark:border-border dark:bg-muted dark:text-foreground shadow-2xs">
+                        <div className="rounded-none border border-border bg-muted p-4 text-sm text-foreground dark:border-border dark:bg-muted dark:text-foreground">
                             No description was captured for this role.{" "}
                             {job.apply_url ? (
                                 <>
@@ -902,7 +902,7 @@ export function JobDetail({
                             {job.tags.slice(0, 16).map((tag) => (
                                 <span
                                     key={tag}
-                                    className="mono-data rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground dark:border-border dark:bg-border dark:text-foreground"
+                                    className="mono-data rounded-none border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground dark:border-border dark:bg-border dark:text-foreground"
                                 >
                                     {decodeText(tag)}
                                 </span>
@@ -913,7 +913,7 @@ export function JobDetail({
 
                 {/* Company hiring-truth mini-KPI rail */}
                 {hasCompanyIntel && (
-                    <div className="rounded-none border border-border bg-muted p-4 sm:p-5 dark:border-border dark:bg-muted shadow-2xs">
+                    <div className="rounded-none border border-border bg-muted p-4 sm:p-5 dark:border-border dark:bg-muted">
                         <div className="mono-data text-xs font-semibold text-muted-foreground">
                             {companyBrand || "This company"} · hiring truth
                         </div>

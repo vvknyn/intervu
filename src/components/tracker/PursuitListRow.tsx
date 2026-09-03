@@ -39,7 +39,7 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
             </div>
             <span
                 className={cn(
-                    "inline-flex h-fit items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground",
+                    "inline-flex h-fit items-center rounded-none border border-border px-2 py-0.5 text-xs text-muted-foreground",
                     trackerStatusBadgeClass(pursuit.status),
                 )}
             >

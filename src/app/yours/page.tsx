@@ -76,8 +76,8 @@ function TrackerEmptyState({
 }) {
     const guestCount = listGuestPursuits().length;
     return (
-        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="rounded-none border border-border bg-card p-8 shadow-xs text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand shadow-2xs">
+        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="rounded-none border border-border bg-card p-8 text-center space-y-6">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand bg-muted text-brand">
                 <BookmarkSimple size={24} weight="duotone" />
             </div>
 
@@ -310,7 +310,7 @@ function YoursContent() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search company or role in your tracker..."
-                            className="h-10 rounded-none border-border bg-card pl-9 text-base shadow-2xs dark:border-border md:text-xs"
+                            className="h-10 rounded-none border-border bg-card pl-9 text-base dark:border-border md:text-xs"
                         />
                     </div>
                     <AppliedThisWeekBadge count={appliedThisWeek} />

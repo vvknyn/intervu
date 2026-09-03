@@ -87,7 +87,7 @@ function SuggestionLabel({ label, query }: { label: string; query: string }) {
                 {paint(lead, "font-semibold text-foreground")}
             </span>
             {context && (
-                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground/70">
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                     {paint(context, "font-semibold")}
                 </span>
             )}
@@ -235,7 +235,7 @@ export function LocationCombobox({
                                     onClick={() => commit(item.label, item.field)}
                                 >
                                     <SuggestionLabel label={item.label} query={value} />
-                                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground/80">
+                                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                                         {item.count.toLocaleString()}
                                     </span>
                                     {chosen && <Check size={14} weight="bold" className="shrink-0 text-foreground" aria-label="Already filtered" />}

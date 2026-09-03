@@ -332,46 +332,20 @@ function isForbiddenNamedShadowPreset(utility: string, scaleDefaults: Map<string
     return splitShadowLayers(stockValue).some(isForbiddenOuterShadowLayer);
 }
 
-test("shadow means floating: .glass-panel/.glass-card never regain an outer shadow", () => {
-    // Direct regression guard for the fix: these two blocks (base, hover) are
-    // the exact surfaces the owner's complaint named — every job row cast a
-    // real drop shadow, and hover added more shadow plus a lift. Rulebook
-    // (no blur/shadow/translucency) later went further than "inset sheen
-    // only": every value now reads a semantic token, so light/dark resolve
-    // from the SAME declaration with no `.dark` duplicate block, and no
-    // box-shadow survives at all — flat is the whole story.
-    const blocks: Array<[string, RegExp]> = [
-        ["base", /^\.glass-panel,\n\.glass-card \{[\s\S]*?\n\}/m],
-        ["hover", /^\.glass-card:hover \{[\s\S]*?\n\}/m],
-    ];
-
-    for (const [label, pattern] of blocks) {
-        const match = GLOBALS.match(pattern);
-        assert.ok(match, `could not find the ${label} .glass-panel/.glass-card block`);
-        assert.doesNotMatch(
-            match[0],
-            /box-shadow\s*:/,
-            `${label} .glass-panel/.glass-card casts a shadow again — in-flow surfaces are flat — ` +
-                `separation is border + whitespace, hover is border-darkening.`,
-        );
-    }
-
-    // No `.dark` duplicate should reappear either — that was the whole point
-    // of moving to semantic tokens (single declaration, both themes).
+test("no .glass-panel/.glass-card/.glass-tint-* CSS rule survives (Group A part 2 deletion)", () => {
+    // Supersedes the old ".glass-panel/.glass-card never regain an outer
+    // shadow" regression guard: that test asserted properties ABOUT a CSS
+    // block (no box-shadow, no hover lift, no .dark duplicate). Group A part
+    // 2 deletes the block outright — every call site now carries plain
+    // `bg-card border border-border` utilities directly, which structurally
+    // cannot regain a shadow/lift/`.dark` override (the "no blur/shadow"
+    // and "no banned class" tests above already guard utility-class drift
+    // class-wide) — so the invariant is now "the rule doesn't exist", not
+    // "the rule stays shadow-free".
     assert.doesNotMatch(
         GLOBALS,
-        /\.dark\s+\.glass-(?:panel|card)\b/,
-        "a .dark .glass-panel/.glass-card override reappeared — light/dark should resolve from the same token-based declaration",
-    );
-
-    // The hover block must not lift either — a lift is the other half of
-    // "floating," and the rule bans it from in-flow surfaces on its own.
-    const hoverBlock = GLOBALS.match(/\.glass-card:hover \{[\s\S]*?\n\}/)?.[0];
-    assert.ok(hoverBlock, "expected a .glass-card:hover block");
-    assert.doesNotMatch(
-        hoverBlock,
-        /transform\s*:\s*translateY/,
-        "a .glass-card:hover block still lifts on hover — hover affordance is border-darkening only",
+        /\.glass-(?:panel|card|panel-raised|panel-accent-top|tint-(?:blue|emerald|amber|purple|muted))\b/,
+        "a .glass-* CSS rule reappeared in globals.css — the flat bg-card/border-border utility replacement should not regain a dedicated CSS class",
     );
 });
 
@@ -581,85 +555,39 @@ test("/co: no rounded-2xl/rounded-3xl survives in the company-page family", () =
  *     scattered for a per-line marker).
  */
 
-const ALLOW_WINDOW_LINES = 6;
-
-// Transactional emails are raw HTML strings styled with literal inline CSS
-// (`style="text-transform:uppercase;..."`), not Tailwind utility classes --
-// a wholly separate styling system with its own already-established wordmark
-// convention (EMAIL_WORDMARK). The sweep itself carved this out (it never
-// rewrites a string region containing a literal `;`, i.e. a CSS declaration
-// block); this gate mirrors that carve-out at the directory level since a
-// bare CSS keyword like "uppercase" can otherwise collide with the
-// Tailwind-utility-shaped patterns below.
-const EXCLUDED_DIRS = new Set([path.join(ROOT, "src/lib/email")]);
-
-function walkTsxFiles(dir: string, out: string[] = []): string[] {
-    for (const entry of readdirSync(dir)) {
-        const full = path.join(dir, entry);
-        if (EXCLUDED_DIRS.has(full)) continue;
-        if (statSync(full).isDirectory()) {
-            walkTsxFiles(full, out);
-        } else if (/\.tsx?$/.test(entry)) {
-            out.push(full);
-        }
-    }
-    return out;
-}
-
-/** Blank out `//` and `/* *\/` comment CONTENT (keep line breaks/length) so a
- *  doc comment that legitimately names a banned class in prose (e.g. "used to
- *  be bg-blue-100") can't trip a pattern match, while line numbers stay
- *  aligned with the raw source. */
-function stripComments(src: string): string {
-    return src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " ")).replace(/\/\/[^\n]*/g, (m) => " ".repeat(m.length));
-}
-
-function isFileAllowed(raw: string): boolean {
-    return /design-lint-allow-file/.test(raw);
-}
-
-/** True when a `design-lint-allow` comment sits within the window of RAW
- *  lines ending at (and including) `lineIdx` (0-based) — same backward-window
- *  contract the sweep itself used. Excludes the file-level marker so a
- *  `design-lint-allow-file` line can't also satisfy a line-level lookup. */
-function isLineAllowed(rawLines: string[], lineIdx: number): boolean {
-    const start = Math.max(0, lineIdx - ALLOW_WINDOW_LINES + 1);
-    for (let i = start; i <= lineIdx; i++) {
-        if (/design-lint-allow(?!-file)/.test(rawLines[i])) return true;
-    }
-    return false;
-}
-
-/** True for the one sanctioned translucent surface (modal/sheet scrim): a
- *  bg-black|white/NN opacity class co-occurring with `fixed` + an `inset-*`
- *  class on the SAME line — the exact structural test the sweep used to spare
- *  these sites, not a filename list. */
-function isScrimLine(line: string): boolean {
-    return /\bbg-(?:black|white)\/[0-9]{1,3}\b/.test(line) && /\bfixed\b/.test(line) && /\binset-(?:0|x-0|y-0)\b/.test(line);
-}
-
-/**
- * Scans every .tsx?/.ts? file under `dir` for `pattern`, honouring both
- * exemption markers, and returns `path:line: match` strings. `opts.skip`
- * lets a caller add one further structural exemption (the scrim carve-out).
- */
-function findOffenders(dir: string, pattern: RegExp, opts: { skip?: (strippedLine: string, rawLine: string) => boolean } = {}): string[] {
-    const offenders: string[] = [];
-    for (const file of walkTsxFiles(dir)) {
-        const raw = readFileSync(file, "utf8");
-        if (isFileAllowed(raw)) continue;
-        const rawLines = raw.split("\n");
-        const strippedLines = stripComments(raw).split("\n");
-        for (let i = 0; i < strippedLines.length; i++) {
-            const m = strippedLines[i].match(pattern);
-            if (!m) continue;
-            if (isLineAllowed(rawLines, i)) continue;
-            if (opts.skip?.(strippedLines[i], rawLines[i])) continue;
-            offenders.push(`${path.relative(ROOT, file)}:${i + 1}: ${m[0]}`);
-        }
-    }
-    return offenders;
-}
+// Walk/exemption plumbing AND the banned-class rule table both now live in
+// scripts/design/banned-classes.cjs — the same functions this test used to
+// define locally, moved so scripts/design/sweep-banned-classes.cjs can share
+// them instead of re-implementing an identical walk/exemption scan (Group A
+// part 2). `require`, not `import`: a bare `require(str)` call resolves to
+// `any` under @types/node with no module-resolution step, so a .cjs sibling
+// with no .d.ts can't trip module resolution the way an ESM `import` would.
+// The destructure below is still explicitly typed — an untyped `any` doesn't
+// trip resolution, but it DOES lose contextual parameter typing for any
+// inline callback passed to `findOffenders` (a bare `(line) => ...` becomes
+// an implicit-any parameter, which `tsc --noEmit` correctly flags).
+type BannedRule = { name: string; pattern: RegExp; skip?: (line: string) => boolean };
+const {
+    rules: bannedClasses,
+    ALLOW_WINDOW_LINES,
+    EXCLUDED_DIRS,
+    walkTsxFiles,
+    stripComments,
+    isFileAllowed,
+    isLineAllowed,
+    isScrimLine,
+    findOffenders,
+}: {
+    rules: BannedRule[];
+    ALLOW_WINDOW_LINES: number;
+    EXCLUDED_DIRS: Set<string>;
+    walkTsxFiles: (dir: string) => string[];
+    stripComments: (src: string) => string;
+    isFileAllowed: (raw: string) => boolean;
+    isLineAllowed: (rawLines: string[], lineIdx: number) => boolean;
+    isScrimLine: (line: string) => boolean;
+    findOffenders: (dir: string, pattern: RegExp, opts?: { skip?: (line: string, rawLine?: string) => boolean }) => string[];
+} = require("../../scripts/design/banned-classes.cjs");
 
 test("no arbitrary text-size or leading value survives outside an allow marker", () => {
     const offenders = [
@@ -733,16 +661,26 @@ test("no raw Tailwind palette class survives — every colour resolves to a sema
     );
 });
 
-test("no opacity-modified colour survives outside the modal/sheet scrim", () => {
-    const prefixes = ["bg", "text", "border", "ring", "divide", "outline", "decoration", "fill", "stroke", "accent", "caret", "from", "via", "to", "placeholder"];
-    const offenders = findOffenders(path.join(ROOT, "src"), new RegExp(`\\b(?:${prefixes.join("|")})-[a-zA-Z]+(?:-[0-9]+)?/[0-9]{1,3}\\b`), {
-        skip: (strippedLine) => isScrimLine(strippedLine),
-    });
+test("no banned class from the shared rule table survives (Group A part 2)", () => {
+    // ONE rule table, two consumers: scripts/design/banned-classes.cjs feeds
+    // both this gate and scripts/design/sweep-banned-classes.cjs. Adding a
+    // new banned-class family means adding one entry there — this test needs
+    // no changes to cover it. Supersedes the old hand-rolled "no
+    // opacity-modified colour survives" test, whose prefix-[a-zA-Z]+ pattern
+    // couldn't match a hyphenated compound role name (text-muted-foreground,
+    // border-verdict-good) and so missed most of its own family; that family
+    // is now `bannedClasses`' "colour/NN opacity suffix" entry instead.
+    const offenders: string[] = [];
+    for (const rule of bannedClasses) {
+        const found = findOffenders(path.join(ROOT, "src"), rule.pattern, { skip: rule.skip });
+        offenders.push(...found.map((o) => `[${rule.name}] ${o}`));
+    }
     assert.deepEqual(
         offenders,
         [],
-        `translucent colour survives: ${offenders.join("; ")}. No opacity-modified colour except the modal/` +
-            `sheet scrim (bg-black|white/NN on a line that is also fixed + inset-0/x-0/y-0).`,
+        `banned class(es) survive: ${offenders.join("; ")}. Run ` +
+            `\`node scripts/design/sweep-banned-classes.cjs\` to fix mechanically, or add a ` +
+            `design-lint-allow / design-lint-allow-file marker for a deliberate exception.`,
     );
 });
 

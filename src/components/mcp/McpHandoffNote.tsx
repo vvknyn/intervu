@@ -44,7 +44,7 @@ export function McpHandoffNote({
 }) {
     if (!job) {
         return (
-            <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground shadow-2xs", className)}>
+            <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
                 {VARIANT_COPY[variant]}{" "}
                 <Link href="/connect" className="font-semibold text-brand underline underline-offset-4 hover:text-brand">
                     Connect it once →
@@ -54,7 +54,7 @@ export function McpHandoffNote({
     }
 
     return (
-        <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground shadow-2xs", className)}>
+        <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <p className="min-w-[16ch] flex-1">{VARIANT_COPY[variant]}</p>
                 <McpHandoffActions job={job} />

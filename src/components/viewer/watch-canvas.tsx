@@ -354,7 +354,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
     return (
         <main className="min-h-dvh bg-black text-white">
             <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-white bg-black px-4 py-3 text-sm">
-                <span className={`h-2 w-2 flex-none rounded-full ${STATUS_TONE_STYLE[statusTone].dot}`} />
+                <span className={`h-2 w-2 flex-none rounded-none ${STATUS_TONE_STYLE[statusTone].dot}`} />
                 <span data-testid="watch-status" className={STATUS_TONE_STYLE[statusTone].text}>
                     {statusText}
                 </span>
@@ -362,7 +362,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                     type="button"
                     data-testid="watch-control-toggle"
                     onClick={toggleControl}
-                    className="rounded-full border border-white px-3 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5B8CFF]"
+                    className="rounded-none border border-white px-3 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5B8CFF]"
                 >
                     {controlOn ? "watching only" : "take control"}
                 </button>

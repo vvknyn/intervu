@@ -277,7 +277,7 @@ export function CompanyRoleSearch({
                       <div className="mt-1 text-sm text-muted-foreground">
                         {meta.map((segment, i) => (
                           <span key={i}>
-                            {i > 0 && <span className="mx-1 text-muted-foreground/60" aria-hidden>·</span>}
+                            {i > 0 && <span className="mx-1 text-muted-foreground" aria-hidden>·</span>}
                             <span className={segment.emphasis ? "font-semibold text-foreground" : undefined}>
                               {segment.text}
                             </span>
@@ -329,7 +329,7 @@ export function CompanyRoleSearch({
         >
           <div className="shrink-0 border-b border-border">
             <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-              <span className="h-1.5 w-10 rounded-full bg-border dark:bg-border" />
+              <span className="h-1.5 w-10 rounded-none bg-border dark:bg-border" />
             </div>
             <div className="flex items-center gap-2 px-4 pb-3">
               <div className="min-w-0 flex-1">

@@ -215,7 +215,7 @@ export function FollowButton({
               ? "border-[color:var(--elite-ink)] bg-[color:var(--elite-ink)] text-[color:var(--elite-surface)]"
               : "border-[color:var(--elite-ink)] bg-[color:var(--elite-card)] text-[color:var(--elite-ink)] hover:bg-[color:var(--elite-rule)]"),
           variant === "pill" &&
-            "rounded-md border px-3 py-1.5 text-xs transition-colors",
+            "rounded-none border px-3 py-1.5 text-xs transition-colors",
           variant === "pill" &&
             (following
               ? "border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] text-[color:var(--elite-brand)]"

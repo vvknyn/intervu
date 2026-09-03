@@ -42,7 +42,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         return (
             <div className="w-full max-w-xs mx-auto text-center">
                 <div className="mb-6 flex justify-center">
-                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center shadow-2xs">
+                    <div className="w-12 h-12 rounded-none bg-muted flex items-center justify-center">
                         <EnvelopeSimple size={24} className="text-foreground" />
                     </div>
                 </div>

@@ -49,7 +49,7 @@ export default function Loading() {
                     Follow control's slot on the right. */}
                 <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex min-w-0 gap-5">
-                        <div className="skeleton-bar h-14 w-14 shrink-0 rounded-2xl" />
+                        <div className="skeleton-bar h-14 w-14 shrink-0 rounded-none" />
                         <div className="min-w-0 flex-1 space-y-3 pt-1">
                             <div className="skeleton-bar h-8 w-[220px] max-w-full" />
                             <div className="skeleton-bar h-4 w-[420px] max-w-full" />

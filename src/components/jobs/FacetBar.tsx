@@ -95,7 +95,7 @@ function FacetChip({
             <PopoverContent
                 align="start"
                 sideOffset={6}
-                className="flex w-56 flex-col gap-0.5 rounded-none border border-border bg-card p-2 shadow-md"
+                className="flex w-56 flex-col gap-0.5 rounded-none border border-border bg-card p-2"
             >
                 {children}
             </PopoverContent>

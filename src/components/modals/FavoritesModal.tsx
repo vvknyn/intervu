@@ -73,13 +73,13 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
             {/* Modal */}
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
                 <div
-                    className="bg-card rounded-2xl w-full max-w-3xl max-h-[80dvh] flex flex-col pointer-events-auto animate-in zoom-in-95 fade-in duration-200 border border-border"
+                    className="bg-card rounded-none w-full max-w-3xl max-h-[80dvh] flex flex-col pointer-events-auto animate-in zoom-in-95 fade-in duration-200 border border-border"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
                     <div className="p-6 border-b border-border flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                            <div className="w-10 h-10 rounded-none bg-muted flex items-center justify-center">
                                 <Star size={20} weight="fill" className="text-warn" />
                             </div>
                             <div>
@@ -102,8 +102,8 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                             </div>
                         ) : favorites.length === 0 ? (
                             <div className="text-center py-12">
-                                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                                    <ChatCircleDots size={32} className="text-muted-foreground/50" />
+                                <div className="w-16 h-16 rounded-none bg-muted flex items-center justify-center mx-auto mb-4">
+                                    <ChatCircleDots size={32} className="text-muted-foreground" />
                                 </div>
                                 <h3 className="text-lg mb-2">No favorites yet</h3>
                                 <p className="text-sm text-muted-foreground max-w-sm mx-auto">
@@ -115,7 +115,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                 {favorites.map((favorite) => (
                                     <div
                                         key={favorite.id}
-                                        className="group bg-muted hover:bg-muted border border-border rounded-xl p-4 transition-all"
+                                        className="group bg-muted hover:bg-muted border border-border rounded-none p-4 transition-all"
                                     >
                                         {/* Question Header */}
                                         <div className="flex items-start justify-between gap-3 mb-3">
@@ -204,7 +204,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                                 </div>
                                             </div>
                                         ) : favorite.notes ? (
-                                            <div className="mt-3 p-3 bg-muted rounded-lg border border-border">
+                                            <div className="mt-3 p-3 bg-muted rounded-none border border-border">
                                                 <p className="text-xs text-muted-foreground italic">{favorite.notes}</p>
                                             </div>
                                         ) : (

@@ -58,12 +58,12 @@ export function OpenclawWaitlistForm({
               placeholder="you@company.com"
               disabled={pending}
               aria-label="Email address"
-              className="min-h-11 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground sm:min-w-0 sm:flex-1 dark:border-border shadow-2xs"
+              className="min-h-11 rounded-none border border-border bg-card text-foreground placeholder:text-muted-foreground sm:min-w-0 sm:flex-1 dark:border-border"
             />
             <Button
               type="submit"
               disabled={pending}
-              className="min-h-11 w-full shrink-0 rounded-lg bg-foreground px-4 text-xs font-semibold text-white hover:bg-foreground sm:w-auto dark:bg-white dark:text-muted-foreground dark:hover:bg-foreground shadow-2xs"
+              className="min-h-11 w-full shrink-0 rounded-none bg-foreground px-4 text-xs font-semibold text-white hover:bg-foreground sm:w-auto dark:bg-white dark:text-muted-foreground dark:hover:bg-foreground"
             >
               {pending ? "Joining…" : ctaLabel}
             </Button>

@@ -20,10 +20,10 @@ function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: (
             role="switch"
             aria-checked={checked}
             aria-busy={disabled || undefined}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${checked ? "bg-brand" : "bg-muted"}`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-none transition-colors disabled:opacity-50 ${checked ? "bg-brand" : "bg-muted"}`}
         >
             <span
-                className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`}
+                className={`inline-block h-4 w-4 rounded-none bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`}
             />
         </button>
     );
