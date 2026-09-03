@@ -216,15 +216,15 @@
   --live-tint-bg: 240 253 244;
   --live-tint-bg-alt: 236 253 245;
   --live-tint-border: 187 247 208;
-  --warn: 217 119 6;
+  --warn: 180 83 9;
   --warn-dot: 245 158 11;
   --danger-tint-border: 254 205 211;
 
   /* Verdict channel */
   --verdict-live: var(--live);
-  --verdict-good: 21 128 61;
-  --verdict-caution: 217 119 6;
-  --verdict-risk: 225 29 72;
+  --verdict-good: var(--live);
+  --verdict-caution: var(--warn);
+  --verdict-risk: 218 30 40;
   --verdict-live-bg: var(--live-tint-bg);
   --verdict-good-bg: 232 245 236;
   --verdict-caution-bg: 254 243 199;
