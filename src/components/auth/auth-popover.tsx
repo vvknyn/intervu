@@ -36,14 +36,14 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     };
 
     const valueLineNode = valueLine && (
-        <p className="mb-4 text-sm leading-[1.55] text-muted-foreground">{valueLine}</p>
+        <p className="mb-4 text-sm leading-normal text-muted-foreground">{valueLine}</p>
     );
 
     // When no trigger, use a Dialog instead (e.g. programmatic open from buttons)
     if (!showTrigger) {
         return (
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-[420px] p-6 pt-8 rounded-none border border-border-strong bg-card">
+                <DialogContent className="sm:max-w-[420px] p-6 pt-8 rounded-none border border-border bg-card">
                     <DialogTitle className="sr-only">Authentication</DialogTitle>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
@@ -59,7 +59,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
                     Log In
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[420px] p-6 pt-8 rounded-none border border-border-strong bg-card">
+            <PopoverContent align="end" className="w-[420px] p-6 pt-8 rounded-none border border-border bg-card">
                 <div>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />

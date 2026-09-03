@@ -106,10 +106,15 @@ export function ReportListingButton({
               className,
             )}
           >
-            <FlagIcon size={14} aria-hidden />
+            <FlagIcon size={16} aria-hidden />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="left" className="text-xs" role="status">
+        <TooltipContent
+          side="left"
+          className="text-xs"
+          role="status"
+          data-rulebook-exempt={unavailable || undefined}
+        >
           {tooltip}
         </TooltipContent>
       </Tooltip>

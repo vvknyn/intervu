@@ -11,10 +11,10 @@
  */
 export const siteChrome = {
     bar: "bg-chrome text-chrome-foreground",
-    muted: "text-chrome-foreground/70",
-    mutedHover: "text-chrome-foreground/70 transition-colors hover:text-chrome-foreground",
+    muted: "text-chrome-foreground",
+    mutedHover: "text-chrome-foreground transition-colors hover:text-chrome-foreground",
     active: "font-[550] text-chrome-foreground",
-    faint: "text-chrome-foreground/55",
+    faint: "text-chrome-foreground",
     faintHover: "hover:text-chrome-foreground",
     border: "border-transparent",
 } as const;

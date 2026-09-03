@@ -66,33 +66,33 @@ export function TourTrigger() {
     // guessed offset) and clear of the footer on desktop.
     <div
       className={cn(
-        "fixed right-4 z-[80] flex items-center gap-0.5 rounded-full pl-2.5 pr-1 py-1 text-[11px] font-medium shadow-sm backdrop-blur-sm transition-all outline-none animate-in fade-in slide-in-from-bottom-2 duration-200",
+        "fixed right-4 z-[80] flex items-center gap-0.5 rounded-none pl-2.5 pr-1 py-1 text-xs transition-all outline-none animate-in fade-in slide-in-from-bottom-2 duration-200",
         "bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+1rem)] lg:right-6 lg:bottom-6",
         minimizedTour
-          ? "bg-brand text-brand-foreground shadow-lg"
-          : "border border-border/50 bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground",
+          ? "bg-brand text-brand-foreground"
+          : "border border-border bg-muted text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       <button
         type="button"
         onClick={handlePillClick}
-        className="flex items-center gap-1.5 rounded-full py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        className="flex items-center gap-1.5 rounded-none py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
-        {minimizedTour ? <Play size={12} weight="fill" /> : <Question size={14} weight="bold" />}
-        <span className="tracking-wide">{label}</span>
+        {minimizedTour ? <Play weight="fill" /> : <Question weight="bold" />}
+        <span className="">{label}</span>
       </button>
       <button
         type="button"
         onClick={handleDismiss}
         aria-label={minimizedTour ? "End tour" : "Dismiss tour"}
         className={cn(
-          "relative rounded-full p-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/40",
-          minimizedTour ? "text-brand-foreground/70 hover:text-brand-foreground" : "hover:text-foreground",
+          "relative rounded-none p-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
+          minimizedTour ? "text-brand-foreground hover:text-brand-foreground" : "hover:text-foreground",
         )}
       >
-        <X size={12} weight="bold" />
+        <X weight="bold" />
         {!minimizedTour && !hasSeen && (
-          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-brand opacity-60 motion-safe:animate-ping" />
+          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-none bg-brand opacity-60 motion-safe:animate-ping" />
         )}
       </button>
     </div>

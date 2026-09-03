@@ -61,21 +61,21 @@ export function CompanyFilingsBand({ exhaust }: { exhaust: CompanyExhaust }) {
 
   return (
     <section data-testid="company-filings-band" className="border border-border bg-card px-6 py-6 sm:px-8">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="text-xs font-semibold text-muted-foreground">
         The paper trail · {rows.length} record{rows.length === 1 ? "" : "s"}
       </h2>
       {rows.length > 0 && (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-[13.5px]">
+          <table className="w-full text-sm">
             <thead>
               <tr>
-                <th className="border-b border-border-strong pb-2 pr-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <th className="border-b border-border-strong pb-2 pr-3 text-left text-xs font-semibold text-muted-foreground">
                   Date
                 </th>
-                <th className="border-b border-border-strong pb-2 pr-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <th className="border-b border-border-strong pb-2 pr-3 text-left text-xs font-semibold text-muted-foreground">
                   Record
                 </th>
-                <th className="border-b border-border-strong pb-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <th className="border-b border-border-strong pb-2 text-left text-xs font-semibold text-muted-foreground">
                   Source
                 </th>
               </tr>
@@ -97,9 +97,9 @@ export function CompanyFilingsBand({ exhaust }: { exhaust: CompanyExhaust }) {
 
       {warn && (
         <div className={rows.length > 0 ? "mt-6 border-t border-border pt-4" : "mt-4"}>
-          <p className="text-[14px] leading-relaxed text-foreground">{buildWarnSentence(warn.data)}</p>
+          <p className="text-sm leading-relaxed text-foreground">{buildWarnSentence(warn.data)}</p>
           {warn.data.recent.length > 0 && (
-            <ul className="mt-2 space-y-1 text-[13px] text-muted-foreground">
+            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
               {warn.data.recent.map((r, i) => (
                 <li key={`${r.noticeDate ?? "notice"}-${i}`}>
                   {[
@@ -113,7 +113,7 @@ export function CompanyFilingsBand({ exhaust }: { exhaust: CompanyExhaust }) {
               ))}
             </ul>
           )}
-          <p className="mono-data mt-3 text-[11px] text-muted-foreground">
+          <p className="mono-data mt-3 text-xs text-muted-foreground">
             state warn portals (ca ny tx wa){warnAsOf ? ` · as of ${warnAsOf}` : ""}
           </p>
         </div>
@@ -121,8 +121,8 @@ export function CompanyFilingsBand({ exhaust }: { exhaust: CompanyExhaust }) {
 
       {h1b && (
         <div className={rows.length > 0 || Boolean(warn) ? "mt-6 border-t border-border pt-4" : "mt-4"}>
-          <p className="text-[14px] leading-relaxed text-foreground">{buildH1bSentence(h1b.data)}</p>
-          <p className="mono-data mt-3 text-[11px] text-muted-foreground">
+          <p className="text-sm leading-relaxed text-foreground">{buildH1bSentence(h1b.data)}</p>
+          <p className="mono-data mt-3 text-xs text-muted-foreground">
             uscis h-1b employer hub · fy{h1b.data.fiscalYear}
           </p>
         </div>

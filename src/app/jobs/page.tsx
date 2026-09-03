@@ -10,7 +10,6 @@ import {
     Compass,
     CaretDown,
     CaretUp,
-    FunnelSimple,
     MapPin,
     X,
     Check,
@@ -52,7 +51,8 @@ import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
 import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
-import { hasReachedStage, buildJobSnapshot } from "@/lib/pursuits/types";
+import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
+import { hasReachedStage, buildJobSnapshot, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
@@ -108,10 +108,7 @@ import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
-import {
-    toolbarControlHeight,
-    toolbarSegmentGroupClass,
-} from "@/lib/jobs/toolbar-control-height";
+import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
@@ -137,7 +134,7 @@ import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
+import { JobDetail, JobDetailActionBar, JobDetailSkeleton, MetaLine } from "@/components/jobs/JobDetail";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { rowTrustChip } from "@/lib/jobs/badges";
@@ -346,13 +343,11 @@ function ToolbarSegment({
             onClick={onClick}
             title={title}
             className={cn(
-                "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-1.5 rounded-none px-3 text-xs font-bold uppercase leading-none tracking-wider transition-all duration-150",
-                pressed
-                    ? "bg-brand text-brand-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground",
+                "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold leading-none transition-all duration-150",
+                pressed ? "text-brand" : "text-muted-foreground hover:text-foreground",
             )}
         >
-            {pending && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
+            {pending && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
             {label}
         </button>
     );
@@ -416,7 +411,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
             data-testid="browse-seed-row"
             className="mb-4 flex flex-wrap items-center gap-1.5 text-left"
         >
-            <span className="mr-1 whitespace-nowrap text-xs font-semibold uppercase tracking-wider text-muted-foreground">Popular searches:</span>
+            <span className="mr-1 whitespace-nowrap text-xs font-semibold text-muted-foreground">Popular searches:</span>
             {seeds.map((seed) => (
                 <button
                     key={seed}
@@ -424,7 +419,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     data-testid="serp-ask-seed"
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
-                    className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/80 px-2.5 py-1 text-left text-xs font-medium text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-700 shadow-2xs"
+                    className="inline-flex items-center rounded-none border border-border bg-muted px-2.5 py-1 text-left text-xs text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
                 >
                     {seed}
                 </button>
@@ -469,9 +464,6 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 
 /* ----------------------------- ledger row ----------------------------- */
 
-/** Squared mono `key value` fact-chip base */
-const FACT_BOX = "inline-flex items-center gap-1.5 rounded-none px-2.5 py-0.5 text-xs leading-tight font-medium glass-tint-muted transition-colors";
-
 /**
  * Quiet replay for the /jobs guided tour — lives on the filters row, not
  *  the global floating pill (which collides with SIGN IN TO APPLY). */
@@ -484,9 +476,8 @@ function JobsTourReplayButton() {
             aria-label="How these listings work"
             onClick={() => startTour()}
             className={cn(
-                chipVariants({ active: false }),
                 toolbarControlHeight,
-                "inline-flex w-11 shrink-0 items-center justify-center leading-none rounded-none p-0 text-muted-foreground transition-colors hover:text-foreground lg:w-7",
+                "inline-flex w-11 shrink-0 items-center justify-center whitespace-nowrap rounded-none p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:w-7",
             )}
         >
             <Question size={16} weight="bold" aria-hidden />
@@ -529,6 +520,9 @@ export function JobCard({
     tourAnchor = false,
     matchScore = null,
     matchAsOfDate = null,
+    pursuit,
+    onGoAfter,
+    goingAfter = false,
 }: {
     job: PublicJob;
     active: boolean;
@@ -557,6 +551,14 @@ export function JobCard({
     matchScore?: MatchScore | null;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
+    /** Existing pursuit for this job, if any — same contract JobDetail's
+     *  bookmark reads. Optional (unlike JobDetail's required prop): the
+     *  direct-construction unit test (jobs-card-posted-age.test.ts) renders
+     *  `JobCard` without wiring pursuits, and the row's bookmark control
+     *  simply doesn't render without a save handler rather than faking one. */
+    pursuit?: Pursuit;
+    onGoAfter?: () => void;
+    goingAfter?: boolean;
 }) {
     const presented = presentJob(job);
     const accessibleName = `${presented.title} at ${presented.company.name}`;
@@ -571,20 +573,23 @@ export function JobCard({
     const locationKnown = job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
     // Icon-fact grammar (board-redesign.html §rollout stage 1) — same
     // `buildFactChips` chokepoint JobDetail uses, so a card and the pane it
-    // opens can never disagree about how work_type/employment_type/
-    // experience_level/salary read. `null, null` skips the posted/first_seen
-    // kinds (`age`, below, already covers that on the row). Work-type is its
-    // own chip here, so location is deliberately plain (no `locationWithMode`
-    // fold-in) — showing "Hybrid" in both the location text AND its own
-    // chip would say the same fact twice.
-    const factChips = buildFactChips(job, null, null);
+    // opens can never disagree about how a given fact's label reads. `null,
+    // null` skips the posted/first_seen kinds (`age`, below, already covers
+    // that on the row, in its own untouched format — folding buildFactChips'
+    // `Posted ${age}` label in here would reintroduce the literal "Posted"
+    // string jobs-card-posted-age.test.ts forbids). The rulebook's list-row
+    // anatomy names exactly two facts for this line — pay, work mode — so
+    // employment_type/experience_level (still shown in the detail pane) are
+    // filtered out here rather than in the shared chokepoint. Work-type is
+    // its own chip here, so location is deliberately plain (no
+    // `locationWithMode` fold-in) — showing "Hybrid" in both the location
+    // text AND its own chip would say the same fact twice.
+    const factChips = buildFactChips(job, null, null).filter((c) => c.kind === "work_type" || c.kind === "salary");
     const freshness = classifyPostingFreshness(job, now);
     // Positive-only trust signal (mirrors `rowTrustChip`'s own doc comment:
     // "review"/"ghost" verdicts already surface via `exceptionMark` above,
     // not duplicated here).
     const activelyPosted = rowTrustChip(job, now) === "clear";
-    const topSkills = (job.must_have_skills ?? []).slice(0, 3);
-    const extraSkillCount = Math.max(0, (job.must_have_skills?.length ?? 0) - topSkills.length);
 
     return (
         <div
@@ -604,21 +609,27 @@ export function JobCard({
                 }
             }}
             className={cn(
-                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] rounded-none glass-card text-left transition-all duration-150 hover:border-foreground/50 mb-2.5 gap-x-3.5 gap-y-2 px-4 py-3",
-                active && "border-brand border-l-4 border-l-brand glass-tint-blue",
+                // Rows are hairline-separated, not bordered cards (rulebook
+                // item h): the divider lives on the content wrapper below,
+                // inset past the tile, so this outer grid carries no border
+                // or bottom margin of its own — rows touch, the line between
+                // them starts at the title's x, not the tile's.
+                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-card text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand gap-x-3 px-4 pt-4",
+                active && "border-l-[3px] border-l-brand bg-muted text-brand",
             )}
         >
-            <div className="row-span-2 self-start">
+            <div className="self-start">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-4">
             <div className="min-w-0">
                 <span className="inline-flex flex-wrap items-baseline gap-x-1">
                     <Link
                         href={jobPath(job)}
                         data-testid="job-title"
                         className={cn(
-                            "text-lg leading-snug tracking-tight hover:underline",
-                            opened ? "font-medium text-muted-foreground" : "font-semibold text-foreground",
+                            "text-lg leading-snug hover:underline",
+                            opened ? "text-muted-foreground" : "font-semibold text-foreground",
                         )}
                         onClick={(e) => {
                             // A real href is what makes the row crawlable and
@@ -653,7 +664,7 @@ export function JobCard({
                                 {exceptionMark.parts.map((part, i) => (
                                     <span key={part.text} className="inline-flex items-center">
                                         {i > 0 && (
-                                            <span className="mx-1 text-muted-foreground/60" aria-hidden>
+                                            <span className="mx-1 text-muted-foreground" aria-hidden>
                                                 ·
                                             </span>
                                         )}
@@ -664,7 +675,7 @@ export function JobCard({
                         </span>
                     )}
                 </span>
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-left text-sm font-medium text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-left text-sm text-muted-foreground">
                     {onCompany ? (
                         <button
                             type="button"
@@ -679,32 +690,91 @@ export function JobCard({
                     ) : (
                         <span>{presented.company.name}</span>
                     )}
-                    {/* "New" reads the SAME 7-day `classifyPostingFreshness`
-                        window everything else on the row already uses — not
-                        the mock's literal "today," which this data can't
-                        honestly claim (posting-freshness.ts's FRESH_WINDOW_MS
-                        is 7 days, not 1). */}
-                    {freshness.kind === "fresh" && (
-                        <span
-                            data-testid="freshness-badge"
-                            className="mono-data inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300"
-                        >
-                            New
-                        </span>
+                    {/* Location joins the identity line, not the facts line
+                        below — a pin prefix is the one icon the rulebook's
+                        row anatomy allows ("HIG prefix before the place,
+                        never icon+word for the same fact twice"), so it's
+                        marked exempt from the list region's zero-icon count
+                        rather than counted as a "fact icon." */}
+                    {locationKnown && (
+                        <>
+                            <span aria-hidden>·</span>
+                            <span data-rulebook-exempt className="inline-flex items-center gap-1">
+                                <FACT_CHIP_ICON.location size={14} className="shrink-0" aria-hidden />
+                                {presented.location}
+                            </span>
+                        </>
                     )}
                 </div>
+                {/* Facts + status, one 14/20-scale secondary line joined by
+                    the shared `MetaLine` "· " seam (JobDetail.tsx) — no
+                    per-fact icons, no boxes/pills. Salary is the one bold
+                    value (matches JobDetail's own facts row treatment);
+                    status words carry their state in color alone, same as
+                    the detail pane's verdict word — sharing this line with
+                    the facts (instead of a second row) is what keeps the
+                    comfortable row inside the rulebook's 96-112px band. */}
+                {(factChips.length > 0 || freshness.kind === "fresh" || activelyPosted || variantCount > 0) && (
+                    <div className="mt-1 flex flex-wrap items-baseline text-xs text-muted-foreground">
+                        <MetaLine
+                            items={[
+                                ...factChips.map((c) => (
+                                    <span key={c.kind} className={cn(c.kind === "salary" && "font-semibold text-foreground")}>
+                                        {c.label}
+                                    </span>
+                                )),
+                                // "New" reads the SAME 7-day `classifyPostingFreshness`
+                                // window everything else on the row already uses.
+                                freshness.kind === "fresh" && (
+                                    <span data-testid="freshness-badge" className="font-semibold text-muted-foreground">
+                                        New
+                                    </span>
+                                ),
+                                activelyPosted && <span className="text-live dark:text-live">Actively posted</span>,
+                                // "+N location(s)"/"+N opening(s)" joins the same
+                                // flowing meta line as plain text (rulebook item k)
+                                // instead of a boxed chip — still the cluster
+                                // expand/collapse control, just unstyled as a button.
+                                variantCount > 0 && (
+                                    <button
+                                        type="button"
+                                        data-testid="cluster-toggle"
+                                        className="hover:text-foreground hover:underline"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleExpand?.();
+                                        }}
+                                    >
+                                        {expanded ? "hide" : clusterLabel}
+                                    </button>
+                                ),
+                            ]}
+                        />
+                    </div>
+                )}
             </div>
-            {/* Posted age, not a trust chip (badge inversion, Task C1) —
-                the trust state is now the icon beside the title above; this
-                slot is purely "how stale," reads as metadata rather than a
-                claim. Monospace is reserved for <code> (see typography.test);
-                `.mono-data` gets the same "figures line up" property from
-                tabular-nums on the sans face instead. */}
-            {/* Match chip stacks above the age line in this same meta
-                column — no new row, no layout shift when a résumé isn't on
-                file (`matchScore` is simply `null` then). */}
+            {/* Right meta column: bookmark (rulebook's 40px icon-only row
+                control) + report trigger share one row (both are compact
+                icon-only controls, not stacked fact lines) so this column's
+                height tracks the mid column's text instead of driving the
+                row past the rulebook's 96-112px band; match receipt and
+                posted age sit below. The report trigger and bookmark are
+                real interactive controls, not decorative fact icons —
+                exempted from the list region's svg count the same way
+                ContextHelp's sr-only text and CompanyLogo already are,
+                without touching ReportListingButton's own (deliberately
+                untouched, see GROUP-C) exemption logic. */}
             <span className="flex h-fit flex-col items-end gap-1 self-start">
-                <ReportListingButton job={job} className="h-6 w-6" />
+                <span className="flex items-center gap-1">
+                    {onGoAfter && (
+                        <span data-rulebook-exempt>
+                            <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
+                        </span>
+                    )}
+                    <span data-rulebook-exempt>
+                        <ReportListingButton job={job} className="h-6 w-6" />
+                    </span>
+                </span>
                 {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />}
                 {age && (
                     <span
@@ -718,73 +788,7 @@ export function JobCard({
                     </span>
                 )}
             </span>
-            {/* Icon-fact row (board-redesign.html §1) — replaces the quiet
-                prose meta line: one icon set (`FACT_CHIP_ICON`, shared with
-                JobDetail), no box/border, salary bold. Each fact renders
-                only when known (absence is silence, same rule the prose
-                line followed). No posted-age fallback here: `age` already
-                renders once, unconditionally, in the meta column above —
-                repeating it as "Posted {age}" when no other fact is known
-                would just print the same value twice, and for the 18% of
-                jobs with a null `posted_at` it's actually a first-seen date
-                (`derivePostedTs`), not a fact this row should assert as
-                "Posted". */}
-            <div className="col-span-full flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
-                {locationKnown && (
-                    <span className="inline-flex items-center gap-1.5 text-xs">
-                        <FACT_CHIP_ICON.location size={14} className="shrink-0 text-muted-foreground" aria-hidden />
-                        <span className="mono-data text-muted-foreground">{presented.location}</span>
-                    </span>
-                )}
-                {factChips.map((c) => {
-                    const FactIcon = FACT_CHIP_ICON[c.kind];
-                    const isSalary = c.kind === "salary";
-                    return (
-                        <span key={c.kind} className="inline-flex items-center gap-1.5 text-xs">
-                            <FactIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden />
-                            <span className={cn("mono-data", isSalary ? "font-semibold text-foreground" : "text-muted-foreground")}>
-                                {c.label}
-                            </span>
-                        </span>
-                    );
-                })}
-                {variantCount > 0 && (
-                    <button
-                        type="button"
-                        data-testid="cluster-toggle"
-                        className={cn(FACT_BOX, "border-slate-300/80 bg-slate-100/80 text-slate-700 hover:border-slate-400 hover:bg-slate-200/80 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700")}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleExpand?.();
-                        }}
-                    >
-                        {expanded ? "hide" : clusterLabel}
-                    </button>
-                )}
             </div>
-            {/* Skill chips + trust check (board-redesign.html §1 row3).
-                Renders only when there's something to show on either side —
-                no empty spacer row. */}
-            {(topSkills.length > 0 || activelyPosted) && (
-                <div className="col-span-full flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 pt-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        {topSkills.map((skill) => (
-                            <span key={skill} className="inline-flex items-center rounded-none bg-chip px-2.5 py-0.5 text-xs font-medium leading-tight text-foreground/80">
-                                {decodeText(skill)}
-                            </span>
-                        ))}
-                        {extraSkillCount > 0 && (
-                            <span className="mono-data text-xs text-muted-foreground">+{extraSkillCount}</span>
-                        )}
-                    </div>
-                    {activelyPosted && (
-                        <span className="mono-data inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                            <Check size={12} weight="bold" aria-hidden />
-                            Actively posted
-                        </span>
-                    )}
-                </div>
-            )}
         </div>
     );
 }
@@ -805,7 +809,7 @@ export function JobCard({
 function SimilarRolesCta({ onClick }: { onClick: () => void }) {
     return (
         <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={onClick}>
-            <Compass size={14} />
+            <Compass />
             Browse live roles
         </Button>
     );
@@ -825,8 +829,8 @@ function SimilarRolesCta({ onClick }: { onClick: () => void }) {
  */
 function DeadJobTombstone({ onSimilarRoles }: { onSimilarRoles: () => void }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
-            <WarningCircle size={22} className="mb-3 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center rounded-none border border-dashed border-border bg-card px-6 py-16 text-center">
+            <WarningCircle size={24} className="mb-3 text-muted-foreground" />
             <h3 className="text-sm font-semibold">{DEAD_JOB_TOMBSTONE_TEXT}</h3>
             <SimilarRolesCta onClick={onSimilarRoles} />
         </div>
@@ -855,11 +859,11 @@ function DeadJobUnresolved({
     checking: boolean;
 }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-none border border-dashed border-border bg-card px-6 py-16 text-center">
             {checking ? (
-                <span className="mb-3 h-5 w-5 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
+                <span className="mb-3 h-5 w-5 animate-spin rounded-none border-2 border-brand border-t-brand" />
             ) : (
-                <MagnifyingGlass size={22} className="mb-3 text-muted-foreground" />
+                <MagnifyingGlass size={24} className="mb-3 text-muted-foreground" />
             )}
             <h3 className="text-sm font-semibold">
                 {checking ? "Checking this role…" : "Can't confirm this role's status right now."}
@@ -887,21 +891,20 @@ const RESUME_MOMENT_OPENS = 3;
  */
 function JobCardSkeleton() {
     return (
-        <div
-            aria-hidden="true"
-            className="mb-2.5 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none glass-card p-4"
-        >
-            <div className="row-span-2 self-start">
-                <div className="skeleton-bar h-12 w-12 rounded-xl" />
+        <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-card pt-4">
+            <div className="self-start">
+                <div className="skeleton-bar h-12 w-12 rounded-none" />
             </div>
-            <div className="min-w-0 space-y-2">
-                <div className="skeleton-bar h-4 w-3/4" />
-                <div className="skeleton-bar h-3 w-1/3" />
-            </div>
-            <div className="skeleton-bar h-5 w-14 self-start" />
-            <div className="col-span-full flex gap-2">
-                <div className="skeleton-bar h-3 w-24" />
-                <div className="skeleton-bar h-3 w-16" />
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 border-b border-border pb-4">
+                <div className="min-w-0 space-y-2">
+                    <div className="skeleton-bar h-4 w-3/4" />
+                    <div className="skeleton-bar h-3 w-1/3" />
+                </div>
+                <div className="skeleton-bar h-5 w-14 self-start" />
+                <div className="col-span-full flex gap-2">
+                    <div className="skeleton-bar h-3 w-24" />
+                    <div className="skeleton-bar h-3 w-16" />
+                </div>
             </div>
         </div>
     );
@@ -1012,7 +1015,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={clearFiltersTestId}
                     onClick={onClearFilters}
-                    className="font-semibold text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground/70"
+                    className="font-semibold text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                 >
                     Clear filters
                 </button>
@@ -1091,7 +1094,7 @@ function EmptyResults({
     const hasFilters = entries.length > 0 || !!locationDefault;
     return (
         <div className="py-8 text-left">
-            <p className="text-[14px] text-foreground">
+            <p className="text-sm text-foreground">
                 {hasFilters ? "Nothing matches these filters." : "No roles match."}
             </p>
             {(hasQuery || hasFilters) && (
@@ -1166,12 +1169,12 @@ function ListTail({
                 // corpus ran out. Saying "reached the end" here would
                 // print the real, bigger total right next to a claim
                 // that's false for it — see `resolveEndOfListState`.
-                <p className="text-xs text-muted-foreground/70">
+                <p className="text-xs text-muted-foreground">
                     Showing the first {MAX_REACHABLE.toLocaleString()} of{" "}
                     {formatCorpusCount(totalCount)} — add a search or filter to narrow.
                 </p>
             ) : (
-                <p className="text-xs text-muted-foreground/70">
+                <p className="text-xs text-muted-foreground">
                     You&apos;ve reached the end — {formatCorpusCount(totalCount)}{" "}
                     {totalCount.value === 1 ? "role" : "roles"}.
                 </p>
@@ -4099,6 +4102,9 @@ function JobsContent() {
             tourAnchor={tourAnchor}
             matchScore={matchScores?.get(j.id) ?? null}
             matchAsOfDate={resumeAsOfDate}
+            pursuit={pursuitsByJobId.get(j.id)}
+            onGoAfter={() => handleGoAfter(j)}
+            goingAfter={goingAfterId === j.id}
         />
     );
 
@@ -4153,13 +4159,16 @@ function JobsContent() {
                     onClose={onClose}
                     reportJobEnabled={reportJobEnabled}
                     collapseDescription={collapseDescription}
-                    className="border-0 bg-transparent shadow-none"
+                    className="border-0 bg-transparent"
                 />
                 {!collapseDescription && (
                 <JobDetailActionBar
                     job={detailJob}
                     signedIn={Boolean(user)}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
+                    onGoAfter={() => handleGoAfter(detailJob)}
+                    pursuit={detailPursuit}
+                    goingAfter={goingAfterId === detailJob.id}
                 />
                 )}
             </>
@@ -4260,7 +4269,7 @@ function JobsContent() {
                     )}
                 >
                     {activeCategory ? activeCategory.title : "Browse by field"}
-                    <CaretDown size={10} weight="bold" aria-hidden />
+                    <CaretDown size={16} weight="bold" aria-hidden />
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-[180px]">
@@ -4275,7 +4284,7 @@ function JobsContent() {
                             className="flex items-center justify-between gap-3 text-sm"
                         >
                             <span>{cat.title}</span>
-                            {isMatch && <Check size={12} weight="bold" aria-hidden />}
+                            {isMatch && <Check weight="bold" aria-hidden />}
                         </DropdownMenuItem>
                     );
                 })}
@@ -4301,10 +4310,10 @@ function JobsContent() {
             onClick={panelClearAll}
             className={cn(
                 toolbarControlHeight,
-                "inline-flex shrink-0 items-center whitespace-nowrap px-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
+                "inline-flex shrink-0 items-center whitespace-nowrap px-2 text-xs text-danger-text transition-colors hover:opacity-80",
             )}
         >
-            Clear filters ({activeCount})
+            Clear ({activeCount})
         </button>
     ) : null;
 
@@ -4339,7 +4348,7 @@ function JobsContent() {
                 suggest={suggestForBox}
                 seeds={searchSeeds}
                 placeholder={SEARCH_PLACEHOLDER}
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-xs font-semibold text-foreground shadow-none placeholder:font-normal placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-xs font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
             {queryDraft && (
@@ -4369,7 +4378,7 @@ function JobsContent() {
                 onCommit={addLocation}
                 selected={chosenLocations}
                 data-testid="topbar-docked-location-input"
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 text-xs text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:border-0 focus-visible:ring-0"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 text-xs text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
             {(locationDraft || chosenLocations.length > 0) && (
@@ -4391,33 +4400,63 @@ function JobsContent() {
         </div>
     );
 
+    // "Sort: Relevance" text + chevron opening the standard DropdownMenu
+    // primitive (rulebook: a menu, not a segmented/pressed control — a
+    // segmented group always has exactly one filled segment, which reads as
+    // a filled button living in a region required to carry zero).
+    const relevanceLabel = resumeOnFile === true ? "Best match" : "Relevance";
+    const sortLabel =
+        !fitActive && effectiveSort === "newest"
+            ? "Freshest"
+            : !fitActive && effectiveSort === "salary_desc"
+              ? "Top pay"
+              : relevanceLabel;
     const sortEl = result?.configured ? (
-        <div
-            role="group"
-            aria-label="Sort"
-            data-testid="jobs-sort-segments"
-            className={cn(toolbarSegmentGroupClass, "hidden lg:flex")}
-        >
-            {postedDateSupported && (
-                <ToolbarSegment
-                    label="freshest"
-                    pressed={!fitActive && effectiveSort === "newest"}
-                    onClick={() => chooseSort("newest")}
-                />
-            )}
-            <ToolbarSegment
-                label="top pay"
-                pressed={!fitActive && effectiveSort === "salary_desc"}
-                onClick={() => chooseSort("salary_desc")}
-            />
-            <ToolbarSegment
-                label={resumeOnFile === true ? "best match" : "relevance"}
-                title={resumeOnFile === true ? "Matched by your résumé" : undefined}
-                pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
-                onClick={chooseBestMatch}
-                pending={fitResolving}
-            />
-        </div>
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    aria-label="Sort"
+                    data-testid="jobs-sort-trigger"
+                    className="hidden shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand lg:inline-flex"
+                >
+                    {fitResolving && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
+                    Sort: {sortLabel}
+                    <CaretDown size={16} aria-hidden />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                {postedDateSupported && (
+                    <DropdownMenuItem
+                        data-testid="jobs-sort-newest"
+                        onSelect={() => chooseSort("newest")}
+                        className="flex items-center justify-between gap-3 text-sm"
+                    >
+                        <span>Freshest</span>
+                        {!fitActive && effectiveSort === "newest" && <Check weight="bold" aria-hidden />}
+                    </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                    data-testid="jobs-sort-salary"
+                    onSelect={() => chooseSort("salary_desc")}
+                    className="flex items-center justify-between gap-3 text-sm"
+                >
+                    <span>Top pay</span>
+                    {!fitActive && effectiveSort === "salary_desc" && <Check weight="bold" aria-hidden />}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    data-testid="jobs-sort-relevance"
+                    onSelect={chooseBestMatch}
+                    title={resumeOnFile === true ? "Matched by your résumé" : undefined}
+                    className="flex items-center justify-between gap-3 text-sm"
+                >
+                    <span>{relevanceLabel}</span>
+                    {(fitActive || (!fitActive && effectiveSort === "relevance")) && (
+                        <Check weight="bold" aria-hidden />
+                    )}
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     ) : null;
 
     // "scored against your résumé of {date} · update to rescore" — the
@@ -4434,7 +4473,7 @@ function JobsContent() {
         hasUsableResume && resumeAsOfDate ? (
             <span
                 data-testid="resume-as-of"
-                className="mono-data hidden shrink-0 items-center gap-1 text-[10.5px] text-muted-foreground lg:inline-flex"
+                className="mono-data hidden shrink-0 items-center gap-1 text-xs text-muted-foreground lg:inline-flex"
             >
                 scored against your résumé of {resumeAsOfDate} ·{" "}
                 <button type="button" onClick={handleUploadClick} className="text-brand hover:underline">
@@ -4459,9 +4498,9 @@ function JobsContent() {
         <Link
             href="/trends"
             data-testid="search-live-count"
-            className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-bold uppercase tracking-wider text-brand transition-colors hover:text-brand/80"
+            className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-semibold text-brand transition-colors hover:text-brand"
         >
-            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
+            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-live" />
             {formatCorpusCount(liveJobsCount)} live roles
         </Link>
     );
@@ -4474,18 +4513,7 @@ function JobsContent() {
      * (`src/app/page.tsx`), not on this route.
      */
     return (
-        <div
-            className="min-h-screen"
-            style={{
-                // Was a literal rgba(16, 149, 106, …) — the retired emerald
-                // --brand, frozen into the page wash where no theme could
-                // reach it. Reads the token now, so the wash follows the
-                // accent through light/dark instead of tinting the whole
-                // results page a colour the palette had dropped.
-                background:
-                    "radial-gradient(ellipse 80% 40% at 50% -10%, rgb(var(--brand) / 0.12), transparent 70%), rgb(var(--background))",
-            }}
-        >
+        <div className="min-h-screen">
             {/* `data-shell="bleed"` is this page ASKING for the full window;
                 globals.css turns that into `--shell-max: none` for the header
                 and footer too, so all three left edges stay together. Each
@@ -4506,10 +4534,10 @@ function JobsContent() {
                 {showLandingMarketing ? (
                     <div className="pb-2">
                         <div className="border-b border-border py-2 sm:py-3">
-                            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand">
+                            <p className="mb-2 text-xs font-semibold text-brand">
                                 Live from employer career pages
                             </p>
-                            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                            <h1 className="text-xl sm:text-2xl font-semibold text-foreground">
                                 {JOBS_USP.mastheadTitle}
                             </h1>
                             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
@@ -4523,7 +4551,7 @@ function JobsContent() {
                 )}
                 <a
                     href="#jobs-results-list"
-                    className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
+                    className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
                 >
                     Skip to results
                 </a>
@@ -4541,7 +4569,7 @@ function JobsContent() {
                     `fieldDirectoryMenu`. */}
                 {!headerDockActive && (
                 <section
-                    className="rounded-none glass-panel glass-panel-raised glass-panel-accent-top p-2 sm:p-2.5 transition-colors"
+                    className="rounded-none bg-card border border-border border-t-2 border-t-brand p-2 sm:p-2.5 transition-colors"
                 >
                     {/* The live count, moved here off the TopBar. Same /trends
                         destination it always had — it is a way into the report,
@@ -4584,7 +4612,7 @@ function JobsContent() {
                                     seeds={searchSeeds}
                                     placeholder={SEARCH_PLACEHOLDER}
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
-                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base md:text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0 pr-8"
+                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base md:text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 pr-8"
                                     containerClassName="min-w-0 w-full"
                                 />
                                 {/* NOT `results-clear-query` — that is the toolbar's
@@ -4601,7 +4629,7 @@ function JobsContent() {
                                             setQueryDraft("");
                                             submitSearch("");
                                         }}
-                                        className="absolute right-1.5 flex h-10 w-10 items-center justify-center rounded-none glass-tint-muted text-muted-foreground hover:text-foreground text-xs z-10 lg:right-2.5 lg:h-6 lg:w-6"
+                                        className="absolute right-1.5 flex h-10 w-10 items-center justify-center rounded-none bg-muted text-muted-foreground hover:text-foreground text-xs z-10 lg:right-2.5 lg:h-6 lg:w-6"
                                         title="Clear query"
                                     >
                                         ✕
@@ -4614,7 +4642,7 @@ function JobsContent() {
                                 is a shared tailwind-merge axis and an overlay only
                                 stays clear of the text while nobody touches it. */}
                             <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
-                                <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
+                                <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
                                     <MapPin size={16} weight="bold" />
                                 </span>
                                 <button
@@ -4623,7 +4651,7 @@ function JobsContent() {
                                     onClick={() => setLocationSheetOpen(true)}
                                     className="flex h-11 min-w-0 flex-1 items-center truncate rounded-none border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
                                 >
-                                    <span className={cn("truncate", mobileLocationLabel === "City, state, or remote" && "text-muted-foreground/70")}>
+                                    <span className={cn("truncate", mobileLocationLabel === "City, state, or remote" && "text-muted-foreground")}>
                                         {mobileLocationLabel}
                                     </span>
                                 </button>
@@ -4639,7 +4667,7 @@ function JobsContent() {
                                     onCommit={addLocation}
                                     selected={chosenLocations}
                                     containerClassName="hidden lg:flex"
-                                    className="h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:border-0 focus-visible:ring-0 sm:h-[56px] md:text-sm"
+                                    className="h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 sm:h-[56px] md:text-sm"
                                 />
                                 {/* Location's own one-tap clear, matching the query
                                     field's `search-input-clear`. The toolbar's "✕ clear
@@ -4665,7 +4693,7 @@ function JobsContent() {
                                             setLocationDraft("");
                                             clearLocations();
                                         }}
-                                        className="mr-2 hidden h-6 w-6 shrink-0 items-center justify-center rounded-none glass-tint-muted text-xs text-muted-foreground transition-colors hover:text-foreground lg:flex"
+                                        className="mr-2 hidden h-6 w-6 shrink-0 items-center justify-center rounded-none bg-muted text-xs text-muted-foreground transition-colors hover:text-foreground lg:flex"
                                     >
                                         ✕
                                     </button>
@@ -4681,7 +4709,7 @@ function JobsContent() {
                         )}>                            <Button
                                 type="button"
                                 onClick={() => submitSearch(queryDraft)}
-                                className="h-11 sm:h-[56px] w-full rounded-none bg-primary px-6 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary/90 sm:w-auto transition-colors"
+                                className="h-11 sm:h-[56px] w-full rounded-none bg-primary px-6 text-xs font-semibold text-primary-foreground hover:bg-primary sm:w-auto transition-colors"
                             >
                                 Search
                             </Button>
@@ -4702,7 +4730,7 @@ function JobsContent() {
                         shortcut's permanent screen space on a phone.
                         Desktop keeps it; vertical space isn't scarce there. */}
                     {!showLandingMarketing && isLgUp && (
-                        <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2 lg:mt-2 lg:pt-1.5">
+                        <div className="mt-2.5 flex items-center gap-2 border-t border-border pt-2 lg:mt-2 lg:pt-1.5">
                             {/* Field dropdown — radio-like, REPLACE query on click */}
                             {fieldDirectoryMenu}
                         </div>
@@ -4715,14 +4743,24 @@ function JobsContent() {
                         the filter toggles to its right which AND onto existing results.
                         `handleClearSearch` is the same path the "✕ clear search" toolbar
                         button uses — reused, not a third clear path. */}
-                    {!showLandingMarketing && (activeCategory || canSaveSearch) && (
+                    {/* Outer gate mirrors the OR of what the two children below
+                        actually render (`activeCategory`, and
+                        `!showJobsToolbarRow && savedSearchControl` — the latter
+                        is exactly `!showJobsToolbarRow && canSaveSearch` since
+                        `savedSearchControl` is `canSaveSearch ? ... : null`).
+                        A looser `canSaveSearch` alone let this div render with
+                        forced `min-h-[2.75rem]` and zero visible children
+                        whenever the toolbar row below (which shows its own
+                        `savedSearchControl`) was already the one rendering it —
+                        the mobile SERP's blank ~44px band under the search bar. */}
+                    {!showLandingMarketing && (activeCategory || (!showJobsToolbarRow && canSaveSearch)) && (
                         <div
                             data-testid="active-category-indicator"
-                            className="mt-1 flex min-h-[2.75rem] flex-wrap items-center gap-1.5 px-0.5 text-[13px] text-muted-foreground sm:min-h-0"
+                            className="mt-1 flex min-h-[2.75rem] flex-wrap items-center gap-1.5 px-0.5 text-xs text-muted-foreground sm:min-h-0"
                         >
                             {activeCategory && (
                                 <>
-                                    <span className="font-semibold uppercase tracking-wider text-foreground">
+                                    <span className="font-semibold text-foreground">
                                         Searching:
                                     </span>
                                     <span>{activeCategory.title}</span>
@@ -4754,7 +4792,7 @@ function JobsContent() {
                             never scrolls into view here — this is the only reachable
                             desktop filter surface on /jobs, so the footer links live
                             at its end too. */}
-                        <div className="mt-3 border-t border-border/80 pt-3">
+                        <div className="mt-3 border-t border-border pt-3">
                             <FooterLinks />
                         </div>
                     </div>
@@ -4764,7 +4802,7 @@ function JobsContent() {
                     data-testid="jobs-toolbar"
                     className={cn(
                         showJobsToolbarRow &&
-                            "mt-3 border-y border-border/50 bg-muted/[0.14] py-2 lg:px-0.5 lg:py-1.5",
+                            "mt-3 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5",
                     )}
                 >
                     {showJobsToolbarRow && (
@@ -4790,20 +4828,18 @@ function JobsContent() {
                             className={cn(
                                 chipVariants({ active: filtersOpen || activeCount > 0 }),
                                 toolbarControlHeight,
-                                "box-border shrink-0 px-3.5 rounded-none font-semibold text-foreground inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
-                                filtersOpen && "border-brand bg-brand text-brand-foreground hover:border-brand hover:bg-brand/90",
+                                "box-border shrink-0 px-3.5 rounded-none font-semibold text-foreground inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
                                 activeCount > 0 && "has-active",
                             )}
                         >
-                            <FunnelSimple size={14} weight="bold" aria-hidden />
                             <span className="lg:hidden">Filters</span>
                             <span className="hidden lg:inline">All filters</span>
                             {activeCount > 0 && (
-                                <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-none border border-brand/40 bg-brand/10 px-1 text-xs font-bold leading-[16px] text-brand">
+                                <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-none border border-brand bg-muted px-1 text-xs font-semibold text-brand">
                                     {activeCount}
                                 </span>
                             )}
-                            {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
+                            {filtersOpen ? <CaretUp size={16} weight="bold" aria-hidden /> : <CaretDown size={16} weight="bold" aria-hidden />}
                         </button>
                         )}
                         {!showLandingMarketing && !headerDockActive && fieldDirectoryMenu}
@@ -4849,7 +4885,7 @@ function JobsContent() {
                         <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
                             <SheetContent
                                 side="bottom"
-                                className="mx-auto max-h-[85dvh] w-full max-w-[720px] overflow-hidden rounded-t-[18px] border-border p-0"
+                                className="mx-auto max-h-[85dvh] w-full max-w-[720px] overflow-hidden border-border p-0"
                             >
                                 <SheetTitle className="sr-only">Filters</SheetTitle>
                                 <div
@@ -4861,7 +4897,7 @@ function JobsContent() {
                                     {/* Same reachability gap as the desktop inline panel
                                         above — the global `Footer` never scrolls into view
                                         below the mobile infinite feed either. */}
-                                    <div className="mt-3 border-t border-border/80 pt-3">
+                                    <div className="mt-3 border-t border-border pt-3">
                                         <FooterLinks />
                                     </div>
                                 </div>
@@ -4936,7 +4972,7 @@ function JobsContent() {
                     {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"
-                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border xl:border-border xl:bg-card/75 xl:backdrop-blur-xl xl:backdrop-saturate-150 detail-pane-raised"
+                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border-l xl:border-border"
                         >
                             {detailMountSite === "pane" ? (
                                 renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
@@ -4945,7 +4981,7 @@ function JobsContent() {
                                     <JobDetailSkeleton />
                                 </div>
                             ) : (
-                                <p className="p-6 text-[13px] text-muted-foreground" data-testid="detail-pane-placeholder">
+                                <p className="p-6 text-xs text-muted-foreground" data-testid="detail-pane-placeholder">
                                     Select a role to read it here.
                                 </p>
                             )}
@@ -4971,7 +5007,7 @@ function JobsContent() {
                                 {showGuestSaveBanner && (
                                     <div
                                         data-testid="guest-save-banner"
-                                        className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-[13.5px] text-muted-foreground"
+                                        className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
                                         <span>Sign in to keep this list across devices and get alerts when new roles match —</span>
                                         <button
@@ -5035,19 +5071,19 @@ function JobsContent() {
                             counts word-dropped matches — a number that doesn't describe
                             the query the user actually typed. */}
                         {!loading && result?.widened && (
-                            <p data-testid="widened-note" className="mb-3 text-[13.5px] text-muted-foreground">
+                            <p data-testid="widened-note" className="mb-3 text-sm text-muted-foreground">
                                 Nothing matches every word of that — showing the closest matches.
                             </p>
                         )}
 
                         {!loading && degradedNote && (
-                            <p data-testid="degraded-note" className="mb-3 text-[13.5px] text-muted-foreground">
+                            <p data-testid="degraded-note" className="mb-3 text-sm text-muted-foreground">
                                 {degradedNote}
                             </p>
                         )}
 
                         {!loading && unmatchedNote && (
-                            <p data-testid="unmatched-place-note" className="mb-3 text-[13.5px] text-muted-foreground">
+                            <p data-testid="unmatched-place-note" className="mb-3 text-sm text-muted-foreground">
                                 {unmatchedNote}
                             </p>
                         )}
@@ -5109,10 +5145,10 @@ function JobsContent() {
                                    drift from a real search. Styled like SerpFilters'
                                    own `Affordance` grammar — no pills, no buttons. */
                                 <div className="text-left" data-testid="serp-ask">
-                                    <p className="text-[11px] uppercase tracking-[0.06em] text-faint">
+                                    <p className="text-xs text-faint">
                                         Suggested roles
                                     </p>
-                                    <p className="mt-1 text-[13px] text-muted-foreground">
+                                    <p className="mt-1 text-xs text-muted-foreground">
                                         Tap one to search — your filters stay on
                                     </p>
                                     <div className="mt-3.5 flex flex-wrap gap-x-[18px] gap-y-2.5" role="list" aria-label="Suggested roles">
@@ -5123,7 +5159,7 @@ function JobsContent() {
                                                 data-testid="serp-ask-seed"
                                                 title={`Search for ${seed}`}
                                                 onClick={() => submitSearch(seed)}
-                                                className="max-w-[min(100%,14rem)] truncate text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                                className="max-w-[min(100%,14rem)] truncate text-xs text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                                             >
                                                 {seed}
                                             </button>
@@ -5132,13 +5168,13 @@ function JobsContent() {
                                 </div>
                             ) : resultsPanel === "not-connected" ? (
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
-                                    <p className="text-[13px] text-foreground">Job search is being connected.</p>
-                                    <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
+                                    <p className="text-xs text-foreground">Job search is being connected.</p>
+                                    <p className="mt-1.5 max-w-md text-xs text-muted-foreground">
                                         We&apos;re wiring velai up to Subspace&apos;s live job corpus — including the posting check
                                         that flags roles that aren&apos;t really hiring.
                                     </p>
                                     {result?.note && (
-                                        <p className="mt-1 max-w-md text-xs text-muted-foreground/70">{result.note}</p>
+                                        <p className="mt-1 max-w-md text-xs text-muted-foreground">{result.note}</p>
                                     )}
                                 </div>
                             ) : resultsPanel === "error" ? (
@@ -5151,8 +5187,8 @@ function JobsContent() {
                                 // which itself often already opens with that same
                                 // backend-supplied phrase — this no longer says it twice.
                                 <div role="alert" className="border-l-2 border-verdict-risk py-6 pl-4 text-left">
-                                    <p className="text-[13px] text-foreground">We can&apos;t load results right now.</p>
-                                    <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">{searchError}</p>
+                                    <p className="text-xs text-foreground">We can&apos;t load results right now.</p>
+                                    <p className="mt-1.5 max-w-md text-xs text-muted-foreground">{searchError}</p>
                                     <button
                                         onClick={() => setSearchRetry((n) => n + 1)}
                                         className="mt-3 text-xs text-foreground underline underline-offset-2"
@@ -5200,12 +5236,13 @@ function JobsContent() {
                                 <>
                                     {!isSerpAsk && (
                                         <>
-                                            {/* Consolidated Swiss Glass Status Ribbon */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-none border-b border-border/50 bg-muted/[0.18] px-3.5 py-2 text-xs">
+                                            {/* Count line: plain secondary text, no panel (rulebook
+                                                item i) — "show all" reads as the one Klein text link. */}
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 py-2 text-sm text-muted-foreground">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
-                                                        className="font-bold tracking-wide text-foreground tabular-nums"
+                                                        className="font-semibold text-foreground tabular-nums"
                                                     >
                                                         {resultCountLine}
                                                     </span>
@@ -5214,7 +5251,7 @@ function JobsContent() {
                                                             type="button"
                                                             data-testid="beyond-window-show-all"
                                                             onClick={() => panelPostedBucket(undefined)}
-                                                            className="text-muted-foreground hover:text-foreground underline underline-offset-2"
+                                                            className="text-brand hover:underline"
                                                         >
                                                             ({beyondWindowText} — show all)
                                                         </button>
@@ -5233,11 +5270,8 @@ function JobsContent() {
                                                     disclosure matters most (zero results). */}
                                                 {companyDomain && (
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <span
-                                                            data-testid="company-scope-chip"
-                                                            className="inline-flex items-center gap-2 rounded-md border border-border bg-chip px-2 py-1 text-[11.5px]"
-                                                        >
-                                                            <span className="whitespace-nowrap text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                                        <span data-testid="company-scope-chip" className="flex items-center gap-2">
+                                                            <span className="whitespace-nowrap font-semibold text-foreground">
                                                                 employer
                                                             </span>
                                                             <span className="text-foreground">{companyDomain}</span>
@@ -5273,21 +5307,22 @@ function JobsContent() {
                                     )}
                                 <div
                                     id="jobs-results-list"
+                                    data-region="list"
                                     ref={resultsListRef}
                                     tabIndex={0}
                                     role="listbox"
                                     aria-label="Job results"
                                     onKeyDown={handleResultsKeyDown}
                                     className={cn(
-                                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2",
+                                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
                                         board === "elite" && "elite-signal",
                                     )}
                                 >
                                     {board === "elite" && (
                                         <div className="mb-3.5 flex items-baseline justify-between gap-3">
-                                            <h2 className="font-display text-[19px] font-semibold tracking-tight">
+                                            <h2 className="font-display text-lg font-semibold">
                                                 Elite matches
-                                                <span className="ml-2 text-[12.5px] font-normal text-[color:var(--elite-muted)]">
+                                                <span className="ml-2 text-xs font-normal text-[color:var(--elite-muted)]">
                                                     {result?.total != null
                                                         ? `${result.total.toLocaleString()} roles · board allowlist`
                                                         : "board allowlist"}
@@ -5355,7 +5390,7 @@ function JobsContent() {
                                     {showPersonalizationInvite && (
                                         <div
                                             data-testid="resume-personalize-invite"
-                                            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-5 text-[13.5px] text-muted-foreground"
+                                            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-5 text-sm text-muted-foreground"
                                         >
                                             <span>See which of these roles actually fit your background —</span>
                                             <button
@@ -5377,7 +5412,7 @@ function JobsContent() {
                                     {showResumeMoment && (
                                         <div
                                             data-testid="resume-moment"
-                                            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-5 text-[13.5px] text-muted-foreground"
+                                            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-5 text-sm text-muted-foreground"
                                         >
                                             <span>Want these ranked against your actual experience?</span>
                                             <button
@@ -5417,7 +5452,7 @@ function JobsContent() {
                                                     {depthGateNote}{" "}
                                                     <a
                                                         href={depthGateSignInHref}
-                                                        className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground/70"
+                                                        className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                                                     >
                                                         Sign in
                                                     </a>
@@ -5475,12 +5510,12 @@ function JobsContent() {
             {!isLgUp && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query) && (
                 <div
                     data-testid="mobile-search-cta"
-                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] border-t border-border/80 bg-card/95 px-4 py-2.5 shadow-none backdrop-blur-xl lg:hidden"
+                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] border-t border-border bg-card px-4 py-2.5 lg:hidden"
                 >
                     <Button
                         type="button"
                         onClick={handleMobilePrimaryCta}
-                        className="h-11 w-full rounded-none bg-primary text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+                        className="h-11 w-full rounded-none bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
                     >
                         {mobilePrimaryCtaLabel}
                     </Button>
@@ -5536,17 +5571,17 @@ function JobsContent() {
                     side="bottom"
                     hideCloseButton
                     overlayClassName="bg-[rgba(18,21,26,0.42)]"
-                    className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0 shadow-[var(--shadow-overlay)] data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                    className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
                     <div className="shrink-0 border-b border-border">
                         <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-                            <span className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
+                            <span className="h-1.5 w-10 rounded-none bg-border dark:bg-border" />
                         </div>
                         <div className="flex items-center gap-2 px-4 pb-3">
                             <div className="min-w-0 flex-1">
                                 {detailJob ? (
                                     <>
-                                        <p className="truncate text-base font-semibold tracking-[-0.03em] text-foreground">
+                                        <p className="truncate text-base font-semibold text-foreground">
                                             {decodeText(detailJob.title)}
                                         </p>
                                         <p className="truncate text-meta text-muted-foreground">
@@ -5645,10 +5680,10 @@ function JobsContent() {
                 <div
                     data-testid="apply-return-prompt"
                     role="status"
-                    className="fixed bottom-24 right-4 z-[190] flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3 shadow-lg"
+                    className="fixed bottom-24 right-4 z-[190] flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3"
                 >
                     <div className="min-w-0 flex-1">
-                        <div className="mono-data whitespace-nowrap text-xs uppercase tracking-[0.06em] text-muted-foreground">
+                        <div className="mono-data whitespace-nowrap text-xs text-muted-foreground">
                             Did you apply?
                         </div>
                         <div className="mt-0.5 truncate text-meta text-foreground">
@@ -5662,7 +5697,7 @@ function JobsContent() {
                             setApplyReturnPrompt(null);
                             void doMarkApplied(job);
                         }}
-                        className="shrink-0 border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/40"
+                        className="shrink-0 border border-border bg-background px-2.5 py-1.5 text-xs text-foreground hover:bg-muted"
                     >
                         Mark applied
                     </button>
@@ -5670,7 +5705,7 @@ function JobsContent() {
                         type="button"
                         aria-label="Dismiss"
                         onClick={() => setApplyReturnPrompt(null)}
-                        className="shrink-0 text-muted-foreground/60 hover:text-foreground"
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
                     >
                         ×
                     </button>
@@ -5684,7 +5719,7 @@ function JobsLoading() {
     return (
         <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
             <div className="flex flex-col items-center gap-4">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
+                <div className="h-8 w-8 animate-spin rounded-none border-2 border-brand border-t-brand" />
                 <p className="text-sm">Loading jobs…</p>
             </div>
         </div>

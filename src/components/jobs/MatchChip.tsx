@@ -46,7 +46,7 @@ export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps)
             <span
                 data-testid="match-chip"
                 className={cn(
-                    "mono-data inline-block rounded-none border px-2 py-0.5 text-[10.5px] font-semibold leading-none tracking-wide",
+                    "mono-data inline-block rounded-none border px-2 py-0.5 text-xs font-semibold leading-none",
                     strong ? "border-brand bg-card text-brand" : "border-border bg-chip text-foreground",
                     className,
                 )}
@@ -60,7 +60,7 @@ export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps)
 function MatchReceipt({ score, asOfDate }: { score: MatchScore; asOfDate?: string | null }) {
     return (
         <div className="min-w-[220px]">
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="mb-2 text-xs font-semibold text-muted-foreground">
                 Why {score.total}
                 {asOfDate ? ` — against your résumé of ${asOfDate}` : ""}
             </div>
@@ -78,12 +78,12 @@ function ReceiptRow({ label, value, last }: { label: string; value: string; last
     return (
         <div
             className={cn(
-                "flex items-center justify-between gap-3 border-b border-border/60 pb-1.5 text-xs",
+                "flex items-center justify-between gap-3 border-b border-border pb-1.5 text-xs",
                 last && "border-0 pb-0",
             )}
         >
             <span>{label}</span>
-            <span className="mono-data text-[11px] tabular-nums text-muted-foreground">{value}</span>
+            <span className="mono-data text-xs tabular-nums text-muted-foreground">{value}</span>
         </div>
     );
 }

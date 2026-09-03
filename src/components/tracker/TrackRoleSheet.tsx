@@ -75,14 +75,14 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
             >
                 <div className="shrink-0 border-b border-border">
                     <div className="flex justify-center pb-1 pt-2.5">
-                        <span className="h-1 w-9 rounded-full bg-[#d0d6de]" aria-hidden="true" />
+                        <span className="h-1 w-9 rounded-none bg-[#d0d6de]" aria-hidden="true" />
                     </div>
                     <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
                         <SheetHeader className="min-w-0 flex-1 space-y-0 text-left">
-                            <SheetTitle className="truncate text-lg font-semibold tracking-[-0.03em]">Track a role</SheetTitle>
-                            <SheetDescription className="truncate text-[13px]">One step. Link the posting — skip the essay.</SheetDescription>
+                            <SheetTitle className="truncate text-lg font-semibold">Track a role</SheetTitle>
+                            <SheetDescription className="truncate text-xs">One step. Link the posting — skip the essay.</SheetDescription>
                         </SheetHeader>
-                        <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80">
+                        <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-muted-foreground transition-opacity hover:opacity-80">
                             <span aria-hidden="true">×</span>
                             <span className="sr-only">Close</span>
                         </SheetClose>
@@ -90,19 +90,19 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                 </div>
                 <div className="space-y-3 px-5 py-4 pb-7">
                     <div>
-                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Company</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Company</Label>
                         <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" className={fieldClass} />
                     </div>
                     <div>
-                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Role</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Role</Label>
                         <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Staff Software Engineer" className={fieldClass} />
                     </div>
                     <div>
-                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Job URL</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Job URL</Label>
                         <Input value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://boards.greenhouse.io/…" className={fieldClass} />
                     </div>
                     <div>
-                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Status</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Status</Label>
                         <Select value={status} onValueChange={(v) => setStatus(v as PursuitStage)}>
                             <SelectTrigger className={fieldClass}>
                                 <SelectValue />
@@ -117,7 +117,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                         </Select>
                     </div>
                     <div>
-                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Note (optional)</Label>
+                        <Label className="mb-1.5 block text-xs text-muted-foreground">Note (optional)</Label>
                         <Textarea
                             value={note}
                             onChange={(e) => setNote(e.target.value)}
@@ -128,7 +128,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                     </div>
                     <div className="flex flex-wrap gap-2 pt-1">
                         <Button onClick={() => void handleSave()} disabled={saving || !company.trim() || !position.trim()}>
-                            {saving && <CircleNotch size={14} className="mr-2 animate-spin" />}
+                            {saving && <CircleNotch className="mr-2 animate-spin" />}
                             {saving ? "Saving…" : "Save to tracker"}
                         </Button>
                         <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

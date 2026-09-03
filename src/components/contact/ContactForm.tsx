@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const DEFAULT_ERROR = "Failed to send your message. Please try again.";
 
@@ -87,20 +88,20 @@ export function ContactForm() {
 
     if (status === "success") {
         return (
-            <div className="mt-8 rounded-none border border-brand/40 bg-brand/10 p-6 text-foreground backdrop-blur-xl">
-                <p className="text-sm font-bold uppercase tracking-wider text-brand">Message Sent Successfully</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Got it — we read everything and reply directly from <span className="text-foreground font-medium">hello@thesubspace.io</span>.
-                </p>
-            </div>
+            <Alert variant="live" className="mt-8">
+                <AlertTitle>Message sent successfully</AlertTitle>
+                <AlertDescription>
+                    Got it — we read everything and reply directly from hello@thesubspace.io.
+                </AlertDescription>
+            </Alert>
         );
     }
 
     return (
-        <div className="mt-8 rounded-none border border-border/80 bg-card/75 p-6 sm:p-8 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+        <div className="mt-8 rounded-none border border-border bg-card p-6 sm:p-8">
             {isBugReport && (
                 <div className="mb-5">
-                    <h2 className="text-base font-bold text-foreground">Report a bug</h2>
+                    <h2 className="text-base font-semibold text-foreground">Report a bug</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
                         Tell us what went wrong and what you expected to happen instead.
                     </p>
@@ -113,7 +114,6 @@ export function ContactForm() {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Your name"
-                        className="h-11 rounded-none border-border bg-background px-3.5 focus:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
                     />
                 </Field>
 
@@ -126,7 +126,6 @@ export function ContactForm() {
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@company.com"
                         required
-                        className="h-11 rounded-none border-border bg-background px-3.5 focus:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
                     />
                 </Field>
 
@@ -140,7 +139,7 @@ export function ContactForm() {
                                 ? "What went wrong, and what did you expect to happen instead?"
                                 : "Questions, feedback, corrections, or partnerships..."
                         }
-                        className="min-h-[140px] rounded-none border-border bg-background p-3.5 focus:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
+                        className="min-h-[140px]"
                         required
                         minLength={10}
                     />
@@ -162,17 +161,19 @@ export function ContactForm() {
                 <TurnstileWidget onVerify={setTurnstileToken} />
 
                 {status === "error" && error && (
-                    <p className="text-xs text-destructive">{error}</p>
+                    <Alert variant="destructive">
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
                 )}
 
                 {isBugReport && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                         Your browser and the page you came from are included to help us debug.
                     </p>
                 )}
 
-                <Button type="submit" size="lg" disabled={isSubmitting} className="h-11 rounded-none bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider px-7 hover:bg-primary/90 transition-colors">
-                    {isSubmitting ? "Sending…" : isBugReport ? "Send report →" : "Send message →"}
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Sending…" : isBugReport ? "Send report" : "Send message"}
                 </Button>
             </form>
         </div>

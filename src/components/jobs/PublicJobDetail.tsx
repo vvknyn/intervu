@@ -326,26 +326,21 @@ export function PublicJobDetail({
                 />
             )}
             {/* Document layout already has its own sticky-rail Apply card at
-                lg+ (JobDetailDocument's `applyCardEl`) — this bar stacking on
-                top of it would be a redundant second Apply CTA that, at full
-                document width, sits on top of the (now unclamped) description
-                text instead of a short clamped panel. Mobile still needs it:
-                the document layout's single-column stack has no persistent
-                rail there. The panel layout is unchanged — unconditional,
+                lg+ (JobDetailDocument's `applyCardEl`) AND, below `lg`, its
+                own in-stack sticky `JobDetailActionBar` (rulebook "sticky
+                mobile action bar", stacked above the sitewide MobileTabBar) —
+                a second mount here would double it up in the DOM. Only the
+                panel layout (the SERP glass panel, which owns no action bar
+                of its own at any width) needs this bar; unconditional,
                 exactly as before. */}
-            {layout === "document" ? (
-                <div className="lg:hidden">
-                    <JobDetailActionBar
-                        job={job}
-                        signedIn={Boolean(user)}
-                        onOpenPosting={() => handleOpenPosting(job)}
-                    />
-                </div>
-            ) : (
+            {layout !== "document" && (
                 <JobDetailActionBar
                     job={job}
                     signedIn={Boolean(user)}
                     onOpenPosting={() => handleOpenPosting(job)}
+                    onGoAfter={() => handleGoAfter(job)}
+                    pursuit={byJobId.get(job.id)}
+                    goingAfter={goingAfter}
                 />
             )}
         </>

@@ -34,10 +34,10 @@ const articleJsonLd = buildArticleJsonLd({
 // bottom one so hairlines live inside the table, never floating outside it.
 // Single source of truth for all three tables on this page.
 const RTABLE_TH =
-  "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
-const RTABLE_TD = "border-t border-foreground/10 px-4 py-3";
+  "px-4 py-3 text-left text-xs font-semibold text-muted-foreground";
+const RTABLE_TD = "border-t border-border px-4 py-3";
 const RTABLE = {
-  table: "w-full border-collapse border border-foreground/10 text-[13.5px]",
+  table: "w-full border-collapse border border-border text-sm",
   th: RTABLE_TH,
   thNum: `${RTABLE_TH} text-right`,
   td: RTABLE_TD,
@@ -53,7 +53,13 @@ const RTABLE = {
 // selector, so a plain className on the element overrides it without an
 // `!important` fight.
 const DOC_SECTION_LABEL =
-  "mono-data mb-3 mt-10 border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-brand";
+  "mono-data mb-3 mt-10 border-b border-border pb-2 text-xs font-semibold text-muted-foreground";
+
+// Sub-section headings within "What separates good listings from bad ones"
+// — one tier below DOC_SECTION_LABEL, so sized at body (16/22) but bolded
+// rather than jumping to the full 20/28 heading tier a child shouldn't
+// outsize its own section label.
+const SUBHEAD = "mt-8 mb-3 text-base font-semibold text-foreground";
 
 export default function GhostJobsResearchPage() {
   return (
@@ -62,20 +68,20 @@ export default function GhostJobsResearchPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
       />
-      <p className="mono-data text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
-        From our research · corpus snapshot
+      <p className="mono-data text-xs font-semibold text-muted-foreground">
+        From our research · Corpus snapshot
       </p>
-      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">
-        Ghost Jobs Aren&apos;t the Problem. Wasted Applications Are.
+      <h1 className="mt-3 font-display text-display font-semibold text-foreground">
+        Ghost jobs aren&apos;t the problem. Wasted applications are.
       </h1>
-      <p className="mt-1.5 text-sm italic text-muted-foreground">
+      <p className="mt-1.5 text-base text-muted-foreground">
         We scored {stats.totalScored.toLocaleString()} job listings from corporate ATS platforms.{" "}
         {stats.gradePct.DF}% are outright junk. But nearly half are missing the signals you need to know if
         they&apos;re worth your time.
       </p>
       <p
         data-testid="ghost-jobs-asof"
-        className="mono-data mb-6 mt-3 border-b border-border pb-3 text-[11.5px] text-muted-foreground"
+        className="mono-data mb-6 mt-3 border-b border-border pb-3 text-xs text-muted-foreground"
       >
         snapshot: {stats.asOfLabel} · grading queries re-run on refresh — the numbers update, the argument
         doesn&apos;t have to
@@ -190,7 +196,7 @@ export default function GhostJobsResearchPage() {
 
         <h2 className={DOC_SECTION_LABEL}>What separates good listings from bad ones</h2>
 
-        <h3>Salary transparency is the #1 signal</h3>
+        <h3 className={SUBHEAD}>Salary transparency is the #1 signal</h3>
         <div className="not-prose my-6 overflow-x-auto">
           <table className={RTABLE.table}>
             <thead>
@@ -220,14 +226,14 @@ export default function GhostJobsResearchPage() {
           default.
         </p>
 
-        <h3>{stats.stalenessPct}% of listings are stale</h3>
+        <h3 className={SUBHEAD}>{stats.stalenessPct}% of listings are stale</h3>
         <p>
           Of the {stats.staleness.withPostedDate.toLocaleString()} listings with posted dates,{" "}
           {stats.staleness.over60d.toLocaleString()} ({stats.stalenessPct}%) have been live for over 60 days without
           being updated.
         </p>
 
-        <h3>Remote jobs are higher quality</h3>
+        <h3 className={SUBHEAD}>Remote jobs are higher quality</h3>
         <div className="not-prose my-6 overflow-x-auto">
           <table className={RTABLE.table}>
             <thead>
@@ -256,7 +262,7 @@ export default function GhostJobsResearchPage() {
           nationally, you can&apos;t rely on proximity, so you have to sell the role on paper.
         </p>
 
-        <h3>Bigger companies post better listings</h3>
+        <h3 className={SUBHEAD}>Bigger companies post better listings</h3>
         <div className="not-prose my-6 overflow-x-auto">
           <table className={RTABLE.table}>
             <thead>
@@ -335,8 +341,8 @@ export default function GhostJobsResearchPage() {
           This page is a {stats.asOfLabel} snapshot. For live, market-wide numbers, see{" "}
           <Link href="/trends">market trends</Link>.
         </p>
-        <div className="not-prose mt-6 flex items-center gap-2.5 text-[13px] text-muted-foreground">
-          <span className="h-[9px] w-[9px] bg-brand" aria-hidden />
+        <div className="not-prose mt-6 flex items-center gap-2.5 text-xs text-muted-foreground">
+          <span className="h-2 w-2 bg-brand" aria-hidden />
           data · the Subspace jobs corpus
         </div>
       </article>

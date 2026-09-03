@@ -72,15 +72,15 @@ function Chrome() {
     return (
         <div className="mb-3">
             <div className="flex items-stretch border border-border bg-card">
-                <div className="flex-1 px-3 py-2 text-[12px] text-foreground">Product Manager</div>
-                <div className="w-[190px] border-l border-border px-3 py-2 text-[12px] text-muted-foreground">
+                <div className="flex-1 px-3 py-2 text-xs text-foreground">Product Manager</div>
+                <div className="w-[190px] border-l border-border px-3 py-2 text-xs text-muted-foreground">
                     City, state, or remote
                 </div>
-                <div className="bg-foreground px-5 py-2 mono-data text-[10px] font-bold uppercase tracking-wider text-background">
+                <div className="bg-foreground px-5 py-2 mono-data text-xs font-semibold text-background">
                     Search
                 </div>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 border-y border-border/50 py-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 border-y border-border py-1.5">
                 {["Posted · Past month", "Salary", "Work mode", "Experience", "All filters"].map((l, i) => (
                     <span key={l} className={cn(chipVariants({ active: i === 0 }), "mono-data")}>{l}</span>
                 ))}
@@ -94,10 +94,10 @@ function Chrome() {
 function MiniSerp() {
     return (
         <div className="flex gap-3">
-            <div className="hidden w-[190px] shrink-0 flex-col gap-1.5 border border-border/70 bg-card p-2.5 lg:flex">
-                <div className="mono-data text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Date posted</div>
+            <div className="hidden w-[190px] shrink-0 flex-col gap-1.5 border border-border bg-card p-2.5 lg:flex">
+                <div className="mono-data text-xs font-semibold text-muted-foreground">Date posted</div>
                 {["Any date", "Past week", "Past month"].map((l) => (
-                    <div key={l} className="text-[11px] text-muted-foreground">{l}</div>
+                    <div key={l} className="text-xs text-muted-foreground">{l}</div>
                 ))}
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -106,16 +106,16 @@ function MiniSerp() {
                     ["Senior Product Manager, B2B", "Okta"],
                     ["Senior Product Manager, Carrot Ads", "Instacart"],
                 ].map(([t, c], i) => (
-                    <div key={t} className={cn("border border-border/70 p-2.5", i === 0 ? "bg-brand/[0.06] border-brand/40" : "bg-card")}>
-                        <div className="truncate text-[12px] font-semibold text-foreground">{t}</div>
-                        <div className="mono-data text-[10px] text-muted-foreground">{c}</div>
+                    <div key={t} className={cn("border border-border p-2.5", i === 0 ? "bg-brand/[0.06] border-brand" : "bg-card")}>
+                        <div className="truncate text-xs font-semibold text-foreground">{t}</div>
+                        <div className="mono-data text-xs text-muted-foreground">{c}</div>
                     </div>
                 ))}
             </div>
-            <div className="hidden min-w-0 flex-1 flex-col gap-1.5 border border-border/70 bg-card p-2.5 xl:flex">
-                <div className="text-[12px] font-semibold text-foreground">Group Product Manager — Home Financing</div>
-                <div className="mono-data text-[10px] text-muted-foreground">Bank of Montreal · Toronto, ON</div>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
+            <div className="hidden min-w-0 flex-1 flex-col gap-1.5 border border-border bg-card p-2.5 xl:flex">
+                <div className="text-xs font-semibold text-foreground">Group Product Manager — Home Financing</div>
+                <div className="mono-data text-xs text-muted-foreground">Bank of Montreal · Toronto, ON</div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
                     BMO Financial Group&apos;s expected target for the first year in this position. Total
                     compensation will vary based on the pay type of the position and may include
                     performance-based incentives and discretionary bonuses, as well as other perks.
@@ -130,15 +130,15 @@ function WidthBand({ option, viewport }: { option: WidthOption; viewport: number
     const used = option.cap === null ? viewport : Math.min(option.cap, viewport);
     const gutter = Math.max(0, Math.round((viewport - used) / 2));
     return (
-        <section className="border-t border-border/60 py-6">
+        <section className="border-t border-border py-6">
             <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 px-6">
-                <h3 className="text-sm font-bold text-foreground">{option.name}</h3>
-                <code className="mono-data text-[11px] text-muted-foreground">{option.cls}</code>
+                <h3 className="text-sm font-semibold text-foreground">{option.name}</h3>
+                <code className="mono-data text-xs text-muted-foreground">{option.cls}</code>
                 <span className={cn(chipVariants({ active: gutter === 0 }), "mono-data ml-auto")}>
                     {gutter === 0 ? "no gutter" : `${gutter}px gutter each side`}
                 </span>
             </header>
-            <p className="mb-3 max-w-[70ch] px-6 text-[13px] leading-relaxed text-muted-foreground">{option.note}</p>
+            <p className="mb-3 max-w-[70ch] px-6 text-xs leading-relaxed text-muted-foreground">{option.note}</p>
             {/* The band is deliberately full-bleed: the tinted area IS the wasted
                 space being decided about, so it has to be shown at real size. */}
             <div className="w-full bg-brand/[0.05]" data-band={option.id}>
@@ -212,25 +212,25 @@ const GROUND_OPTIONS: GroundOption[] = [
 function GroundBand({ option }: { option: GroundOption }) {
     return (
         <section
-            className="border-t border-border/60 px-6 py-6"
+            className="border-t border-border px-6 py-6"
             style={{ background: `rgb(${option.bg})` }}
         >
             <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h3 className="text-sm font-bold text-foreground">{option.name}</h3>
-                <code className="mono-data text-[11px] text-muted-foreground">
+                <h3 className="text-sm font-semibold text-foreground">{option.name}</h3>
+                <code className="mono-data text-xs text-muted-foreground">
                     --background: {option.bg} · --card: {option.card}
                 </code>
             </header>
-            <p className="mb-4 max-w-[70ch] text-[13px] leading-relaxed text-muted-foreground">{option.note}</p>
+            <p className="mb-4 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">{option.note}</p>
             <div className="flex flex-wrap items-start gap-3">
                 {/* A card, a chip row and a block of body copy — the three things
                     actually sitting on this ground all day. */}
                 <div
-                    className="min-w-[280px] flex-1 border border-border/70 p-3"
+                    className="min-w-[280px] flex-1 border border-border p-3"
                     style={{ background: `rgb(${option.card})` }}
                 >
-                    <div className="text-[13px] font-semibold text-foreground">Senior Product Manager, B2B</div>
-                    <div className="mono-data text-[11px] text-muted-foreground">Okta · Toronto, ON, CAN · Hybrid</div>
+                    <div className="text-xs font-semibold text-foreground">Senior Product Manager, B2B</div>
+                    <div className="mono-data text-xs text-muted-foreground">Okta · Toronto, ON, CAN · Hybrid</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                         <span className={cn(chipVariants({ active: true }), "mono-data")}>CAD 146k–200k/yr</span>
                         <span className={cn(chipVariants({ active: false }), "mono-data")}>Hybrid</span>
@@ -238,19 +238,19 @@ function GroundBand({ option }: { option: GroundOption }) {
                     </div>
                 </div>
                 <div
-                    className="min-w-[280px] flex-1 border border-border/70 p-3"
+                    className="min-w-[280px] flex-1 border border-border p-3"
                     style={{ background: `rgb(${option.card})` }}
                 >
-                    <p className="text-[12px] leading-relaxed text-muted-foreground">
+                    <p className="text-xs leading-relaxed text-muted-foreground">
                         Total compensation will vary based on the pay type of the position and may include
                         performance-based incentives, discretionary bonuses, as well as other perks and rewards.
                     </p>
                 </div>
                 <div className="flex min-w-[180px] flex-col gap-1.5">
-                    <span className="mono-data text-[10px] font-bold uppercase tracking-wider text-brand">
+                    <span className="mono-data text-xs font-semibold text-brand">
                         2,072,148 live roles
                     </span>
-                    <span className="text-[12px] text-muted-foreground">on the page ground itself</span>
+                    <span className="text-xs text-muted-foreground">on the page ground itself</span>
                 </div>
             </div>
         </section>
@@ -271,8 +271,8 @@ export function SurfaceMock() {
     return (
         <main className="min-h-screen bg-background pb-24 text-foreground">
             <div className="px-6 pt-8">
-                <h1 className="text-xl font-bold">Surface options — page width and page ground</h1>
-                <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-muted-foreground">
+                <h1 className="text-xl font-semibold">Surface options — page width and page ground</h1>
+                <p className="mt-1 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
                     Two separate calls. Everything below renders at true scale: the tinted area in each
                     width band is the actual gutter at this window size
                     {viewport > 0 && <> (currently <span className="mono-data">{viewport}px</span>)</>}, and each
@@ -281,12 +281,12 @@ export function SurfaceMock() {
                 </p>
             </div>
 
-            <h2 className="mt-8 px-6 text-[11px] font-bold uppercase tracking-wider text-brand">
+            <h2 className="mt-8 px-6 text-xs font-semibold text-brand">
                 1 · Page width — the white gutters
             </h2>
             {viewport > 0 && WIDTH_OPTIONS.map((o) => <WidthBand key={o.id} option={o} viewport={viewport} />)}
 
-            <h2 className="mt-12 px-6 text-[11px] font-bold uppercase tracking-wider text-brand">
+            <h2 className="mt-12 px-6 text-xs font-semibold text-brand">
                 2 · Page ground — the dull white
             </h2>
             {GROUND_OPTIONS.map((o) => <GroundBand key={o.id} option={o} />)}

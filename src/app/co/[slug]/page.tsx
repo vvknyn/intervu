@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowSquareOut, GlobeHemisphereWest, House, MapPin } from "@phosphor-icons/react/dist/ssr";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { CompanyFollowChannelProvider } from "@/components/companies/CompanyFollowChannelProvider";
 import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
@@ -161,12 +160,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(companyJsonLd) }}
       />
-      <div className="border-b border-border bg-card px-4 py-3 sm:px-8 xl:px-10">
-        <nav className="mx-auto max-w-6xl xl:max-w-7xl text-xs text-muted-foreground">
+      <div className="border-b border-border px-4 sm:px-8 xl:px-10">
+        <nav className="mx-auto flex h-10 max-w-6xl items-center text-sm text-muted-foreground xl:max-w-7xl">
           <Link href="/jobs" className="text-brand hover:underline">
             Find jobs
           </Link>
-          {" / "}
+          <span className="mx-1.5" aria-hidden>/</span>
           {data.name}
         </nav>
       </div>
@@ -183,71 +182,51 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           <div className="flex min-w-0 gap-5">
             <CompanyLogo domain={data.domain} name={data.name} size="lg" />
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-[32px] sm:text-[36px] font-semibold tracking-tight">{data.name}</h1>
+              <h1 className="font-display text-3xl font-semibold">{data.name}</h1>
               {data.oneLiner && (
-                <p className="mt-1.5 text-[15px] sm:text-[16px] italic leading-snug text-muted-foreground">
+                <p className="mt-1.5 text-sm sm:text-base leading-snug text-muted-foreground">
                   {data.oneLiner}
                 </p>
               )}
-              <p className="mt-3 flex items-center gap-2 text-[16px] sm:text-[17px] font-medium leading-snug text-foreground">
+              <p className="mt-3 flex items-center gap-2 text-base leading-snug text-foreground">
                 {hiring.hasOpenRoles && (
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
+                  <span className="h-2 w-2 shrink-0 rounded-none bg-live" aria-hidden />
                 )}
                 {humanizeProjectorHeadline(hiring.headline)}
               </p>
-              {/* Icon-fact row — domain (a real link), hiring geos, remote
-                  share — replaces the old dot-joined mono string with
-                  discrete, iconed facts. Absence is still silence: a fact
+              {/* Facts row — domain (a real link), HQ, hiring geos, remote
+                  share, plus any header chips (stage, employer size, founding
+                  year, org type) — all plain " · "-joined text, no icons and
+                  no separate pill row (rulebook: facts row has no icons,
+                  tags/pills are excluded). Absence is still silence: a fact
                   with nothing behind it (`buildCompanyFacts`) just doesn't
-                  render its <span>. */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12.5px] text-muted-foreground">
+                  contribute a segment. */}
+              <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-sm text-muted-foreground">
                 <a
                   href={`https://${facts.domain}`}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
-                  className="inline-flex items-center gap-1.5 text-brand hover:underline"
+                  className="text-brand hover:underline"
                 >
-                  <ArrowSquareOut className="h-3.5 w-3.5 shrink-0" aria-hidden />
                   {facts.domain}
                 </a>
-                {/* HQ renders at the precision the box actually stored —
-                    country only, never an invented city (contract rule). */}
-                {profile?.hqCountry && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    {profile.hqCountry}
-                  </span>
-                )}
-                {facts.hiringGeos && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <GlobeHemisphereWest className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    {facts.hiringGeos}
-                  </span>
-                )}
-                {facts.remoteShare && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <House className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    {facts.remoteShare}
-                  </span>
-                )}
-              </div>
-              {(data.stage || headerChips.length > 0) && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {data.stage && (
-                    <span className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {data.stage}
-                    </span>
-                  )}
-                  {headerChips.map((chip) => (
-                    <span
-                      key={chip}
-                      className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground"
-                    >
-                      {chip}
+                {[
+                  // HQ renders at the precision the box actually stored —
+                  // country only, never an invented city (contract rule).
+                  profile?.hqCountry,
+                  facts.hiringGeos,
+                  facts.remoteShare,
+                  data.stage,
+                  ...headerChips,
+                ]
+                  .filter((v): v is string => Boolean(v))
+                  .map((segment) => (
+                    <span key={segment}>
+                      <span className="mx-0.5" aria-hidden>·</span>
+                      {segment}
                     </span>
                   ))}
-                </div>
-              )}
+              </div>
             </div>
           </div>
           <CompanyFollowControl
@@ -322,13 +301,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {/* Plain-language hiring record — same figures the old
                     "Hiring activity" section drew from, now its own named
                     rail box instead of a shared block with the intel grid. */}
-                <section data-testid="company-hiring-activity" className="border border-border bg-chip px-5 py-4">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <section data-testid="company-hiring-activity" className="border border-border bg-card p-6">
+                  <h2 className="text-xs font-semibold text-muted-foreground">
                     The hiring record — last 90 days
                   </h2>
-                  <p className="mt-2 text-[14px] leading-relaxed text-foreground">{hiring.trackRecord}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-foreground">{hiring.trackRecord}</p>
                   {hiring.freshness && (
-                    <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{hiring.freshness}</p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{hiring.freshness}</p>
                   )}
                   {/* The 90-day provenance note describes this track record
                       specifically, and that is the one thing this page cannot
@@ -338,7 +317,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                       that was never made — so it renders only when there is a
                       track record for it to describe. */}
                   {data.hasTrackRecord && (
-                    <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                       Metrics derived from observed job postings over 90 days — not fundraising data,
                       employee reviews, or third-party valuations.
                     </p>
@@ -348,11 +327,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {/* List health — the ghost-flagged share restated as a count
                     instead of a bare, jargon-labelled percentage tile. */}
                 {staleShare && (
-                  <section className="border border-border bg-chip px-5 py-4">
-                    <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <section className="border border-border bg-card p-6">
+                    <h2 className="text-xs font-semibold text-muted-foreground">
                       List health
                     </h2>
-                    <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{staleShare}</p>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{staleShare}</p>
                   </section>
                 )}
               </div>

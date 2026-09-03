@@ -64,11 +64,11 @@ export function ShareAction({ title, text, url, label, className, jobId }: Share
       {label ? (
         displayText
       ) : state === "copied" ? (
-        <Check size={16} weight="bold" />
+        <Check />
       ) : state === "failed" ? (
-        <WarningCircle size={16} weight="bold" />
+        <WarningCircle />
       ) : (
-        <Copy size={16} />
+        <Copy />
       )}
     </button>
   );

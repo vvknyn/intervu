@@ -6,6 +6,7 @@ import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { TopBar } from "@/components/layout/TopBar";
 import { SearchDockProvider } from "@/components/layout/SearchDockContext";
 import { Footer } from "@/components/layout/Footer";
+import { IconDefaultsProvider } from "@/components/providers/IconDefaultsProvider";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
@@ -175,6 +176,7 @@ export default function RootLayout({
         <AuthKitProvider>
         <PostHogProvider>
           <ThemeProvider>
+            <IconDefaultsProvider>
             <TourProvider>
               {/* Wraps BOTH the header and the page: /jobs publishes its search
                   summary here once its own search box scrolls away, and TopBar
@@ -189,6 +191,7 @@ export default function RootLayout({
               <TourTrigger />
               <Toaster />
             </TourProvider>
+            </IconDefaultsProvider>
           </ThemeProvider>
         </PostHogProvider>
         </AuthKitProvider>

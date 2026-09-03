@@ -43,8 +43,9 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
     const pair = TILE_PALETTE[hashString(clean || "?") % TILE_PALETTE.length];
     return (
         <div
+            data-rulebook-exempt
             className={cn(
-                "flex shrink-0 items-center justify-center rounded-xl font-display text-lg font-bold",
+                "flex shrink-0 items-center justify-center rounded-none font-display text-lg font-semibold",
                 className,
             )}
             style={{ background: pair.bg, color: pair.fg }}
@@ -55,12 +56,12 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
 }
 
 const SIZE_CLS: Record<"xs" | "sm" | "md" | "lg", string> = {
-    xs: "h-7 w-7 rounded-md text-xs",
-    sm: "h-9 w-9 rounded-lg text-sm",
+    xs: "h-7 w-7 rounded-none text-xs",
+    sm: "h-9 w-9 rounded-none text-sm",
     // SERP job-card tile size — restored to h-12/rounded-xl to match the
     // JobCardSkeleton slot so loading → loaded doesn't shift the row.
-    md: "h-12 w-12 rounded-xl text-base",
-    lg: "h-14 w-14 rounded-2xl text-xl",
+    md: "h-12 w-12 rounded-none text-base",
+    lg: "h-14 w-14 rounded-none text-xl",
 };
 
 /**
@@ -93,7 +94,7 @@ export function CompanyLogo({
             <CompanyInitialTile
                 name={cleanedName}
                 className={cn(
-                    "border border-slate-200/80 shadow-2xs dark:border-slate-700/80",
+                    "border border-border dark:border-border",
                     sizeCls,
                 )}
             />
@@ -103,7 +104,7 @@ export function CompanyLogo({
     return (
         <div
             className={cn(
-                "flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/80 bg-white shadow-2xs dark:border-slate-700/80 dark:bg-slate-800",
+                "flex shrink-0 items-center justify-center overflow-hidden border border-border bg-white dark:border-border dark:bg-border",
                 sizeCls,
             )}
         >

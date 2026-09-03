@@ -94,13 +94,13 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
 
   return (
     <section data-testid="company-fact-row" className="border border-border bg-card px-6 py-6 sm:px-8">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">On the record</h2>
+      <h2 className="text-xs font-semibold text-muted-foreground">On the record</h2>
       <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
         {cells.map((c) => (
           <div key={c.key} className="border border-border px-4 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{c.label}</div>
-            <div className="mt-1 text-[14px] font-semibold text-foreground">{c.value}</div>
-            <div className="mono-data mt-1 text-[10.5px] text-muted-foreground">{c.receipt}</div>
+            <div className="text-xs font-semibold text-muted-foreground">{c.label}</div>
+            <div className="mt-1 text-sm font-semibold text-foreground">{c.value}</div>
+            <div className="mono-data mt-1 text-xs text-muted-foreground">{c.receipt}</div>
           </div>
         ))}
       </div>

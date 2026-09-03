@@ -14,7 +14,7 @@ import type { ConsentParams } from "@/lib/agent/consent";
  */
 function ConsentBrand() {
     return (
-        <div className="mb-6 flex items-center justify-center">
+        <div className="mb-6 flex items-center justify-center" data-rulebook-exempt>
             <BrandLockup />
         </div>
     );
@@ -24,7 +24,7 @@ export function CenteredCard({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex min-h-[70vh] flex-col items-center justify-center p-4">
             <ConsentBrand />
-            <Card className="w-full max-w-md">{children}</Card>
+            <Card className="w-full max-w-[400px]">{children}</Card>
         </div>
     );
 }
@@ -104,7 +104,7 @@ export function ConsentCard({ clientName, params }: { clientName: string; params
                 <CardTitle>Connect this agent to your account</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <div className="border border-border bg-muted/40 p-3">
+                <div className="border border-border bg-muted p-3">
                     <dl className="grid grid-cols-[7.5rem_1fr] gap-y-1.5 text-xs">
                         <dt className="text-muted-foreground">says it is</dt>
                         <dd className="text-foreground">&quot;{clientName}&quot;</dd>

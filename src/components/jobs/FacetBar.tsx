@@ -90,12 +90,12 @@ function FacetChip({
                 )}
             >
                 {activeValue ? `${label} · ${activeValue}` : label}
-                <CaretDown size={11} weight="bold" aria-hidden className="opacity-60" />
+                <CaretDown size={16} weight="bold" aria-hidden className="opacity-60" />
             </PopoverTrigger>
             <PopoverContent
                 align="start"
                 sideOffset={6}
-                className="flex w-56 flex-col gap-0.5 rounded-none border border-border bg-card p-2 shadow-md"
+                className="flex w-56 flex-col gap-0.5 rounded-none border border-border bg-card p-2"
             >
                 {children}
             </PopoverContent>
@@ -152,7 +152,7 @@ export function FacetBar({
     const posted = appliedPostedBucket(state);
 
     return (
-        <div data-testid="facet-bar" className="hidden flex-wrap items-center gap-1.5 lg:flex">
+        <div data-testid="facet-bar" className="hidden flex-wrap items-center gap-2 lg:flex">
             {postedDateSupported && (
                 <FacetChip
                     label="Posted"

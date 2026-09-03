@@ -237,7 +237,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             <div className="flex border-b border-border">
                 <button
                     onClick={() => setInputMethod('file')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm font-medium transition-all relative ${inputMethod === 'file'
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm transition-all relative ${inputMethod === 'file'
                         ? 'text-foreground'
                         : 'text-muted-foreground hover:text-foreground'
                         }`}
@@ -250,7 +250,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 </button>
                 <button
                     onClick={() => setInputMethod('paste')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm font-medium transition-all relative ${inputMethod === 'paste'
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm transition-all relative ${inputMethod === 'paste'
                         ? 'text-foreground'
                         : 'text-muted-foreground hover:text-foreground'
                         }`}
@@ -268,7 +268,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-brand/50 hover:bg-brand/5 transition-colors"
+                    className="border border-border rounded-none p-8 text-center cursor-pointer hover:border-brand hover:bg-muted transition-colors"
                 >
                     <input
                         ref={fileInputRef}
@@ -279,10 +279,10 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     />
                     {selectedFile ? (
                         <div className="space-y-2">
-                            <div className="w-12 h-12 rounded-lg bg-brand/10 flex items-center justify-center mx-auto">
+                            <div className="w-12 h-12 rounded-none bg-muted flex items-center justify-center mx-auto">
                                 <FileText size={24} weight="duotone" className="text-brand" />
                             </div>
-                            <p className="font-medium text-foreground">{selectedFile.name}</p>
+                            <p className="text-foreground">{selectedFile.name}</p>
                             <p className="text-xs text-muted-foreground">
                                 {(selectedFile.size / 1024).toFixed(1)} KB
                             </p>
@@ -291,18 +291,18 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     e.stopPropagation();
                                     setSelectedFile(null);
                                 }}
-                                className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                                className="text-xs text-muted-foreground hover:text-danger-text transition-colors"
                             >
                                 Remove
                             </button>
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            <div className="w-12 h-12 rounded-lg bg-secondary/50 flex items-center justify-center mx-auto">
+                            <div className="w-12 h-12 rounded-none bg-secondary flex items-center justify-center mx-auto">
                                 <Upload size={24} weight="duotone" className="text-muted-foreground" />
                             </div>
                             <div>
-                                <p className="font-medium text-foreground">Drop your resume here</p>
+                                <p className="text-foreground">Drop your resume here</p>
                                 <p className="text-sm text-muted-foreground">or click to browse</p>
                             </div>
                             <p className="text-xs text-muted-foreground">
@@ -328,7 +328,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             )}
 
             {error && (
-                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
+                <div className="p-3 rounded-none bg-muted border border-danger-text text-danger-text text-sm flex items-center gap-2">
                     <Warning size={16} weight="bold" />
                     {error}
                 </div>
@@ -338,17 +338,17 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     const renderParsingStep = () => (
         <div className="py-12 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-brand/10 flex items-center justify-center mx-auto animate-pulse">
-                <Sparkle size={32} weight="fill" className="text-brand" />
+            <div className="w-16 h-16 rounded-none bg-muted flex items-center justify-center mx-auto animate-pulse">
+                <Sparkle size={24} weight="fill" className="text-brand" />
             </div>
             <div>
-                <p className="font-medium text-foreground">Parsing your resume...</p>
+                <p className="text-foreground">Parsing your resume...</p>
                 <p className="text-sm text-muted-foreground mt-1">
                     AI is extracting structured information
                 </p>
             </div>
-            <div className="w-48 h-1 bg-secondary rounded-full mx-auto overflow-hidden">
-                <div className="h-full bg-primary rounded-full animate-[progress_2s_ease-in-out_infinite]" style={{ width: '60%' }} />
+            <div className="w-48 h-1 bg-secondary rounded-none mx-auto overflow-hidden">
+                <div className="h-full bg-primary rounded-none animate-[progress_2s_ease-in-out_infinite]" style={{ width: '60%' }} />
             </div>
         </div>
     );
@@ -391,7 +391,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.name || ""}
                                         onChange={(e) => updateProfile('name', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -399,7 +399,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.profession}
                                         onChange={(e) => updateProfile('profession', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -408,7 +408,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                         type="number"
                                         value={editedData.profile.yearsOfExperience}
                                         onChange={(e) => updateProfile('yearsOfExperience', parseInt(e.target.value) || 0)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -416,7 +416,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.location}
                                         onChange={(e) => updateProfile('location', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -424,7 +424,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.email}
                                         onChange={(e) => updateProfile('email', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -432,7 +432,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.phone}
                                         onChange={(e) => updateProfile('phone', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -440,7 +440,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.linkedin || ""}
                                         onChange={(e) => updateProfile('linkedin', e.target.value)}
-                                        className="h-9 text-base md:text-sm"
+                                        className="h-8 text-base md:text-sm"
                                     />
                                 </div>
                             </div>
@@ -456,7 +456,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </div>
                             <div className="space-y-4">
                                 {editedData.experience.map((exp, idx) => (
-                                    <div key={exp.id} className="p-3 bg-secondary/30 rounded-lg space-y-2">
+                                    <div key={exp.id} className="p-3 bg-muted rounded-none space-y-2">
                                         <div className="grid grid-cols-2 gap-2">
                                             <Input
                                                 value={exp.company}
@@ -504,7 +504,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                             value={comp.skills.join(', ')}
                                             onChange={(e) => updateCompetency(idx, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
                                             placeholder="Skills (comma separated)"
-                                            className="h-9 text-base md:text-sm"
+                                            className="h-8 text-base md:text-sm"
                                         />
                                     </div>
                                 ))}
@@ -521,7 +521,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </div>
                             <div className="space-y-3">
                                 {editedData.education.map((edu, idx) => (
-                                    <div key={edu.id} className="p-3 bg-secondary/30 rounded-lg space-y-2">
+                                    <div key={edu.id} className="p-3 bg-muted rounded-none space-y-2">
                                         <Input
                                             value={edu.degree}
                                             onChange={(e) => updateEducation(idx, 'degree', e.target.value)}
@@ -577,15 +577,15 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[600px] bg-white dark:bg-neutral-950 max-h-[90dvh] overflow-hidden flex flex-col">
+            <DialogContent className="sm:max-w-[600px] bg-white dark:bg-muted max-h-[90dvh] overflow-hidden flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         {title ? (
                             title
                         ) : (
                             <>
-                                <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center">
-                                    <Upload size={18} weight="bold" className="text-brand" />
+                                <div className="w-8 h-8 rounded-none bg-muted flex items-center justify-center">
+                                    <Upload weight="bold" className="text-brand" />
                                 </div>
                                 Import Resume
                             </>
@@ -628,7 +628,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             <Button onClick={handleParse} disabled={!canProceed() || isProcessing}>
                                 {isProcessing ? (
                                     <>
-                                        <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin mr-2" />
+                                        <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-none animate-spin mr-2" />
                                         Processing...
                                     </>
                                 ) : (
