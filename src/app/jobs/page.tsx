@@ -4513,18 +4513,7 @@ function JobsContent() {
      * (`src/app/page.tsx`), not on this route.
      */
     return (
-        <div
-            className="min-h-screen"
-            style={{
-                // Was a literal rgba(16, 149, 106, …) — the retired emerald
-                // --brand, frozen into the page wash where no theme could
-                // reach it. Reads the token now, so the wash follows the
-                // accent through light/dark instead of tinting the whole
-                // results page a colour the palette had dropped.
-                background:
-                    "radial-gradient(ellipse 80% 40% at 50% -10%, rgb(var(--brand) / 0.12), transparent 70%), rgb(var(--background))",
-            }}
-        >
+        <div className="min-h-screen">
             {/* `data-shell="bleed"` is this page ASKING for the full window;
                 globals.css turns that into `--shell-max: none` for the header
                 and footer too, so all three left edges stay together. Each

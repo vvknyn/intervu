@@ -794,3 +794,194 @@ test("icon-size classifier: an ssr-entry icon gets the explicit 16px + bold that
     assert.deepEqual(offenders.map((o) => o.detail), ['size 14→16 (ssr entry, explicit); ssr entry: weight="bold" added']);
     assert.match(rewritten, /<House size=\{16\} weight="bold" \/>/);
 });
+
+// ─── Gradient paints (rulebook: depth = tint step or hairline, zero gradients) ──
+// Guards the gap the /jobs results-page wash slipped through: the class
+// sweep above reads Tailwind CLASS NAMES and the computed-style probe (run
+// separately) reads background-color, so neither ever looks at a gradient
+// PAINT. The one gradient shape still sanctioned is a FADE to/from the page
+// itself (transparent, white, or the --background/--card token) — never one
+// that carries a brand/token/hex colour into the page. Classification is by
+// the colour VALUE at each stop, never by which component/file wrote it, so
+// a new gradient anywhere in src/ is covered by construction.
+
+/** True when a trimmed gradient stop OPENS with something colour-shaped (a
+ *  keyword, hex, rgb()/rgba()/hsl()/hsla(), or a var(--token)) — as opposed
+ *  to a geometry/direction segment ("to right", "ellipse 80% 40% at 50% -10%",
+ *  a bare angle) that carries no colour to judge at all. */
+function isGradientColorStop(stop: string): boolean {
+    return /^(?:transparent\b|white\b|#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|var\(--)/i.test(stop);
+}
+
+/** True when a colour stop is page-coloured: transparent, white (keyword,
+ *  hex, or an rgb/rgba white at any alpha), or the --background/--card token
+ *  (bare or rgb()-wrapped). Anything else that reached here already passed
+ *  `isGradientColorStop`, so it is a real colour — a tint. */
+function isPageColorStop(stop: string): boolean {
+    return (
+        /^transparent\b/i.test(stop) ||
+        /^white\b/i.test(stop) ||
+        /^#fff(?:fff)?\b/i.test(stop) ||
+        /^rgba?\(\s*255[,\s]+255[,\s]+255\s*[,/]/i.test(stop) ||
+        /^var\(--(?:background|card)\)/.test(stop) ||
+        /^rgb\(\s*var\(--(?:background|card)\)\s*\)/.test(stop)
+    );
+}
+
+/** True for a bare (non-arbitrary) Tailwind from-/via-/to- stop whose colour
+ *  is page-coloured — the same vocabulary `isPageColorStop` allows for a CSS
+ *  gradient, spelled as Tailwind stop utilities instead. */
+function isAllowedTailwindStop(token: string): boolean {
+    return /^(?:from|via|to)-(?:card|background|white|transparent)(?:\/[0-9]{1,3})?$/.test(token);
+}
+
+/** Splits a gradient's argument list on commas OUTSIDE any parens, tracking
+ *  nesting depth exactly — rather than the single-level lookahead the shadow
+ *  classifier above uses — because a stop like `rgb(var(--brand) / 0.12)`
+ *  nests a var() inside an rgb(), one level deeper than a shadow layer. */
+function splitTopLevelCommas(value: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < value.length; i++) {
+        if (value[i] === "(") depth++;
+        else if (value[i] === ")") depth--;
+        else if (value[i] === "," && depth === 0) {
+            parts.push(value.slice(start, i));
+            start = i + 1;
+        }
+    }
+    parts.push(value.slice(start));
+    return parts;
+}
+
+/** Extracts the argument list of every linear-/radial-/conic-gradient(...)
+ *  call in `source`, matching parens by depth so a nested rgb(var(...))
+ *  doesn't truncate the extraction. Underscores are normalised to spaces
+ *  first: Tailwind's arbitrary-value bracket syntax (`[mask-image:...]`)
+ *  writes a space as `_`, which would otherwise defeat the `\b`-anchored
+ *  colour-start checks (`transparent_0%` has no word boundary after
+ *  "transparent"). CSS colour/geometry syntax never uses a literal
+ *  underscore, so the substitution is safe. */
+function extractGradientArgs(source: string): string[] {
+    const args: string[] = [];
+    const fnRe = /(?:linear|radial|conic)-gradient\(/g;
+    let m: RegExpExecArray | null;
+    while ((m = fnRe.exec(source))) {
+        const openIdx = m.index + m[0].length - 1;
+        let depth = 1;
+        let i = openIdx + 1;
+        for (; i < source.length && depth > 0; i++) {
+            if (source[i] === "(") depth++;
+            else if (source[i] === ")") depth--;
+        }
+        args.push(source.slice(openIdx + 1, i - 1).replace(/_/g, " "));
+        fnRe.lastIndex = i;
+    }
+    return args;
+}
+
+/**
+ * Returns every offending colour stop in `source` — a CSS gradient stop or a
+ * Tailwind from-/via-/to- stop that isn't page-coloured. A gradient that
+ * only fades to/from transparent/white/--background/--card returns [].
+ * Shape-based on both syntaxes a gradient can be written in this repo:
+ *   (a) a real CSS `linear-|radial-|conic-gradient(...)` (inline style,
+ *       Tailwind arbitrary-value bracket, or a .css rule);
+ *   (b) a Tailwind `from-*`/`via-*`/`to-*` utility, judged only when it
+ *       shares a quoted class-string literal with a `bg-gradient-` utility
+ *       — a bare `from-*` with no gradient utility active paints nothing.
+ */
+function findTintedGradients(source: string): string[] {
+    const offenders: string[] = [];
+
+    for (const args of extractGradientArgs(source)) {
+        for (const rawStop of splitTopLevelCommas(args)) {
+            const stop = rawStop.trim();
+            if (isGradientColorStop(stop) && !isPageColorStop(stop)) offenders.push(stop);
+        }
+    }
+
+    for (const literal of source.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`/g)) {
+        const content = literal[1] ?? literal[2] ?? literal[3] ?? "";
+        if (!/\bbg-gradient-/.test(content)) continue;
+        for (const token of content.matchAll(/(?<!gradient-)\b(?:from|via|to)-[a-zA-Z][a-zA-Z0-9-]*(?:\/[0-9]{1,3})?\b/g)) {
+            if (!isAllowedTailwindStop(token[0])) offenders.push(token[0]);
+        }
+    }
+
+    return offenders;
+}
+
+test("gradients are fades, never tints: no gradient paint under src/ carries a colour stop other than page/card/white/transparent", () => {
+    const files: string[] = [];
+    const walk = (dir: string) => {
+        for (const entry of readdirSync(dir)) {
+            const full = path.join(dir, entry);
+            if (EXCLUDED_DIRS.has(full)) continue;
+            if (statSync(full).isDirectory()) {
+                walk(full);
+            } else if (/\.(?:tsx?|css)$/.test(entry)) {
+                files.push(full);
+            }
+        }
+    };
+    walk(path.join(ROOT, "src"));
+
+    const offenders: string[] = [];
+    for (const file of files) {
+        const src = readFileSync(file, "utf8");
+        if (isFileAllowed(src)) continue;
+        for (const stop of findTintedGradients(src)) {
+            offenders.push(`${path.relative(ROOT, file)}: ${stop}`);
+        }
+    }
+
+    assert.deepEqual(
+        offenders,
+        [],
+        `gradient paint carrying a non-page colour stop: ${offenders.join("; ")}. A gradient may only fade ` +
+            `to/from transparent/white/the --background or --card token — anything else is a tint; use a flat ` +
+            `token fill instead of a gradient wash.`,
+    );
+});
+
+test("tinted-gradient classifier: catches brand/hex/Tailwind tints, passes page fades, ignores a from-* with no gradient utility", () => {
+    // A brand/token radial tint — same SHAPE as the /jobs wash this change
+    // removes, but a different site (circle vs ellipse, a different token).
+    assert.deepEqual(
+        findTintedGradients("background: radial-gradient(circle at 20% 20%, rgb(var(--accent) / 0.3), transparent 60%);"),
+        ["rgb(var(--accent) / 0.3)"],
+        "a token colour other than --background/--card inside a radial-gradient must be caught",
+    );
+    // A hex tint inside a linear-gradient.
+    assert.deepEqual(
+        findTintedGradients("background-image: linear-gradient(180deg, #1a73e8, transparent);"),
+        ["#1a73e8"],
+        "a hex tint inside a linear-gradient must be caught",
+    );
+    // A Tailwind gradient utility carrying a brand stop.
+    assert.deepEqual(
+        findTintedGradients('<div className="bg-gradient-to-t from-brand/20 to-transparent" />'),
+        ["from-brand/20"],
+        "a brand Tailwind gradient stop must be caught even though to-transparent beside it is fine",
+    );
+    // The sanctioned Tailwind fade (JobDetail.tsx's real shape).
+    assert.deepEqual(
+        findTintedGradients('<div className="bg-gradient-to-t from-card to-transparent" />'),
+        [],
+        "a card-to-transparent Tailwind fade is the sanctioned shape",
+    );
+    // The sanctioned CSS fade (WatchingWall.tsx's real mask shape).
+    assert.deepEqual(
+        findTintedGradients("mask-image: linear-gradient(to right, transparent, white 66%, rgba(255,255,255,0.45));"),
+        [],
+        "a transparent/white/rgba(255,255,255,...) mask fade is the sanctioned shape",
+    );
+    // Not a gradient stop at all: no bg-gradient- utility anywhere in the string.
+    assert.deepEqual(
+        findTintedGradients('<div className="from-emerald-500 text-white" />'),
+        [],
+        "a from-* class with no bg-gradient- utility in the same string isn't a gradient stop — ignored",
+    );
+});
