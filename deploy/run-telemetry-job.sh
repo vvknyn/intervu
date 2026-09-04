@@ -62,8 +62,15 @@ TIMEOUT="${INTERVU_JOB_TIMEOUT:-3600}"
 # same fresh tree — exactly the race commit 9053dd4 closed, reopened by the
 # deploy. `/tmp` is never touched by the swap, so a lock there survives it;
 # `tr` (asserted present below, same as sed/tail) collapses the root path
-# into one safe filename segment so two different $INTERVU_ROOT values
-# never collide on the same lock.
+# into one safe filename segment. That collapse is lossy — `tr -cs
+# 'A-Za-z0-9' '_'` squeezes runs of non-alphanumerics, so distinct roots
+# CAN collide on the same lock name (measured: /opt/intervu-a,
+# /opt/intervu/a, /opt/intervu--a and /opt/intervu_a all collapse to
+# `_opt_intervu_a`). The consequence is over-serialization, not corruption:
+# two unrelated trees would share one install lock and queue behind each
+# other, failing loudly at INSTALL_LOCK_TIMEOUT rather than corrupting a
+# shared node_modules — conservative, and it can never produce the
+# concurrent-`npm ci` race this lock exists to prevent.
 INSTALL_LOCK="${INTERVU_JOB_INSTALL_LOCK:-/tmp/intervu-npm-ci-$(printf '%s' "$INTERVU_ROOT" | tr -cs 'A-Za-z0-9' '_').lock}"
 INSTALL_LOCK_TIMEOUT="${INTERVU_JOB_INSTALL_LOCK_TIMEOUT:-600}"
 
