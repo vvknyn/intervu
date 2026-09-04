@@ -445,10 +445,14 @@ the only address any of the three roles' pg_hba rules (`telemetry_pg`,
 
 **Run:** on the app box (194.163.147.154) — it is both the only address any
 of the three roles' pg_hba rules admit, and the box holding
-`intervu.env`. **Cwd: `/opt/intervu`** — measured 2026-09-04, the only copy
-of `verify-telemetry-grants.sh` on this box is
-`/opt/intervu/deploy/db-box/verify-telemetry-grants.sh` (mode `755`); the
-block below `cd`s there first, so the relative path inside it resolves. Do
+`intervu.env`. **No `cd` needed:** the only copy of this script on the box
+is `/opt/intervu/deploy/db-box/verify-telemetry-grants.sh` (mode `755`,
+measured 2026-09-04) — invoke it by that absolute path. The script is
+cwd-independent by construction (its own line 241 resolves its sibling SQL
+file as `"$(dirname "${BASH_SOURCE[0]}")/telemetry-derived.sql"`,
+script-relative, not cwd-relative), so do not "helpfully" add a `cd` back;
+an unguarded `cd` that failed would let the invocation silently resolve
+against whatever directory the operator happened to be in. Do
 **not** hand-type `TELEMETRY_PG_URL` here: a typo in a hand-typed value
 would still let this check pass while §3's actual line (the one the
 container reads) stays broken, which is exactly the seam this step exists
@@ -464,7 +468,6 @@ precondition. The guard below only skips running the verifier on failure;
 it never terminates the shell:
 
 ```bash
-cd /opt/intervu
 ENV_FILE=/opt/interview-os/deploy/contabo-web/intervu.env
 read_key() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 | tr -d '"'"'"'\r'; }
 
@@ -475,7 +478,7 @@ else
   AGENT_PG_URL="postgresql://agent_pg:<password>@169.58.140.49:5432/postgres" \
   BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
   TELEMETRY_PG_URL="$TELEMETRY_PG_URL" \
-    deploy/db-box/verify-telemetry-grants.sh
+    /opt/intervu/deploy/db-box/verify-telemetry-grants.sh
 fi
 ```
 
@@ -513,7 +516,12 @@ after `deploy/run-telemetry-job.sh` has self-healed it for some job
 assertion — see that script's lines 140-165); a bare deploy leaves
 `/opt/intervu` with no `node_modules` at all. If it's missing here, run
 `npm ci --include=dev` in `/opt/intervu` first, or let a
-`run-telemetry-job.sh` invocation create it.
+`run-telemetry-job.sh` invocation create it. Unlike §6, `npx tsx` genuinely
+does resolve `node_modules` from the cwd, so the `cd` below is chained with
+`&&` rather than dropped: a failed `cd` must not let the command run
+against `node_modules` in the wrong directory, and (same reasoning as §6's
+`if`/`else`) it still must not `exit`/kill an interactive shell — `&&`
+satisfies both.
 
 **Trap — `nc` is not a valid reachability check for the DB box.** Measured
 2026-09-04: `nc -z 169.58.140.49 5432` from a dev machine prints
@@ -525,7 +533,7 @@ classifies the server's own reply rather than just the handshake, and it
 needs no credential.
 
 ```bash
-cd /opt/intervu
+cd /opt/intervu && \
 TARGET_URL=https://velai.app \
 BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
   npx tsx scripts/verify-telemetry-e2e.ts
