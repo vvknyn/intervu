@@ -239,9 +239,31 @@ check_census "intervu.job_heartbeats" ""
 # not "clean" — check_census's to_regclass guard above FAILs that case by
 # name instead of it reading as a silent pass.
 derived_sql="$(dirname "${BASH_SOURCE[0]}")/telemetry-derived.sql"
-derived_tables="$(grep -oE 'create table if not exists intervu\.[a-zA-Z_]+' "$derived_sql" | awk '{print $NF}')"
-if [[ -z "$derived_tables" ]]; then
-  fail "found zero 'create table if not exists intervu.*' statements in ${derived_sql} — parser or file moved, this check verified NOTHING"
+# Strip `--` comments first: that file's own header discusses `create table`
+# in prose, and a comment must never count as a statement.
+derived_body="$(sed 's/--.*$//' "$derived_sql")"
+# Two independent reads of the same file. `derived_stmts` counts create-table
+# statements in the loosest possible way; `derived_tables` is the strict parse
+# that actually yields names to check. The two MUST agree.
+#
+# This pair is the point. A parser that recognises only the spellings someone
+# thought of is not a gate: the original here matched a single lowercase
+# `create table if not exists intervu.[a-zA-Z_]+` form, which silently dropped
+# any uppercase or bare `create table` statement AND truncated a name
+# containing a digit (`job_daily_v2` -> `job_daily_v`), producing a phantom
+# FAIL for a table that does not exist while the real profiling table went
+# unverified. Rather than enumerate more spellings — the same losing move one
+# level up — the mismatch check below detects the CLASS: any create-table
+# statement this script could not turn into a name fails loudly by count,
+# whatever new syntax caused it.
+derived_stmts="$(grep -icE 'create[[:space:]]+table' <<< "$derived_body")"
+derived_tables="$(grep -oiE 'create[[:space:]]+table[[:space:]]+(if[[:space:]]+not[[:space:]]+exists[[:space:]]+)?intervu\.[a-zA-Z0-9_]+' <<< "$derived_body" \
+  | grep -oiE 'intervu\.[a-zA-Z0-9_]+' | tr '[:upper:]' '[:lower:]' | sort -u)"
+derived_found="$(grep -c . <<< "$derived_tables")"
+if [[ "$derived_stmts" -eq 0 ]]; then
+  fail "found zero create-table statements in ${derived_sql} — parser or file moved, this check verified NOTHING"
+elif [[ "$derived_found" -ne "$derived_stmts" ]]; then
+  fail "parsed ${derived_found} table name(s) from ${derived_stmts} create-table statement(s) in ${derived_sql} — a statement this script cannot name is a PROFILING table whose ACL would go unverified; fix the parse, do not lower this check"
 else
   echo "checking: catalog grantee census matches the sanctioned set (derived tables discovered in telemetry-derived.sql: $(echo "$derived_tables" | tr '\n' ' '))"
   while IFS= read -r rel; do
