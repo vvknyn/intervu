@@ -128,11 +128,15 @@ export interface CompanyDailyRow extends DailyMetrics {
   day: string;
 }
 
-/** Splits an `aggregateDailyMetrics` group key ("<key>|<day>") back into its
- *  two parts. `day` is always exactly 10 chars ('YYYY-MM-DD'), so a `key`
- *  containing "|" itself (none do today — job_id/company_domain are URL/id
- *  safe) still splits correctly by taking the day off the fixed-width tail. */
-function splitGroupKey(groupKey: string): { key: string; day: string } {
+/** Splits an `aggregateDailyMetrics`-style group key ("<key>|<day>") back
+ *  into its two parts. `day` is always exactly 10 chars ('YYYY-MM-DD'), so a
+ *  `key` containing "|" itself (none do today — job_id/company_domain are
+ *  URL/id safe) still splits correctly by taking the day off the
+ *  fixed-width tail. Exported for reuse by query-daily.ts, which groups on
+ *  the same "<key>|<day>" shape (query_normalized instead of job_id/
+ *  company_domain) and would otherwise need a byte-for-byte copy of this
+ *  same slicing logic. */
+export function splitGroupKey(groupKey: string): { key: string; day: string } {
   const day = groupKey.slice(-10);
   const key = groupKey.slice(0, -"|".length - day.length);
   return { key, day };

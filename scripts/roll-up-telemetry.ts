@@ -32,23 +32,38 @@
  * `build-job-features.ts` — see that script's doc comment.
  *
  * KNOWN GAP, flagged not improvised: this script does NOT populate
- * `intervu.query_daily`. Its primary key is `query_normalized`, and the raw
- * query text and a joinable `query_id` never land on the same event.
- * `search_submitted` DOES carry the raw text (`LedgerOnlyPayloads.query_text`,
- * src/lib/analytics/events.ts:229, emitted at src/app/jobs/page.tsx:1467 as
- * the third `ledgerOnly` arg, never forwarded to PostHog) — but it has no
- * `query_id`, because `searchId` (src/actions/jobs.ts:85) is generated
- * server-side inside the search *response* and does not exist yet at submit
- * time. `result_clicked` and the impression rows (src/app/jobs/page.tsx:2462,
- * :3466; src/lib/jobs/use-result-impressions.ts:67) carry `query_id` but no
- * query text. So a search cannot be joined to its clicks without inferring a
- * pairing, and `query_daily`'s three non-`searches` columns
- * (`zero_result_count`/`click_through_count`/`refinement_count`) are
- * `integer not null` — a partial fill would assert measured zeros for
- * numbers nothing here actually measured. Per SPEC.md's own rule ("if
- * reality contradicts it, STOP and report — do not improvise a different
- * shape"), this script leaves `query_daily` empty rather than fabricate
- * either the join or the zeros; that stays a deliberate choice, not a TODO.
+ * `intervu.query_daily`, and this is still true as of 2026-09-04 — but the
+ * reason narrowed, it didn't close. This script's source, the client
+ * ledger (`intervu.telemetry_events`), still has no event that carries both
+ * the raw query text and a joinable id: `search_submitted` DOES carry the
+ * raw text (`LedgerOnlyPayloads.query_text`, src/lib/analytics/events.ts:229,
+ * emitted at src/app/jobs/page.tsx:1467 as the third `ledgerOnly` arg, never
+ * forwarded to PostHog) — but no `query_id`, because `searchId`
+ * (src/actions/jobs.ts:85) is generated server-side inside the search
+ * *response* and does not exist yet at submit time. `result_clicked` and the
+ * impression rows (src/app/jobs/page.tsx:2462, :3466;
+ * src/lib/jobs/use-result-impressions.ts:67) carry `query_id` but no query
+ * text. So THIS script still cannot join a search to its clicks, and still
+ * leaves `query_daily` alone every night — that remains a deliberate
+ * choice, not a TODO.
+ *
+ * What changed: the pairing this script is missing already exists
+ * server-side, just not in this script's source. `intervu.search_events` /
+ * `intervu.search_opens` — the Firestore-mirrored output of the OLDER
+ * search-log system (src/lib/jobs/search-log.ts), a different system from
+ * the client ledger above — carry a `search_id` on BOTH tables
+ * (search_events_search_id_idx / search_opens_search_id_idx,
+ * deploy/db-box/intervu-schema.sql) alongside the raw query text, so a
+ * search-to-click join is answerable there today. `scripts/backfill-query-daily.ts`
+ * reads that mirror to populate `query_daily`'s
+ * searches/zero_result_count/click_through_count HISTORICALLY, as a
+ * one-time backfill — it is not a cron, nothing installs it in crontab, and
+ * it does not change what this script does. `refinement_count` stays
+ * unpopulated by either path: it needs grouping consecutive searches by the
+ * same person, and neither the mirror nor this ledger carries any
+ * session/visitor/user key at all (`deploy/db-box/telemetry-derived.sql`
+ * migrated that column to nullable for exactly this reason — see its
+ * `query_daily` comment block).
  *
  * KNOWN GAP: `company_daily`'s impressions/clicks/applies/saves are always
  * empty today too, for the same "STOP and report" reason. SPEC.md models
