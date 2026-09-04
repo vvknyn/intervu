@@ -7,7 +7,14 @@
  * the property an idempotent rollup depends on (upsert-replace, never
  * `count = count + n`).
  */
-export function buildUpsert<T extends Record<string, unknown>>(
+// `object`, not `Record<string, unknown>`: the body only needs `keyof T`
+// (column lists) and `row[col]` (both work on any object type), and a
+// `Record` index signature is stronger than that. Row types declared with
+// `interface` (JobFeatures, JobDailyRow, ...) get no implicit index
+// signature — TS keeps that open for future declaration merging — so
+// `Record<string, unknown>` rejects them with TS2344. `object` still
+// excludes primitives, which is all the exclusion this helper needs.
+export function buildUpsert<T extends object>(
   table: string,
   columns: readonly (keyof T & string)[],
   conflictColumns: readonly (keyof T & string)[],
