@@ -235,6 +235,7 @@ async function main() {
         ] as const,
         ["job_id", "day"],
         jobDailyRows,
+        ["computed_at"],
       );
       await db.query(text, params);
       rowsAffected += jobDailyRows.length;
@@ -249,6 +250,7 @@ async function main() {
         ] as const,
         ["company_domain", "day"],
         companyDailyRows,
+        ["computed_at"],
       );
       await db.query(text, params);
       rowsAffected += companyDailyRows.length;
@@ -260,6 +262,7 @@ async function main() {
         ["feature", "bucket", "position", "impressions", "clicks", "applies"] as const,
         ["feature", "bucket", "position"],
         featureOutcomeRows,
+        ["computed_at"],
       );
       await db.query(text, params);
       rowsAffected += featureOutcomeRows.length;
