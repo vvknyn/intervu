@@ -1,5 +1,5 @@
 import { trackEvent } from "@/lib/analytics";
-import { captureEvent } from "@/lib/analytics/events";
+import { ANALYTICS_EVENTS, captureEvent } from "@/lib/analytics/events";
 
 /**
  * Decision logic for the one reusable share control (`ShareAction`,
@@ -110,7 +110,7 @@ export async function performShare(request: ShareRequest): Promise<ShareOutcome>
     if (surface === "job" && request.jobId) {
       captureEvent("job_shared", { job_id: request.jobId, method });
     } else if (surface) {
-      trackEvent("share_initiated", { surface, method });
+      trackEvent(ANALYTICS_EVENTS.job_shared, { surface, method });
     }
   }
   return outcome;

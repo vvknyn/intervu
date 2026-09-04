@@ -48,9 +48,15 @@ class TransactionQueryable implements Queryable {
 /**
  * Builds a lazily-initialized, fail-soft accessor for one env-configured
  * Postgres instance. Each call to `createPool` closes over its own
- * `pool`/`initialized` pair, so two accessors built from this factory never
- * share a connection pool or a connection string — the isolation
- * `getIntervuPg` (identity store) and `getExhaustPg` (box PG) both need.
+ * `pool`/`initialized` pair, so every accessor built from this factory gets
+ * its own `Pool` instance and connection lifecycle — that isolation is what
+ * `getIntervuPg` (identity store) and `getExhaustPg` (box PG) need.
+ *
+ * Two accessors CAN share a connection string and role on purpose and still
+ * never share a pool: `getTelemetryPg`/`getTelemetryForgetPg` both read
+ * TELEMETRY_PG_URL — same URL, same role — precisely so each keeps its own
+ * statement-timeout budget (5s ingest vs 30s erasure) without one
+ * workload's pool exhaustion or timeout starving the other's connections.
  */
 function createPool(envVar: string, options: PoolOptions): () => Queryable | null {
   let queryable: Queryable | null = null;

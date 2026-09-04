@@ -8,6 +8,7 @@ import {
   resolveWindowDays,
 } from "@/lib/telemetry/rollup-fetch";
 import type { Queryable } from "@/lib/pg/pool";
+import { RESULTS_IMPRESSED } from "@/lib/telemetry/outcome-events";
 
 /**
  * `fetchRollupEvents` is called with two window sizes:
@@ -75,7 +76,7 @@ describe("fetchRollupEvents — window reuse", () => {
     assert.equal(calls.length, 2);
     assert.deepEqual(
       calls.map((c) => c.params),
-      [[2], [2]],
+      [[2], [2, RESULTS_IMPRESSED]],
     );
     // Reused, not independently recomputed: same array reference.
     assert.equal(dailyEvents, featureEvents);

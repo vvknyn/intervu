@@ -145,6 +145,17 @@ main() {
 # Only run main when this file is executed directly. Sourcing it (e.g. a
 # test driving classify_psql_error in isolation) must not also fire a real
 # connection attempt.
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+#
+# ${BASH_SOURCE[0]:-} — the :- default is load-bearing, not defensive noise.
+# Under this file's `set -u`, an unset BASH_SOURCE aborts the script, and
+# BASH_SOURCE is unset whenever the script arrives on stdin rather than as a
+# file: `ssh box 'bash -s' < this-file`. That is the natural way to run a
+# credential-free pre-flight against a box the repo is not deployed to, so the
+# bare form made this script unrunnable in its most useful mode
+# ("BASH_SOURCE[0]: unbound variable", measured 2026-09-04). With the default,
+# an unset BASH_SOURCE compares unequal to $0 ("bash") and main is skipped, so
+# the piped form must pass the script a way to invoke main explicitly.
+if [[ "${BASH_SOURCE[0]:-}" == "${0}" || "${1:-}" == "--run" ]]; then
+  [[ "${1:-}" == "--run" ]] && shift
   main "$@"
 fi

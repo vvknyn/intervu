@@ -1,13 +1,16 @@
 /**
  * POST /api/telemetry — the pure half. Everything worth asserting on (shape
  * validation, the event-name allowlist-by-SHAPE, props-size dropping, clock
- * clamping, in-batch dedup, bot detection) lives here as plain functions over
- * plain data, so none of it needs a Request, a database, or a timer to test
- * — same pure-decision/thin-I/O split as `shouldLogSearch`/`recordSearch`
- * (`lib/jobs/search-log.ts`). `route.ts` is the only place that touches I/O.
+ * clamping, in-batch dedup, the bot-detection predicate) lives here as plain
+ * functions over plain data, so none of it needs a Request, a database, or a
+ * timer to test — same pure-decision/thin-I/O split as
+ * `shouldLogSearch`/`recordSearch` (`lib/jobs/search-log.ts`). `route.ts` is
+ * the only place that touches I/O: it's the one that reads the Request's
+ * User-Agent header and calls `isBotUserAgent` with it.
  *
- * Guard order mirrors SPEC §4 exactly (content-length and the bot check live
- * in route.ts since they read the Request; everything else is here):
+ * Guard order mirrors SPEC §4 exactly (content-length lives in route.ts
+ * since it reads the Request before any body parsing; everything else is
+ * here):
  *   2. batch length > MAX_BATCH_SIZE -> caller returns 400
  *   3. oversized props -> drop that event only
  *   4. event_name shape -> unknown names are ALLOWED, only the pattern is enforced
@@ -100,13 +103,14 @@ function parseEvent(raw: unknown, now: number, userId: string | null): ParsedEve
 
   const occurredAtMs = Date.parse(raw.occurred_at as string);
   const eventName = raw.event_name as string;
-  if (!EVENT_NAME_PATTERN.test(eventName)) {
-    return { rejection: { event_id: eventId, reason: "invalid_event_name" } };
-  }
 
   const props = (raw.props as Record<string, unknown> | undefined) ?? {};
   if (JSON.stringify(props).length > MAX_PROPS_LENGTH) {
     return { rejection: { event_id: eventId, reason: "props_too_large" } };
+  }
+
+  if (!EVENT_NAME_PATTERN.test(eventName)) {
+    return { rejection: { event_id: eventId, reason: "invalid_event_name" } };
   }
 
   const skewed = Math.abs(now - occurredAtMs) > CLOCK_SKEW_WINDOW_MS;

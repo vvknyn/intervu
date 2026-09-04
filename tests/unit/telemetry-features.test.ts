@@ -39,6 +39,45 @@ function job(overrides: Partial<PublicJob>): PublicJob {
   };
 }
 
+// A benefits heading present with ZERO enumerable items underneath it (no
+// list follows the heading — only prose). Preceded by a bulleted list
+// (not a period-ending sentence) so format-description.ts's own
+// promoteHeadings() doesn't fold the isolated "Benefits:" heading back
+// into the following prose paragraph — that fold only triggers when a
+// short label heading directly follows a "[.!?]\s+"-terminated sentence,
+// verified by hand against src/lib/jobs/format-description.ts. Long
+// enough (>220 chars) to clear descriptionNeedsFill's teaser threshold.
+const BENEFITS_SECTION_ZERO_ITEMS = `
+## About the role
+We are looking for a Software Engineer to join our team and help us build reliable systems that our customers depend on every single day of the year.
+
+## Responsibilities
+- Design and build backend services
+- Own the on-call rotation
+
+## Benefits
+We offer a comprehensive package described during the interview process, tailored to your specific circumstances and negotiated individually with each candidate we make an offer to.
+`.trim();
+
+// A complete (non-teaser) description with no benefits/perks/compensation
+// heading at all — the genuinely-not-stated case, distinct from the
+// teaser-truncation NULL case already covered above. Also exercises a
+// second numeric count field (requirement_count) touched by the same
+// sweep: "## Requirements" here is followed by prose, not a list, so
+// requirement_count must report the real 0, not null — same class of bug
+// as benefit_count, on a sibling field that was already correct.
+const REQUIREMENTS_HEADING_ZERO_ITEMS = `
+## About the role
+We are looking for a Software Engineer to join our growing team and help us ship reliable products for our customers around the world every single day without exception whatsoever this year.
+
+## Responsibilities
+- Design and build backend services
+- Own the on-call rotation
+
+## Requirements
+We discuss specific requirements individually with each candidate during the interview loop depending on role and level globally.
+`.trim();
+
 const FULL_DESCRIPTION = `
 ## About the role
 We are looking for a Senior Software Engineer to join our growing team.
@@ -117,6 +156,30 @@ describe("extractJobFeatures — NULL discipline", () => {
     assert.equal(features.has_eeo_boilerplate, true);
     assert.equal(features.has_nice_to_have_section, true);
     assert.equal(features.degree_level, "bachelor");
+  });
+});
+
+describe("extractJobFeatures — measured-zero vs not-stated NULL discipline on count fields", () => {
+  it("a benefits section present with zero enumerable items yields benefit_count=0, not null", () => {
+    const features = extractJobFeatures(job({ description: BENEFITS_SECTION_ZERO_ITEMS }), NOW);
+    assert.equal(features.has_benefits_section, true);
+    assert.equal(features.benefit_count, 0);
+  });
+
+  it("no benefits/perks/compensation heading at all yields benefit_count=null (has_benefits_section=false) — no regression", () => {
+    const features = extractJobFeatures(job({ description: REQUIREMENTS_HEADING_ZERO_ITEMS }), NOW);
+    assert.equal(features.has_benefits_section, false);
+    assert.equal(features.benefit_count, null);
+  });
+
+  it("a complete description with real benefit bullets still reports the true positive count", () => {
+    const features = extractJobFeatures(job({ description: FULL_DESCRIPTION }), NOW);
+    assert.equal(features.benefit_count, 3); // Health insurance / 401k match / Equity grant
+  });
+
+  it("sibling field from the same sweep: a Requirements heading present with zero list items yields requirement_count=0, not null", () => {
+    const features = extractJobFeatures(job({ description: REQUIREMENTS_HEADING_ZERO_ITEMS }), NOW);
+    assert.equal(features.requirement_count, 0);
   });
 });
 

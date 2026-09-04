@@ -240,17 +240,63 @@ if ! flock -n 9; then
 fi
 
 cd "$INTERVU_ROOT" || { log "FAIL cannot cd $INTERVU_ROOT"; exit 1; }
+
+# Minted ONCE per run and exported BEFORE the child launches, so the child
+# (which stamps it via writeHeartbeat's env fallback) and record-job-failure.ts
+# below see the identical value. This is the run identity the supervisor's
+# failure write guards on (heartbeat.ts's onlyIfNotFromRun) instead of a
+# clock-derived duration — see that file's module doc for the elapsed=0 /
+# negative-elapsed defect class this replaced. Composite of job name, epoch
+# seconds and this wrapper's own $$ is dependency-free and unique enough: two
+# invocations of the same job can't share a pid at the same second, and a
+# collision would only cause an over-cautious decline (case 4 in the module
+# doc), never a clobber.
+INTERVU_RUN_ID="${JOB}-${started}-$$"
+export INTERVU_RUN_ID
+
 "$TIMEOUT_BIN" --signal=TERM --kill-after=60 "$TIMEOUT" \
     ./node_modules/.bin/tsx "scripts/$JOB.ts" "$@" >>"$LOG" 2>&1
 rc=$?
 elapsed=$(( $(date +%s) - started ))
 
-# Liveness is judged by intervu.job_heartbeats, which each job writes itself
-# (including on failure, with ok=false and the real row count reached). This
-# log line is for a human reading back a specific run, not the health signal.
+# A job that reaches its own try/catch writes its OWN terminal heartbeat
+# in-process (src/lib/telemetry/heartbeat.ts) — including on failure, with
+# ok=false and the real row count reached. But a child killed by SIGKILL, an
+# OOM kill, or the timeout above never reaches that code, so it writes
+# nothing there at all — a missing/stale row used to be equally consistent
+# with "never started" and "started and died mid-run". This wrapper is the
+# one thing that survives that death, so on ANY non-zero exit it records the
+# failure itself, reusing BATCH_PG_URL and INTERVU_RUN_ID already exported
+# above (no new credential). That write is guarded (writeHeartbeat's
+# onlyIfNotFromRun in heartbeat.ts) to only land if the existing row's
+# run_id is not already this run's, so a child that wrote its own richer row
+# for THIS run is never clobbered — by identity, not by timing, which is the
+# 2026-09-04 fix (see heartbeat.ts's module doc for the elapsed=0 defect this
+# replaced).
+#
+# Bounded by $TIMEOUT_BIN itself: this write runs while the wrapper still
+# holds the per-job flock on fd 9 above. An unbounded write against an
+# unreachable DB would pin that lock forever, and every later cron
+# invocation of this same job would then hit the `flock -n` SKIP branch
+# above and exit 0 — the silent-success mode this file's header (traps #1-3
+# above) exists to prevent, reproduced by the fix meant to close a different
+# one. 60s is generous next to record-job-failure.ts's own 5s connection
+# timeout; --kill-after=10 matches the pattern already used for the job
+# itself, just tighter given this write does far less work.
+if [[ "$rc" -ne 0 ]]; then
+    "$TIMEOUT_BIN" --signal=TERM --kill-after=10 60 \
+        ./node_modules/.bin/tsx "scripts/record-job-failure.ts" "$JOB" >>"$LOG" 2>&1
+    hb_rc=$?
+    if [[ "$hb_rc" -eq 124 ]]; then
+        log "WARN supervisor failure-heartbeat write for $JOB timed out after 60s — job_heartbeats was NOT updated for this run"
+    elif [[ "$hb_rc" -ne 0 ]]; then
+        log "WARN supervisor failure-heartbeat write for $JOB exited $hb_rc — see log above"
+    fi
+fi
+
 case "$rc" in
     0)   log "OK   exit=0 ${elapsed}s" ;;
-    124) log "FAIL TIMEOUT after ${TIMEOUT}s — killed; heartbeat will show ok=false or be stale" ;;
+    124) log "FAIL TIMEOUT after ${TIMEOUT}s — killed; job_heartbeats now shows ok=false for this run (supervisor-recorded, unless a row already carried this run's id)" ;;
     *)   log "FAIL exit=$rc ${elapsed}s — see the traceback above this line" ;;
 esac
 exit "$rc"

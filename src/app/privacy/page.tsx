@@ -43,9 +43,9 @@ export default function PrivacyPage() {
           We also keep a record of what you do while searching: the searches you run (including the text of what
           you typed), which job postings come up, and which ones you click, open, save, or apply
           to. If you&apos;re signed in, we tie this to your account and build a profile of your search
-          activity over time — what you&apos;re looking for, and what you actually respond to. This lives in a
-          PostgreSQL database we run on our own servers — not in Google Cloud Firestore, where the rest of your
-          account data sits.
+          activity over time — what you&apos;re looking for, and what you actually respond to. Today this sits in
+          Google Cloud Firestore, alongside the rest of your account data. We&apos;re moving it onto a
+          PostgreSQL database we run on our own servers.
         </p>
         <p>
           If you join a waitlist (for example, &ldquo;tell me when it&apos;s ready&rdquo; on the connect page), we
