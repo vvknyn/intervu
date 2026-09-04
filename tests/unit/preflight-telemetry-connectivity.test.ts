@@ -47,6 +47,18 @@ describe("classify_psql_error", () => {
         assert.equal(classify(2, stderrText), "not-admitted");
     });
 
+    it("classifies the explicit pg_hba.conf `reject` rule wording (uaReject) as not-admitted too, not just the no-matching-rule wording", () => {
+        const stderrText =
+            'psql: error: connection to server at "169.58.140.49", port 5432 failed: FATAL:  pg_hba.conf rejects connection for host "194.163.147.154", user "telemetry_pg", database "postgres", no encryption';
+        assert.equal(classify(2, stderrText), "not-admitted");
+    });
+
+    it("does NOT classify a message that merely mentions pg_hba.conf without a denial verdict as not-admitted — proves the match is on 'entry'/'rejects' next to pg_hba.conf, not the bare substring 'pg_hba'", () => {
+        const stderrText =
+            'psql: error: connection to server at "169.58.140.49", port 5432 failed: FATAL:  could not load pg_hba.conf: No such file or directory';
+        assert.equal(classify(2, stderrText), "other");
+    });
+
     it("classifies a correctly admitted role — password rejected, everything else fine — as admitted (PASS)", () => {
         const stderrText =
             'psql: error: connection to server at "169.58.140.49", port 5432 failed: FATAL:  password authentication failed for user "telemetry_pg"';

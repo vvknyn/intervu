@@ -73,16 +73,24 @@ EOF
 
 install_env_key "$fixture" TELEMETRY_PG_URL "postgresql://telemetry_pg:NEWPW@169.58.140.49:5432/postgres"
 
-occurrences="$(grep -c '^TELEMETRY_PG_URL=' "$fixture")"
+# `|| true` on every grep -c below is load-bearing, not decoration: sourcing
+# launch-telemetry-ingest.sh above turned on `set -e` in THIS shell (its own
+# `set -euo pipefail` leaks into the sourcing shell), and `grep -c` exits 1
+# whenever its count is zero — exactly the shape a real regression here
+# would produce. Without the guard, that exact failure aborts this whole
+# harness on the spot (no FAIL line, no banner, remaining checks silently
+# skipped — see finding #5) instead of landing in `check` as a reported
+# mismatch.
+occurrences="$(grep -c '^TELEMETRY_PG_URL=' "$fixture")" || true
 check "install_env_key (existing key): exactly one TELEMETRY_PG_URL line remains" "$occurrences" 1
 
 new_value="$(sed -n 's/^TELEMETRY_PG_URL=//p' "$fixture" | tail -1)"
 check "install_env_key (existing key): line holds the NEW value" "$new_value" "postgresql://telemetry_pg:NEWPW@169.58.140.49:5432/postgres"
 
-still_has_foo="$(grep -c '^FOO=bar$' "$fixture")"
+still_has_foo="$(grep -c '^FOO=bar$' "$fixture")" || true
 check "install_env_key (existing key): unrelated FOO=bar line untouched" "$still_has_foo" 1
 
-still_has_baz="$(grep -c '^BAZ=qux$' "$fixture")"
+still_has_baz="$(grep -c '^BAZ=qux$' "$fixture")" || true
 check "install_env_key (existing key): unrelated BAZ=qux line untouched" "$still_has_baz" 1
 
 # Second fixture: key absent entirely -> must be appended, not silently dropped.
@@ -94,7 +102,7 @@ EOF
 
 install_env_key "$fixture2" TELEMETRY_PG_URL "postgresql://telemetry_pg:FRESH@169.58.140.49:5432/postgres"
 
-occurrences2="$(grep -c '^TELEMETRY_PG_URL=' "$fixture2")"
+occurrences2="$(grep -c '^TELEMETRY_PG_URL=' "$fixture2")" || true
 check "install_env_key (absent key): exactly one TELEMETRY_PG_URL line added" "$occurrences2" 1
 
 added_value="$(sed -n 's/^TELEMETRY_PG_URL=//p' "$fixture2" | tail -1)"
@@ -111,8 +119,43 @@ EOF
 
 install_env_key "$fixture3" TELEMETRY_PG_URL "postgresql://telemetry_pg:COLLAPSED@169.58.140.49:5432/postgres"
 
-occurrences3="$(grep -c '^TELEMETRY_PG_URL=' "$fixture3")"
+occurrences3="$(grep -c '^TELEMETRY_PG_URL=' "$fixture3")" || true
 check "install_env_key (pre-existing duplicate keys): collapses to exactly one line" "$occurrences3" 1
+
+# The count check above is hollow on its own: mutating the awk body's
+# `if (!done) { print line; ... }` to `print $0` still prints exactly one
+# TELEMETRY_PG_URL= line here (the first duplicate, echoed back unchanged;
+# the second is still dropped by the `done` guard) — same count, wrong
+# value. Only a value assertion on the surviving line catches that.
+new_value3="$(sed -n 's/^TELEMETRY_PG_URL=//p' "$fixture3" | tail -1)"
+check "install_env_key (pre-existing duplicate keys): surviving line holds the NEW value" "$new_value3" "postgresql://telemetry_pg:COLLAPSED@169.58.140.49:5432/postgres"
+
+# Fourth fixture: a DIFFERENT key that happens to have the installed key's
+# name as a SUFFIX (OLD_TELEMETRY_PG_URL vs TELEMETRY_PG_URL). This is the
+# collision `index($0, key "=") == 1` (anchored at column 1) exists to
+# prevent: mutating that to `> 0` (match anywhere in the line) treats this
+# earlier OLD_ line as the first "hit" for the target key, overwrites IT in
+# place with the new value, and then drops the real TELEMETRY_PG_URL= line
+# that follows once `done` is already set — a real file containing, say, a
+# backed-up OLD_TELEMETRY_PG_URL would be silently destroyed. A line-count
+# check alone cannot see this (both the destroyed line and the correct
+# line's replacement land on a "TELEMETRY_PG_URL=" prefix, so the count and
+# even the target's own value still look right) — only checking that the
+# UNRELATED colliding line survives verbatim catches it.
+fixture4="$FX/intervu-suffix-collision.env"
+cat > "$fixture4" <<'EOF'
+OLD_TELEMETRY_PG_URL=postgresql://must:survive@unchanged:5432/db
+TELEMETRY_PG_URL=postgresql://old:oldpw@old-host:5432/old
+FOO=bar
+EOF
+
+install_env_key "$fixture4" TELEMETRY_PG_URL "postgresql://telemetry_pg:SUFFIXOK@169.58.140.49:5432/postgres"
+
+collision_line="$(grep '^OLD_TELEMETRY_PG_URL=' "$fixture4")" || true
+check "install_env_key (key-name-as-suffix collision): unrelated OLD_TELEMETRY_PG_URL line survives unchanged" "$collision_line" "OLD_TELEMETRY_PG_URL=postgresql://must:survive@unchanged:5432/db"
+
+target_value4="$(sed -n 's/^TELEMETRY_PG_URL=//p' "$fixture4" | tail -1)"
+check "install_env_key (key-name-as-suffix collision): TELEMETRY_PG_URL itself still updated correctly" "$target_value4" "postgresql://telemetry_pg:SUFFIXOK@169.58.140.49:5432/postgres"
 
 # --- read_key_from_deploy_dir ----------------------------------------------
 depdir="$FX/deploy-dir"
@@ -151,10 +194,14 @@ cat > "$depdir/subspace.env.bak.20260904035723" <<'EOF'
 BATCH_PG_URL=postgresql://pipeline:OLDSTALEFAKEVALUE@example:5432/postgres
 EOF
 
-got_agent="$(read_key_from_deploy_dir "$depdir" AGENT_PG_URL)"
+# `|| true` here too (see the note above the first grep -c): a regression
+# that makes read_key_from_deploy_dir wrongly hit its own error branch would
+# `return 1`, and without the guard that aborts the harness silently instead
+# of landing in `check` as a reported (empty-vs-expected) mismatch.
+got_agent="$(read_key_from_deploy_dir "$depdir" AGENT_PG_URL)" || true
 check "read_key_from_deploy_dir: finds AGENT_PG_URL in intervu.env" "$got_agent" "postgresql://agent_pg:fakeagentpw@example:5432/postgres"
 
-got_batch="$(read_key_from_deploy_dir "$depdir" BATCH_PG_URL)"
+got_batch="$(read_key_from_deploy_dir "$depdir" BATCH_PG_URL)" || true
 check "read_key_from_deploy_dir: finds BATCH_PG_URL in subspace.env, ignoring the .bak with a different value" "$got_batch" "postgresql://pipeline:fakebatchpw@example:5432/postgres"
 
 # Two non-backup files disagreeing on the same key must fail, never silently
