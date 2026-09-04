@@ -57,3 +57,27 @@ export const JOB_FEATURES_TIMESTAMP_COLUMNS: readonly (keyof JobFeatures)[] = [
   "first_seen_at",
   "posted_at",
 ];
+
+/**
+ * Pure: given the distinct job_ids a caller actually needs, builds the
+ * parameterized SELECT that reads back just those `job_features` rows,
+ * with the same numeric/timestamp casts every reader of this table needs
+ * (see the two column lists above). `job_id` is job_features' primary key,
+ * so `= any($1::text[])` is an index lookup, not a full-table scan. No DB
+ * handle involved, so the SQL shape is unit-testable on its own. Lives
+ * here (not in `scripts/roll-up-telemetry.ts`, its only caller) so the
+ * shape stays covered by this module's own `satisfies` guarantee and
+ * doesn't require type-checking the rest of that script — `scripts/` is
+ * excluded from the tsconfig project.
+ */
+export function buildJobFeaturesSelect(jobIds: readonly string[]): { text: string; params: unknown[] } {
+  const selectList = JOB_FEATURES_COLUMNS.map((col) => {
+    if (JOB_FEATURES_NUMERIC_COLUMNS.includes(col)) return `${col}::float8 as ${col}`;
+    if (JOB_FEATURES_TIMESTAMP_COLUMNS.includes(col)) return `${col}::text as ${col}`;
+    return col;
+  }).join(", ");
+  return {
+    text: `select ${selectList} from intervu.job_features where job_id = any($1::text[])`,
+    params: [jobIds],
+  };
+}

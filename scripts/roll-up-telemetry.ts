@@ -68,11 +68,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
 import { buildUpsert } from "@/lib/pg/upsert";
-import {
-  JOB_FEATURES_COLUMNS,
-  JOB_FEATURES_NUMERIC_COLUMNS,
-  JOB_FEATURES_TIMESTAMP_COLUMNS,
-} from "@/lib/telemetry/job-features-columns";
+import { buildJobFeaturesSelect } from "@/lib/telemetry/job-features-columns";
 import type { JobFeatures } from "@/lib/telemetry/features";
 import {
   aggregateDailyMetrics,
@@ -160,14 +156,21 @@ async function fetchWindowImpressions(
   return rows;
 }
 
-async function fetchAllJobFeatures(db: pg.Client): Promise<Map<string, JobFeatures>> {
-  const selectList = JOB_FEATURES_COLUMNS.map((col) => {
-    if (JOB_FEATURES_NUMERIC_COLUMNS.includes(col)) return `${col}::float8 as ${col}`;
-    if (JOB_FEATURES_TIMESTAMP_COLUMNS.includes(col)) return `${col}::text as ${col}`;
-    return col;
-  }).join(", ");
-
-  const { rows } = await db.query<JobFeatures>(`select ${selectList} from intervu.job_features`);
+/** `aggregateFeatureOutcomes` only ever looks up a row by the job_id on an
+ *  outcome event (`featuresByJobId.get(event.job_id)`, feature-outcomes.ts)
+ *  and skips silently when absent — every other row in `job_features` is
+ *  provably unreachable for this call, so loading the whole table was pure
+ *  waste. Callers pass exactly the ids the current window's outcome events
+ *  reference. An empty list short-circuits before any query, both because
+ *  there is nothing to look up and to guarantee this never degrades into a
+ *  full-table read. */
+async function fetchJobFeaturesByIds(
+  db: pg.Client,
+  jobIds: readonly string[],
+): Promise<Map<string, JobFeatures>> {
+  if (jobIds.length === 0) return new Map();
+  const { text, params } = buildJobFeaturesSelect(jobIds);
+  const { rows } = await db.query<JobFeatures>(text, params);
   return new Map(rows.map((row) => [row.job_id, row]));
 }
 
@@ -218,11 +221,10 @@ async function main() {
       aggregateDailyMetrics(events, (e) => e.company_domain),
     );
 
-    const featuresByJobId = await fetchAllJobFeatures(db);
-    const featureOutcomeRows = aggregateFeatureOutcomes(
-      toFeatureOutcomeEvents(events),
-      featuresByJobId,
-    );
+    const featureOutcomeEvents = toFeatureOutcomeEvents(events);
+    const featureJobIds = [...new Set(featureOutcomeEvents.map((e) => e.job_id))];
+    const featuresByJobId = await fetchJobFeaturesByIds(db, featureJobIds);
+    const featureOutcomeRows = aggregateFeatureOutcomes(featureOutcomeEvents, featuresByJobId);
 
     if (jobDailyRows.length > 0) {
       const { text, params } = buildUpsert<JobDailyRow>(
