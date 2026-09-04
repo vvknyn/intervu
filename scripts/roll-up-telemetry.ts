@@ -15,14 +15,23 @@
  * `build-job-features.ts` — see that script's doc comment.
  *
  * KNOWN GAP, flagged not improvised: this script does NOT populate
- * `intervu.query_daily`. Its primary key is `query_normalized`, but neither
- * `telemetry_events` (query_id is a uuid, not text) nor any analytics
- * payload (`search_submitted`/`search_zero_results` carry only
- * `query_length: number` — see `EventPayloads` in
- * src/lib/analytics/events.ts) exposes the raw query text anywhere this
- * lane can verify. Per SPEC.md's own rule ("if reality contradicts it, STOP
- * and report — do not improvise a different shape"), this script leaves
- * `query_daily` empty rather than guessing a `props` JSON key name.
+ * `intervu.query_daily`. Its primary key is `query_normalized`, and the raw
+ * query text and a joinable `query_id` never land on the same event.
+ * `search_submitted` DOES carry the raw text (`LedgerOnlyPayloads.query_text`,
+ * src/lib/analytics/events.ts:229, emitted at src/app/jobs/page.tsx:1467 as
+ * the third `ledgerOnly` arg, never forwarded to PostHog) — but it has no
+ * `query_id`, because `searchId` (src/actions/jobs.ts:85) is generated
+ * server-side inside the search *response* and does not exist yet at submit
+ * time. `result_clicked` and the impression rows (src/app/jobs/page.tsx:2462,
+ * :3466; src/lib/jobs/use-result-impressions.ts:67) carry `query_id` but no
+ * query text. So a search cannot be joined to its clicks without inferring a
+ * pairing, and `query_daily`'s three non-`searches` columns
+ * (`zero_result_count`/`click_through_count`/`refinement_count`) are
+ * `integer not null` — a partial fill would assert measured zeros for
+ * numbers nothing here actually measured. Per SPEC.md's own rule ("if
+ * reality contradicts it, STOP and report — do not improvise a different
+ * shape"), this script leaves `query_daily` empty rather than fabricate
+ * either the join or the zeros; that stays a deliberate choice, not a TODO.
  *
  * KNOWN GAP: `company_daily`'s impressions/clicks/applies/saves are always
  * empty today too, for the same "STOP and report" reason. SPEC.md models

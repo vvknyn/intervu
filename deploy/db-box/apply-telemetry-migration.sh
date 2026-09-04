@@ -2,6 +2,10 @@
 # Applies the telemetry ledger migration on the db-box, in the right order,
 # with no credential of any kind — see RUNBOOK-telemetry-launch.md for why
 # that's possible here and what still has to be done by a human afterward.
+# Also applies telemetry-derived.sql, the user-profile cache layer, after
+# the raw ledger schema is confirmed correct — see that file's own header
+# for why it creates its tables as `pipeline` rather than as this script's
+# invoking user.
 #
 # RUN AS THE `postgres` OS USER, ON THE DB BOX (169.58.140.49), e.g.:
 #
@@ -44,8 +48,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCHEMA_SQL="$SCRIPT_DIR/telemetry-schema.sql"
 DROP_ORPHAN_SQL="$SCRIPT_DIR/telemetry-events-drop-orphan.sql"
+DERIVED_SQL="$SCRIPT_DIR/telemetry-derived.sql"
 
-for f in "$SCHEMA_SQL" "$DROP_ORPHAN_SQL"; do
+for f in "$SCHEMA_SQL" "$DROP_ORPHAN_SQL" "$DERIVED_SQL"; do
   if [[ ! -f "$f" ]]; then
     echo "missing $f — copy the whole deploy/db-box/ directory to the box, not just this script" >&2
     exit 1
@@ -177,6 +182,17 @@ else
   echo "FAILED: telemetry-schema.sql exited $rc." >&2
   echo "If this is the §0 drift guard firing, the diff it printed above names the exact mismatch — this is not" >&2
   echo "the known 2026-09-03 orphan (this script already handles that case); investigate before re-running." >&2
+  exit "$rc"
+fi
+
+echo "applying: telemetry-derived.sql"
+if psql -d postgres -f "$DERIVED_SQL"; then
+  :
+else
+  rc=$?
+  echo "FAILED: telemetry-derived.sql exited $rc." >&2
+  echo "This is the derived cache-layer migration — see its own header for the two catalog-driven preconditions" >&2
+  echo "it checks before creating anything; their failure messages name the exact catalog state found." >&2
   exit "$rc"
 fi
 

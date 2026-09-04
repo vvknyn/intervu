@@ -20,6 +20,7 @@ a process list (`ps`, `docker inspect`, cron logs).
 | 6. `verify-telemetry-grants.sh` | not run (needs `BATCH_PG_URL`) |
 | 7. `verify-telemetry-e2e.ts` | not run — **this is the launch gate** |
 | 8. reaper cron | **installed** 2026-09-04; cron proven to fire for `postgres`; the 08:20 UTC run itself has not happened yet (see §8) |
+| 9. derived-layer crons (`build-job-features`, `roll-up-telemetry`) | **not installed** — measured 2026-09-04, two ways: app box's installed crontab (1221 lines) has zero references to either script, and `intervu.job_heartbeats` holds exactly one row (`reap_telemetry`); neither job has ever run (see §9) |
 
 **Consequence of 2+3 being open:** `/api/telemetry` currently answers `204`
 and inserts nothing — `getTelemetryPg()` returns `null` with no
@@ -70,6 +71,7 @@ string at all.
 scp deploy/db-box/apply-telemetry-migration.sh \
     deploy/db-box/telemetry-schema.sql \
     deploy/db-box/telemetry-events-drop-orphan.sql \
+    deploy/db-box/telemetry-derived.sql \
     root@169.58.140.49:/tmp/telemetry-migration/
 ssh root@169.58.140.49
 sudo -u postgres bash /tmp/telemetry-migration/apply-telemetry-migration.sh
@@ -78,10 +80,21 @@ sudo -u postgres bash /tmp/telemetry-migration/apply-telemetry-migration.sh
 The script detects the table's actual state from `information_schema` itself
 (absent / orphan / correct) rather than trusting an operator-supplied flag,
 runs `telemetry-events-drop-orphan.sql` only when it finds the known
-pre-spec orphan shape, then applies `telemetry-schema.sql`. Both `.sql`
+pre-spec orphan shape, then applies `telemetry-schema.sql`, then applies
+`telemetry-derived.sql` (the user-profile cache layer — job_features,
+job_daily, company_daily, query_daily, feature_outcomes). All three `.sql`
 files set `\set ON_ERROR_STOP on` on line 1 — a guard failure aborts the run
 with exit 3 no matter how the file is invoked, so there is no need to (and
 you should not) pass `-v ON_ERROR_STOP=1` on top of it.
+
+**Why the derived layer's ownership matters:** this script runs as
+`postgres`, and schema `intervu` has a default-ACL rule keyed to
+`defaclrole=postgres` that grants `service_role` full privileges on every
+table `postgres` creates there (measured 2026-09-04 — see
+`telemetry-derived.sql`'s own header). `telemetry-derived.sql` switches to
+`set role pipeline` before its `create table` statements specifically so
+these five user-profile tables do NOT inherit that grant, regardless of
+which OS user this script is invoked as.
 
 **Pass condition:** the script exits `0` and its last line of output is the
 "manual steps remaining" banner naming step 2 and step 3 below. Re-running
@@ -415,3 +428,73 @@ function is fine for the ongoing daily job. Do not wire this script into a
 cron on this box: there is no runtime here to run it with, and if that ever
 changes, the batching-vs-unbatched tradeoff above needs re-deciding, not
 silently inherited.
+
+## 9. Nightly rollup — NOT INSTALLED
+
+**Precondition: step 1** (same reasoning as §8 — `telemetry-derived.sql`'s
+tables must exist, which step 1 now also applies; ingest arriving, step 7,
+is not a precondition for a job that legitimately no-ops over an empty
+window).
+
+**STATUS as of 2026-09-04, measured two independent ways — neither job has
+ever run:**
+
+- The app box's installed crontab (1221 lines, `crontab -l` as `subspace` on
+  194.163.147.154) contains zero lines referencing either script.
+- `intervu.job_heartbeats` on prod holds exactly one row (`reap_telemetry`,
+  2026-09-04 04:26 UTC). Neither `build-job-features` nor `roll-up-telemetry`
+  has ever written a heartbeat.
+
+Unlike §8's reaper, this is **not** a case where the SQL-function path
+sidesteps a missing runtime: `build-job-features.ts` and `roll-up-telemetry.ts`
+do their own JS-side computation (posting-text parsing; unnesting the
+`results_impressed` parallel-array payload — see that file's own header) and
+have no SQL-function equivalent, so they need an actual Node/`tsx` runtime
+with network access to the DB box. No host has been confirmed to run them —
+this section documents the crontab lines to install, not a completed
+installation, and does not claim a runtime exists to run them on.
+
+Two scripts, not one, feed this layer — both connect as `pipeline` via
+`BATCH_PG_URL` and both call the same `writeHeartbeat` helper
+(`src/lib/telemetry/heartbeat.ts`) as `reap_telemetry()` does:
+
+| script | `JOB_NAME` | writes |
+|---|---|---|
+| `scripts/build-job-features.ts` | `build-job-features` | `intervu.job_features` |
+| `scripts/roll-up-telemetry.ts` | `roll-up-telemetry` | `intervu.job_daily`, `intervu.company_daily`, `intervu.feature_outcomes` |
+
+**Ordering constraint:** `build-job-features` populates posting-structure
+facts (`job_features`) that the outcome rollup's analysis sits on top of, so
+it must run — and land — before `roll-up-telemetry` each night.
+
+**Crontab lines** (host TBD — see runtime note above; env is `BATCH_PG_URL`,
+same role/connection reasoning as every other pipeline batch job in this
+runbook):
+
+```cron
+50 7 * * * BATCH_PG_URL=... npx tsx scripts/build-job-features.ts >> $HOME/build-job-features.log 2>&1
+5 8 * * * BATCH_PG_URL=... npx tsx scripts/roll-up-telemetry.ts >> $HOME/roll-up-telemetry.log 2>&1
+```
+
+**Why these times — provisional, not validated.** §8 established that hour
+8 UTC (except the Monday/Thursday-only `10 8`/`35 8` entries) is the one
+block in the app box's production crontab with no daily fixed-start job.
+07:50 and 08:05 UTC extend that same free window backward and into it,
+15 minutes apart in dependency order, ahead of the reaper's 08:20 UTC. That
+15-minute spacing is a guess at how long each job takes against a table this
+size today — **neither script's runtime has been measured**, so these gaps
+are not validated against an actual run and could prove too tight or
+unnecessarily wide once one exists to time.
+
+**Pass condition, once installed** — same heartbeat-based check as §8, one
+row per job:
+
+```sql
+select job_name, last_run_at, rows_affected, ok
+from intervu.job_heartbeats
+where job_name in ('build-job-features', 'roll-up-telemetry');
+```
+
+Do not treat exit status alone as evidence — §8's own precedent (five daily
+crons ran dead for up to ten days while exiting 0 every time) applies here
+identically.

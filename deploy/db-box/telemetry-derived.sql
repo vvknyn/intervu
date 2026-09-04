@@ -1,13 +1,67 @@
+\set ON_ERROR_STOP on
+-- ^ Load-bearing, not boilerplate — same reasoning as telemetry-schema.sql's
+--   line 1: without it, a `raise exception` below prints ERROR but psql
+--   keeps going and exits 0, so the two preconditions below would stop
+--   protecting anything.
+
 -- Telemetry DERIVED layer — Lane F (SPEC-2-PROFILES.md).
 -- Rebuilt nightly from intervu.telemetry_events (owned by
 -- deploy/db-box/telemetry-schema.sql — do not edit that file from here).
 -- Every table here is a CACHE: safe to drop and regenerate from the raw
 -- ledger. Idempotent throughout (`if not exists`); apply any number of times.
 --
--- Runs as `pipeline` (owns intervu.telemetry_events per SPEC.md §3), never
--- as `telemetry_pg` (insert-only on the raw ledger, no read access here).
+-- WHY THIS FILE CREATES TABLES AS `pipeline` INSTEAD OF WHOEVER INVOKES IT:
+-- measured on the box 2026-09-04 — pg_default_acl on schema intervu carries
+-- exactly one rule (defaclrole=postgres, objtype=r) that grants both
+-- service_role and pipeline arwdDxtm on every table `postgres` creates in
+-- this schema; zero rules anywhere in the cluster are keyed to
+-- defaclrole=pipeline. Proven in a rolled-back transaction: `create table`
+-- run as postgres picks up service_role=arwdDxtm on the new table; the
+-- identical `create table` run after `set role pipeline` comes out with
+-- relowner=pipeline and relacl=NULL (owner-only, no foreign grants at all).
+-- apply-telemetry-migration.sh is documented to run `sudo -u postgres`, so
+-- without this switch these tables would land with service_role able to
+-- read/write every user-profile row. Switching role here — rather than
+-- documenting "always run this as pipeline" — makes the resulting ACL
+-- posture a property of this file, independent of which OS user runs it.
+--
+-- Owned by `pipeline` (also owns intervu.telemetry_events per SPEC.md §3);
+-- never touched by `telemetry_pg` (insert-only on the raw ledger, no read
+-- access here).
 
+-- Runs as the invoking (super)user, before the role switch below: a fresh
+-- box's `pipeline` role has USAGE+CREATE on schema intervu (measured) but
+-- may not have CREATE on the database itself, which is what creating a
+-- schema that doesn't exist yet would require.
 create schema if not exists intervu;
+
+set role pipeline;
+
+-- Two catalog-driven preconditions. Either failure means the ACL reasoning
+-- above no longer holds for this run, so every `create table` below must
+-- not proceed.
+do $$
+begin
+  if current_user <> 'pipeline' then
+    raise exception 'expected current_user = pipeline after "set role pipeline", found %. If the role switch silently no-op''d, every table below would be created under the wrong owner and pick up schema intervu''s postgres-keyed default ACL (service_role+pipeline arwdDxtm) instead of no foreign grants at all.', current_user;
+  end if;
+end
+$$;
+
+do $$
+declare
+  found_rule regrole;
+begin
+  select defaclrole into found_rule
+  from pg_default_acl
+  where defaclrole = 'pipeline'::regrole
+  limit 1;
+
+  if found_rule is not null then
+    raise exception 'pg_default_acl now has a rule keyed to defaclrole = % — measured 2026-09-04, this cluster had zero such rows. That absence is the entire reason this file creates tables as pipeline instead of postgres: a rule here means creating as pipeline would itself confer foreign grants, and the tables below must not be created until this is re-investigated.', found_rule;
+  end if;
+end
+$$;
 
 -- ---------------------------------------------------------------------
 -- job_features — posting STRUCTURE, one row per job_id. Recomputed
@@ -152,3 +206,5 @@ create table if not exists intervu.feature_outcomes (
 -- (scripts/) write to it through the shared `src/lib/telemetry/heartbeat.ts`
 -- helper, which upserts on the `job_name` primary key exactly like that
 -- file's own `reap_telemetry()` does.
+
+reset role;
