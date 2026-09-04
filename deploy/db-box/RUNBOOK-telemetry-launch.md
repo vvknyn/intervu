@@ -13,6 +13,7 @@ a process list (`ps`, `docker inspect`, cron logs).
 | step | state |
 |---|---|
 | 1. schema migration | **applied** — 2026-09-03, re-applied 2026-09-04 (exit `0`, state `correct`, 14 columns, 0 rows) |
+| 1b. pg_hba rule (`telemetry_pg` admitted from the app box) | **done** — 2026-09-04, rule appended to `/etc/postgresql/17/main/pg_hba.conf` + `select pg_reload_conf()` (reload, not restart); verified via `pg_hba_file_rules` (line 142, `error` IS NULL, 10 rules / 0 errors) and a credential-free before/after psql probe — see §1b |
 | 2. `telemetry_pg` password | **not done — HUMAN-ONLY, blocked on an operator** |
 | 3. `TELEMETRY_PG_URL` in the app box env | **not done** — key absent from both `/opt/interview-os/deploy/contabo-web/intervu.env` and the running `contabo-web-intervu-1` container (checked by key name; no value was read or printed) |
 | 4. container recreate | not done (nothing to pick up until 3) |
@@ -93,8 +94,19 @@ Three different states of the world produce byte-identical `204`s:
 - healthy (row lands in `intervu.telemetry_events`)
 - drifted table (insert raises, caught, logged, still `204` —
   `route.ts:136-138`)
+- pg_hba rejects the role (found and fixed 2026-09-04 — see §1b): with
+  `TELEMETRY_PG_URL` set but no matching `pg_hba.conf` rule, the insert
+  raises the connection's own FATAL — `FATAL:  no pg_hba.conf entry for
+  host "194.163.147.154", user "telemetry_pg", database "postgres", SSL
+  encryption` — which is caught by the **same** `route.ts:136-138` block as
+  the drifted-table case above and logged with the **same**
+  `[telemetry] insert failed:` prefix, still `204`. On the wire this cause
+  is byte-identical to the drifted-table cause; only the error text after
+  the log prefix tells them apart.
 - missing `TELEMETRY_PG_URL` (`getTelemetryPg()` returns `null`, insert
-  skipped outright, still `204` — `route.ts:133`)
+  skipped outright, still `204` — `route.ts:133`) — logged differently from
+  the two causes above, as `[telemetry] no pg pool configured
+  (TELEMETRY_PG_URL unset?)`, not `[telemetry] insert failed:`
 
 Only `scripts/verify-telemetry-e2e.ts` (step 6) tells these apart — it reads
 the row back over a *different* connection than ingest uses. Do not treat a
@@ -173,6 +185,82 @@ on the box before and after, via two independent catalog paths
 did not change — §7 pins its `search_path` explicitly, which is why the
 pre-§8 by-name hardening block covered it and left `reap_telemetry` behind.
 This is the concrete reason §8 is catalog-driven rather than by-name.
+
+## 1b. pg_hba: admit `telemetry_pg` from the app box
+
+**STATUS — DONE, 2026-09-04.** Applied directly on the DB box. This is not
+run by any script in this repo — see "must be re-applied" below for why.
+
+**Why this is a separate step from applying `telemetry-schema.sql`.** A
+least-privilege ROLE and a least-privilege NETWORK RULE are two different
+objects. Step 1 creates the `telemetry_pg` role and grants it exactly one
+privilege — INSERT on `intervu.telemetry_events` — which governs what the
+role may do *once it has a connection*. It says nothing about which host is
+even allowed to open that connection; that is `pg_hba.conf`'s job, a
+separate file the schema migration never touches. Measured 2026-09-04,
+before this fix: `/etc/postgresql/17/main/pg_hba.conf` on the DB box
+(169.58.140.49) had exactly two remote rules — for `pipeline` and
+`agent_pg`, both `host postgres <role> 194.163.147.154/32 scram-sha-256` —
+and no rule for `telemetry_pg` at all. Re-running step 1 any number of
+times would never have created one.
+
+**Consequence measured before the fix**, from the app box
+(194.163.147.154), using a deliberately fake password so no secret was ever
+involved:
+
+```
+psql: error: connection to server at "169.58.140.49", port 5432 failed: FATAL:  no pg_hba.conf entry for host "194.163.147.154", user "telemetry_pg", database "postgres", SSL encryption
+```
+
+This is exactly why steps 2 and 3 below, though each individually correct,
+are **jointly insufficient** on their own: `/api/telemetry`'s guard 8
+(`route.ts:158-169`) wraps the insert in try/catch and still returns `204`
+no matter what the connection attempt raises, so a pg_hba rejection like
+this one is invisible on the wire (§0's cause list above now names it).
+
+**Fix applied** — appended to `/etc/postgresql/17/main/pg_hba.conf` (backup
+taken first at `/root/pg_hba.conf.bak-20260904T083301Z`), then reloaded, a
+**reload, never a restart** (`select pg_reload_conf();` — no dropped
+connections):
+
+```
+# Added 2026-09-04: the telemetry ingest seam. /api/telemetry runs in the
+# intervu container on the app box and connects as telemetry_pg, whose ONLY
+# privilege in this cluster is INSERT on intervu.telemetry_events (it cannot
+# even SELECT its own writes). Without this line the runbook's §2 (password)
+# and §3 (TELEMETRY_PG_URL) are individually correct but jointly insufficient:
+# the route's guard-8 try/catch swallows the connection FATAL and still
+# returns 204, so the miss is invisible on the wire.
+host    postgres    telemetry_pg    194.163.147.154/32    scram-sha-256
+```
+
+**Verified after reload** via `pg_hba_file_rules`: the new rule is line 142,
+its `error` column is `NULL`, and the file parses as 10 rules with 0
+errors.
+
+**Pass condition — credential-free, the same probe, now the other side of
+the fix.** Password still deliberately wrong:
+
+```
+psql: error: connection to server at "169.58.140.49", port 5432 failed: FATAL:  password authentication failed for user "telemetry_pg"
+```
+
+The error moved from "no pg_hba.conf entry" to "password authentication
+failed" — that move is the pass signal. `telemetry_pg`'s `rolpassword` is
+still `NULL`, so this rule alone grants zero real access; it only proves the
+role is now reachable and admitted from the app box, with step 2 (the
+password) as the one thing left. `deploy/db-box/preflight-telemetry-connectivity.sh`
+automates exactly this before/after probe for all three roles this runbook
+uses — see its own header — and is the credential-free gate this repo did
+not have when this gap went unnoticed.
+
+**Must be re-applied if the DB box is ever rebuilt.** This rule lives in
+`/etc/postgresql/17/main/pg_hba.conf`, not in any file this repo owns.
+`apply-telemetry-migration.sh` (step 1) only runs `.sql` files over the
+local socket — it has no reason to touch host-based authentication config,
+and it does not. A fresh box, or a Postgres package reinstall that
+regenerates this file from its default template, will not carry this rule
+forward on its own.
 
 ## 2. Set the `telemetry_pg` password — HUMAN-ONLY
 
@@ -317,7 +405,11 @@ launch now also leans on, not a new risk.
 ## 6. `verify-telemetry-grants.sh`
 
 **Precondition:** steps 1–4 all passed (schema correct, role has a
-password, app has `TELEMETRY_PG_URL`, container is running with it).
+password, app has `TELEMETRY_PG_URL`, container is running with it) — which
+already includes §1b, since step 2's password is meaningless until §1b's
+pg_hba rule admits the role at all. Run this from 194.163.147.154: that is
+the only address any of the three roles' pg_hba rules (`telemetry_pg`,
+`agent_pg`, `pipeline`) admit a connection from.
 
 **Run:** from a host that can reach the DB box's Postgres over the network
 (the DB box firewall admits 5432 only from the pipeline box, 194.163.147.154
