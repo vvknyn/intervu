@@ -1115,34 +1115,37 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       };
     }
 
-    if (isRelevance) {
-      if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
-        const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, searchParams, companyScoped);
-        const seen = new Set<string>();
-        const unique: PublicJob[] = [];
-        for (const hit of laneHits) {
-          if (seen.has(hit.id)) continue;
-          seen.add(hit.id);
-          unique.push(hit);
-        }
-        const ranked = applyRelevanceQualityReranking(unique, p.q ?? "");
-        const offset = p.offset ?? 0;
-        const limit = p.limit ?? 40;
-        result = {
-          hits: pageRoleTitleHits(ranked, offset, limit),
-          total: ranked.length,
-          backend: "meilisearch",
-          configured: true,
-          facetDistribution,
-        };
-      } else {
-        result = await runSearch();
-        if (result.hits.length > 0) {
-          result.hits = applyRelevanceQualityReranking(result.hits, p.q);
-        }
+    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
+      const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, searchParams, companyScoped);
+      const seen = new Set<string>();
+      const unique: PublicJob[] = [];
+      for (const hit of laneHits) {
+        if (seen.has(hit.id)) continue;
+        seen.add(hit.id);
+        unique.push(hit);
       }
-    } else {
-      result = await runSearch();
+      const ranked = isRelevance
+        ? applyRelevanceQualityReranking(unique, p.q ?? "")
+        : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
+      const offset = p.offset ?? 0;
+      const limit = p.limit ?? 40;
+      // `ranked` is already in final order (relevance rerank, or compareJobsBySort
+      // for an explicit sort), so return directly and skip applySortIntegrityGuard —
+      // same as the company-scoped lane above. The guard's retry calls runSearch(),
+      // which has no notion of role-title membership, so letting it fire here would
+      // silently swap the lane's pool back for the whole-corpus one.
+      return {
+        hits: pageRoleTitleHits(ranked, offset, limit),
+        total: ranked.length,
+        backend: "meilisearch",
+        configured: true,
+        facetDistribution,
+      };
+    }
+
+    result = await runSearch();
+    if (isRelevance && result.hits.length > 0) {
+      result.hits = applyRelevanceQualityReranking(result.hits, p.q);
     }
 
     return applySortIntegrityGuard(result, p, () => runSearch());
@@ -1176,8 +1179,14 @@ async function fetchCompanyScopedLaneHits(
     withFacets: boolean,
     legacy: boolean,
   ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
+    // Pinned to relevance regardless of the caller's requested sort: this
+    // fetch is capped at COMPANY_LANE_HIT_LIMIT, and a capped fetch's top-N
+    // is only stable when the ORDER BY is fixed — under newest/salary_desc
+    // the same cap would silently admit a different top-N per sort, making
+    // lane membership sort-dependent. The caller (searchMeili) re-orders the
+    // assembled union by the requested sort AFTER retrieval.
     const body = buildSearchBody(
-      { ...laneParams, withFacets, limit: COMPANY_LANE_HIT_LIMIT, offset: 0 },
+      { ...laneParams, withFacets, limit: COMPANY_LANE_HIT_LIMIT, offset: 0, sort: "relevance" },
       legacy,
       "all",
       { companyScoped },
@@ -1228,8 +1237,14 @@ async function fetchRoleTitleLaneHits(
     withFacets: boolean,
     legacy: boolean,
   ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
+    // Pinned to relevance for the same reason as fetchCompanyScopedLaneHits
+    // above: each pair query is capped at 1000 hits, and a fixed cap is only
+    // safe under a fixed order — some pairs (e.g. "director product") match
+    // well over 1000 docs, so a sort-varying top-1000 would make the lane's
+    // deduped pool size drift by the requested sort instead of staying a
+    // permutation of one set. `searchMeili` re-orders the union afterward.
     const body = buildSearchBody(
-      { ...p, q: pairQ, withFacets, limit: 1000, offset: 0 },
+      { ...p, q: pairQ, withFacets, limit: 1000, offset: 0, sort: "relevance" },
       legacy,
       "all",
       { companyScoped, titleScoped: true },
