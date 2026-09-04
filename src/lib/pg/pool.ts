@@ -88,6 +88,24 @@ export const getExhaustPg = createPool("EXHAUST_PG_URL", { readOnly: true, state
  */
 export const getAgentPg = createPool("AGENT_PG_URL", { statementTimeout: "15s" });
 
+/**
+ * Returns the telemetry-ledger query seam, or null when TELEMETRY_PG_URL is
+ * unset — the same fail-soft-on-missing-env contract as the pools above.
+ * Read-write: `POST /api/telemetry` inserts through it, and
+ * `forgetIdentity`'s telemetry deletion (src/lib/identity/forget.ts) issues
+ * a DELETE through it.
+ *
+ * NOTE (flagged, not resolved, by the 2026-09-03 telemetry-forget-reap
+ * lane): `deploy/db-box/telemetry-schema.sql` §4 grants this connection's
+ * role (`telemetry_pg`) INSERT ONLY — "No select, no update, no delete" —
+ * so a DELETE issued here will fail with permission-denied until either
+ * that grant is widened or `deleteTelemetry`'s real wiring is repointed at
+ * the role that owns the table (`pipeline`, via `BATCH_PG_URL` — the same
+ * role `scripts/reap-telemetry.ts` uses for the same reason). Ruling owed;
+ * this file only wires the connection the lane's own instructions named.
+ */
+export const getTelemetryPg = createPool("TELEMETRY_PG_URL", { statementTimeout: "15s" });
+
 export function isIdentityStoreEnabled(): boolean {
   return getIntervuPg() !== null;
 }
