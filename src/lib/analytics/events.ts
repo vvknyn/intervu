@@ -1,4 +1,5 @@
 import posthog from "posthog-js";
+import { trackToLedger } from "@/lib/telemetry/client";
 
 /**
  * Wave-2 package F wired up the first six wire names (search → apply →
@@ -71,10 +72,19 @@ export interface EventPayloads {
     position: number;
     job_id: string;
     source: EventSource;
+    /** The rendered result set this click came from — same uuid stamped on
+     *  the `results_impressed` batch(es) it was scrolled into view by, so
+     *  the ledger can compute a position-corrected CTR (SPEC §2/§5). Absent
+     *  when there is no current search result set to attribute to (kept
+     *  optional rather than a fabricated id — SERP always has one once a
+     *  search has resolved). */
+    query_id?: string;
   };
   apply_clicked: {
     job_id: string;
     source: EventSource;
+    /** Same `query_id` contract as `result_clicked` above. */
+    query_id?: string;
   };
   job_saved: {
     job_id: string;
@@ -150,8 +160,19 @@ export interface EventPayloads {
   };
   results_impressed: {
     job_ids: string[];
+    /** 1-based rendered position for each entry in `job_ids`, same order —
+     *  parallel arrays rather than `{job_id, position}[]` so this doesn't
+     *  fork the existing `job_ids`/`count` dashboard shape (SPEC §5's
+     *  position-fix requirement, applied without renaming the wire
+     *  contract). */
+    positions: number[];
     count: number;
     source: EventSource;
+    /** The uuid identifying this rendered result set — same value carried
+     *  by `result_clicked`/`apply_clicked` for the same SERP, the join key
+     *  a position-corrected CTR needs (SPEC §2). Absent only when impressions
+     *  fired with no resolved search (shouldn't happen in practice). */
+    query_id?: string;
   };
 
   search_alert_impressed: {
@@ -207,6 +228,12 @@ export function shouldCaptureEvent(hasWindow: boolean, loaded: boolean): boolean
  * NEXT_PUBLIC_POSTHOG_KEY -> posthog.init() never ran -> posthog.__loaded
  * stays false) — no throw, no console spam beyond whatever posthog-js does
  * internally.
+ *
+ * The ONE chokepoint every event passes through — `trackToLedger`
+ * (lib/telemetry/client.ts) rides the same guarded branch as the PostHog
+ * capture, so every one of this module's 22 event names reaches the
+ * telemetry ledger for free, and a future 23rd does too, with no second
+ * tracking call to add at any call site (SPEC.md §5).
  */
 export function captureEvent<K extends AnalyticsEventKey>(
   event: K,
@@ -215,4 +242,5 @@ export function captureEvent<K extends AnalyticsEventKey>(
   const hasWindow = typeof window !== "undefined";
   if (!shouldCaptureEvent(hasWindow, posthog.__loaded === true)) return;
   posthog.capture(ANALYTICS_EVENTS[event], payload);
+  trackToLedger(ANALYTICS_EVENTS[event], payload as Record<string, unknown>);
 }
