@@ -65,9 +65,11 @@ export interface JobFeatures {
 
 // The literal words this codebase treats as a stated seniority signal in a
 // title, in the order checked (first match wins when more than one is
-// present, e.g. "Senior Staff Engineer" reports "Senior"). This is a fixed
-// vocabulary check for a LITERAL word, same class as a unit/currency symbol
-// table — not a name-ladder that gates behavior per rule.
+// present, e.g. "Senior Staff Engineer" reports "Staff" — "Staff" is
+// listed ahead of "Senior" deliberately, since "Senior Staff" outranks a
+// bare "Staff" on the ladder). This is a fixed vocabulary check for a
+// LITERAL word, same class as a unit/currency symbol table — not a
+// name-ladder that gates behavior per rule.
 const SENIORITY_WORDS = [
   "Principal", "Staff", "Senior", "Lead", "Director", "VP", "Chief", "Head",
   "Manager", "Associate", "Junior", "Entry", "Intern",
