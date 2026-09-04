@@ -254,31 +254,21 @@ $$;
 --    pre-spec orphan, which is handled by dropping it
 --    (deploy/db-box/telemetry-events-drop-orphan.sql), not by this file
 --    recreating it.
+--
+--    The loop itself lives in telemetry-acl-strip.sql, not inline here —
+--    apply-telemetry-migration.sh's preflight self-test \ir's that same
+--    file against a throwaway table, so there is exactly one copy of this
+--    logic to keep correct. \ir (not \i): \ir resolves a relative path
+--    against the directory of the currently-executing script, whatever the
+--    caller's cwd is; plain \i resolves against the caller's cwd instead
+--    (even with this file itself opened via an absolute -f path) and would
+--    fail to find telemetry-acl-strip.sql the moment `psql -f
+--    .../telemetry-schema.sql` is run from any other directory (measured
+--    2026-09-04: "No such file or directory", non-fatal without
+--    ON_ERROR_STOP, so it can pass silently too).
 -- ---------------------------------------------------------------------------
-do $$
-declare
-  tbl_name text;
-  tbl_oid  oid;
-  g        oid;
-begin
-  foreach tbl_name in array array['intervu.telemetry_events', 'intervu.job_heartbeats']
-  loop
-    execute format('alter table %s owner to pipeline', tbl_name);
-    tbl_oid := tbl_name::regclass;
-    for g in
-      select distinct a.grantee
-      from pg_class c, aclexplode(c.relacl) a
-      where c.oid = tbl_oid and a.grantee <> c.relowner
-    loop
-      if g = 0 then
-        execute format('revoke all on %s from public', tbl_name);
-      else
-        execute format('revoke all on %s from %I', tbl_name, g::regrole::text);
-      end if;
-    end loop;
-  end loop;
-end
-$$;
+\set strip_tables 'intervu.telemetry_events,intervu.job_heartbeats'
+\ir telemetry-acl-strip.sql
 
 -- ---------------------------------------------------------------------------
 -- 5. Grants, exactly per spec: INSERT only. No select, no update, no
