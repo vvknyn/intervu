@@ -309,7 +309,7 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
   {
     collection: "search_events",
     table: "search_events",
-    owner: { by: "none", reason: "anonymous search telemetry; verified across all 5483 rows to record no uid" },
+    owner: { by: "none", reason: "anonymous search telemetry; re-verified 2026-09-04 across all 27875 mirrored rows (was 5483 when first written) to record no uid — no identity field of any kind appears among the collection's 11 top-level keys" },
     indexed: [
       { field: "createdAt", type: "text", column: "created_at" },
       { field: "expiresAt", type: "text", column: "expires_at" },
