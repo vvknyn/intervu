@@ -51,7 +51,7 @@ export const JOB_FEATURES_NUMERIC_COLUMNS: readonly (keyof JobFeatures)[] = [
  * ISO-8601 — it renders Postgres's own text form (session-`DateStyle`
  * dependent, space-separated, numeric UTC offset, e.g.
  * `2026-09-04 09:41:11.639+02`), which round-trips as a different string
- * than the `...639Z` the write side emits. `TIMESTAMP_ISO_CAST` below
+ * than the `...639Z` the write side emits. `timestampIsoCast` below
  * builds the `to_char(... AT TIME ZONE 'UTC', ...)` expression that
  * produces the exact `toISOString()` shape instead (verified
  * DateStyle/timezone-GUC independent). None of these three are ever
