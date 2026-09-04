@@ -6,6 +6,16 @@
  * always builds the exact same SQL text and params for the same input —
  * the property an idempotent rollup depends on (upsert-replace, never
  * `count = count + n`).
+ *
+ * `touchColumns` (optional, default none) names columns to stamp with
+ * `now()` on the UPDATE branch only — for a column like `computed_at` that
+ * has a `default now()` in the DDL (covering INSERT) but is never itself
+ * one of the row's data `columns`, so the base `columns minus
+ * conflictColumns` update set never touches it and it freezes at its
+ * first-insert value on every later UPDATE. Not added to the insert column
+ * list (the DDL default already covers INSERT) and not added to `params`
+ * (`now()` is evaluated server-side, at the same transaction timestamp the
+ * DDL default itself uses).
  */
 // `object`, not `Record<string, unknown>`: the body only needs `keyof T`
 // (column lists) and `row[col]` (both work on any object type), and a
@@ -19,6 +29,7 @@ export function buildUpsert<T extends object>(
   columns: readonly (keyof T & string)[],
   conflictColumns: readonly (keyof T & string)[],
   rows: readonly T[],
+  touchColumns: readonly string[] = [],
 ): { text: string; params: unknown[] } {
   const params: unknown[] = [];
   const valueRows = rows.map((row) => {
@@ -28,10 +39,12 @@ export function buildUpsert<T extends object>(
     });
     return `(${placeholders.join(", ")})`;
   });
-  const updateSet = columns
-    .filter((c) => !conflictColumns.includes(c))
-    .map((c) => `${c} = excluded.${c}`)
-    .join(", ");
+  const updateSet = [
+    ...columns
+      .filter((c) => !conflictColumns.includes(c))
+      .map((c) => `${c} = excluded.${c}`),
+    ...touchColumns.map((c) => `${c} = now()`),
+  ].join(", ");
   const text = `
     insert into ${table} (${columns.join(", ")})
     values ${valueRows.join(", ")}

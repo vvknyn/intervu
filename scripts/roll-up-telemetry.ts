@@ -1,15 +1,32 @@
 #!/usr/bin/env node
 /**
+ * SPEC-2-PROFILES.md is not in this repo — see docs/telemetry/SPEC-PROVENANCE.md.
+ *
  * Nightly rollup of `intervu.telemetry_events` into `job_daily`,
  * `company_daily`, and `feature_outcomes` — SPEC-2-PROFILES.md §8 step 2/3.
  *
- * Reads a trailing window of raw events (default 2 days, `--window-days=N`
- * to override) and, for each of the three destination tables, REPLACES that
- * window's rows outright (upsert on the table's natural key, via the same
- * `buildUpsert` helper `build-job-features.ts` uses) — never
- * `count = count + n`. Re-running this script for the same window therefore
- * reproduces, not doubles, the same numbers: a retried cron cannot double
- * anyone's clicks.
+ * Reads a trailing window of raw events and, for each of the three
+ * destination tables, REPLACES that window's rows outright (upsert on the
+ * table's natural key, via the same `buildUpsert` helper
+ * `build-job-features.ts` uses) — never `count = count + n`. Re-running
+ * this script for the same window therefore reproduces, not doubles, the
+ * same numbers: a retried cron cannot double anyone's clicks.
+ *
+ * TWO separately-tunable windows, not one shared number — `job_daily` and
+ * `company_daily` are keyed on (key, day), so each night's run only ever
+ * needs to touch the handful of recent days that could still be settling;
+ * a long window there would rewrite years of already-settled history for
+ * nothing (`--window-days=N`, default 2). `feature_outcomes` carries no day
+ * column at all — its (feature, bucket, position) row IS its whole window,
+ * so a short slice there wouldn't miss a "day", it would silently discard
+ * everything older than the slice on every replace. It must read the full
+ * span the raw ledger can still answer for: the 90-day retention enforced
+ * by `select intervu.reap_telemetry(90)` in the installed crontab
+ * (`--feature-window-days=N`, default 90 — tied to that retention number by
+ * convention, not by any shared code, so a future change to one belongs
+ * with a matching change to the other). When the two windows are equal,
+ * the same fetched rows are reused for both tables' aggregation rather than
+ * querying the same range twice.
  *
  * Connects as `pipeline` (BATCH_PG_URL), same role/reasoning as
  * `build-job-features.ts` — see that script's doc comment.
@@ -55,17 +72,19 @@
  * `EventPayloads`), so every `results_impressed` ROW in `telemetry_events`
  * has `job_id`/`position` NULL by design. Reading only the scalar columns
  * would silently compute an impression denominator of zero for every job
- * and bucket. `fetchWindowImpressions` below unnests those two JSONB arrays
- * (zipped by their shared 1-based ordinality) into one synthetic per-
- * (job_id, position) impression row per array entry, which is then merged
- * with the scalar-column events before aggregation.
+ * and bucket. `fetchWindowImpressions` (src/lib/telemetry/rollup-fetch.ts)
+ * unnests those two JSONB arrays (zipped by their shared 1-based
+ * ordinality) into one synthetic per-(job_id, position) impression row per
+ * array entry, which is then merged with the scalar-column events before
+ * aggregation.
  *
- * Usage: npx tsx scripts/roll-up-telemetry.ts [--window-days=2]
+ * Usage: npx tsx scripts/roll-up-telemetry.ts [--window-days=2] [--feature-window-days=90]
  */
 import { config } from "dotenv";
 import pg from "pg";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import type { Queryable } from "@/lib/pg/pool";
 import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
 import { buildUpsert } from "@/lib/pg/upsert";
 import { buildJobFeaturesSelect } from "@/lib/telemetry/job-features-columns";
@@ -85,6 +104,7 @@ import {
   type OutcomeEventRow,
 } from "@/lib/telemetry/feature-outcomes";
 import { classifyOutcomeEvent } from "@/lib/telemetry/outcome-events";
+import { fetchRollupEvents, resolveWindowDays } from "@/lib/telemetry/rollup-fetch";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: `${ROOT}/.env.local`, quiet: true });
@@ -93,68 +113,12 @@ const JOB_NAME = "roll-up-telemetry";
 
 const connectionString = process.env.BATCH_PG_URL;
 
-const windowArg = process.argv.find((a) => a.startsWith("--window-days="));
-const WINDOW_DAYS = windowArg ? Number(windowArg.slice("--window-days=".length)) : 2;
-
-interface RawEventRow {
-  event_name: string;
-  day: string;
-  job_id: string | null;
-  company_domain: string | null;
-  position: number | null;
-}
-
-async function fetchWindowEvents(db: pg.Client, windowDays: number): Promise<RawEventRow[]> {
-  // Day-bucketing happens here, in SQL, not in JS Date math — avoids
-  // timezone bugs; see daily-rollup.ts's module doc. Filters and buckets on
-  // `received_at`, not the client-clock `occurred_at`: `received_at` is the
-  // column the ledger's only time-range index covers
-  // (telemetry_events_received_brin, telemetry-schema.sql) and is
-  // server-clock-authoritative, while `occurred_at` is untrusted client
-  // input merely clamped to a 24h skew window at ingest (ingest.ts).
-  const { rows } = await db.query<RawEventRow>(
-    `select
-       event_name,
-       to_char(received_at at time zone 'utc', 'YYYY-MM-DD') as day,
-       job_id,
-       company_domain,
-       position
-     from intervu.telemetry_events
-     where received_at >= now() - make_interval(days => $1)`,
-    [windowDays],
-  );
-  return rows;
-}
-
-/**
- * `results_impressed` rows carry no scalar `job_id`/`position` — see the
- * module doc's "PARALLEL ARRAYS" note. This unnests `props->'job_ids'` and
- * `props->'positions'` per event, zipped by their shared ordinality (`WITH
- * ORDINALITY` on each, joined on that ordinal — the standard way to zip two
- * JSONB arrays in Postgres), into one impression row per array entry. An
- * event whose `props` is missing either key contributes zero rows (a
- * set-returning function over a NULL jsonb value returns no rows), not a
- * crash or a fabricated pairing.
- */
-async function fetchWindowImpressions(
-  db: pg.Client,
-  windowDays: number,
-): Promise<{ day: string; job_id: string; position: number }[]> {
-  const { rows } = await db.query<{ day: string; job_id: string; position: number }>(
-    `select
-       to_char(e.received_at at time zone 'utc', 'YYYY-MM-DD') as day,
-       job_ids.value as job_id,
-       (positions.value)::int as position
-     from intervu.telemetry_events e,
-       lateral jsonb_array_elements_text(e.props->'job_ids') with ordinality as job_ids(value, ord),
-       lateral jsonb_array_elements_text(e.props->'positions') with ordinality as positions(value, ord)
-     where e.event_name = 'results_impressed'
-       and e.received_at >= now() - make_interval(days => $1)
-       and job_ids.ord = positions.ord`,
-    [windowDays],
-  );
-  return rows;
-}
+const WINDOW_DAYS = resolveWindowDays(process.argv, "window-days", 2);
+// Default 90 == the raw retention `select intervu.reap_telemetry(90)`
+// enforces in the installed crontab — see the module doc's "TWO
+// separately-tunable windows" note for why this is not shared with
+// WINDOW_DAYS above.
+const FEATURE_WINDOW_DAYS = resolveWindowDays(process.argv, "feature-window-days", 90);
 
 /** `aggregateFeatureOutcomes` only ever looks up a row by the job_id on an
  *  outcome event (`featuresByJobId.get(event.job_id)`, feature-outcomes.ts)
@@ -165,7 +129,7 @@ async function fetchWindowImpressions(
  *  there is nothing to look up and to guarantee this never degrades into a
  *  full-table read. */
 async function fetchJobFeaturesByIds(
-  db: pg.Client,
+  db: Queryable,
   jobIds: readonly string[],
 ): Promise<Map<string, JobFeatures>> {
   if (jobIds.length === 0) return new Map();
@@ -178,7 +142,7 @@ async function fetchJobFeaturesByIds(
  *  classification down to the 3 kinds that table tracks. Events that
  *  classify to "save" (or carry no position) are excluded here, not
  *  silently coerced into one of the three that remain. */
-function toFeatureOutcomeEvents(events: readonly RawEventRow[]): OutcomeEventRow[] {
+function toFeatureOutcomeEvents(events: readonly DailyEventRow[]): OutcomeEventRow[] {
   const SAVE: FeatureOutcomeKind[] = ["impression", "click", "apply"];
   const out: OutcomeEventRow[] = [];
   for (const event of events) {
@@ -192,36 +156,20 @@ function toFeatureOutcomeEvents(events: readonly RawEventRow[]): OutcomeEventRow
 
 async function main() {
   if (!connectionString) throw new Error("BATCH_PG_URL is not set");
-  if (!Number.isFinite(WINDOW_DAYS) || WINDOW_DAYS <= 0) {
-    throw new Error(`--window-days must be a positive number, got ${windowArg}`);
-  }
 
   const db = new pg.Client({ connectionString });
   await db.connect();
 
   let rowsAffected = 0;
   try {
-    const scalarEvents: DailyEventRow[] = await fetchWindowEvents(db, WINDOW_DAYS);
-    // Unnested impressions carry no company_domain (see module doc's GAP
-    // note) — every synthetic row is honestly null on that field, same as
-    // any other event type that never stated one.
-    const impressionEvents: DailyEventRow[] = (await fetchWindowImpressions(db, WINDOW_DAYS)).map(
-      (row) => ({
-        event_name: "results_impressed",
-        day: row.day,
-        job_id: row.job_id,
-        company_domain: null,
-        position: row.position,
-      }),
-    );
-    const events: DailyEventRow[] = [...scalarEvents, ...impressionEvents];
+    const { dailyEvents, featureEvents } = await fetchRollupEvents(db, WINDOW_DAYS, FEATURE_WINDOW_DAYS);
 
-    const jobDailyRows = toJobDailyRows(aggregateDailyMetrics(events, (e) => e.job_id));
+    const jobDailyRows = toJobDailyRows(aggregateDailyMetrics(dailyEvents, (e) => e.job_id));
     const companyDailyRows = toCompanyDailyRows(
-      aggregateDailyMetrics(events, (e) => e.company_domain),
+      aggregateDailyMetrics(dailyEvents, (e) => e.company_domain),
     );
 
-    const featureOutcomeEvents = toFeatureOutcomeEvents(events);
+    const featureOutcomeEvents = toFeatureOutcomeEvents(featureEvents);
     const featureJobIds = [...new Set(featureOutcomeEvents.map((e) => e.job_id))];
     const featuresByJobId = await fetchJobFeaturesByIds(db, featureJobIds);
     const featureOutcomeRows = aggregateFeatureOutcomes(featureOutcomeEvents, featuresByJobId);
@@ -235,6 +183,7 @@ async function main() {
         ] as const,
         ["job_id", "day"],
         jobDailyRows,
+        ["computed_at"],
       );
       await db.query(text, params);
       rowsAffected += jobDailyRows.length;
@@ -249,6 +198,7 @@ async function main() {
         ] as const,
         ["company_domain", "day"],
         companyDailyRows,
+        ["computed_at"],
       );
       await db.query(text, params);
       rowsAffected += companyDailyRows.length;
@@ -260,6 +210,7 @@ async function main() {
         ["feature", "bucket", "position", "impressions", "clicks", "applies"] as const,
         ["feature", "bucket", "position"],
         featureOutcomeRows,
+        ["computed_at"],
       );
       await db.query(text, params);
       rowsAffected += featureOutcomeRows.length;
@@ -267,8 +218,9 @@ async function main() {
 
     await writeHeartbeat(db, JOB_NAME, rowsAffected, true);
     console.log(
-      `${JOB_NAME}: window=${WINDOW_DAYS}d job_daily=${jobDailyRows.length} ` +
-        `company_daily=${companyDailyRows.length} feature_outcomes=${featureOutcomeRows.length}`,
+      `${JOB_NAME}: window=${WINDOW_DAYS}d feature_window=${FEATURE_WINDOW_DAYS}d ` +
+        `job_daily=${jobDailyRows.length} company_daily=${companyDailyRows.length} ` +
+        `feature_outcomes=${featureOutcomeRows.length}`,
     );
   } catch (err) {
     // Report the real count reached before the failure, never a fabricated

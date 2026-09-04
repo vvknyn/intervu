@@ -1,4 +1,6 @@
 /**
+ * SPEC.md is not in this repo — see docs/telemetry/SPEC-PROVENANCE.md.
+ *
  * Pure jurisdiction check for the telemetry client's identity-storage rule
  * (SPEC §5): a visitor resolved to somewhere GDPR-equivalent protection
  * applies must have `visitor_id` held in sessionStorage rather than

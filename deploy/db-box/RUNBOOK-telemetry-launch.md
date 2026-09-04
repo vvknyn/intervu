@@ -13,6 +13,7 @@ a process list (`ps`, `docker inspect`, cron logs).
 | step | state |
 |---|---|
 | 1. schema migration | **applied** — 2026-09-03, re-applied 2026-09-04 (exit `0`, state `correct`, 14 columns, 0 rows) |
+| 1b. pg_hba rule (`telemetry_pg` admitted from the app box) | **done** — 2026-09-04, rule appended to `/etc/postgresql/17/main/pg_hba.conf` + `select pg_reload_conf()` (reload, not restart); verified via `pg_hba_file_rules` (line 142, `error` IS NULL, 10 rules / 0 errors) and a credential-free before/after psql probe — see §1b |
 | 2. `telemetry_pg` password | **not done — HUMAN-ONLY, blocked on an operator** |
 | 3. `TELEMETRY_PG_URL` in the app box env | **not done** — key absent from both `/opt/interview-os/deploy/contabo-web/intervu.env` and the running `contabo-web-intervu-1` container (checked by key name; no value was read or printed) |
 | 4. container recreate | not done (nothing to pick up until 3) |
@@ -20,7 +21,7 @@ a process list (`ps`, `docker inspect`, cron logs).
 | 6. `verify-telemetry-grants.sh` | not run (needs `BATCH_PG_URL`) |
 | 7. `verify-telemetry-e2e.ts` | not run — **this is the launch gate** |
 | 8. reaper cron | **done** — installed 2026-09-04 and the first *scheduled* run fired the same morning, 08:20:02 Europe/Berlin = 06:20:02 UTC, `ok=t` (see §8) |
-| 9. derived-layer crons (`build-job-features`, `roll-up-telemetry`) | **written, not installed** — the two crontab lines and their host-side wrapper are committed (subspace `feat/2026-09-04/telemetry-derived-cron`, intervu `deploy/run-telemetry-job.sh`), neither is shipped. Measured 2026-09-04, two ways: app box's installed crontab (1281 lines) has zero references to either script, and `intervu.job_heartbeats` holds exactly one row (`reap_telemetry`); neither job has ever run. **Ships only after the intervu deploy** (see §9) |
+| 9. derived-layer crons (`build-job-features`, `roll-up-telemetry`) | **check before trusting this row** — the two crontab lines and their host-side wrapper are committed (subspace `feat/2026-09-04/telemetry-derived-cron`, intervu `deploy/run-telemetry-job.sh`); being committed does not mean either job is installed or has ever run — re-verify both, don't assume a snapshot from an earlier read still holds. To check: (1) `crontab -l` on the app box for two `run-telemetry-job.sh` lines, one per job name; (2) `select job_name, last_run_at, ok from intervu.job_heartbeats order by last_run_at desc;` — a row for `build-job-features`/`roll-up-telemetry` with a recent `last_run_at` and `ok = t` means that job is installed and running; if only `reap_telemetry` (or an old `last_run_at`) shows up, it is not. **Ships only after the intervu deploy** (see §9) |
 
 **Consequence of 2+3 being open:** `/api/telemetry` currently answers `204`
 and inserts nothing — `getTelemetryPg()` returns `null` with no
@@ -93,8 +94,19 @@ Three different states of the world produce byte-identical `204`s:
 - healthy (row lands in `intervu.telemetry_events`)
 - drifted table (insert raises, caught, logged, still `204` —
   `route.ts:136-138`)
+- pg_hba rejects the role (found and fixed 2026-09-04 — see §1b): with
+  `TELEMETRY_PG_URL` set but no matching `pg_hba.conf` rule, the insert
+  raises the connection's own FATAL — `FATAL:  no pg_hba.conf entry for
+  host "194.163.147.154", user "telemetry_pg", database "postgres", SSL
+  encryption` — which is caught by the **same** `route.ts:136-138` block as
+  the drifted-table case above and logged with the **same**
+  `[telemetry] insert failed:` prefix, still `204`. On the wire this cause
+  is byte-identical to the drifted-table cause; only the error text after
+  the log prefix tells them apart.
 - missing `TELEMETRY_PG_URL` (`getTelemetryPg()` returns `null`, insert
-  skipped outright, still `204` — `route.ts:133`)
+  skipped outright, still `204` — `route.ts:133`) — logged differently from
+  the two causes above, as `[telemetry] no pg pool configured
+  (TELEMETRY_PG_URL unset?)`, not `[telemetry] insert failed:`
 
 Only `scripts/verify-telemetry-e2e.ts` (step 6) tells these apart — it reads
 the row back over a *different* connection than ingest uses. Do not treat a
@@ -115,19 +127,24 @@ inverted-reading trap before running it.
 
 ## 1. Apply the schema migration
 
-**Run:** on the DB box (169.58.140.49), as the `postgres` OS user, over the
+**Run in two hops.** The `scp` below runs on your **dev machine**, cwd =
+the **root of this repo checkout** — its arguments are relative paths
+(`deploy/db-box/...`) that only resolve from there. Everything after `ssh`
+runs on the **DB box** (169.58.140.49), as the `postgres` OS user, over the
 local socket — fact-checked 2026-09-03: this box has exactly one
 non-template database (`postgres`; `intervu` is a schema inside it, not a
 database), and `postgres`-over-local-socket needs no password or connection
 string at all.
 
 ```bash
+# Dev machine, cwd = repo root (paths below are relative to it):
 scp deploy/db-box/apply-telemetry-migration.sh \
     deploy/db-box/telemetry-schema.sql \
     deploy/db-box/telemetry-events-drop-orphan.sql \
     deploy/db-box/telemetry-derived.sql \
     root@169.58.140.49:/tmp/telemetry-migration/
 ssh root@169.58.140.49
+# Now on the DB box (169.58.140.49); cwd doesn't matter — absolute path:
 sudo -u postgres bash /tmp/telemetry-migration/apply-telemetry-migration.sh
 ```
 
@@ -174,6 +191,82 @@ did not change — §7 pins its `search_path` explicitly, which is why the
 pre-§8 by-name hardening block covered it and left `reap_telemetry` behind.
 This is the concrete reason §8 is catalog-driven rather than by-name.
 
+## 1b. pg_hba: admit `telemetry_pg` from the app box
+
+**STATUS — DONE, 2026-09-04.** Applied directly on the DB box. This is not
+run by any script in this repo — see "must be re-applied" below for why.
+
+**Why this is a separate step from applying `telemetry-schema.sql`.** A
+least-privilege ROLE and a least-privilege NETWORK RULE are two different
+objects. Step 1 creates the `telemetry_pg` role and grants it exactly one
+privilege — INSERT on `intervu.telemetry_events` — which governs what the
+role may do *once it has a connection*. It says nothing about which host is
+even allowed to open that connection; that is `pg_hba.conf`'s job, a
+separate file the schema migration never touches. Measured 2026-09-04,
+before this fix: `/etc/postgresql/17/main/pg_hba.conf` on the DB box
+(169.58.140.49) had exactly two remote rules — for `pipeline` and
+`agent_pg`, both `host postgres <role> 194.163.147.154/32 scram-sha-256` —
+and no rule for `telemetry_pg` at all. Re-running step 1 any number of
+times would never have created one.
+
+**Consequence measured before the fix**, from the app box
+(194.163.147.154), using a deliberately fake password so no secret was ever
+involved:
+
+```
+psql: error: connection to server at "169.58.140.49", port 5432 failed: FATAL:  no pg_hba.conf entry for host "194.163.147.154", user "telemetry_pg", database "postgres", SSL encryption
+```
+
+This is exactly why steps 2 and 3 below, though each individually correct,
+are **jointly insufficient** on their own: `/api/telemetry`'s guard 8
+(`route.ts:158-169`) wraps the insert in try/catch and still returns `204`
+no matter what the connection attempt raises, so a pg_hba rejection like
+this one is invisible on the wire (§0's cause list above now names it).
+
+**Fix applied** — appended to `/etc/postgresql/17/main/pg_hba.conf` (backup
+taken first at `/root/pg_hba.conf.bak-20260904T083301Z`), then reloaded, a
+**reload, never a restart** (`select pg_reload_conf();` — no dropped
+connections):
+
+```
+# Added 2026-09-04: the telemetry ingest seam. /api/telemetry runs in the
+# intervu container on the app box and connects as telemetry_pg, whose ONLY
+# privilege in this cluster is INSERT on intervu.telemetry_events (it cannot
+# even SELECT its own writes). Without this line the runbook's §2 (password)
+# and §3 (TELEMETRY_PG_URL) are individually correct but jointly insufficient:
+# the route's guard-8 try/catch swallows the connection FATAL and still
+# returns 204, so the miss is invisible on the wire.
+host    postgres    telemetry_pg    194.163.147.154/32    scram-sha-256
+```
+
+**Verified after reload** via `pg_hba_file_rules`: the new rule is line 142,
+its `error` column is `NULL`, and the file parses as 10 rules with 0
+errors.
+
+**Pass condition — credential-free, the same probe, now the other side of
+the fix.** Password still deliberately wrong:
+
+```
+psql: error: connection to server at "169.58.140.49", port 5432 failed: FATAL:  password authentication failed for user "telemetry_pg"
+```
+
+The error moved from "no pg_hba.conf entry" to "password authentication
+failed" — that move is the pass signal. `telemetry_pg`'s `rolpassword` is
+still `NULL`, so this rule alone grants zero real access; it only proves the
+role is now reachable and admitted from the app box, with step 2 (the
+password) as the one thing left. `deploy/db-box/preflight-telemetry-connectivity.sh`
+automates exactly this before/after probe for all three roles this runbook
+uses — see its own header — and is the credential-free gate this repo did
+not have when this gap went unnoticed.
+
+**Must be re-applied if the DB box is ever rebuilt.** This rule lives in
+`/etc/postgresql/17/main/pg_hba.conf`, not in any file this repo owns.
+`apply-telemetry-migration.sh` (step 1) only runs `.sql` files over the
+local socket — it has no reason to touch host-based authentication config,
+and it does not. A fresh box, or a Postgres package reinstall that
+regenerates this file from its default template, will not carry this rule
+forward on its own.
+
 ## 2. Set the `telemetry_pg` password — HUMAN-ONLY
 
 **See "Deploy-order correction" above first: this step is currently INERT.**
@@ -183,8 +276,8 @@ cannot yet change what happens to any request.
 **Precondition:** step 1 exited 0 (the `telemetry_pg` role now exists,
 password-less).
 
-**Run**, still as `postgres` on the DB box, in an **interactive** psql
-session:
+**Run**, still as `postgres` on the DB box (169.58.140.49), in an
+**interactive** psql session (cwd doesn't matter — no relative paths):
 
 ```
 sudo -u postgres psql -d postgres
@@ -198,7 +291,8 @@ statement text, never shows up in `pg_stat_activity`, and never lands in a
 server log. `ALTER ROLE ... PASSWORD '<plaintext>'` puts the plaintext in
 all three.
 
-**Pass condition** (no plaintext read-back needed or possible):
+**Pass condition** (same DB box, same psql session; no plaintext read-back
+needed or possible):
 
 ```sql
 select rolname, rolpassword is not null as has_password
@@ -215,11 +309,30 @@ an `/api/telemetry` route to serve until the intervu app deploy lands.
 **Precondition:** step 2's pass condition holds (a password exists to put in
 the connection string).
 
+**Two different env files exist for this product on the app box — do not
+confuse them.** Measured 2026-09-04, key presence only, no values read:
+
+| file | consumer | keys | has |
+|---|---|---|---|
+| `/opt/interview-os/deploy/contabo-web/intervu.env` | the **container** — `docker-compose.yml`'s `env_file` (lines 43-44) | 31 | `TELEMETRY_PG_URL`: 0 (this step adds it); `BATCH_PG_URL`: 0 |
+| `/opt/interview-os/.env.local` | the **host cron jobs** — `run-telemetry-job.sh`'s `ENV_FILE` default (`run-telemetry-job.sh:46`) | 46 | `BATCH_PG_URL`, `MEILI_URL`, `MEILI_ADMIN_KEY`: 1 each; `TELEMETRY_PG_URL`: 0 |
+
+This step edits `intervu.env` and only `intervu.env` — deliberately, not an
+oversight: `/api/telemetry` runs in the container, so the container's env
+file is the only one that can affect it. §9's two derived-table cron jobs
+(`build-job-features`, `roll-up-telemetry`) do **not** need
+`TELEMETRY_PG_URL` at all — audited: `build-job-features` reaches only
+`BATCH_PG_URL`/`MEILI_URL`/`MEILI_ADMIN_KEY`, `roll-up-telemetry` only
+`BATCH_PG_URL`, exactly what `run-telemetry-job.sh`'s wrapper exports from
+`.env.local` (§9). So there is no missing step on that side; adding
+`TELEMETRY_PG_URL` to `.env.local` too would not be wrong, just useless.
+
 **Run:** on the app box (194.163.147.154), as `subspace` — the file is
 mode `-rw-------`, owned by `subspace`, and lives outside the git tree at
 `/opt/interview-os/deploy/contabo-web/intervu.env`, so no `sudo` is needed
-or wanted. Open it with an editor, not a shell redirect, so the connection
-string (with its plaintext password) never touches shell history:
+or wanted (cwd doesn't matter — the path below is absolute). Open it with
+an editor, not a shell redirect, so the connection string (with its
+plaintext password) never touches shell history:
 
 ```bash
 nano /opt/interview-os/deploy/contabo-web/intervu.env
@@ -231,7 +344,8 @@ Add one line:
 TELEMETRY_PG_URL=postgresql://telemetry_pg:<the password from step 2>@169.58.140.49:5432/postgres
 ```
 
-**Pass condition** (counts the line without ever printing the value):
+**Pass condition**, same app box (194.163.147.154), cwd doesn't matter —
+absolute path (counts the line without ever printing the value):
 
 ```bash
 grep -c '^TELEMETRY_PG_URL=' /opt/interview-os/deploy/contabo-web/intervu.env
@@ -241,6 +355,12 @@ grep -c '^TELEMETRY_PG_URL=' /opt/interview-os/deploy/contabo-web/intervu.env
 ## 4. Recreate the container
 
 **Precondition:** step 3's grep returned `1`.
+
+**Run:** on the app box (194.163.147.154). The block below `cd`s to its own
+working directory and chains it with `&&`, so it's safe to start from
+anywhere: a failed `cd` stops there rather than running `docker compose`
+from whatever directory the operator was standing in (compose resolves its
+project from cwd).
 
 An `env_file` change is invisible to a running container until it is
 **recreated** — `docker restart` reuses the existing container's already-
@@ -256,7 +376,7 @@ only needs the **runtime** `env_file` layer refreshed — a recreate, not a
 rebuild:
 
 ```bash
-cd /opt/interview-os/deploy/contabo-web
+cd /opt/interview-os/deploy/contabo-web && \
 docker compose up -d --force-recreate intervu
 ```
 
@@ -266,8 +386,10 @@ env file. `--build` is for an actual code deploy (extract → swap →
 here is unnecessary time and risk for zero benefit. Never run two concurrent
 compose builds against this stack.
 
-**Pass condition** — container was actually recreated, and the container's
-own env now carries the key, without ever printing its value:
+**Pass condition**, same app box (194.163.147.154); cwd doesn't matter —
+`docker exec` targets a container name, not a path — container was
+actually recreated, and the container's own env now carries the key,
+without ever printing its value:
 
 ```bash
 docker exec contabo-web-intervu-1 sh -c 'env | grep -c "^TELEMETRY_PG_URL="'
@@ -290,7 +412,8 @@ returns `{"euUk":true}`, identical to what a genuinely-EU visitor gets. If
 the mmdb lookup silently breaks, every visitor on earth gets a
 session-scoped id instead of a durable one, forever, with no error anywhere.
 
-**Run, from a known non-EU host — not from the Contabo box itself:**
+**Run, from a known non-EU host — not from the Contabo box itself** (cwd
+doesn't matter — the command uses no relative paths):
 
 ```bash
 curl -s https://velai.app/api/geo/region
@@ -317,20 +440,54 @@ launch now also leans on, not a new risk.
 ## 6. `verify-telemetry-grants.sh`
 
 **Precondition:** steps 1–4 all passed (schema correct, role has a
-password, app has `TELEMETRY_PG_URL`, container is running with it).
+password, app has `TELEMETRY_PG_URL`, container is running with it) — which
+already includes §1b, since step 2's password is meaningless until §1b's
+pg_hba rule admits the role at all. Run this from 194.163.147.154: that is
+the only address any of the three roles' pg_hba rules (`telemetry_pg`,
+`agent_pg`, `pipeline`) admit a connection from.
 
-**Run:** from a host that can reach the DB box's Postgres over the network
-(the DB box firewall admits 5432 only from the pipeline box, 194.163.147.154
-— same constraint every other `deploy/db-box/` script already documents).
-Connection details are environment-only, scoped to this one command, never
-argv:
+**Run:** on the app box (194.163.147.154) — it is both the only address any
+of the three roles' pg_hba rules admit, and the box holding
+`intervu.env`. **No `cd` needed:** the only copy of this script on the box
+is `/opt/intervu/deploy/db-box/verify-telemetry-grants.sh` (mode `755`,
+measured 2026-09-04) — invoke it by that absolute path. The script is
+cwd-independent by construction (its own line 241 resolves its sibling SQL
+file as `"$(dirname "${BASH_SOURCE[0]}")/telemetry-derived.sql"`,
+script-relative, not cwd-relative), so do not "helpfully" add a `cd` back;
+an unguarded `cd` that failed would let the invocation silently resolve
+against whatever directory the operator happened to be in. Do
+**not** hand-type `TELEMETRY_PG_URL` here: a typo in a hand-typed value
+would still let this check pass while §3's actual line (the one the
+container reads) stays broken, which is exactly the seam this step exists
+to close. Instead read it back from the file, with the same `read_key()`
+parsing `run-telemetry-job.sh:121` uses — `tail -1`, not `head -1`, because
+dotenv is last-assignment-wins and this file is known to assign at least
+one key twice — so this check can never pass against a value the container
+does not actually use. The value is never echoed. **A failed check must
+not `exit` here** — this block is meant to be pasted into an interactive
+SSH session, and `exit 1` logs the operator out of that shell rather than
+just failing the check, which reads as a dropped connection, not a failed
+precondition. The guard below only skips running the verifier on failure;
+it never terminates the shell:
 
 ```bash
-TELEMETRY_PG_URL="postgresql://telemetry_pg:<password>@169.58.140.49:5432/postgres" \
-AGENT_PG_URL="postgresql://agent_pg:<password>@169.58.140.49:5432/postgres" \
-BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
-  deploy/db-box/verify-telemetry-grants.sh
+ENV_FILE=/opt/interview-os/deploy/contabo-web/intervu.env
+read_key() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 | tr -d '"'"'"'\r'; }
+
+TELEMETRY_PG_URL="$(read_key TELEMETRY_PG_URL)"
+if [[ -z "$TELEMETRY_PG_URL" ]]; then
+  echo "TELEMETRY_PG_URL missing/empty in $ENV_FILE — §3 is not done" >&2
+else
+  AGENT_PG_URL="postgresql://agent_pg:<password>@169.58.140.49:5432/postgres" \
+  BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
+  TELEMETRY_PG_URL="$TELEMETRY_PG_URL" \
+    /opt/intervu/deploy/db-box/verify-telemetry-grants.sh
+fi
 ```
+
+`AGENT_PG_URL`/`BATCH_PG_URL` stay hand-typed: neither role's URL is stored
+in `intervu.env` (§3's env-file table above — `BATCH_PG_URL`: 0 there),
+so there is no file to fall out of sync with for those two.
 
 **Pass condition:** exit `0`, final line `all grant checks pass`. This
 proves `telemetry_pg` can insert and cannot select/delete, `agent_pg` has no
@@ -351,9 +508,35 @@ table's actual ACL is not the one this runbook believes it verified.
 **Precondition:** step 6 passed (grants are correct, so a real insert from
 the running app has a chance of landing).
 
-**Run**, from a machine that can reach both the live app and the DB box:
+**Run:** on the app box (194.163.147.154) — measured 2026-09-04, the DB
+box's `ufw` is `active`, default-deny incoming, with exactly one `ACCEPT`
+rule for port 5432 (a single `/32`, the app box) and zero port-less
+`ACCEPT` rules. "A machine that can reach both the live app and the DB box"
+therefore names a set with exactly one member: this box. **Cwd:
+`/opt/intervu`.** `npx tsx` needs `node_modules`, which this tree has only
+after `deploy/run-telemetry-job.sh` has self-healed it for some job
+(`npm ci --include=dev`, then an explicit `-x node_modules/.bin/tsx`
+assertion — see that script's lines 140-165); a bare deploy leaves
+`/opt/intervu` with no `node_modules` at all. If it's missing here, run
+`npm ci --include=dev` in `/opt/intervu` first, or let a
+`run-telemetry-job.sh` invocation create it. Unlike §6, `npx tsx` genuinely
+does resolve `node_modules` from the cwd, so the `cd` below is chained with
+`&&` rather than dropped: a failed `cd` must not let the command run
+against `node_modules` in the wrong directory, and (same reasoning as §6's
+`if`/`else`) it still must not `exit`/kill an interactive shell — `&&`
+satisfies both.
+
+**Trap — `nc` is not a valid reachability check for the DB box.** Measured
+2026-09-04: `nc -z 169.58.140.49 5432` from a dev machine prints
+"succeeded" (something upstream answers the TCP handshake) while `psql` to
+the same host and port times out. Chasing that `nc` result sends you
+hunting a network problem that isn't the one you actually have. Use
+`deploy/db-box/preflight-telemetry-connectivity.sh` instead — it
+classifies the server's own reply rather than just the handshake, and it
+needs no credential.
 
 ```bash
+cd /opt/intervu && \
 TARGET_URL=https://velai.app \
 BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
   npx tsx scripts/verify-telemetry-e2e.ts
@@ -655,8 +838,8 @@ no Meili. Every case that expects a refusal also asserts the job did not
 start, because "exited non-zero" and "refused before starting" are the two
 outcomes this subsystem exists to tell apart. The suite is verified
 discriminating by mutation, not merely green.
-**Pass condition, once installed** — same heartbeat-based check as §8, one
-row per job:
+**Pass condition, once installed** — same heartbeat-based check as §8 (on
+the DB box, or via `BATCH_PG_URL` from anywhere), one row per job:
 
 ```sql
 select job_name, last_run_at, rows_affected, ok

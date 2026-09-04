@@ -4,6 +4,8 @@
 --   keeps going and exits 0, so the two preconditions below would stop
 --   protecting anything.
 
+-- SPEC-2-PROFILES.md is not in this repo — see docs/telemetry/SPEC-PROVENANCE.md.
+--
 -- Telemetry DERIVED layer — Lane F (SPEC-2-PROFILES.md).
 -- Rebuilt nightly from intervu.telemetry_events (owned by
 -- deploy/db-box/telemetry-schema.sql — do not edit that file from here).
