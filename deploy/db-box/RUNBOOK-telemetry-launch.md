@@ -30,6 +30,47 @@ it is the current state, not a hypothetical.
 
 Steps 2–4 must be run manually, in order, by an operator with box access.
 
+## Deploy-order correction — the intervu app deploy is the keystone (measured 2026-09-04 ~05:30Z)
+
+**This gates §2, §3, and §9 below and supersedes any reading of this runbook
+as "run the human credential steps first."** Measured on prod just now, two
+agreeing oracles — the extracted source tree at `/opt/intervu` and the
+running `contabo-web-intervu-1` container's own built route manifest
+(`.next/server/app/api`) — list the SAME 11 api routes: `account`, `auth`,
+`contact`, `email`, `follow-email`, `jobs`, `mcp`, `oauth`, `search-alerts`,
+`viewer`, `webhooks`. `/opt/intervu` matching the running container's
+manifest confirms it as the source of the running build. **`telemetry` and
+`geo` are not among the 11 — `/api/telemetry` is not deployed.** Second
+oracle, same conclusion: `/opt/intervu/src/lib/telemetry` and
+`/opt/intervu/src/app/api/telemetry` are both absent from the deployed tree.
+(An HTTP 404 probe is NOT valid evidence here either way: `/api/jobs`,
+`/api/viewer`, and `/api/account` all also 404 on a bare GET despite being
+deployed — the route manifest above is the oracle, not a curl.)
+
+**Consequence — §2 and §3 are INERT until this deploy lands.** There is no
+`/api/telemetry` route in the running build to receive an event at all, so
+setting the `telemetry_pg` password (§2) or adding `TELEMETRY_PG_URL` and
+recreating the container (§3) cannot change the outcome of anything — there
+is nothing on the other end of that route to read the credential yet.
+
+**Consequence — §9's crons cannot be installed yet either.** Oracle: the
+extracted tree's `/opt/intervu/scripts` (37 files) contains neither
+`build-job-features.ts` nor `roll-up-telemetry.ts` — they are not on the box
+at all. Separately (not a second blocker): the credential those two scripts
+need, `BATCH_PG_URL`/`PIPELINE_DATABASE_URL`, already exists in
+`/opt/interview-os/.env.local` (47 keys) on the box that actually runs cron
+scripts (`/opt/interview-os` = the subspace repo, 625 scripts) — once the
+two scripts themselves are deployed there, the credential is already in
+place.
+
+**Consequence — the `/privacy` disclosure gate (§0, §8) is still unmet.**
+Oracle: the served build's own `.next/server/app/privacy.html` still
+contains the string "Firestore" — the retention/profiling/Postgres-location
+disclosures are not live, independent of where the crons stand.
+
+This states what is measured now. It does not say when the intervu app
+deploy will happen, and it is not an approval to run one.
+
 ## 0. What a silent failure looks like here
 
 `POST /api/telemetry` never throws and always returns `204` — including
@@ -122,6 +163,10 @@ This is the concrete reason §8 is catalog-driven rather than by-name.
 
 ## 2. Set the `telemetry_pg` password — HUMAN-ONLY
 
+**See "Deploy-order correction" above first: this step is currently INERT.**
+`/api/telemetry` is not in the deployed build, so setting this password
+cannot yet change what happens to any request.
+
 **Precondition:** step 1 exited 0 (the `telemetry_pg` role now exists,
 password-less).
 
@@ -149,6 +194,10 @@ from pg_authid where rolname = 'telemetry_pg';
 ```
 
 ## 3. Add `TELEMETRY_PG_URL` to the app box's env file — HUMAN-ONLY
+
+**See "Deploy-order correction" above first: this step is currently INERT**
+for the same reason as §2 — the container being recreated still won't have
+an `/api/telemetry` route to serve until the intervu app deploy lands.
 
 **Precondition:** step 2's pass condition holds (a password exists to put in
 the connection string).
@@ -430,6 +479,17 @@ changes, the batching-vs-unbatched tradeoff above needs re-deciding, not
 silently inherited.
 
 ## 9. Nightly rollup — NOT INSTALLED
+
+**See "Deploy-order correction" above first.** Installing these crons is
+blocked on more than "not yet done": measured 2026-09-04, neither
+`build-job-features.ts` nor `roll-up-telemetry.ts` exists anywhere on the
+box (oracle: `/opt/intervu/scripts`, 37 files, contains neither). Box cron
+scripts actually run from `/opt/interview-os` (the subspace repo, a
+separate checkout, 625 scripts) — getting either script there needs its own
+deploy step, not covered by the intervu app deploy above. The credential
+they'd need (`BATCH_PG_URL`/`PIPELINE_DATABASE_URL`) is separately already
+present in that box's `/opt/interview-os/.env.local` (47 keys), so it is not
+itself a blocker.
 
 **Precondition: step 1** (same reasoning as §8 — `telemetry-derived.sql`'s
 tables must exist, which step 1 now also applies; ingest arriving, step 7,
