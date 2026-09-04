@@ -16,7 +16,7 @@
  */
 import { SEARCH_ENGINE_BOTS, AI_ANSWER_ENGINE_BOTS } from "@/lib/shield/robots-policy";
 import type { TelemetryRejection, TelemetryRow } from "./types";
-import { UUID_PATTERN, isUuid, isOptionalUuid, LEDGER_COLUMN_RULES } from "./column-rules";
+import { ENVELOPE_COLUMN_RULES, isPlainObject, LEDGER_COLUMN_RULES } from "./column-rules";
 
 /** Guard 1 (route.ts): Content-Length absent or over this -> 413, no parse.
  *  Sized against the container's `mem_limit: 1g` (docker-compose.yml:22) —
@@ -38,10 +38,6 @@ export const EVENT_NAME_PATTERN = /^[a-z][a-z0-9_]{2,63}$/;
 /** Guard 5: `occurred_at` further than this from server `now` (either
  *  direction) is untrustworthy client-clock skew, not a real timestamp. */
 export const CLOCK_SKEW_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /**
  * Bot policy for the ledger, reusing the same named-crawler lists
@@ -83,26 +79,26 @@ function parseEvent(raw: unknown, now: number, userId: string | null): ParsedEve
     return { rejection: { event_id: null, reason: "invalid_shape" } };
   }
 
-  const eventId = isUuid(raw.event_id) ? raw.event_id : null;
-  const occurredAtMs = typeof raw.occurred_at === "string" ? Date.parse(raw.occurred_at) : NaN;
+  const eventId = ENVELOPE_COLUMN_RULES.event_id(raw.event_id) ? (raw.event_id as string) : null;
 
   const shapeOk =
     eventId !== null &&
-    isUuid(raw.session_id) &&
-    typeof raw.event_name === "string" &&
-    !Number.isNaN(occurredAtMs) &&
-    isOptionalUuid(raw.visitor_id) &&
+    ENVELOPE_COLUMN_RULES.session_id(raw.session_id) &&
+    ENVELOPE_COLUMN_RULES.event_name(raw.event_name) &&
+    ENVELOPE_COLUMN_RULES.occurred_at(raw.occurred_at) &&
+    ENVELOPE_COLUMN_RULES.visitor_id(raw.visitor_id) &&
     LEDGER_COLUMN_RULES.query_id(raw.query_id) &&
     LEDGER_COLUMN_RULES.source(raw.source) &&
     LEDGER_COLUMN_RULES.job_id(raw.job_id) &&
     LEDGER_COLUMN_RULES.company_domain(raw.company_domain) &&
     LEDGER_COLUMN_RULES.position(raw.position) &&
-    (raw.props === undefined || isPlainObject(raw.props));
+    ENVELOPE_COLUMN_RULES.props(raw.props);
 
   if (!shapeOk) {
     return { rejection: { event_id: eventId, reason: "invalid_shape" } };
   }
 
+  const occurredAtMs = Date.parse(raw.occurred_at as string);
   const eventName = raw.event_name as string;
   if (!EVENT_NAME_PATTERN.test(eventName)) {
     return { rejection: { event_id: eventId, reason: "invalid_event_name" } };

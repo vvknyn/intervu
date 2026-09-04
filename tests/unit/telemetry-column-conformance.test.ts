@@ -3,22 +3,31 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { LEDGER_COLUMN_RULES, type LedgerColumnName } from "../../src/lib/telemetry/column-rules";
+import {
+  ENVELOPE_COLUMN_RULES,
+  LEDGER_COLUMN_EXEMPTIONS,
+  LEDGER_COLUMN_RULES,
+  type LedgerColumnName,
+} from "../../src/lib/telemetry/column-rules";
 import { processBatch } from "../../src/lib/telemetry/ingest";
 import { TELEMETRY_COLUMNS } from "../../src/app/api/telemetry/route";
 
 /**
- * `LEDGER_COLUMN_RULES` (`column-rules.ts`) is meant to be the single source
- * of truth for both sides of the ledger admission contract. The CLIENT
- * consumes it generically (`client.ts`'s `extractLedgerColumns` iterates
- * `Object.keys(...)`), but the SERVER names all 5 columns by hand three
- * times over (`ingest.ts`'s guard chain, `ingest.ts`'s row builder, and
- * `route.ts`'s `TELEMETRY_COLUMNS`). A 6th entry added to the table would
- * silently vanish server-side with no test failure — this file is that test.
+ * `column-rules.ts` is meant to be the single source of truth for the
+ * ledger admission contract, split into three maps: `LEDGER_COLUMN_RULES`
+ * (the 5 columns promoted out of `props`), `ENVELOPE_COLUMN_RULES` (the
+ * columns every event carries at the wire's top level), and
+ * `LEDGER_COLUMN_EXEMPTIONS` (columns with no client predicate, each with a
+ * reason). The CLIENT consumes `LEDGER_COLUMN_RULES` generically
+ * (`client.ts`'s `extractLedgerColumns` iterates `Object.keys(...)`).
  *
- * Every assertion below iterates `Object.keys(LEDGER_COLUMN_RULES)` — it
- * must never hardcode one of the 5 current column names, or it stops being
- * a conformance check the moment a 6th one is added.
+ * The type-agreement loop below iterates every column
+ * `telemetry-schema.sql`'s `expected_columns` declares — not just
+ * `LEDGER_COLUMN_RULES`'s 5 — and resolves each one to whichever of the
+ * three maps accounts for it. A column declared in the schema but absent
+ * from all three fails loudly instead of silently skipping every assertion,
+ * which is exactly what let `visitor_id:uuid` drift to `visitor_id:text`
+ * with zero test failures before this file existed.
  */
 
 const NOW = Date.parse("2026-09-03T12:00:00Z");
@@ -148,14 +157,63 @@ const SQL_TYPE_COMPAT: Readonly<Record<string, { accepts: unknown; rejects: unkn
   "timestamp with time zone": { accepts: new Date(NOW).toISOString(), rejects: 42 },
 };
 
-for (const key of Object.keys(LEDGER_COLUMN_RULES) as LedgerColumnName[]) {
-  test(`${key}: is declared in telemetry-schema.sql's expected_columns contract`, () => {
+type ColumnResolution =
+  | { kind: "predicate"; predicate: (value: unknown) => boolean }
+  | { kind: "exempt"; reason: string };
+
+/**
+ * Which of the three `column-rules.ts` maps accounts for one SQL-declared
+ * column — matched on MAP MEMBERSHIP, never on the column's name, so a 15th
+ * declared column with no entry anywhere resolves to neither branch and the
+ * caller below fails loudly instead of iterating over a set that quietly
+ * excludes it.
+ */
+function resolveColumn(key: string): ColumnResolution | undefined {
+  const ledgerRules = LEDGER_COLUMN_RULES as Record<string, (value: unknown) => boolean>;
+  const envelopeRules = ENVELOPE_COLUMN_RULES as Record<string, (value: unknown) => boolean>;
+  const hits = [key in ledgerRules, key in envelopeRules, key in LEDGER_COLUMN_EXEMPTIONS].filter(Boolean).length;
+
+  if (hits > 1) {
+    throw new Error(
+      `telemetry-column-conformance: "${key}" is declared in more than one of LEDGER_COLUMN_RULES, ` +
+        "ENVELOPE_COLUMN_RULES, and LEDGER_COLUMN_EXEMPTIONS — a column's admission rule must live in " +
+        "exactly one of those maps.",
+    );
+  }
+  if (key in ledgerRules) return { kind: "predicate", predicate: ledgerRules[key] };
+  if (key in envelopeRules) return { kind: "predicate", predicate: envelopeRules[key] };
+  if (key in LEDGER_COLUMN_EXEMPTIONS) return { kind: "exempt", reason: LEDGER_COLUMN_EXEMPTIONS[key] };
+  return undefined;
+}
+
+// Driven by the SQL contract's own declared columns, not by
+// `LEDGER_COLUMN_RULES` — this is what makes a 15th column force a decision
+// instead of vanishing from every assertion below.
+for (const key of EXPECTED_SQL_COLUMNS.keys()) {
+  const resolution = resolveColumn(key);
+
+  test(`${key}: resolves to exactly one of LEDGER_COLUMN_RULES / ENVELOPE_COLUMN_RULES / LEDGER_COLUMN_EXEMPTIONS`, () => {
     assert.ok(
-      EXPECTED_SQL_COLUMNS.has(key),
-      `${key} is a LEDGER_COLUMN_RULES key but is absent from deploy/db-box/telemetry-schema.sql's ` +
-        "expected_columns array — a ledger column with no declared SQL type is its own bug.",
+      resolution !== undefined,
+      `${key} is declared in telemetry-schema.sql's expected_columns but is absent from ` +
+        "LEDGER_COLUMN_RULES, ENVELOPE_COLUMN_RULES, AND LEDGER_COLUMN_EXEMPTIONS in column-rules.ts — " +
+        "a new column must add a predicate (if client-suppliable) or an exemption with a reason (if not); " +
+        "it cannot land unchecked.",
     );
   });
+
+  if (resolution === undefined) continue;
+
+  if (resolution.kind === "exempt") {
+    test(`${key}: has no client predicate, exempted with a stated reason`, () => {
+      assert.equal(typeof resolution.reason, "string");
+      assert.ok(
+        resolution.reason.trim().length > 0,
+        `${key}'s LEDGER_COLUMN_EXEMPTIONS entry must explain why it has no predicate`,
+      );
+    });
+    continue;
+  }
 
   test(`${key}: predicate's accept/reject shape matches its declared SQL type`, () => {
     const sqlType = EXPECTED_SQL_COLUMNS.get(key);
@@ -171,7 +229,7 @@ for (const key of Object.keys(LEDGER_COLUMN_RULES) as LedgerColumnName[]) {
       );
     }
 
-    const predicate = LEDGER_COLUMN_RULES[key];
+    const { predicate } = resolution;
 
     assert.equal(
       predicate(compat.accepts),
