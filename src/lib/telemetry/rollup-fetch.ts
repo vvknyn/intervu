@@ -51,6 +51,18 @@ export function resolveWindowDays(argv: readonly string[], flagName: string, def
 // is, whether the window is 2 days or 90. If the raw ledger ever outgrows
 // that, the scaling seam is the JS-side aggregation downstream of this
 // (`aggregateDailyMetrics` / `aggregateFeatureOutcomes`), not this query.
+//
+// The lower bound is snapped to a UTC calendar-day boundary
+// (`date_trunc('day', now(), 'UTC')`), not a raw `now()` instant:
+// `--window-days=N` means TODAY SO FAR plus N previous WHOLE days, never a
+// partially-covered oldest day. The upsert this feeds REPLACES each day's
+// row outright (never `count = count + n`, telemetry-derived.sql), so a
+// bound that lands mid-day would permanently discard that day's
+// already-ingested hours on every single run, not just the first. The
+// three-arg `date_trunc(..., 'UTC')` form is required, not
+// `now() at time zone 'utc'`: the latter returns a NAIVE timestamp that
+// gets compared in the session's own timezone (Europe/Berlin on the box),
+// silently reintroducing a multi-hour version of the same truncation.
 export async function fetchWindowEvents(db: Queryable, windowDays: number): Promise<DailyEventRow[]> {
   const { rows } = await db.query<DailyEventRow>(
     `select
@@ -60,7 +72,7 @@ export async function fetchWindowEvents(db: Queryable, windowDays: number): Prom
        company_domain,
        position
      from intervu.telemetry_events
-     where received_at >= now() - make_interval(days => $1)`,
+     where received_at >= date_trunc('day', now(), 'UTC') - make_interval(days => $1)`,
     [windowDays],
   );
   return rows;
@@ -75,6 +87,9 @@ export async function fetchWindowEvents(db: Queryable, windowDays: number): Prom
  * impression row per array entry. An event whose `props` is missing either
  * key contributes zero rows (a set-returning function over a NULL jsonb
  * value returns no rows), not a crash or a fabricated pairing.
+ *
+ * Lower bound is snapped to a UTC day boundary for the same reason and in
+ * the same way as `fetchWindowEvents` above — see that function's comment.
  */
 export async function fetchWindowImpressions(
   db: Queryable,
@@ -89,7 +104,7 @@ export async function fetchWindowImpressions(
        lateral jsonb_array_elements_text(e.props->'job_ids') with ordinality as job_ids(value, ord),
        lateral jsonb_array_elements_text(e.props->'positions') with ordinality as positions(value, ord)
      where e.event_name = 'results_impressed'
-       and e.received_at >= now() - make_interval(days => $1)
+       and e.received_at >= date_trunc('day', now(), 'UTC') - make_interval(days => $1)
        and job_ids.ord = positions.ord`,
     [windowDays],
   );
