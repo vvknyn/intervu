@@ -269,6 +269,25 @@ forward on its own.
 
 ## 2. Set the `telemetry_pg` password — HUMAN-ONLY
 
+**Automated 2026-09-04: `deploy/db-box/launch-telemetry-ingest.sh`** runs
+this step (and §3, §4's corrected rebuild, §6, and a real end-to-end poll)
+in one run from Vivek's Mac. It is still human-*run* — it provisions a
+production credential, so it is deliberately not something any agent
+invokes on its own — but it is no longer human-*typed*: the manual recipe
+below is what it does under the hood, kept here so the steps stay legible
+without reading the script. Prefer the script; use the recipe below only if
+the script itself is unavailable or you need to do this by hand.
+
+```bash
+deploy/db-box/launch-telemetry-ingest.sh
+```
+
+Run it bare — no `AGENT_PG_URL=`/`BATCH_PG_URL=` prefix. Both already live
+on the app box (`intervu.env`/`subspace.env`); the script reads them there,
+inside its own ssh session, via `read_key_from_deploy_dir`. Prefixing them
+on the Mac's own command line would put two live production credentials in
+Vivek's local shell history for no benefit.
+
 **See "Deploy-order correction" above first: this step is currently INERT.**
 `/api/telemetry` is not in the deployed build, so setting this password
 cannot yet change what happens to any request.
@@ -301,6 +320,14 @@ from pg_authid where rolname = 'telemetry_pg';
 ```
 
 ## 3. Add `TELEMETRY_PG_URL` to the app box's env file — HUMAN-ONLY
+
+**Automated 2026-09-04: `deploy/db-box/launch-telemetry-ingest.sh`** (see §2)
+runs this step too — it backs up `intervu.env` with a timestamped
+`.bak-<label>` copy, then replaces an existing `TELEMETRY_PG_URL` line in
+place or appends one if absent (never a duplicate — dotenv here is
+last-assignment-wins, so two lines for the same key silently means whichever
+sorts last actually applies). Prefer the script; the recipe below is what it
+does under the hood.
 
 **See "Deploy-order correction" above first: this step is currently INERT**
 for the same reason as §2 — the container being recreated still won't have
@@ -352,39 +379,43 @@ grep -c '^TELEMETRY_PG_URL=' /opt/interview-os/deploy/contabo-web/intervu.env
 # expect: 1
 ```
 
-## 4. Recreate the container
+## 4. Rebuild the container (CORRECTED 2026-09-04 — this used to say "recreate")
 
 **Precondition:** step 3's grep returned `1`.
 
-**Run:** on the app box (194.163.147.154). The block below `cd`s to its own
-working directory and chains it with `&&`, so it's safe to start from
-anywhere: a failed `cd` stops there rather than running `docker compose`
-from whatever directory the operator was standing in (compose resolves its
-project from cwd).
+**Automated:** `deploy/db-box/launch-telemetry-ingest.sh` (§2) runs this
+step too, via `deploy.sh` exactly as below. Prefer the script.
 
-An `env_file` change is invisible to a running container until it is
-**recreated** — `docker restart` reuses the existing container's already-
-fixed environment and will NOT pick up the new line. Confirmed on this box's
-actual compose file
-(`/opt/interview-os/deploy/contabo-web/docker-compose.yml`): the `intervu`
-service also references `intervu.env` as a **build secret**
-(`secrets: [{source: intervu_env, target: env}]` under `build:`, gated by an
-`ENV_DIGEST` build arg) — that path is for `NEXT_PUBLIC_*` values baked into
-the client bundle at build time. `TELEMETRY_PG_URL` is server-only, read at
-runtime via `process.env` (`src/lib/pg/pool.ts`'s `getTelemetryPg()`), so it
-only needs the **runtime** `env_file` layer refreshed — a recreate, not a
-rebuild:
+**Run:** on the app box (194.163.147.154):
 
 ```bash
-cd /opt/interview-os/deploy/contabo-web && \
-docker compose up -d --force-recreate intervu
+cd /opt/interview-os/deploy/contabo-web && ./deploy.sh
 ```
 
-Do not add `--build` here — nothing in the image changed, only the runtime
-env file. `--build` is for an actual code deploy (extract → swap →
-`docker compose up -d --build intervu`, documented elsewhere); running it
-here is unnecessary time and risk for zero benefit. Never run two concurrent
-compose builds against this stack.
+**This section previously said `docker compose up -d --force-recreate
+intervu`, with no `--build`, reasoning that `TELEMETRY_PG_URL` is server-only
+(read at runtime via `process.env`, `src/lib/pg/pool.ts`'s
+`getTelemetryPg()`) and so only needs the runtime `env_file` layer
+refreshed, not a rebuild. That reasoning was wrong about which command is
+safe, not about `TELEMETRY_PG_URL` being server-only: it is server-only, but
+that is not sufficient to justify skipping the rebuild.** Confirmed on this
+box's actual compose file
+(`/opt/interview-os/deploy/contabo-web/docker-compose.yml`): `intervu.env` is
+consumed **both** as the runtime `env_file` **and** as a build secret
+(`secrets: [{source: intervu_env, target: env}]` under `build:`, gated by an
+`ENV_DIGEST`/`INTERVU_ENV_DIGEST` build-arg cache-buster). `deploy.sh` is the
+one procedure that keeps both layers consistent: it derives
+`INTERVU_ENV_DIGEST` from the file's own sha256 and runs `docker compose up
+-d --build --remove-orphans`. A bare `--force-recreate` (no `--build`)
+leaves the build-time digest/secret stale — for a server-only var like this
+one that happens not to matter *today*, but it is not a distinction worth
+re-deriving by hand at 2am for every future key, and it is exactly the trap
+this note exists to close: **a future reader re-reading the old text would
+"just restart it" and, for a key that does need the build-time layer, ship a
+container that silently still has the old value.** Treat any `intervu.env`
+change — server-only or not — as requiring `deploy.sh`, never
+`--force-recreate` alone. Never run two concurrent compose builds against
+this stack.
 
 **Pass condition**, same app box (194.163.147.154); cwd doesn't matter —
 `docker exec` targets a container name, not a path — container was
@@ -395,6 +426,30 @@ without ever printing its value:
 docker exec contabo-web-intervu-1 sh -c 'env | grep -c "^TELEMETRY_PG_URL="'
 # expect: 1
 ```
+
+**Stronger pass condition — proves the app BUILT A POOL, not merely that a
+string is present.** Both checks above count a line; neither parses one, so
+both pass on a *typo'd* URL. What actually breaks ingest is
+`getTelemetryPg()` returning null, and `/api/telemetry`'s guard-8 try/catch
+swallows the resulting connection FATAL and still answers `204` — which is
+why §0 says never to treat a `204` as launch proof. The route's own `GET`
+reports the pool directly (`poolConfigured: getTelemetryPg() !== null`,
+route.ts:222), unauthenticated and credential-free, from anywhere:
+
+```bash
+curl -sL https://velai.app/api/telemetry
+# before §3+§4: {"droppedCount":0,"lastDroppedAt":null,"poolConfigured":false}
+# after:        {"droppedCount":0,"lastDroppedAt":null,"poolConfigured":true}
+```
+
+Measured 2026-09-04 — prod answers `poolConfigured:false`. That is the
+current externally-visible proof that §3 has not landed, obtainable with no
+SSH, no credentials and no DB access.
+
+`-L` is load-bearing: `intervu.cc` 301-redirects to `velai.app`, and without
+it EVERY path returns `301`, so the probe cannot tell a healthy route from a
+missing one. Verified the followed probe discriminates: `/api/telemetry` →
+`200`, `/api/admin/metrics` → `404`.
 
 ## 5. Sanity-check the mmdb-backed geo lookup
 
