@@ -41,11 +41,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           We also keep a record of what you do while searching: the searches you run (including the text of what
-          you typed), which job postings come up, and which ones you click, open, save, apply to, or spend time
-          reading. If you&apos;re signed in, we tie this to your account and build a profile of your search
+          you typed), which job postings come up, and which ones you click, open, save, or apply
+          to. If you&apos;re signed in, we tie this to your account and build a profile of your search
           activity over time — what you&apos;re looking for, and what you actually respond to. This lives in a
-          PostgreSQL database we run ourselves on our own servers, not Google Cloud Firestore, which is where the
-          rest of your account data above lives.
+          PostgreSQL database we run on our own servers — not in Google Cloud Firestore, where the rest of your
+          account data sits.
         </p>
         <p>
           If you join a waitlist (for example, &ldquo;tell me when it&apos;s ready&rdquo; on the connect page), we
@@ -63,10 +63,10 @@ export default function PrivacyPage() {
           country so first results are nearby, and to rate-limit abusive traffic. Your IP is not stored with your
           account, your searches, or your tracked applications — the country lookup happens on our own server
           against a local database, with no third-party geolocation service involved. That same country check does
-          one more thing: if it places you in the EU or UK, we hold off on giving your browser a long-lived id that
-          would link your search activity across visits — instead you get one that resets when you close the tab,
-          until you&apos;ve made a consent choice. Like nearly every website, our servers keep ordinary technical
-          logs that can briefly include request IPs.
+          one more thing: if it places you in the EU or UK, we don&apos;t give your browser a long-lived id that
+          would link your search activity across visits — you get one that resets when you close the tab, and we
+          don&apos;t currently ask you to opt into anything more. Like nearly every website, our servers keep
+          ordinary technical logs that can briefly include request IPs.
         </p>
         <p>
           The job listings you search are public information we collect from employers&apos; own career pages. We
