@@ -163,7 +163,19 @@ create index if not exists telemetry_events_job_time
 -- whole blob.
 
 -- ---------------------------------------------------------------------------
--- 2. Ingest role. LOGIN, no password set here — set one out of band with
+-- 2. Heartbeat table. One row per named job. A job that cannot prove it ran
+--    is a job nobody knows is dead — five daily crons in this system ran
+--    dead for up to 10 days while exiting 0.
+-- ---------------------------------------------------------------------------
+create table if not exists intervu.job_heartbeats (
+  job_name      text        primary key,
+  last_run_at   timestamptz not null,
+  rows_affected bigint,
+  ok            boolean     not null
+);
+
+-- ---------------------------------------------------------------------------
+-- 3. Ingest role. LOGIN, no password set here — set one out of band with
 --    `\password telemetry_pg` after creation and never commit it (same
 --    convention as agent-credentials-role.sql's ROLE SETUP block).
 -- ---------------------------------------------------------------------------
@@ -176,43 +188,90 @@ end
 $$;
 
 -- ---------------------------------------------------------------------------
--- 3. Corrective revoke. `intervu.telemetry_events` carried acl agent_pg=arwd
---    on the pre-spec orphan table found on prod 2026-09-03 (see
---    deploy/db-box/telemetry-events-drop-orphan.sql), and that grant should
---    not exist on any shape of this table: agent_pg serves the
---    internet-facing per-request bearer-token path
---    (deploy/db-box/agent-credentials-role.sql:11-25 keeps it deliberately
---    narrow to intervu.agent_credentials alone), so a leaked agent
---    credential must never be able to read or delete the behavioural
---    ledger.
+-- 4. Ownership pin + catalog-driven privilege strip.
 --
---    Which case this line is covering depends on when this file runs. The
---    first run after dropping the orphan and recreating the table: a freshly
---    `create table`'d relation has no inherited ACL, so this statement has
---    nothing to undo — it is belt-and-braces, not corrective, and costs
---    nothing (revoking a grant that isn't there is a no-op, not an error).
---    It only becomes corrective again if some future manual `grant` ever
---    re-adds agent_pg to this table — which is the scenario it now exists to
---    guard against, not the one it was written to fix.
+--    Measured on the box 2026-09-03 (pg_default_acl, cross-validated across
+--    5 query oracles): defaclrole=postgres, defaclnamespace=intervu,
+--    defaclobjtype=r -> {service_role=arwdDxtm/postgres,
+--    pipeline=arwdDxtm/postgres}. That rule fires on EVERY table `postgres`
+--    creates in schema intervu — full privileges including DELETE and
+--    TRUNCATE to service_role, at creation time, before any GRANT below
+--    runs. apply-telemetry-migration.sh runs this file as `sudo -u
+--    postgres`, so both tables §1 and §2 create above acquired it the
+--    moment they were created, not from any statement in this file.
 --
---    RULING OWED (Vivek), not acted on here: the same orphan also carries
---    service_role=arwdDxtm, a role this file's model never mentions
---    (telemetry_pg, pipeline, agent_pg are the only roles this schema
---    documents). That grant reads like the same class of stale artifact as
---    agent_pg's — plausibly inherited wholesale from wherever the orphan's
---    DDL originally came from, rather than granted on purpose for this
---    table. If schema intervu has an `alter default privileges` rule
---    granting service_role access to new tables, a bare drop+recreate will
---    silently re-acquire this same grant on the new table, and revoking
---    agent_pg alone would leave that path open. Not adding
---    `revoke all on intervu.telemetry_events from service_role` here because
---    I have no evidence one way or the other that a live code path holds a
---    box connection as service_role — confirm that before deciding.
+--    Today's intervu.telemetry_events (the pre-spec orphan dropped by
+--    deploy/db-box/telemetry-events-drop-orphan.sql, not the table §1
+--    creates) never showed this, because it happens to be owned by
+--    `pipeline`, not `postgres` — the default-ACL rule never fired on it.
+--    That is an absence of evidence, not evidence of absence: the rule
+--    still applies to this schema, it simply never matched that one
+--    table's owner. This resolves the "RULING OWED (Vivek)" this section
+--    used to carry about service_role — the grant is neither stale nor
+--    mysterious, it is ALTER DEFAULT PRIVILEGES doing exactly what it is
+--    configured to do.
+--
+--    ALTER DEFAULT PRIVILEGES is keyed on the CREATING role (defaclrole),
+--    not on anything this file writes. Left alone, security posture here
+--    depends on which OS user happened to type `create table` — run this
+--    file by hand as yourself instead of via sudo -u postgres and the table
+--    comes out clean by accident, not by design. Pinning ownership to
+--    `pipeline` below makes the posture depend on this file instead:
+--    `pipeline` is not the role the rule matches (defaclrole=postgres), so
+--    a table owned by `pipeline` never acquires service_role in the first
+--    place — not on this run, not on any re-run, regardless of which role
+--    executes the file. It also makes §5's own comment ("the reaper and
+--    the nightly rollup run as `pipeline`, the table owner") true rather
+--    than aspirational — today that sentence is false whenever this
+--    migration is applied by a superuser.
+--
+--    Order inside the do-block matters and is not cosmetic. ALTER TABLE
+--    OWNER TO does not touch relacl — it changes pg_class.relowner and
+--    nothing else. The strip loop below decides who to revoke by comparing
+--    each ACL grantee to c.relowner AT THE MOMENT THE LOOP RUNS. If the
+--    strip ran before the owner change, relowner would still read
+--    `postgres`, and the loop would revoke `pipeline` right alongside
+--    service_role — stripping the very grant the default-ACL rule just
+--    gave it, and requiring a human to notice and re-grant it by hand.
+--    Altering the owner first means the loop's owner-exclusion already
+--    matches the table's correct, final owner, so only the illegitimate
+--    grantee(s) get stripped.
+--
+--    The strip reads grantees off the catalog (aclexplode(c.relacl))
+--    rather than naming roles — the failure this section closes is "a
+--    privilege arrived by a path this file does not control", and a
+--    hardcoded list of today's offenders (service_role, agent_pg) cannot
+--    close that: a role added to the default-ACL rule next month would
+--    sail through a hand-written revoke list exactly the way service_role
+--    did.
+--
+--    This also carries forward, in effect rather than by name, the old
+--    `revoke all on intervu.telemetry_events from agent_pg` line that used
+--    to live here: agent_pg is stripped by this same loop if it is ever
+--    present on either table. It is not named because agent_pg is not
+--    part of the default-ACL rule above — on a freshly created table that
+--    revoke was always a no-op; the table it was guarding against was the
+--    pre-spec orphan, which is handled by dropping it
+--    (deploy/db-box/telemetry-events-drop-orphan.sql), not by this file
+--    recreating it.
+--
+--    The loop itself lives in telemetry-acl-strip.sql, not inline here —
+--    apply-telemetry-migration.sh's preflight self-test \ir's that same
+--    file against a throwaway table, so there is exactly one copy of this
+--    logic to keep correct. \ir (not \i): \ir resolves a relative path
+--    against the directory of the currently-executing script, whatever the
+--    caller's cwd is; plain \i resolves against the caller's cwd instead
+--    (even with this file itself opened via an absolute -f path) and would
+--    fail to find telemetry-acl-strip.sql the moment `psql -f
+--    .../telemetry-schema.sql` is run from any other directory (measured
+--    2026-09-04: "No such file or directory", non-fatal without
+--    ON_ERROR_STOP, so it can pass silently too).
 -- ---------------------------------------------------------------------------
-revoke all on intervu.telemetry_events from agent_pg;
+\set strip_tables 'intervu.telemetry_events,intervu.job_heartbeats'
+\ir telemetry-acl-strip.sql
 
 -- ---------------------------------------------------------------------------
--- 4. Grants, exactly per spec: INSERT only. No select, no update, no
+-- 5. Grants, exactly per spec: INSERT only. No select, no update, no
 --    delete. The reaper and the nightly rollup run as `pipeline` (the table
 --    owner), never as telemetry_pg — telemetry_pg exists solely to serve
 --    the internet-facing ingest path and has no legitimate reason to read,
@@ -221,18 +280,6 @@ revoke all on intervu.telemetry_events from agent_pg;
 grant usage on schema intervu to telemetry_pg;
 grant insert on intervu.telemetry_events to telemetry_pg;
 grant usage, select on sequence intervu.telemetry_events_id_seq to telemetry_pg;
-
--- ---------------------------------------------------------------------------
--- 5. Heartbeat table. One row per named job. A job that cannot prove it ran
---    is a job nobody knows is dead — five daily crons in this system ran
---    dead for up to 10 days while exiting 0.
--- ---------------------------------------------------------------------------
-create table if not exists intervu.job_heartbeats (
-  job_name      text        primary key,
-  last_run_at   timestamptz not null,
-  rows_affected bigint,
-  ok            boolean     not null
-);
 
 -- ---------------------------------------------------------------------------
 -- 6. Reaper. Deletes rows past the retention window (default 90 days, per

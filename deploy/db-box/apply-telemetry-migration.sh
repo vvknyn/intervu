@@ -104,6 +104,71 @@ case "$state" in
     ;;
 esac
 
+echo "checking: telemetry ACL strip self-test (throwaway table + roles in schema intervu, always rolled back)"
+# Nothing in this repo parses telemetry-schema.sql's ACL-strip block against
+# a real Postgres engine before it runs against prod — a syntax/logic bug in
+# it (e.g. the %I-vs-%s regrole quoting bug fixed 2026-09-03) would only
+# surface by aborting the real migration, or worse, silently misbehaving.
+# This exercises the SAME strip loop (telemetry-acl-strip.sql, \ir'd below,
+# never copy-pasted) against a throwaway table+roles inside a transaction
+# that always rolls back, so it proves the loop before anything real is at
+# stake, whether this is the first run today or the hundredth next year.
+if (cd "$SCRIPT_DIR" && psql -d postgres -f - <<'SELFTEST_SQL'
+\set ON_ERROR_STOP on
+begin;
+
+create table intervu.__telemetry_acl_selftest (id int);
+
+-- Two grantee names that REQUIRE quoting to round-trip through SQL: one
+-- with a space and capitals, one that is a reserved word. These are the
+-- exact shape of name that broke the %I-quoting bug.
+create role "Weird Role" nologin;
+create role "user" nologin;
+
+grant select on intervu.__telemetry_acl_selftest to "Weird Role";
+grant select on intervu.__telemetry_acl_selftest to "user";
+grant select on intervu.__telemetry_acl_selftest to public;
+
+\set strip_tables 'intervu.__telemetry_acl_selftest'
+\ir telemetry-acl-strip.sql
+
+do $$
+declare
+  acl text;
+begin
+  select relacl::text from pg_class
+    where oid = 'intervu.__telemetry_acl_selftest'::regclass into acl;
+
+  if has_table_privilege('service_role', 'intervu.__telemetry_acl_selftest', 'SELECT') then
+    raise exception 'self-test FAILED: service_role retains a privilege after the strip (acl=%)', acl;
+  end if;
+  if has_table_privilege('Weird Role', 'intervu.__telemetry_acl_selftest', 'SELECT') then
+    raise exception 'self-test FAILED: quoted-name role "Weird Role" retains a privilege after the strip (acl=%)', acl;
+  end if;
+  if has_table_privilege('user', 'intervu.__telemetry_acl_selftest', 'SELECT') then
+    raise exception 'self-test FAILED: reserved-word role "user" retains a privilege after the strip (acl=%)', acl;
+  end if;
+  if has_table_privilege('public', 'intervu.__telemetry_acl_selftest', 'SELECT') then
+    raise exception 'self-test FAILED: PUBLIC retains a privilege after the strip (acl=%)', acl;
+  end if;
+  if acl is not null and acl <> '{pipeline=arwdDxtm/pipeline}' then
+    raise exception 'self-test FAILED: unexpected residual acl after the strip: %', acl;
+  end if;
+end
+$$;
+
+rollback;
+SELFTEST_SQL
+); then
+  :
+else
+  rc=$?
+  echo "FAILED: telemetry ACL strip self-test did not pass (exit $rc) — see the error above." >&2
+  echo "This means the strip loop in telemetry-acl-strip.sql is broken. Refusing to touch" >&2
+  echo "intervu.telemetry_events or intervu.job_heartbeats until it is fixed." >&2
+  exit "$rc"
+fi
+
 echo "applying: telemetry-schema.sql"
 if psql -d postgres -f "$SCHEMA_SQL"; then
   :

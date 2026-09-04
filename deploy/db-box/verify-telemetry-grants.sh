@@ -25,23 +25,32 @@
 #      grant mistake can never touch a real row (Postgres checks table-level
 #      DELETE privilege before the predicate is ever evaluated).
 #   4. agent_pg has no privilege on the table at all (select and insert
-#      both denied) — the corrective revoke from telemetry-schema.sql §3.
-#   5. `select intervu.reap_telemetry(90)` runs and leaves a fresh
+#      both denied) — the corrective revoke from telemetry-schema.sql §4.
+#   5. The catalog's actual grantee census for BOTH tables (telemetry_events
+#      and job_heartbeats) matches the sanctioned set exactly — owner is
+#      `pipeline`, and no grantee beyond the ones §5 of telemetry-schema.sql
+#      names is present. Checks 1-4 above probe named roles
+#      (telemetry_pg, agent_pg) one at a time; a role that was never one of
+#      those names — service_role, or whatever ALTER DEFAULT PRIVILEGES
+#      hands out next — would pass every one of them silently. This check
+#      reads pg_class/aclexplode directly instead of asking about a role by
+#      name, so it catches a grantee this script never thought to ask about.
+#   6. `select intervu.reap_telemetry(90)` runs and leaves a fresh
 #      job_heartbeats row — guarded by size, see NOTE below.
-#   6. intervu.forget_telemetry_user(text) exists, is SECURITY DEFINER,
+#   7. intervu.forget_telemetry_user(text) exists, is SECURITY DEFINER,
 #      owned by pipeline, and has search_path pinned.
-#   7. PUBLIC cannot execute it.
-#   8. telemetry_pg CAN execute it, and it genuinely deletes the target
+#   8. PUBLIC cannot execute it.
+#   9. telemetry_pg CAN execute it, and it genuinely deletes the target
 #      user's row (both the returned count AND the row's absence are
 #      checked — a count of 1 with the row still present is exactly the
 #      bug this must catch).
-#   9. A null/empty uid is refused, returns 0, and touches nothing.
-#   Checks 7-9 are gated behind check 6: `to_regprocedure(...)` (not a
+#   10. A null/empty uid is refused, returns 0, and touches nothing.
+#   Checks 8-10 are gated behind check 7: `to_regprocedure(...)` (not a
 #   `::regprocedure` cast) is used everywhere the function's existence
 #   matters, because a cast raises a hard error under this script's
 #   `set -euo pipefail` when the function is absent — a different, uglier,
-#   non-continuable failure than a clean FAIL line. If check 6 finds the
-#   function missing, checks 7-9 are FAILed directly with the same reason
+#   non-continuable failure than a clean FAIL line. If check 7 finds the
+#   function missing, checks 8-10 are FAILed directly with the same reason
 #   instead of running a query that would abort the whole script.
 #
 # NOTE on check 5 (reap_telemetry): `intervu.reap_telemetry()` issues its
@@ -153,6 +162,37 @@ then
   agent_clean=0
 fi
 [[ "$agent_clean" -eq 1 ]] && pass "agent_pg SELECT and INSERT both denied"
+
+# Catalog census. Checks 1-4 above ask about one named role at a time
+# (telemetry_pg, agent_pg) — a role neither of them names, such as
+# service_role via ALTER DEFAULT PRIVILEGES, would pass all four silently.
+# This reads the grantee set straight off pg_class/aclexplode instead, so it
+# catches a privilege this script never thought to ask about by name. A
+# small local helper avoids writing the same query twice for the two
+# tables.
+check_census() {
+  local rel="$1" expected="$2" owner actual
+  owner="$(psql "$BATCH_PG_URL" -qAtc "select pg_get_userbyid(relowner) from pg_class where oid = '${rel}'::regclass")"
+  if [[ "$owner" != "pipeline" ]]; then
+    fail "${rel} is owned by '${owner}', expected 'pipeline'"
+    return
+  fi
+  actual="$(psql "$BATCH_PG_URL" -qAtc "
+    select coalesce(string_agg(
+        (case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end)
+        || ':' || a.privilege_type, ',' order by 1), '')
+    from pg_class c, aclexplode(c.relacl) a
+    where c.oid = '${rel}'::regclass and a.grantee <> c.relowner")"
+  if [[ "$actual" == "$expected" ]]; then
+    pass "${rel} owned by pipeline, grantee census is exactly [${expected:-none}]"
+  else
+    fail "${rel} grantee census mismatch — expected [${expected:-none}], got [${actual:-none}]"
+  fi
+}
+
+echo "checking: catalog grantee census matches the sanctioned set (telemetry_events, job_heartbeats)"
+check_census "intervu.telemetry_events" "telemetry_pg:INSERT"
+check_census "intervu.job_heartbeats" ""
 
 echo "checking: intervu.reap_telemetry() runs and heartbeats"
 REAP_VERIFY_MAX_ROWS="${REAP_VERIFY_MAX_ROWS:-5000}"
