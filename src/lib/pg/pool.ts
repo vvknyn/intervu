@@ -88,6 +88,17 @@ export const getExhaustPg = createPool("EXHAUST_PG_URL", { readOnly: true, state
  */
 export const getAgentPg = createPool("AGENT_PG_URL", { statementTimeout: "15s" });
 
+/**
+ * Returns the telemetry-ledger query seam, or null when TELEMETRY_PG_URL is
+ * unset — the same fail-soft-on-missing-env contract as `getIntervuPg`/
+ * `getExhaustPg`/`getAgentPg`. Read-write (this pool only ever INSERTs — the
+ * `telemetry_pg` role itself has no select/update/delete grant, see
+ * `deploy/db-box/telemetry-schema.sql`) with a tight 5s statement timeout:
+ * this backs `POST /api/telemetry`, which must never let a slow write hold
+ * up the request — telemetry failing must never break a page.
+ */
+export const getTelemetryPg = createPool("TELEMETRY_PG_URL", { statementTimeout: "5s" });
+
 export function isIdentityStoreEnabled(): boolean {
   return getIntervuPg() !== null;
 }
