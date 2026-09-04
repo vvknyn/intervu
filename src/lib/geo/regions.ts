@@ -50,7 +50,11 @@ interface RegionAliasDef {
   exclude?: string[];
 }
 
-const EU_MEMBERS = [
+/** ISO2 codes of current EU member states — exported as the single source
+ *  of truth for EU membership so a caller outside this module (e.g. the
+ *  telemetry client's EU/UK jurisdiction check, geo/eu-uk-jurisdiction.ts)
+ *  reuses this list instead of maintaining its own copy that could drift. */
+export const EU_MEMBERS = [
   "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT",
   "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
 ];

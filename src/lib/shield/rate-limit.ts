@@ -44,13 +44,17 @@ export function checkRateLimitWindow(
  *  have fully aged out — otherwise an idle IP's array lingers forever.
  *  Not on every call (that would be O(n) per request); only once growth
  *  suggests it's worth the pass. Shared threshold: it's a generic "is this
- *  map big enough to bother pruning" judgment, not tied to any one chokepoint. */
-const SWEEP_THRESHOLD = 5_000;
+ *  map big enough to bother pruning" judgment, not tied to any one chokepoint.
+ *  Exported so other in-process, per-key stores (e.g. `lib/telemetry/rate-limit.ts`)
+ *  reuse this sweep instead of a second copy of the same threshold-and-prune
+ *  logic. */
+export const SWEEP_THRESHOLD = 5_000;
 
 /** Prune timestamps that have aged out of the window from every entry in
  *  `log`, dropping IPs left with none. Takes the map as a parameter so each
- *  chokepoint's store gets swept without duplicating this loop per caller. */
-function sweepStale(log: Map<string, number[]>, now: number, windowMs: number): void {
+ *  chokepoint's store gets swept without duplicating this loop per caller.
+ *  Exported for the same reason as `SWEEP_THRESHOLD` above. */
+export function sweepStale(log: Map<string, number[]>, now: number, windowMs: number): void {
   const cutoff = now - windowMs;
   for (const [ip, timestamps] of log) {
     const retained = timestamps.filter((t) => t > cutoff);

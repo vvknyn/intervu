@@ -1,18 +1,12 @@
 {
   "orphans": [
-    "lib/auth/firebase-to-workos.ts",
-    "lib/auth/supabase-to-workos.ts",
-    "lib/auth/test-identity.ts",
-    "lib/auth/workos-apps.ts",
     "lib/companies/hot-list.ts",
     "lib/export-resume-pdf.ts",
     "lib/jobs/fit-verdict.ts",
-    "lib/jobs/sync.ts",
     "lib/llm/batch-manager.ts",
     "lib/llm/cache.ts",
     "lib/llm/usage-tracker.ts",
     "lib/mock-ai.ts",
-    "lib/pricing.ts",
     "lib/resume-diff.ts",
     "lib/resume/apply-recommendations.ts",
     "lib/resume/print-resume.ts",
