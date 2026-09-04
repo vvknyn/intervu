@@ -1,8 +1,8 @@
 /**
  * POST /api/telemetry — thin I/O half. Decision-making lives in
  * `lib/telemetry/ingest.ts` (shape/size/name/clock/dedup) and
- * `lib/telemetry/rate-limit.ts` (per-session budget); this file only reads
- * guards off the Request, calls those, and inserts.
+ * `lib/telemetry/rate-limit.ts` (per-session AND per-IP budgets); this file
+ * only reads guards and identity off the Request, calls those, and inserts.
  *
  * Guard order follows SPEC §4 exactly:
  *   1. Content-Length, BEFORE request.json() — the container is a single
@@ -11,15 +11,24 @@
  *   2. batch length > 50 -> 400
  *   3–5. per-event props/name/clock guards (ingest.processBatch)
  *   6. bot UA -> drop silently
- *   7. per-session rate limit
+ *   7. per-session AND per-IP rate limits (rate-limit.partitionByRateLimit)
  *   8. insert, ON CONFLICT (event_id) DO NOTHING, one multi-row statement,
  *      rows pre-sorted by event_id (unsorted multi-row upserts caused 7,318
  *      deadlocks in this codebase's history)
  *   9. always 204 — the endpoint returns no data, ever
  *  10. never throw into the request path
+ *
+ * Identity: `user_id` is never read off the request body (see
+ * `RawTelemetryEvent` in lib/telemetry/types.ts) — it is resolved exactly
+ * once per request via `getServerUser()`, the one place in this app that
+ * answers "who is signed in", and stamped onto every admitted row.
+ * `/api/telemetry` is covered by the AuthKit middleware (`src/middleware.ts`
+ * matcher excludes only static assets), so `withAuth()` resolves here.
  */
 import { NextResponse } from "next/server";
+import { getServerUser } from "@/lib/auth/server-user";
 import { getTelemetryPg, type Queryable } from "@/lib/pg/pool";
+import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
 import { isBatchTooLarge, isBotUserAgent, MAX_BODY_BYTES, processBatch, sortByEventId } from "@/lib/telemetry/ingest";
 import { partitionByRateLimit } from "@/lib/telemetry/rate-limit";
 import type { TelemetryBatchRequest, TelemetryRow } from "@/lib/telemetry/types";
@@ -96,17 +105,21 @@ export async function POST(request: Request): Promise<NextResponse> {
       return new NextResponse(null, { status: 400 });
     }
 
+    // Identity: resolved server-side, never taken from the body.
+    const user = await getServerUser();
+
     // Guards 3–5.
     const now = Date.now();
-    const { rows, rejections } = processBatch(body.events, now);
+    const { rows, rejections } = processBatch(body.events, now, user?.uid ?? null);
 
     // Guard 6 — a bot's whole batch is dropped, never inserted.
     const isBot = isBotUserAgent(request.headers.get("user-agent"));
 
     // Guard 7.
+    const ip = resolveClientIpFromHeaders(request.headers);
     const { admitted, rejected: rateLimited } = isBot
       ? { admitted: [] as TelemetryRow[], rejected: [] }
-      : partitionByRateLimit(rows, now);
+      : partitionByRateLimit(rows, now, ip);
 
     if (rejections.length || rateLimited.length || isBot) {
       console.warn(

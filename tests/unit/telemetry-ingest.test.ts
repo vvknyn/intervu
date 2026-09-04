@@ -46,6 +46,20 @@ test("accepts a well-formed event and fills unset optional columns with null", (
   );
 });
 
+test("a stray user_id on the wire is ignored — every row is attributed to the resolved caller identity", () => {
+  const eventId = uuid();
+  // A hostile or buggy client sends `user_id` anyway, naming SOMEONE ELSE's
+  // uid. It must never reach the row: `RawTelemetryEvent` has no such field,
+  // and parseEvent never reads it off `raw`.
+  const events = [validEvent({ event_id: eventId, user_id: "someone-elses-uid" })];
+
+  const signedIn = processBatch(events, NOW, "the-real-caller-uid");
+  assert.equal(signedIn.rows[0].user_id, "the-real-caller-uid", "the row is attributed to the resolved session, not the wire value");
+
+  const signedOut = processBatch(events, NOW, null);
+  assert.equal(signedOut.rows[0].user_id, null, "signed out attributes to null, still never the wire value");
+});
+
 test("isBatchTooLarge: the class boundary, not just the one motivating size", () => {
   assert.equal(isBatchTooLarge(new Array(MAX_BATCH_SIZE).fill({})), false, "exactly at the cap is fine");
   assert.equal(isBatchTooLarge(new Array(MAX_BATCH_SIZE + 1).fill({})), true, "one over is rejected");

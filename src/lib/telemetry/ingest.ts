@@ -85,8 +85,13 @@ export function isBatchTooLarge(events: readonly unknown[]): boolean {
 type ParsedEvent = { row: TelemetryRow } | { rejection: TelemetryRejection };
 
 /** Guards 3–5 for one event. Never throws — a malformed field just fails a
- *  shape check and becomes a rejection, the same as a missing one. */
-function parseEvent(raw: unknown, now: number): ParsedEvent {
+ *  shape check and becomes a rejection, the same as a missing one.
+ *
+ *  `userId` is the caller's identity as the SERVER resolved it (or `null`
+ *  signed out) — never read off `raw`. A stray `user_id` property on the
+ *  wire body is simply not looked at, by construction: there is no branch
+ *  here that touches `raw.user_id`. */
+function parseEvent(raw: unknown, now: number, userId: string | null): ParsedEvent {
   if (!isPlainObject(raw)) {
     return { rejection: { event_id: null, reason: "invalid_shape" } };
   }
@@ -101,7 +106,6 @@ function parseEvent(raw: unknown, now: number): ParsedEvent {
     !Number.isNaN(occurredAtMs) &&
     isOptionalUuid(raw.visitor_id) &&
     isOptionalUuid(raw.query_id) &&
-    isOptionalString(raw.user_id) &&
     isOptionalString(raw.source) &&
     isOptionalString(raw.job_id) &&
     isOptionalString(raw.company_domain) &&
@@ -132,7 +136,7 @@ function parseEvent(raw: unknown, now: number): ParsedEvent {
       occurred_at: new Date(skewed ? now : occurredAtMs).toISOString(),
       session_id: raw.session_id as string,
       visitor_id: (raw.visitor_id as string | null | undefined) ?? null,
-      user_id: (raw.user_id as string | null | undefined) ?? null,
+      user_id: userId,
       event_name: eventName,
       source: (raw.source as string | null | undefined) ?? null,
       query_id: (raw.query_id as string | null | undefined) ?? null,
@@ -170,14 +174,20 @@ export interface ProcessBatchResult {
  * cross-request case — a retried beacon — is handled by `ON CONFLICT (event_id)
  * DO NOTHING` at insert time; this only covers one client batching the same
  * event twice before it ever reaches the network).
+ *
+ * `userId` is stamped onto every row in the batch — one request carries one
+ * resolved identity (or none), never a per-event one — as the route's
+ * `getServerUser()` result, `null` when signed out. Defaults to `null` so
+ * callers that don't pass it (existing tests) get exactly today's
+ * signed-out behaviour.
  */
-export function processBatch(events: readonly unknown[], now: number): ProcessBatchResult {
+export function processBatch(events: readonly unknown[], now: number, userId: string | null = null): ProcessBatchResult {
   const rows: TelemetryRow[] = [];
   const rejections: TelemetryRejection[] = [];
   const seen = new Set<string>();
 
   for (const raw of events) {
-    const parsed = parseEvent(raw, now);
+    const parsed = parseEvent(raw, now, userId);
     if ("rejection" in parsed) {
       rejections.push(parsed.rejection);
       continue;
