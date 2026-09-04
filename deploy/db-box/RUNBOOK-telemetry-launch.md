@@ -357,7 +357,10 @@ grep -c '^TELEMETRY_PG_URL=' /opt/interview-os/deploy/contabo-web/intervu.env
 **Precondition:** step 3's grep returned `1`.
 
 **Run:** on the app box (194.163.147.154). The block below `cd`s to its own
-working directory, so it's safe to start from anywhere.
+working directory and chains it with `&&`, so it's safe to start from
+anywhere: a failed `cd` stops there rather than running `docker compose`
+from whatever directory the operator was standing in (compose resolves its
+project from cwd).
 
 An `env_file` change is invisible to a running container until it is
 **recreated** — `docker restart` reuses the existing container's already-
@@ -373,7 +376,7 @@ only needs the **runtime** `env_file` layer refreshed — a recreate, not a
 rebuild:
 
 ```bash
-cd /opt/interview-os/deploy/contabo-web
+cd /opt/interview-os/deploy/contabo-web && \
 docker compose up -d --force-recreate intervu
 ```
 
