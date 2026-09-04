@@ -79,7 +79,7 @@ mkdir -p "$FX/notext"
 ln -sf "$FX"/base/* "$FX/notext/" 2>/dev/null
 cp "$FX/shim/timeout" "$FX/shim/flock" "$FX/shim/npm" "$FX/notext/"
 
-fails=0 rc=0 ran=0 log=""
+fails=0 oks=0 rc=0 ran=0 log=""
 
 # run <npm-mode> [path-dir] [preinstall|jobname]
 run() {
@@ -103,6 +103,7 @@ run() {
 
 check() { # check <label> <want-rc> <want-ran> <want-substring>
     if [[ "$rc" == "$2" && "$ran" == "$3" ]] && grep -qF -- "$4" <<<"$log"; then
+        oks=$((oks + 1))
         printf 'ok   %s\n' "$1"
     else
         printf 'FAIL %s\n     want rc=%s ran=%s containing %q\n     got  rc=%s ran=%s\n     log: %s\n' \
@@ -219,6 +220,7 @@ ci_count=$(grep -c '^ci ' "$FX/counter")
 ran1=$(grep -c "TSX RAN" "$FX/clog1")
 ran2=$(grep -c "TSX RAN" "$FX/clog2")
 if [[ "$rc1" == 0 && "$rc2" == 0 && "$ci_count" == 1 && "$ran1" == 1 && "$ran2" == 1 ]]; then
+    oks=$((oks + 1))
     printf 'ok   two different jobs racing on a fresh install -> exactly one npm ci, both jobs run\n'
 else
     printf 'FAIL two different jobs racing -> want rc=0/0 ci=1 ran=1/1, got rc=%s/%s ci=%s ran=%s/%s\n     clog1: %s\n     clog2: %s\n' \
@@ -235,6 +237,7 @@ chmod +x "$FX/root/node_modules/.bin/tsx"
 run_race demo-job "$FX/clog1" "$FX/lock1"; wait "$LAST_PID"; rc=$?
 ci_count=$(grep -c '^ci ' "$FX/counter")
 if [[ "$rc" == 0 && "$ci_count" == 0 ]] && grep -qF "OK   exit=0" "$FX/clog1"; then
+    oks=$((oks + 1))
     printf 'ok   tsx already present -> install lock and npm untouched, fast path unchanged\n'
 else
     printf 'FAIL tsx already present -> want rc=0 ci=0, got rc=%s ci=%s\n     clog1: %s\n' \
@@ -258,6 +261,7 @@ ci_count=$(grep -c '^ci ' "$FX/counter")
 resolved_lock="$(grep -oE 'FAIL install lock [^ ]+' "$FX/clog1" | awk '{print $4}')"
 if [[ "$rc" != 0 && "$ci_count" == 0 ]] && grep -qF "install lock" "$FX/clog1" && grep -qF "for over 1s" "$FX/clog1" \
     && [[ "$resolved_lock" == "$lockfile" && "$resolved_lock" != "$FX/root"* ]]; then
+    oks=$((oks + 1))
     printf 'ok   install lock held by another run -> loud timeout failure, npm never invoked\n'
 else
     printf 'FAIL install lock held by another run -> want rc!=0 ci=0 timeout on %q (outside INTERVU_ROOT), got rc=%s ci=%s resolved=%q\n     clog1: %s\n' \
@@ -298,6 +302,7 @@ ci_count=$(grep -c '^ci ' "$FX/counter")
 resolved_lock="$(grep -oE 'FAIL install lock [^ ]+' "$FX/clog1" | awk '{print $4}')"
 if [[ "$rc" != 0 && "$ci_count" == 0 ]] && grep -qF "install lock" "$FX/clog1" && grep -qF "for over 1s" "$FX/clog1" \
     && [[ "$resolved_lock" == "$lockfile" && "$resolved_lock" != "$FX/root"* ]]; then
+    oks=$((oks + 1))
     printf 'ok   deploy swaps INTERVU_ROOT mid-hold -> lock still serializes across the swap, no race\n'
 else
     printf 'FAIL deploy swap -> want rc!=0 ci=0 timeout on %q (outside INTERVU_ROOT), got rc=%s ci=%s resolved=%q\n     clog1: %s\n' \
@@ -308,4 +313,4 @@ fi
 
 echo
 if (( fails )); then echo "$fails test(s) FAILED"; exit 1; fi
-echo "all 13 tests passed"
+echo "all $oks tests passed"
