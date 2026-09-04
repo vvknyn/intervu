@@ -6,8 +6,10 @@ import {
   shouldCaptureEvent,
   captureEvent,
   buildLedgerProps,
+  LEDGER_ONLY_STRING_CAP,
 } from "../../src/lib/analytics/events";
 import { extractLedgerColumns } from "../../src/lib/telemetry/client";
+import { MAX_PROPS_LENGTH, processBatch } from "../../src/lib/telemetry/ingest";
 
 /**
  * The Node test env has no `window` and posthog.__loaded starts false (no
@@ -211,10 +213,52 @@ test("buildLedgerProps merges ledgerOnly in when given, and is a no-op passthrou
 
   const merged = buildLedgerProps(payload, { query_text: "senior engineer" });
   assert.deepEqual(merged, { ...payload, query_text: "senior engineer" });
+  assert.equal("ledger_truncated" in merged, false, "a payload under the cap carries no truncation flag");
 
   // No third argument at all — every existing call site's shape. Must be
   // exactly the payload, nothing added or removed.
   assert.deepEqual(buildLedgerProps(payload), payload);
+});
+
+// A ledger-only value the caller can't bound (raw user input — a search box
+// accepts a full pasted job description) must never be able to take its own
+// event down. See LEDGER_ONLY_STRING_CAP's doc comment in events.ts.
+
+test("buildLedgerProps: an oversized ledger-only value is truncated, flagged, and the event survives processBatch instead of being rejected as props_too_large", () => {
+  const payload = { query_length: 4100, has_location: false, filter_count: 0 };
+  const pastedJobDescription = "x".repeat(4100); // alone, well past MAX_PROPS_LENGTH once stringified
+
+  const merged = buildLedgerProps(payload, { query_text: pastedJobDescription });
+
+  assert.equal(merged.ledger_truncated, true);
+  assert.equal((merged.query_text as string).length, LEDGER_ONLY_STRING_CAP);
+  assert.ok(
+    JSON.stringify(merged).length <= MAX_PROPS_LENGTH,
+    "the bounded props must fit under ingest.ts's own cap",
+  );
+
+  const { rows, rejections } = processBatch(
+    [
+      {
+        event_id: crypto.randomUUID(),
+        occurred_at: new Date().toISOString(),
+        session_id: crypto.randomUUID(),
+        event_name: "search_submitted",
+        props: merged,
+      },
+    ],
+    Date.now(),
+  );
+
+  assert.equal(rejections.length, 0, `expected the event to survive, got ${JSON.stringify(rejections)}`);
+  assert.equal(rows.length, 1);
+});
+
+test("buildLedgerProps: the cap is generic — a ledger-only key other than query_text is bounded the same way", () => {
+  const merged = buildLedgerProps({ some_metric: 1 }, { some_future_field: "y".repeat(500) });
+
+  assert.equal(merged.ledger_truncated, true);
+  assert.equal((merged.some_future_field as string).length, LEDGER_ONLY_STRING_CAP);
 });
 
 test("composition proof: a ledger-only prop merged via buildLedgerProps lands in extractLedgerColumns' props, not columns", () => {

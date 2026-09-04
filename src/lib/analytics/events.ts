@@ -240,6 +240,16 @@ export function shouldCaptureEvent(hasWindow: boolean, loaded: boolean): boolean
   return hasWindow && loaded;
 }
 
+/** A ledger-only string longer than this is truncated before merging — a
+ *  real search query (today's only ledger-only value) is well under 200
+ *  chars, so this only ever bites pathological input (e.g. a full job
+ *  description pasted into the search box). Bounding it here, generically,
+ *  means an oversized ledger-only value can never grow `props` past
+ *  `MAX_PROPS_LENGTH` (`lib/telemetry/ingest.ts`) and take the WHOLE event
+ *  down as `props_too_large` — losing every other prop on the event, not
+ *  just the oversized one. */
+export const LEDGER_ONLY_STRING_CAP = 200;
+
 /**
  * Pure: builds what the ledger's `trackToLedger` call receives, merging in
  * any ledger-only props — kept out of `captureEvent` itself so this merge
@@ -249,12 +259,32 @@ export function shouldCaptureEvent(hasWindow: boolean, loaded: boolean): boolean
  * as-is (not copied) when there's no `ledgerOnly` to merge, so every
  * existing call site — which never passes a third argument — sends the
  * ledger byte-for-byte what it always did.
+ *
+ * Every string value in `ledgerOnly` is bounded to `LEDGER_ONLY_STRING_CAP`
+ * — generically, by value type, never by key name, so a second ledger-only
+ * payload added later (`LedgerOnlyPayloads`) is covered automatically. When
+ * anything was actually truncated, `ledger_truncated: true` is added to the
+ * result so the fact is visible in the stored data rather than silently
+ * lossy; nothing is fabricated or padded when it wasn't.
  */
 export function buildLedgerProps(
   payload: Record<string, unknown>,
   ledgerOnly?: Record<string, unknown>,
 ): Record<string, unknown> {
-  return ledgerOnly ? { ...payload, ...ledgerOnly } : payload;
+  if (!ledgerOnly) return payload;
+
+  let truncated = false;
+  const bounded: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(ledgerOnly)) {
+    if (typeof value === "string" && value.length > LEDGER_ONLY_STRING_CAP) {
+      bounded[key] = value.slice(0, LEDGER_ONLY_STRING_CAP);
+      truncated = true;
+    } else {
+      bounded[key] = value;
+    }
+  }
+
+  return truncated ? { ...payload, ...bounded, ledger_truncated: true } : { ...payload, ...bounded };
 }
 
 /**

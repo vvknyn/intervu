@@ -33,7 +33,12 @@ import { isBatchTooLarge, isBotUserAgent, MAX_BODY_BYTES, processBatch, sortByEv
 import { partitionByRateLimit } from "@/lib/telemetry/rate-limit";
 import type { TelemetryBatchRequest, TelemetryRow } from "@/lib/telemetry/types";
 
-const TELEMETRY_COLUMNS = [
+/** Exported so a conformance test (`tests/unit/telemetry-column-conformance.test.ts`)
+ *  can assert every `LEDGER_COLUMN_RULES` key is admitted into the insert
+ *  column list — this array is otherwise the third hand-written enumeration
+ *  of the 5 ledger columns (alongside `ingest.ts`'s guard chain and row
+ *  builder), so it's the one place that gap could hide silently. */
+export const TELEMETRY_COLUMNS = [
   "event_id",
   "occurred_at",
   "session_id",
