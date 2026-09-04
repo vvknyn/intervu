@@ -8,12 +8,23 @@
  *
  * Two things this file exists to guarantee:
  *
- * 1. **Identity survives the move.** Every Firestore document is keyed by the
- *    Firebase uid (`profiles`, `applications`, `tailored_resumes`, ... all
- *    carry `user_id`). If WorkOS minted fresh ids and nothing carried the old
- *    one, every one of those documents would orphan. The uid therefore travels
- *    as `external_id` — a first-class, queryable WorkOS field — and again in
- *    `metadata.firebase_uid` so a human reading the dashboard can see it.
+ * 1. **Identity survives the move.** Every OWNER-SCOPED Firestore document is
+ *    addressed by the Firebase uid — some collections key the document by it
+ *    (`owner: { by: "docId" }`), others carry it in a field
+ *    (`owner: { by: "field", field: "user_id" }`). Which shape each collection
+ *    uses is recorded per collection in
+ *    `src/lib/db/firestore-migration-manifest.ts`, and is deliberately not
+ *    restated here — a hand-copied roster drifts, and this one had: it read
+ *    "every Firestore document is keyed by the Firebase uid (`profiles`,
+ *    `applications`, `tailored_resumes`, ... all carry `user_id`)", which
+ *    conflates the two shapes (`profiles` is keyed by docId and has no
+ *    `user_id` field) and is false as a universal — the collections marked
+ *    `owner: { by: "none" }`, such as `search_events`, carry no identity field
+ *    at all and so cannot orphan. If WorkOS minted fresh ids and nothing
+ *    carried the old one, every owner-scoped document would orphan. The uid
+ *    therefore travels as `external_id` — a first-class, queryable WorkOS
+ *    field — and again in `metadata.firebase_uid` so a human reading the
+ *    dashboard can see it.
  *
  * 2. **Passwords keep working.** Firebase hashes with a modified scrypt whose
  *    parameters live on the PROJECT, not the user. WorkOS accepts them as

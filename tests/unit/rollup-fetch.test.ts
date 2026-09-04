@@ -108,7 +108,7 @@ describe("fetchRollupEvents — window reuse", () => {
 });
 
 describe("fetchWindowEvents / fetchWindowImpressions — UTC day-snapped lower bound", () => {
-  it("both queries bound on date_trunc('day', now(), 'UTC') minus the window, not a raw now() instant", async () => {
+  it("both queries bound on UTC_DAY_TRUNC_NOW_SQL minus the window, not a raw now() instant", async () => {
     const capturedTexts: string[] = [];
     const db: Queryable = {
       query: async <R>(text: string) => {
@@ -124,12 +124,58 @@ describe("fetchWindowEvents / fetchWindowImpressions — UTC day-snapped lower b
     for (const text of capturedTexts) {
       const boundLine = text.split("\n").find((line) => line.includes(">="));
       assert.ok(boundLine, `expected a lower-bound line in:\n${text}`);
-      // Exact required form: the three-arg date_trunc, not
-      // `now() at time zone 'utc'` (returns a naive timestamp compared in
-      // the session's own timezone) and not a bare `now() - make_interval`
-      // (the pre-fix instant-based bound this replaces).
-      assert.match(boundLine!, /date_trunc\('day', now\(\), 'UTC'\) - make_interval\(days => \$1\)/);
+      // Hardcoded literal, NOT `${UTC_DAY_TRUNC_NOW_SQL}` — asserting a
+      // constant against itself imported from the same module is
+      // trivially true no matter what that constant equals, so it could
+      // never catch a regression in derived-day.ts. This must independently
+      // break if the constant's zone or form ever changes.
+      assert.ok(
+        boundLine!.includes(`>= date_trunc('day', now(), 'UTC') - make_interval(days => $1)`),
+        `expected the UTC day-truncated bound in:\n${boundLine}`,
+      );
     }
+  });
+});
+
+describe("fetchWindowEvents / fetchWindowImpressions — UTC day LABEL, job_daily/company_daily lane", () => {
+  // THE BOUNDARY CASE for this lane (same instant used in derived-day.test.ts
+  // and query-daily-fetch.test.ts, so all three lanes are pinned to the
+  // identical piece of evidence): 2026-08-23T23:30:00Z is 2026-08-23 in UTC
+  // but already 2026-08-24 in Europe/Berlin (verified against live Postgres,
+  // 2026-09-04 — see derived-day.ts's module doc). This test can't execute
+  // that Postgres arithmetic (no live DB here), so it asserts the part that
+  // determines which answer this lane would give: the day-label fragment
+  // actually sent to Postgres is byte-equal to the shared UTC helper's
+  // output, not a hand-rolled duplicate that could spell a different zone.
+  it("fetchWindowEvents' day column is exactly utcDayColumnSql('received_at')", async () => {
+    let capturedText = "";
+    const db: Queryable = {
+      query: async <R>(text: string) => {
+        capturedText = text;
+        return { rows: [] as R[] };
+      },
+    };
+    await fetchWindowEvents(db, 5);
+    // Hardcoded literal, NOT `${utcDayColumnSql("received_at")}` — asserting
+    // against a call to the same (possibly regressed) helper would let both
+    // sides drift together if its zone literal ever changed, silently
+    // passing (the exact "two legs sharing an assumption" failure mode).
+    // This must independently break if the helper stops emitting UTC.
+    assert.ok(capturedText.includes(`to_char(received_at at time zone 'utc', 'YYYY-MM-DD') as day`));
+  });
+
+  it("fetchWindowImpressions' day column is exactly utcDayColumnSql('e.received_at')", async () => {
+    let capturedText = "";
+    const db: Queryable = {
+      query: async <R>(text: string) => {
+        capturedText = text;
+        return { rows: [] as R[] };
+      },
+    };
+    await fetchWindowImpressions(db, 5);
+    // Same reasoning as fetchWindowEvents' assertion above: a literal, not
+    // a call through the (possibly regressed) shared helper.
+    assert.ok(capturedText.includes(`to_char(e.received_at at time zone 'utc', 'YYYY-MM-DD') as day`));
   });
 });
 
