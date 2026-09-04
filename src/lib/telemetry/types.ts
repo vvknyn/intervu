@@ -11,13 +11,19 @@
  *  is NOT trusted — see `CLOCK_SKEW_WINDOW_MS` in `./ingest`. Every field
  *  the DDL types as `uuid` is carried as a string here; shape validation
  *  (ingest.ts) is what actually enforces the uuid format before a row is
- *  ever built. */
+ *  ever built.
+ *
+ *  Deliberately has NO `user_id`. Identity is not a client-suppliable field
+ *  for this endpoint — a client that could name any uid would let anyone
+ *  poison another user's row in a ledger that drives search ranking. The
+ *  route resolves the caller's own identity server-side (`getServerUser()`)
+ *  and stamps it onto every row itself; see `processBatch`'s `userId`
+ *  parameter in `./ingest`. */
 export interface RawTelemetryEvent {
   event_id: string;
   occurred_at: string;
   session_id: string;
   visitor_id?: string | null;
-  user_id?: string | null;
   event_name: string;
   source?: string | null;
   query_id?: string | null;
