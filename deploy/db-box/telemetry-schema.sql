@@ -175,6 +175,19 @@ create table if not exists intervu.job_heartbeats (
   ok            boolean     not null
 );
 
+-- run_id ties a heartbeat row to an exact run instead of a clock-derived
+-- duration (2026-09-04 fix — see src/lib/telemetry/heartbeat.ts's module doc
+-- for the elapsed-seconds defect class this replaces: a whole-second
+-- app-box duration could read 0, or even negative, and destroy a row a
+-- concurrent writer had just written for the SAME run). Added via ALTER
+-- rather than folded into the CREATE TABLE above so this file stays correct
+-- against both a fresh cluster (the column exists from the first run) and
+-- today's prod cluster, which already has rows: NULLABLE is deliberate,
+-- since nothing backfills run_id onto rows written before this migration,
+-- and the new guard (`run_id is distinct from $n`) already treats NULL as
+-- "not from this run" without needing a default.
+alter table intervu.job_heartbeats add column if not exists run_id text;
+
 -- ---------------------------------------------------------------------------
 -- 3. Ingest role. LOGIN, no password set here — set one out of band with
 --    `\password telemetry_pg` after creation and never commit it (same

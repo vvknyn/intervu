@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, mkdirSync, chmodSync, rmSync, readFileSync } from "node:fs";
@@ -9,27 +9,32 @@ import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
 
 /**
  * Two independent things are under test here, matching the two halves of
- * the 2026-09-04 fix:
+ * the 2026-09-04 fix that replaced the clock-derived `onlyIfOlderThanSeconds`
+ * guard with an exact-run-identity `onlyIfNotFromRun` guard:
  *
- * 1. `writeHeartbeat`'s `onlyIfOlderThanSeconds` guard (heartbeat.ts) — a
- *    pure SQL-shape check against a fake `Queryable`, same pattern
+ * 1. `writeHeartbeat`'s `onlyIfNotFromRun` guard (heartbeat.ts) — a pure
+ *    SQL-shape check against a fake `Queryable`, same pattern
  *    tests/unit/rollup-fetch.test.ts uses. No DB needed: this proves the
- *    guard clause + param are actually emitted in same-clock form
- *    (`now() - make_interval(secs => $N)`, never a bare comparison
- *    against a client-supplied timestamp), and relies on Postgres's
- *    documented `ON CONFLICT DO UPDATE ... WHERE` semantics for the
- *    runtime guarantee (not re-provable without a live server).
+ *    guard clause + params are actually emitted in identity form
+ *    (`run_id is distinct from $N`, never a clock comparison), that run_id
+ *    resolution (explicit param vs INTERVU_RUN_ID env fallback vs null)
+ *    works, and that an empty-string run id is rejected loudly rather than
+ *    silently disabling the guard.
  *
  * 2. `deploy/run-telemetry-job.sh`'s decision to invoke the recorder at
- *    all, and only when the child exits non-zero — an end-to-end run of
+ *    all, and only when the child exits non-zero, PLUS the four run-identity
+ *    outcomes enumerated in heartbeat.ts's module doc — an end-to-end run of
  *    the REAL wrapper script, with `node_modules/.bin/tsx` and `timeout`
- *    replaced by fake shims (per the task brief: "stub the write command
- *    ... prefer that over requiring a live PG"). The fake tsx dispatches
- *    on which script path it was asked to run and simulates
- *    scripts/record-job-failure.ts's guarded upsert against a flat file
- *    standing in for intervu.job_heartbeats — this proves the WRAPPER's
- *    call/no-call decision and the $elapsed value it passes through, not
- *    Postgres's own guard evaluation (see #1's caveat).
+ *    replaced by fake shims. The fake tsx dispatches on which script path it
+ *    was asked to run and simulates scripts/record-job-failure.ts's guarded
+ *    upsert against a flat file standing in for intervu.job_heartbeats
+ *    (fields: `job|ok|run_id`) — this proves the WRAPPER's call/no-call
+ *    decision and which run id it mints/exports, and reproduces Postgres's
+ *    `run_id is distinct from $n` predicate in bash against that flat
+ *    file's stored state, which is the only way to exercise all four
+ *    conflict outcomes without a live server (see #1's caveat: a fake
+ *    Queryable can prove the SQL shape but cannot itself decide an
+ *    ON CONFLICT DO UPDATE outcome).
  */
 
 const WRAPPER = path.join(process.cwd(), "deploy", "run-telemetry-job.sh");
@@ -45,37 +50,79 @@ function fakeDb(): { db: Queryable; calls: { text: string; params: unknown[] }[]
   return { db, calls };
 }
 
-describe("writeHeartbeat onlyIfOlderThanSeconds guard (heartbeat.ts)", () => {
-  it("emits the plain unconditional upsert when no guard is passed (unchanged for existing callers)", async () => {
+describe("writeHeartbeat onlyIfNotFromRun guard (heartbeat.ts)", () => {
+  const savedRunId = process.env.INTERVU_RUN_ID;
+  beforeEach(() => {
+    delete process.env.INTERVU_RUN_ID;
+  });
+  afterEach(() => {
+    if (savedRunId === undefined) delete process.env.INTERVU_RUN_ID;
+    else process.env.INTERVU_RUN_ID = savedRunId;
+  });
+
+  it("emits the plain unconditional upsert when no guard is passed, run_id null with no env var set (unchanged shape for existing callers)", async () => {
     const { db, calls } = fakeDb();
     await writeHeartbeat(db, "some-job", 7, true);
     assert.equal(calls.length, 1);
     assert.ok(!calls[0].text.includes("where"), "no guard means no WHERE clause");
-    assert.deepEqual(calls[0].params, ["some-job", 7, true]);
+    assert.deepEqual(calls[0].params, ["some-job", 7, true, null]);
   });
 
-  it("appends a same-clock last_run_at WHERE guard and its param when onlyIfOlderThanSeconds is passed", async () => {
+  it("falls back to process.env.INTERVU_RUN_ID when runId is omitted (ordinary job-script call sites need no code change)", async () => {
+    process.env.INTERVU_RUN_ID = "roll-up-telemetry-1000-222";
     const { db, calls } = fakeDb();
-    await writeHeartbeat(db, "some-job", null, false, { onlyIfOlderThanSeconds: 42 });
+    await writeHeartbeat(db, "some-job", 3, true);
+    assert.deepEqual(calls[0].params, ["some-job", 3, true, "roll-up-telemetry-1000-222"]);
+  });
+
+  it("uses an explicitly passed runId over the environment (how tests inject it)", async () => {
+    process.env.INTERVU_RUN_ID = "env-run-id";
+    const { db, calls } = fakeDb();
+    await writeHeartbeat(db, "some-job", 3, true, undefined, "explicit-run-id");
+    assert.deepEqual(calls[0].params, ["some-job", 3, true, "explicit-run-id"]);
+  });
+
+  it("appends a run_id-identity WHERE guard and its param when onlyIfNotFromRun is passed", async () => {
+    const { db, calls } = fakeDb();
+    await writeHeartbeat(db, "some-job", null, false, { onlyIfNotFromRun: "run-42" }, "run-42");
     assert.equal(calls.length, 1);
     assert.match(
       calls[0].text,
-      /where intervu\.job_heartbeats\.last_run_at < now\(\) - make_interval\(secs => \$4\)/,
-      "threshold must be derived by the DB from now() on its own clock, not compared against a client timestamp",
+      /where intervu\.job_heartbeats\.run_id is distinct from \$5/,
+      "the guard must compare run identity, not a clock reading",
     );
-    assert.deepEqual(calls[0].params, ["some-job", null, false, 42]);
+    assert.deepEqual(calls[0].params, ["some-job", null, false, "run-42", "run-42"]);
   });
 
-  it("never emits a bare last_run_at comparison against a client-supplied value (guards against reintroducing the cross-clock bug)", async () => {
+  it("never emits a clock-derived last_run_at comparison (guards against reintroducing the elapsed-seconds bug)", async () => {
     const { db, calls } = fakeDb();
-    await writeHeartbeat(db, "some-job", null, false, { onlyIfOlderThanSeconds: 99 });
-    assert.equal(calls.length, 1);
+    await writeHeartbeat(db, "some-job", null, false, { onlyIfNotFromRun: "run-99" }, "run-99");
     assert.ok(
-      !/last_run_at\s*<\s*\$\d+/.test(calls[0].text),
-      "last_run_at must only ever be compared against now() - make_interval(...), never a bare $N " +
-        "placeholder — a bare form would mean an app-box timestamp is being sent in as a param, " +
-        "reintroducing the cross-clock skew bug",
+      !/make_interval|last_run_at\s*[<>]/.test(calls[0].text),
+      "last_run_at must never again be compared against a duration or timestamp — only run_id identity",
     );
+  });
+
+  it("rejects an empty-string run id in the guard rather than silently disabling it", async () => {
+    const { db, calls } = fakeDb();
+    await assert.rejects(
+      () => writeHeartbeat(db, "some-job", null, false, { onlyIfNotFromRun: "" }, "run-1"),
+      /empty string/,
+    );
+    assert.equal(calls.length, 0, "the rejected call must never reach the database");
+  });
+
+  it("rejects INTERVU_RUN_ID exported-but-empty rather than writing an empty-string run_id (the case that surfaced the clobber: child stamps run_id='', supervisor's onlyIfNotFromRun:'RUN-Z' guard then sees '' is distinct from 'RUN-Z' and overwrites the child's row)", async () => {
+    process.env.INTERVU_RUN_ID = "";
+    const { db, calls } = fakeDb();
+    await assert.rejects(() => writeHeartbeat(db, "some-job", 999, true), /identity/);
+    assert.equal(calls.length, 0, "the rejected call must never reach the database");
+  });
+
+  it("rejects an explicit runId of '' passed positionally, same as the env-var case", async () => {
+    const { db, calls } = fakeDb();
+    await assert.rejects(() => writeHeartbeat(db, "some-job", 3, true, undefined, ""), /identity/);
+    assert.equal(calls.length, 0, "the rejected call must never reach the database");
   });
 });
 
@@ -93,31 +140,33 @@ describe("run-telemetry-job.sh supervisor failure heartbeat", () => {
   ].join("\n");
 
   // Dispatches on the script path it's told to run. For the job itself
-  // (scripts/*.ts), behavior is driven by $FAKE_JOB_BEHAVIOR. For the
-  // recorder (scripts/record-job-failure.ts), it simulates the exact
-  // guarded-upsert semantics writeHeartbeat's onlyIfOlderThanSeconds
-  // implements — comparing an existing row's last_run_at against
-  // now() - elapsed, both sides derived from THIS box's clock (standing in
-  // for the DB's own now()), against a flat "job|ok|last_run_at" file
-  // standing in for intervu.job_heartbeats — proving the wrapper's
-  // call/no-call decision and the $elapsed value it forwards, not
-  // Postgres itself.
+  // (scripts/*.ts), behavior is driven by $FAKE_JOB_BEHAVIOR; when it writes
+  // its own heartbeat it stamps $INTERVU_RUN_ID, exactly like the real
+  // writeHeartbeat's env fallback would for an in-process job script. For
+  // the recorder (scripts/record-job-failure.ts), it simulates the exact
+  // guarded-upsert semantics writeHeartbeat's onlyIfNotFromRun implements —
+  // `run_id is distinct from $n` — against a flat "job|ok|run_id" file
+  // standing in for intervu.job_heartbeats. This proves the wrapper's
+  // call/no-call decision and all four run-identity outcomes from
+  // heartbeat.ts's module doc, not Postgres's own conflict evaluation (see
+  // the top-of-file caveat).
   const FAKE_TSX_SH = [
     "#!/usr/bin/env bash",
     "set -uo pipefail",
     'script="$1"; shift',
     'case "$script" in',
     "  scripts/record-job-failure.ts)",
-    '    job="$1"; elapsed="$2"',
-    '    printf \'record-job-failure %s %s\\n\' "$job" "$elapsed" >> "$FAKE_CALL_LOG"',
-    "    existing_ts=0",
+    '    job="$1"',
+    '    run_id="${INTERVU_RUN_ID:-}"',
+    '    if [[ -z "$run_id" ]]; then echo "INTERVU_RUN_ID is not set" >&2; exit 1; fi',
+    '    printf \'record-job-failure %s %s\\n\' "$job" "$run_id" >> "$FAKE_CALL_LOG"',
+    '    existing_run=""',
     '    line="$(grep "^${job}|" "$FAKE_HEARTBEATS_FILE" | tail -1 || true)"',
-    '    if [[ -n "$line" ]]; then existing_ts="$(printf \'%s\' "$line" | cut -d\'|\' -f3)"; fi',
-    '    threshold=$(( $(date +%s) - elapsed ))',
-    "    if (( existing_ts < threshold )); then",
+    '    if [[ -n "$line" ]]; then existing_run="$(printf \'%s\' "$line" | cut -d\'|\' -f3)"; fi',
+    '    if [[ "$existing_run" != "$run_id" ]]; then',
     '      grep -v "^${job}|" "$FAKE_HEARTBEATS_FILE" > "$FAKE_HEARTBEATS_FILE.tmp" 2>/dev/null || true',
     '      mv "$FAKE_HEARTBEATS_FILE.tmp" "$FAKE_HEARTBEATS_FILE"',
-    '      printf \'%s|false|%s\\n\' "$job" "$(date +%s)" >> "$FAKE_HEARTBEATS_FILE"',
+    '      printf \'%s|false|%s\\n\' "$job" "$run_id" >> "$FAKE_HEARTBEATS_FILE"',
     "    fi",
     "    exit 0",
     "    ;;",
@@ -130,7 +179,7 @@ describe("run-telemetry-job.sh supervisor failure heartbeat", () => {
     "      fail-with-heartbeat)",
     '        grep -v "^${job}|" "$FAKE_HEARTBEATS_FILE" > "$FAKE_HEARTBEATS_FILE.tmp" 2>/dev/null || true',
     '        mv "$FAKE_HEARTBEATS_FILE.tmp" "$FAKE_HEARTBEATS_FILE"',
-    '        printf \'%s|true|%s\\n\' "$job" "$(date +%s)" >> "$FAKE_HEARTBEATS_FILE"',
+    '        printf \'%s|true|%s\\n\' "$job" "${INTERVU_RUN_ID:-}" >> "$FAKE_HEARTBEATS_FILE"',
     "        exit 1",
     "        ;;",
     "      self-kill) kill -9 $$ ;;",
@@ -201,19 +250,19 @@ describe("run-telemetry-job.sh supervisor failure heartbeat", () => {
     }
   }
 
-  function readRow(heartbeatsFile: string, job: string): { ok: string } | undefined {
+  function readRow(heartbeatsFile: string, job: string): { ok: string; runId: string } | undefined {
     const lines = readFileSync(heartbeatsFile, "utf8").split("\n").filter(Boolean);
     const row = lines.filter((l) => l.startsWith(`${job}|`)).at(-1);
     if (!row) return undefined;
-    const [, ok] = row.split("|");
-    return { ok };
+    const [, ok, runId] = row.split("|");
+    return { ok, runId: runId ?? "" };
   }
 
   function readCalls(callLog: string): string[] {
     return readFileSync(callLog, "utf8").split("\n").filter(Boolean);
   }
 
-  it("records a failure heartbeat when the child exits non-zero without writing one itself", () => {
+  it("case 1 — no prior row, child writes nothing: plain insert", () => {
     const { root, heartbeatsFile, callLog, envFile } = setupRoot();
     try {
       const rc = runWrapper(root, "fail-no-heartbeat", heartbeatsFile, callLog, envFile);
@@ -225,6 +274,7 @@ describe("run-telemetry-job.sh supervisor failure heartbeat", () => {
       const row = readRow(heartbeatsFile, "fake-job");
       assert.ok(row, "expected a heartbeat row after a bare non-zero exit");
       assert.equal(row!.ok, "false");
+      assert.ok(row!.runId.length > 0, "the inserted row must carry the run's id");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -243,18 +293,49 @@ describe("run-telemetry-job.sh supervisor failure heartbeat", () => {
     }
   });
 
-  it("does not clobber a heartbeat the child already wrote for this run", () => {
+  it("case 2/4 — child already wrote a row for THIS run: supervisor declines, does not clobber it", () => {
     const { root, heartbeatsFile, callLog, envFile } = setupRoot();
     try {
       const rc = runWrapper(root, "fail-with-heartbeat", heartbeatsFile, callLog, envFile);
       assert.equal(rc, 1);
-      assert.ok(
-        readCalls(callLog).some((c) => c.startsWith("record-job-failure ")),
-        "wrapper must still attempt the recorder on non-zero exit — the guard, not the call site, is what protects the row",
-      );
+      const calls = readCalls(callLog);
+      const recorderCall = calls.find((c) => c.startsWith("record-job-failure "));
+      assert.ok(recorderCall, "wrapper must still attempt the recorder on non-zero exit — the guard, not the call site, is what protects the row");
+      const supervisorRunId = recorderCall!.split(" ")[2];
       const row = readRow(heartbeatsFile, "fake-job");
       assert.ok(row);
-      assert.equal(row!.ok, "true", "the child's own row must survive, not be overwritten by the supervisor's guess");
+      assert.equal(row!.ok, "true", "the child's own row must survive, not be overwritten by the supervisor's write");
+      assert.equal(row!.runId, supervisorRunId, "the surviving row and the supervisor's guard param share the same run id — that identity match is WHY the guard declined, not luck");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("case 3a — prior row from an OLDER run, child writes nothing this run: supervisor updates it", () => {
+    const { root, heartbeatsFile, callLog, envFile } = setupRoot();
+    try {
+      writeFileSync(heartbeatsFile, "fake-job|true|some-older-run-id\n");
+      const rc = runWrapper(root, "fail-no-heartbeat", heartbeatsFile, callLog, envFile);
+      assert.equal(rc, 1);
+      const row = readRow(heartbeatsFile, "fake-job");
+      assert.ok(row);
+      assert.equal(row!.ok, "false", "the stale row from an older run must be replaced by this run's terminal state");
+      assert.notEqual(row!.runId, "some-older-run-id", "the row must now carry THIS run's id, not the older one");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("case 3b — prior row with no run_id (pre-migration row), child writes nothing this run: supervisor updates it", () => {
+    const { root, heartbeatsFile, callLog, envFile } = setupRoot();
+    try {
+      writeFileSync(heartbeatsFile, "fake-job|true|\n");
+      const rc = runWrapper(root, "fail-no-heartbeat", heartbeatsFile, callLog, envFile);
+      assert.equal(rc, 1);
+      const row = readRow(heartbeatsFile, "fake-job");
+      assert.ok(row);
+      assert.equal(row!.ok, "false", "a NULL run_id must count as distinct-from, same as any other run's id");
+      assert.ok(row!.runId.length > 0, "the row must now carry THIS run's id");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

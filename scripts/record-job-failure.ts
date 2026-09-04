@@ -12,42 +12,56 @@
  * Writes a terminal ok=false row (rows_affected=null — the wrapper does not
  * know how far the job got, and null is honest where 0 would claim the job
  * completed having touched nothing) via the SAME `writeHeartbeat` every job
- * script uses, passing its `onlyIfOlderThanSeconds` guard set to the run's
- * own elapsed wall-clock time (a duration, not a timestamp — see
- * heartbeat.ts's module doc: the wrapper's clock is a different machine
- * than the one that evaluates `now()` for this write, so the guard must
- * never compare against an absolute app-box timestamp). That guard is what
- * stops this from clobbering a row the job already wrote for THIS run: a
- * child that reached its own try/catch has a `last_run_at` newer than the
- * DB's own now()-minus-elapsed estimate of when the run started, so its
- * richer row always wins.
+ * script uses, passing its `onlyIfNotFromRun` guard set to the run's own
+ * run id (see heartbeat.ts's module doc for the elapsed-seconds mechanism
+ * this replaced and why it clobbered rows). That guard is what stops this
+ * from clobbering a row the job already wrote for THIS run: a row already
+ * carrying this run's id — whether the child wrote it or a previous attempt
+ * at this same recorder write did — is left alone.
+ *
+ * The run id is read from process.env.INTERVU_RUN_ID, which the wrapper
+ * mints once per run and exports before launching either the job or this
+ * script, so both processes see the identical value. No fallback here: an
+ * unset or empty run id means this script cannot tell its own write apart
+ * from any other, so it throws rather than writing a guard that would
+ * silently do nothing (see heartbeat.ts's empty-string rejection).
  *
  * Connects the same way every other box script in this family does — a raw
  * `pg.Client` on `BATCH_PG_URL` (the `pipeline` role that owns
  * intervu.job_heartbeats), which the wrapper has already exported into this
  * process's environment before launching either the job or this script. No
- * new credential, no new env var.
+ * new credential, no new env var. `connectionTimeoutMillis` matches
+ * src/lib/pg/pool.ts's pools (5s) — this write runs while the wrapper still
+ * holds the per-job flock (deploy/run-telemetry-job.sh), so an unreachable
+ * DB must fail fast rather than pin that lock indefinitely.
  *
- * Usage: record-job-failure.ts <job-name> <elapsed-seconds>
+ * Usage: record-job-failure.ts <job-name>
  */
 import pg from "pg";
 import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
 
 async function main() {
-  const [jobName, elapsedSeconds] = process.argv.slice(2);
-  if (!jobName || !elapsedSeconds) {
-    throw new Error("usage: record-job-failure.ts <job-name> <elapsed-seconds>");
+  const [jobName] = process.argv.slice(2);
+  if (!jobName) {
+    throw new Error("usage: record-job-failure.ts <job-name>");
+  }
+
+  const runId = process.env.INTERVU_RUN_ID;
+  if (!runId) {
+    throw new Error(
+      "INTERVU_RUN_ID is not set — record-job-failure.ts cannot tell its own " +
+        "write apart from any other run's without it (see heartbeat.ts's guard)",
+    );
   }
 
   const connectionString = process.env.BATCH_PG_URL;
   if (!connectionString) throw new Error("BATCH_PG_URL is not set");
 
-  const db = new pg.Client({ connectionString });
+  const db = new pg.Client({ connectionString, connectionTimeoutMillis: 5000 });
   await db.connect();
   try {
-    await writeHeartbeat(db, jobName, null, false, {
-      onlyIfOlderThanSeconds: Number(elapsedSeconds),
-    });
+    await db.query("SET statement_timeout = '5s'");
+    await writeHeartbeat(db, jobName, null, false, { onlyIfNotFromRun: runId }, runId);
   } finally {
     await db.end();
   }
