@@ -12,6 +12,7 @@
  */
 import type { Queryable } from "@/lib/pg/pool";
 import type { DailyEventRow } from "./daily-rollup";
+import { RESULTS_IMPRESSED } from "./outcome-events";
 
 export interface WindowImpressionRow {
   day: string;
@@ -103,10 +104,10 @@ export async function fetchWindowImpressions(
      from intervu.telemetry_events e,
        lateral jsonb_array_elements_text(e.props->'job_ids') with ordinality as job_ids(value, ord),
        lateral jsonb_array_elements_text(e.props->'positions') with ordinality as positions(value, ord)
-     where e.event_name = 'results_impressed'
+     where e.event_name = $2
        and e.received_at >= date_trunc('day', now(), 'UTC') - make_interval(days => $1)
        and job_ids.ord = positions.ord`,
-    [windowDays],
+    [windowDays, RESULTS_IMPRESSED],
   );
   return rows;
 }
@@ -116,7 +117,7 @@ export async function fetchWindowImpressions(
  *  field, same as any other event type that never stated one. */
 export function toImpressionEventRows(rows: readonly WindowImpressionRow[]): DailyEventRow[] {
   return rows.map((row) => ({
-    event_name: "results_impressed",
+    event_name: RESULTS_IMPRESSED,
     day: row.day,
     job_id: row.job_id,
     company_domain: null,

@@ -29,9 +29,10 @@
 --    shape. That is exactly what happened on prod 2026-09-03: an unrelated
 --    pre-spec `telemetry_events` table already existed, so this file ran
 --    "successfully" while creating nothing, every insert downstream started
---    failing on missing columns, the ingest route's catch-and-204
---    (src/app/api/telemetry/route.ts:136-138) swallowed every failure, and
---    the launch looked completely healthy while storing zero rows.
+--    failing on missing columns, the ingest route's catch-and-204 (POST()'s
+--    guard 9 return / guard 10 catch, src/app/api/telemetry/route.ts:174-178)
+--    swallowed every failure, and the launch looked completely healthy while
+--    storing zero rows.
 --
 --    This block makes that failure loud instead of silent. If the table
 --    already exists, its column set must match this file's exactly — same
@@ -173,6 +174,19 @@ create table if not exists intervu.job_heartbeats (
   rows_affected bigint,
   ok            boolean     not null
 );
+
+-- run_id ties a heartbeat row to an exact run instead of a clock-derived
+-- duration (2026-09-04 fix — see src/lib/telemetry/heartbeat.ts's module doc
+-- for the elapsed-seconds defect class this replaces: a whole-second
+-- app-box duration could read 0, or even negative, and destroy a row a
+-- concurrent writer had just written for the SAME run). Added via ALTER
+-- rather than folded into the CREATE TABLE above so this file stays correct
+-- against both a fresh cluster (the column exists from the first run) and
+-- today's prod cluster, which already has rows: NULLABLE is deliberate,
+-- since nothing backfills run_id onto rows written before this migration,
+-- and the new guard (`run_id is distinct from $n`) already treats NULL as
+-- "not from this run" without needing a default.
+alter table intervu.job_heartbeats add column if not exists run_id text;
 
 -- ---------------------------------------------------------------------------
 -- 3. Ingest role. LOGIN, no password set here — set one out of band with

@@ -9,8 +9,19 @@
 -- Telemetry DERIVED layer — Lane F (SPEC-2-PROFILES.md).
 -- Rebuilt nightly from intervu.telemetry_events (owned by
 -- deploy/db-box/telemetry-schema.sql — do not edit that file from here).
--- Every table here is a CACHE: safe to drop and regenerate from the raw
--- ledger. Idempotent throughout (`if not exists`); apply any number of times.
+-- Idempotent throughout (`if not exists`); apply any number of times.
+--
+-- NOT every table here is a droppable cache of the raw ledger. Two
+-- exceptions:
+--   (a) job_features is derived from the live Meilisearch `jobs` index
+--       (scripts/build-job-features.ts), never from telemetry_events — the
+--       ledger cannot rebuild it.
+--   (b) telemetry_events is reaped at 90 days (intervu.reap_telemetry(90),
+--       installed via crontab) while the job_daily/company_daily/
+--       feature_outcomes rollup windows are all shorter. Drop one of those
+--       tables and any aggregate older than the 90-day reap horizon is gone
+--       for good — the raw rows needed to regenerate it no longer exist.
+-- The rest ARE safe to drop and regenerate from the raw ledger.
 --
 -- WHY THIS FILE CREATES TABLES AS `pipeline` INSTEAD OF WHOEVER INVOKES IT:
 -- measured on the box 2026-09-04 — pg_default_acl on schema intervu carries
@@ -140,9 +151,19 @@ create table if not exists intervu.job_features (
 
 -- ---------------------------------------------------------------------
 -- job_daily / company_daily / query_daily — one row per (key, day).
--- Each nightly run recomputes ONE day's numbers from raw events and
+-- job_daily and company_daily follow the rule this section describes:
+-- each nightly run recomputes ONE day's numbers from raw events and
 -- REPLACES that day's row (upsert on the natural key below); it never
 -- increments a stored counter, so a retried cron cannot double a count.
+--
+-- query_daily does NOT follow that rule — it is declared here but has no
+-- writer at all (prod: `select count(*) from intervu.query_daily` = 0).
+-- scripts/roll-up-telemetry.ts documents this as a deliberate KNOWN GAP,
+-- not an oversight: joining a search to its clicks needs a `query_id` that
+-- doesn't exist at submit time, so there is no reliable way to populate
+-- searches/zero_result_count/click_through_count/refinement_count without
+-- fabricating numbers. The table stays empty pending a decision on how a
+-- "search id" / "refinement" is defined; nothing here writes to it.
 -- ---------------------------------------------------------------------
 create table if not exists intervu.job_daily (
   job_id           text        not null,

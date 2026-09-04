@@ -17,7 +17,10 @@
  *   8. insert, ON CONFLICT (event_id) DO NOTHING, one multi-row statement,
  *      rows pre-sorted by event_id (unsorted multi-row upserts caused 7,318
  *      deadlocks in this codebase's history)
- *   9. always 204 — the endpoint returns no data, ever
+ *   9. the success path always answers 204 — guards 1-2 above can still
+ *      answer 413/400, but NO response ever carries a body (every return
+ *      is `new NextResponse(null, ...)`) and no per-event outcome is ever
+ *      surfaced to the caller
  *  10. never throw into the request path
  *
  * Identity: `user_id` is never read off the request body (see
@@ -35,11 +38,18 @@ import { isBatchTooLarge, isBotUserAgent, MAX_BODY_BYTES, processBatch, sortByEv
 import { partitionByRateLimit } from "@/lib/telemetry/rate-limit";
 import type { TelemetryBatchRequest, TelemetryRow } from "@/lib/telemetry/types";
 
-/** Exported so a conformance test (`tests/unit/telemetry-column-conformance.test.ts`)
- *  can assert every `LEDGER_COLUMN_RULES` key is admitted into the insert
- *  column list — this array is otherwise the third hand-written enumeration
- *  of the 5 ledger columns (alongside `ingest.ts`'s guard chain and row
- *  builder), so it's the one place that gap could hide silently. */
+/** The complete insert column list: 12 columns — the 5 `LEDGER_COLUMN_RULES`
+ *  columns (query_id, source, job_id, company_domain, position) plus the 7
+ *  envelope/identity columns (event_id, occurred_at, session_id, visitor_id,
+ *  user_id, event_name, props). It is NOT an enumeration of the ledger
+ *  columns alone.
+ *
+ *  Exported so a conformance test (`tests/unit/telemetry-column-conformance.test.ts`)
+ *  can assert every `LEDGER_COLUMN_RULES` key is admitted here. The ledger
+ *  columns are hand-enumerated in three places — this array, `ingest.ts`'s
+ *  guard chain, and its row builder — so a rule added to `LEDGER_COLUMN_RULES`
+ *  but never added to this list is the gap that would hide silently: the
+ *  column would validate and then never be written. */
 export const TELEMETRY_COLUMNS = [
   "event_id",
   "occurred_at",
