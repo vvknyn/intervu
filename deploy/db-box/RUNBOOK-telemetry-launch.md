@@ -127,19 +127,24 @@ inverted-reading trap before running it.
 
 ## 1. Apply the schema migration
 
-**Run:** on the DB box (169.58.140.49), as the `postgres` OS user, over the
+**Run in two hops.** The `scp` below runs on your **dev machine**, cwd =
+the **root of this repo checkout** — its arguments are relative paths
+(`deploy/db-box/...`) that only resolve from there. Everything after `ssh`
+runs on the **DB box** (169.58.140.49), as the `postgres` OS user, over the
 local socket — fact-checked 2026-09-03: this box has exactly one
 non-template database (`postgres`; `intervu` is a schema inside it, not a
 database), and `postgres`-over-local-socket needs no password or connection
 string at all.
 
 ```bash
+# Dev machine, cwd = repo root (paths below are relative to it):
 scp deploy/db-box/apply-telemetry-migration.sh \
     deploy/db-box/telemetry-schema.sql \
     deploy/db-box/telemetry-events-drop-orphan.sql \
     deploy/db-box/telemetry-derived.sql \
     root@169.58.140.49:/tmp/telemetry-migration/
 ssh root@169.58.140.49
+# Now on the DB box (169.58.140.49); cwd doesn't matter — absolute path:
 sudo -u postgres bash /tmp/telemetry-migration/apply-telemetry-migration.sh
 ```
 
@@ -271,8 +276,8 @@ cannot yet change what happens to any request.
 **Precondition:** step 1 exited 0 (the `telemetry_pg` role now exists,
 password-less).
 
-**Run**, still as `postgres` on the DB box, in an **interactive** psql
-session:
+**Run**, still as `postgres` on the DB box (169.58.140.49), in an
+**interactive** psql session (cwd doesn't matter — no relative paths):
 
 ```
 sudo -u postgres psql -d postgres
@@ -286,7 +291,8 @@ statement text, never shows up in `pg_stat_activity`, and never lands in a
 server log. `ALTER ROLE ... PASSWORD '<plaintext>'` puts the plaintext in
 all three.
 
-**Pass condition** (no plaintext read-back needed or possible):
+**Pass condition** (same DB box, same psql session; no plaintext read-back
+needed or possible):
 
 ```sql
 select rolname, rolpassword is not null as has_password
@@ -324,8 +330,9 @@ file is the only one that can affect it. §9's two derived-table cron jobs
 **Run:** on the app box (194.163.147.154), as `subspace` — the file is
 mode `-rw-------`, owned by `subspace`, and lives outside the git tree at
 `/opt/interview-os/deploy/contabo-web/intervu.env`, so no `sudo` is needed
-or wanted. Open it with an editor, not a shell redirect, so the connection
-string (with its plaintext password) never touches shell history:
+or wanted (cwd doesn't matter — the path below is absolute). Open it with
+an editor, not a shell redirect, so the connection string (with its
+plaintext password) never touches shell history:
 
 ```bash
 nano /opt/interview-os/deploy/contabo-web/intervu.env
@@ -337,7 +344,8 @@ Add one line:
 TELEMETRY_PG_URL=postgresql://telemetry_pg:<the password from step 2>@169.58.140.49:5432/postgres
 ```
 
-**Pass condition** (counts the line without ever printing the value):
+**Pass condition**, same app box (194.163.147.154), cwd doesn't matter —
+absolute path (counts the line without ever printing the value):
 
 ```bash
 grep -c '^TELEMETRY_PG_URL=' /opt/interview-os/deploy/contabo-web/intervu.env
@@ -347,6 +355,9 @@ grep -c '^TELEMETRY_PG_URL=' /opt/interview-os/deploy/contabo-web/intervu.env
 ## 4. Recreate the container
 
 **Precondition:** step 3's grep returned `1`.
+
+**Run:** on the app box (194.163.147.154). The block below `cd`s to its own
+working directory, so it's safe to start from anywhere.
 
 An `env_file` change is invisible to a running container until it is
 **recreated** — `docker restart` reuses the existing container's already-
@@ -372,8 +383,10 @@ env file. `--build` is for an actual code deploy (extract → swap →
 here is unnecessary time and risk for zero benefit. Never run two concurrent
 compose builds against this stack.
 
-**Pass condition** — container was actually recreated, and the container's
-own env now carries the key, without ever printing its value:
+**Pass condition**, same app box (194.163.147.154); cwd doesn't matter —
+`docker exec` targets a container name, not a path — container was
+actually recreated, and the container's own env now carries the key,
+without ever printing its value:
 
 ```bash
 docker exec contabo-web-intervu-1 sh -c 'env | grep -c "^TELEMETRY_PG_URL="'
@@ -396,7 +409,8 @@ returns `{"euUk":true}`, identical to what a genuinely-EU visitor gets. If
 the mmdb lookup silently breaks, every visitor on earth gets a
 session-scoped id instead of a durable one, forever, with no error anywhere.
 
-**Run, from a known non-EU host — not from the Contabo box itself:**
+**Run, from a known non-EU host — not from the Contabo box itself** (cwd
+doesn't matter — the command uses no relative paths):
 
 ```bash
 curl -s https://velai.app/api/geo/region
@@ -431,26 +445,38 @@ the only address any of the three roles' pg_hba rules (`telemetry_pg`,
 
 **Run:** on the app box (194.163.147.154) — it is both the only address any
 of the three roles' pg_hba rules admit, and the box holding
-`intervu.env`. Do **not** hand-type `TELEMETRY_PG_URL` here: a typo in a
-hand-typed value would still let this check pass while §3's actual line
-(the one the container reads) stays broken, which is exactly the seam this
-step exists to close. Instead read it back from the file, with the same
-`read_key()` parsing `run-telemetry-job.sh:121` uses — `tail -1`, not
-`head -1`, because dotenv is last-assignment-wins and this file is known to
-assign at least one key twice — so this check can never pass against a
-value the container does not actually use. The value is never echoed:
+`intervu.env`. **Cwd: `/opt/intervu`** — measured 2026-09-04, the only copy
+of `verify-telemetry-grants.sh` on this box is
+`/opt/intervu/deploy/db-box/verify-telemetry-grants.sh` (mode `755`); the
+block below `cd`s there first, so the relative path inside it resolves. Do
+**not** hand-type `TELEMETRY_PG_URL` here: a typo in a hand-typed value
+would still let this check pass while §3's actual line (the one the
+container reads) stays broken, which is exactly the seam this step exists
+to close. Instead read it back from the file, with the same `read_key()`
+parsing `run-telemetry-job.sh:121` uses — `tail -1`, not `head -1`, because
+dotenv is last-assignment-wins and this file is known to assign at least
+one key twice — so this check can never pass against a value the container
+does not actually use. The value is never echoed. **A failed check must
+not `exit` here** — this block is meant to be pasted into an interactive
+SSH session, and `exit 1` logs the operator out of that shell rather than
+just failing the check, which reads as a dropped connection, not a failed
+precondition. The guard below only skips running the verifier on failure;
+it never terminates the shell:
 
 ```bash
+cd /opt/intervu
 ENV_FILE=/opt/interview-os/deploy/contabo-web/intervu.env
 read_key() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 | tr -d '"'"'"'\r'; }
 
 TELEMETRY_PG_URL="$(read_key TELEMETRY_PG_URL)"
-[[ -z "$TELEMETRY_PG_URL" ]] && { echo "TELEMETRY_PG_URL missing/empty in $ENV_FILE — §3 is not done" >&2; exit 1; }
-
-AGENT_PG_URL="postgresql://agent_pg:<password>@169.58.140.49:5432/postgres" \
-BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
-TELEMETRY_PG_URL="$TELEMETRY_PG_URL" \
-  deploy/db-box/verify-telemetry-grants.sh
+if [[ -z "$TELEMETRY_PG_URL" ]]; then
+  echo "TELEMETRY_PG_URL missing/empty in $ENV_FILE — §3 is not done" >&2
+else
+  AGENT_PG_URL="postgresql://agent_pg:<password>@169.58.140.49:5432/postgres" \
+  BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
+  TELEMETRY_PG_URL="$TELEMETRY_PG_URL" \
+    deploy/db-box/verify-telemetry-grants.sh
+fi
 ```
 
 `AGENT_PG_URL`/`BATCH_PG_URL` stay hand-typed: neither role's URL is stored
@@ -476,9 +502,30 @@ table's actual ACL is not the one this runbook believes it verified.
 **Precondition:** step 6 passed (grants are correct, so a real insert from
 the running app has a chance of landing).
 
-**Run**, from a machine that can reach both the live app and the DB box:
+**Run:** on the app box (194.163.147.154) — measured 2026-09-04, the DB
+box's `ufw` is `active`, default-deny incoming, with exactly one `ACCEPT`
+rule for port 5432 (a single `/32`, the app box) and zero port-less
+`ACCEPT` rules. "A machine that can reach both the live app and the DB box"
+therefore names a set with exactly one member: this box. **Cwd:
+`/opt/intervu`.** `npx tsx` needs `node_modules`, which this tree has only
+after `deploy/run-telemetry-job.sh` has self-healed it for some job
+(`npm ci --include=dev`, then an explicit `-x node_modules/.bin/tsx`
+assertion — see that script's lines 140-165); a bare deploy leaves
+`/opt/intervu` with no `node_modules` at all. If it's missing here, run
+`npm ci --include=dev` in `/opt/intervu` first, or let a
+`run-telemetry-job.sh` invocation create it.
+
+**Trap — `nc` is not a valid reachability check for the DB box.** Measured
+2026-09-04: `nc -z 169.58.140.49 5432` from a dev machine prints
+"succeeded" (something upstream answers the TCP handshake) while `psql` to
+the same host and port times out. Chasing that `nc` result sends you
+hunting a network problem that isn't the one you actually have. Use
+`deploy/db-box/preflight-telemetry-connectivity.sh` instead — it
+classifies the server's own reply rather than just the handshake, and it
+needs no credential.
 
 ```bash
+cd /opt/intervu
 TARGET_URL=https://velai.app \
 BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
   npx tsx scripts/verify-telemetry-e2e.ts
@@ -780,8 +827,8 @@ no Meili. Every case that expects a refusal also asserts the job did not
 start, because "exited non-zero" and "refused before starting" are the two
 outcomes this subsystem exists to tell apart. The suite is verified
 discriminating by mutation, not merely green.
-**Pass condition, once installed** — same heartbeat-based check as §8, one
-row per job:
+**Pass condition, once installed** — same heartbeat-based check as §8 (on
+the DB box, or via `BATCH_PG_URL` from anywhere), one row per job:
 
 ```sql
 select job_name, last_run_at, rows_affected, ok
