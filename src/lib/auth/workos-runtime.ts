@@ -10,6 +10,7 @@
  */
 import type { User, WorkOS } from "@workos-inc/node";
 import { hasApp, APP_INTERVU } from "./workos-apps";
+import { toServerUser } from "./workos-identity";
 
 /** The SDK never exports its `UserManagement` class by name — this pulls the
  *  real, full-featured type structurally off `WorkOS`, which IS exported,
@@ -77,4 +78,28 @@ export async function resolveWorkosUserId(
   } catch {
     return uid;
   }
+}
+
+/**
+ * The opposite direction from `resolveWorkosUserId`: an email (the identity
+ * store's key) to the `ServerUser.uid` the telemetry ledger's `user_id`
+ * column holds (see `toServerUser`, workos-identity.ts:57-65 — `externalId
+ * || id`). This is the only uid-resolution path `forgetIdentity`
+ * (src/lib/identity/forget.ts) can use: WorkOS is the sole system of record
+ * mapping an email to that uid, since `intervu.identities` (Supabase) is an
+ * unrelated anonymous email-follow identity with no WorkOS-uid column
+ * (deploy/supabase/identity-schema.sql).
+ *
+ * `listUsers({ email })` is an exact-match filter — no local disambiguation
+ * needed. Returns null when no WorkOS account exists for the address (never
+ * signed up, or a minted/system email), which `forgetIdentity` reads as "no
+ * ledger rows to delete."
+ */
+export async function resolveWorkosUidByEmail(
+  userManagement: Pick<WorkosUserManagement, "listUsers">,
+  email: string,
+): Promise<string | null> {
+  const page = await userManagement.listUsers({ email });
+  const user = page.data[0];
+  return user ? toServerUser(user).uid : null;
 }

@@ -524,6 +524,7 @@ export function JobCard({
     pursuit,
     onGoAfter,
     goingAfter = false,
+    position,
 }: {
     job: PublicJob;
     active: boolean;
@@ -560,6 +561,13 @@ export function JobCard({
     pursuit?: Pursuit;
     onGoAfter?: () => void;
     goingAfter?: boolean;
+    /** 1-based index of this row in the current search's rendered list
+     *  (`hits`, jobs/page.tsx) — stamped as `data-position` for
+     *  `useResultImpressions` to read off the DOM (SPEC §5's position-
+     *  corrected-CTR requirement). Omitted when the card isn't rendered from
+     *  a tracked search list, so no attribute is written and the row is
+     *  simply not impression-tracked rather than tracked with a fake `0`. */
+    position?: number;
 }) {
     const presented = presentJob(job);
     const accessibleName = `${presented.title} at ${presented.company.name}`;
@@ -600,6 +608,7 @@ export function JobCard({
             aria-label={`View ${accessibleName}`}
             data-job-row
             data-job-id={job.id}
+            {...(position ? { "data-position": position } : {})}
             data-testid="job-row"
             {...(tourAnchor ? { "data-tour": "jobs-card" } : {})}
             onClick={onClick}
@@ -1441,16 +1450,22 @@ function JobsContent() {
         // category/seed chips all route through it, so a future entry point is
         // counted automatically instead of being silently invisible.
         //
-        // The raw query is deliberately NOT sent — only its length. A search
-        // box carries names, employers and salary expectations, and none of
-        // that needs to leave the browser to answer "did they search".
-        // `activeFilterEntries` is re-derived here rather than read from the
-        // render-scope binding so this does not depend on declaration order.
-        captureEvent("search_submitted", {
-            query_length: q.trim().length,
-            has_location: chosenLocations.length > 0,
-            filter_count: activeFilterEntries(filterState).length,
-        });
+        // The raw query text goes to the ledger ONLY (this repo's own
+        // Postgres-backed telemetry store, keyed to the account server-side)
+        // via the third `ledgerOnly` argument below — it is never passed to
+        // PostHog; PostHog gets only `query_length` and the other ordinary
+        // props. `activeFilterEntries` is re-derived here rather than read
+        // from the render-scope binding so this does not depend on
+        // declaration order.
+        captureEvent(
+            "search_submitted",
+            {
+                query_length: q.trim().length,
+                has_location: chosenLocations.length > 0,
+                filter_count: activeFilterEntries(filterState).length,
+            },
+            { query_text: q },
+        );
         // Searches run in this browser. Counted HERE, at the one submit
         // chokepoint, which is what stops a future search entry point from
         // being invisible to either prompt — and counted for signed-in
@@ -2432,7 +2447,20 @@ function JobsContent() {
         // One call site covers both SERP rows and the detail pane's "also in"
         // rail, because `onOpenRelated` is wired to this same function.
         if (rank >= 0) {
-            captureEvent("result_clicked", { position: rank, job_id: id, source: "serp" });
+            captureEvent("result_clicked", {
+                position: rank,
+                job_id: id,
+                source: "serp",
+                // `resultRef.current?.searchId`, NOT `lastSearchId`: a
+                // load-more page fetch mints its own `lastSearchId` but
+                // `setResult` never overwrites `searchId` when appending a
+                // page (see `loadMore`'s updater) — `result.searchId` is the
+                // stable id for the WHOLE rendered list a row's position was
+                // computed against, the same value `useResultImpressions` is
+                // armed with below. That's the id a click must carry to join
+                // back to the impression it came from (SPEC §5).
+                ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+            });
         }
         setOpensThisSession((n) => n + 1);
         const alreadyOpened = openedIds.has(id);
@@ -2903,7 +2931,18 @@ function JobsContent() {
     // #jobs-results-list container — the one mount point `useResultImpressions`
     // watches for rows crossing 50% visible (see the ref attached below).
     const resultsListRef = useRef<HTMLDivElement | null>(null);
-    useResultImpressions(resultsListRef, "serp");
+    // `result?.searchId`, not `lastSearchId`: this is the id `loadMore`
+    // leaves untouched when it appends a page (`setResult` spreads `...prev`
+    // without overwriting `searchId` — see `loadMore` below), so it stays
+    // the same rendered-result-set id across pagination and the hook does
+    // NOT re-arm (already-seen rows on an appended page must not be
+    // double-counted). A brand-new search/refinement replaces `result`
+    // wholesale with a fresh `searchId`, which DOES re-arm — exactly the
+    // "REFINED query" case SPEC §5 requires. This is the same value
+    // `result_clicked`/`apply_clicked` read (via `resultRef.current
+    // ?.searchId`) so impressions and the clicks they produce always join
+    // on one query_id.
+    useResultImpressions(resultsListRef, "serp", result?.searchId ?? "");
 
     // Fetch the next page and append it only while its monotonic generation is current.
     const loadMore = useCallback(async () => {
@@ -3418,7 +3457,14 @@ function JobsContent() {
         // number worth knowing: comparing this against actual opens is what
         // measures the gate's drop-off. Moving it below either early return
         // would make that drop-off invisible.
-        captureEvent("apply_clicked", { job_id: job.id, source: "serp" });
+        captureEvent("apply_clicked", {
+            job_id: job.id,
+            source: "serp",
+            // Same `resultRef.current?.searchId` contract as `openJob`'s
+            // `result_clicked` above — the id `useResultImpressions` is
+            // armed with for the currently-rendered result set (SPEC §5).
+            ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+        });
         if (resolveApplyGateDecision(Boolean(user)) === "gate") {
             handleApplyGate(job);
             return;
@@ -4084,29 +4130,39 @@ function JobsContent() {
         j: PublicJob,
         clusterProps?: { variantCount: number; clusterLabel: string; expanded: boolean; onToggleExpand: () => void },
         tourAnchor = false,
-    ) => (
-        <JobCard
-            key={j.id}
-            job={j}
-            active={activeRowId === j.id}
-            opened={openedIds.has(j.id) || viewedIds.has(j.id)}
-            onClick={() => openJob(j.id)}
-            onCompany={j.company_domain ? handleCompany : undefined}
-            onOpenPosting={handleOpenPosting}
-            now={nowMs}
-            elite={board === "elite"}
-            variantCount={clusterProps?.variantCount ?? 0}
-            clusterLabel={clusterProps?.clusterLabel ?? ""}
-            expanded={clusterProps?.expanded ?? false}
-            onToggleExpand={clusterProps?.onToggleExpand}
-            tourAnchor={tourAnchor}
-            matchScore={matchScores?.get(j.id) ?? null}
-            matchAsOfDate={resumeAsOfDate}
-            pursuit={pursuitsByJobId.get(j.id)}
-            onGoAfter={() => handleGoAfter(j)}
-            goingAfter={goingAfterId === j.id}
-        />
-    );
+    ) => {
+        // 1-based position in `hits` — the same rendered list `openJob`'s
+        // click-rank reads (findIndex against the currently-shown result
+        // set), just re-based to 1 for the impression-tracking contract.
+        // -1 (a variant row whose job_id isn't itself an entry in `hits`)
+        // becomes 0, which JobCard treats as "don't stamp data-position" —
+        // the same rows `openJob`'s rank already can't attribute a click to.
+        const rank = hits.findIndex((h) => h.id === j.id);
+        return (
+            <JobCard
+                key={j.id}
+                job={j}
+                active={activeRowId === j.id}
+                opened={openedIds.has(j.id) || viewedIds.has(j.id)}
+                onClick={() => openJob(j.id)}
+                onCompany={j.company_domain ? handleCompany : undefined}
+                onOpenPosting={handleOpenPosting}
+                now={nowMs}
+                elite={board === "elite"}
+                variantCount={clusterProps?.variantCount ?? 0}
+                clusterLabel={clusterProps?.clusterLabel ?? ""}
+                expanded={clusterProps?.expanded ?? false}
+                onToggleExpand={clusterProps?.onToggleExpand}
+                tourAnchor={tourAnchor}
+                matchScore={matchScores?.get(j.id) ?? null}
+                matchAsOfDate={resumeAsOfDate}
+                pursuit={pursuitsByJobId.get(j.id)}
+                onGoAfter={() => handleGoAfter(j)}
+                goingAfter={goingAfterId === j.id}
+                position={rank >= 0 ? rank + 1 : undefined}
+            />
+        );
+    };
 
     const handleClearSearch = () => {
         setQueryDraft("");

@@ -10,7 +10,7 @@ import { getClientIp } from "@/lib/shield/client-ip";
 import { allowAuthSignupRequest, allowAuthSignInRequest, allowAuthResetRequest } from "@/lib/shield/rate-limit";
 import { verifyTurnstile } from "@/lib/shield/turnstile";
 import { forgetIdentity } from "@/lib/identity/forget";
-import { getIntervuPg } from "@/lib/pg/pool";
+import { getIntervuPg, getTelemetryForgetPg } from "@/lib/pg/pool";
 import { friendlyWorkosAuthMessage } from "@/lib/auth/workos-errors";
 import { resolveWorkosUserId, getWorkosUserManagement } from "@/lib/auth/workos-runtime";
 import { provisionAppAccess } from "@/lib/auth/provisioning";
@@ -319,7 +319,7 @@ export async function deleteAccount(): Promise<{ error?: string }> {
         await userManagement.deleteUser(workosUserId);
 
         if (user.email && !isMintedLoginEmail(user.email)) {
-            await forgetIdentity(getIntervuPg(), user.email);
+            await forgetIdentity(getIntervuPg(), getTelemetryForgetPg(), user.email);
         }
 
         return {};
