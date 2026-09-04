@@ -224,7 +224,15 @@ BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
 proves `telemetry_pg` can insert and cannot select/delete, `agent_pg` has no
 privilege on the ledger at all, `reap_telemetry()` runs and heartbeats, and
 `forget_telemetry_user()` is wired the way its `SECURITY DEFINER` design
-demands. See the script's own header for what each of its 9 checks proves.
+demands. See the script's own header for what each of its 10 checks proves.
+
+Check 5 reads the grantee census straight off the catalog (pg_class /
+aclexplode) for both `telemetry_events` and `job_heartbeats`, rather than
+asking about a role by name. A FAIL here names a grantee that checks 1-4
+would never have asked about — meaning some role acquired privileges on one
+of these tables via `ALTER DEFAULT PRIVILEGES` rather than from this
+migration's own grants. Do not proceed past a check-5 failure: it means the
+table's actual ACL is not the one this runbook believes it verified.
 
 ## 7. `verify-telemetry-e2e.ts`
 
