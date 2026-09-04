@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "August 31, 2026";
+const LAST_UPDATED = "September 3, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -40,6 +40,14 @@ export default function PrivacyPage() {
           ever accessed by our servers — never exposed directly to the browser or to other users.
         </p>
         <p>
+          We also keep a record of what you do while searching: the searches you run (including the text of what
+          you typed), which job postings come up, and which ones you click, open, save, apply to, or spend time
+          reading. If you&apos;re signed in, we tie this to your account and build a profile of your search
+          activity over time — what you&apos;re looking for, and what you actually respond to. This lives in a
+          PostgreSQL database we run ourselves on our own servers, not Google Cloud Firestore, which is where the
+          rest of your account data above lives.
+        </p>
+        <p>
           If you join a waitlist (for example, &ldquo;tell me when it&apos;s ready&rdquo; on the connect page), we
           store the email address you enter and which product you asked about — nothing else — and use it only to
           send you that one notification. You don&apos;t need an account for this, and you can ask us to remove it
@@ -54,8 +62,11 @@ export default function PrivacyPage() {
           When you search, we read your IP address transiently for two things: to default your job search to your
           country so first results are nearby, and to rate-limit abusive traffic. Your IP is not stored with your
           account, your searches, or your tracked applications — the country lookup happens on our own server
-          against a local database, with no third-party geolocation service involved. Like nearly every website,
-          our servers keep ordinary technical logs that can briefly include request IPs.
+          against a local database, with no third-party geolocation service involved. That same country check does
+          one more thing: if it places you in the EU or UK, we hold off on giving your browser a long-lived id that
+          would link your search activity across visits — instead you get one that resets when you close the tab,
+          until you&apos;ve made a consent choice. Like nearly every website, our servers keep ordinary technical
+          logs that can briefly include request IPs.
         </p>
         <p>
           The job listings you search are public information we collect from employers&apos; own career pages. We
@@ -66,9 +77,11 @@ export default function PrivacyPage() {
         <h2 className={LEGAL_H2}>How we use it</h2>
         <p>
           We use your account data to run the product: to show your tracked applications and keep your resumes and
-          prep answers where you left them. velai is free to use — nothing you do draws on a balance or requires
-          payment. That&apos;s it — we don&apos;t use your data to train models, and we don&apos;t build
-          advertising profiles.
+          prep answers where you left them. We use your search-activity profile for two things: to make your own
+          results more relevant the more you use velai, and, looked at in aggregate across everyone, to understand
+          which kinds of job postings people actually apply to so we can improve search for everyone. velai is
+          free to use — nothing you do draws on a balance or requires payment — and we don&apos;t sell any of this
+          to advertisers.
         </p>
 
         <h2 className={LEGAL_H2}>AI processing</h2>
@@ -140,10 +153,16 @@ export default function PrivacyPage() {
 
         <h2 className={LEGAL_H2}>Retention &amp; deletion</h2>
         <p>
-          We keep your data for as long as your account is active. You can delete your account and everything tied
-          to it at any time from <Link href="/settings">account settings</Link> — it&apos;s self-serve, not a
-          support ticket. Deletion removes your profile, tracked applications, resumes, and prep answers from our
-          systems.
+          We keep your account data for as long as your account is active. Search-activity records — which
+          searches, which clicks, which applies — are kept for 90 days and then deleted; after that we keep only
+          aggregate statistics, like what share of people who searched for a role went on to apply to it, which no
+          longer identify you.
+        </p>
+        <p>
+          You can delete your account and everything tied to it at any time from{" "}
+          <Link href="/settings">account settings</Link> — it&apos;s self-serve, not a support ticket. Deletion
+          removes your account profile, tracked applications, resumes, prep answers, and search-activity profile
+          from our systems.
         </p>
 
         <h2 className={LEGAL_H2}>Your choices</h2>
