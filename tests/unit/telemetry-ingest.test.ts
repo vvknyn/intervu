@@ -195,6 +195,42 @@ test("invalid shape (bad uuid, missing field, wrong type) is rejected; a well-fo
   for (const r of rejections) assert.equal(r.reason, "invalid_shape");
 });
 
+test("guard order: bad event_name + oversized props -> props_too_large (guard 3 runs before guard 4)", () => {
+  const eventId = uuid();
+  const { rejections } = processBatch(
+    [validEvent({ event_id: eventId, event_name: "Bad-Name!", props: { blob: "x".repeat(MAX_PROPS_LENGTH) } })],
+    NOW,
+  );
+  assert.deepEqual(rejections, [{ event_id: eventId, reason: "props_too_large" }]);
+});
+
+test("guard order: valid event_name + oversized props -> props_too_large (no regression)", () => {
+  const eventId = uuid();
+  const { rejections } = processBatch(
+    [validEvent({ event_id: eventId, event_name: "ok_name", props: { blob: "x".repeat(MAX_PROPS_LENGTH) } })],
+    NOW,
+  );
+  assert.deepEqual(rejections, [{ event_id: eventId, reason: "props_too_large" }]);
+});
+
+test("guard order: bad event_name + small props -> invalid_event_name (no regression)", () => {
+  const eventId = uuid();
+  const { rejections } = processBatch(
+    [validEvent({ event_id: eventId, event_name: "Bad-Name!", props: { ok: true } })],
+    NOW,
+  );
+  assert.deepEqual(rejections, [{ event_id: eventId, reason: "invalid_event_name" }]);
+});
+
+test("guard order: invalid shape + oversized props -> invalid_shape (shape is checked first, wins over both)", () => {
+  const eventId = uuid();
+  const { rejections } = processBatch(
+    [validEvent({ event_id: eventId, session_id: "not-a-uuid", props: { blob: "x".repeat(MAX_PROPS_LENGTH) } })],
+    NOW,
+  );
+  assert.deepEqual(rejections, [{ event_id: eventId, reason: "invalid_shape" }]);
+});
+
 test("sortByEventId orders ascending regardless of input order", () => {
   const rows = [{ event_id: "c" }, { event_id: "a" }, { event_id: "b" }];
   assert.deepEqual(sortByEventId(rows).map((r) => r.event_id), ["a", "b", "c"]);

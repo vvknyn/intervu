@@ -45,18 +45,34 @@ export const JOB_FEATURES_NUMERIC_COLUMNS: readonly (keyof JobFeatures)[] = [
  * The opposite-direction coercion gotcha: `timestamptz` columns come back
  * from node-pg as native JS `Date` objects, while `JobFeatures` declares
  * them as ISO strings (matching `PublicJob`/`extractJobFeatures`'s own
- * shape). Any SELECT that reads `job_features` back into a `JobFeatures`
- * object should cast these to `::text` so the runtime value actually
- * matches the declared type. None of these three are ever bucketed as a
- * feature (see `EXCLUDED_FEATURE_COLUMNS` in feature-outcomes.ts), but a
- * `Date` object sitting in a field typed `string` is still a lie the type
- * checker can't catch across a `pg` client boundary.
+ * shape, written via `toISOString()` — see `features.ts`). Any SELECT that
+ * reads `job_features` back into a `JobFeatures` object must format these
+ * to actually match that shape: a bare `::text` cast does NOT produce
+ * ISO-8601 — it renders Postgres's own text form (session-`DateStyle`
+ * dependent, space-separated, numeric UTC offset, e.g.
+ * `2026-09-04 09:41:11.639+02`), which round-trips as a different string
+ * than the `...639Z` the write side emits. `TIMESTAMP_ISO_CAST` below
+ * builds the `to_char(... AT TIME ZONE 'UTC', ...)` expression that
+ * produces the exact `toISOString()` shape instead (verified
+ * DateStyle/timezone-GUC independent). None of these three are ever
+ * bucketed as a feature (see `EXCLUDED_FEATURE_COLUMNS` in
+ * feature-outcomes.ts), but a value typed `string` that isn't actually
+ * ISO-8601 is still a lie the type checker can't catch across a `pg`
+ * client boundary.
  */
 export const JOB_FEATURES_TIMESTAMP_COLUMNS: readonly (keyof JobFeatures)[] = [
   "computed_at",
   "first_seen_at",
   "posted_at",
 ];
+
+/** Builds the `to_char` expression that reads one `timestamptz` column back
+ *  as the exact ISO-8601 UTC string `toISOString()` produces (e.g.
+ *  `2026-09-04T07:41:11.639Z`) — DateStyle/timezone-GUC independent, since
+ *  `to_char`'s format template is explicit rather than session-driven. */
+function timestampIsoCast(col: string): string {
+  return `to_char(${col} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+}
 
 /**
  * Pure: given the distinct job_ids a caller actually needs, builds the
@@ -73,7 +89,7 @@ export const JOB_FEATURES_TIMESTAMP_COLUMNS: readonly (keyof JobFeatures)[] = [
 export function buildJobFeaturesSelect(jobIds: readonly string[]): { text: string; params: unknown[] } {
   const selectList = JOB_FEATURES_COLUMNS.map((col) => {
     if (JOB_FEATURES_NUMERIC_COLUMNS.includes(col)) return `${col}::float8 as ${col}`;
-    if (JOB_FEATURES_TIMESTAMP_COLUMNS.includes(col)) return `${col}::text as ${col}`;
+    if (JOB_FEATURES_TIMESTAMP_COLUMNS.includes(col)) return `${timestampIsoCast(col)} as ${col}`;
     return col;
   }).join(", ");
   return {

@@ -40,7 +40,8 @@ export interface PositionCorrectedRate {
   /** Same rate computed by pooling every position together — the number
    *  SPEC-2 §5 requires to always be rendered with the word "uncorrected". */
   uncorrectedRate: number;
-  /** Total impressions actually observed across the rows that fed this. */
+  /** Total impressions across exactly the rows that fed BOTH `rate` and
+   *  `uncorrectedRate` — the shared denominator for either one. */
   n: number;
   /** How many reference positions had at least one impression. */
   positionsCovered: number;
@@ -80,24 +81,28 @@ export function positionCorrectedRate(
 
   const byPosition = new Map(bucketRows.map((r) => [r.position, r]));
 
+  // Single pass over the reference positions: `rate`, `uncorrectedRate`, and
+  // `n` are all derived from exactly the same row set (positions in
+  // `referenceWeights` that have a row with impressions > 0). Rows outside
+  // the reference distribution never contribute to any of the three, so `n`
+  // is always the true denominator of BOTH rates — a caller can pool `rate`
+  // with `n` for a confidence interval, or compare `rate` to
+  // `uncorrectedRate`, without silently mixing two different populations.
   let weightedRateSum = 0;
   let weightCovered = 0;
   let positionsCovered = 0;
+  let totalImpressions = 0;
+  let totalMetric = 0;
   for (const [position, weight] of referenceWeights) {
     const row = byPosition.get(position);
     if (!row || row.impressions === 0) continue;
     weightedRateSum += (row[metric] / row.impressions) * weight;
     weightCovered += weight;
     positionsCovered++;
-  }
-  if (weightCovered === 0) return null;
-
-  let totalImpressions = 0;
-  let totalMetric = 0;
-  for (const row of bucketRows) {
     totalImpressions += row.impressions;
     totalMetric += row[metric];
   }
+  if (weightCovered === 0) return null;
 
   return {
     bucket,
@@ -129,7 +134,7 @@ export const EXCLUDED_FEATURE_COLUMNS: ReadonlySet<keyof JobFeatures> = new Set(
  *  - boolean -> "true" | "false"
  *  - string  -> the string verbatim (already categorical, e.g. degree_level,
  *    seniority_word, employment_type, apply_method)
- *  - number  -> an order-of-magnitude range ("0", "1-9", "10-99", ...), so a
+ *  - number  -> an order-of-magnitude range ("0", "1-10", "10-100", ...), so a
  *    salary in the tens of thousands and a years-of-experience count in the
  *    single digits both land in a stable, comparably-sized bucket without a
  *    per-column range table.
@@ -141,8 +146,13 @@ export function bucketFeatureValue(value: unknown): string | null {
   if (typeof value === "number") {
     if (!Number.isFinite(value) || value <= 0) return "0";
     const magnitude = Math.floor(Math.log10(value));
-    const lo = magnitude === 0 ? 1 : 10 ** magnitude;
-    const hi = 10 ** (magnitude + 1) - 1;
+    const lo = 10 ** magnitude;
+    // Buckets are half-open at every magnitude: [10^m, 10^(m+1)), lower
+    // bound inclusive, upper bound exclusive. A value of exactly 10 lands in
+    // "10-100", never in "1-10" — the label's own range always contains the
+    // value that produced it, whether the value is a whole count or a raw
+    // float (e.g. salary_span_pct, which is never rounded).
+    const hi = 10 ** (magnitude + 1);
     return `${lo}-${hi}`;
   }
   return null;

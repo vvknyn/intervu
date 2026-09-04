@@ -29,9 +29,10 @@
 --    shape. That is exactly what happened on prod 2026-09-03: an unrelated
 --    pre-spec `telemetry_events` table already existed, so this file ran
 --    "successfully" while creating nothing, every insert downstream started
---    failing on missing columns, the ingest route's catch-and-204
---    (src/app/api/telemetry/route.ts:136-138) swallowed every failure, and
---    the launch looked completely healthy while storing zero rows.
+--    failing on missing columns, the ingest route's catch-and-204 (POST()'s
+--    guard 9 return / guard 10 catch, src/app/api/telemetry/route.ts:174-178)
+--    swallowed every failure, and the launch looked completely healthy while
+--    storing zero rows.
 --
 --    This block makes that failure loud instead of silent. If the table
 --    already exists, its column set must match this file's exactly — same

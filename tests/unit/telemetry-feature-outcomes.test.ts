@@ -63,6 +63,26 @@ describe("positionCorrectedRate — position confound", () => {
     closeTo(x.rate, (0.5 * 0.5 + 0.25 * 0.1) / 0.75);
     assert.equal(x.positionsCovered, 2);
   });
+
+  it("n is exactly the impression count behind rate — not a wider pool that includes rows outside the reference distribution", () => {
+    // Position 50 is outside evenWeights' reference distribution (1 and 5
+    // only). It must not leak into X's `n` or `uncorrectedRate`: those must
+    // describe exactly the rows `rate` averaged over, never a bigger pool,
+    // or a consumer computing a CI from (rate, n) — or comparing rate to
+    // uncorrectedRate — would be reasoning about two different samples.
+    const withStrayRow: FeatureOutcomeRow[] = [
+      ...rows,
+      { feature: "demo", bucket: "X", position: 50, impressions: 5000, clicks: 5000, applies: 0 },
+    ];
+    const baseline = positionCorrectedRate(rows, "X", "clicks", evenWeights)!;
+    const withStray = positionCorrectedRate(withStrayRow, "X", "clicks", evenWeights)!;
+    assert.equal(withStray.rate, baseline.rate);
+    assert.equal(withStray.n, baseline.n);
+    assert.equal(withStray.uncorrectedRate, baseline.uncorrectedRate);
+    // And n itself is exactly the impressions from the two covered positions
+    // (1000 + 10), i.e. the same rows `rate`'s weighted sum was built from.
+    assert.equal(withStray.n, 1010);
+  });
 });
 
 describe("bucketFeatureValue — dispatches on type, not column name", () => {
@@ -83,9 +103,96 @@ describe("bucketFeatureValue — dispatches on type, not column name", () => {
   it("number -> an order-of-magnitude range bucket", () => {
     assert.equal(bucketFeatureValue(0), "0");
     assert.equal(bucketFeatureValue(-5), "0");
-    assert.equal(bucketFeatureValue(5), "1-9");
-    assert.equal(bucketFeatureValue(42), "10-99");
-    assert.equal(bucketFeatureValue(150_000), "100000-999999");
+    assert.equal(bucketFeatureValue(5), "1-10");
+    assert.equal(bucketFeatureValue(42), "10-100");
+    assert.equal(bucketFeatureValue(150_000), "100000-1000000");
+  });
+
+  it("boundary: a value at the top of a magnitude belongs to the NEXT bucket, never a gap", () => {
+    // Half-open at every magnitude: [10^m, 10^(m+1)). 10 is the first value
+    // of magnitude 1, so it must land in "10-100", not "1-10"; 9.999 is
+    // still magnitude 0, so it stays in "1-10".
+    assert.equal(bucketFeatureValue(10), "10-100");
+    assert.equal(bucketFeatureValue(9.999), "1-10");
+  });
+
+  // Table-driven: every non-guarded input must produce a well-formed,
+  // ascending range — not just the two values (0.5, 0.05) that first
+  // surfaced the bug. 0 and a negative both hit the "not a real magnitude"
+  // guard and return the sentinel bucket "0", which is not itself a range.
+  // 99.5 and 999.5 are not salary_span_pct-shaped at all — they prove the
+  // half-open fix holds at every magnitude boundary, not just the one
+  // (9.x) that salary_span_pct happened to surface.
+  const magnitudeCases: Array<{ value: number; expected: string }> = [
+    { value: 0, expected: "0" },
+    { value: -5, expected: "0" },
+    { value: 0.001, expected: "0.001-0.01" },
+    { value: 0.05, expected: "0.01-0.1" },
+    { value: 0.5, expected: "0.1-1" },
+    { value: 1, expected: "1-10" },
+    { value: 9.9, expected: "1-10" },
+    { value: 9.999, expected: "1-10" },
+    { value: 10, expected: "10-100" },
+    { value: 99, expected: "10-100" },
+    { value: 99.5, expected: "10-100" },
+    { value: 100, expected: "100-1000" },
+    { value: 999.5, expected: "100-1000" },
+    { value: 1000, expected: "1000-10000" },
+  ];
+
+  for (const { value, expected } of magnitudeCases) {
+    it(`bucketFeatureValue(${value}) -> "${expected}"`, () => {
+      const label = bucketFeatureValue(value);
+      assert.equal(label, expected);
+
+      if (value <= 0) {
+        // Guard path: no magnitude to bucket, so no range is expected.
+        assert.equal(label, "0");
+        return;
+      }
+
+      // Structural invariant, independent of the hand-written string above:
+      // a well-formed range is non-empty, has exactly one separator, and
+      // parses to an ascending (lower < upper) pair. This is what catches
+      // inputs nobody thought to hand-write an expected string for.
+      assert.ok(label && label.length > 0, "label must be non-empty");
+      const parts = label!.split("-");
+      assert.equal(parts.length, 2, `expected exactly one '-' separator, got "${label}"`);
+      const [lower, upper] = parts.map(Number);
+      assert.ok(Number.isFinite(lower) && Number.isFinite(upper), `both bounds must parse as numbers: "${label}"`);
+      assert.ok(lower < upper, `expected ascending range, got lower=${lower} upper=${upper} ("${label}")`);
+
+      // The actual contract: the label's own range must contain the value
+      // that produced it. This is the exact property the pre-fix code
+      // violated for any fractional value landing between 10^(m+1)-1 and
+      // 10^(m+1) (e.g. salary_span_pct = 9.5 labelled "1-9").
+      assert.ok(
+        lower <= value && value < upper,
+        `expected ${lower} <= ${value} < ${upper} for label "${label}"`
+      );
+    });
+  }
+
+  it("property: across a spread of magnitudes both below and above 1, every label's range contains the value that produced it", () => {
+    // Magnitudes -3..6 stay well clear of the documented out-of-domain
+    // floor (~1e-6, where 10**magnitude switches to exponential notation
+    // and breaks label parsing) while still spanning sub-1 and multi-digit
+    // magnitudes on both sides of the old bug's boundary.
+    for (let magnitude = -3; magnitude <= 6; magnitude++) {
+      const base = 10 ** magnitude;
+      // Sample across the whole magnitude, including just below the next
+      // boundary — exactly where the closed-interval bug left its gap.
+      const samples = [base, base * 1.5, base * 5, base * 9.5, base * 9.999];
+      for (const value of samples) {
+        const label = bucketFeatureValue(value);
+        assert.ok(label, `expected a label for ${value}`);
+        const [lo, hi] = label!.split("-").map(Number);
+        assert.ok(
+          lo <= value && value < hi,
+          `bucketFeatureValue(${value}) = "${label}" violates lo <= value < hi`
+        );
+      }
+    }
   });
 });
 
@@ -158,7 +265,7 @@ describe("enumerateFeatureBuckets", () => {
     );
     const byFeature = new Map(pairs.map((p) => [p.feature, p.bucket]));
     assert.equal(byFeature.get("has_salary"), "true");
-    assert.equal(byFeature.get("salary_min"), "100000-999999");
+    assert.equal(byFeature.get("salary_min"), "100000-1000000");
     assert.equal(byFeature.get("degree_level"), "bachelor");
   });
 });

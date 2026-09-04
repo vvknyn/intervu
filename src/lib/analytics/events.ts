@@ -1,5 +1,6 @@
 import posthog from "posthog-js";
 import { trackToLedger } from "@/lib/telemetry/client";
+import { ANALYTICS_EVENTS, type AnalyticsEventKey } from "@/lib/analytics/event-names";
 
 /**
  * Wave-2 package F wired up the first six wire names (search → apply →
@@ -8,56 +9,18 @@ import { trackToLedger } from "@/lib/telemetry/client";
  * search refinement, and application-stage moves. See docs/analytics/EVENTS.md
  * for the full taxonomy — event, payload, seam file, metric it feeds.
  *
- * ANALYTICS_EVENTS is the one place an event's wire name is decided. Every
- * caller reaches a name through captureEvent's `K` type parameter rather
- * than typing the string directly, so a rename can't land in one call site
- * and not another.
+ * ANALYTICS_EVENTS (re-exported here from the dependency-free
+ * `event-names.ts`, so this stays a drop-in for every existing importer) is
+ * the one place an event's wire name is decided. Every caller reaches a name
+ * through captureEvent's `K` type parameter rather than typing the string
+ * directly, so a rename can't land in one call site and not another.
  *
  * Does NOT call posthog.register({ product }) — PostHogProvider already
  * stamps that super-property once, right after init(); doing it again here
  * would just re-set the same value on every capture.
  */
 
-export const ANALYTICS_EVENTS = {
-  // Original wave-3 six — wire names are a dashboard contract, never rename.
-  search_submitted: "search_submitted",
-  result_clicked: "result_clicked",
-  apply_clicked: "apply_clicked",
-  job_saved: "job_saved",
-  company_followed: "company_followed",
-  signup_completed: "signup_completed",
-
-  // Job entity
-  job_viewed: "job_viewed",
-  job_unsaved: "job_unsaved",
-  job_marked_applied: "job_marked_applied",
-  // Wire name kept as the pre-existing "share_initiated" (previously sent by
-  // the untyped `trackEvent` in lib/analytics.ts) so this doesn't fork an
-  // existing dashboard metric in two — job-surface shares now carry job_id.
-  job_shared: "share_initiated",
-  job_match_expanded: "job_match_expanded",
-
-  // Company entity
-  company_viewed: "company_viewed",
-  company_unfollowed: "company_unfollowed",
-
-  // Search / SERP
-  search_zero_results: "search_zero_results",
-  search_filter_applied: "search_filter_applied",
-  search_results_paged: "search_results_paged",
-  results_impressed: "results_impressed",
-
-  search_alert_impressed: "search_alert_impressed",
-  search_alert_submitted: "search_alert_submitted",
-  search_alert_verified: "search_alert_verified",
-  search_alert_dismissed: "search_alert_dismissed",
-
-  // Application tracker
-  application_stage_changed: "application_stage_changed",
-  resume_uploaded: "resume_uploaded",
-} as const;
-
-export type AnalyticsEventKey = keyof typeof ANALYTICS_EVENTS;
+export { ANALYTICS_EVENTS, type AnalyticsEventKey };
 
 /** Where a job result/apply/view/share originated. */
 export type EventSource = "serp" | "co" | "board" | "email" | "direct";

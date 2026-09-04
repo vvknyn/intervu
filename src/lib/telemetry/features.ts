@@ -174,7 +174,7 @@ function extractDescriptionFacts(description: string | null) {
     responsibility_count: countHeadingItems(blocks, RESPONSIBILITY_HEADING_RE),
     has_equity_mention: EQUITY_RE.test(text),
     has_benefits_section: hasBenefits,
-    benefit_count: hasBenefits ? countHeadingItems(blocks, BENEFITS_HEADING_RE) || null : null,
+    benefit_count: hasBenefits ? countHeadingItems(blocks, BENEFITS_HEADING_RE) : null,
     has_visa_statement: VISA_RE.test(text),
     has_eeo_boilerplate: EEO_RE.test(text) || hasHeadingMatching(blocks, /equal\s+opportunity|eeo\s+statement/i),
     degree_required: DEGREE_REQUIRED_RE.test(text),

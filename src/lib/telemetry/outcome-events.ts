@@ -1,19 +1,17 @@
+import { ANALYTICS_EVENTS } from "@/lib/analytics/event-names";
+
 /**
  * Wire-name classification for the rollup's read of
  * `intervu.telemetry_events.event_name`.
  *
- * The event-NAME vocabulary is owned by `src/lib/analytics/events.ts`
- * (`ANALYTICS_EVENTS`) — this module deliberately does NOT import it. That
- * file does `import posthog from "posthog-js"` at module scope (a
- * browser-oriented SDK), which is unsafe to pull into a Node cron process.
- * The four wire-name strings below are copied from that file's
- * `ANALYTICS_EVENTS` values as of 2026-09-03; if that file ever renames one
- * of these four events, this module's tests will keep passing against a now
- * meaning stale string — a case a code owner must catch on review of any
- * future edit to `events.ts`, since a duplicated literal cannot detect a
- * rename in its source of truth by itself. Single source of truth for the
- * DERIVED-layer's OWN vocabulary (job_daily/company_daily/feature_outcomes
- * outcome classification) is this file, not a second copy per rollup.
+ * The event-NAME vocabulary is owned by `src/lib/analytics/event-names.ts`
+ * (`ANALYTICS_EVENTS`) — a dependency-free leaf module, safe to import from
+ * a Node cron process. (`src/lib/analytics/events.ts`, the browser-side
+ * emitter, does `import posthog from "posthog-js"` at module scope and is
+ * NOT imported here for that reason — it re-exports the same map instead.)
+ * Single source of truth for the DERIVED-layer's OWN vocabulary
+ * (job_daily/company_daily/feature_outcomes outcome classification) is this
+ * file, not a second copy per rollup.
  */
 
 // No "dismissal" member: no wire event for dismissing a job result exists
@@ -23,15 +21,19 @@
 // this classifier is missing.
 export type OutcomeKind = "impression" | "click" | "apply" | "save";
 
-// Wire names, copied from ANALYTICS_EVENTS in src/lib/analytics/events.ts.
-// RESULTS_IMPRESSED is exported: roll-up-telemetry.ts's impression-array
-// unnest has to stamp this exact name onto the synthetic rows it builds
-// from `results_impressed`'s props, and re-typing the literal there would
-// be a second, driftable copy of the same wire-name fact.
-export const RESULTS_IMPRESSED = "results_impressed";
-const RESULT_CLICKED = "result_clicked";
-const APPLY_CLICKED = "apply_clicked";
-const JOB_SAVED = "job_saved";
+// Wire names, derived from ANALYTICS_EVENTS in src/lib/analytics/event-names.ts.
+// All four are exported: any consumer that has to stamp or match one of
+// these exact wire names (e.g. src/lib/telemetry/rollup-fetch.ts's
+// impression-array unnest, which both filters SQL on RESULTS_IMPRESSED and
+// stamps it onto synthetic rows) imports the constant. Re-typing any of
+// these literals at a call site would be a second, driftable copy of the
+// same wire-name fact — a ratchet test (tests/unit/roll-up-telemetry-event-
+// name-ratchet.test.ts) fails if one shows up hardcoded anywhere under
+// src/lib/telemetry/ or scripts/.
+export const RESULTS_IMPRESSED = ANALYTICS_EVENTS.results_impressed;
+export const RESULT_CLICKED = ANALYTICS_EVENTS.result_clicked;
+export const APPLY_CLICKED = ANALYTICS_EVENTS.apply_clicked;
+export const JOB_SAVED = ANALYTICS_EVENTS.job_saved;
 
 /**
  * Classifies one ledger row's `event_name` into an outcome kind, or null

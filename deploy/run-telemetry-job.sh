@@ -245,12 +245,37 @@ cd "$INTERVU_ROOT" || { log "FAIL cannot cd $INTERVU_ROOT"; exit 1; }
 rc=$?
 elapsed=$(( $(date +%s) - started ))
 
-# Liveness is judged by intervu.job_heartbeats, which each job writes itself
-# (including on failure, with ok=false and the real row count reached). This
-# log line is for a human reading back a specific run, not the health signal.
+# A job that reaches its own try/catch writes its OWN terminal heartbeat
+# in-process (src/lib/telemetry/heartbeat.ts) — including on failure, with
+# ok=false and the real row count reached. But a child killed by SIGKILL, an
+# OOM kill, or the timeout above never reaches that code, so it writes
+# nothing there at all — a missing/stale row used to be equally consistent
+# with "never started" and "started and died mid-run". This wrapper is the
+# one thing that survives that death, so on ANY non-zero exit it records the
+# failure itself, reusing BATCH_PG_URL already exported above (no new
+# credential). That write is guarded (writeHeartbeat's onlyIfOlderThanSeconds
+# in heartbeat.ts) to only land if the row was not already updated during
+# this run, so a child that wrote its own richer row is never clobbered.
+#
+# $elapsed, not $started: the guard compares against the DB's own now() on
+# the DB box, while this wrapper's clock is the APP box's. Passing $started
+# (an absolute app-box timestamp) would make the guard's correctness depend
+# on the two boxes' clocks agreeing. $elapsed is a duration computed
+# entirely from this box's own two `date +%s` reads, so it carries no
+# cross-box skew — the DB derives its own threshold via
+# now() - make_interval(secs => $elapsed), comparing its own clock against
+# itself.
+if [[ "$rc" -ne 0 ]]; then
+    ./node_modules/.bin/tsx "scripts/record-job-failure.ts" "$JOB" "$elapsed" >>"$LOG" 2>&1
+    hb_rc=$?
+    if [[ "$hb_rc" -ne 0 ]]; then
+        log "WARN supervisor failure-heartbeat write for $JOB exited $hb_rc — see log above"
+    fi
+fi
+
 case "$rc" in
     0)   log "OK   exit=0 ${elapsed}s" ;;
-    124) log "FAIL TIMEOUT after ${TIMEOUT}s — killed; heartbeat will show ok=false or be stale" ;;
+    124) log "FAIL TIMEOUT after ${TIMEOUT}s — killed; job_heartbeats now shows ok=false for this run (supervisor-recorded, unless the child's own row is newer)" ;;
     *)   log "FAIL exit=$rc ${elapsed}s — see the traceback above this line" ;;
 esac
 exit "$rc"
