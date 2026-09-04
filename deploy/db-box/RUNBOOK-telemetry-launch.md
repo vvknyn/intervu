@@ -303,6 +303,24 @@ an `/api/telemetry` route to serve until the intervu app deploy lands.
 **Precondition:** step 2's pass condition holds (a password exists to put in
 the connection string).
 
+**Two different env files exist for this product on the app box — do not
+confuse them.** Measured 2026-09-04, key presence only, no values read:
+
+| file | consumer | keys | has |
+|---|---|---|---|
+| `/opt/interview-os/deploy/contabo-web/intervu.env` | the **container** — `docker-compose.yml`'s `env_file` (lines 43-44) | 31 | `TELEMETRY_PG_URL`: 0 (this step adds it); `BATCH_PG_URL`: 0 |
+| `/opt/interview-os/.env.local` | the **host cron jobs** — `run-telemetry-job.sh`'s `ENV_FILE` default (`run-telemetry-job.sh:46`) | 46 | `BATCH_PG_URL`, `MEILI_URL`, `MEILI_ADMIN_KEY`: 1 each; `TELEMETRY_PG_URL`: 0 |
+
+This step edits `intervu.env` and only `intervu.env` — deliberately, not an
+oversight: `/api/telemetry` runs in the container, so the container's env
+file is the only one that can affect it. §9's two derived-table cron jobs
+(`build-job-features`, `roll-up-telemetry`) do **not** need
+`TELEMETRY_PG_URL` at all — audited: `build-job-features` reaches only
+`BATCH_PG_URL`/`MEILI_URL`/`MEILI_ADMIN_KEY`, `roll-up-telemetry` only
+`BATCH_PG_URL`, exactly what `run-telemetry-job.sh`'s wrapper exports from
+`.env.local` (§9). So there is no missing step on that side; adding
+`TELEMETRY_PG_URL` to `.env.local` too would not be wrong, just useless.
+
 **Run:** on the app box (194.163.147.154), as `subspace` — the file is
 mode `-rw-------`, owned by `subspace`, and lives outside the git tree at
 `/opt/interview-os/deploy/contabo-web/intervu.env`, so no `sudo` is needed
@@ -411,18 +429,33 @@ pg_hba rule admits the role at all. Run this from 194.163.147.154: that is
 the only address any of the three roles' pg_hba rules (`telemetry_pg`,
 `agent_pg`, `pipeline`) admit a connection from.
 
-**Run:** from a host that can reach the DB box's Postgres over the network
-(the DB box firewall admits 5432 only from the pipeline box, 194.163.147.154
-— same constraint every other `deploy/db-box/` script already documents).
-Connection details are environment-only, scoped to this one command, never
-argv:
+**Run:** on the app box (194.163.147.154) — it is both the only address any
+of the three roles' pg_hba rules admit, and the box holding
+`intervu.env`. Do **not** hand-type `TELEMETRY_PG_URL` here: a typo in a
+hand-typed value would still let this check pass while §3's actual line
+(the one the container reads) stays broken, which is exactly the seam this
+step exists to close. Instead read it back from the file, with the same
+`read_key()` parsing `run-telemetry-job.sh:121` uses — `tail -1`, not
+`head -1`, because dotenv is last-assignment-wins and this file is known to
+assign at least one key twice — so this check can never pass against a
+value the container does not actually use. The value is never echoed:
 
 ```bash
-TELEMETRY_PG_URL="postgresql://telemetry_pg:<password>@169.58.140.49:5432/postgres" \
+ENV_FILE=/opt/interview-os/deploy/contabo-web/intervu.env
+read_key() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 | tr -d '"'"'"'\r'; }
+
+TELEMETRY_PG_URL="$(read_key TELEMETRY_PG_URL)"
+[[ -z "$TELEMETRY_PG_URL" ]] && { echo "TELEMETRY_PG_URL missing/empty in $ENV_FILE — §3 is not done" >&2; exit 1; }
+
 AGENT_PG_URL="postgresql://agent_pg:<password>@169.58.140.49:5432/postgres" \
 BATCH_PG_URL="postgresql://pipeline:<password>@169.58.140.49:5432/postgres" \
+TELEMETRY_PG_URL="$TELEMETRY_PG_URL" \
   deploy/db-box/verify-telemetry-grants.sh
 ```
+
+`AGENT_PG_URL`/`BATCH_PG_URL` stay hand-typed: neither role's URL is stored
+in `intervu.env` (§3's env-file table above — `BATCH_PG_URL`: 0 there),
+so there is no file to fall out of sync with for those two.
 
 **Pass condition:** exit `0`, final line `all grant checks pass`. This
 proves `telemetry_pg` can insert and cannot select/delete, `agent_pg` has no
