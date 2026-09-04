@@ -35,25 +35,34 @@
 #      hands out next — would pass every one of them silently. This check
 #      reads pg_class/aclexplode directly instead of asking about a role by
 #      name, so it catches a grantee this script never thought to ask about.
-#   6. `select intervu.reap_telemetry(90)` runs and leaves a fresh
+#   6. Catalog-driven function census: EVERY function in schema intervu
+#      (discovered from pg_proc/pg_namespace, not named) is owned by
+#      `pipeline`, denies PUBLIC EXECUTE, has search_path pinned, and its
+#      non-PUBLIC grantee census matches a per-function allowlist
+#      (fn_allowed_grants) — telemetry_pg on forget_telemetry_user, none on
+#      reap_telemetry. A function this script has no allowlist entry for
+#      still gets checked and defaults to "no extra grantee sanctioned", so
+#      an unsanctioned grant on a function added later fails loudly instead
+#      of passing by omission — same reasoning as check 5's table census.
+#   7. `select intervu.reap_telemetry(90)` runs and leaves a fresh
 #      job_heartbeats row — guarded by size, see NOTE below.
-#   7. intervu.forget_telemetry_user(text) exists, is SECURITY DEFINER,
-#      owned by pipeline, and has search_path pinned.
-#   8. PUBLIC cannot execute it.
+#   8. intervu.forget_telemetry_user(text) exists and is SECURITY DEFINER
+#      (the one property check 6 is deliberately not generic over —
+#      reap_telemetry stays SECURITY INVOKER by design).
 #   9. telemetry_pg CAN execute it, and it genuinely deletes the target
 #      user's row (both the returned count AND the row's absence are
 #      checked — a count of 1 with the row still present is exactly the
 #      bug this must catch).
 #   10. A null/empty uid is refused, returns 0, and touches nothing.
-#   Checks 8-10 are gated behind check 7: `to_regprocedure(...)` (not a
+#   Checks 9-10 are gated behind check 8: `to_regprocedure(...)` (not a
 #   `::regprocedure` cast) is used everywhere the function's existence
 #   matters, because a cast raises a hard error under this script's
 #   `set -euo pipefail` when the function is absent — a different, uglier,
-#   non-continuable failure than a clean FAIL line. If check 7 finds the
-#   function missing, checks 8-10 are FAILed directly with the same reason
+#   non-continuable failure than a clean FAIL line. If check 8 finds the
+#   function missing, checks 9-10 are FAILed directly with the same reason
 #   instead of running a query that would abort the whole script.
 #
-# NOTE on check 5 (reap_telemetry): `intervu.reap_telemetry()` issues its
+# NOTE on check 7 (reap_telemetry): `intervu.reap_telemetry()` issues its
 # DELETE as one statement in one transaction — telemetry_schema.sql §7 says
 # plainly that this is fine for erasure (bounded to one account's rows) but
 # NOT fine for retention sweeps at scale, which is exactly why
@@ -194,6 +203,79 @@ echo "checking: catalog grantee census matches the sanctioned set (telemetry_eve
 check_census "intervu.telemetry_events" "telemetry_pg:INSERT"
 check_census "intervu.job_heartbeats" ""
 
+# Function census. Same failure check_census above closes for tables,
+# extended to functions: telemetry-schema.sql §8 now hardens EVERY function
+# in schema intervu catalog-driven (owner=pipeline, PUBLIC EXECUTE denied,
+# search_path pinned) rather than by name, so this check discovers functions
+# the same way — a query over pg_proc/pg_namespace, not a hardcoded list —
+# so a function added to the schema next month is checked by construction
+# instead of silently passing because nobody added a line for it here.
+#
+# The one thing that legitimately varies per function is which non-PUBLIC
+# roles may hold EXECUTE — forget_telemetry_user's `telemetry_pg` grant is
+# deliberate (§7), reap_telemetry has none. That is business knowledge this
+# script cannot derive from the catalog, so it is the one place this check
+# is allowed to know a function by name: a function discovered with no entry
+# here defaults to "no grantee but the owner is sanctioned", so an
+# unsanctioned grant on ANY function — including one this script has never
+# heard of — fails loudly instead of passing by omission.
+declare -A fn_allowed_grants=(
+  [forget_telemetry_user]="telemetry_pg:EXECUTE"
+  [reap_telemetry]=""
+)
+
+check_function_census() {
+  local ident="$1" proname owner search_path_ok public_exec actual expected
+  proname="$(psql "$BATCH_PG_URL" -qAtc "select proname from pg_proc where oid = '${ident}'::regprocedure")"
+  owner="$(psql "$BATCH_PG_URL" -qAtc "select pg_get_userbyid(proowner) from pg_proc where oid = '${ident}'::regprocedure")"
+  if [[ "$owner" != "pipeline" ]]; then
+    fail "${ident} is owned by '${owner}', expected 'pipeline'"
+    return
+  fi
+  search_path_ok="$(psql "$BATCH_PG_URL" -qAtc "
+    select exists (
+      select 1 from unnest(coalesce(proconfig, '{}'::text[])) c
+      where c like 'search_path=%'
+    ) from pg_proc where oid = '${ident}'::regprocedure")"
+  if [[ "$search_path_ok" != "t" ]]; then
+    fail "${ident} has no pinned search_path"
+    return
+  fi
+  public_exec="$(psql "$BATCH_PG_URL" -qAtc "select has_function_privilege('public', '${ident}', 'EXECUTE')")"
+  if [[ "$public_exec" != "f" ]]; then
+    fail "${ident} — PUBLIC can EXECUTE (revoke did not take)"
+    return
+  fi
+  expected="${fn_allowed_grants[$proname]:-}"
+  # a.grantee <> p.proowner, same exclusion check_census applies for tables
+  # (a.grantee <> c.relowner): REVOKE/ALTER OWNER materializes the ACL, and
+  # a materialized ACL lists the owner's own implicit EXECUTE explicitly —
+  # measured on prod 2026-09-04, aclexplode on a freshly-stripped function
+  # returns `pipeline=X/pipeline` alongside any real grant. Without this
+  # filter every correctly-hardened function fails this check, because the
+  # owner's own entry would never appear in fn_allowed_grants.
+  actual="$(psql "$BATCH_PG_URL" -qAtc "
+    select coalesce(string_agg(
+        (case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end)
+        || ':' || a.privilege_type, ',' order by 1), '')
+    from pg_proc p, aclexplode(p.proacl) a
+    where p.oid = '${ident}'::regprocedure and a.grantee <> p.proowner")"
+  if [[ "$actual" == "$expected" ]]; then
+    pass "${ident} owned by pipeline, PUBLIC EXECUTE denied, search_path pinned, grantee census is exactly [${expected:-none}]"
+  else
+    fail "${ident} grantee census mismatch — expected [${expected:-none}], got [${actual:-none}] (if '${proname}' is a new function, add its sanctioned grantees to fn_allowed_grants above)"
+  fi
+}
+
+echo "checking: catalog-driven function census for every function in schema intervu"
+fn_list="$(psql "$BATCH_PG_URL" -qAtc "
+  select p.oid::regprocedure
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'intervu'")"
+while IFS= read -r ident; do
+  [[ -n "$ident" ]] && check_function_census "$ident"
+done <<< "$fn_list"
+
 echo "checking: intervu.reap_telemetry() runs and heartbeats"
 REAP_VERIFY_MAX_ROWS="${REAP_VERIFY_MAX_ROWS:-5000}"
 eligible_rows="$(psql "$BATCH_PG_URL" -qAtc \
@@ -215,7 +297,13 @@ else
   fi
 fi
 
-echo "checking: intervu.forget_telemetry_user(text) exists, is SECURITY DEFINER, owned by pipeline, search_path pinned"
+echo "checking: intervu.forget_telemetry_user(text) exists and is SECURITY DEFINER"
+# Owner=pipeline, PUBLIC-execute-denied and search_path-pinned are asserted
+# generically above by check_function_census for every function in the
+# schema, this one included — not repeated here. prosecdef is the one
+# property that check is not generic over (reap_telemetry deliberately
+# stays SECURITY INVOKER, so a schema-wide assertion would be wrong), so
+# it's checked here where the function-specific rationale (§7) lives.
 forget_exists="$(psql "$BATCH_PG_URL" -qAtc \
   "select (to_regprocedure('intervu.forget_telemetry_user(text)') is not null)")"
 if [[ "$forget_exists" != "t" ]]; then
@@ -224,30 +312,18 @@ if [[ "$forget_exists" != "t" ]]; then
   fail "telemetry_pg can execute intervu.forget_telemetry_user(text) and it deletes — function does not exist"
   fail "forget_telemetry_user(null/'') is refused without touching the table — function does not exist"
 else
-  secdef_owner_ok="$(psql "$BATCH_PG_URL" -qAtc "
-    select (p.prosecdef
-            and r.rolname = 'pipeline'
-            and exists (
-              select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c
-              where c like 'search_path=%'
-            ))
-    from pg_proc p
-    join pg_roles r on r.oid = p.proowner
-    where p.oid = to_regprocedure('intervu.forget_telemetry_user(text)')")"
-  if [[ "$secdef_owner_ok" == "t" ]]; then
-    pass "forget_telemetry_user is SECURITY DEFINER, owned by pipeline, search_path pinned"
+  secdef_ok="$(psql "$BATCH_PG_URL" -qAtc "
+    select prosecdef from pg_proc
+    where oid = to_regprocedure('intervu.forget_telemetry_user(text)')")"
+  if [[ "$secdef_ok" == "t" ]]; then
+    pass "forget_telemetry_user is SECURITY DEFINER"
   else
-    fail "forget_telemetry_user failed the SECURITY DEFINER/owner/search_path check (got: '${secdef_owner_ok}')"
+    fail "forget_telemetry_user is not SECURITY DEFINER (got: '${secdef_ok}')"
   fi
 
-  echo "checking: PUBLIC cannot execute intervu.forget_telemetry_user(text)"
-  public_exec="$(psql "$BATCH_PG_URL" -qAtc \
-    "select has_function_privilege('public', 'intervu.forget_telemetry_user(text)', 'EXECUTE')")"
-  if [[ "$public_exec" == "f" ]]; then
-    pass "PUBLIC EXECUTE denied on forget_telemetry_user"
-  else
-    fail "PUBLIC can execute forget_telemetry_user (got: '${public_exec}') — revoke did not take"
-  fi
+  # PUBLIC-execute-denied was already asserted for this function (by name,
+  # via fn_allowed_grants above) as part of the generic function census —
+  # not repeated here.
 
   echo "checking: telemetry_pg can execute forget_telemetry_user and it genuinely deletes"
   # Sentinel uid cannot collide with a real WorkOS id (those look like

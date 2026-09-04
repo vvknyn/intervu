@@ -358,10 +358,70 @@ begin
 end;
 $$;
 
--- Ownership is pinned rather than left to whoever ran this file: under
--- SECURITY DEFINER the owner IS the privilege, so a run as superuser would
--- otherwise silently install a far stronger function than a run as pipeline.
-alter function intervu.forget_telemetry_user(text) owner to pipeline;
+-- ---------------------------------------------------------------------------
+-- 8. Function ownership pin + catalog-driven privilege strip. Same failure
+--    §4 closes for tables, for functions: forget_telemetry_user used to get
+--    its owner pin and PUBLIC revoke by name (that hand-written block lived
+--    right here), while reap_telemetry got neither. Measured on prod
+--    2026-09-04: reap_telemetry owned by whichever OS user last applied this
+--    file, prosecdef=f, proconfig null, PUBLIC holds EXECUTE. Not
+--    exploitable today — reap_telemetry is SECURITY INVOKER, so PUBLIC
+--    EXECUTE still hits the table grants and fails closed as telemetry_pg
+--    ("permission denied for table telemetry_events") — but it is drift,
+--    and a hand-written block only ever covers the function it names: the
+--    next function added to this schema would inherit the same gap.
+--
+--    Loops every function in pg_proc for this schema instead of naming
+--    them, same reasoning as §4's aclexplode-driven table strip: a function
+--    added here next month is covered by construction.
+--
+--    Owner is pinned before the ACL/config is touched — same ordering
+--    concern as §4.
+--
+--    Only PUBLIC is revoked, not every grantee. Unlike §4's table strip
+--    (where no non-owner grant on telemetry_events/job_heartbeats is ever
+--    legitimate), a function here can carry a deliberate, narrow grant —
+--    forget_telemetry_user's `grant execute ... to telemetry_pg` below is
+--    exactly that, and must survive this loop untouched.
+--
+--    search_path is pinned only when the function does not already set one,
+--    so the block stays idempotent and leaves forget_telemetry_user's own
+--    explicit `set search_path` (§7 above) alone rather than fighting it.
+--
+--    Function identity renders via `p.oid::regprocedure` formatted with %s,
+--    NOT %I: regprocedure's output function already runs the result through
+--    quote_identifier, so %I would quote it a second time and error on any
+--    name that needs quoting. Same bug, same fix, as the %I-on-regrole
+--    mistake documented at telemetry-acl-strip.sql:38-42 — that mistake
+--    cost this repo a full review cycle on 2026-09-03. Do not revert this.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  fn record;
+begin
+  for fn in
+    select p.oid,
+           format('%s', p.oid::regprocedure) as ident,
+           p.proconfig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'intervu'
+  loop
+    execute format('alter function %s owner to pipeline', fn.ident);
+    execute format('revoke all on function %s from public', fn.ident);
 
-revoke all on function intervu.forget_telemetry_user(text) from public;
+    if not exists (
+      select 1 from unnest(coalesce(fn.proconfig, '{}'::text[])) c
+      where c like 'search_path=%'
+    ) then
+      execute format('alter function %s set search_path = intervu, pg_catalog, pg_temp', fn.ident);
+    end if;
+  end loop;
+end
+$$;
+
+-- Scoped, deliberate grant — not catalog-driven, because the mechanism above
+-- has no way to know which role legitimately needs this one function; that
+-- is a per-function business decision (§7's rationale), not a security
+-- posture to derive from the catalog.
 grant execute on function intervu.forget_telemetry_user(text) to telemetry_pg;
