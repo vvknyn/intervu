@@ -11,7 +11,7 @@
  * reproduces, not doubles, the same numbers: a retried cron cannot double
  * anyone's clicks.
  *
- * Connects as `pipeline` (EXHAUST_PG_URL), same role/reasoning as
+ * Connects as `pipeline` (BATCH_PG_URL), same role/reasoning as
  * `build-job-features.ts` — see that script's doc comment.
  *
  * KNOWN GAP, flagged not improvised: this script does NOT populate
@@ -23,6 +23,33 @@
  * lane can verify. Per SPEC.md's own rule ("if reality contradicts it, STOP
  * and report — do not improvise a different shape"), this script leaves
  * `query_daily` empty rather than guessing a `props` JSON key name.
+ *
+ * KNOWN GAP: `company_daily`'s impressions/clicks/applies/saves are always
+ * empty today too, for the same "STOP and report" reason. SPEC.md models
+ * `company_domain` as a top-level ledger column, but the client emitter
+ * (`extractLedgerColumns`, src/lib/telemetry/client.ts) only ever promotes
+ * it from a payload that HAS a `company_domain` key — and none of
+ * `results_impressed`/`result_clicked`/`apply_clicked`/`job_saved` (the four
+ * outcome events this rollup reads) carry one (`EventPayloads`,
+ * src/lib/analytics/events.ts). Only `job_viewed`/`company_followed`/
+ * `company_viewed`/`company_unfollowed` do, and none of those are outcome
+ * kinds. `aggregateDailyMetrics` already does the honest thing by
+ * construction — it drops any event whose grouping key is null rather than
+ * inventing one — so no code change is needed here to stay correct once the
+ * emitter is fixed; today it just means `company_daily` populates as fast
+ * as `telemetry_pg`'s actual rows do, which is not at all.
+ *
+ * Impressions arrive as PARALLEL ARRAYS, not scalar columns:
+ * `results_impressed` puts `job_ids: string[]` / `positions: number[]`
+ * inside `props` (SPEC §5's position-fix, applied without forking the
+ * existing wire shape — see the field's own doc comment in
+ * `EventPayloads`), so every `results_impressed` ROW in `telemetry_events`
+ * has `job_id`/`position` NULL by design. Reading only the scalar columns
+ * would silently compute an impression denominator of zero for every job
+ * and bucket. `fetchWindowImpressions` below unnests those two JSONB arrays
+ * (zipped by their shared 1-based ordinality) into one synthetic per-
+ * (job_id, position) impression row per array entry, which is then merged
+ * with the scalar-column events before aggregation.
  *
  * Usage: npx tsx scripts/roll-up-telemetry.ts [--window-days=2]
  */
@@ -59,7 +86,7 @@ config({ path: `${ROOT}/.env.local`, quiet: true });
 
 const JOB_NAME = "roll-up-telemetry";
 
-const connectionString = process.env.EXHAUST_PG_URL;
+const connectionString = process.env.BATCH_PG_URL;
 
 const windowArg = process.argv.find((a) => a.startsWith("--window-days="));
 const WINDOW_DAYS = windowArg ? Number(windowArg.slice("--window-days=".length)) : 2;
@@ -74,16 +101,51 @@ interface RawEventRow {
 
 async function fetchWindowEvents(db: pg.Client, windowDays: number): Promise<RawEventRow[]> {
   // Day-bucketing happens here, in SQL, not in JS Date math — avoids
-  // timezone bugs; see daily-rollup.ts's module doc.
+  // timezone bugs; see daily-rollup.ts's module doc. Filters and buckets on
+  // `received_at`, not the client-clock `occurred_at`: `received_at` is the
+  // column the ledger's only time-range index covers
+  // (telemetry_events_received_brin, telemetry-schema.sql) and is
+  // server-clock-authoritative, while `occurred_at` is untrusted client
+  // input merely clamped to a 24h skew window at ingest (ingest.ts).
   const { rows } = await db.query<RawEventRow>(
     `select
        event_name,
-       to_char(occurred_at at time zone 'utc', 'YYYY-MM-DD') as day,
+       to_char(received_at at time zone 'utc', 'YYYY-MM-DD') as day,
        job_id,
        company_domain,
        position
      from intervu.telemetry_events
-     where occurred_at >= now() - make_interval(days => $1)`,
+     where received_at >= now() - make_interval(days => $1)`,
+    [windowDays],
+  );
+  return rows;
+}
+
+/**
+ * `results_impressed` rows carry no scalar `job_id`/`position` — see the
+ * module doc's "PARALLEL ARRAYS" note. This unnests `props->'job_ids'` and
+ * `props->'positions'` per event, zipped by their shared ordinality (`WITH
+ * ORDINALITY` on each, joined on that ordinal — the standard way to zip two
+ * JSONB arrays in Postgres), into one impression row per array entry. An
+ * event whose `props` is missing either key contributes zero rows (a
+ * set-returning function over a NULL jsonb value returns no rows), not a
+ * crash or a fabricated pairing.
+ */
+async function fetchWindowImpressions(
+  db: pg.Client,
+  windowDays: number,
+): Promise<{ day: string; job_id: string; position: number }[]> {
+  const { rows } = await db.query<{ day: string; job_id: string; position: number }>(
+    `select
+       to_char(e.received_at at time zone 'utc', 'YYYY-MM-DD') as day,
+       job_ids.value as job_id,
+       (positions.value)::int as position
+     from intervu.telemetry_events e,
+       lateral jsonb_array_elements_text(e.props->'job_ids') with ordinality as job_ids(value, ord),
+       lateral jsonb_array_elements_text(e.props->'positions') with ordinality as positions(value, ord)
+     where e.event_name = 'results_impressed'
+       and e.received_at >= now() - make_interval(days => $1)
+       and job_ids.ord = positions.ord`,
     [windowDays],
   );
   return rows;
@@ -117,7 +179,7 @@ function toFeatureOutcomeEvents(events: readonly RawEventRow[]): OutcomeEventRow
 }
 
 async function main() {
-  if (!connectionString) throw new Error("EXHAUST_PG_URL is not set");
+  if (!connectionString) throw new Error("BATCH_PG_URL is not set");
   if (!Number.isFinite(WINDOW_DAYS) || WINDOW_DAYS <= 0) {
     throw new Error(`--window-days must be a positive number, got ${windowArg}`);
   }
@@ -127,7 +189,20 @@ async function main() {
 
   let rowsAffected = 0;
   try {
-    const events: DailyEventRow[] = await fetchWindowEvents(db, WINDOW_DAYS);
+    const scalarEvents: DailyEventRow[] = await fetchWindowEvents(db, WINDOW_DAYS);
+    // Unnested impressions carry no company_domain (see module doc's GAP
+    // note) — every synthetic row is honestly null on that field, same as
+    // any other event type that never stated one.
+    const impressionEvents: DailyEventRow[] = (await fetchWindowImpressions(db, WINDOW_DAYS)).map(
+      (row) => ({
+        event_name: "results_impressed",
+        day: row.day,
+        job_id: row.job_id,
+        company_domain: null,
+        position: row.position,
+      }),
+    );
+    const events: DailyEventRow[] = [...scalarEvents, ...impressionEvents];
 
     const jobDailyRows = toJobDailyRows(aggregateDailyMetrics(events, (e) => e.job_id));
     const companyDailyRows = toCompanyDailyRows(

@@ -13,12 +13,16 @@
  * "idempotent" here means "reflects the posting's current text", not
  * "identical output run over run" the way the raw-ledger rollups must be.
  *
- * Connects as `pipeline` (EXHAUST_PG_URL) — the role SPEC.md §3 says the
- * nightly build and rollup run as, never as `telemetry_pg` (insert-only on
- * the raw ledger, no access to this cache layer). Uses a raw `pg.Client`
- * rather than `@/lib/pg/pool`'s `getExhaustPg()`: that pool forces
- * `SET LOCAL default_transaction_read_only = on` for the app's own
- * box-read paths, and this job writes.
+ * Connects as `pipeline` (BATCH_PG_URL) — the same role and connection
+ * `scripts/reap-telemetry.ts` uses, and the one telemetry-schema.sql names
+ * as this table's owner. Never `telemetry_pg`/`TELEMETRY_PG_URL`: that role
+ * is insert-only on the raw ledger (telemetry-schema.sql §4) and has no
+ * grant on `job_features` at all. Uses a raw `pg.Client` rather than
+ * `@/lib/pg/pool` — none of that module's pools fit a box script: its
+ * `getExhaustPg()` forces `SET LOCAL default_transaction_read_only = on`
+ * for the app's own read paths and this job writes, and it has no
+ * `BATCH_PG_URL` accessor at all (only ever used from box scripts, which
+ * connect directly, same as `reap-telemetry.ts`).
  *
  * Usage: npx tsx scripts/build-job-features.ts
  */
@@ -38,7 +42,7 @@ config({ path: `${ROOT}/.env.local`, quiet: true });
 const JOB_NAME = "build-job-features";
 const PAGE_SIZE = 500;
 
-const connectionString = process.env.EXHAUST_PG_URL;
+const connectionString = process.env.BATCH_PG_URL;
 const meiliUrl = process.env.MEILI_URL;
 const meiliAdminKey = process.env.MEILI_ADMIN_KEY;
 
@@ -60,7 +64,7 @@ async function fetchJobsPage(offset: number, limit: number): Promise<PublicJob[]
 }
 
 async function main() {
-  if (!connectionString) throw new Error("EXHAUST_PG_URL is not set");
+  if (!connectionString) throw new Error("BATCH_PG_URL is not set");
   if (!meiliUrl || !meiliAdminKey) throw new Error("MEILI_URL/MEILI_ADMIN_KEY are not set");
 
   const db = new pg.Client({ connectionString });

@@ -24,7 +24,11 @@
 export type OutcomeKind = "impression" | "click" | "apply" | "save";
 
 // Wire names, copied from ANALYTICS_EVENTS in src/lib/analytics/events.ts.
-const RESULTS_IMPRESSED = "results_impressed";
+// RESULTS_IMPRESSED is exported: roll-up-telemetry.ts's impression-array
+// unnest has to stamp this exact name onto the synthetic rows it builds
+// from `results_impressed`'s props, and re-typing the literal there would
+// be a second, driftable copy of the same wire-name fact.
+export const RESULTS_IMPRESSED = "results_impressed";
 const RESULT_CLICKED = "result_clicked";
 const APPLY_CLICKED = "apply_clicked";
 const JOB_SAVED = "job_saved";

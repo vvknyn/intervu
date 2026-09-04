@@ -7,10 +7,11 @@
  *
  * `intervu.job_heartbeats` (job_name text primary key, last_run_at,
  * rows_affected, ok) is owned by deploy/db-box/telemetry-schema.sql, one row
- * per job_name — this mirrors that file's own `reap_telemetry()`, which
- * upserts its heartbeat on conflict (job_name) rather than appending, so
- * this is the second (not third) writer of the same shape, not a
- * competing one.
+ * per job_name. `scripts/reap-telemetry.ts` (its cron-batching alternative
+ * to the box's own `reap_telemetry()` plpgsql function) upserts the same
+ * shape and imports this function rather than carrying its own inline copy
+ * — one writer of this statement across all three scheduled scripts, not
+ * three copies that could drift.
  *
  * `Queryable` (src/lib/pg/pool.ts) is reused rather than inventing a second
  * DB-access interface: a raw `pg.Client`/`pg.Pool` already satisfies it
