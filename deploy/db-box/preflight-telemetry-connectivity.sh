@@ -20,7 +20,8 @@
 # WHAT THIS PROVES, AND WHAT IT DOES NOT. For each role, attempt exactly ONE
 # connection to the DB box with a deliberately invalid password and classify
 # the server's own reply:
-#   - "no pg_hba.conf entry ..."        -> FAIL, not admitted from this host
+#   - "no pg_hba.conf entry ..." or "pg_hba.conf rejects ..." -> FAIL, not
+#     admitted from this host
 #   - "password authentication failed"  -> PASS, reachable AND admitted
 #   - a successful connection           -> FAIL, LOUDLY — a role that
 #     accepts a junk password is a far worse finding than the one this
@@ -83,9 +84,44 @@ classify_psql_error() {
   local exit_status="$1" stderr_text="$2"
   if [[ "$exit_status" -eq 0 ]]; then
     echo "trust-auth"
-  elif grep -q 'no pg_hba.conf entry' <<<"$stderr_text"; then
+  # Postgres has (at least) two distinct wordings for "pg_hba.conf does not
+  # admit this connection", both from src/backend/libpq/hba.c: the implicit
+  # no-matching-rule case ("no pg_hba.conf entry for host ...") and an
+  # explicit `reject` rule, uaReject ("pg_hba.conf rejects connection for
+  # host ..." / "... rejects replication connection for host ..."). Both
+  # put the verdict verb ("entry" / "rejects") directly after "pg_hba.conf"
+  # — matching on that shared shape, not on either literal string whole,
+  # covers a third denial wording Postgres might add (any future ereport
+  # using one of these two verbs) while deliberately NOT matching a message
+  # that merely *mentions* the file without rendering a denial verdict —
+  # e.g. a HINT about a malformed pg_hba.conf that failed to load. That is
+  # a config error, a different subsystem than "this role isn't admitted",
+  # and misclassifying it would send the operator to edit rules that were
+  # never the problem.
+  elif grep -Eq 'pg_hba\.conf (entry|rejects)' <<<"$stderr_text"; then
     echo "not-admitted"
   elif grep -q 'password authentication failed' <<<"$stderr_text"; then
+    # MEASURED LIMIT OF THIS BRANCH'S TEST (2026-09-04), recorded so a future
+    # edit is not mistaken for a tested one. tests/unit/ has only a POSITIVE
+    # fixture for `admitted`, and a positive fixture cannot detect an
+    # OVER-BROAD pattern. Measured by mutation, control first:
+    #   control                                          8 pass / 0 fail
+    #   'password authentication failed' -> 'password authentication'
+    #                                                    8 pass / 0 fail
+    #   'password authentication failed' -> 'authentication'
+    #                                                    8 pass / 0 fail
+    #   (control that the fixtures ARE real server strings, not the pattern
+    #    echoed back: widening the pg_hba pattern's space  6 pass / 2 fail)
+    # No negative fixture was added, because none would be honest: every real
+    # reply reaching this branch that contains the bare word "authentication"
+    # is sent by the server only AFTER pg_hba matched (libpq's "SCRAM
+    # authentication requires libpq version 10 or above", "authentication
+    # method N not supported", GSSAPI/SSPI/Ident/peer failures), so it
+    # genuinely IS admitted. A fixture invented to kill the mutation would
+    # enumerate a string nothing emits — the defect this file's own header
+    # argues against. The narrow pattern therefore stays; what is untested is
+    # its BREADTH, not its correctness. Anyone widening it must add a fixture
+    # first, and must have a real server reply to point at.
     echo "admitted"
   else
     echo "other"
@@ -119,7 +155,7 @@ main() {
         printf 'OK    %s — reachable, admitted by pg_hba.conf (password check failed, as expected)\n' "$role"
         ;;
       not-admitted)
-        printf 'FAIL  %s — no pg_hba.conf entry admits this role from this host\n' "$role"
+        printf 'FAIL  %s — pg_hba.conf does not admit this role from this host (no matching entry, or an explicit reject rule)\n' "$role"
         failed=1
         ;;
       trust-auth)
