@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /**
+ * SPEC-2-PROFILES.md is not in this repo — see docs/telemetry/SPEC-PROVENANCE.md.
+ *
  * Nightly build of `intervu.job_features` — SPEC-2-PROFILES.md §8 step 1.
  *
  * Pages the full live `jobs` Meilisearch corpus (GET /indexes/jobs/documents,
@@ -34,6 +36,7 @@ import { extractJobFeatures, type JobFeatures } from "@/lib/telemetry/features";
 import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
 import { buildUpsert } from "@/lib/pg/upsert";
 import { JOB_FEATURES_COLUMNS } from "@/lib/telemetry/job-features-columns";
+import { JOB_DOCUMENT_FIELDS } from "@/lib/telemetry/job-document-fields";
 import type { PublicJob } from "@/lib/jobs/types";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -54,10 +57,22 @@ export function buildJobFeaturesUpsert(rows: JobFeatures[]): { text: string; par
   return buildUpsert<JobFeatures>("intervu.job_features", JOB_FEATURES_COLUMNS, ["job_id"], rows);
 }
 
+/**
+ * Restricts the response to exactly `JOB_DOCUMENT_FIELDS` (the fields
+ * `extractJobFeatures` actually reads, see that constant's doc comment) via
+ * Meili's `&fields=` param, instead of paging full documents and discarding
+ * everything the extractor doesn't touch. Measured 2026-09-04 against the
+ * live 2,477,990-doc index at 3 offsets: unrestricted pages were 2,415,469 /
+ * 2,211,643 / 3,103,416 bytes; the same 3 offsets with `&fields=` were
+ * 1,937,387 / 1,790,882 / 2,600,219 bytes — 18.3% less wire, over the
+ * 4,956-request walk this loop makes at PAGE_SIZE=500.
+ */
 async function fetchJobsPage(offset: number, limit: number): Promise<PublicJob[]> {
-  const res = await fetch(`${meiliUrl}/indexes/jobs/documents?offset=${offset}&limit=${limit}`, {
-    headers: { authorization: `Bearer ${meiliAdminKey}` },
-  });
+  const fields = JOB_DOCUMENT_FIELDS.join(",");
+  const res = await fetch(
+    `${meiliUrl}/indexes/jobs/documents?offset=${offset}&limit=${limit}&fields=${fields}`,
+    { headers: { authorization: `Bearer ${meiliAdminKey}` } },
+  );
   if (!res.ok) throw new Error(`GET /indexes/jobs/documents?offset=${offset} -> ${res.status}`);
   const body = (await res.json()) as { results: PublicJob[] };
   return body.results;

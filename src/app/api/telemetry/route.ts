@@ -4,6 +4,8 @@
  * `lib/telemetry/rate-limit.ts` (per-session AND per-IP budgets); this file
  * only reads guards and identity off the Request, calls those, and inserts.
  *
+ * SPEC.md is not in this repo — see docs/telemetry/SPEC-PROVENANCE.md.
+ *
  * Guard order follows SPEC §4 exactly:
  *   1. Content-Length, BEFORE request.json() — the container is a single
  *      `mem_limit: 1g` process (docker-compose.yml:22), so parsing an

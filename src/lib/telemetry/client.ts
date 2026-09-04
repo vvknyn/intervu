@@ -1,6 +1,8 @@
 "use client";
 
 /**
+ * SPEC.md is not in this repo — see docs/telemetry/SPEC-PROVENANCE.md.
+ *
  * The client side of the telemetry ledger (SPEC.md §5, telemetry design
  * doc). `trackToLedger` is called from exactly ONE place —
  * `captureEvent` (lib/analytics/events.ts) — so every one of that

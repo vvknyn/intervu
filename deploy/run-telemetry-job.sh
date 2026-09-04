@@ -47,6 +47,32 @@ ENV_FILE="${INTERVU_JOB_ENV_FILE:-/opt/interview-os/.env.local}"
 LOG="${INTERVU_JOB_LOG:-$HOME/logs/intervu-telemetry-jobs.log}"
 LOCK="${INTERVU_JOB_LOCK:-/tmp/intervu-telemetry-$JOB.lock}"
 TIMEOUT="${INTERVU_JOB_TIMEOUT:-3600}"
+# Keyed to $INTERVU_ROOT (sanitized), not $JOB — shared across every job
+# name installing into the same tree (see the npm-ci block below for why
+# this one must be shared, unlike the per-job LOCK above).
+#
+# Lives OUTSIDE $INTERVU_ROOT, deliberately: the intervu deploy is
+# extract-then-swap (`mv $INTERVU_ROOT $INTERVU_ROOT.old`, a fresh tree
+# takes its place at the same path), and `flock` locks the underlying
+# INODE, not the path string. A default lock path inside the swapped tree
+# means a deploy landing while one job holds the lock hands the NEXT job a
+# DIFFERENT inode at the same path — acquired instantly, while the first
+# holder's lock (and its still-running `npm ci`) sits orphaned on the old,
+# unlinked inode. Two `npm ci` runs then proceed concurrently against the
+# same fresh tree — exactly the race commit 9053dd4 closed, reopened by the
+# deploy. `/tmp` is never touched by the swap, so a lock there survives it;
+# `tr` (asserted present below, same as sed/tail) collapses the root path
+# into one safe filename segment. That collapse is lossy — `tr -cs
+# 'A-Za-z0-9' '_'` squeezes runs of non-alphanumerics, so distinct roots
+# CAN collide on the same lock name (measured: /opt/intervu-a,
+# /opt/intervu/a, /opt/intervu--a and /opt/intervu_a all collapse to
+# `_opt_intervu_a`). The consequence is over-serialization, not corruption:
+# two unrelated trees would share one install lock and queue behind each
+# other, failing loudly at INSTALL_LOCK_TIMEOUT rather than corrupting a
+# shared node_modules — conservative, and it can never produce the
+# concurrent-`npm ci` race this lock exists to prevent.
+INSTALL_LOCK="${INTERVU_JOB_INSTALL_LOCK:-/tmp/intervu-npm-ci-$(printf '%s' "$INTERVU_ROOT" | tr -cs 'A-Za-z0-9' '_').lock}"
+INSTALL_LOCK_TIMEOUT="${INTERVU_JOB_INSTALL_LOCK_TIMEOUT:-600}"
 
 mkdir -p "$(dirname "$LOG")"
 log() { printf '%s [%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${JOB:-?}" "$*" >>"$LOG"; }
@@ -143,25 +169,64 @@ unset v
 # is invisible until a scheduled job silently stops running. `npm ci` (not
 # `npm install`) so versions come from the lockfile already on the box, and
 # not --omit=dev: `tsx` and `dotenv` are both devDependencies here.
+#
+# node_modules is shared by every job, but LOCK above is keyed to $JOB — so
+# without the lock below, two different jobs starting close together both
+# see tsx missing and both run `npm ci` into the same tree at once. `npm ci`
+# deletes node_modules before repopulating it, so one run can delete the
+# tree the other is mid-install into; the failure then surfaces later, in a
+# job that "installed successfully", as a module-resolution error. Only a
+# 30-minute gap between two cron lines has prevented this so far — a
+# crontab coincidence, not a guarantee, and a third job or a manual run
+# collapses it.
+#
+# INSTALL_LOCK fixes that: it is keyed to $INTERVU_ROOT (not $JOB), so every
+# job installing into the same tree contends for the SAME lock, on fd 8 (fd
+# 9 is the per-job LOCK below and must stay free for it). Unlike that job
+# lock, this one must WAIT (`flock -w`, not `-n`): a waiter that skipped
+# here would fall through to exec tsx out of a node_modules a concurrent
+# holder is still deleting/repopulating — exactly the bug this closes.
+# flock's own presence is already asserted above (:102-104), so a non-zero
+# exit from `flock -w` below is unambiguously "timed out waiting", never the
+# missing-binary case that makes a bare `flock -n` ambiguous (see the header
+# comment this script opens with). 600s is ~4.6x the 2m10s cold-cache
+# `npm ci` measured on this box 2026-09-04 (log 07:33:15Z "running npm ci" ->
+# 07:35:25Z "npm ci OK") — real headroom for a slow disk or network hiccup,
+# without letting a genuinely stuck install starve every job behind it.
 if [[ ! -x "$INTERVU_ROOT/node_modules/.bin/tsx" ]]; then
-    log "deps: node_modules/.bin/tsx absent — running npm ci in $INTERVU_ROOT (first run after a deploy)"
-    # --include=dev is not optional: tsx is a devDependency, and npm omits
-    # devDependencies when NODE_ENV is "production".
-    if ! (cd "$INTERVU_ROOT" && npm ci --include=dev --no-audit --no-fund >>"$LOG" 2>&1); then
-        log "FAIL npm ci failed — job did not run"
+    exec 8>"$INSTALL_LOCK"
+    if ! flock -w "$INSTALL_LOCK_TIMEOUT" 8; then
+        log "FAIL install lock $INSTALL_LOCK held by another job's npm ci for over ${INSTALL_LOCK_TIMEOUT}s — refusing to run against a possibly half-installed node_modules"
         exit 1
     fi
+    # Double-checked: the holder above has almost always finished installing
+    # by the time we get the lock, and re-running npm ci here would delete a
+    # node_modules tree that is now correct.
+    if [[ ! -x "$INTERVU_ROOT/node_modules/.bin/tsx" ]]; then
+        log "deps: node_modules/.bin/tsx absent — running npm ci in $INTERVU_ROOT (first run after a deploy)"
+        # --include=dev is not optional: tsx is a devDependency, and npm omits
+        # devDependencies when NODE_ENV is "production".
+        if ! (cd "$INTERVU_ROOT" && npm ci --include=dev --no-audit --no-fund >>"$LOG" 2>&1); then
+            log "FAIL npm ci failed — job did not run"
+            exit 1
+        fi
+    fi
     # Assert the post-condition rather than trusting npm's exit status. This
-    # catches the NODE_ENV case above and every other reason tsx could be
-    # absent from a "successful" install; without it the job dies at the exec
-    # below with "no such file or directory" and is logged as a job failure
-    # pointing at a traceback that was never written.
+    # runs whether WE just ran npm ci above or another run did while we
+    # waited for the lock — it must not become reachable only from the
+    # install branch, because it is what catches the NODE_ENV case and every
+    # other reason tsx could be absent from a "successful" install; without
+    # it the job dies at the exec below with "no such file or directory" and
+    # is logged as a job failure pointing at a traceback that was never
+    # written.
     if [[ ! -x "$INTERVU_ROOT/node_modules/.bin/tsx" ]]; then
         log "FAIL npm ci exited 0 but node_modules/.bin/tsx is still missing — refusing to run" \
             "(tsx is a devDependency; check NODE_ENV and that package.json still declares it)"
         exit 1
     fi
     log "deps: npm ci OK"
+    flock -u 8
+    exec 8>&-
 fi
 
 started="$(date +%s)"

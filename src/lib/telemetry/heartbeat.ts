@@ -1,9 +1,17 @@
 /**
- * Proof-of-life log for the telemetry-derived scheduled jobs — SPEC.md §7:
- * "a job that cannot prove it ran is a job that is not running." Every run
- * of `build-job-features` and `roll-up-telemetry` writes exactly one row
- * here via this same function, including zero-row runs, so the upsert
- * shape lives in one place instead of being copy-pasted into each script.
+ * Proof-of-life log for the telemetry-derived scheduled jobs: "a job that
+ * cannot prove it ran is a job that is not running." `build-job-features`
+ * and `roll-up-telemetry` each write exactly one row here via this same
+ * function on every terminal state they reach IN-PROCESS — success or a
+ * caught failure, including zero-row runs — so the upsert shape lives in
+ * one place instead of being copy-pasted into each script. That
+ * "in-process" qualifier is load-bearing: every call site is a
+ * try(ok=true)/catch(ok=false) pair, so a run killed by SIGKILL, an OOM
+ * kill, the job timeout, or a box reboot writes nothing here at all. A
+ * missing or stale row is therefore equally consistent with "never
+ * started", "running right now", and "killed mid-run" — it does NOT mean
+ * the job has never run. (Mirrors the fix made to the subspace repo's
+ * telemetry.job_freshness_h check, commit 10dd9a23.)
  *
  * `intervu.job_heartbeats` (job_name text primary key, last_run_at,
  * rows_affected, ok) is owned by deploy/db-box/telemetry-schema.sql, one row
