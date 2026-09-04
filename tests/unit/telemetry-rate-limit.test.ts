@@ -4,6 +4,7 @@ import {
   allowTelemetryEvents,
   allowTelemetryEventsByIp,
   clearTelemetryRateLimitStateForTests,
+  getTelemetryRateLimitKeyOrderForTests,
   getTelemetryRateLimitStoreSizeForTests,
   partitionByRateLimit,
   TELEMETRY_IP_RATE_LIMIT_MAX_EVENTS,
@@ -122,5 +123,65 @@ test("a key whose window has fully expired is evicted from the store once a swee
     getTelemetryRateLimitStoreSizeForTests().session,
     SWEEP_THRESHOLD + 1,
     "the expired key no longer occupies a slot in the store",
+  );
+});
+
+// --- LRU vs FIFO eviction order --------------------------------------------
+//
+// `evictOldest` (rate-limit.ts) always deletes whatever key sits at the
+// FRONT of the store's Map. That's only a sensible "least relevant" choice
+// if writing to an EXISTING key moves it to the back — i.e. real LRU. A bare
+// `Map.set(existingKey, ...)` does NOT reorder the key (proven directly
+// below, same as `node -e` would show), so without re-inserting on every
+// write, the front of the Map is oldest-INSERTED-first, which evicts
+// whichever key has been busiest the longest — the opposite of what a rate
+// limiter wants under sustained load.
+
+test("Map.set on an EXISTING key does not reorder it (the mechanism the bug depended on)", () => {
+  const m = new Map<string, number>();
+  m.set("a", 1);
+  m.set("b", 2);
+  m.set("c", 3);
+  m.set("a", 99); // update, not insert
+  assert.deepEqual(
+    [...m.keys()],
+    ["a", "b", "c"],
+    "plain Map.set on an existing key must not move it — this is the exact mechanism evictOldest relies on being handled explicitly",
+  );
+});
+
+test("allow(): touching an existing key moves it to the back of eviction order (real LRU, not FIFO)", () => {
+  allowTelemetryEvents("key-a", 1, NOW);
+  allowTelemetryEvents("key-b", 1, NOW);
+  allowTelemetryEvents("key-c", 1, NOW);
+  assert.deepEqual(
+    getTelemetryRateLimitKeyOrderForTests().session,
+    ["key-a", "key-b", "key-c"],
+    "sanity: insertion order before any re-touch",
+  );
+
+  // Re-touch the FIRST-inserted key — under FIFO this is a no-op on order
+  // (key-a stays at the front, next in line for eviction, even though it
+  // was just written to). Under real LRU it must move to the back.
+  allowTelemetryEvents("key-a", 1, NOW);
+
+  assert.deepEqual(
+    getTelemetryRateLimitKeyOrderForTests().session,
+    ["key-b", "key-c", "key-a"],
+    "a key that was just written to must move to the back of eviction order — " +
+      "under the old FIFO behavior this array would still read [key-a, key-b, key-c], " +
+      "meaning key-a (the busiest, most-recently-active key) would be evicted NEXT, not last",
+  );
+});
+
+test("allow(): the IP store's eviction order is independently real LRU too", () => {
+  allowTelemetryEventsByIp("1.1.1.1", 1, NOW);
+  allowTelemetryEventsByIp("2.2.2.2", 1, NOW);
+  allowTelemetryEventsByIp("1.1.1.1", 1, NOW); // re-touch the first IP
+
+  assert.deepEqual(
+    getTelemetryRateLimitKeyOrderForTests().ip,
+    ["2.2.2.2", "1.1.1.1"],
+    "the re-touched IP must move to the back, same as the session store",
   );
 });

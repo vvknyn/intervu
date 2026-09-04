@@ -59,14 +59,19 @@ export interface TelemetryRow {
 
 /** Every reason a single event can fail to reach the ledger — produced by
  *  either `ingest.ts` (shape/name/size/duplicate) or `rate-limit.ts`
- *  (budget). One enum so a caller logging a drop never invents a second
- *  taxonomy for "why". */
-export type TelemetryRejectionReason =
-  | "invalid_shape"
-  | "invalid_event_name"
-  | "props_too_large"
-  | "duplicate_event_id"
-  | "rate_limited";
+ *  (budget). A runtime array, not just a type, so a caller that needs to
+ *  enumerate every possible reason (e.g. `verify-telemetry-e2e.ts`'s missing
+ *  row diagnosis) can iterate the real list instead of hand-copying it as a
+ *  second taxonomy that drifts the moment a reason is added. */
+export const TELEMETRY_REJECTION_REASONS = [
+  "invalid_shape",
+  "invalid_event_name",
+  "props_too_large",
+  "duplicate_event_id",
+  "rate_limited",
+] as const;
+
+export type TelemetryRejectionReason = (typeof TELEMETRY_REJECTION_REASONS)[number];
 
 export interface TelemetryRejection {
   /** `null` when the event was too malformed to even have a usable id. */

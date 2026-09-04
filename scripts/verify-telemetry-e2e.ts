@@ -9,15 +9,15 @@
  * WHY THIS SCRIPT EXISTS: `POST /api/telemetry` (src/app/api/telemetry/route.ts)
  * is deliberately written to NEVER throw and to ALWAYS return 204, even when
  * it silently drops the event (route.ts guards 9/10 — "telemetry failing
- * must never break a page"). Two independent ways this happens in prod right
- * now, and nothing today distinguishes either one from a healthy write:
- *
- *   1. The prod table may have a pre-spec shape missing columns this route's
- *      insert depends on (`event_id`, `event_name`, ...) — the insert
- *      raises, gets caught (route.ts:136-138), logged, route still 204s.
- *   2. `TELEMETRY_PG_URL` may be unset in the prod container env —
- *      `getTelemetryPg()` returns null, the insert is skipped outright
- *      (route.ts:133 `if (pg && admitted.length > 0)`), route still 204s.
+ * must never break a page"). At least 7 independent ways this happens in
+ * prod, and a 204 alone never distinguishes any of them from a healthy
+ * write: schema drift (a pre-spec table missing a column this route's insert
+ * depends on), a caught insert exception, `TELEMETRY_PG_URL` unset, bot-UA
+ * classification, or any of the 5 `TelemetryRejectionReason`s (shape, name,
+ * size, duplicate, rate limit). `buildMissingRowDiagnosis` below only ever
+ * asserts the one cause (schema drift) it can actually establish from
+ * `information_schema` — everything else it reports as an honest,
+ * undistinguished list rather than a guess.
  *
  * This is a script an operator runs deliberately after a deploy, never a
  * cron and never wired into preflight (scripts/ is excluded from
@@ -37,30 +37,15 @@ import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { TELEMETRY_COLUMNS } from "../src/app/api/telemetry/route";
+import { TELEMETRY_REJECTION_REASONS } from "../src/lib/telemetry/types";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-// Loaded so an operator who already has BATCH_PG_URL configured locally for
-// other box scripts doesn't have to re-export it by hand just for this one.
-// TARGET_URL will essentially never be present in .env.local today — nothing
-// else in this repo needs "which host am I hitting" outside a script like
-// this — so the "no env set" case below still fails loudly regardless of
-// what .env.local happens to contain.
-config({ path: `${ROOT}/.env.local`, quiet: true });
 
-const targetUrl = process.env.TARGET_URL;
-if (!targetUrl) {
-  console.error("no target: set TARGET_URL (e.g. http://localhost:3000)");
-  process.exit(1);
-}
-
-const connectionString = process.env.BATCH_PG_URL;
-if (!connectionString) {
-  console.error(
-    "no pg url: set BATCH_PG_URL (the `pipeline` role — telemetry_pg is " +
-      "INSERT-only and cannot read this back, see telemetry-schema.sql §4)",
-  );
-  process.exit(1);
-}
+/** How far back "recent activity" looks when deciding whether the write
+ *  path is working at all vs. only this one event was dropped — see
+ *  `buildMissingRowDiagnosis`. */
+const RECENT_ACTIVITY_WINDOW = "5 minutes";
 
 // Non-bot per lib/telemetry/ingest.ts's `isBotUserAgent`: Node's fetch
 // (undici) sends no default User-Agent header at all, which trims to "" and
@@ -92,38 +77,110 @@ function runCheck(name: string, actual: unknown, expected: unknown, pass: boolea
 }
 
 /**
- * Pure decision, thin I/O split (same convention ingest.ts's own module doc
- * names): given a connected client, decides WHICH of the two known
- * silent-drop causes explains an absent row, so main() never has to inline
- * this as a one-off if/else. Only reads `information_schema` — never touches
- * `telemetry_events` itself, so it tells you nothing false about the row
- * that's actually missing.
+ * Pure decision: everything this script can honestly conclude about a
+ * missing row, from two cheaply-checkable facts. The route has 7+ distinct
+ * ways to admit-then-drop an event silently — the 5 `TELEMETRY_REJECTION_REASONS`
+ * (a session/IP rate limit among them), bot-UA classification (guard 6), a
+ * caught insert exception (route.ts's guard-8 catch), OR a pipeline-wide
+ * failure (TELEMETRY_PG_URL unset, connectivity, an uncaught exception) — and
+ * this function can only ever establish ONE of those with certainty:
+ * `missingColumns` non-empty IS schema drift, proven by the query that built
+ * it. Every other cause stays an enumerated possibility, never an assertion,
+ * because naming one this script hasn't ruled out is how an operator gets
+ * sent to fix the wrong thing — e.g. a prior run against the same IP tripping
+ * `rate-limit.ts`'s budget leaves the schema completely intact, and the old
+ * two-branch version of this function would have confidently (and wrongly)
+ * blamed a missing `TELEMETRY_PG_URL`.
+ *
+ * `recentRowCount` (any OTHER row landed inside `RECENT_ACTIVITY_WINDOW`) is
+ * the other cheap signal: it distinguishes "the write path works at all" from
+ * "nothing is landing," which narrows the enumeration without pretending to
+ * pick a single cause within it.
  */
+export function buildMissingRowDiagnosis(missingColumns: readonly string[], recentRowCount: number): string {
+  if (missingColumns.length > 0) {
+    return (
+      `DIAGNOSIS: schema drift established — intervu.telemetry_events is missing ` +
+      `column(s) this route's insert depends on: [${missingColumns.join(", ")}]. ` +
+      `Compare the live table against deploy/db-box/telemetry-schema.sql and re-apply it.`
+    );
+  }
+
+  const perEventCauses = [
+    ...TELEMETRY_REJECTION_REASONS.map((reason) => `rejected as "${reason}" (ingest.ts / rate-limit.ts)`),
+    `classified as a bot user-agent and dropped before rate limiting (ingest.ts's isBotUserAgent)`,
+    `the insert itself threw and was caught (route.ts logs it under "[telemetry] insert failed" but still returns 204)`,
+  ];
+  const pipelineWideCauses = [
+    "TELEMETRY_PG_URL is unset in the container env (getTelemetryPg() returns null, the insert is skipped outright)",
+    "the pool can't reach Postgres at all (network/credentials)",
+    "an uncaught exception earlier in the request (route.ts's outer catch still returns 204)",
+  ];
+
+  const scope =
+    recentRowCount > 0
+      ? `${recentRowCount} OTHER row(s) landed in the last ${RECENT_ACTIVITY_WINDOW}, so the write path is at ` +
+        `least partially working — this looks like an isolated drop of this one event. Undistinguished ` +
+        `possibilities (this script cannot tell which):`
+      : `no rows at all landed in the last ${RECENT_ACTIVITY_WINDOW}, so this may be a pipeline-wide failure. ` +
+        `Undistinguished possibilities (this script cannot tell which):`;
+  const causes = recentRowCount > 0 ? perEventCauses : [...pipelineWideCauses, ...perEventCauses];
+
+  return (
+    `DIAGNOSIS: schema looks correct (every column this route inserts is present), so no single cause is ` +
+    `established. ${scope}\n` +
+    causes.map((c) => `  - ${c}`).join("\n") +
+    `\nThis script only reads information_schema and a recent-row count — check the app's own ` +
+    `"[telemetry]"-prefixed logs near this run's timestamp to narrow it down further.`
+  );
+}
+
+/** Thin I/O: gathers the two facts `buildMissingRowDiagnosis` needs. Never
+ *  touches the missing row itself (never even queries by event_id), so it
+ *  can't tell you anything false about the row that's actually missing. */
 async function diagnoseMissingRow(db: pg.Client): Promise<string> {
-  const expectedColumns = ["event_id", "event_name", "query_id", "job_id", "company_domain", "position"];
   const { rows } = await db.query(
     `select column_name from information_schema.columns
      where table_schema = 'intervu' and table_name = 'telemetry_events'`,
   );
   const actualColumns = new Set(rows.map((r) => r.column_name as string));
-  const missing = expectedColumns.filter((c) => !actualColumns.has(c));
+  const missingColumns = TELEMETRY_COLUMNS.filter((c) => !actualColumns.has(c));
 
-  if (missing.length > 0) {
-    return (
-      `DIAGNOSIS: likely schema drift — intervu.telemetry_events is missing ` +
-      `column(s) this route's insert depends on: [${missing.join(", ")}]. ` +
-      `Compare the live table against deploy/db-box/telemetry-schema.sql and re-apply it.`
-    );
-  }
-  return (
-    `DIAGNOSIS: schema looks correct (all expected columns present) but no row ` +
-    `landed. Likely cause: TELEMETRY_PG_URL is unset in the container env — ` +
-    `getTelemetryPg() then returns null and the insert is skipped outright ` +
-    `(route.ts:133), while the route still returns 204. Check the deploy's env file.`
+  const { rows: recentRows } = await db.query(
+    `select count(*)::int as n from intervu.telemetry_events where received_at > now() - interval '${RECENT_ACTIVITY_WINDOW}'`,
   );
+  const recentRowCount = (recentRows[0]?.n as number | undefined) ?? 0;
+
+  return buildMissingRowDiagnosis(missingColumns, recentRowCount);
 }
 
 async function main(): Promise<void> {
+  // Loaded so an operator who already has BATCH_PG_URL configured locally for
+  // other box scripts doesn't have to re-export it by hand just for this one.
+  // TARGET_URL will essentially never be present in .env.local today — nothing
+  // else in this repo needs "which host am I hitting" outside a script like
+  // this — so the "no env set" case below still fails loudly regardless of
+  // what .env.local happens to contain. Deferred to main() (rather than
+  // module scope) so importing this file for its pure exports — as the test
+  // for `buildMissingRowDiagnosis` does — never touches the filesystem or
+  // exits the process.
+  config({ path: `${ROOT}/.env.local`, quiet: true });
+
+  const targetUrl = process.env.TARGET_URL;
+  if (!targetUrl) {
+    console.error("no target: set TARGET_URL (e.g. http://localhost:3000)");
+    process.exit(1);
+  }
+
+  const connectionString = process.env.BATCH_PG_URL;
+  if (!connectionString) {
+    console.error(
+      "no pg url: set BATCH_PG_URL (the `pipeline` role — telemetry_pg is " +
+        "INSERT-only and cannot read this back, see telemetry-schema.sql §4)",
+    );
+    process.exit(1);
+  }
+
   const eventId = randomUUID();
   const sessionId = randomUUID(); // fresh per run so the per-session rate
   // budget (rate-limit.ts) can never be pre-exhausted by a prior run.
@@ -241,9 +298,14 @@ async function main(): Promise<void> {
   console.log("[verify-telemetry-e2e] all checks passed");
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error("[verify-telemetry-e2e] failed:", err);
-    process.exit(1);
-  });
+// Guarded so a test can import this module for `buildMissingRowDiagnosis`
+// (same convention as scripts/check-index-settings-drift.mjs) without
+// running the whole script — a bare `main()` call here would fire on import.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error("[verify-telemetry-e2e] failed:", err);
+      process.exit(1);
+    });
+}
