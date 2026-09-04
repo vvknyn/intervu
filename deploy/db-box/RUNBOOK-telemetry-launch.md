@@ -256,6 +256,15 @@ script against the production URL.
 the table doesn't exist in its correct shape until step 1 runs, so a cron
 installed today would fail every night.
 
+**Release gate — `/privacy` must not ship before this cron is live.** The
+privacy page on this same branch tells users their search-activity records
+are "kept for 90 days and then deleted" (`src/app/privacy/page.tsx:157`).
+Nothing else in this system deletes them: `intervu.reap_telemetry()` *is*
+that sentence's implementation. Until this cron is installed and its
+heartbeat is fresh, that sentence is not a pending TODO — it is a false
+statement to users about their own data. Ship the claim and the mechanism
+together, or hold the privacy copy until the cron is live.
+
 **Prod path is the SQL function, not the TypeScript script.** Verified
 2026-09-03: the running `contabo-web-intervu-1` container's `/app` is a
 Next.js standalone build containing only `data node_modules package.json
