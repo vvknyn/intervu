@@ -20,7 +20,7 @@ a process list (`ps`, `docker inspect`, cron logs).
 | 6. `verify-telemetry-grants.sh` | not run (needs `BATCH_PG_URL`) |
 | 7. `verify-telemetry-e2e.ts` | not run — **this is the launch gate** |
 | 8. reaper cron | **installed** 2026-09-04; cron proven to fire for `postgres`; the 08:20 UTC run itself has not happened yet (see §8) |
-| 9. derived-layer crons (`build-job-features`, `roll-up-telemetry`) | **not installed** — measured 2026-09-04, two ways: app box's installed crontab (1221 lines) has zero references to either script, and `intervu.job_heartbeats` holds exactly one row (`reap_telemetry`); neither job has ever run (see §9) |
+| 9. derived-layer crons (`build-job-features`, `roll-up-telemetry`) | **not installed** — measured 2026-09-04, two ways: app box's installed crontab (1281 lines) has zero references to either script, and `intervu.job_heartbeats` holds exactly one row (`reap_telemetry`); neither job has ever run (see §9) |
 
 **Consequence of 2+3 being open:** `/api/telemetry` currently answers `204`
 and inserts nothing — `getTelemetryPg()` returns `null` with no
@@ -56,12 +56,25 @@ is nothing on the other end of that route to read the credential yet.
 **Consequence — §9's crons cannot be installed yet either.** Oracle: the
 extracted tree's `/opt/intervu/scripts` (37 files) contains neither
 `build-job-features.ts` nor `roll-up-telemetry.ts` — they are not on the box
-at all. Separately (not a second blocker): the credential those two scripts
-need, `BATCH_PG_URL`/`PIPELINE_DATABASE_URL`, already exists in
-`/opt/interview-os/.env.local` (47 keys) on the box that actually runs cron
-scripts (`/opt/interview-os` = the subspace repo, 625 scripts) — once the
-two scripts themselves are deployed there, the credential is already in
-place.
+at all. **And the intervu app deploy will not fix this** — an earlier draft
+of this section implied it would. That deploy populates `/opt/intervu`, a
+tree with no `node_modules`, no `tsx`, and zero `.env*` files (measured
+2026-09-04), and the running container is a Next standalone image whose
+`/app` holds only `data node_modules package.json public server.js` — no
+`scripts/` directory at all. There is no runtime there to run either script
+and no dotenv file for it to read.
+
+The credential is in place only on the *other* tree: `BATCH_PG_URL` is
+present in `/opt/interview-os/.env.local` (46 unique keys across 47
+assignment lines) on the box that actually runs cron scripts
+(`/opt/interview-os` = the subspace repo; 848 files under `scripts/`, 606 at
+top level). Both scripts resolve their dotenv path as
+`dirname(import.meta.url)/../.env.local`, so they reach that credential
+**only if they live in `/opt/interview-os/scripts/`** — that is, only if
+they are moved into the subspace repo. Nothing deploys them there today, and
+`dotenv` does not throw on a missing file, so a misplaced script fails later
+as a `BATCH_PG_URL is not set` *credential* error when it is really a
+*placement* error. See §9.
 
 **Consequence — the `/privacy` disclosure gate (§0, §8) is still unmet.**
 Oracle: the served build's own `.next/server/app/privacy.html` still
@@ -485,11 +498,13 @@ blocked on more than "not yet done": measured 2026-09-04, neither
 `build-job-features.ts` nor `roll-up-telemetry.ts` exists anywhere on the
 box (oracle: `/opt/intervu/scripts`, 37 files, contains neither). Box cron
 scripts actually run from `/opt/interview-os` (the subspace repo, a
-separate checkout, 625 scripts) — getting either script there needs its own
-deploy step, not covered by the intervu app deploy above. The credential
-they'd need (`BATCH_PG_URL`/`PIPELINE_DATABASE_URL`) is separately already
-present in that box's `/opt/interview-os/.env.local` (47 keys), so it is not
-itself a blocker.
+separate checkout; 848 files under `scripts/`, 606 at top level) — getting
+either script there needs its own deploy step, which the intervu app deploy
+above does **not** provide (it populates `/opt/intervu`, which has no
+runtime and no dotenv file — see the keystone section). The credential
+they'd need (`BATCH_PG_URL`) is already present in that box's
+`/opt/interview-os/.env.local` (46 unique keys across 47 assignment lines),
+but only reachable by a script that actually sits in that tree.
 
 **Precondition: step 1** (same reasoning as §8 — `telemetry-derived.sql`'s
 tables must exist, which step 1 now also applies; ingest arriving, step 7,
@@ -499,7 +514,7 @@ window).
 **STATUS as of 2026-09-04, measured two independent ways — neither job has
 ever run:**
 
-- The app box's installed crontab (1221 lines, `crontab -l` as `subspace` on
+- The app box's installed crontab (1281 lines, `crontab -l` as `subspace` on
   194.163.147.154) contains zero lines referencing either script.
 - `intervu.job_heartbeats` on prod holds exactly one row (`reap_telemetry`,
   2026-09-04 04:26 UTC). Neither `build-job-features` nor `roll-up-telemetry`
@@ -527,14 +542,48 @@ Two scripts, not one, feed this layer — both connect as `pipeline` via
 facts (`job_features`) that the outcome rollup's analysis sits on top of, so
 it must run — and land — before `roll-up-telemetry` each night.
 
-**Crontab lines** (host TBD — see runtime note above; env is `BATCH_PG_URL`,
-same role/connection reasoning as every other pipeline batch job in this
-runbook):
+**Crontab lines — DO NOT INSTALL THESE BY HAND.** An earlier draft of this
+section gave two `crontab -e` lines that were wrong in three independent
+ways. They are recorded here as a correction, not as instructions:
+
+1. **`crontab -e` is silently reverted.**
+   `/opt/interview-os/scripts/oracle-vm/crontab.conf` is the sole source of
+   truth: `scripts/deploy-to-vms.sh:383` reinstalls it verbatim
+   (`crontab $APP_DIR/scripts/oracle-vm/crontab.conf`) on every ship, so a
+   hand-added line survives only until the next deploy and then vanishes
+   with no error.
+2. **A cron line naming a script absent from the subspace repo aborts the
+   whole deploy.** `deploy-to-vms.sh:373` runs
+   `scripts/oracle-vm/validate-crontab-scripts.mjs` before anything touches
+   the box; it regexes `scripts/…\.(ts|js|mjs|sh)` out of every uncommented
+   line (`validate-crontab-scripts.mjs:52`) and requires
+   `path.join(repoRoot, ref)` to exist (`:69`), exiting 1 otherwise. A line
+   reading `npx tsx scripts/roll-up-telemetry.ts` while that file lives in
+   the *intervu* repo fails this check and blocks every subsequent subspace
+   ship — not just this one.
+3. **The `BATCH_PG_URL=...` prefix leaks a credential.** `crontab -l` prints
+   it in full to anyone on the box. The house pattern is
+   `/opt/intervu/deploy/run-weekly-digest.sh`, whose own header states the
+   secret is read from the compose env file rather than written into the
+   crontab for exactly this reason. A script sitting in the subspace tree
+   needs no prefix at all — it reads `BATCH_PG_URL` from
+   `/opt/interview-os/.env.local` itself.
+
+The correct shape, once the scripts live in the subspace repo, is a
+`$RUN`-wrapped pair (`crontab.conf:21` defines
+`RUN=/opt/interview-os/scripts/oracle-vm/run-job.sh`) added to
+`crontab.conf` **in the same commit that adds the scripts** — the only
+ordering the validator permits:
 
 ```cron
-50 7 * * * BATCH_PG_URL=... npx tsx scripts/build-job-features.ts >> $HOME/build-job-features.log 2>&1
-5 8 * * * BATCH_PG_URL=... npx tsx scripts/roll-up-telemetry.ts >> $HOME/roll-up-telemetry.log 2>&1
+50 7 * * *  $RUN build-job-features "npx tsx scripts/build-job-features.ts"
+5 8 * * *   $RUN roll-up-telemetry  "npx tsx scripts/roll-up-telemetry.ts"
 ```
+
+**BLOCKED — ruling owed.** Whether the two scripts move into the subspace
+repo (which is what makes the block above valid at all) was put to Vivek on
+2026-09-04 and is unanswered. Do not install, commit, or deploy any of this
+until it is answered.
 
 **Why these times — provisional, not validated.** §8 established that hour
 8 UTC (except the Monday/Thursday-only `10 8`/`35 8` entries) is the one
