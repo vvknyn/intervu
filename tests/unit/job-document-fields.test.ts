@@ -23,6 +23,16 @@ import { JOB_DOCUMENT_FIELDS } from "../../src/lib/telemetry/job-document-fields
  * Same approach as `tests/unit/telemetry-column-conformance.test.ts`, which
  * parses `telemetry-schema.sql`'s own array literal instead of trusting
  * `column-rules.ts` to already match it.
+ *
+ * `extractJobFieldReferences` below only sees dotted `job.<field>` access —
+ * a computed/bracket read like `job["someField"]` would never match its
+ * regex and would vanish from (a) above without a trace, silently dropping
+ * that field from the &fields= projection forever. That gap is closed by
+ * treating "no bracket access on job" as a CHECKED precondition (the
+ * bracket-access test below) rather than an unstated assumption — the
+ * dot-access scan is exhaustive over `features.ts` *because* bracket access
+ * is separately forbidden, so the two checks are one argument, not two
+ * unrelated ones.
  */
 
 const FEATURES_PATH = resolve(
@@ -39,6 +49,24 @@ const FEATURES_PATH = resolve(
  */
 function extractJobFieldReferences(source: string): Set<string> {
   return new Set([...source.matchAll(/\bjob\.([a-zA-Z_][a-zA-Z0-9_]*)\b/g)].map((m) => m[1]!));
+}
+
+/**
+ * Every line in `source` that reads `job` via bracket/computed access
+ * (`job[...]`, `job [...]`), 1-indexed and returned with its trimmed text so
+ * a failure names the exact line. `extractJobFieldReferences` above is blind
+ * to this syntax by construction — this is the check that makes "features.ts
+ * never uses it" an enforced fact instead of an assumed one. Exercised twice
+ * below, same as `extractJobFieldReferences`: once against the real
+ * extractor source, once against an inline fixture, so it's proven to catch
+ * the syntax it exists to catch, not just to have found nothing today.
+ */
+function findJobBracketAccess(source: string): string[] {
+  return source
+    .split("\n")
+    .map((line, i) => ({ line, n: i + 1 }))
+    .filter(({ line }) => /\bjob\s*\[/.test(line))
+    .map(({ line, n }) => `line ${n}: ${line.trim()}`);
 }
 
 function loadFeaturesSource(): string {
@@ -62,6 +90,19 @@ if (REFERENCED_FIELDS.size === 0) {
       "extractJobFieldReferences to match it rather than letting every assertion below vacuously pass.",
   );
 }
+
+test("features.ts contains no bracket/computed access on job — the dot-access scan above is exhaustive only because of this", () => {
+  const hits = findJobBracketAccess(loadFeaturesSource());
+  assert.deepEqual(
+    hits,
+    [],
+    `features.ts contains bracket access on job (${hits.join("; ")}) — extractJobFieldReferences only ` +
+      "matches dotted job.<field> reads, so this field was never extracted, never reached " +
+      "JOB_DOCUMENT_FIELDS, and the &fields= projection would silently strip it forever. Convert it to " +
+      "dot access, or extend extractJobFieldReferences to cover bracket access and re-derive this test's " +
+      "guarantee.",
+  );
+});
 
 for (const field of REFERENCED_FIELDS) {
   test(`${field}: referenced by features.ts, present in JOB_DOCUMENT_FIELDS`, () => {
@@ -97,5 +138,26 @@ test("extractJobFieldReferences detects drift: an unlisted field in a fixture is
     ["someUnlistedField"],
     "extractJobFieldReferences over a fixture with one known + one unlisted job.<field> reference must " +
       "report exactly the unlisted one as missing from JOB_DOCUMENT_FIELDS",
+  );
+});
+
+test("findJobBracketAccess detects drift: bracket access in a fixture is reported, not silently accepted", () => {
+  const fixture = `
+    export function extractSomething(job: PublicJob) {
+      return job["someField"];
+    }
+  `;
+  const hits = findJobBracketAccess(fixture);
+
+  assert.equal(
+    hits.length,
+    1,
+    "findJobBracketAccess must report exactly one hit for a fixture with one job[\"...\"] bracket " +
+      "access — if it reports zero, a bracket-accessed field could reach features.ts undetected and " +
+      "the dot-access scan's exhaustiveness guarantee would silently stop holding",
+  );
+  assert.ok(
+    hits[0]!.includes('job["someField"]'),
+    `expected the reported hit to name the offending line, got: ${hits[0]}`,
   );
 });
