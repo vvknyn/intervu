@@ -210,6 +210,27 @@ export interface EventPayloads {
 }
 
 /**
+ * Optional per-event props that reach ONLY the ledger (this repo's own
+ * Postgres-backed telemetry store, `lib/telemetry/client.ts`) and are never
+ * passed to `posthog.capture(...)` — for data too sensitive/raw for a
+ * third-party analytics vendor but that we still need captured, keyed to
+ * the account, server-side (privacy policy: "the searches you run,
+ * including the text of what you typed").
+ *
+ * Only events that actually have ledger-only data get an entry here.
+ * `captureEvent`'s third parameter is typed against this map so passing a
+ * third argument for an event with no entry here fails to compile (typed
+ * `never`), rather than silently accepting an untyped bag of props.
+ */
+export interface LedgerOnlyPayloads {
+  search_submitted: {
+    /** The raw, unmodified search query text. Ledger-only by construction —
+     *  see `captureEvent` below — never forwarded to PostHog. */
+    query_text: string;
+  };
+}
+
+/**
  * Pure: should this call actually reach PostHog? Kept separate from the I/O
  * below — same pure-decision/thin-I/O split posthog-identity.ts uses for
  * identityAction — so the guard is testable without a DOM or a mocked
@@ -217,6 +238,23 @@ export interface EventPayloads {
  */
 export function shouldCaptureEvent(hasWindow: boolean, loaded: boolean): boolean {
   return hasWindow && loaded;
+}
+
+/**
+ * Pure: builds what the ledger's `trackToLedger` call receives, merging in
+ * any ledger-only props — kept out of `captureEvent` itself so this merge
+ * is unit-testable without a DOM or a mocked posthog-js, same
+ * pure-decision/thin-I/O split as `shouldCaptureEvent` above and
+ * `extractLedgerColumns` (lib/telemetry/client.ts). `payload` is returned
+ * as-is (not copied) when there's no `ledgerOnly` to merge, so every
+ * existing call site — which never passes a third argument — sends the
+ * ledger byte-for-byte what it always did.
+ */
+export function buildLedgerProps(
+  payload: Record<string, unknown>,
+  ledgerOnly?: Record<string, unknown>,
+): Record<string, unknown> {
+  return ledgerOnly ? { ...payload, ...ledgerOnly } : payload;
 }
 
 /**
@@ -234,13 +272,24 @@ export function shouldCaptureEvent(hasWindow: boolean, loaded: boolean): boolean
  * capture, so every one of this module's 22 event names reaches the
  * telemetry ledger for free, and a future 23rd does too, with no second
  * tracking call to add at any call site (SPEC.md §5).
+ *
+ * `ledgerOnly` is the optional third argument for props that must reach
+ * the ledger but must NEVER reach PostHog (`LedgerOnlyPayloads` above) —
+ * the two sinks differ by construction: `posthog.capture` is called with
+ * `payload` alone, on the line directly above, before `ledgerOnly` is ever
+ * referenced. There is no code path here that could hand `ledgerOnly` to
+ * PostHog.
  */
 export function captureEvent<K extends AnalyticsEventKey>(
   event: K,
   payload: EventPayloads[K],
+  ledgerOnly?: K extends keyof LedgerOnlyPayloads ? LedgerOnlyPayloads[K] : never,
 ): void {
   const hasWindow = typeof window !== "undefined";
   if (!shouldCaptureEvent(hasWindow, posthog.__loaded === true)) return;
   posthog.capture(ANALYTICS_EVENTS[event], payload);
-  trackToLedger(ANALYTICS_EVENTS[event], payload as Record<string, unknown>);
+  trackToLedger(
+    ANALYTICS_EVENTS[event],
+    buildLedgerProps(payload as Record<string, unknown>, ledgerOnly as Record<string, unknown> | undefined),
+  );
 }

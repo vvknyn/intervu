@@ -5,7 +5,9 @@ import {
   ANALYTICS_EVENTS,
   shouldCaptureEvent,
   captureEvent,
+  buildLedgerProps,
 } from "../../src/lib/analytics/events";
+import { extractLedgerColumns } from "../../src/lib/telemetry/client";
 
 /**
  * The Node test env has no `window` and posthog.__loaded starts false (no
@@ -192,5 +194,53 @@ test("captureEvent sends resume_uploaded with an empty payload", (t) => {
   withReadyPostHog(t, (capture) => {
     captureEvent("resume_uploaded", {});
     assert.deepEqual(capture.mock.calls[0].arguments, ["resume_uploaded", {}]);
+  });
+});
+
+// --- ledger-only props (query text) ---------------------------------------
+//
+// Requirement: raw search query TEXT must reach the ledger (this repo's own
+// Postgres-backed telemetry store), keyed to the account, and must NEVER
+// reach PostHog. `captureEvent`'s optional third argument carries props that
+// only `buildLedgerProps` ever sees — the two sinks differ by construction
+// (separate arguments to captureEvent), not by a "remember to strip it"
+// convention. See events.ts's `LedgerOnlyPayloads` and `captureEvent`.
+
+test("buildLedgerProps merges ledgerOnly in when given, and is a no-op passthrough without it", () => {
+  const payload = { query_length: 5, has_location: false, filter_count: 0 };
+
+  const merged = buildLedgerProps(payload, { query_text: "senior engineer" });
+  assert.deepEqual(merged, { ...payload, query_text: "senior engineer" });
+
+  // No third argument at all — every existing call site's shape. Must be
+  // exactly the payload, nothing added or removed.
+  assert.deepEqual(buildLedgerProps(payload), payload);
+});
+
+test("composition proof: a ledger-only prop merged via buildLedgerProps lands in extractLedgerColumns' props, not columns", () => {
+  const merged = buildLedgerProps(
+    { query_length: 5, has_location: false, filter_count: 0 },
+    { query_text: "staff engineer remote" },
+  );
+  const { columns, props } = extractLedgerColumns(merged);
+
+  // query_text is not one of the 5 promoted ledger columns — it must stay
+  // in the JSONB `props` blob, never get promoted to a top-level column.
+  assert.equal(props.query_text, "staff engineer remote");
+  assert.equal("query_text" in columns, false);
+});
+
+test("captureEvent never hands ledgerOnly props to posthog.capture — the privacy-load-bearing assertion", (t) => {
+  withReadyPostHog(t, (capture) => {
+    captureEvent(
+      "search_submitted",
+      { query_length: 19, has_location: true, filter_count: 1 },
+      { query_text: "some raw query text" },
+    );
+
+    assert.equal(capture.mock.calls.length, 1);
+    const posthogPayload = capture.mock.calls[0].arguments[1] as Record<string, unknown>;
+    assert.equal("query_text" in posthogPayload, false, "raw query text must never reach PostHog");
+    assert.deepEqual(posthogPayload, { query_length: 19, has_location: true, filter_count: 1 });
   });
 });
