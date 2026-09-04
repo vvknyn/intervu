@@ -3,7 +3,7 @@
 import { verifyUnsubscribeToken, type UnsubscribeScope } from "@/lib/email/unsubscribe-token";
 import { suppress, unsuppress } from "@/lib/email/suppression";
 import { forgetIdentity } from "@/lib/identity/forget";
-import { getIntervuPg } from "@/lib/pg/pool";
+import { getIntervuPg, getTelemetryForgetPg } from "@/lib/pg/pool";
 
 export type UnsubscribeActionResult =
   | { ok: true; email: string; kind: UnsubscribeScope }
@@ -50,6 +50,6 @@ export async function processForgetAction(token: string): Promise<UnsubscribeAct
     const payload = verifyUnsubscribeToken(token);
     if (!payload) return { ok: false, error: INVALID_TOKEN_ERROR };
 
-    await forgetIdentity(getIntervuPg(), payload.email);
+    await forgetIdentity(getIntervuPg(), getTelemetryForgetPg(), payload.email);
     return { ok: true, email: payload.email, kind: "all" };
 }

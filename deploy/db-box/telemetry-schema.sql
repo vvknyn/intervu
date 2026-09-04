@@ -124,3 +124,60 @@ begin
   return deleted_count;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 7. Erasure. `forgetIdentity` (src/lib/identity/forget.ts) must be able to
+--    delete one user's ledger rows, and the two obvious ways to let it are
+--    both worse than they look:
+--
+--      * granting DELETE to telemetry_pg hands the internet-facing ingest
+--        credential an unconstrained `delete from telemetry_events` — a
+--        whole-ledger-wipe primitive on the most attackable surface we have;
+--      * giving the web app BATCH_PG_URL hands it `pipeline`, which owns
+--        every table in this schema.
+--
+--    SECURITY DEFINER is the narrow middle: the privilege stays with the
+--    owner, and what telemetry_pg gets is not "delete rows" but "erase the
+--    rows belonging to one user id". It still holds no SELECT, so even a
+--    fully compromised ingest credential cannot read one query string, job
+--    id or props blob back out of the ledger.
+--
+--    Unbatched DELETE here is deliberate and is NOT the reaper's case: this
+--    is bounded by one account's own rows inside the 90-day window
+--    (thousands), not a global retention sweep over every writer's traffic
+--    (millions) — that one batches in scripts/reap-telemetry.ts precisely
+--    because it is unbounded. The 30s statement timeout on the calling pool
+--    (`getTelemetryForgetPg`, src/lib/pg/pool.ts) is the backstop.
+--
+--    `search_path` is pinned: an unpinned SECURITY DEFINER function is
+--    hijackable by anything the caller can put earlier on the path.
+-- ---------------------------------------------------------------------------
+create or replace function intervu.forget_telemetry_user(p_user_id text)
+returns bigint
+language plpgsql
+security definer
+set search_path = intervu, pg_catalog, pg_temp
+as $$
+declare
+  deleted_count bigint;
+begin
+  -- A null/blank uid would match no row anyway; refusing it explicitly keeps
+  -- a caller bug from ever reaching the table with an unconstrained-looking
+  -- predicate.
+  if p_user_id is null or p_user_id = '' then
+    return 0;
+  end if;
+
+  delete from intervu.telemetry_events where user_id = p_user_id;
+  get diagnostics deleted_count = row_count;
+  return deleted_count;
+end;
+$$;
+
+-- Ownership is pinned rather than left to whoever ran this file: under
+-- SECURITY DEFINER the owner IS the privilege, so a run as superuser would
+-- otherwise silently install a far stronger function than a run as pipeline.
+alter function intervu.forget_telemetry_user(text) owner to pipeline;
+
+revoke all on function intervu.forget_telemetry_user(text) from public;
+grant execute on function intervu.forget_telemetry_user(text) to telemetry_pg;
