@@ -24,7 +24,10 @@
  * Every run — including one that deletes nothing — upserts
  * `intervu.job_heartbeats`, because five daily crons in this system once
  * ran dead for up to ten days while exiting 0 every time; a heartbeat that
- * only appears on success proves nothing.
+ * only appears on success proves nothing. The upsert itself lives in
+ * `writeHeartbeat` (src/lib/telemetry/heartbeat.ts) — shared with
+ * build-job-features.ts/roll-up-telemetry.ts so this exact statement has
+ * one writer, not a copy re-typed per script.
  *
  * Runs FROM THE PIPELINE BOX (194.163.147.154) as user `subspace`, reading
  * `BATCH_PG_URL` out of /opt/interview-os/.env.local — the same connection
@@ -38,6 +41,7 @@ import { config } from "dotenv";
 import pg from "pg";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: `${ROOT}/.env.local`, quiet: true });
@@ -80,18 +84,6 @@ async function deleteOneBatch(db: pg.Client, days: number): Promise<number> {
   return rows.length;
 }
 
-async function writeHeartbeat(db: pg.Client, rowsAffected: number, ok: boolean): Promise<void> {
-  await db.query(
-    `INSERT INTO intervu.job_heartbeats (job_name, last_run_at, rows_affected, ok)
-     VALUES ($1, now(), $2, $3)
-     ON CONFLICT (job_name) DO UPDATE
-       SET last_run_at = excluded.last_run_at,
-           rows_affected = excluded.rows_affected,
-           ok = excluded.ok`,
-    [JOB_NAME, rowsAffected, ok],
-  );
-}
-
 async function main() {
   const db = new pg.Client({ connectionString });
   await db.connect();
@@ -103,13 +95,13 @@ async function main() {
       totalDeleted += deleted;
       if (deleted < BATCH_SIZE) break;
     }
-    await writeHeartbeat(db, totalDeleted, true);
+    await writeHeartbeat(db, JOB_NAME, totalDeleted, true);
     console.log(`ok rows_deleted=${totalDeleted} retain_days=${retainDays}`);
   } catch (err) {
     // The heartbeat must land even on failure, with the REAL partial count
     // — a heartbeat that only appears on success is exactly the blind spot
     // it exists to close.
-    await writeHeartbeat(db, totalDeleted, false).catch((hbErr) => {
+    await writeHeartbeat(db, JOB_NAME, totalDeleted, false).catch((hbErr) => {
       console.error("[reap-telemetry] heartbeat write also failed:", hbErr);
     });
     throw err;
