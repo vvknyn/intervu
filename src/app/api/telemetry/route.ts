@@ -1,0 +1,135 @@
+/**
+ * POST /api/telemetry — thin I/O half. Decision-making lives in
+ * `lib/telemetry/ingest.ts` (shape/size/name/clock/dedup) and
+ * `lib/telemetry/rate-limit.ts` (per-session budget); this file only reads
+ * guards off the Request, calls those, and inserts.
+ *
+ * Guard order follows SPEC §4 exactly:
+ *   1. Content-Length, BEFORE request.json() — the container is a single
+ *      `mem_limit: 1g` process (docker-compose.yml:22), so parsing an
+ *      unbounded body first defeats the whole point of the cap.
+ *   2. batch length > 50 -> 400
+ *   3–5. per-event props/name/clock guards (ingest.processBatch)
+ *   6. bot UA -> drop silently
+ *   7. per-session rate limit
+ *   8. insert, ON CONFLICT (event_id) DO NOTHING, one multi-row statement,
+ *      rows pre-sorted by event_id (unsorted multi-row upserts caused 7,318
+ *      deadlocks in this codebase's history)
+ *   9. always 204 — the endpoint returns no data, ever
+ *  10. never throw into the request path
+ */
+import { NextResponse } from "next/server";
+import { getTelemetryPg, type Queryable } from "@/lib/pg/pool";
+import { isBatchTooLarge, isBotUserAgent, MAX_BODY_BYTES, processBatch, sortByEventId } from "@/lib/telemetry/ingest";
+import { partitionByRateLimit } from "@/lib/telemetry/rate-limit";
+import type { TelemetryBatchRequest, TelemetryRow } from "@/lib/telemetry/types";
+
+const TELEMETRY_COLUMNS = [
+  "event_id",
+  "occurred_at",
+  "session_id",
+  "visitor_id",
+  "user_id",
+  "event_name",
+  "source",
+  "query_id",
+  "job_id",
+  "company_domain",
+  "position",
+  "props",
+] as const;
+
+/** The only I/O beyond the request itself. One multi-row INSERT, never a
+ *  loop of single-row inserts — `ON CONFLICT DO NOTHING` makes a retried or
+ *  double-fired beacon free. */
+async function insertRows(pg: Queryable, rows: readonly TelemetryRow[]): Promise<void> {
+  // `processBatch` hands back rows sorted by event_id, but
+  // `partitionByRateLimit` re-groups by session_id first — re-sort here so
+  // the property this insert actually depends on (a consistently ordered
+  // multi-row upsert; unsorted ones caused 7,318 deadlocks in this
+  // codebase's history) holds regardless of what happens upstream.
+  const sorted = sortByEventId(rows);
+  const values: unknown[] = [];
+  const tuples = sorted.map((row, i) => {
+    const base = i * TELEMETRY_COLUMNS.length;
+    values.push(
+      row.event_id,
+      row.occurred_at,
+      row.session_id,
+      row.visitor_id,
+      row.user_id,
+      row.event_name,
+      row.source,
+      row.query_id,
+      row.job_id,
+      row.company_domain,
+      row.position,
+      JSON.stringify(row.props),
+    );
+    return `(${TELEMETRY_COLUMNS.map((_, j) => `$${base + j + 1}`).join(", ")})`;
+  });
+
+  await pg.query(
+    `insert into intervu.telemetry_events (${TELEMETRY_COLUMNS.join(", ")})
+     values ${tuples.join(", ")}
+     on conflict (event_id) do nothing`,
+    values,
+  );
+}
+
+export async function POST(request: Request): Promise<NextResponse> {
+  try {
+    // Guard 1 — before any parse.
+    const contentLengthHeader = request.headers.get("content-length");
+    const contentLength = contentLengthHeader === null ? NaN : Number(contentLengthHeader);
+    if (!Number.isFinite(contentLength) || contentLength > MAX_BODY_BYTES) {
+      return new NextResponse(null, { status: 413 });
+    }
+
+    const body = (await request.json().catch(() => null)) as Partial<TelemetryBatchRequest> | null;
+    if (!body || !Array.isArray(body.events)) {
+      return new NextResponse(null, { status: 400 });
+    }
+
+    // Guard 2.
+    if (isBatchTooLarge(body.events)) {
+      return new NextResponse(null, { status: 400 });
+    }
+
+    // Guards 3–5.
+    const now = Date.now();
+    const { rows, rejections } = processBatch(body.events, now);
+
+    // Guard 6 — a bot's whole batch is dropped, never inserted.
+    const isBot = isBotUserAgent(request.headers.get("user-agent"));
+
+    // Guard 7.
+    const { admitted, rejected: rateLimited } = isBot
+      ? { admitted: [] as TelemetryRow[], rejected: [] }
+      : partitionByRateLimit(rows, now);
+
+    if (rejections.length || rateLimited.length || isBot) {
+      console.warn(
+        `[telemetry] accepted ${admitted.length}/${body.events.length} ` +
+          `(bot=${isBot}, invalid/size/dupe=${rejections.length}, rate_limited=${rateLimited.length})`,
+      );
+    }
+
+    // Guard 8.
+    const pg = getTelemetryPg();
+    if (pg && admitted.length > 0) {
+      try {
+        await insertRows(pg, admitted);
+      } catch (err) {
+        console.error("[telemetry] insert failed:", err);
+      }
+    }
+
+    // Guard 9.
+    return new NextResponse(null, { status: 204 });
+  } catch (err) {
+    // Guard 10 — telemetry failing must never break a page or surface a 500.
+    console.error("[telemetry] ingest failed:", err);
+    return new NextResponse(null, { status: 204 });
+  }
+}
