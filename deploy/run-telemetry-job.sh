@@ -47,9 +47,24 @@ ENV_FILE="${INTERVU_JOB_ENV_FILE:-/opt/interview-os/.env.local}"
 LOG="${INTERVU_JOB_LOG:-$HOME/logs/intervu-telemetry-jobs.log}"
 LOCK="${INTERVU_JOB_LOCK:-/tmp/intervu-telemetry-$JOB.lock}"
 TIMEOUT="${INTERVU_JOB_TIMEOUT:-3600}"
-# Keyed to $INTERVU_ROOT, not $JOB — see the npm-ci block below for why this
-# one must be shared across every job name instead of being per-job like LOCK.
-INSTALL_LOCK="${INTERVU_JOB_INSTALL_LOCK:-$INTERVU_ROOT/.npm-ci.lock}"
+# Keyed to $INTERVU_ROOT (sanitized), not $JOB — shared across every job
+# name installing into the same tree (see the npm-ci block below for why
+# this one must be shared, unlike the per-job LOCK above).
+#
+# Lives OUTSIDE $INTERVU_ROOT, deliberately: the intervu deploy is
+# extract-then-swap (`mv $INTERVU_ROOT $INTERVU_ROOT.old`, a fresh tree
+# takes its place at the same path), and `flock` locks the underlying
+# INODE, not the path string. A default lock path inside the swapped tree
+# means a deploy landing while one job holds the lock hands the NEXT job a
+# DIFFERENT inode at the same path — acquired instantly, while the first
+# holder's lock (and its still-running `npm ci`) sits orphaned on the old,
+# unlinked inode. Two `npm ci` runs then proceed concurrently against the
+# same fresh tree — exactly the race commit 9053dd4 closed, reopened by the
+# deploy. `/tmp` is never touched by the swap, so a lock there survives it;
+# `tr` (asserted present below, same as sed/tail) collapses the root path
+# into one safe filename segment so two different $INTERVU_ROOT values
+# never collide on the same lock.
+INSTALL_LOCK="${INTERVU_JOB_INSTALL_LOCK:-/tmp/intervu-npm-ci-$(printf '%s' "$INTERVU_ROOT" | tr -cs 'A-Za-z0-9' '_').lock}"
 INSTALL_LOCK_TIMEOUT="${INTERVU_JOB_INSTALL_LOCK_TIMEOUT:-600}"
 
 mkdir -p "$(dirname "$LOG")"

@@ -196,9 +196,21 @@ run_race() {
     LAST_PID=$!
 }
 
+# Mirrors run-telemetry-job.sh's INSTALL_LOCK default exactly. A black-box
+# test of a default value has no way around knowing its formula: the tests
+# below must pre-hold the right file BEFORE the wrapper ever runs, so there
+# is no wrapper output yet to read it back from. Every claim about WHERE
+# that default actually landed is still checked against the wrapper's own
+# "FAIL install lock <path>" log line below, never against this mirror —
+# a test that only compared this formula to itself could never catch the
+# wrapper's default drifting away from it.
+default_install_lock() { # default_install_lock <root>
+    printf '/tmp/intervu-npm-ci-%s.lock' "$(printf '%s' "$1" | tr -cs 'A-Za-z0-9' '_')"
+}
+
 # (a) THE BUG: two DIFFERENT job names, started concurrently, both seeing
 # tsx absent, racing to install into the same shared INTERVU_ROOT.
-rm -rf "$FX/root/node_modules" "$FX/root/.npm-ci.lock"; : >"$FX/counter"; : >"$FX/clog1"; : >"$FX/clog2"
+rm -rf "$FX/root/node_modules"; : >"$FX/counter"; : >"$FX/clog1"; : >"$FX/clog2"
 run_race demo-job "$FX/clog1" "$FX/lock1"; p1=$LAST_PID
 run_race second-job "$FX/clog2" "$FX/lock2"; p2=$LAST_PID
 wait "$p1"; rc1=$?
@@ -235,21 +247,65 @@ fi
 # concurrently-mutating node_modules. INTERVU_JOB_INSTALL_LOCK_TIMEOUT=1
 # keeps this from taking minutes.
 rm -rf "$FX/root/node_modules"; : >"$FX/counter"; : >"$FX/clog1"
-( exec 8>"$FX/root/.npm-ci.lock"; "$REAL_FLOCK" -x 8; sleep 2 ) &
+lockfile="$(default_install_lock "$FX/root")"
+rm -f "$lockfile"
+( exec 8>"$lockfile"; "$REAL_FLOCK" -x 8; sleep 2 ) &
 holder=$!
 sleep 0.3   # let the holder actually acquire the lock before we race it
 run_race demo-job "$FX/clog1" "$FX/lock1" INTERVU_JOB_INSTALL_LOCK_TIMEOUT=1; wait "$LAST_PID"; rc=$?
 wait "$holder"
 ci_count=$(grep -c '^ci ' "$FX/counter")
-if [[ "$rc" != 0 && "$ci_count" == 0 ]] && grep -qF "install lock" "$FX/clog1" && grep -qF "for over 1s" "$FX/clog1"; then
+resolved_lock="$(grep -oE 'FAIL install lock [^ ]+' "$FX/clog1" | awk '{print $4}')"
+if [[ "$rc" != 0 && "$ci_count" == 0 ]] && grep -qF "install lock" "$FX/clog1" && grep -qF "for over 1s" "$FX/clog1" \
+    && [[ "$resolved_lock" == "$lockfile" && "$resolved_lock" != "$FX/root"* ]]; then
     printf 'ok   install lock held by another run -> loud timeout failure, npm never invoked\n'
 else
-    printf 'FAIL install lock held by another run -> want rc!=0 ci=0 with a timeout message, got rc=%s ci=%s\n     clog1: %s\n' \
-        "$rc" "$ci_count" "$(cat "$FX/clog1")"
+    printf 'FAIL install lock held by another run -> want rc!=0 ci=0 timeout on %q (outside INTERVU_ROOT), got rc=%s ci=%s resolved=%q\n     clog1: %s\n' \
+        "$lockfile" "$rc" "$ci_count" "$resolved_lock" "$(cat "$FX/clog1")"
+    fails=$((fails + 1))
+fi
+
+# (d) THE SWAP: the intervu deploy replaces $INTERVU_ROOT wholesale
+# (`mv $INTERVU_ROOT $INTERVU_ROOT.old`, a fresh tree lands at the same
+# path afterward). The OLD default install lock lived AT
+# `$INTERVU_ROOT/.npm-ci.lock` — INSIDE the swapped tree — so a deploy
+# landing mid-install handed the next job a brand-new inode at that same
+# path, acquired instantly, while the real holder (and its still-running
+# npm ci) sat orphaned on the old, unlinked inode: two npm ci runs racing
+# the same fresh tree, the exact bug commit 9053dd4 closed, reopened by the
+# deploy. This proves the fix: job B, started against a freshly recreated
+# $INTERVU_ROOT while job A's lock is still held, must still see the lock
+# as held and time out loudly — never race straight through into a second
+# concurrent install.
+rm -rf "$FX/root/node_modules"; : >"$FX/counter"; : >"$FX/clog1"
+lockfile="$(default_install_lock "$FX/root")"
+rm -f "$lockfile"
+( exec 8>"$lockfile"; "$REAL_FLOCK" -x 8; sleep 2 ) &
+holder=$!
+sleep 0.3   # let the holder actually acquire the lock before the swap
+
+# The swap itself, independent of the lock question: rename the root out
+# from under the held lock, then recreate a fresh tree at the same path.
+mv "$FX/root" "$FX/root.old"
+mkdir -p "$FX/root/scripts"
+echo 'console.log("unused");' > "$FX/root/scripts/demo-job.ts"
+echo '{"name":"fake"}'        > "$FX/root/package.json"
+
+run_race demo-job "$FX/clog1" "$FX/lock1" INTERVU_JOB_INSTALL_LOCK_TIMEOUT=1; wait "$LAST_PID"; rc=$?
+wait "$holder"
+rm -rf "$FX/root.old"
+ci_count=$(grep -c '^ci ' "$FX/counter")
+resolved_lock="$(grep -oE 'FAIL install lock [^ ]+' "$FX/clog1" | awk '{print $4}')"
+if [[ "$rc" != 0 && "$ci_count" == 0 ]] && grep -qF "install lock" "$FX/clog1" && grep -qF "for over 1s" "$FX/clog1" \
+    && [[ "$resolved_lock" == "$lockfile" && "$resolved_lock" != "$FX/root"* ]]; then
+    printf 'ok   deploy swaps INTERVU_ROOT mid-hold -> lock still serializes across the swap, no race\n'
+else
+    printf 'FAIL deploy swap -> want rc!=0 ci=0 timeout on %q (outside INTERVU_ROOT), got rc=%s ci=%s resolved=%q\n     clog1: %s\n' \
+        "$lockfile" "$rc" "$ci_count" "$resolved_lock" "$(cat "$FX/clog1")"
     fails=$((fails + 1))
 fi
 fi
 
 echo
 if (( fails )); then echo "$fails test(s) FAILED"; exit 1; fi
-echo "all 11 tests passed"
+echo "all 13 tests passed"
