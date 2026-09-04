@@ -19,8 +19,8 @@ a process list (`ps`, `docker inspect`, cron logs).
 | 5. mmdb geo sanity-check | not done |
 | 6. `verify-telemetry-grants.sh` | not run (needs `BATCH_PG_URL`) |
 | 7. `verify-telemetry-e2e.ts` | not run — **this is the launch gate** |
-| 8. reaper cron | **installed** 2026-09-04; cron proven to fire for `postgres`; the 08:20 UTC run itself has not happened yet (see §8) |
-| 9. derived-layer crons (`build-job-features`, `roll-up-telemetry`) | **not installed** — measured 2026-09-04, two ways: app box's installed crontab (1281 lines) has zero references to either script, and `intervu.job_heartbeats` holds exactly one row (`reap_telemetry`); neither job has ever run (see §9) |
+| 8. reaper cron | **done** — installed 2026-09-04 and the first *scheduled* run fired the same morning, 08:20:02 Europe/Berlin = 06:20:02 UTC, `ok=t` (see §8) |
+| 9. derived-layer crons (`build-job-features`, `roll-up-telemetry`) | **written, not installed** — the two crontab lines and their host-side wrapper are committed (subspace `feat/2026-09-04/telemetry-derived-cron`, intervu `deploy/run-telemetry-job.sh`), neither is shipped. Measured 2026-09-04, two ways: app box's installed crontab (1281 lines) has zero references to either script, and `intervu.job_heartbeats` holds exactly one row (`reap_telemetry`); neither job has ever run. **Ships only after the intervu deploy** (see §9) |
 
 **Consequence of 2+3 being open:** `/api/telemetry` currently answers `204`
 and inserts nothing — `getTelemetryPg()` returns `null` with no
@@ -370,7 +370,7 @@ than a bare "row not found."
 sufficient. Do not declare the ledger live without a passing run of this
 script against the production URL.
 
-## 8. Reaper cron — INSTALLED 2026-09-04
+## 8. Reaper cron — INSTALLED AND PROVEN 2026-09-04
 
 **Precondition: step 1, not step 7.** This section previously said step 7.
 That was wrong, and the reason it was wrong is the reason it is worth
@@ -392,13 +392,24 @@ blocked on a human.
   /tmp/cron-proof-...)`, 2026-09-04 06:28 CEST), then restoring the crontab
   and re-checking its sha. Exit status was deliberately not used as the
   evidence — see the pass condition below for why.
-- **The 08:20 UTC scheduled run has not happened yet** at time of writing.
-  There *is* a fresh `job_heartbeats` row (`ok=t`, `rows_affected=0`), but it
-  was written by a **manual** invocation of the identical command at 04:26
-  UTC, not by cron — `/var/lib/postgresql/reap-telemetry.log` holds exactly
-  its output (`0`) with that mtime. Do not read that heartbeat as proof the
-  schedule works; the first honest proof of the schedule is a `last_run_at`
-  that lands shortly after 08:20 UTC.
+- **The first scheduled run has now happened**: 2026-09-04 08:20:02
+  Europe/Berlin (06:20:02 UTC), `ok=t`, `rows_affected=0`. Measured three
+  independent ways, because for most of that morning the only available
+  evidence was an oracle that could not tell the two cases apart —
+  a `job_heartbeats` row identical in every respect to one a **manual**
+  invocation of the same command had already written. A heartbeat says the
+  function ran; it does not say *cron* ran it. The three legs:
+  1. syslog, which names the scheduler:
+     `2026-09-04T08:20:02+02:00 … CRON[3033046]: (postgres) CMD (psql -d
+     postgres -Atc "select intervu.reap_telemetry(90)" …)`.
+  2. the redirect log `/var/lib/postgresql/reap-telemetry.log`, appended to
+     at 08:20:03.18 +0200 — a second `0` line beneath the manual run's.
+  3. the heartbeat row itself: `last_run_at = 2026-09-04 08:20:02.688+02`.
+- Note the ordering that made leg 1 necessary: the marker test earlier that
+  morning proved cron fires **for this user at all**
+  (`CRON[2998399]: (postgres) CMD (touch /tmp/cron-proof-…)`, 06:28 CEST) —
+  a strictly weaker claim than "this line fires on its schedule". Both were
+  needed; neither substitutes for the other.
 
 **Release gate — status inverted 2026-09-04.** The mechanism is now the part
 that exists and the copy is the part that does not: `https://velai.app/privacy`
@@ -447,9 +458,17 @@ passed** (`crontab -u postgres -e`, or `crontab -e` as `postgres`):
 20 8 * * * psql -d postgres -Atc "select intervu.reap_telemetry(90)" >> $HOME/reap-telemetry.log 2>&1
 ```
 
-**Why 08:20 UTC:** cross-referenced against the app box's full production
+**Why 08:20 — and it is 08:20 *Europe/Berlin*, not UTC.** Both boxes run
+`Europe/Berlin` (`timedatectl` on each, 2026-09-04: `CEST, +0200`), and cron
+reads box-local time, so every hour field here and in the app box's
+`crontab.conf` is local — that file's own header warns that its older
+comments saying "UTC" are wrong by two hours. The slot analysis below is
+therefore still sound: it compares local against local. Only the label was
+wrong. In UTC this line runs at 06:20.
+
+Cross-referenced against the app box's full production
 crontab (`crontab -l` as `subspace` on 194.163.147.154, which is what
-actually generates load against this same DB box's Postgres). Hour 8 UTC is
+actually generates load against this same DB box's Postgres). Hour 8 local is
 the only hour block in that crontab with no *daily* fixed-start job at all —
 the only two entries anywhere inside hour 8 are Monday/Thursday-only
 (`10 8 * * 1,4`, `35 8 * * 1,4`), and minute `:20` lands on neither.
@@ -491,110 +510,151 @@ cron on this box: there is no runtime here to run it with, and if that ever
 changes, the batching-vs-unbatched tradeoff above needs re-deciding, not
 silently inherited.
 
-## 9. Nightly rollup — NOT INSTALLED
+## 9. Derived tables — SCHEDULED 2026-09-04, not yet run
 
-**See "Deploy-order correction" above first.** Installing these crons is
-blocked on more than "not yet done": measured 2026-09-04, neither
-`build-job-features.ts` nor `roll-up-telemetry.ts` exists anywhere on the
-box (oracle: `/opt/intervu/scripts`, 37 files, contains neither). Box cron
-scripts actually run from `/opt/interview-os` (the subspace repo, a
-separate checkout; 848 files under `scripts/`, 606 at top level) — getting
-either script there needs its own deploy step, which the intervu app deploy
-above does **not** provide (it populates `/opt/intervu`, which has no
-runtime and no dotenv file — see the keystone section). The credential
-they'd need (`BATCH_PG_URL`) is already present in that box's
-`/opt/interview-os/.env.local` (46 unique keys across 47 assignment lines),
-but only reachable by a script that actually sits in that tree.
-
-**Precondition: step 1** (same reasoning as §8 — `telemetry-derived.sql`'s
-tables must exist, which step 1 now also applies; ingest arriving, step 7,
-is not a precondition for a job that legitimately no-ops over an empty
-window).
-
-**STATUS as of 2026-09-04, measured two independent ways — neither job has
-ever run:**
-
-- The app box's installed crontab (1281 lines, `crontab -l` as `subspace` on
-  194.163.147.154) contains zero lines referencing either script.
-- `intervu.job_heartbeats` on prod holds exactly one row (`reap_telemetry`,
-  2026-09-04 04:26 UTC). Neither `build-job-features` nor `roll-up-telemetry`
-  has ever written a heartbeat.
-
-Unlike §8's reaper, this is **not** a case where the SQL-function path
-sidesteps a missing runtime: `build-job-features.ts` and `roll-up-telemetry.ts`
-do their own JS-side computation (posting-text parsing; unnesting the
-`results_impressed` parallel-array payload — see that file's own header) and
-have no SQL-function equivalent, so they need an actual Node/`tsx` runtime
-with network access to the DB box. No host has been confirmed to run them —
-this section documents the crontab lines to install, not a completed
-installation, and does not claim a runtime exists to run them on.
-
-Two scripts, not one, feed this layer — both connect as `pipeline` via
-`BATCH_PG_URL` and both call the same `writeHeartbeat` helper
-(`src/lib/telemetry/heartbeat.ts`) as `reap_telemetry()` does:
+**See "Deploy-order correction" above first.** These two jobs fill the
+user-profile half of the telemetry layer. Both were written, reviewed and
+deployed weeks ago; neither has ever run, because nothing scheduled them.
 
 | script | `JOB_NAME` | writes |
 |---|---|---|
 | `scripts/build-job-features.ts` | `build-job-features` | `intervu.job_features` |
 | `scripts/roll-up-telemetry.ts` | `roll-up-telemetry` | `intervu.job_daily`, `intervu.company_daily`, `intervu.feature_outcomes` |
 
-**Ordering constraint:** `build-job-features` populates posting-structure
-facts (`job_features`) that the outcome rollup's analysis sits on top of, so
-it must run — and land — before `roll-up-telemetry` each night.
+Both connect as `pipeline` via `BATCH_PG_URL` and both call the same
+`writeHeartbeat` helper (`src/lib/telemetry/heartbeat.ts`) that
+`reap_telemetry()` uses, so liveness is judged from
+`intervu.job_heartbeats`, never from an exit code.
 
-**Crontab lines — DO NOT INSTALL THESE BY HAND.** An earlier draft of this
-section gave two `crontab -e` lines that were wrong in three independent
-ways. They are recorded here as a correction, not as instructions:
+**Precondition: step 1** (same reasoning as §8 — `telemetry-derived.sql`'s
+tables must exist. Ingest arriving, step 7, is *not* a precondition: both
+jobs legitimately no-op over an empty window).
 
-1. **`crontab -e` is silently reverted.**
-   `/opt/interview-os/scripts/oracle-vm/crontab.conf` is the sole source of
-   truth: `scripts/deploy-to-vms.sh:383` reinstalls it verbatim
-   (`crontab $APP_DIR/scripts/oracle-vm/crontab.conf`) on every ship, so a
-   hand-added line survives only until the next deploy and then vanishes
-   with no error.
-2. **A cron line naming a script absent from the subspace repo aborts the
-   whole deploy.** `deploy-to-vms.sh:373` runs
-   `scripts/oracle-vm/validate-crontab-scripts.mjs` before anything touches
-   the box; it regexes `scripts/…\.(ts|js|mjs|sh)` out of every uncommented
-   line (`validate-crontab-scripts.mjs:52`) and requires
-   `path.join(repoRoot, ref)` to exist (`:69`), exiting 1 otherwise. A line
-   reading `npx tsx scripts/roll-up-telemetry.ts` while that file lives in
-   the *intervu* repo fails this check and blocks every subsequent subspace
-   ship — not just this one.
-3. **The `BATCH_PG_URL=...` prefix leaks a credential.** `crontab -l` prints
-   it in full to anyone on the box. The house pattern is
-   `/opt/intervu/deploy/run-weekly-digest.sh`, whose own header states the
-   secret is read from the compose env file rather than written into the
-   crontab for exactly this reason. A script sitting in the subspace tree
-   needs no prefix at all — it reads `BATCH_PG_URL` from
-   `/opt/interview-os/.env.local` itself.
+### How they run: host-side, from `/opt/intervu`
 
-The correct shape, once the scripts live in the subspace repo, is a
-`$RUN`-wrapped pair (`crontab.conf:21` defines
-`RUN=/opt/interview-os/scripts/oracle-vm/run-job.sh`) added to
-`crontab.conf` **in the same commit that adds the scripts** — the only
-ordering the validator permits:
+`deploy/run-telemetry-job.sh <job-name>`, called directly from the app
+box's crontab. Two alternatives were considered against measurements and
+rejected:
+
+- **HTTP into the container**, the `run-weekly-digest.sh` pattern.
+  Rejected on credential placement. The digest works over HTTP because it
+  is a *web-tier* job needing nothing the web tier lacks. These are
+  *pipeline-tier*: they need `BATCH_PG_URL` (the pipeline write role) and
+  `MEILI_ADMIN_KEY`, and `intervu.env` deliberately carries neither.
+  Adopting the digest's shape would mean moving the pipeline write role and
+  a Meili admin key onto the public web surface to save a shell script.
+- **Moving both scripts into the subspace repo** (an earlier draft of this
+  section assumed this, and a ruling was owed on it — that ruling is now
+  moot). Rejected on cost: the import closure is 14 files and 2,216
+  lines (re-derived 2026-09-04 by walking the `@/` and relative import
+  edges out from both entrypoints), and it would permanently fork `features.ts`, the extractor that
+  defines what a job feature *is*.
+
+Host-side execution needs no new credential, no new Postgres role and no
+new surface: `/opt/interview-os/.env.local` on the app box already holds
+`BATCH_PG_URL`, `MEILI_URL` and `MEILI_ADMIN_KEY` (verified 2026-09-04,
+one assignment each).
+
+**A deployed script is not a runnable script.** `/opt/intervu` carries the
+full repo source but no `node_modules` and no `.env` file, so the scripts
+sit there deployed and unrunnable. The wrapper closes both gaps: it runs
+`npm ci --include=dev` once per deploy (the swap replaces the tree, so
+`node_modules` is absent again after every ship), and it reads exactly the
+three keys these jobs need rather than sourcing a 47-key env file into the
+shell.
+
+`--include=dev` is load-bearing: `tsx` is a devDependency, and npm omits
+devDependencies when `NODE_ENV=production`, which would leave `npm ci`
+exiting 0 with no runtime installed. The wrapper asserts afterwards that
+`tsx` is actually executable rather than trusting npm's exit status.
+
+`tsx` is a *declared, pinned* devDependency as of `b4abff5`. Before that,
+`npx tsx` resolved it from the npm registry at run time — an unpinned
+supply-chain dependency for a scheduled job on a credential-holding box.
+
+### The crontab lines
+
+**Do not add these by hand.** They live in the subspace repo at
+`scripts/oracle-vm/crontab.conf` and are installed by the ship:
 
 ```cron
-50 7 * * *  $RUN build-job-features "npx tsx scripts/build-job-features.ts"
-5 8 * * *   $RUN roll-up-telemetry  "npx tsx scripts/roll-up-telemetry.ts"
+37 9 * * *  /opt/intervu/deploy/run-telemetry-job.sh build-job-features
+7 11 * * *  /opt/intervu/deploy/run-telemetry-job.sh roll-up-telemetry
 ```
 
-**BLOCKED — ruling owed.** Whether the two scripts move into the subspace
-repo (which is what makes the block above valid at all) was put to Vivek on
-2026-09-04 and is unanswered. Do not install, commit, or deploy any of this
-until it is answered.
+Four properties of that shape, each of which an earlier draft got wrong:
 
-**Why these times — provisional, not validated.** §8 established that hour
-8 UTC (except the Monday/Thursday-only `10 8`/`35 8` entries) is the one
-block in the app box's production crontab with no daily fixed-start job.
-07:50 and 08:05 UTC extend that same free window backward and into it,
-15 minutes apart in dependency order, ahead of the reaper's 08:20 UTC. That
-15-minute spacing is a guess at how long each job takes against a table this
-size today — **neither script's runtime has been measured**, so these gaps
-are not validated against an actual run and could prove too tight or
-unnecessarily wide once one exists to time.
+1. **`crontab -e` is silently reverted.** `crontab.conf` is the sole source
+   of truth: `scripts/deploy-to-vms.sh:383` reinstalls it verbatim on every
+   ship, so a hand-added line survives until the next deploy and then
+   vanishes with no error.
+2. **A `scripts/…` reference aborts the whole deploy.**
+   `deploy-to-vms.sh:373` runs `validate-crontab-scripts.mjs`, which
+   regexes `scripts/…\.(ts|js|mjs|sh)` out of every active line (`:52`) and
+   requires `path.join(repoRoot, ref)` to exist against the *subspace* root
+   (`:69`), exiting 1 otherwise. A line reading
+   `npx tsx scripts/roll-up-telemetry.ts` would match that pattern, never
+   resolve, and block every subsequent subspace ship — not just this one.
+   The wrapper's absolute path contains no `scripts/` segment, so these
+   lines are outside the pattern by construction. This is the same
+   structural reason `/opt/intervu/deploy/run-weekly-digest.sh` has
+   survived every ship.
+3. **No `BATCH_PG_URL=...` prefix.** `crontab -l` prints a prefix in full
+   to anyone on the box. The wrapper reads the key from the env file
+   itself, which is also why it can be added to a repo without a secret in
+   the diff.
+4. **Not `$RUN`-wrapped.** `run-job.sh` fast-forwards `/opt/interview-os`
+   before every job; these are intervu's jobs and must not drag a subspace
+   git pull behind them. Same reasoning as the weekly-digest line directly
+   above them in `crontab.conf`.
 
+**Why these times.** Europe/Berlin box-local, like every line in that file
+— `crontab.conf` warns in its own header that older comments claiming UTC
+are wrong by two hours, and the app box confirms `CEST, +0200`. The
+minutes are deliberately not multiples of five: `ops-health` runs `*/5`,
+the watcher fleet `*/15`, and `:40`/`:50` carry hourly jobs, so **every
+round minute is already occupied in every hour**. 09:37 and 11:07 have no
+concurrent job at all.
+
+The 90-minute gap makes an overlap unlikely, **not impossible** — neither
+script's runtime has been measured against the full corpus. It does not
+need to be impossible: `roll-up-telemetry` skips any `job_id` missing from
+`job_features` rather than failing, and replaces the window's rows on every
+run, so a rollup that caught a half-refreshed table simply emits fewer
+`feature_outcomes` rows and the next night's run restores them. Time one
+real run before tightening the gap.
+
+They are two separate lines rather than one `&&` chain because `job_daily`
+and `company_daily` are computed from the events alone
+(`roll-up-telemetry.ts:219,221`) — only `feature_outcomes` reads
+`job_features` — so a failed build must not suppress them.
+
+### Deploy order — this matters
+
+`/opt/intervu/scripts/` did **not** contain either script as of
+2026-09-04 (the deployed tree predates them), and the wrapper is not there
+either. A cron line pointing at a missing script fails every day, quietly.
+So:
+
+1. Deploy intervu (the keystone deploy, above). This puts both scripts
+   *and* the wrapper into `/opt/intervu`.
+2. Confirm `/opt/intervu/deploy/run-telemetry-job.sh` exists and is
+   executable, and that `scripts/build-job-features.ts` and
+   `scripts/roll-up-telemetry.ts` are present.
+3. Only then ship the subspace change carrying the two crontab lines.
+
+The wrapper's own guards make step 3 safe if this order slips — it refuses
+with `no such job: … does not exist (deploy stale, or job renamed)` rather
+than reporting a failure for a job that never started — but a refusal every
+morning is still a broken schedule.
+
+### Testing the wrapper
+
+`bash deploy/test-run-telemetry-job.sh` — 8 cases, no database, no network,
+no Meili. Every case that expects a refusal also asserts the job did not
+start, because "exited non-zero" and "refused before starting" are the two
+outcomes this subsystem exists to tell apart. The suite is verified
+discriminating by mutation, not merely green.
 **Pass condition, once installed** — same heartbeat-based check as §8, one
 row per job:
 
