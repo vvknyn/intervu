@@ -13,6 +13,7 @@
 import type { Queryable } from "@/lib/pg/pool";
 import type { DailyEventRow } from "./daily-rollup";
 import { RESULTS_IMPRESSED } from "./outcome-events";
+import { utcDayColumnSql, UTC_DAY_TRUNC_NOW_SQL } from "./derived-day";
 
 export interface WindowImpressionRow {
   day: string;
@@ -54,26 +55,24 @@ export function resolveWindowDays(argv: readonly string[], flagName: string, def
 // (`aggregateDailyMetrics` / `aggregateFeatureOutcomes`), not this query.
 //
 // The lower bound is snapped to a UTC calendar-day boundary
-// (`date_trunc('day', now(), 'UTC')`), not a raw `now()` instant:
-// `--window-days=N` means TODAY SO FAR plus N previous WHOLE days, never a
-// partially-covered oldest day. The upsert this feeds REPLACES each day's
-// row outright (never `count = count + n`, telemetry-derived.sql), so a
-// bound that lands mid-day would permanently discard that day's
-// already-ingested hours on every single run, not just the first. The
-// three-arg `date_trunc(..., 'UTC')` form is required, not
-// `now() at time zone 'utc'`: the latter returns a NAIVE timestamp that
-// gets compared in the session's own timezone (Europe/Berlin on the box),
-// silently reintroducing a multi-hour version of the same truncation.
+// (`UTC_DAY_TRUNC_NOW_SQL`), not a raw `now()` instant: `--window-days=N`
+// means TODAY SO FAR plus N previous WHOLE days, never a partially-covered
+// oldest day. The upsert this feeds REPLACES each day's row outright
+// (never `count = count + n`, telemetry-derived.sql), so a bound that
+// lands mid-day would permanently discard that day's already-ingested
+// hours on every single run, not just the first. See derived-day.ts for
+// why both the day label and this window snap must come from there and
+// never be spelled out inline again.
 export async function fetchWindowEvents(db: Queryable, windowDays: number): Promise<DailyEventRow[]> {
   const { rows } = await db.query<DailyEventRow>(
     `select
        event_name,
-       to_char(received_at at time zone 'utc', 'YYYY-MM-DD') as day,
+       ${utcDayColumnSql("received_at")} as day,
        job_id,
        company_domain,
        position
      from intervu.telemetry_events
-     where received_at >= date_trunc('day', now(), 'UTC') - make_interval(days => $1)`,
+     where received_at >= ${UTC_DAY_TRUNC_NOW_SQL} - make_interval(days => $1)`,
     [windowDays],
   );
   return rows;
@@ -98,14 +97,14 @@ export async function fetchWindowImpressions(
 ): Promise<WindowImpressionRow[]> {
   const { rows } = await db.query<WindowImpressionRow>(
     `select
-       to_char(e.received_at at time zone 'utc', 'YYYY-MM-DD') as day,
+       ${utcDayColumnSql("e.received_at")} as day,
        job_ids.value as job_id,
        (positions.value)::int as position
      from intervu.telemetry_events e,
        lateral jsonb_array_elements_text(e.props->'job_ids') with ordinality as job_ids(value, ord),
        lateral jsonb_array_elements_text(e.props->'positions') with ordinality as positions(value, ord)
      where e.event_name = $2
-       and e.received_at >= date_trunc('day', now(), 'UTC') - make_interval(days => $1)
+       and e.received_at >= ${UTC_DAY_TRUNC_NOW_SQL} - make_interval(days => $1)
        and job_ids.ord = positions.ord`,
     [windowDays, RESULTS_IMPRESSED],
   );

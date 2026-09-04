@@ -156,14 +156,32 @@ create table if not exists intervu.job_features (
 -- REPLACES that day's row (upsert on the natural key below); it never
 -- increments a stored counter, so a retried cron cannot double a count.
 --
--- query_daily does NOT follow that rule — it is declared here but has no
--- writer at all (prod: `select count(*) from intervu.query_daily` = 0).
--- scripts/roll-up-telemetry.ts documents this as a deliberate KNOWN GAP,
--- not an oversight: joining a search to its clicks needs a `query_id` that
--- doesn't exist at submit time, so there is no reliable way to populate
--- searches/zero_result_count/click_through_count/refinement_count without
--- fabricating numbers. The table stays empty pending a decision on how a
--- "search id" / "refinement" is defined; nothing here writes to it.
+-- query_daily does NOT follow that rule either, but not for the reason
+-- this comment originally gave. Corrected 2026-09-04: this table is no
+-- longer permanently empty. searches/zero_result_count/click_through_count
+-- ARE measurable — scripts/backfill-query-daily.ts (a one-time HISTORY
+-- backfill, not a nightly cron; nothing installs it in crontab) populates
+-- them from intervu.search_events/intervu.search_opens, the
+-- Firestore-mirrored output of the OLDER search-log system
+-- (src/lib/jobs/search-log.ts), which already carries a joinable
+-- `search_id` on both tables (search_events_search_id_idx /
+-- search_opens_search_id_idx, deploy/db-box/intervu-schema.sql). That is a
+-- different system from the client ledger (intervu.telemetry_events)
+-- roll-up-telemetry.ts reads — its own updated KNOWN GAP comment spells out
+-- the precise distinction (the mirror has the join; the client ledger
+-- still doesn't), and why the nightly rollup still leaves this table
+-- alone: it never reads the mirror.
+--
+-- refinement_count is the one column that stays unmeasurable regardless of
+-- source: computing it needs grouping consecutive searches by the same
+-- person, and neither the mirror nor the client ledger carries any
+-- session/visitor/user key at all. Migrated to nullable (was `not null
+-- default 0`) for exactly that reason — a backfilled row's
+-- refinement_count is NULL, asserting nothing measured, never a fabricated
+-- 0. The ALTERs right after the CREATE TABLE below bring a box whose table
+-- predates this change to the same shape the CREATE TABLE now declares for
+-- a fresh box (CREATE TABLE IF NOT EXISTS alone is a no-op against an
+-- already-existing table, so it can't relax a column on its own).
 -- ---------------------------------------------------------------------
 create table if not exists intervu.job_daily (
   job_id           text        not null,
@@ -199,10 +217,23 @@ create table if not exists intervu.query_daily (
   searches             integer     not null default 0,
   zero_result_count    integer     not null default 0,
   click_through_count  integer     not null default 0,
-  refinement_count     integer     not null default 0,
+  -- Nullable, no default: unmeasurable from either data source available
+  -- today (see the comment block above) — NULL means "not measured", a
+  -- fabricated 0 would assert a count nothing here actually took.
+  refinement_count     integer,
   computed_at          timestamptz not null default now(),
   primary key (query_normalized, day)
 );
+
+-- Migration for a box whose intervu.query_daily predates this change (the
+-- CREATE TABLE above is `if not exists`, so it alone never touches an
+-- already-existing table's columns). Both ALTERs are no-ops, not errors,
+-- when already applied — dropping a NOT NULL that's already gone or a
+-- default that's already gone succeeds silently — so this stays safe on
+-- every apply-telemetry-migration.sh run, fresh box or the hundredth
+-- re-apply, same as this file's own "idempotent throughout" claim.
+alter table intervu.query_daily alter column refinement_count drop not null;
+alter table intervu.query_daily alter column refinement_count drop default;
 
 -- ---------------------------------------------------------------------
 -- feature_outcomes — THE analysis table. Keyed on (feature, bucket,
