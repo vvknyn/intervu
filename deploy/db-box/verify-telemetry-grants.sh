@@ -225,21 +225,29 @@ declare -A fn_allowed_grants=(
 )
 
 check_function_census() {
-  local ident="$1" proname owner search_path_ok public_exec actual expected
+  local ident="$1" proname owner prokind search_path_ok public_exec actual expected
   proname="$(psql "$BATCH_PG_URL" -qAtc "select proname from pg_proc where oid = '${ident}'::regprocedure")"
   owner="$(psql "$BATCH_PG_URL" -qAtc "select pg_get_userbyid(proowner) from pg_proc where oid = '${ident}'::regprocedure")"
   if [[ "$owner" != "pipeline" ]]; then
     fail "${ident} is owned by '${owner}', expected 'pipeline'"
     return
   fi
-  search_path_ok="$(psql "$BATCH_PG_URL" -qAtc "
-    select exists (
-      select 1 from unnest(coalesce(proconfig, '{}'::text[])) c
-      where c like 'search_path=%'
-    ) from pg_proc where oid = '${ident}'::regprocedure")"
-  if [[ "$search_path_ok" != "t" ]]; then
-    fail "${ident} has no pinned search_path"
-    return
+  prokind="$(psql "$BATCH_PG_URL" -qAtc "select prokind from pg_proc where oid = '${ident}'::regprocedure")"
+  # An AGGREGATE has no SQL body of its own, so it has no search_path to
+  # pin — §8 of telemetry-schema.sql skips it for the same reason (measured
+  # 2026-09-04: `alter routine ... set search_path` errors "... is an
+  # aggregate function"). Skipping the assertion here is not error
+  # avoidance either; a correctly-hardened aggregate will never have one.
+  if [[ "$prokind" != "a" ]]; then
+    search_path_ok="$(psql "$BATCH_PG_URL" -qAtc "
+      select exists (
+        select 1 from unnest(coalesce(proconfig, '{}'::text[])) c
+        where c like 'search_path=%'
+      ) from pg_proc where oid = '${ident}'::regprocedure")"
+    if [[ "$search_path_ok" != "t" ]]; then
+      fail "${ident} has no pinned search_path"
+      return
+    fi
   fi
   public_exec="$(psql "$BATCH_PG_URL" -qAtc "select has_function_privilege('public', '${ident}', 'EXECUTE')")"
   if [[ "$public_exec" != "f" ]]; then
@@ -261,7 +269,11 @@ check_function_census() {
     from pg_proc p, aclexplode(p.proacl) a
     where p.oid = '${ident}'::regprocedure and a.grantee <> p.proowner")"
   if [[ "$actual" == "$expected" ]]; then
-    pass "${ident} owned by pipeline, PUBLIC EXECUTE denied, search_path pinned, grantee census is exactly [${expected:-none}]"
+    if [[ "$prokind" == "a" ]]; then
+      pass "${ident} owned by pipeline, PUBLIC EXECUTE denied, aggregate (no search_path to pin), grantee census is exactly [${expected:-none}]"
+    else
+      pass "${ident} owned by pipeline, PUBLIC EXECUTE denied, search_path pinned, grantee census is exactly [${expected:-none}]"
+    fi
   else
     fail "${ident} grantee census mismatch — expected [${expected:-none}], got [${actual:-none}] (if '${proname}' is a new function, add its sanctioned grantees to fn_allowed_grants above)"
   fi

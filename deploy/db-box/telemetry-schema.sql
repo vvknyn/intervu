@@ -375,6 +375,15 @@ $$;
 --    them, same reasoning as §4's aclexplode-driven table strip: a function
 --    added here next month is covered by construction.
 --
+--    Uses ALTER/REVOKE ... ROUTINE, not ALTER/REVOKE ... FUNCTION: ROUTINE
+--    is the syntactic superset (covers FUNCTION, PROCEDURE, and AGGREGATE
+--    alike), whereas `alter function ...` / `revoke ... on function ...`
+--    error "... is not a function" the moment this loop reaches a
+--    PROCEDURE. Measured on prod 2026-09-04, ahead of a pending change that
+--    converts reap_telemetry into a batched PROCEDURE — under this file's
+--    `\set ON_ERROR_STOP on` (line 1), that error would have aborted the
+--    entire migration, not just skipped hardening the one function.
+--
 --    Owner is pinned before the ACL/config is touched — same ordering
 --    concern as §4.
 --
@@ -387,6 +396,15 @@ $$;
 --    search_path is pinned only when the function does not already set one,
 --    so the block stays idempotent and leaves forget_telemetry_user's own
 --    explicit `set search_path` (§7 above) alone rather than fighting it.
+--
+--    search_path is skipped entirely for AGGREGATE rows (prokind='a'): an
+--    aggregate has no SQL body of its own, so it has no search_path to pin,
+--    and `alter routine ... set search_path` errors "... is an aggregate
+--    function" (measured 2026-09-04) — this is semantically correct, not
+--    error avoidance. An aggregate's actual injection surface is its
+--    sfunc, which is its own separate pg_proc row and gets its own
+--    owner-pin + PUBLIC revoke from this same loop when that sfunc also
+--    lives in schema intervu.
 --
 --    Function identity renders via `p.oid::regprocedure` formatted with %s,
 --    NOT %I: regprocedure's output function already runs the result through
@@ -402,19 +420,20 @@ begin
   for fn in
     select p.oid,
            format('%s', p.oid::regprocedure) as ident,
-           p.proconfig
+           p.proconfig,
+           p.prokind
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'intervu'
   loop
-    execute format('alter function %s owner to pipeline', fn.ident);
-    execute format('revoke all on function %s from public', fn.ident);
+    execute format('alter routine %s owner to pipeline', fn.ident);
+    execute format('revoke all on routine %s from public', fn.ident);
 
-    if not exists (
+    if fn.prokind <> 'a' and not exists (
       select 1 from unnest(coalesce(fn.proconfig, '{}'::text[])) c
       where c like 'search_path=%'
     ) then
-      execute format('alter function %s set search_path = intervu, pg_catalog, pg_temp', fn.ident);
+      execute format('alter routine %s set search_path = intervu, pg_catalog, pg_temp', fn.ident);
     end if;
   end loop;
 end
