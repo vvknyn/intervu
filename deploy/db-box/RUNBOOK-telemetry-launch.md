@@ -427,6 +427,30 @@ docker exec contabo-web-intervu-1 sh -c 'env | grep -c "^TELEMETRY_PG_URL="'
 # expect: 1
 ```
 
+**Stronger pass condition — proves the app BUILT A POOL, not merely that a
+string is present.** Both checks above count a line; neither parses one, so
+both pass on a *typo'd* URL. What actually breaks ingest is
+`getTelemetryPg()` returning null, and `/api/telemetry`'s guard-8 try/catch
+swallows the resulting connection FATAL and still answers `204` — which is
+why §0 says never to treat a `204` as launch proof. The route's own `GET`
+reports the pool directly (`poolConfigured: getTelemetryPg() !== null`,
+route.ts:222), unauthenticated and credential-free, from anywhere:
+
+```bash
+curl -sL https://velai.app/api/telemetry
+# before §3+§4: {"droppedCount":0,"lastDroppedAt":null,"poolConfigured":false}
+# after:        {"droppedCount":0,"lastDroppedAt":null,"poolConfigured":true}
+```
+
+Measured 2026-09-04 — prod answers `poolConfigured:false`. That is the
+current externally-visible proof that §3 has not landed, obtainable with no
+SSH, no credentials and no DB access.
+
+`-L` is load-bearing: `intervu.cc` 301-redirects to `velai.app`, and without
+it EVERY path returns `301`, so the probe cannot tell a healthy route from a
+missing one. Verified the followed probe discriminates: `/api/telemetry` →
+`200`, `/api/admin/metrics` → `404`.
+
 ## 5. Sanity-check the mmdb-backed geo lookup
 
 **Precondition:** step 4's container recreate is done (this is a fresh
