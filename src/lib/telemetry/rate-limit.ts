@@ -40,9 +40,15 @@ export const TELEMETRY_IP_RATE_LIMIT_MAX_EVENTS = TELEMETRY_RATE_LIMIT_MAX_EVENT
  *  IP store's 2,000-entry-per-key budget caps out at
  *  20,000 * 2,000 timestamps * 8 bytes ≈ 320MB in the worst case, and real
  *  traffic never gets close to every tracked key being simultaneously
- *  maxed out. Eviction is oldest-inserted-first (`Map` preserves insertion
- *  order) — whatever has sat longest without a fresh sweep-triggering write
- *  is the safest guess for "no longer relevant". */
+ *  maxed out. Eviction is genuinely least-recently-WRITTEN-first: `allow()`
+ *  below re-inserts a key (delete, then set) on every call touching it, not
+ *  just on first insertion, so `Map`'s insertion-order iteration doubles as
+ *  recency order — the entry at the front is the one that has gone longest
+ *  without ANY write, busy or not, which is what "no longer relevant"
+ *  actually needs. (A bare `Map.set` on an existing key does NOT move it —
+ *  without the explicit delete, this degrades to oldest-INSERTED-first,
+ *  which evicts the BUSIEST keys first under sustained load: the opposite
+ *  of what a limiter wants.) */
 const MAX_TRACKED_KEYS = 20_000;
 
 function evictOldest(store: Map<string, number[]>): void {
@@ -82,11 +88,22 @@ function createEventBudget(windowMs: number, maxEvents: number) {
       admitted++;
     }
 
+    // Re-insert rather than update-in-place: a plain `store.set(key, ...)`
+    // on an EXISTING key does not change its position in Map's iteration
+    // order, so without this delete, `evictOldest`'s "front of the Map"
+    // degrades to oldest-inserted-first — evicting whichever key has been
+    // busiest the longest, not whichever has gone quietest the longest.
+    store.delete(key);
     store.set(key, timestamps);
     return admitted;
   }
 
-  return { allow, clear: () => store.clear(), size: () => store.size };
+  return {
+    allow,
+    clear: () => store.clear(),
+    size: () => store.size,
+    keyOrder: () => [...store.keys()],
+  };
 }
 
 const sessionBudget = createEventBudget(TELEMETRY_RATE_LIMIT_WINDOW_MS, TELEMETRY_RATE_LIMIT_MAX_EVENTS);
@@ -160,4 +177,13 @@ export function clearTelemetryRateLimitStateForTests(): void {
  *  actually has to assert on. */
 export function getTelemetryRateLimitStoreSizeForTests(): { session: number; ip: number } {
   return { session: sessionBudget.size(), ip: ipBudget.size() };
+}
+
+/** Test-only introspection: each budget's tracked keys in the store's
+ *  current Map iteration order — the front is what `evictOldest` deletes
+ *  next. This is the one property that distinguishes real LRU (a touched
+ *  key moves to the back) from FIFO (a touched key stays put), so it's what
+ *  a regression on `allow()`'s re-insertion actually needs to assert on. */
+export function getTelemetryRateLimitKeyOrderForTests(): { session: string[]; ip: string[] } {
+  return { session: sessionBudget.keyOrder(), ip: ipBudget.keyOrder() };
 }

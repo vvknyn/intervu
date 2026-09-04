@@ -53,6 +53,26 @@ export const TELEMETRY_COLUMNS = [
   "props",
 ] as const;
 
+/**
+ * True the FIRST time it is called with a missing pool and something to
+ * drop; false on every call after that in this process. Without this gate,
+ * a sustained `TELEMETRY_PG_URL`-unset misconfiguration would log once per
+ * request forever — its own outage on a busy endpoint. Exported (with the
+ * test-only reset below) so the decision is unit-testable without mocking
+ * `getTelemetryPg`, `getServerUser`, or a Next `Request`.
+ */
+let missingPoolLogged = false;
+export function shouldLogMissingPool(hasPool: boolean, admittedCount: number): boolean {
+  if (hasPool || admittedCount === 0 || missingPoolLogged) return false;
+  missingPoolLogged = true;
+  return true;
+}
+
+/** Test-only reset — mirrors `clearTelemetryRateLimitStateForTests`. */
+export function resetMissingPoolLogForTests(): void {
+  missingPoolLogged = false;
+}
+
 /** The only I/O beyond the request itself. One multi-row INSERT, never a
  *  loop of single-row inserts — `ON CONFLICT DO NOTHING` makes a retried or
  *  double-fired beacon free. */
@@ -141,6 +161,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       } catch (err) {
         console.error("[telemetry] insert failed:", err);
       }
+    } else if (shouldLogMissingPool(pg !== null, admitted.length)) {
+      console.error(
+        "[telemetry] no pg pool configured (TELEMETRY_PG_URL unset?) — admitted events are being " +
+          "dropped silently; logging this once per process, not per request",
+      );
     }
 
     // Guard 9.

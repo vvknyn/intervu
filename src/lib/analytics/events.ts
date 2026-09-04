@@ -240,15 +240,32 @@ export function shouldCaptureEvent(hasWindow: boolean, loaded: boolean): boolean
   return hasWindow && loaded;
 }
 
-/** A ledger-only string longer than this is truncated before merging — a
- *  real search query (today's only ledger-only value) is well under 200
- *  chars, so this only ever bites pathological input (e.g. a full job
- *  description pasted into the search box). Bounding it here, generically,
- *  means an oversized ledger-only value can never grow `props` past
- *  `MAX_PROPS_LENGTH` (`lib/telemetry/ingest.ts`) and take the WHOLE event
- *  down as `props_too_large` — losing every other prop on the event, not
- *  just the oversized one. */
-export const LEDGER_ONLY_STRING_CAP = 200;
+/**
+ * The whole `ledgerOnly` object's SERIALIZED (`JSON.stringify`) size is
+ * bounded to this many characters — never a per-value raw-character-count
+ * cap. Two things a per-value cap gets wrong:
+ *
+ *  1. `JSON.stringify` inflates control characters ~6x (each becomes a
+ *     6-byte `\uXXXX` escape) — a 200-*character* string can serialize to
+ *     1200+ characters, so a per-value bound keyed on raw `.length` is not a
+ *     safe proxy for the thing that actually matters: the serialized size
+ *     that lands in `props` and counts against `MAX_PROPS_LENGTH`
+ *     (`lib/telemetry/ingest.ts`).
+ *  2. The real budget is per-PAYLOAD, not per-value: a per-value cap stops
+ *     protecting anything the moment a second ledger-only field is added,
+ *     since two individually-safe values can jointly overflow the shared
+ *     budget. Bounding the whole object closes that gap by construction —
+ *     it is re-checked (and, if needed, shrunk further) regardless of how
+ *     many keys `ledgerOnly` carries.
+ *
+ * Set well below `MAX_PROPS_LENGTH` (a quarter of it) so there is always
+ * room left in `props` for the rest of the event's payload — see
+ * `tests/unit/events.test.ts` for the test that ties these two constants
+ * together (this file cannot import `ingest.ts` — see the module doc
+ * comment on `column-rules.ts` for why: browser code must stay zero-import
+ * of server-only modules).
+ */
+export const LEDGER_ONLY_PROPS_BUDGET = 1024;
 
 /**
  * Pure: builds what the ledger's `trackToLedger` call receives, merging in
@@ -260,10 +277,12 @@ export const LEDGER_ONLY_STRING_CAP = 200;
  * existing call site — which never passes a third argument — sends the
  * ledger byte-for-byte what it always did.
  *
- * Every string value in `ledgerOnly` is bounded to `LEDGER_ONLY_STRING_CAP`
- * — generically, by value type, never by key name, so a second ledger-only
- * payload added later (`LedgerOnlyPayloads`) is covered automatically. When
- * anything was actually truncated, `ledger_truncated: true` is added to the
+ * Shrinks whichever string value in `ledgerOnly` is currently longest,
+ * repeatedly, until the WHOLE object's serialized form fits
+ * `LEDGER_ONLY_PROPS_BUDGET` — generically, over the object as a whole,
+ * never a fixed per-value length and never keyed by name, so this covers
+ * any number of ledger-only fields of any (string-bearing) shape. When
+ * anything was actually shrunk, `ledger_truncated: true` is added to the
  * result so the fact is visible in the stored data rather than silently
  * lossy; nothing is fabricated or padded when it wasn't.
  */
@@ -273,15 +292,24 @@ export function buildLedgerProps(
 ): Record<string, unknown> {
   if (!ledgerOnly) return payload;
 
+  const bounded: Record<string, unknown> = { ...ledgerOnly };
   let truncated = false;
-  const bounded: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(ledgerOnly)) {
-    if (typeof value === "string" && value.length > LEDGER_ONLY_STRING_CAP) {
-      bounded[key] = value.slice(0, LEDGER_ONLY_STRING_CAP);
-      truncated = true;
-    } else {
-      bounded[key] = value;
+
+  while (JSON.stringify(bounded).length > LEDGER_ONLY_PROPS_BUDGET) {
+    let longestKey: string | null = null;
+    let longestLength = 0;
+    for (const [key, value] of Object.entries(bounded)) {
+      if (typeof value === "string" && value.length > longestLength) {
+        longestKey = key;
+        longestLength = value.length;
+      }
     }
+    // Nothing left worth shrinking (no strings, or all already empty) —
+    // stop rather than loop forever without reducing anything.
+    if (longestKey === null || longestLength === 0) break;
+
+    bounded[longestKey] = (bounded[longestKey] as string).slice(0, Math.floor(longestLength / 2));
+    truncated = true;
   }
 
   return truncated ? { ...payload, ...bounded, ledger_truncated: true } : { ...payload, ...bounded };

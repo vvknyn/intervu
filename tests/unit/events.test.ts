@@ -6,7 +6,7 @@ import {
   shouldCaptureEvent,
   captureEvent,
   buildLedgerProps,
-  LEDGER_ONLY_STRING_CAP,
+  LEDGER_ONLY_PROPS_BUDGET,
 } from "../../src/lib/analytics/events";
 import { extractLedgerColumns } from "../../src/lib/telemetry/client";
 import { MAX_PROPS_LENGTH, processBatch } from "../../src/lib/telemetry/ingest";
@@ -222,16 +222,26 @@ test("buildLedgerProps merges ledgerOnly in when given, and is a no-op passthrou
 
 // A ledger-only value the caller can't bound (raw user input — a search box
 // accepts a full pasted job description) must never be able to take its own
-// event down. See LEDGER_ONLY_STRING_CAP's doc comment in events.ts.
+// event down. See LEDGER_ONLY_PROPS_BUDGET's doc comment in events.ts.
+//
+// The bound is on the WHOLE ledgerOnly object's SERIALIZED size, not a
+// per-value raw character count — `JSON.stringify` inflates control
+// characters ~6x, and a per-value cap stops protecting anything the moment
+// a second ledger-only field is added (two individually-"safe" values can
+// still jointly overflow the shared budget). The three tests below prove
+// both failure modes the old per-value character-count cap missed.
 
-test("buildLedgerProps: an oversized ledger-only value is truncated, flagged, and the event survives processBatch instead of being rejected as props_too_large", () => {
+test("buildLedgerProps: an oversized plain-text ledger-only value is truncated, flagged, and the event survives processBatch instead of being rejected as props_too_large", () => {
   const payload = { query_length: 4100, has_location: false, filter_count: 0 };
   const pastedJobDescription = "x".repeat(4100); // alone, well past MAX_PROPS_LENGTH once stringified
 
   const merged = buildLedgerProps(payload, { query_text: pastedJobDescription });
 
   assert.equal(merged.ledger_truncated, true);
-  assert.equal((merged.query_text as string).length, LEDGER_ONLY_STRING_CAP);
+  assert.ok(
+    JSON.stringify({ query_text: merged.query_text }).length <= LEDGER_ONLY_PROPS_BUDGET,
+    "the ledger-only contribution alone must fit its own budget",
+  );
   assert.ok(
     JSON.stringify(merged).length <= MAX_PROPS_LENGTH,
     "the bounded props must fit under ingest.ts's own cap",
@@ -254,11 +264,76 @@ test("buildLedgerProps: an oversized ledger-only value is truncated, flagged, an
   assert.equal(rows.length, 1);
 });
 
-test("buildLedgerProps: the cap is generic — a ledger-only key other than query_text is bounded the same way", () => {
-  const merged = buildLedgerProps({ some_metric: 1 }, { some_future_field: "y".repeat(500) });
+test("buildLedgerProps: the bound is generic — a ledger-only key other than query_text is bounded the same way", () => {
+  const merged = buildLedgerProps({ some_metric: 1 }, { some_future_field: "y".repeat(5000) });
 
   assert.equal(merged.ledger_truncated, true);
-  assert.equal((merged.some_future_field as string).length, LEDGER_ONLY_STRING_CAP);
+  assert.ok(
+    JSON.stringify({ some_future_field: merged.some_future_field }).length <= LEDGER_ONLY_PROPS_BUDGET,
+  );
+});
+
+// Reviewer's exact repro: a 200-CHARACTER control-character string sits
+// right at the boundary of the old per-value cap (`200 > 200` is false, so
+// the old code left it completely untouched) while its SERIALIZED form
+// (JSON.stringify escapes each control char to a 6-byte \uXXXX sequence)
+// blows past 1200 characters — 6x the raw length and far past any
+// reasonable per-payload budget. This must fail against the old
+// per-value-raw-length cap and pass against the new serialized-size bound.
+test("buildLedgerProps: a 200-char control-character string (old cap's exact boundary) is bounded by its SERIALIZED size, not its raw length", () => {
+  const controlCharQuery = "\u0001".repeat(200); // raw length 200; serialized length ~1200+
+
+  const merged = buildLedgerProps({}, { query_text: controlCharQuery });
+  const serializedContribution = JSON.stringify({ query_text: merged.query_text }).length;
+
+  assert.equal(merged.ledger_truncated, true, "a value whose SERIALIZED form exceeds the budget must be flagged, even at exactly the old cap's raw-length boundary");
+  assert.ok(
+    serializedContribution <= LEDGER_ONLY_PROPS_BUDGET,
+    `serialized ledger-only contribution ${serializedContribution} must fit the budget ${LEDGER_ONLY_PROPS_BUDGET}`,
+  );
+});
+
+// Class proof, not instance proof: the defect wasn't just "control
+// characters serialize larger" — it was "the budget is per-payload, not
+// per-value." Six plain-ASCII fields, each individually far under any
+// single-value cap the old code ever enforced (200 chars), still jointly
+// overflow the real per-payload budget once combined. The old per-value cap
+// would have left every one of these six fields completely untouched.
+test("buildLedgerProps: several individually-small ledger-only fields are still bounded JOINTLY, not per value", () => {
+  const manyFields = Object.fromEntries(
+    Array.from({ length: 6 }, (_, i) => [`field_${i}`, "a".repeat(180)]),
+  );
+
+  const merged = buildLedgerProps({}, manyFields);
+  const contributionKeys = Object.keys(manyFields);
+  const serializedContribution = JSON.stringify(
+    Object.fromEntries(contributionKeys.map((k) => [k, merged[k]])),
+  ).length;
+
+  assert.equal(
+    merged.ledger_truncated,
+    true,
+    "six fields that are each individually under any plausible per-value cap must still trigger truncation once combined",
+  );
+  assert.ok(
+    serializedContribution <= LEDGER_ONLY_PROPS_BUDGET,
+    `combined serialized ledger-only contribution ${serializedContribution} must fit the budget ${LEDGER_ONLY_PROPS_BUDGET}`,
+  );
+});
+
+// Turns the "set well below MAX_PROPS_LENGTH" comment in events.ts into an
+// enforced relationship: events.ts is browser code and must never import
+// ingest.ts (a server-only module), so this test — which can safely import
+// both — is the one place the two constants are checked against each other.
+test("LEDGER_ONLY_PROPS_BUDGET stays comfortably below ingest.ts's MAX_PROPS_LENGTH", () => {
+  assert.ok(
+    LEDGER_ONLY_PROPS_BUDGET < MAX_PROPS_LENGTH,
+    `LEDGER_ONLY_PROPS_BUDGET (${LEDGER_ONLY_PROPS_BUDGET}) must stay below MAX_PROPS_LENGTH (${MAX_PROPS_LENGTH})`,
+  );
+  assert.ok(
+    LEDGER_ONLY_PROPS_BUDGET <= MAX_PROPS_LENGTH / 2,
+    "the ledger-only budget must leave at least half of MAX_PROPS_LENGTH for the rest of the event's payload",
+  );
 });
 
 test("composition proof: a ledger-only prop merged via buildLedgerProps lands in extractLedgerColumns' props, not columns", () => {
