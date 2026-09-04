@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -10,6 +10,7 @@ import {
     columnNameFor,
     generatedExpressionFor,
 } from "@/lib/db/firestore-migration-manifest";
+import { collectionsReferencedIn, scanFirestoreCollections } from "../support/firestore-collection-scan";
 
 /** Columns every generated table already has (scripts/pg-generate-schema.ts). */
 const RESERVED = ["path", "doc", "copied_at"];
@@ -83,74 +84,14 @@ describe("firestore migration manifest", () => {
         assert.equal(columnNameFor({ field: "createdAt", type: "epoch_ms", column: "created_at_ms" }), "created_at_ms");
     });
 
-    /**
-     * The manifest must cover every collection the code actually writes —
-     * including the ones still empty, which are exactly the ones a cutover
-     * breaks on first use.
-     *
-     * This used to enumerate five table names by hand. That is the failure
-     * mode it now exists to prevent: on 2026-08-18 SEVEN collections written
-     * by live code (`resume_history`, `stories`, `sources`,
-     * `favorite_questions`, `interview_questions`, `feedback`,
-     * `connect_waitlist`) were found outside the manifest, because a guard
-     * that checks remembered names can only ever check remembered names.
-     * The required set is now DERIVED from the source.
-     *
-     * That derivation still had a gap: it only matched a string literal sitting
-     * directly inside the call, so `const COLLECTION = "follow_funnel_events"` two
-     * lines above `.collection(COLLECTION)` (src/lib/follows/funnel-log.ts) was
-     * invisible to it — same idiom as welcome.ts, digest-cursor.ts, suppression.ts,
-     * daily-snapshot.ts and account-email.ts. `collectionsReferencedIn` now also
-     * resolves one hop: a bare identifier argument to a `const`/`let`/`var` in the
-     * same file assigned a string literal. It deliberately goes no further —
-     * `source.collection` (admin/metrics.ts), `collection(col)` (agent/store.ts) and
-     * `.collection(q.collection)` (db/user-data.ts) all take their collection name
-     * from MIGRATION_MANIFEST-derived data at runtime, so there is no literal in the
-     * file to resolve them to; they are correct by construction, not a second gap to
-     * paper over by guessing.
-     *
-     * Both regexes also accept any of the three JS quote characters (`"`, `'`, `` ` ``)
-     * via a capture group plus a backreference, not just the double quote — the same
-     * "one spelling only" defect one level down. Nothing in this repo enforces double
-     * quotes (no prettier/eslint rule does), so a single-quoted or template-literal
-     * collection constant is a live possibility even though none exists in src/ today.
-     */
-    function collectionsReferencedIn(src: string): Set<string> {
-        const found = new Set<string>();
-        const call =
-            /\.(?:collection|collectionGroup)\(\s*(?:(["'`])([A-Za-z_][A-Za-z0-9_]*)\1|([A-Za-z_][A-Za-z0-9_]*))\s*\)/g;
-        const idents: string[] = [];
-        for (const m of src.matchAll(call)) {
-            if (m[2]) found.add(m[2]);
-            else idents.push(m[3]);
-        }
-        if (idents.length > 0) {
-            const consts = new Map<string, string>();
-            const assignment =
-                /\b(?:const|let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(["'`])([A-Za-z_][A-Za-z0-9_]*)\2/g;
-            for (const m of src.matchAll(assignment)) consts.set(m[1], m[3]);
-            for (const ident of idents) {
-                const resolved = consts.get(ident);
-                if (resolved) found.add(resolved);
-            }
-        }
-        return found;
-    }
-
-    const collectionsInSource = (() => {
-        const found = new Set<string>();
-        (function walk(dir: string) {
-            for (const entry of readdirSync(dir)) {
-                const full = join(dir, entry);
-                if (statSync(full).isDirectory()) walk(full);
-                else if (/\.tsx?$/.test(entry)) {
-                    const src = readFileSync(full, "utf8");
-                    for (const name of collectionsReferencedIn(src)) found.add(name);
-                }
-            }
-        })(join(process.cwd(), "src"));
-        return found;
-    })();
+    // The manifest must cover every collection the code actually writes —
+    // including the ones still empty, which are exactly the ones a cutover
+    // breaks on first use. The required set is DERIVED from the source via
+    // `scanFirestoreCollections`/`collectionsReferencedIn`
+    // (tests/support/firestore-collection-scan.ts) rather than a remembered
+    // name list — see that module's doc comment for the detector's history
+    // and the gaps it closed.
+    const collectionsInSource = scanFirestoreCollections();
 
     it("finds the collection references in src/", () => {
         assert.ok(
@@ -170,9 +111,10 @@ describe("firestore migration manifest", () => {
     // again. Pinned against `welcome_emails` — already migrated, so this assertion
     // can never pass by coincidence of an open failure list.
     it("CONTROL: resolves a same-file named constant, not just an inline literal", () => {
-        const src = readFileSync(join(process.cwd(), "src/lib/email/welcome.ts"), "utf8");
+        const path = join(process.cwd(), "src/lib/email/welcome.ts");
+        const src = readFileSync(path, "utf8");
         assert.ok(
-            collectionsReferencedIn(src).has("welcome_emails"),
+            collectionsReferencedIn(src, path).has("welcome_emails"),
             "collectionsReferencedIn no longer resolves `const COLLECTION = \"...\"` passed to .collection(COLLECTION)",
         );
     });
@@ -188,25 +130,56 @@ describe("firestore migration manifest", () => {
     // Exercise `collectionsReferencedIn` directly on synthetic source instead.
     it("CONTROL: resolves single-quote and backtick spellings, both inline and named", () => {
         assert.ok(
-            collectionsReferencedIn(`db.collection('single_inline')`).has("single_inline"),
+            collectionsReferencedIn(`db.collection('single_inline')`, "synthetic.ts").has("single_inline"),
             "single-quoted inline literal argument not resolved",
         );
         assert.ok(
-            collectionsReferencedIn("db.collection(`backtick_inline`)").has("backtick_inline"),
+            collectionsReferencedIn("db.collection(`backtick_inline`)", "synthetic.ts").has("backtick_inline"),
             "backtick-quoted inline literal argument not resolved",
         );
         assert.ok(
-            collectionsReferencedIn(`const COLLECTION = 'single_named';\ndb.collection(COLLECTION);`).has(
+            collectionsReferencedIn(`const COLLECTION = 'single_named';\ndb.collection(COLLECTION);`, "synthetic.ts").has(
                 "single_named",
             ),
             "single-quoted named-constant assignment not resolved",
         );
         assert.ok(
-            collectionsReferencedIn("const COLLECTION = `backtick_named`;\ndb.collection(COLLECTION);").has(
-                "backtick_named",
-            ),
+            collectionsReferencedIn(
+                "const COLLECTION = `backtick_named`;\ndb.collection(COLLECTION);",
+                "synthetic.ts",
+            ).has("backtick_named"),
             "backtick-quoted named-constant assignment not resolved",
         );
+    });
+
+    // The blind spot this suite documented at the top (`source.collection` in
+    // admin/metrics.ts) turned out to be a real miss, not a correct-by-construction
+    // case: `source` there is a `{ collection: "waitlist" }` object literal built in
+    // the same file, not a MIGRATION_MANIFEST lookup. Pinned against the real file so
+    // a future refactor that moves the registry elsewhere fails this test rather than
+    // silently going dark again.
+    it("CONTROL: resolves a config literal read through a dynamic .collection(x.collection) call", () => {
+        const path = join(process.cwd(), "src/lib/admin/metrics.ts");
+        const src = readFileSync(path, "utf8");
+        const found = collectionsReferencedIn(src, path);
+        assert.ok(found.has("waitlist"), "collectionsReferencedIn no longer resolves the waitlist config literal");
+        assert.ok(
+            found.has("credit_grants"),
+            "collectionsReferencedIn no longer resolves the credit_grants config literal",
+        );
+    });
+
+    // The resolution above is gated on the file actually containing a dynamic
+    // `.collection(‹expr›.collection)` call — without that gate, any unrelated object
+    // that merely happens to have a `collection: "..."` field (a UI option list, a
+    // fixture) would be reported as a Firestore reference. Prove the gate holds: the
+    // same literal, with no dynamic call anywhere in the source, resolves to nothing.
+    it("CONTROL: a collection: literal with no dynamic .collection call in the file is not a reference", () => {
+        const found = collectionsReferencedIn(
+            `const options = [{ collection: "not_a_firestore_reference" }];`,
+            "synthetic.ts",
+        );
+        assert.equal(found.size, 0, `expected no references, found: ${[...found].join(", ")}`);
     });
 
     // Proves the backreference actually binds the opening and closing quote
@@ -214,8 +187,39 @@ describe("firestore migration manifest", () => {
     // them mismatch could resolve the literal quote character itself as a
     // "collection name" and still look green.
     it("CONTROL: a mismatched open/close quote is not reported as a collection", () => {
-        const found = collectionsReferencedIn('db.collection("foo`)');
+        const found = collectionsReferencedIn('db.collection("foo`)', "synthetic.ts");
         assert.equal(found.size, 0, `mismatched-quote call should match nothing, found: ${[...found].join(", ")}`);
+    });
+
+    // The class this session's coordinator asked for: `agent/store.ts` and
+    // `db/user-data.ts` also trip the dynamic gate and harvest zero local literals,
+    // and that is fine — but only because both import MIGRATION_MANIFEST and can
+    // therefore never name a collection outside it. A file with neither a local
+    // literal nor a manifest import is a real blind spot and must fail loudly rather
+    // than silently reporting nothing.
+    it("CONTROL: throws when a dynamic .collection call has neither a local literal nor a MIGRATION_MANIFEST import", () => {
+        assert.throws(
+            () => collectionsReferencedIn(`function probe(x) { return db.collection(x.collection); }`, "synthetic.ts"),
+            /synthetic\.ts/,
+            "collectionsReferencedIn did not fail loudly for an unaccounted dynamic .collection call",
+        );
+    });
+
+    it("CONTROL: does not throw when the dynamic call is accounted for by a local literal or a manifest import", () => {
+        assert.doesNotThrow(() =>
+            collectionsReferencedIn(
+                `function probe(x) { return db.collection(x.collection); }\n` +
+                    `const specs = [{ collection: "accounted_for" }];`,
+                "synthetic.ts",
+            ),
+        );
+        assert.doesNotThrow(() =>
+            collectionsReferencedIn(
+                `import { MIGRATION_MANIFEST } from "./firestore-migration-manifest";\n` +
+                    `function probe(x) { return db.collection(x.collection); }`,
+                "synthetic.ts",
+            ),
+        );
     });
 
     it("migrates every collection the code writes, or excludes it on purpose", () => {

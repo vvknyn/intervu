@@ -14,6 +14,59 @@ export const metadata: Metadata = {
 
 const LAST_UPDATED = "September 3, 2026";
 
+/**
+ * Every Firestore collection the storage claims on this page cover today.
+ * Rendered below rather than hand-typed into the prose, and checked by
+ * tests/unit/privacy-claims-match-code.test.ts against
+ * `liveFirestoreCollections()` (tests/support/firestore-collection-scan.ts),
+ * which is the UNION of `scanFirestoreCollections()` (every collection
+ * referenced by a literal in src/) and every `collection` named in
+ * `MIGRATION_MANIFEST`. The scan alone is not enough: it deliberately
+ * harvests zero from files that resolve their collection name through the
+ * manifest at runtime (`src/lib/agent/store.ts`), so `agent_codes`,
+ * `agent_credentials`, and `agent_record_budgets` were live and disclosed
+ * nowhere on this page until the union caught them. That test fails in both
+ * directions: a live collection missing from this list, and a name kept
+ * here after its last writer is gone — this page said search activity was
+ * NOT in Firestore while search-log.ts wrote it there, and nothing caught
+ * the drift until it was found by hand (fixed in 5d03378).
+ */
+export const FIRESTORE_COLLECTIONS_DISCLOSED: readonly string[] = [
+  "agent_clients",
+  "agent_codes",
+  "agent_credentials",
+  "agent_record_budgets",
+  "app_config",
+  "applications",
+  "apply_counters",
+  "connect_waitlist",
+  "contact_messages",
+  "credit_grants",
+  "email_digest_state",
+  "email_suppressions",
+  "favorite_questions",
+  "feedback",
+  "follow_funnel_events",
+  "followedCompanies",
+  "interview_prep_cache",
+  "interview_questions",
+  "job_analyses",
+  "job_views",
+  "market_stats_daily",
+  "profiles",
+  "resume_history",
+  "savedSearches",
+  "search_events",
+  "search_opens",
+  "sources",
+  "stories",
+  "tailored_resumes",
+  "users",
+  "viewer_sessions",
+  "waitlist",
+  "welcome_emails",
+];
+
 export default function PrivacyPage() {
   return (
     <main data-testid="privacy-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -46,6 +99,10 @@ export default function PrivacyPage() {
           activity over time — what you&apos;re looking for, and what you actually respond to. Today this sits in
           Google Cloud Firestore, alongside the rest of your account data. We&apos;re moving it onto a
           PostgreSQL database we run on our own servers.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          For reference, the Firestore collections these storage claims cover today are:{" "}
+          {FIRESTORE_COLLECTIONS_DISCLOSED.join(", ")}.
         </p>
         <p>
           If you join a waitlist (for example, &ldquo;tell me when it&apos;s ready&rdquo; on the connect page), we
