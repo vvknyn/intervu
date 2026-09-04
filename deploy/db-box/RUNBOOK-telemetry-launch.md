@@ -1,15 +1,33 @@
 # Telemetry ledger launch runbook
 
-Ordered, operator-run sequence to take `intervu.telemetry_events` from its
-current pre-spec orphan shape (0 rows, wrong columns — see
+Ordered, operator-run sequence to take `intervu.telemetry_events` from the
+pre-spec orphan shape it had on 2026-09-03 (0 rows, wrong columns — see
 `deploy/db-box/telemetry-events-drop-orphan.sql`) to a live, verified ingest
 path. Each step's precondition is the previous step's pass condition — do
 not skip ahead. Two steps are marked **HUMAN-ONLY**: never script them,
 never pass the value in argv, never export it to a variable that ends up in
 a process list (`ps`, `docker inspect`, cron logs).
 
-None of this has been applied to prod. Steps 1–4 must be run manually, in
-order, by an operator with box access.
+## Where this stands (measured 2026-09-04, not inferred)
+
+| step | state |
+|---|---|
+| 1. schema migration | **applied** — 2026-09-03, re-applied 2026-09-04 (exit `0`, state `correct`, 14 columns, 0 rows) |
+| 2. `telemetry_pg` password | **not done — HUMAN-ONLY, blocked on an operator** |
+| 3. `TELEMETRY_PG_URL` in the app box env | **not done** — key absent from both `/opt/interview-os/deploy/contabo-web/intervu.env` and the running `contabo-web-intervu-1` container (checked by key name; no value was read or printed) |
+| 4. container recreate | not done (nothing to pick up until 3) |
+| 5. mmdb geo sanity-check | not done |
+| 6. `verify-telemetry-grants.sh` | not run (needs `BATCH_PG_URL`) |
+| 7. `verify-telemetry-e2e.ts` | not run — **this is the launch gate** |
+| 8. reaper cron | **installed** 2026-09-04; cron proven to fire for `postgres`; the 08:20 UTC run itself has not happened yet (see §8) |
+
+**Consequence of 2+3 being open:** `/api/telemetry` currently answers `204`
+and inserts nothing — `getTelemetryPg()` returns `null` with no
+`TELEMETRY_PG_URL`, and the route's guard 8 logs once per process and drops
+the batch. That is the exact silent-success failure §0 below describes, and
+it is the current state, not a hypothetical.
+
+Steps 2–4 must be run manually, in order, by an operator with box access.
 
 ## 0. What a silent failure looks like here
 
@@ -69,6 +87,25 @@ you should not) pass `-v ON_ERROR_STOP=1` on top of it.
 "manual steps remaining" banner naming step 2 and step 3 below. Re-running
 it against an already-correct schema is a clean no-op (exit `0`, same
 banner) — safe to re-run if you're ever unsure it applied.
+
+**STATUS — APPLIED.** First applied 2026-09-03; re-applied 2026-09-04 from
+the merged integ tree so prod would pick up §8's catalog-driven function
+hardening. Both runs exited `0`. The re-run's state detection reported
+`correct` (14 columns, 0 rows), so `telemetry-events-drop-orphan.sql` was
+skipped, and the re-run's only real effect was the one it was for — measured
+on the box before and after, via two independent catalog paths
+(`has_function_privilege`/`pg_get_userbyid`, and `aclexplode`/`proowner::regrole`):
+
+| `intervu.reap_telemetry(integer)` | before | after |
+|---|---|---|
+| owner | `postgres` | `pipeline` |
+| PUBLIC `EXECUTE` | granted | revoked |
+| pinned `search_path` | none | `intervu, pg_catalog, pg_temp` |
+
+`intervu.forget_telemetry_user(text)` was already in the correct posture and
+did not change — §7 pins its `search_path` explicitly, which is why the
+pre-§8 by-name hardening block covered it and left `reap_telemetry` behind.
+This is the concrete reason §8 is catalog-driven rather than by-name.
 
 ## 2. Set the `telemetry_pg` password — HUMAN-ONLY
 
@@ -258,13 +295,48 @@ than a bare "row not found."
 sufficient. Do not declare the ledger live without a passing run of this
 script against the production URL.
 
-## 8. Reaper cron — documented here, NOT installed
+## 8. Reaper cron — INSTALLED 2026-09-04
 
-**Precondition:** step 7 passed. **Do not install this cron before that** —
-the table doesn't exist in its correct shape until step 1 runs, so a cron
-installed today would fail every night.
+**Precondition: step 1, not step 7.** This section previously said step 7.
+That was wrong, and the reason it was wrong is the reason it is worth
+recording: the precondition its own next sentence gives is *"the table
+doesn't exist in its correct shape until step 1 runs"* — which is a
+statement about step 1. Step 7 (`verify-telemetry-e2e.ts`) is the gate on
+**ingest**, i.e. on rows arriving; the reaper only needs the table to exist,
+and deleting nothing from an empty table is a legitimate run. Holding the
+reaper behind step 7 would have left the `/privacy` retention sentence
+unimplemented for exactly as long as the credential steps (2 and 3) stayed
+blocked on a human.
 
-**Release gate — `/privacy` must not ship before this cron is live.** The
+**STATUS as of 2026-09-04, measured — read this before re-installing it.**
+
+- The crontab line below **is installed**, as the `postgres` user on the DB
+  box (`crontab -u postgres -l`), byte-identical to the one in this file.
+- Cron genuinely fires for that user: proven by installing a throwaway
+  marker line and watching it execute (`CRON[2998399]: (postgres) CMD (touch
+  /tmp/cron-proof-...)`, 2026-09-04 06:28 CEST), then restoring the crontab
+  and re-checking its sha. Exit status was deliberately not used as the
+  evidence — see the pass condition below for why.
+- **The 08:20 UTC scheduled run has not happened yet** at time of writing.
+  There *is* a fresh `job_heartbeats` row (`ok=t`, `rows_affected=0`), but it
+  was written by a **manual** invocation of the identical command at 04:26
+  UTC, not by cron — `/var/lib/postgresql/reap-telemetry.log` holds exactly
+  its output (`0`) with that mtime. Do not read that heartbeat as proof the
+  schedule works; the first honest proof of the schedule is a `last_run_at`
+  that lands shortly after 08:20 UTC.
+
+**Release gate — status inverted 2026-09-04.** The mechanism is now the part
+that exists and the copy is the part that does not: `https://velai.app/privacy`
+was fetched on 2026-09-04 and does **not** contain the retention sentence,
+the profiling disclosure, the Postgres-location sentence, or the query-text
+sentence — all four are still only on `integ/2026-09-03-telemetry`, absent
+from `main`, and the live page still tells users their data "lives in Google
+Cloud Firestore". So the risk this gate was written to prevent (claim ships
+without mechanism) can no longer happen in that direction; the open item is
+the reverse, and it is a separate deploy decision, not a cron decision. The
+original reasoning is kept below because it is still the right rule.
+
+**Original gate — `/privacy` must not ship before this cron is live.** The
 privacy page on this same branch tells users their search-activity records
 are "kept for 90 days and then deleted" (`src/app/privacy/page.tsx:157`).
 Nothing else in this system deletes them: `intervu.reap_telemetry()` *is*
