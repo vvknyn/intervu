@@ -35,6 +35,13 @@
 #      hands out next — would pass every one of them silently. This check
 #      reads pg_class/aclexplode directly instead of asking about a role by
 #      name, so it catches a grantee this script never thought to ask about.
+#   5b. Same census, extended to the derived user-profiling tables
+#      telemetry-derived.sql creates — the table set is discovered by
+#      parsing that file rather than named here, and each one's expected
+#      census is "" (stricter than telemetry_events: not even telemetry_pg
+#      is granted anything on these). A table not yet deployed FAILs by
+#      name instead of reading as a pass — see check_census's to_regclass
+#      guard.
 #   6. Catalog-driven function census: EVERY function in schema intervu
 #      (discovered from pg_proc/pg_namespace, not named) is owned by
 #      `pipeline`, denies PUBLIC EXECUTE, has search_path pinned, and its
@@ -180,7 +187,18 @@ fi
 # small local helper avoids writing the same query twice for the two
 # tables.
 check_census() {
-  local rel="$1" expected="$2" owner actual
+  local rel="$1" expected="$2" exists owner actual
+  # to_regclass (not a `::regclass` cast) is used for the existence probe —
+  # same reasoning as check 8's to_regprocedure below: a cast raises a hard
+  # error under this script's `set -euo pipefail` when the relation is
+  # absent, which would abort the whole script instead of reporting a clean
+  # FAIL. Absent must never read as a silent pass: a table this check has
+  # never seen is exactly the pre-deploy state of the derived tables below.
+  exists="$(psql "$BATCH_PG_URL" -qAtc "select (to_regclass('${rel}') is not null)")"
+  if [[ "$exists" != "t" ]]; then
+    fail "${rel} does not exist"
+    return
+  fi
   owner="$(psql "$BATCH_PG_URL" -qAtc "select pg_get_userbyid(relowner) from pg_class where oid = '${rel}'::regclass")"
   if [[ "$owner" != "pipeline" ]]; then
     fail "${rel} is owned by '${owner}', expected 'pipeline'"
@@ -202,6 +220,34 @@ check_census() {
 echo "checking: catalog grantee census matches the sanctioned set (telemetry_events, job_heartbeats)"
 check_census "intervu.telemetry_events" "telemetry_pg:INSERT"
 check_census "intervu.job_heartbeats" ""
+
+# Derived-table census (5b). Same check_census helper, extended to the
+# user-profiling tables telemetry-derived.sql creates — job_features,
+# job_daily, company_daily, query_daily, feature_outcomes today. The table
+# set is discovered by parsing that file's own `create table if not exists
+# intervu.<name>` statements rather than a hand-typed list here, so a 6th
+# table added to telemetry-derived.sql later is covered by this check
+# without anyone remembering to edit this script too.
+#
+# Expected census is "" for every one of them: telemetry-derived.sql's own
+# header says these tables are created via `set role pipeline` specifically
+# so they do NOT inherit schema intervu's postgres-keyed default ACL
+# (service_role+pipeline arwdDxtm on anything `postgres` creates there) —
+# unlike telemetry_events, not even telemetry_pg gets a grant here. These
+# are the derived USER-PROFILING tables, so a stray service_role grant here
+# is a privacy defect, not a nit. A table that has not been deployed yet is
+# not "clean" — check_census's to_regclass guard above FAILs that case by
+# name instead of it reading as a silent pass.
+derived_sql="$(dirname "${BASH_SOURCE[0]}")/telemetry-derived.sql"
+derived_tables="$(grep -oE 'create table if not exists intervu\.[a-zA-Z_]+' "$derived_sql" | awk '{print $NF}')"
+if [[ -z "$derived_tables" ]]; then
+  fail "found zero 'create table if not exists intervu.*' statements in ${derived_sql} — parser or file moved, this check verified NOTHING"
+else
+  echo "checking: catalog grantee census matches the sanctioned set (derived tables discovered in telemetry-derived.sql: $(echo "$derived_tables" | tr '\n' ' '))"
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] && check_census "$rel" ""
+  done <<< "$derived_tables"
+fi
 
 # Function census. Same failure check_census above closes for tables,
 # extended to functions: telemetry-schema.sql §8 now hardens EVERY function
