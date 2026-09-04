@@ -47,6 +47,8 @@
  * business reading who's signed in at all.
  */
 
+import { LEDGER_COLUMN_RULES } from "./column-rules";
+
 const INGEST_URL = "/api/telemetry";
 const REGION_URL = "/api/geo/region";
 const FLUSH_DEBOUNCE_MS = 1000;
@@ -88,17 +90,18 @@ type QueuedEvent = Omit<LedgerEvent, "session_id" | "visitor_id">;
  * columns (see `deploy/db-box/telemetry-schema.sql`) rather than living in
  * the `props` jsonb blob — derived by diffing `RawTelemetryEvent`'s
  * top-level fields (`./types`) against what was already top-level here;
- * these 5 are the remainder.
+ * these 5 are the remainder. Their admission rule lives in `LEDGER_COLUMN_RULES`
+ * (`./column-rules`) — the same table `ingest.ts`'s `parseEvent` checks
+ * server-side, so a value promoted here can never fail the server's shape
+ * check for the same field.
  */
-const LEDGER_COLUMN_TYPES = {
-  query_id: "string",
-  job_id: "string",
-  company_domain: "string",
-  position: "number",
-  source: "string",
-} as const;
-
-type LedgerColumns = { [K in keyof typeof LEDGER_COLUMN_TYPES]?: typeof LEDGER_COLUMN_TYPES[K] extends "number" ? number : string };
+type LedgerColumns = {
+  query_id?: string;
+  source?: string;
+  job_id?: string;
+  company_domain?: string;
+  position?: number;
+};
 
 /**
  * Pure: pulls the 5 ledger columns out of a `captureEvent` props object so
@@ -107,8 +110,9 @@ type LedgerColumns = { [K in keyof typeof LEDGER_COLUMN_TYPES]?: typeof LEDGER_C
  * — `captureEvent` hands the SAME object to `posthog.capture(...)` right
  * before this runs, so PostHog must still see every key it was given.
  *
- * A key present but wrong-typed (e.g. `position` sent as a string) is
- * dropped from BOTH the returned `columns` and the returned `props` —
+ * A key present but failing its `LEDGER_COLUMN_RULES` predicate (e.g.
+ * `position` sent as a non-integer, `query_id` sent as a non-UUID string)
+ * is dropped from BOTH the returned `columns` and the returned `props` —
  * forwarding it in `props` would silently disguise a caller bug as "just
  * unindexed data," and putting it in `columns` would fail the server's
  * shape check for the WHOLE event (`parseEvent`, `./ingest`), not just this
@@ -119,11 +123,11 @@ export function extractLedgerColumns(
 ): { columns: LedgerColumns; props: Record<string, unknown> } {
   const rest = { ...props };
   const columns: LedgerColumns = {};
-  for (const key of Object.keys(LEDGER_COLUMN_TYPES) as (keyof typeof LEDGER_COLUMN_TYPES)[]) {
+  for (const key of Object.keys(LEDGER_COLUMN_RULES) as (keyof typeof LEDGER_COLUMN_RULES)[]) {
     if (!(key in rest)) continue;
     const value = rest[key];
     delete rest[key];
-    if (typeof value === LEDGER_COLUMN_TYPES[key]) {
+    if (LEDGER_COLUMN_RULES[key](value)) {
       (columns as Record<string, unknown>)[key] = value;
     }
   }
