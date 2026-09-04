@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /**
+ * SPEC-2-PROFILES.md is not in this repo — see docs/telemetry/SPEC-PROVENANCE.md.
+ *
  * Nightly build of `intervu.job_features` — SPEC-2-PROFILES.md §8 step 1.
  *
  * Pages the full live `jobs` Meilisearch corpus (GET /indexes/jobs/documents,

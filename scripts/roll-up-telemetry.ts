@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /**
+ * SPEC-2-PROFILES.md is not in this repo — see docs/telemetry/SPEC-PROVENANCE.md.
+ *
  * Nightly rollup of `intervu.telemetry_events` into `job_daily`,
  * `company_daily`, and `feature_outcomes` — SPEC-2-PROFILES.md §8 step 2/3.
  *
