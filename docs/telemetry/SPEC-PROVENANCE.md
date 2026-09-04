@@ -31,14 +31,19 @@ fix this file, not the code.
 
 ```
 git grep -nP '\bSPEC(-2(-PROFILES)?)?(\.md)?\b' -- . \
-  | grep -vE 'PORTAL-REDESIGN-SPEC|EDITORIAL-PASS-SPEC'
+  | grep -vE 'PORTAL-REDESIGN-SPEC|EDITORIAL-PASS-SPEC' \
+  | grep -v 'SPEC-PROVENANCE'
 ```
 
 PCRE `\b` is required — POSIX ERE has no `\b` and the pattern silently
 matches nothing; omitting a boundary entirely over-matches unrelated words
 like `SPECIFIER`/`ASPECT`. The `-v` filter excludes two unrelated documents
 (`PORTAL-REDESIGN-SPEC`, `EDITORIAL-PASS-SPEC`) whose names contain `SPEC`
-as a substring.
+as a substring. The final `grep -v` excludes this file itself — its own
+prose mentions and the pointer lines elsewhere that link to it are
+navigation *to* the provenance record, not citations *of* the lost spec,
+so counting them would inflate the total every time an editor adds another
+pointer here. Do not remove this filter to "simplify" the pipeline.
 
 As of 2026-09-04 this returns 34 lines across 18 files.
 
