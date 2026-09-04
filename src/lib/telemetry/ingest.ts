@@ -38,7 +38,7 @@ export const EVENT_NAME_PATTERN = /^[a-z][a-z0-9_]{2,63}$/;
  *  direction) is untrustworthy client-clock skew, not a real timestamp. */
 export const CLOCK_SKEW_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_PATTERN.test(value);

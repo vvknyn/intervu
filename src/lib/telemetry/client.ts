@@ -40,17 +40,12 @@
  *   (`geo/ip-country.ts`'s `createMmdbCountryLookup`, already called from
  *   `actions/jobs.ts`) via a new thin route, `/api/geo/region` — no new
  *   geolocation dependency, no client-side IP lookup.
- * - `user_id`: the WorkOS uid when signed in, else `null` — read via
- *   `onAuthChange` (`lib/firebase/client-auth.ts`), the app's one client
- *   auth chokepoint (the same one `PostHogProvider` uses for
- *   `posthog.identify`). One-shot, like that call site — `onAuthChange`
- *   resolves "who is signed in right now" once; it is not a live listener
- *   (see its own doc comment), so a sign-in/out later in the same tab isn't
- *   picked up without a future reload. Matches the existing identify
- *   call's own fidelity rather than inventing a stronger guarantee here.
+ *
+ * `user_id` is deliberately NOT sent from here — see `RawTelemetryEvent`'s
+ * doc comment (`./types`): identity is stamped server-side from the
+ * authenticated session, never client-suppliable, so this file has no
+ * business reading who's signed in at all.
  */
-
-import { onAuthChange } from "@/lib/firebase/client-auth";
 
 const INGEST_URL = "/api/telemetry";
 const REGION_URL = "/api/geo/region";
@@ -60,7 +55,11 @@ const SESSION_ID_KEY = "intervu.telemetry.session_id";
 const VISITOR_ID_KEY = "intervu.telemetry.visitor_id";
 
 /** One event as it goes out over the wire — see the module doc comment
- *  above for why this is a local stand-in rather than an imported type. */
+ *  above for why this is a local stand-in rather than an imported type. The
+ *  5 optional fields mirror `RawTelemetryEvent`'s top-level, non-identity
+ *  columns (`./types`) — they must land HERE, at the top level, not nested
+ *  in `props`, or `ingest.ts`'s `parseEvent` never sees them and the ledger
+ *  columns stay NULL forever. */
 interface LedgerEvent {
   event_id: string;
   event_name: string;
@@ -68,20 +67,108 @@ interface LedgerEvent {
   occurred_at: string;
   session_id: string;
   visitor_id: string;
-  user_id: string | null;
+  query_id?: string;
+  job_id?: string;
+  company_domain?: string;
+  position?: number;
+  source?: string;
 }
 
 /** What `trackToLedger` actually has synchronously at capture time — the
- *  identity fields above aren't known yet (`visitor_id` needs an async
- *  region check on a brand-new visitor) so they're stamped once, in
- *  `flush`, onto the whole batch at send time rather than duplicated per
- *  call. */
-type QueuedEvent = Pick<LedgerEvent, "event_id" | "event_name" | "props" | "occurred_at">;
+ *  identity fields (`session_id`, `visitor_id`) aren't known yet
+ *  (`visitor_id` needs an async region check on a brand-new visitor) so
+ *  they're stamped once, in `flush`, onto the whole batch at send time
+ *  rather than duplicated per call. Everything else `LedgerEvent` carries
+ *  (including the 5 promoted ledger columns) IS known synchronously, so it
+ *  flows straight through `flush`'s `...e` spread with no extra wiring. */
+type QueuedEvent = Omit<LedgerEvent, "session_id" | "visitor_id">;
+
+/**
+ * The 5 `LedgerEvent` fields that mirror top-level `telemetry_events`
+ * columns (see `deploy/db-box/telemetry-schema.sql`) rather than living in
+ * the `props` jsonb blob — derived by diffing `RawTelemetryEvent`'s
+ * top-level fields (`./types`) against what was already top-level here;
+ * these 5 are the remainder.
+ */
+const LEDGER_COLUMN_TYPES = {
+  query_id: "string",
+  job_id: "string",
+  company_domain: "string",
+  position: "number",
+  source: "string",
+} as const;
+
+type LedgerColumns = { [K in keyof typeof LEDGER_COLUMN_TYPES]?: typeof LEDGER_COLUMN_TYPES[K] extends "number" ? number : string };
+
+/**
+ * Pure: pulls the 5 ledger columns out of a `captureEvent` props object so
+ * `trackToLedger` can promote them to the wire's top level instead of
+ * leaving them nested where the server never looks. Never mutates `props`
+ * — `captureEvent` hands the SAME object to `posthog.capture(...)` right
+ * before this runs, so PostHog must still see every key it was given.
+ *
+ * A key present but wrong-typed (e.g. `position` sent as a string) is
+ * dropped from BOTH the returned `columns` and the returned `props` —
+ * forwarding it in `props` would silently disguise a caller bug as "just
+ * unindexed data," and putting it in `columns` would fail the server's
+ * shape check for the WHOLE event (`parseEvent`, `./ingest`), not just this
+ * one field.
+ */
+export function extractLedgerColumns(
+  props: Record<string, unknown>,
+): { columns: LedgerColumns; props: Record<string, unknown> } {
+  const rest = { ...props };
+  const columns: LedgerColumns = {};
+  for (const key of Object.keys(LEDGER_COLUMN_TYPES) as (keyof typeof LEDGER_COLUMN_TYPES)[]) {
+    if (!(key in rest)) continue;
+    const value = rest[key];
+    delete rest[key];
+    if (typeof value === LEDGER_COLUMN_TYPES[key]) {
+      (columns as Record<string, unknown>)[key] = value;
+    }
+  }
+  return { columns, props: rest };
+}
+
+/** RFC-4122 v4 UUID from 16 cryptographically-random bytes — the shared
+ *  core for both the `crypto.getRandomValues` path and the `Math.random`
+ *  last resort below, so the version/variant-nibble bit-twiddling exists in
+ *  exactly one place. */
+function uuidV4FromBytes(bytes: Uint8Array): string {
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 8-b
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+/**
+ * Fallback UUID generator for browsers without `crypto.randomUUID`
+ * (older Safari, non-secure contexts). Exported directly so a test can
+ * exercise it without deleting `globalThis.crypto.randomUUID` from a
+ * shared global.
+ *
+ * `event_id`/`session_id`/`visitor_id` are all `uuid` columns
+ * (`telemetry-schema.sql`) — the previous fallback
+ * (`` `${Date.now()}-${random}` ``) didn't match that shape, so
+ * `ingest.ts`'s `isUuid` rejected every event from an affected browser as
+ * `invalid_shape`, silently and forever. `crypto.getRandomValues` is the
+ * older half of Web Crypto and is present in every browser missing only
+ * `randomUUID`; `Math.random()` is a last resort for an environment with no
+ * Web Crypto at all.
+ */
+export function randomUuidFallback(): string {
+  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+    return uuidV4FromBytes(crypto.getRandomValues(new Uint8Array(16)));
+  }
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  return uuidV4FromBytes(bytes);
+}
 
 function randomId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    : randomUuidFallback();
 }
 
 type StorageKind = "session" | "local";
@@ -169,18 +256,10 @@ function getOrCreateVisitorId(): Promise<string> {
   return visitorIdPromise;
 }
 
-// Best-effort snapshot of who's signed in, taken once at module load (same
-// fidelity as PostHogProvider's own one-shot `onAuthChange` call) so it's
-// very likely already resolved by the time the first debounced flush sends
-// anything.
-let currentUserId: string | null = null;
+// Start the region check immediately rather than waiting for the first
+// event — minimizes the window in which a tab-close-triggered flush could
+// race an unresolved lookup (see `flush` below).
 if (typeof window !== "undefined") {
-  onAuthChange((user) => {
-    currentUserId = user?.uid ?? null;
-  });
-  // Start the region check immediately rather than waiting for the first
-  // event — minimizes the window in which a tab-close-triggered flush could
-  // race an unresolved lookup (see `flush` below).
   void getOrCreateVisitorId();
 }
 
@@ -198,7 +277,6 @@ async function flush(useBeacon: boolean): Promise<void> {
       ...e,
       session_id: sessionId,
       visitor_id: visitorId,
-      user_id: currentUserId,
     }));
     const body = JSON.stringify({ events });
 
@@ -246,11 +324,13 @@ if (typeof document !== "undefined") {
  */
 export function trackToLedger(eventName: string, props: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
+  const { columns, props: strippedProps } = extractLedgerColumns(props);
   queue.push({
     event_id: randomId(),
     event_name: eventName,
-    props,
+    props: strippedProps,
     occurred_at: new Date().toISOString(),
+    ...columns,
   });
   if (queue.length >= MAX_BATCH) {
     if (flushTimer != null) {

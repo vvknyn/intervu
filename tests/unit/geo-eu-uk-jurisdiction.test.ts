@@ -28,6 +28,18 @@ test("lowercase input is folded the same as uppercase", () => {
   assert.equal(isEuOrUkIso2("gb"), true);
 });
 
+test("an EEA-but-not-EU state (Norway) resolves true", () => {
+  // The case that motivated widening past EU_MEMBERS: GDPR-equivalent
+  // protection covers the EEA, not just EU membership.
+  assert.equal(isEuOrUkIso2("NO"), true);
+});
+
+test("a non-EU, non-EEA European country resolves false", () => {
+  // Switzerland: geographically European, but neither EU nor EEA — the
+  // boundary assertion proving "add more countries" stops somewhere.
+  assert.equal(isEuOrUkIso2("CH"), false);
+});
+
 test("an unresolved region (null) is NOT treated as EU/UK by this function", () => {
   // The conservative "unknown -> treat as EU/UK" fallback is a caller
   // decision (the /api/geo/region route, the client's resolveEuUk) — this
