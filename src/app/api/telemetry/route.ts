@@ -66,23 +66,80 @@ export const TELEMETRY_COLUMNS = [
 ] as const;
 
 /**
- * True the FIRST time it is called with a missing pool and something to
- * drop; false on every call after that in this process. Without this gate,
- * a sustained `TELEMETRY_PG_URL`-unset misconfiguration would log once per
- * request forever — its own outage on a busy endpoint. Exported (with the
- * test-only reset below) so the decision is unit-testable without mocking
- * `getTelemetryPg`, `getServerUser`, or a Next `Request`.
+ * Single greppable marker for "admitted telemetry events never reached the
+ * ledger" — the one server-side signal for a client contract that always
+ * answers 204 regardless of outcome (SPEC §4 guard 9). Both ways this
+ * happens — no pool configured at all, or a connected pool whose insert
+ * throws (e.g. a Postgres connection FATAL from a missing pg_hba rule) —
+ * share this one string so an operator (or a health check) has exactly one
+ * thing to grep for, not two ad hoc log messages that happen to mean the
+ * same thing.
+ *
+ * `intervu.job_heartbeats` (the repo's existing job-liveness mechanism,
+ * `writeHeartbeat` in `lib/telemetry/heartbeat.ts`) is deliberately NOT used
+ * here: the `telemetry_pg` role this route's pool authenticates as has only
+ * `usage` on the schema and `insert` on `telemetry_events` itself
+ * (`deploy/db-box/telemetry-schema.sql` grants, no grant on
+ * `job_heartbeats`), so a heartbeat upsert would fail with permission
+ * denied — and widening that grant would hand the internet-facing ingest
+ * credential write access outside its one table, the exact escalation the
+ * narrow role was designed to prevent.
  */
-let missingPoolLogged = false;
-export function shouldLogMissingPool(hasPool: boolean, admittedCount: number): boolean {
-  if (hasPool || admittedCount === 0 || missingPoolLogged) return false;
-  missingPoolLogged = true;
+export const TELEMETRY_INGEST_DROPPED_MARKER = "TELEMETRY_INGEST_DROPPED";
+
+/**
+ * Records one drop and reports whether THIS call should also emit the
+ * once-per-process stdout line — two different concerns sharing one call
+ * site because they're driven by the same event, kept as separate state so
+ * neither corrupts the other:
+ *
+ *  - `droppedIngestCount`/`lastDroppedIngestAt` (read via
+ *    `getTelemetryIngestDropStats`) ALWAYS advance, on every single drop —
+ *    this is the countable, live signal a caller can poll to answer "how
+ *    many, and is it still happening now."
+ *  - the boolean return value is throttled to true exactly once per
+ *    process (`ingestDropLogged`) — without that gate, a sustained
+ *    misconfiguration (TELEMETRY_PG_URL unset, or a persistent connection
+ *    FATAL) would write a stdout line on every request forever, becoming
+ *    its own outage on a busy endpoint. The stats above are what tell a
+ *    caller dropping is CONTINUING after that one line stops repeating.
+ *
+ * Exported (with the test-only reset below) so both are unit-testable
+ * without mocking `getTelemetryPg`, `getServerUser`, or a Next `Request`.
+ */
+let droppedIngestCount = 0;
+let lastDroppedIngestAt: string | null = null;
+let ingestDropLogged = false;
+export function recordDroppedIngest(admittedCount: number): boolean {
+  if (admittedCount === 0) return false;
+  droppedIngestCount += admittedCount;
+  lastDroppedIngestAt = new Date().toISOString();
+  if (ingestDropLogged) return false;
+  ingestDropLogged = true;
   return true;
 }
 
+/**
+ * Machine-readable, LIVE status for whether admitted events are currently
+ * reaching the ledger — see `GET` below for the HTTP surface. Deliberately
+ * NOT a database read: `telemetry_pg` (this route's own credential) can
+ * only INSERT into `telemetry_events` (`deploy/db-box/telemetry-schema.sql`
+ * §4), so a status check that depended on that same connection would go
+ * blind at the one moment it matters most — when the connection itself is
+ * the thing that's broken. In-process state is sufficient for this
+ * deployment: the container is a single `mem_limit: 1g` Node process (see
+ * `MAX_BODY_BYTES` above), not a multi-worker cluster, so one counter is
+ * authoritative for everything this process serves.
+ */
+export function getTelemetryIngestDropStats(): { droppedCount: number; lastDroppedAt: string | null } {
+  return { droppedCount: droppedIngestCount, lastDroppedAt: lastDroppedIngestAt };
+}
+
 /** Test-only reset — mirrors `clearTelemetryRateLimitStateForTests`. */
-export function resetMissingPoolLogForTests(): void {
-  missingPoolLogged = false;
+export function resetDroppedIngestLogForTests(): void {
+  droppedIngestCount = 0;
+  lastDroppedIngestAt = null;
+  ingestDropLogged = false;
 }
 
 /** The only I/O beyond the request itself. One multi-row INSERT, never a
@@ -121,6 +178,49 @@ async function insertRows(pg: Queryable, rows: readonly TelemetryRow[]): Promise
      on conflict (event_id) do nothing`,
     values,
   );
+}
+
+/**
+ * Guard 8's decide-and-log wiring, pulled out of `POST` so it is directly
+ * testable with a fake `Queryable` instead of mocking `getTelemetryPg`,
+ * `getServerUser`, or a Next `Request`. Never throws — whichever branch
+ * fails to persist `admitted` records the drop (see `recordDroppedIngest`)
+ * and returns; the caller always proceeds to the 204 response either way.
+ */
+export async function writeAdmittedRows(pg: Queryable | null, admitted: readonly TelemetryRow[]): Promise<void> {
+  if (pg && admitted.length > 0) {
+    try {
+      await insertRows(pg, admitted);
+    } catch (err) {
+      if (recordDroppedIngest(admitted.length)) {
+        console.error(`[telemetry] ${TELEMETRY_INGEST_DROPPED_MARKER}: insert failed`, err);
+      }
+    }
+  } else if (recordDroppedIngest(admitted.length)) {
+    console.error(
+      `[telemetry] ${TELEMETRY_INGEST_DROPPED_MARKER}: no pg pool configured (TELEMETRY_PG_URL unset?) — ` +
+        "admitted events are being dropped silently; logging this once per process, not per request",
+    );
+  }
+}
+
+/**
+ * GET /api/telemetry — status only, no client contract to preserve (unlike
+ * POST, nothing depends on this always answering the same way). Exists so
+ * an external check can poll `droppedCount`/`lastDroppedAt` live, since
+ * neither can be read any other way: they live in this process's memory,
+ * not a database (see `getTelemetryIngestDropStats`'s doc for why), and the
+ * once-per-process stdout line in `writeAdmittedRows` only ever fires once
+ * per outage, so it cannot answer "is this still happening" on its own.
+ * `poolConfigured` distinguishes the two root causes this route can hit
+ * (TELEMETRY_PG_URL unset vs. a configured pool whose insert throws) so a
+ * caller isn't left guessing from the count alone.
+ */
+export async function GET(): Promise<NextResponse> {
+  return NextResponse.json({
+    ...getTelemetryIngestDropStats(),
+    poolConfigured: getTelemetryPg() !== null,
+  });
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -166,19 +266,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     // Guard 8.
-    const pg = getTelemetryPg();
-    if (pg && admitted.length > 0) {
-      try {
-        await insertRows(pg, admitted);
-      } catch (err) {
-        console.error("[telemetry] insert failed:", err);
-      }
-    } else if (shouldLogMissingPool(pg !== null, admitted.length)) {
-      console.error(
-        "[telemetry] no pg pool configured (TELEMETRY_PG_URL unset?) — admitted events are being " +
-          "dropped silently; logging this once per process, not per request",
-      );
-    }
+    await writeAdmittedRows(getTelemetryPg(), admitted);
 
     // Guard 9.
     return new NextResponse(null, { status: 204 });
