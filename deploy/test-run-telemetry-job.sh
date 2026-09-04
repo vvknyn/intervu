@@ -149,6 +149,107 @@ run ok "$FX/shim" "no-such-job"
             check "unknown job name -> named as a missing script, not a crash" \
     2 0 "no such job"
 
+# ---------------------------------------------------------------------------
+# Install-lock concurrency (double-checked locking around npm ci, keyed to
+# INTERVU_ROOT rather than the per-job JOB name). Every case above runs one
+# invocation at a time through a `flock` shim that unconditionally succeeds,
+# so none of them can exercise real contention. These three use the REAL
+# flock binary plus an `npm` stub that takes real wall-clock time, so two
+# concurrent runs actually overlap instead of racing through sequentially.
+# ---------------------------------------------------------------------------
+
+REAL_FLOCK="$(command -v flock)" || { echo "SKIP install-lock races: no flock on PATH"; REAL_FLOCK=""; }
+if [[ -n "$REAL_FLOCK" ]]; then
+mkdir -p "$FX/rshim"
+ln -sf "$FX"/base/* "$FX/rshim/" 2>/dev/null
+for c in sed tail tr; do ln -sf "$(command -v "$c")" "$FX/rshim/$c"; done
+ln -sf "$FX/shim/timeout" "$FX/rshim/timeout"
+ln -sf "$REAL_FLOCK" "$FX/rshim/flock"
+echo 'console.log("unused");' > "$FX/root/scripts/second-job.ts"
+
+# Sleeps a beat (so two concurrent callers actually overlap instead of one
+# finishing before the other starts), appends one line per invocation to
+# $NPM_COUNTER_FILE, then installs tsx — standing in for `npm ci` actually
+# taking measurable wall-clock time.
+cat > "$FX/rshim/npm" <<'SH'
+#!/bin/bash
+sleep 0.3
+echo "ci $$" >> "$NPM_COUNTER_FILE"
+mkdir -p "$PWD/node_modules/.bin"
+printf '#!/bin/bash\necho "TSX RAN"\n' > "$PWD/node_modules/.bin/tsx"
+chmod +x "$PWD/node_modules/.bin/tsx"
+SH
+chmod +x "$FX/rshim/npm"
+
+# run_race <job> <log-file> <lock-file> [extra-env...] — launches one
+# concurrency-test invocation in the background against the shared
+# $FX/root and sets $LAST_PID. Must background directly in THIS shell, not
+# inside a $(...) command substitution — a subshell's background child is
+# reparented away once the subshell exits, and `wait` on it then fails with
+# "not a child of this shell" instead of returning its real exit status.
+run_race() {
+    local job=$1 logf=$2 lockf=$3; shift 3
+    env "$@" NPM_COUNTER_FILE="$FX/counter" PATH="$FX/rshim" \
+        INTERVU_ROOT="$FX/root" INTERVU_JOB_ENV_FILE="$FX/env.local" \
+        INTERVU_JOB_LOG="$logf" INTERVU_JOB_LOCK="$lockf" INTERVU_JOB_TIMEOUT=20 \
+        "$BASH_BIN" "$WRAPPER" "$job" >/dev/null 2>&1 &
+    LAST_PID=$!
+}
+
+# (a) THE BUG: two DIFFERENT job names, started concurrently, both seeing
+# tsx absent, racing to install into the same shared INTERVU_ROOT.
+rm -rf "$FX/root/node_modules" "$FX/root/.npm-ci.lock"; : >"$FX/counter"; : >"$FX/clog1"; : >"$FX/clog2"
+run_race demo-job "$FX/clog1" "$FX/lock1"; p1=$LAST_PID
+run_race second-job "$FX/clog2" "$FX/lock2"; p2=$LAST_PID
+wait "$p1"; rc1=$?
+wait "$p2"; rc2=$?
+ci_count=$(grep -c '^ci ' "$FX/counter")
+ran1=$(grep -c "TSX RAN" "$FX/clog1")
+ran2=$(grep -c "TSX RAN" "$FX/clog2")
+if [[ "$rc1" == 0 && "$rc2" == 0 && "$ci_count" == 1 && "$ran1" == 1 && "$ran2" == 1 ]]; then
+    printf 'ok   two different jobs racing on a fresh install -> exactly one npm ci, both jobs run\n'
+else
+    printf 'FAIL two different jobs racing -> want rc=0/0 ci=1 ran=1/1, got rc=%s/%s ci=%s ran=%s/%s\n     clog1: %s\n     clog2: %s\n' \
+        "$rc1" "$rc2" "$ci_count" "$ran1" "$ran2" "$(cat "$FX/clog1")" "$(cat "$FX/clog2")"
+    fails=$((fails + 1))
+fi
+
+# (b) a case other than the one that surfaced the bug: tsx already present
+# -> the fast path must not take the install lock or invoke npm at all.
+: >"$FX/counter"; : >"$FX/clog1"
+mkdir -p "$FX/root/node_modules/.bin"
+printf '#!/bin/bash\necho "TSX RAN"\n' >"$FX/root/node_modules/.bin/tsx"
+chmod +x "$FX/root/node_modules/.bin/tsx"
+run_race demo-job "$FX/clog1" "$FX/lock1"; wait "$LAST_PID"; rc=$?
+ci_count=$(grep -c '^ci ' "$FX/counter")
+if [[ "$rc" == 0 && "$ci_count" == 0 ]] && grep -qF "OK   exit=0" "$FX/clog1"; then
+    printf 'ok   tsx already present -> install lock and npm untouched, fast path unchanged\n'
+else
+    printf 'FAIL tsx already present -> want rc=0 ci=0, got rc=%s ci=%s\n     clog1: %s\n' \
+        "$rc" "$ci_count" "$(cat "$FX/clog1")"
+    fails=$((fails + 1))
+fi
+
+# (c) negative control: install lock held externally past its wait timeout
+# -> a loud, distinct failure, never a silent fall-through into a
+# concurrently-mutating node_modules. INTERVU_JOB_INSTALL_LOCK_TIMEOUT=1
+# keeps this from taking minutes.
+rm -rf "$FX/root/node_modules"; : >"$FX/counter"; : >"$FX/clog1"
+( exec 8>"$FX/root/.npm-ci.lock"; "$REAL_FLOCK" -x 8; sleep 2 ) &
+holder=$!
+sleep 0.3   # let the holder actually acquire the lock before we race it
+run_race demo-job "$FX/clog1" "$FX/lock1" INTERVU_JOB_INSTALL_LOCK_TIMEOUT=1; wait "$LAST_PID"; rc=$?
+wait "$holder"
+ci_count=$(grep -c '^ci ' "$FX/counter")
+if [[ "$rc" != 0 && "$ci_count" == 0 ]] && grep -qF "install lock" "$FX/clog1" && grep -qF "for over 1s" "$FX/clog1"; then
+    printf 'ok   install lock held by another run -> loud timeout failure, npm never invoked\n'
+else
+    printf 'FAIL install lock held by another run -> want rc!=0 ci=0 with a timeout message, got rc=%s ci=%s\n     clog1: %s\n' \
+        "$rc" "$ci_count" "$(cat "$FX/clog1")"
+    fails=$((fails + 1))
+fi
+fi
+
 echo
 if (( fails )); then echo "$fails test(s) FAILED"; exit 1; fi
-echo "all 8 tests passed"
+echo "all 11 tests passed"
