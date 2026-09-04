@@ -16,6 +16,7 @@
  */
 import { SEARCH_ENGINE_BOTS, AI_ANSWER_ENGINE_BOTS } from "@/lib/shield/robots-policy";
 import type { TelemetryRejection, TelemetryRow } from "./types";
+import { UUID_PATTERN, isUuid, isOptionalUuid, LEDGER_COLUMN_RULES } from "./column-rules";
 
 /** Guard 1 (route.ts): Content-Length absent or over this -> 413, no parse.
  *  Sized against the container's `mem_limit: 1g` (docker-compose.yml:22) —
@@ -37,20 +38,6 @@ export const EVENT_NAME_PATTERN = /^[a-z][a-z0-9_]{2,63}$/;
 /** Guard 5: `occurred_at` further than this from server `now` (either
  *  direction) is untrustworthy client-clock skew, not a real timestamp. */
 export const CLOCK_SKEW_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isUuid(value: unknown): value is string {
-  return typeof value === "string" && UUID_PATTERN.test(value);
-}
-
-function isOptionalUuid(value: unknown): boolean {
-  return value === null || value === undefined || isUuid(value);
-}
-
-function isOptionalString(value: unknown): boolean {
-  return value === null || value === undefined || typeof value === "string";
-}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -105,13 +92,11 @@ function parseEvent(raw: unknown, now: number, userId: string | null): ParsedEve
     typeof raw.event_name === "string" &&
     !Number.isNaN(occurredAtMs) &&
     isOptionalUuid(raw.visitor_id) &&
-    isOptionalUuid(raw.query_id) &&
-    isOptionalString(raw.source) &&
-    isOptionalString(raw.job_id) &&
-    isOptionalString(raw.company_domain) &&
-    (raw.position === undefined ||
-      raw.position === null ||
-      (typeof raw.position === "number" && Number.isInteger(raw.position))) &&
+    LEDGER_COLUMN_RULES.query_id(raw.query_id) &&
+    LEDGER_COLUMN_RULES.source(raw.source) &&
+    LEDGER_COLUMN_RULES.job_id(raw.job_id) &&
+    LEDGER_COLUMN_RULES.company_domain(raw.company_domain) &&
+    LEDGER_COLUMN_RULES.position(raw.position) &&
     (raw.props === undefined || isPlainObject(raw.props));
 
   if (!shapeOk) {

@@ -1450,16 +1450,22 @@ function JobsContent() {
         // category/seed chips all route through it, so a future entry point is
         // counted automatically instead of being silently invisible.
         //
-        // The raw query is deliberately NOT sent — only its length. A search
-        // box carries names, employers and salary expectations, and none of
-        // that needs to leave the browser to answer "did they search".
-        // `activeFilterEntries` is re-derived here rather than read from the
-        // render-scope binding so this does not depend on declaration order.
-        captureEvent("search_submitted", {
-            query_length: q.trim().length,
-            has_location: chosenLocations.length > 0,
-            filter_count: activeFilterEntries(filterState).length,
-        });
+        // The raw query text goes to the ledger ONLY (this repo's own
+        // Postgres-backed telemetry store, keyed to the account server-side)
+        // via the third `ledgerOnly` argument below — it is never passed to
+        // PostHog; PostHog gets only `query_length` and the other ordinary
+        // props. `activeFilterEntries` is re-derived here rather than read
+        // from the render-scope binding so this does not depend on
+        // declaration order.
+        captureEvent(
+            "search_submitted",
+            {
+                query_length: q.trim().length,
+                has_location: chosenLocations.length > 0,
+                filter_count: activeFilterEntries(filterState).length,
+            },
+            { query_text: q },
+        );
         // Searches run in this browser. Counted HERE, at the one submit
         // chokepoint, which is what stops a future search entry point from
         // being invisible to either prompt — and counted for signed-in
