@@ -191,7 +191,10 @@ export function extractJobFeatures(job: PublicJob, now: number): JobFeatures {
 
   const hasSalary = job.salary_min != null || job.salary_max != null;
   const salarySpanPct =
-    job.salary_min != null && job.salary_max != null && job.salary_min > 0
+    job.salary_min != null &&
+    job.salary_max != null &&
+    job.salary_min > 0 &&
+    job.salary_max >= job.salary_min
       ? ((job.salary_max - job.salary_min) / job.salary_min) * 100
       : null;
 

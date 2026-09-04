@@ -9,7 +9,8 @@ import {
   type FeatureOutcomeRow,
   type OutcomeEventRow,
 } from "../../src/lib/telemetry/feature-outcomes";
-import type { JobFeatures } from "../../src/lib/telemetry/features";
+import { extractJobFeatures, type JobFeatures } from "../../src/lib/telemetry/features";
+import type { PublicJob } from "../../src/lib/jobs/types";
 
 function closeTo(actual: number, expected: number, eps = 1e-9) {
   assert.ok(Math.abs(actual - expected) < eps, `expected ${actual} to be close to ${expected}`);
@@ -100,9 +101,22 @@ describe("bucketFeatureValue — dispatches on type, not column name", () => {
     assert.equal(bucketFeatureValue("bachelor"), "bachelor");
   });
 
-  it("number -> an order-of-magnitude range bucket", () => {
+  it("zero is a genuine exact value, not a fallback", () => {
     assert.equal(bucketFeatureValue(0), "0");
-    assert.equal(bucketFeatureValue(-5), "0");
+  });
+
+  it("non-finite and negative values are 'not a bucketable fact' -> null, never fabricated into the '0' bucket", () => {
+    // A corrupt or absent measurement (NaN/Infinity) or an impossible one
+    // (negative) must never collapse into the same label as a genuine
+    // observed zero — that would misreport a bad reading as a real value.
+    assert.equal(bucketFeatureValue(NaN), null);
+    assert.equal(bucketFeatureValue(Infinity), null);
+    assert.equal(bucketFeatureValue(-Infinity), null);
+    assert.equal(bucketFeatureValue(-5), null);
+    assert.equal(bucketFeatureValue(-0.5), null);
+  });
+
+  it("number -> an order-of-magnitude range bucket", () => {
     assert.equal(bucketFeatureValue(5), "1-10");
     assert.equal(bucketFeatureValue(42), "10-100");
     assert.equal(bucketFeatureValue(150_000), "100000-1000000");
@@ -116,16 +130,30 @@ describe("bucketFeatureValue — dispatches on type, not column name", () => {
     assert.equal(bucketFeatureValue(9.999), "1-10");
   });
 
-  // Table-driven: every non-guarded input must produce a well-formed,
+  // Exact powers of ten are where a naive `Math.floor(Math.log10(value))`
+  // is off by one due to float imprecision (e.g. log10(1000) landing a
+  // hair below 3) — verified against hand-computed labels, not against
+  // log10's own (potentially wrong) output.
+  const exactPowerCases: Array<{ value: number; expected: string }> = [
+    { value: 1e-7, expected: "0.0000001-0.000001" },
+    { value: 1e-6, expected: "0.000001-0.00001" },
+    { value: 1e-3, expected: "0.001-0.01" },
+    { value: 1, expected: "1-10" },
+    { value: 10, expected: "10-100" },
+    { value: 1e6, expected: "1000000-10000000" },
+  ];
+  for (const { value, expected } of exactPowerCases) {
+    it(`exact power of ten: bucketFeatureValue(${value}) -> "${expected}"`, () => {
+      assert.equal(bucketFeatureValue(value), expected);
+    });
+  }
+
+  // Table-driven: every positive, finite input must produce a well-formed,
   // ascending range — not just the two values (0.5, 0.05) that first
-  // surfaced the bug. 0 and a negative both hit the "not a real magnitude"
-  // guard and return the sentinel bucket "0", which is not itself a range.
-  // 99.5 and 999.5 are not salary_span_pct-shaped at all — they prove the
-  // half-open fix holds at every magnitude boundary, not just the one
-  // (9.x) that salary_span_pct happened to surface.
+  // surfaced the bug. 99.5 and 999.5 are not salary_span_pct-shaped at all
+  // — they prove the half-open fix holds at every magnitude boundary, not
+  // just the one (9.x) that salary_span_pct happened to surface.
   const magnitudeCases: Array<{ value: number; expected: string }> = [
-    { value: 0, expected: "0" },
-    { value: -5, expected: "0" },
     { value: 0.001, expected: "0.001-0.01" },
     { value: 0.05, expected: "0.01-0.1" },
     { value: 0.5, expected: "0.1-1" },
@@ -145,17 +173,13 @@ describe("bucketFeatureValue — dispatches on type, not column name", () => {
       const label = bucketFeatureValue(value);
       assert.equal(label, expected);
 
-      if (value <= 0) {
-        // Guard path: no magnitude to bucket, so no range is expected.
-        assert.equal(label, "0");
-        return;
-      }
-
       // Structural invariant, independent of the hand-written string above:
-      // a well-formed range is non-empty, has exactly one separator, and
-      // parses to an ascending (lower < upper) pair. This is what catches
-      // inputs nobody thought to hand-write an expected string for.
+      // a well-formed range is non-empty, has exactly one separator, uses
+      // no exponential notation, and parses to an ascending (lower <
+      // upper) pair. This is what catches inputs nobody thought to
+      // hand-write an expected string for.
       assert.ok(label && label.length > 0, "label must be non-empty");
+      assert.ok(!/[eE]/.test(label!), `label must never use exponential notation: "${label}"`);
       const parts = label!.split("-");
       assert.equal(parts.length, 2, `expected exactly one '-' separator, got "${label}"`);
       const [lower, upper] = parts.map(Number);
@@ -173,25 +197,75 @@ describe("bucketFeatureValue — dispatches on type, not column name", () => {
     });
   }
 
-  it("property: across a spread of magnitudes both below and above 1, every label's range contains the value that produced it", () => {
-    // Magnitudes -3..6 stay well clear of the documented out-of-domain
-    // floor (~1e-6, where 10**magnitude switches to exponential notation
-    // and breaks label parsing) while still spanning sub-1 and multi-digit
-    // magnitudes on both sides of the old bug's boundary.
-    for (let magnitude = -3; magnitude <= 6; magnitude++) {
+  it("property: across the full double magnitude range (-320..308), every label has exactly one '-', no exponential notation, and its range contains the value that produced it", () => {
+    // -320..308 spans (nearly) the entire double exponent range: below
+    // ~-324 doubles underflow toward zero, and above ~308 they overflow
+    // toward Infinity, both of which are outside this function's domain
+    // (a value must be finite and positive to reach the ranging branch at
+    // all — non-finite/negative are covered by their own tests above).
+    for (let magnitude = -320; magnitude <= 308; magnitude++) {
       const base = 10 ** magnitude;
       // Sample across the whole magnitude, including just below the next
       // boundary — exactly where the closed-interval bug left its gap.
       const samples = [base, base * 1.5, base * 5, base * 9.5, base * 9.999];
       for (const value of samples) {
+        // A sample can overflow to Infinity (top magnitudes * 9.5/9.999)
+        // or underflow to 0 (bottom magnitudes) purely from float range
+        // limits — not a case this function needs to bucket, since those
+        // aren't reachable as an actual `value` for the same magnitude via
+        // a different construction.
+        if (!Number.isFinite(value) || value <= 0) continue;
+
         const label = bucketFeatureValue(value);
-        assert.ok(label, `expected a label for ${value}`);
-        const [lo, hi] = label!.split("-").map(Number);
+        assert.ok(label, `expected a label for ${value} (magnitude ${magnitude})`);
+        assert.ok(!/[eE]/.test(label!), `label must never use exponential notation: "${label}" for value ${value}`);
+        const parts = label!.split("-");
+        assert.equal(parts.length, 2, `expected exactly one '-' separator, got "${label}" for value ${value}`);
+        const [lo, hi] = parts.map(Number);
         assert.ok(
           lo <= value && value < hi,
           `bucketFeatureValue(${value}) = "${label}" violates lo <= value < hi`
         );
       }
+    }
+  });
+
+  // Exact-power-of-ten construction (matching how the source itself builds
+  // bounds), not `10 ** magnitude` float multiplication: near the extremes
+  // of the double range, multiplying a float sample by 9.5/9.999 to probe
+  // "just below the boundary" can itself round across the boundary (a
+  // Math.pow/multiplication artifact, not a bucketing defect), which would
+  // make consecutive magnitudes look like they collide when they don't.
+  // Building the clean boundary value the same exact way the source does
+  // sidesteps that noise and tests the real invariant: every magnitude's
+  // bucket is distinct from its neighbor's, and they tile with no gap.
+  function exactPowerOfTen(magnitude: number): number {
+    return Number(magnitude >= 0 ? "1" + "0".repeat(magnitude) : "0." + "0".repeat(-magnitude - 1) + "1");
+  }
+
+  it("consecutive magnitudes never collide on the same label and tile with no gap, across the full double range", () => {
+    const labels: string[] = [];
+    for (let magnitude = -320; magnitude <= 308; magnitude++) {
+      const label = bucketFeatureValue(exactPowerOfTen(magnitude));
+      assert.ok(label, `expected a label at magnitude ${magnitude}`);
+      labels.push(label!);
+    }
+    for (let i = 1; i < labels.length; i++) {
+      const magnitude = -320 + i;
+      assert.notEqual(
+        labels[i - 1],
+        labels[i],
+        `magnitude ${magnitude - 1} and ${magnitude} produced the same label "${labels[i]}"`
+      );
+      // No gap: the previous magnitude's upper bound is this magnitude's
+      // lower bound, exactly.
+      const prevHi: string = labels[i - 1].split("-")[1];
+      const thisLo: string = labels[i].split("-")[0];
+      assert.equal(
+        prevHi,
+        thisLo,
+        `gap between magnitude ${magnitude - 1} ("${labels[i - 1]}") and ${magnitude} ("${labels[i]}")`
+      );
     }
   });
 });
@@ -331,5 +405,67 @@ describe("aggregateFeatureOutcomes — the only path from events to rows", () =>
       [...first].sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : 1)),
       [...second].sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : 1)),
     );
+  });
+});
+
+// Fixture-factory pattern reused from tests/unit/telemetry-features.test.ts:10
+// — the same PublicJob the job-detail page renders (src/lib/jobs/types.ts:30).
+function job(overrides: Partial<PublicJob>): PublicJob {
+  return {
+    id: overrides.id ?? Math.random().toString(36),
+    title: "Software Engineer",
+    company: "Acme Corp",
+    company_domain: "acme.com",
+    location: null,
+    location_city: null,
+    location_state: null,
+    location_country: null,
+    work_type: "remote",
+    description: null,
+    employment_type: "full_time",
+    experience_level: "mid",
+    salary_min: null,
+    salary_max: null,
+    salary_currency: null,
+    salary_period: null,
+    visa_sponsorship: null,
+    tags: [],
+    apply_url: "https://example.com",
+    source: "greenhouse_direct",
+    posted_at: null,
+    first_seen_at: null,
+    posted_ts: null,
+    updated_at: null,
+    vacancy_status: "active",
+    ghost_badge: "unscored",
+    ...overrides,
+  };
+}
+
+describe("extractJobFeatures — salary_span_pct on an inverted range", () => {
+  const NOW = Date.parse("2026-09-04T12:00:00Z");
+
+  it("an inverted range (max < min) — a data-entry swap, not a real span — emits no span, rather than a negative one", () => {
+    // This is the value that surfaced the bug: min above max.
+    const features = extractJobFeatures(job({ salary_min: 150_000, salary_max: 100_000 }), NOW);
+    assert.equal(features.salary_span_pct, null);
+    // The bucketer must never see a negative number here either — a
+    // fabricated positive span would silently hide the inversion.
+    assert.equal(bucketFeatureValue(features.salary_span_pct), null);
+  });
+
+  it("a different inverted pair (not the value that surfaced the bug) also emits no span", () => {
+    const features = extractJobFeatures(job({ salary_min: 80_000, salary_max: 1 }), NOW);
+    assert.equal(features.salary_span_pct, null);
+  });
+
+  it("an equal min/max (zero-width range) is not inverted — it is a real, stated span of 0", () => {
+    const features = extractJobFeatures(job({ salary_min: 100_000, salary_max: 100_000 }), NOW);
+    assert.equal(features.salary_span_pct, 0);
+  });
+
+  it("a normal, ascending range is unaffected", () => {
+    const features = extractJobFeatures(job({ salary_min: 100_000, salary_max: 150_000 }), NOW);
+    assert.equal(features.salary_span_pct, 50);
   });
 });

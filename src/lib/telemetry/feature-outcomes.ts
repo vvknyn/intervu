@@ -125,6 +125,47 @@ export const EXCLUDED_FEATURE_COLUMNS: ReadonlySet<keyof JobFeatures> = new Set(
 ]);
 
 /**
+ * Exact decimal string for 10^magnitude — built digit-by-digit, never via
+ * float exponentiation (`10 ** magnitude`). Float exponentiation renders in
+ * exponential notation below ~1e-6 (extra `-` characters, breaking the
+ * single-separator label contract) and produces bounds like
+ * `0.000009999999999999999` at other magnitudes (binary-float noise, since
+ * most negative powers of ten have no exact double representation). A
+ * string built from magnitude alone has neither problem: it is always a
+ * plain decimal literal, exact in the sense that matters here (it is the
+ * canonical text for that magnitude, not a rounded float printed back out).
+ */
+function exactPowerOfTenString(magnitude: number): string {
+  return magnitude >= 0 ? "1" + "0".repeat(magnitude) : "0." + "0".repeat(-magnitude - 1) + "1";
+}
+
+/**
+ * The half-open bucket [10^magnitude, 10^(magnitude+1)) a positive value
+ * falls in, as exact bound strings. `Math.log10` can be off by one at exact
+ * powers of ten (float imprecision, e.g. `Math.log10(1000)` landing a hair
+ * below 3), so the candidate magnitude from `Math.floor(Math.log10(value))`
+ * is corrected by construction: walk it up or down a step at a time until
+ * the generated bounds actually bracket `value`. This guarantees the
+ * invariant instead of asserting it in prose.
+ */
+function magnitudeBoundsFor(value: number): { lo: string; hi: string } {
+  let magnitude = Math.floor(Math.log10(value));
+  let lo = exactPowerOfTenString(magnitude);
+  let hi = exactPowerOfTenString(magnitude + 1);
+  while (Number(lo) > value) {
+    magnitude -= 1;
+    lo = exactPowerOfTenString(magnitude);
+    hi = exactPowerOfTenString(magnitude + 1);
+  }
+  while (Number(hi) <= value) {
+    magnitude += 1;
+    lo = exactPowerOfTenString(magnitude);
+    hi = exactPowerOfTenString(magnitude + 1);
+  }
+  return { lo, hi };
+}
+
+/**
  * Turns one `JobFeatures` value into a bucket label. Dispatches on the
  * value's OWN type, never on the column name — so a column added to
  * `JobFeatures` tomorrow is bucketed correctly without this function
@@ -134,25 +175,32 @@ export const EXCLUDED_FEATURE_COLUMNS: ReadonlySet<keyof JobFeatures> = new Set(
  *  - boolean -> "true" | "false"
  *  - string  -> the string verbatim (already categorical, e.g. degree_level,
  *    seniority_word, employment_type, apply_method)
- *  - number  -> an order-of-magnitude range ("0", "1-10", "10-100", ...), so a
- *    salary in the tens of thousands and a years-of-experience count in the
- *    single digits both land in a stable, comparably-sized bucket without a
- *    per-column range table.
+ *  - number, zero -> "0" (a genuine exact value)
+ *  - number, positive and finite -> an order-of-magnitude range
+ *    ("1-10", "10-100", ...), so a salary in the tens of thousands and a
+ *    years-of-experience count in the single digits both land in a stable,
+ *    comparably-sized bucket without a per-column range table. Buckets are
+ *    half-open at every magnitude: [10^m, 10^(m+1)), lower bound inclusive,
+ *    upper bound exclusive — a value of exactly 10 lands in "10-100", never
+ *    "1-10". The label's own range always contains the value that produced
+ *    it, whether the value is a whole count or a raw float (e.g.
+ *    salary_span_pct, which is never rounded), by construction.
+ *  - number, non-finite (NaN, +/-Infinity) or negative -> null. These are
+ *    not a bucketable fact — a corrupt or absent measurement, or an
+ *    impossible one — so they are dropped exactly like null/undefined
+ *    rather than fabricated into the "0" bucket, which would misreport a
+ *    bad or missing reading as a real observed zero. A negative value is
+ *    never given its own signed bucket either: a leading `-` would
+ *    reintroduce a second separator into the label.
  */
 export function bucketFeatureValue(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "boolean") return String(value);
   if (typeof value === "string") return value;
   if (typeof value === "number") {
-    if (!Number.isFinite(value) || value <= 0) return "0";
-    const magnitude = Math.floor(Math.log10(value));
-    const lo = 10 ** magnitude;
-    // Buckets are half-open at every magnitude: [10^m, 10^(m+1)), lower
-    // bound inclusive, upper bound exclusive. A value of exactly 10 lands in
-    // "10-100", never in "1-10" — the label's own range always contains the
-    // value that produced it, whether the value is a whole count or a raw
-    // float (e.g. salary_span_pct, which is never rounded).
-    const hi = 10 ** (magnitude + 1);
+    if (!Number.isFinite(value) || value < 0) return null;
+    if (value === 0) return "0";
+    const { lo, hi } = magnitudeBoundsFor(value);
     return `${lo}-${hi}`;
   }
   return null;
