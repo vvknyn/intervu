@@ -1,3 +1,15 @@
+\set ON_ERROR_STOP on
+-- ^ Load-bearing, not boilerplate. §0 below is only a guard if execution
+--   actually stops when it raises. Measured on the box 2026-09-03: with
+--   psql's default on_error_stop=off, a `raise exception` in a do-block
+--   prints ERROR, the NEXT statement still runs, and psql exits 0 — so §1's
+--   `create table if not exists` would no-op past a failed drift check and
+--   §2–§7 would grant on the wrong table, all under a clean exit status.
+--   Setting it here instead of relying on `-v ON_ERROR_STOP=1` makes the
+--   abort a property of the file rather than of whoever remembers the flag;
+--   self-set is exactly equivalent to the flag, exit code included (both
+--   exit 3). Do not remove this line.
+
 -- Telemetry ledger table plus its least-privilege ingest role.
 --
 -- Companion to deploy/db-box/agent-credentials-role.sql: same shape (DDL and
@@ -8,9 +20,8 @@
 -- Run manually against the box, as a superuser or the schema-owning role
 -- (`pipeline`), top to bottom. Idempotent: every statement is safe to
 -- re-run. Not applied by CI or app code. Run with
--- `psql -v ON_ERROR_STOP=1 -f telemetry-schema.sql` — without ON_ERROR_STOP,
--- psql's default is to print an error and keep going statement-by-statement,
--- which would let §1 run right past a §0 guard failure below.
+-- `psql -f telemetry-schema.sql` — the file sets ON_ERROR_STOP itself on
+-- line 1, so a §0 guard failure aborts the run whatever the call site does.
 
 -- ---------------------------------------------------------------------------
 -- 0. Drift guard. §1's `create table if not exists` is a no-op if a table by

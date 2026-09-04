@@ -1,3 +1,12 @@
+\set ON_ERROR_STOP on
+-- ^ Every guard below lives inside the single do-block that also performs the
+--   drop, so a raise already prevents the drop even without this line. What
+--   this line buys is an honest EXIT STATUS: measured on the box 2026-09-03,
+--   psql's default prints the exception and still exits 0, so a refusal is
+--   indistinguishable from a successful drop to any caller that checks `$?`
+--   (and to any human who has been trained to). With it set, a refusal
+--   exits 3. Do not remove this line.
+
 -- One-time repair, NOT part of the regular schema pipeline.
 --
 -- `intervu.telemetry_events` already existed on prod as of 2026-09-03 with a
