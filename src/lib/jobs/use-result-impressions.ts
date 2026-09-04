@@ -12,8 +12,17 @@
  * bursts (a fast scroll through 10 rows) into one capture.
  *
  * Mount once against the results container (`#jobs-results-list`) — rows
- * are found via `[data-job-id]` (JobCard's root div) rather than threading
- * a ref through every card.
+ * are found via `[data-job-id]`/`[data-position]` (JobCard's root div)
+ * rather than threading a ref through every card.
+ *
+ * `queryId` identifies the rendered result set (one uuid per search — the
+ * same value the caller passes to `result_clicked`/`apply_clicked`, SPEC
+ * §5). A change re-arms the tracker: the impression batch resets to empty
+ * rather than carrying another query's `reported`/`pending` state forward,
+ * so a REFINED search's rows — even ones already seen under the previous
+ * query — start eligible for a fresh impression (impression-batch.ts's
+ * `${queryId}:${jobId}` dedupe key already makes this safe on its own; the
+ * reset just keeps `reported` from growing across an entire session).
  */
 
 import { useEffect, useRef } from "react";
@@ -31,6 +40,7 @@ const FLUSH_DEBOUNCE_MS = 1000;
 export function useResultImpressions(
   containerRef: React.RefObject<HTMLElement | null>,
   source: EventSource,
+  queryId: string,
 ): void {
   const stateRef = useRef<ImpressionBatchState>(EMPTY_IMPRESSION_BATCH);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,12 +49,23 @@ export function useResultImpressions(
     const container = containerRef.current;
     if (!container) return;
 
+    // A new queryId means a new rendered result set — start its impression
+    // batch fresh (see the module doc comment above for why this is safe
+    // alongside, not instead of, the queryId-scoped dedupe key).
+    stateRef.current = EMPTY_IMPRESSION_BATCH;
+
     const flush = () => {
       timerRef.current = null;
-      const { jobIds, next } = flushImpressions(stateRef.current);
+      const { impressions, next } = flushImpressions(stateRef.current);
       stateRef.current = next;
-      if (jobIds.length > 0) {
-        captureEvent("results_impressed", { job_ids: jobIds, count: jobIds.length, source });
+      if (impressions.length > 0) {
+        captureEvent("results_impressed", {
+          job_ids: impressions.map((i) => i.jobId),
+          positions: impressions.map((i) => i.position),
+          count: impressions.length,
+          source,
+          ...(queryId ? { query_id: queryId } : {}),
+        });
       }
     };
 
@@ -58,10 +79,12 @@ export function useResultImpressions(
         let changed = false;
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
-          const jobId = (entry.target as HTMLElement).dataset.jobId;
-          if (!jobId) continue;
+          const target = entry.target as HTMLElement;
+          const jobId = target.dataset.jobId;
+          const position = Number(target.dataset.position);
+          if (!jobId || !Number.isFinite(position) || position <= 0) continue;
           const before = stateRef.current;
-          stateRef.current = recordImpression(stateRef.current, jobId);
+          stateRef.current = recordImpression(stateRef.current, queryId, jobId, position);
           if (stateRef.current !== before) changed = true;
         }
         if (changed) scheduleFlush();
@@ -90,7 +113,8 @@ export function useResultImpressions(
     // Re-running this on `source` change would re-scan + re-observe every
     // row for a prop that only tags the payload — `source` is read fresh
     // inside the effect via closure instead. Source is static per mount in
-    // practice (SERP's `source` is always "serp").
+    // practice (SERP's `source` is always "serp"). `queryId` IS a real
+    // dependency: see the re-arm comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef]);
+  }, [containerRef, queryId]);
 }

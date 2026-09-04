@@ -175,10 +175,15 @@ test("captureEvent sends job_shared under its pre-existing wire name", (t) => {
 
 test("captureEvent sends results_impressed with the full job_ids batch", (t) => {
   withReadyPostHog(t, (capture) => {
-    captureEvent("results_impressed", { job_ids: ["job-1", "job-2"], count: 2, source: "serp" });
+    captureEvent("results_impressed", {
+      job_ids: ["job-1", "job-2"],
+      positions: [1, 2],
+      count: 2,
+      source: "serp",
+    });
     assert.deepEqual(capture.mock.calls[0].arguments, [
       "results_impressed",
-      { job_ids: ["job-1", "job-2"], count: 2, source: "serp" },
+      { job_ids: ["job-1", "job-2"], positions: [1, 2], count: 2, source: "serp" },
     ]);
   });
 });
