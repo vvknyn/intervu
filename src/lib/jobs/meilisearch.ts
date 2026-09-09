@@ -813,6 +813,24 @@ export function quoteShortTokens(q: string): string {
   return tokens.map((tok) => (tok.startsWith('"') || tok.length >= threshold ? tok : `"${tok}"`)).join(" ");
 }
 
+/**
+ * Title-like fields for `titleFirstScoped` below (a bare role query — e.g.
+ * "product manager", "registered nurse" — with no other lane claiming it).
+ * The subset of the LIVE `JOBS_INDEX_SETTINGS.searchableAttributes` (verified
+ * against the Meili box, 2026-09-09) that carries a role/occupation signal
+ * rather than a skill or a free-text mention:
+ *  - `description` excluded on purpose — that's the whole defect this scope
+ *    exists to close (a description mention of "product information" is why
+ *    "product manager" surfaced "Assistant Store Manager" on Freshest).
+ *  - `location` excluded — not role-bearing.
+ *  - `must_have_skills`/`tech_stack` excluded — skill fields, not occupation.
+ *  - `occupation` itself excluded despite the name — it's
+ *    `filterableAttributes`-only on the live index, NOT in
+ *    `searchableAttributes`, so scoping to it would 400.
+ * What's left: `title`, `company`, `tags`.
+ */
+const TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON = ["title", "company", "tags"] as const;
+
 export function buildSearchBody(
   p: JobSearchParams,
   legacy: boolean,
@@ -821,6 +839,23 @@ export function buildSearchBody(
 ): MeiliSearchBody {
   const techSkillScoped =
     !opts?.companyScoped && !opts?.wholeDocument && isTechSkillQuery(p.q ?? "");
+  // Every other non-empty query, once the lanes above have had first refusal:
+  // scope retrieval to title-like fields so a description mention can't
+  // surface an unrelated title under matchingStrategy "all" (see the const
+  // above). Gated on `!wholeDocument` like `techSkillScoped` — the empty-pool
+  // relax pass in `runSearch` (`shouldRelaxSearch`/`mergeExpandedIntoStrict`)
+  // re-issues with `wholeDocument: true`, which must defeat this scope too,
+  // the same two-tier retrieval that already backs `techSkillScoped`.
+  // Excludes anything the role-title lane already owns
+  // (`shouldRunRoleTitleLane`) — those seniority+role pair queries reach
+  // `buildSearchBody` as `opts.titleScoped`, never through this branch, but a
+  // seniority-anchored query handed to this function directly (bypassing the
+  // lane) must still fall through to whole-document rather than double-scope.
+  const titleFirstScoped =
+    !opts?.wholeDocument &&
+    !techSkillScoped &&
+    Boolean((p.q ?? "").trim()) &&
+    !shouldRunRoleTitleLane(p.q ?? "", !!opts?.companyScoped);
   return {
     // `quoteShortTokens` only rewrites the text handed to Meilisearch — every
     // classifier below (`techSkillScoped`, `buildFilter`, …) still reads the
@@ -829,8 +864,11 @@ export function buildSearchBody(
     q: quoteShortTokens(p.q ?? ""),
     // Whole-document retrieval is the expand pass (`wholeDocument`) or an empty
     // browse — explicit sorts only change ORDER BY (`buildMeiliSort`), not
-    // which attributes may match. Scoped exceptions below, each narrower than
-    // the last and therefore always winning when more than one applies:
+    // which attributes may match. Applied identically under EVERY sort,
+    // including relevance, so an explicit sort only ever permutes this same
+    // pool (see `jobs-sort-set-invariance.test.ts`) — never selects a
+    // different one. Scoped exceptions below, each narrower than the last and
+    // therefore always winning when more than one applies:
     //  - `companyScoped`: the query text names an employer — see the
     //    "FOREMAN - SEAL & STRIPE" note in company-intent.ts. Restricts to
     //    `company` alone.
@@ -839,13 +877,18 @@ export function buildSearchBody(
     //  - `techSkillScoped`: standalone tech/programming language tokens
     //    (e.g. "Rust", "Swift", "Python") scope to title/tags/description
     //    to prevent non-tech company false positives (e.g. "Rust Medical Center").
+    //  - `titleFirstScoped`: every other non-empty query — scope to
+    //    `TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON` (title/company/tags) so a
+    //    description mention can't surface an unrelated title.
     ...(opts?.companyScoped
       ? { attributesToSearchOn: ["company"] }
       : opts?.titleScoped
         ? { attributesToSearchOn: ["title"] }
         : techSkillScoped
           ? { attributesToSearchOn: ["title", "tags", "description"] }
-          : {}),
+          : titleFirstScoped
+            ? { attributesToSearchOn: [...TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON] }
+            : {}),
     // Requiring every word is the honest default; `searchMeili` runs one
     // whole-document expand pass (`wholeDocument`) only after a strict/scoped
     // pass returns zero — never word-dropping (`matchingStrategy: "last"`).
