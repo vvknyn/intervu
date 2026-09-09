@@ -125,11 +125,13 @@ export function isPageSorted(hits: PublicJob[], mode: JobSortMode): boolean {
  * each tier sorted within itself), not the searchCutoffMs partial-sort
  * disorder this guard exists to catch.
  *
- * Retrieval is whole-document for every sort. The titled hits (matched via
- * the SAME `titleMatchesQuery` predicate the client-side seam partition
- * (`partitionByTitleMatch`, presentation.ts) uses) are still the 0-typo
- * bucket's visible face. Checking sortedness on that subsequence alone
- * restores a promise the guard can actually verify. Below the seam carries
+ * Retrieval is title-scoped (title/company/tags) for role queries under every
+ * sort, whole-document only for the tech-skill path and the empty-pool fallback.
+ * The titled hits (matched via the SAME `titleMatchesQuery` predicate the
+ * client-side seam partition (`partitionByTitleMatch`, presentation.ts) uses)
+ * are still the 0-typo bucket's visible face. Checking sortedness on that
+ * subsequence alone restores a promise the guard can actually verify. Below
+ * the seam carries
  * no such promise ("weaker matches" — see `seamSummarySorted`,
  * presentation.ts); it was never this guard's job to order that tail.
  *
