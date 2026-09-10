@@ -112,5 +112,13 @@ export const SITE_KEYWORDS = [
     "job application tracker",
     "careers",
     "employment",
+    "career opportunities",
+    "open positions",
+    "job openings",
+    "company career pages",
+    "employer career pages",
+    "we're hiring",
+    "hiring now",
+    "work at",
 ];
 

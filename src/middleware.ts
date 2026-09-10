@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authkit, handleAuthkitHeaders } from "@workos-inc/authkit-nextjs";
 import { isAuthGatedProductPath, loginRedirectUrl } from "@/lib/auth/product-routes";
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
+import { JOBS_QUERY_HEADER } from "@/lib/seo/jobs-query-header";
 import { JOBS_VISITOR_COOKIE, JOBS_VISITOR_COOKIE_MAX_AGE } from "@/lib/jobs-visitor-cookie";
 
 export async function middleware(request: NextRequest) {
@@ -18,10 +19,16 @@ export async function middleware(request: NextRequest) {
         return new NextResponse(null, { status: 403 });
     }
 
+    const { pathname } = request.nextUrl;
+    const jobsHasQuery =
+        pathname === "/jobs" && request.nextUrl.searchParams.toString().length > 0;
+    if (jobsHasQuery) {
+        request.headers.set(JOBS_QUERY_HEADER, "1");
+    }
+
     // WorkOS AuthKit session — composable pattern that integrates with
     // existing middleware logic rather than replacing it entirely.
     const { session, headers } = await authkit(request);
-    const { pathname } = request.nextUrl;
 
     // Protected routes: bounce to OUR branded /login with a `next=` return
     // param. The WorkOS hosted chooser (skillful-spoon-89.authkit.app) is
