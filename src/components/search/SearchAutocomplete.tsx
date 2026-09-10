@@ -4,7 +4,7 @@ import { Fragment, useState, useEffect, useRef, useSyncExternalStore, useImperat
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
-import { CircleNotch, Clock, MagnifyingGlass, Buildings, CaretRight } from "@phosphor-icons/react";
+import { CircleNotch, Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
 import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
@@ -18,6 +18,18 @@ interface SearchAutocompleteProps {
     value: string;
     onChange: (value: string) => void;
     onSearch: () => void;
+    /**
+     * Optional clear affordance. When provided and `value` is non-empty, this
+     * component renders its own "X" button, absolutely positioned at the
+     * input's right edge INSIDE its own relative wrapper, above the input's
+     * `z-20` (see the Input's `className` below). The stacking contract for
+     * any control layered over the field belongs to the field itself, not to
+     * a page-level sibling guessing at a z-index that has to beat the
+     * Input's — that guess is exactly what left the mobile jobs-page clear
+     * button unreachable (its sibling `z-10` lost to the Input's `z-20`).
+     * Omitted (the default) renders no button — existing callers unaffected.
+     */
+    onClear?: () => void;
     placeholder?: string;
     disabled?: boolean;
     className?: string; // Class for the Input
@@ -93,6 +105,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     value,
     onChange,
     onSearch,
+    onClear,
     placeholder,
     disabled,
     className,
@@ -162,6 +175,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const inputRef = useRef<HTMLInputElement>(null);
     const anchorRef = useRef<HTMLDivElement>(null);
     const showSuggestLoading = Boolean(suggest) && isOpen && value.trim().length > 0 && suggestLoading;
+    const showClear = Boolean(onClear) && value.length > 0;
     const dropdownOpen = isOpen && (suggestions.length > 0 || showSuggestLoading);
     const overlayRect = useAnchoredOverlayRect(anchorRef, dropdownOpen);
     useImperativeHandle(
@@ -299,7 +313,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     type="text"
                     aria-label={ariaLabel}
                     placeholder={placeholder}
-                    className={cn("relative z-20 transition-all", leadingIcon && "min-w-0 flex-1", className)}
+                    className={cn("relative z-20 transition-all", leadingIcon && "min-w-0 flex-1", showClear && "pr-10", className)}
                     value={value}
                     onChange={(e) => {
                         onChange(e.target.value);
@@ -320,6 +334,24 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     disabled={disabled}
                     autoFocus={autoFocus}
                 />
+                {/* z-30, strictly above the Input's z-20 — a sibling with a
+                    LOWER z-index here lost hit-testing to the (visually
+                    transparent) Input on top of it, which is the exact bug
+                    this button fixes. Kept inside this same shallow wrapper
+                    (not `containerClassName`) so it shares the Input's own
+                    stacking context rather than the caller's. */}
+                {showClear && (
+                    <button
+                        type="button"
+                        data-testid="search-input-clear"
+                        aria-label="Clear search"
+                        title="Clear search"
+                        onClick={() => onClear?.()}
+                        className="absolute right-1.5 z-30 flex h-10 w-10 items-center justify-center rounded-none bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5 lg:h-6 lg:w-6"
+                    >
+                        <X size={20} aria-hidden />
+                    </button>
+                )}
             </div>
 
             {/* Portaled so clipped ancestors (docked header `overflow-hidden`)
