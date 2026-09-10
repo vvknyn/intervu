@@ -19,6 +19,13 @@ export const LINKEDIN_JOBS_ALTERNATIVE = {
     "Velai is a LinkedIn Jobs alternative with no profile to polish and no Easy Apply pile. Jobs come from the company's career page and get screened for ghost-job risk.",
 } as const;
 
+export const ELUTA_ALTERNATIVE = {
+  path: "/eluta-alternative",
+  title: "Velai — Eluta alternative that reads the career page",
+  description:
+    "Velai is an Eluta alternative for Canada: jobs read from employer career pages, screened for freshness. Same career-page source class as Eluta, with stale-posting flags and listings outside Canada too.",
+} as const;
+
 export const INDEED_ALTERNATIVE_FAQ: FaqItem[] = [
   {
     question: "Is Velai an Indeed alternative?",
@@ -39,6 +46,24 @@ export const INDEED_ALTERNATIVE_FAQ: FaqItem[] = [
     question: "Is Velai free if I am leaving Indeed?",
     answer:
       "Searching jobs on Velai is free. There is no match score and no sponsored bump in the results.",
+  },
+];
+
+export const ELUTA_ALTERNATIVE_FAQ: FaqItem[] = [
+  {
+    question: "Is Velai an Eluta alternative?",
+    answer:
+      "Velai reads employer career pages the way Eluta crawls Canadian company sites — but also covers employers outside Canada and flags listings that look stale on the source page.",
+  },
+  {
+    question: "How is Velai different from Eluta?",
+    answer:
+      "Eluta focuses on Canada's Top 100 Employers and other Canadian sites. Velai uses the same class of read — the company's own hiring page — and adds freshness screening plus US and global career pages when you need more than a Canada-only catalog.",
+  },
+  {
+    question: "Should I use Eluta or Velai?",
+    answer:
+      "Keep Eluta if you want a Canada-only directory built around employer websites. Use Velai when you also want stale-posting flags and the same career-page read for roles beyond Canada.",
   },
 ];
 

@@ -20,6 +20,7 @@ import {
 } from "../../src/lib/follows/persist-copy";
 import { GUEST_AUTH_STRINGS } from "../../src/lib/auth/auth-gate-copy";
 import {
+  ELUTA_ALTERNATIVE,
   INDEED_ALTERNATIVE,
   LINKEDIN_JOBS_ALTERNATIVE,
 } from "../../src/lib/seo/alternatives";
@@ -61,6 +62,7 @@ const GUEST_STRINGS: Record<string, string> = {
   ...GUEST_AUTH_STRINGS,
   INDEED_ALTERNATIVE_DESCRIPTION: INDEED_ALTERNATIVE.description,
   LINKEDIN_JOBS_ALTERNATIVE_DESCRIPTION: LINKEDIN_JOBS_ALTERNATIVE.description,
+  ELUTA_ALTERNATIVE_DESCRIPTION: ELUTA_ALTERNATIVE.description,
   ...Object.fromEntries(
     CAREER_HUBS.flatMap((hub) => [
       [`CAREER_HUB_TITLE_${hub.slug}`, hub.title],

@@ -120,6 +120,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.7,
     },
+    {
+      url: `${siteUrl}/eluta-alternative`,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
     ...careerHubEntries,
     {
       url: `${siteUrl}/about`,

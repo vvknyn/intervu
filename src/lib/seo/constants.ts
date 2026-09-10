@@ -44,15 +44,15 @@ export const SITE_NAME = "Velai";
  *  jargon test bans machinery terms here. Agent/OpenClaw copy belongs to
  *  the opted-in surfaces (/connect, /openclaw). */
 export const LANDING_TITLE =
-    "Velai — Live Jobs from Company Career Pages | Verified & Ghost-Screened";
+    "Velai.app — Live jobs from company career pages";
 export const LANDING_DESCRIPTION =
-    "Search live jobs pulled directly from employer career pages — software, healthcare, trades, and more. Every role is screened for freshness, salary transparency, and ghost-job risk before you apply.";
+    "Search live jobs pulled directly from employer career pages in Canada and the US — software, healthcare, trades, and more. Every role is screened for freshness, salary transparency, and ghost-job risk before you apply.";
 
 /** Site-wide default meta description (root layout). Declared here — not in
  *  layout.tsx — so the jargon test covers every guest meta string in one
  *  place. */
 export const SITE_DESCRIPTION =
-    "Search live, verified remote and tech jobs directly from company career pages. Every role is screened for freshness, salary transparency, and ghost-job risk — the transparent alternative to Indeed and LinkedIn.";
+    "Search live, verified jobs from company career pages in Canada and the US. Every role is screened for freshness, salary transparency, and ghost-job risk — the transparent alternative to Indeed and LinkedIn.";
 
 /** Body text for the share primitive (components/ui/share-action.tsx) — sent
  *  as the native share sheet's `text` and prepended to the clipboard-fallback
@@ -78,6 +78,13 @@ export const SITE_KEYWORDS = [
     "canada remote jobs",
     "remote jobs canada",
     "remote jobs in canada",
+    "eluta alternative",
+    "jobs in canada",
+    "jobs in toronto",
+    "jobs in vancouver",
+    "jobs in montreal",
+    "jobs in calgary",
+    "jobs in ottawa",
     "remote jobs ontario",
     "remote jobs toronto",
     "remote jobs vancouver",
