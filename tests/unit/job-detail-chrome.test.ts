@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 const JOB_DETAIL = join(__dirname, "..", "..", "src", "components", "jobs", "JobDetail.tsx");
 const JOB_PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "[slug]", "page.tsx");
+const JOB_DOCUMENT = join(__dirname, "..", "..", "src", "components", "jobs", "JobDetailDocument.tsx");
 
 describe("JobDetail guest chrome", () => {
     it("uses one guest apply label in action surfaces", () => {
@@ -22,12 +23,34 @@ describe("JobDetail guest chrome", () => {
         assert.doesNotMatch(saveBtn, /<Check size=\{16\} \/>\s*\{goingAfter/);
     });
 
-    it("detail card owns the single visible title heading", () => {
+    it("the job title is the page heading only on the standalone document", () => {
+        // JobDetail mounts inside a page that already owns the h1 (the /jobs
+        // masthead, or the company name on /co), so its own title is a
+        // section heading, not the page heading. JobDetailDocument is the
+        // standalone /jobs/[slug] document and owns the single h1 itself.
         const detail = readFileSync(JOB_DETAIL, "utf8");
-        // The h1 renders the cased, decoded title (`jobTitle`, assigned from
-        // `presentJob(job).title` above) — not the raw `job.title` and not a
-        // bare `decodeText(job.title)` that skips title-casing.
-        assert.match(detail, /<h1[^>]*>\{jobTitle\}/);
+        assert.match(
+            detail,
+            /<h[2-6][^>]*>\{jobTitle\}/,
+            "the panel renders the presented (cased, decoded) title as a section heading",
+        );
+        assert.doesNotMatch(
+            detail,
+            /<h1\b/,
+            "JobDetail only mounts under a page that already owns the h1 (/jobs masthead, /co company name)",
+        );
+
+        const doc = readFileSync(JOB_DOCUMENT, "utf8");
+        assert.match(
+            doc,
+            /<h1[^>]*>\{jobTitle\}<\/h1>/,
+            "the standalone document's h1 must render the presented title",
+        );
+        assert.equal(
+            (doc.match(/<h1\b/g) ?? []).length,
+            1,
+            "the standalone document must own exactly one h1",
+        );
 
         const page = readFileSync(JOB_PAGE, "utf8");
         assert.doesNotMatch(page, /<h1[^>]*>\s*\{job\.title\}/);
