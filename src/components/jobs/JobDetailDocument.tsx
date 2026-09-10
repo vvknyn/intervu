@@ -13,7 +13,6 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import type { MatchScore } from "@/lib/match/score";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
-import { ReportListingButton } from "@/components/jobs/ReportListingButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
     assessedGhostSignals,
@@ -36,6 +35,7 @@ import {
     ghostMetaFor,
     locationText,
     salaryText,
+    titleCaseDisplay,
 } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
@@ -79,9 +79,9 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
     // text with no forced underline decoration.
     return (
         <div data-testid="job-detail-employer-card" className="border-t border-border py-6">
-            <div className="text-base font-semibold text-foreground">
+            <h2 className="text-base font-semibold text-foreground">
                 {companyBrand || "This company"}
-            </div>
+            </h2>
             {rail?.aboutLine && <p className="mt-2 max-w-[640px] text-sm leading-relaxed text-muted-foreground">{rail.aboutLine}</p>}
             {(showOpenCount || hasTrackRecord) && (
                 <div className="mt-4 flex flex-wrap gap-4">
@@ -164,6 +164,7 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
                 unknownCount={unknownCount}
                 verdictLabel={ghost.label}
                 verdictClassName={ghost.cls.split(" ").find((c) => c.startsWith("text-")) ?? ""}
+                headingLevel={2}
                 checkedText={checkedText}
             />
             {signals.length > 0 && (
@@ -280,6 +281,7 @@ export function JobDetailDocument({
     const salary = salaryText(job);
     const cleanedCompany = displayCompany(job.company, job.company_domain);
     const companyBrand = displayCompanyBrand(job.company, job.company_domain, job.title);
+    const jobTitle = titleCaseDisplay(decodeText(job.title));
     const location = locationText(job);
     const locationDisclosure = clampLocationSegments(location);
     const locationClamped = locationDisclosure.hidden.length > 0;
@@ -319,7 +321,7 @@ export function JobDetailDocument({
             <div className="flex items-start gap-4">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-xl font-semibold leading-snug text-foreground sm:text-2xl">{decodeText(job.title)}</h1>
+                    <h1 className="text-xl font-semibold leading-snug text-foreground sm:text-2xl">{jobTitle}</h1>
                     {matchScore && (
                         <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -333,9 +335,13 @@ export function JobDetailDocument({
                         ) : (
                             "Unknown company"
                         )}
-                        {" · "}
                         {/* Rulebook item b: at most one 16px pin as HIG prefix,
-                            no flag emoji ahead of it. */}
+                            no flag emoji ahead of it. No "·" before it — the
+                            pin already separates this from the company name
+                            above, and a wrap at narrow widths otherwise
+                            leaves a lone "·" dangling at the end of the
+                            company line. */}
+                        {" "}
                         <MapPin size={16} className="mr-0.5 inline-block align-[-1px] text-muted-foreground" aria-hidden />
                         {locationClamped ? (
                             <>
@@ -351,12 +357,6 @@ export function JobDetailDocument({
                         )}
                     </div>
                 </div>
-                {/* Rulebook item f: 40px bordered square → ghost 40px icon-only,
-                    no border. */}
-                <ReportListingButton
-                    job={job}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                />
             </div>
 
             {exceptionMark && (
@@ -455,7 +455,7 @@ export function JobDetailDocument({
                 <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
             </div>
             {reportJobEnabled && job.apply_url && (
-                <ReportJobButton jobUrl={job.apply_url} jobTitle={job.title} onRequireAuth={() => onRequestSignIn?.()} className="mt-2" />
+                <ReportJobButton jobUrl={job.apply_url} jobTitle={jobTitle} onRequireAuth={() => onRequestSignIn?.()} className="mt-2" />
             )}
         </div>
     );
@@ -464,10 +464,10 @@ export function JobDetailDocument({
 
     const postingEl = (
         <div data-testid="job-detail-posting" className="border-t border-border py-6">
-            <div className="mb-2 text-sm font-semibold text-foreground">About this role</div>
+            <h2 className="mb-2 text-sm font-semibold text-foreground">About this role</h2>
             {blocks.length > 0 ? (
                 <div className="max-w-[640px]">
-                    <JobDescription blocks={blocks} />
+                    <JobDescription blocks={blocks} headingLevel={3} />
                 </div>
             ) : (
                 <p className="max-w-[640px] text-base leading-normal text-foreground">
@@ -501,7 +501,7 @@ export function JobDetailDocument({
                 className="border-0 bg-transparent p-0 [&_button.bg-brand]:!border-0 [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!px-0 [&_button.bg-brand]:!text-brand [&_button.bg-brand]:hover:!bg-transparent [&_button.bg-brand]:hover:!underline"
                 job={{
                     id: job.id,
-                    title: decodeText(job.title),
+                    title: jobTitle,
                     company: companyBrand || job.company || "Unknown company",
                     location: locationText(job) || null,
                 }}
@@ -511,7 +511,7 @@ export function JobDetailDocument({
 
     const relatedEl = related.length > 0 && (
         <div data-testid="job-detail-related" className="border-t border-border py-6">
-            <div className="mb-2 text-sm font-semibold text-foreground">More like this</div>
+            <h2 className="mb-2 text-sm font-semibold text-foreground">More like this</h2>
             {/* Rulebook item h: rows separated only by a hairline, not
                 bordered cards — RelatedJobRow itself carries no border now
                 (see JobDetail.tsx), so this wrapper supplies the dividers. */}

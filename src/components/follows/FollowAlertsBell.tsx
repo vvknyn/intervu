@@ -11,7 +11,7 @@ import {
 import type { FollowAlertGroup } from "@/lib/follows/alerts";
 import { jobPostedMs } from "@/lib/follows/alerts";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
-import { locationText } from "@/lib/jobs/presentation";
+import { decodeText, locationText, placeWithWorkMode, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { PublicJob } from "@/lib/jobs/types";
 import { useFollows } from "@/lib/follows/use-follows";
@@ -142,7 +142,9 @@ export function FollowAlertsBell() {
 
         <ul className="max-h-[min(24rem,50vh)] divide-y divide-border overflow-y-auto">
           {rows.map(({ job, displayName }) => {
-            const loc = locationText(job);
+            // placeWithWorkMode: this row has no adjacent work-type chip, so
+            // it's the only place a remote/hybrid job's work mode can show.
+            const loc = placeWithWorkMode(locationText(job), job.work_type);
             const meta = loc ? `${displayName} · ${loc}` : displayName;
             return (
               <li key={job.id}>
@@ -153,7 +155,7 @@ export function FollowAlertsBell() {
                   className="flex items-center justify-between gap-3 px-4 py-3 text-sm transition-colors hover:text-brand"
                 >
                   <div className="min-w-0">
-                    <div className="truncate">{job.title}</div>
+                    <div className="truncate">{titleCaseDisplay(decodeText(job.title))}</div>
                     <div className="mt-0.5 truncate text-xs text-muted-foreground">
                       {meta}
                     </div>

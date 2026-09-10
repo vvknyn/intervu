@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Loading() {
     return (
-        <main
+        <div
             data-testid="connect-page"
             className="mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-8 py-10"
             role="status"
@@ -18,6 +18,6 @@ export default function Loading() {
                     <Skeleton className="h-64 w-full border border-border" />
                 </div>
             </div>
-        </main>
+        </div>
     );
 }

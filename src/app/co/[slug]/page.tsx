@@ -171,7 +171,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       </div>
 
       <CompanyFollowChannelProvider domain={data.domain} displayName={data.name}>
-      <main data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10">
+      <div data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10">
         {/* Identity header: name, the "is X hiring?" answer folded straight
             into the subtitle line (no separate boxed KPI card), and Follow
             as the page's one primary action — inverted-ink treatment via
@@ -362,7 +362,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             </CompanyExhaustGate>
           </div>
         )}
-      </main>
+      </div>
       </CompanyFollowChannelProvider>
     </div>
   );

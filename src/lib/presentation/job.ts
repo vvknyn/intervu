@@ -20,6 +20,7 @@ import {
   locationWithMode,
   LOCATION_UNKNOWN_TEXT,
   salaryText,
+  titleCaseDisplay,
   type RowMetaSegment,
 } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -45,7 +46,7 @@ export interface PresentedJob {
 export function presentJob(job: PublicJob): PresentedJob {
   const status = GHOST_BADGE_STATUS[job.ghost_badge];
   return {
-    title: decodeText(job.title),
+    title: titleCaseDisplay(decodeText(job.title)),
     company: presentCompany({ name: job.company, domain: job.company_domain, title: job.title }),
     location: locationSummary(locationText(job)),
     descriptionLede: descriptionLede(job.description),

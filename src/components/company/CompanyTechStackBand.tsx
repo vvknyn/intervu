@@ -1,4 +1,4 @@
-import type { TechFacts } from "@/lib/companies/exhaust";
+import type { ExhaustSection, TechFacts } from "@/lib/companies/exhaust";
 
 /**
  * Band 8 (gated) — "Hiring infrastructure", at the consumer altitude the
@@ -9,7 +9,7 @@ import type { TechFacts } from "@/lib/companies/exhaust";
 export function CompanyTechStackBand({
   techStack,
 }: {
-  techStack: { data: TechFacts; source: string; asOf: string } | null;
+  techStack: ExhaustSection<TechFacts>;
 }) {
   if (!techStack) return null;
   const { groups, techTier, totalLiveTechs } = techStack.data;
@@ -29,7 +29,7 @@ export function CompanyTechStackBand({
       {groups.length > 0 && (
         <p className="mt-3 text-xs text-foreground">{groups.join(" · ")}</p>
       )}
-      <p className="mono-data mt-3 text-xs text-muted-foreground">{techStack.source}</p>
+      <p className="mono-data mt-3 text-xs text-muted-foreground">{techStack.label}</p>
     </section>
   );
 }

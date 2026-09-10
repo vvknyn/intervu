@@ -54,6 +54,9 @@ interface LocationComboboxProps {
     className?: string;
     containerClassName?: string;
     "data-testid"?: string;
+    /** Accessible name for the underlying `<input>` — it has no visible
+     *  `<label>`, only a placeholder that changes once a place is chosen. */
+    ariaLabel?: string;
 }
 
 /** Flatten groups to the flat list keyboard navigation moves through — the
@@ -108,6 +111,7 @@ export function LocationCombobox({
     className,
     containerClassName,
     "data-testid": testId = "location-input",
+    ariaLabel = "Location",
 }: LocationComboboxProps) {
     const [groups, setGroups] = useState<LocationSuggestGroup[]>([]);
     const [fetching, setFetching] = useState(false);
@@ -254,6 +258,7 @@ export function LocationCombobox({
                 data-testid={testId}
                 type="text"
                 role="combobox"
+                aria-label={ariaLabel}
                 aria-expanded={open}
                 aria-autocomplete="list"
                 aria-controls="location-suggestions"

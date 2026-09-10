@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <main data-testid="contact-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div data-testid="contact-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <header>
         <h1 className="font-display text-title-lg font-semibold text-foreground">Contact</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
@@ -33,6 +33,6 @@ export default function ContactPage() {
         <span aria-hidden className="inline-block h-[9px] w-[9px] bg-brand" />
         the velai team · job data by Subspace
       </div>
-    </main>
+    </div>
   );
 }

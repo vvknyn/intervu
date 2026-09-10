@@ -19,7 +19,7 @@ import {
     type McpHandoffClient,
 } from "@/lib/mcp/job-handoff";
 import { dismissApplyIntent } from "@/lib/jobs/apply-intent";
-import { decodeText, displayCompanyBrand, locationText } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
 
@@ -70,7 +70,7 @@ export function ApplyIntentDialog({
     // "REQ123 Acme" into another product's UI, not just intervu's own.
     const handoffJob: JobHandoffInput = {
         id: job.id,
-        title: decodeText(job.title),
+        title: titleCaseDisplay(decodeText(job.title)),
         company: displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company",
         location: locationText(job) || null,
     };

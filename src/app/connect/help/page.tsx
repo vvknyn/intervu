@@ -64,7 +64,7 @@ export default function ConnectHelpPage() {
   const MCP_CONNECTOR_URL = mcpConnectorUrl(issuer);
   const OPENCLAW_INSTALL_COMMAND = openclawInstallCommand(issuer);
   return (
-    <main data-testid="connect-help-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div data-testid="connect-help-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <p className="text-xs font-semibold text-muted-foreground">
         Setup help
       </p>
@@ -339,6 +339,6 @@ export default function ConnectHelpPage() {
           </p>
         </HelpSection>
       </div>
-    </main>
+    </div>
   );
 }

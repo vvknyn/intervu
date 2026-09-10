@@ -52,4 +52,23 @@ describe("toSectionItem", () => {
     const item = toSectionItem(job({ company: null, company_domain: null }), "https://intervuhq.com");
     assert.equal(item.company, "Unknown company");
   });
+
+  // E3: this email has no separate work-type chip (unlike the SERP/detail
+  // panes), so it's the only place a remote/hybrid job's work mode shows up
+  // at all — toSectionItem folds it onto the place via placeWithWorkMode.
+  it("a remote job with a real place renders the place and the mode as two segments", () => {
+    const item = toSectionItem(
+      job({ location: null, location_city: "Milan", location_state: null, location_country: "Italy" }),
+      "https://intervuhq.com",
+    );
+    assert.equal(item.location, "Milan, Italy · Remote");
+  });
+
+  // Class case, not just the motivating one: a job with NO structured place
+  // (locationText's own bare-word fallback, exactly the default fixture
+  // above) must not double up into "Remote · Remote".
+  it("a remote job with no place at all still reads as a single 'Remote', not a doubled one", () => {
+    const item = toSectionItem(job(), "https://intervuhq.com");
+    assert.equal(item.location, "Remote");
+  });
 });

@@ -17,7 +17,7 @@ import {
 import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
 import { serializeJobsUrl } from "@/lib/jobs/url-state";
 import { jobPath } from "@/lib/jobs/job-slug";
-import { displayCompanyBrand, locationText } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, locationText, placeWithWorkMode, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { domainToSlug } from "@/lib/boards/slug";
 import { getAgentPreferences } from "@/lib/agent/preferences";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -35,18 +35,20 @@ import {
 
 export function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionItem {
   return {
-    title: job.title,
+    title: titleCaseDisplay(decodeText(job.title)),
     // The index carries the ATS-stated raw name (intervu owns display-time
     // cleaning, not ingest) — `digest.ts` prints `item.company` straight into
     // the sent HTML/text email, so it needs the same chain the SERP/detail
     // panes apply, not the raw corpus string this used to pass through.
     company: displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company",
     href: `${siteUrl}${jobPath(job)}`,
-    // The site's own formatter, not a second one: it already handles the
-    // "Remote ·" prefix, multi-country arrays, and the "[object Object]"
-    // junk class the corpus carries in both the free-text and structured
-    // location fields.
-    location: locationText(job),
+    // The site's own formatter, not a second one: it already handles
+    // multi-country arrays and the "[object Object]" junk class the corpus
+    // carries in both the free-text and structured location fields. This
+    // email has no separate work-type chip, so placeWithWorkMode folds the
+    // mode onto the place as its own " · Mode" segment — the same token the
+    // SERP/detail panes' adjacent chip would show.
+    location: placeWithWorkMode(locationText(job), job.work_type),
   };
 }
 
