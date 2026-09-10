@@ -296,6 +296,53 @@ got_shape="$(
 unset -f ssh sudo psql
 check "step2_set_password: psql's command tag on the remote stdout never leaks into the staged password" "$got_shape" "SHAPE_OK"
 
+# --- step6_prove_e2e: the poll line surfaces psql's REAL failure reason ---
+# (the class of bug this whole change fixes: a wrong dbname, the
+# check_name/check_id column typo, and every other psql failure used to
+# print the exact same generic "<query failed>" for the whole 30-minute
+# poll window — indistinguishable from each other). Each case fakes ssh
+# (same "ssh() { bash -s; }" trick step2_set_password's test uses above —
+# hands the REMOTE_POLL heredoc to a fresh bash instead of a real box) and
+# a psql that always fails with a fixed, DIFFERENT stderr string, then
+# asserts that exact string lands in the printed poll line.
+# POLL_TIMEOUT_S=1 / POLL_INTERVAL_S=1 are prefix assignments — bash
+# restores the prior (sourced-in) values once the call returns — that bound
+# each run to about one second: psql never succeeds in this fixture, so the
+# loop runs exactly once before its deadline passes.
+depdir6="$FX/deploy-dir-step6"
+mkdir -p "$depdir6"
+env_file6="$depdir6/intervu.env"
+cat > "$env_file6" <<'EOF'
+BATCH_PG_URL=postgresql://pipeline:fakepw@example:5432/telemetry
+EOF
+
+ssh() { bash -s; }
+
+psql() { echo 'ERROR: column "check_name" does not exist' >&2; return 1; }
+export -f psql
+poll_out="$(ENV_FILE="$env_file6" POLL_TIMEOUT_S=1 POLL_INTERVAL_S=1 step6_prove_e2e 2>&1)" || true
+unset -f psql
+echo "$poll_out" | grep -qF 'count=<query failed: ERROR: column "check_name" does not exist>' && r=pass || r=fail
+check "step6 poll line surfaces the column-does-not-exist failure (case (a); the bug this change fixes)" "$r" pass
+
+psql() { echo 'psql: error: connection to server at "169.58.140.49", port 5432 failed: FATAL: database "wrongdb" does not exist' >&2; return 2; }
+export -f psql
+poll_out2="$(ENV_FILE="$env_file6" POLL_TIMEOUT_S=1 POLL_INTERVAL_S=1 step6_prove_e2e 2>&1)" || true
+unset -f psql
+echo "$poll_out2" | grep -qF 'count=<query failed: psql: error: connection to server at "169.58.140.49", port 5432 failed: FATAL: database "wrongdb" does not exist>' && r=pass || r=fail
+check "step6 poll line surfaces a DIFFERENT failure reason too (case (b); proves the mechanism is general, not hardcoded to one string)" "$r" pass
+
+unset -f ssh
+
+# --- (c) starvation query selects by check_id — the column ops_check_results
+# actually has (supabase/migrations/20260903002000_ops_check_results.sql;
+# get-ops-health.ts) — never check_name, which does not exist on that table.
+occurrences_check_id="$(grep -cF "check_id = 'telemetry.ingest_starvation'" "$SCRIPT_DIR/launch-telemetry-ingest.sh")" || true
+check "step6's starvation query filters on check_id" "$occurrences_check_id" 1
+
+occurrences_check_name="$(grep -c 'check_name' "$SCRIPT_DIR/launch-telemetry-ingest.sh")" || true
+check "check_name (the column that does not exist on ops_check_results) is gone from the script" "$occurrences_check_name" 0
+
 echo
 if [[ "$fail" -eq 0 ]]; then
   echo "ALL TESTS PASSED"

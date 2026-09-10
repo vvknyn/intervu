@@ -440,6 +440,39 @@ REMOTE_VERIFY
   echo "step 5 OK"
 }
 
+# run_poll_query <sql>
+# NOT a pure helper (it shells out to psql) — kept next to step6, the only
+# caller, rather than in the pure-helpers block above. Runs
+# `psql -qAt -c <sql>`, merging stderr into the same capture: for a single
+# `-c` statement psql prints nothing to stdout on failure and nothing to
+# stderr on success, so the merge can't conflate a value with an error.
+# On success: POLL_QUERY_VALUE=<psql's output>, POLL_QUERY_ERR="", returns 0.
+# On failure: POLL_QUERY_VALUE="" (preserving the pre-existing "empty means
+# unobservable" contract every caller already relies on — see
+# ops_check_left_crit's own docblock) and POLL_QUERY_ERR=<first line of
+# psql's stderr, capped to 200 chars>; returns psql's exit status. Exists so
+# step6's poll can tell a wrong dbname, a wrong column name, and any other
+# psql failure apart, instead of collapsing all of them into one generic
+# "<query failed>" for the whole poll window. Embedded into the remote poll
+# via `$(declare -f run_poll_query)`, same mechanism as the helpers below.
+# shellcheck disable=SC2034  # POLL_QUERY_VALUE/POLL_QUERY_ERR are read from
+# the REMOTE_POLL heredoc via "\$POLL_QUERY_VALUE"/"\$POLL_QUERY_ERR" —
+# escaped so they expand on the remote box, not here — which shellcheck's
+# single-file analysis can't see, so it (falsely) flags both as unused.
+run_poll_query() {
+  local sql="$1" out rc
+  out="$(psql -qAt -c "$sql" 2>&1)"
+  rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    POLL_QUERY_VALUE="$out"
+    POLL_QUERY_ERR=""
+  else
+    POLL_QUERY_VALUE=""
+    POLL_QUERY_ERR="$(printf '%s' "$out" | head -n1 | cut -c1-200)"
+  fi
+  return "$rc"
+}
+
 step6_prove_e2e() {
   echo "=== step 6: poll for real ingest — no synthetic row is ever written (see header) ==="
   echo "timeout=${POLL_TIMEOUT_S}s interval=${POLL_INTERVAL_S}s — generate a real hit (e.g. browse the live site) while this polls"
@@ -455,15 +488,28 @@ deploy_dir="\$(dirname "\$env_file")"
 $(declare -f ops_check_left_crit)
 $(declare -f read_key_from_deploy_dir)
 $(declare -f pg_env_from_url)
+$(declare -f run_poll_query)
 batch_url="\$(read_key_from_deploy_dir "\$deploy_dir" BATCH_PG_URL)"
 pg_env_from_url "\$batch_url" || { echo "BATCH_PG_URL: not a parseable postgresql://user:pass@host[:port]/db URL" >&2; exit 1; }
 deadline=\$(( \$(date +%s) + $POLL_TIMEOUT_S ))
 count_ok=0
 starv_ok=0
 while [[ \$(date +%s) -lt \$deadline ]]; do
-  count="\$(psql -qAt -c 'select count(*) from intervu.telemetry_events')" || count=""
-  status="\$(psql -qAt -c "select status from ops_check_results where check_name = 'telemetry.ingest_starvation'")" || status=""
-  echo "\$(date -u +%H:%M:%SZ)  telemetry_events count=\${count:-<query failed>}  ingest_starvation status=\${status:-<query failed>}"
+  if run_poll_query 'select count(*) from intervu.telemetry_events'; then
+    count="\$POLL_QUERY_VALUE"
+    count_disp="\$count"
+  else
+    count=""
+    count_disp="<query failed: \$POLL_QUERY_ERR>"
+  fi
+  if run_poll_query "select status from ops_check_results where check_id = 'telemetry.ingest_starvation'"; then
+    status="\$POLL_QUERY_VALUE"
+    status_disp="\$status"
+  else
+    status=""
+    status_disp="<query failed: \$POLL_QUERY_ERR>"
+  fi
+  echo "\$(date -u +%H:%M:%SZ)  telemetry_events count=\$count_disp  ingest_starvation status=\$status_disp"
   if [[ "\$count" =~ ^[0-9]+$ ]] && [[ "\$count" -gt 0 ]]; then count_ok=1; fi
   ops_check_left_crit "\$status" && starv_ok=1
   [[ "\$count_ok" -eq 1 && "\$starv_ok" -eq 1 ]] && break
