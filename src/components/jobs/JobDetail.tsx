@@ -988,10 +988,12 @@ export function JobDetail({
                     {(() => {
                         // The employer's-site-is-slow note — shared by the "body" case
                         // (teaser stub still showing while the fill runs) and the
-                        // "pending" case (nothing to show yet at all). Single copy of
-                        // the sentence rather than two near-identical paragraphs.
-                        const pendingNote = (
+                        // "pending" case (nothing to show yet at all). Single element
+                        // with a conditional lead sentence rather than two near-
+                        // identical paragraphs.
+                        const pendingNote = (previewLead: boolean) => (
                             <p className="max-w-[640px] text-base leading-normal text-foreground">
+                                {previewLead && "This is only a preview. "}
                                 The employer&apos;s site is taking a while to answer, so the full description isn&apos;t here yet.
                                 {job.apply_url ? " Open the posting to read it there, or " : " "}
                                 {onRetryDescription ? (
@@ -1033,7 +1035,7 @@ export function JobDetail({
                                         )}
                                         {/* Teaser stub rendered above AND the live fill is
                                             still running — the body isn't final. */}
-                                        {descriptionPending && pendingNote}
+                                        {descriptionPending && pendingNote(true)}
                                     </>
                                 );
                             case "loading":
@@ -1060,7 +1062,7 @@ export function JobDetail({
                                     </>
                                 );
                             case "pending":
-                                return pendingNote;
+                                return pendingNote(false);
                             case "empty":
                             default:
                                 return (

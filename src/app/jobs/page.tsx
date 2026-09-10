@@ -152,6 +152,7 @@ import {
     resolveSelectionAfterRefresh,
     resolveGhostReveal,
     classifyExistenceCheck,
+    type ExistenceCheckStatus,
     resolveEmptySearchState,
     resolveJobsRenderMode,
     resolveJobsResultsPanel,
@@ -2744,9 +2745,7 @@ function JobsContent() {
     // stale result for a since-abandoned id can never render — no explicit
     // cleanup needed.
     const [deadJobCheck, setDeadJobCheck] = useState<
-        | { id: string; status: "checking" | "not_found" | "unknown" }
-        | { id: string; status: "found"; job: PublicJob; descriptionPending: boolean }
-        | null
+        { id: string; status: "checking" } | ({ id: string } & ExistenceCheckStatus) | null
     >(null);
     const deadJobGuardRef = useRef<FitIntentGuard | null>(null);
     if (!deadJobGuardRef.current) deadJobGuardRef.current = new FitIntentGuard();
@@ -2779,12 +2778,7 @@ function JobsContent() {
                 // hypothetical: verified live that `id = ...` currently
                 // 400s against production until the index picks up the
                 // `filterableAttributes` addition in meilisearch.ts.
-                const classified = classifyExistenceCheck(id, r);
-                setDeadJobCheck(
-                    classified.status === "found"
-                        ? { id, ...classified, descriptionPending: Boolean(r.descriptionPending) }
-                        : { id, ...classified },
-                );
+                setDeadJobCheck({ id, ...classifyExistenceCheck(id, r) });
             } catch {
                 if (deadJobGuardRef.current!.isCurrent(token)) setDeadJobCheck({ id, status: "unknown" });
             }

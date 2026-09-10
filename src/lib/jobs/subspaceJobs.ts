@@ -57,20 +57,19 @@ interface FillDescriptionsEnvelope {
   data: Array<{ id: string; description: string | null }>;
 }
 
-async function postJson<T>(path: string, body: unknown, opts?: { timeoutMs?: number }): Promise<T> {
-  const url = new URL(`${baseUrl()}${path}`);
-
-  let res: Response;
+/** Shared by `postJson`/`getJson`: issues `fetch`, applying `opts.timeoutMs`
+ *  as an abort deadline, and maps a fired deadline vs. any other rejection
+ *  to a distinguishable `SubspaceJobsError` (`isSubspaceTimeout` reads the
+ *  "timeout" code this assigns). */
+async function fetchWithDeadline(
+  path: string,
+  url: string,
+  init: RequestInit,
+  opts?: { timeoutMs?: number },
+): Promise<Response> {
   try {
-    res = await fetch(url.toString(), {
-      method: "POST",
-      headers: {
-        "x-api-key": requireApiKey(),
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify(body),
-      cache: "no-store",
+    return await fetch(url, {
+      ...init,
       ...(opts?.timeoutMs != null ? { signal: AbortSignal.timeout(opts.timeoutMs) } : {}),
     });
   } catch (e) {
@@ -83,6 +82,26 @@ async function postJson<T>(path: string, body: unknown, opts?: { timeoutMs?: num
       "network_error",
     );
   }
+}
+
+async function postJson<T>(path: string, body: unknown, opts?: { timeoutMs?: number }): Promise<T> {
+  const url = new URL(`${baseUrl()}${path}`);
+
+  const res = await fetchWithDeadline(
+    path,
+    url.toString(),
+    {
+      method: "POST",
+      headers: {
+        "x-api-key": requireApiKey(),
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+    opts,
+  );
 
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
@@ -112,24 +131,16 @@ async function getJson(
     if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
   }
 
-  let res: Response;
-  try {
-    res = await fetch(url.toString(), {
+  const res = await fetchWithDeadline(
+    path,
+    url.toString(),
+    {
       headers: { "x-api-key": requireApiKey(), accept: "application/json" },
       // Always read the source of truth; intervu does its own caching/indexing.
       cache: "no-store",
-      ...(opts?.timeoutMs != null ? { signal: AbortSignal.timeout(opts.timeoutMs) } : {}),
-    });
-  } catch (e) {
-    if (e instanceof Error && e.name === "TimeoutError") {
-      throw new SubspaceJobsError(`Timed out after ${opts?.timeoutMs} ms calling ${path}`, undefined, "timeout");
-    }
-    throw new SubspaceJobsError(
-      `Network error calling ${path}: ${e instanceof Error ? e.message : String(e)}`,
-      undefined,
-      "network_error",
-    );
-  }
+    },
+    opts,
+  );
 
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
@@ -156,9 +167,13 @@ export interface SnapshotPage {
 
 /** One page of the full active corpus. `limit` default 500, max 1000. */
 export async function getSnapshot(
-  opts: { cursor?: string; limit?: number } = {},
+  opts: { cursor?: string; limit?: number; timeoutMs?: number } = {},
 ): Promise<SnapshotPage> {
-  const env = await getJson("/jobs/snapshot", { cursor: opts.cursor, limit: opts.limit });
+  const env = await getJson(
+    "/jobs/snapshot",
+    { cursor: opts.cursor, limit: opts.limit },
+    { timeoutMs: opts.timeoutMs },
+  );
   return { jobs: env.data ?? [], nextCursor: env.meta?.next_cursor ?? null };
 }
 

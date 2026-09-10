@@ -28,7 +28,9 @@ import {
     type FilterState,
 } from '../../src/components/jobs/FilterPanel';
 
-function result(overrides: Partial<JobSearchResult> = {}): JobSearchResult {
+function result(
+    overrides: Partial<JobSearchResult> & { descriptionPending?: boolean } = {},
+): JobSearchResult & { descriptionPending?: boolean } {
     return {
         hits: [],
         total: 0,
@@ -194,7 +196,14 @@ describe('classifyExistenceCheck', () => {
     it('found: the id is in the result hits', () => {
         assert.deepEqual(
             classifyExistenceCheck('abc-123', result({ hits: [job], total: 1 })),
-            { status: 'found', job },
+            { status: 'found', job, descriptionPending: false },
+        );
+    });
+
+    it('found: descriptionPending is carried through when the fill hit its deadline', () => {
+        assert.deepEqual(
+            classifyExistenceCheck('abc-123', result({ hits: [job], total: 1, descriptionPending: true })),
+            { status: 'found', job, descriptionPending: true },
         );
     });
 
