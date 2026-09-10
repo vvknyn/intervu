@@ -4411,28 +4411,16 @@ function JobsContent() {
                     searchAutocompleteRef.current?.close();
                     submitSearch(queryDraft);
                 }}
+                onClear={() => {
+                    setQueryDraft("");
+                    submitSearch("");
+                }}
                 suggest={suggestForBox}
                 seeds={searchSeeds}
                 placeholder={SEARCH_PLACEHOLDER}
                 className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
-            {queryDraft && (
-                <button
-                    type="button"
-                    data-testid="topbar-docked-clear"
-                    aria-label="Clear query"
-                    title="Clear query"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                        setQueryDraft("");
-                        submitSearch("");
-                    }}
-                    className="mr-0.5 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    <X size={20} aria-hidden />
-                </button>
-            )}
         </div>
     );
 
@@ -4684,33 +4672,22 @@ function JobsContent() {
                                         setQueryDraft(v);
                                     }}
                                     onSearch={() => submitSearch(queryDraft)}
+                                    // NOT `results-clear-query` — that is the toolbar's
+                                    // "✕ clear search", which also drops the location draft
+                                    // and the location_country facet. This one empties the
+                                    // field and re-runs, nothing else. Two behaviours behind
+                                    // one testid made either selector ambiguous.
+                                    onClear={() => {
+                                        setQueryDraft("");
+                                        submitSearch("");
+                                    }}
                                     suggest={suggestForBox}
                                     seeds={searchSeeds}
                                     placeholder={SEARCH_PLACEHOLDER}
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
-                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 pr-8"
+                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0"
                                     containerClassName="min-w-0 w-full"
                                 />
-                                {/* NOT `results-clear-query` — that is the toolbar's
-                                    "✕ clear search", which also drops the location draft
-                                    and the location_country facet. This one empties the
-                                    field and re-runs, nothing else. Two behaviours behind
-                                    one testid made either selector ambiguous. */}
-                                {queryDraft && (
-                                    <button
-                                        type="button"
-                                        data-testid="search-input-clear"
-                                        aria-label="Clear query"
-                                        onClick={() => {
-                                            setQueryDraft("");
-                                            submitSearch("");
-                                        }}
-                                        className="absolute right-1.5 flex h-10 w-10 items-center justify-center rounded-none bg-muted text-muted-foreground hover:text-foreground z-10 lg:right-2.5 lg:h-6 lg:w-6"
-                                        title="Clear query"
-                                    >
-                                        <X size={20} aria-hidden />
-                                    </button>
-                                )}
                             </div>
                             {/* Glyph as a row sibling, not an absolute overlay +
                                 `pl-*` on the field — same reason as
@@ -4830,6 +4807,10 @@ function JobsContent() {
                         `savedSearchControl`) was already the one rendering it —
                         the mobile SERP's blank ~44px band under the search bar. */}
                     {!showLandingMarketing && (activeCategory || (!showJobsToolbarRow && canSaveSearch)) && (
+                        /* Chip rows separate by `gap` on purpose — a glyph
+                           separator as its own flex item lands at the start
+                           of a wrapped line; `DotSeparated` is for inline
+                           text runs, not chips. */
                         <div
                             data-testid="active-category-indicator"
                             className="mt-1 flex min-h-[2.75rem] flex-wrap items-center gap-1.5 px-0.5 text-xs text-muted-foreground sm:min-h-0"
@@ -4840,7 +4821,6 @@ function JobsContent() {
                                         Searching:
                                     </span>
                                     <span>{activeCategory.title}</span>
-                                    <span aria-hidden className="text-border">·</span>
                                     <button
                                         type="button"
                                         onClick={handleClearSearch}
@@ -4848,7 +4828,6 @@ function JobsContent() {
                                     >
                                         clear ✕
                                     </button>
-                                    {canSaveSearch && !showJobsToolbarRow && <span aria-hidden className="text-border">·</span>}
                                 </>
                             )}
                             {!showJobsToolbarRow && savedSearchControl}

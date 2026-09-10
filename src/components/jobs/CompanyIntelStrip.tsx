@@ -1,4 +1,5 @@
 import { companyIntelSegments, type CompanyIntelFields } from "@/lib/jobs/company-intel";
+import { DotSeparated } from "@/components/ui/dot-separated";
 import { cn } from "@/lib/utils";
 
 export function CompanyIntelStrip({
@@ -22,12 +23,11 @@ export function CompanyIntelStrip({
 
   return (
     <div className="elite-intel" data-testid="company-intel">
-      {segs.map((seg, i) => (
-        <span key={`${seg.text}-${i}`} className="inline-flex items-center gap-1.5">
-          {i > 0 && <span className="elite-intel-sep" aria-hidden>·</span>}
-          <span className={cn(seg.hot && "elite-intel-hot")}>{seg.text}</span>
-        </span>
-      ))}
+      <DotSeparated
+        items={segs.map((seg, i) => (
+          <span key={`${seg.text}-${i}`} className={cn(seg.hot && "elite-intel-hot")}>{seg.text}</span>
+        ))}
+      />
     </div>
   );
 }
