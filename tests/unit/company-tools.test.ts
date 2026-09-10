@@ -166,7 +166,7 @@ describe('toolGetCompanyTimeline', () => {
       occurredAt: `2026-08-${20 + i}T00:00:00.000Z`, confidence: 0.8,
     }));
     const deps = baseDeps({
-      getCompanyExhaust: async () => makeExhaust({ changeHistory: { data: events, source: 'x', asOf: '2026-08-27T00:00:00.000Z' } }),
+      getCompanyExhaust: async () => makeExhaust({ changeHistory: { data: events, source: 'x', label: 'x', asOf: '2026-08-27T00:00:00.000Z' } }),
     });
     const out = await toolGetCompanyTimeline(deps, { slug_or_domain: 'acme.com', limit: 2 });
     assert.deepEqual(out, { events: events.slice(0, 2) });
@@ -178,7 +178,7 @@ describe('toolGetCompanyTimeline', () => {
       occurredAt: '2026-08-20T00:00:00.000Z', confidence: null,
     }));
     const deps = baseDeps({
-      getCompanyExhaust: async () => makeExhaust({ changeHistory: { data: events, source: 'x', asOf: '2026-08-27T00:00:00.000Z' } }),
+      getCompanyExhaust: async () => makeExhaust({ changeHistory: { data: events, source: 'x', label: 'x', asOf: '2026-08-27T00:00:00.000Z' } }),
     });
     const out = await toolGetCompanyTimeline(deps, { slug_or_domain: 'acme.com', limit: 999 });
     if ('error' in out) throw new Error('unexpected error shape');

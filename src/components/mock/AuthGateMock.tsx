@@ -24,6 +24,7 @@ import {
     locationText,
     postedAgeShort,
     salaryText,
+    titleCaseDisplay,
 } from "@/lib/jobs/presentation";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -153,7 +154,7 @@ function MockJobRow({ job, onClick }: { job: PublicJob; onClick: () => void }) {
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
             <div className="min-w-0 text-left">
-                <div className="text-sm font-semibold leading-snug">{decodeText(job.title)}</div>
+                <div className="text-sm font-semibold leading-snug">{titleCaseDisplay(decodeText(job.title))}</div>
                 <div className="mt-1 text-xs text-muted-foreground">{cleanCompany(job.company)}</div>
             </div>
             <span className="inline-flex h-fit items-center rounded-full border border-live-tint-border bg-live-tint-bg px-1.5 py-0.5 text-xs text-verdict-live">

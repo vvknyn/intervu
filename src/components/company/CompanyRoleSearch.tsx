@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { companyRowMetaSegments } from "@/lib/presentation";
@@ -277,7 +277,7 @@ export function CompanyRoleSearch({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <div className="text-base font-semibold text-foreground group-hover:text-brand transition-colors">
-                        {decodeText(job.title)}
+                        {titleCaseDisplay(decodeText(job.title))}
                       </div>
                       {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />}
                     </div>

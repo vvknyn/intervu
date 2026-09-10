@@ -1,4 +1,4 @@
-import type { IntegrityFacts } from "@/lib/companies/exhaust";
+import type { ExhaustSection, IntegrityFacts } from "@/lib/companies/exhaust";
 
 /**
  * Band 6 (gated) — "How their postings behave": counts by `closed_reason`
@@ -10,7 +10,7 @@ import type { IntegrityFacts } from "@/lib/companies/exhaust";
 export function CompanyIntegrityBand({
   integrity,
 }: {
-  integrity: { data: IntegrityFacts; source: string; asOf: string } | null;
+  integrity: ExhaustSection<IntegrityFacts>;
 }) {
   if (!integrity) return null;
   const { closedReasonCounts, openedCount } = integrity.data;
@@ -51,7 +51,7 @@ export function CompanyIntegrityBand({
           </table>
         </div>
       )}
-      <p className="mono-data mt-3 text-xs text-muted-foreground">{integrity.source} · window 90 days</p>
+      <p className="mono-data mt-3 text-xs text-muted-foreground">{integrity.label} · window 90 days</p>
     </section>
   );
 }

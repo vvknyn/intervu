@@ -202,7 +202,8 @@
      opaque #8D8D8D placeholder, so this is a new token (wiring it into
      input classNames is a later phase, not a globals.css change). */
   --placeholder-text: 141 141 141;
-  --live: 14 159 78;
+  --live: 21 128 61; /* was 14 159 78 (#0E9F4E, 3.45:1 on white) — failed WCAG AA
+     for 12-14px text. #15803D is ≈5.0:1 on white / ≈4.6:1 on --chip #F4F4F4. */
   /* Named for the ROLE (the tint that accompanies --live), not for a hue.
      These held blue-50/blue-100/blue-200 under `--green-tint-*` names ever
      since the accent moved from emerald to Klein blue — a token whose name

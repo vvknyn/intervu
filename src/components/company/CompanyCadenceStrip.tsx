@@ -1,5 +1,5 @@
 import { eventDate } from "@/components/company/CompanyChangeEvents";
-import type { WeeklyCadence } from "@/lib/companies/exhaust";
+import type { ExhaustSection, WeeklyCadence } from "@/lib/companies/exhaust";
 
 /**
  * Band 3 — the posting-cadence strip, the page's signature band (design
@@ -12,7 +12,7 @@ import type { WeeklyCadence } from "@/lib/companies/exhaust";
 export function CompanyCadenceStrip({
   cadence,
 }: {
-  cadence: { data: WeeklyCadence[]; source: string; asOf: string } | null;
+  cadence: ExhaustSection<WeeklyCadence[]>;
 }) {
   if (!cadence || cadence.data.length === 0) return null;
   const weeks = cadence.data;
@@ -48,7 +48,7 @@ export function CompanyCadenceStrip({
         <span className="mono-data">{last}</span>
       </div>
       <p className="mono-data mt-3 text-xs text-muted-foreground">
-        {cadence.source} · weekly buckets
+        {cadence.label} · weekly buckets
       </p>
     </section>
   );

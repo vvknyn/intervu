@@ -170,10 +170,43 @@ export function rowExceptionMeta(job: GhostChecked, nowMs: number) {
  * too — there is no signal in a bare string to tell them apart. Presentation-
  * only: callers never write the result back to the stored record.
  */
+/**
+ * Small connectors `titleCaseDisplay` lowercases mid-title (never as the
+ * first token) — English + French, matched against the corpus's actual
+ * language mix (Canadian postings). Deliberately NOT `FUNCTION_WORDS`
+ * (lib/geo/common-words.ts): that set exists for search-relevance stopword
+ * filtering, is English-only, and is far broader than the small connector
+ * class a title actually wants lowercased ("and"/"of"/"the", not
+ * "however"/"whereas").
+ */
+const TITLE_CASE_CONNECTORS = new Set([
+    "a", "an", "and", "or", "the", "for", "of", "in", "at", "to", "by", "on", "per",
+    "de", "du", "et", "la", "le",
+]);
+
+/** Pure-letter tokens at or under this length stay uppercase when the whole
+ *  source is already uppercase — an acronym survives re-casing ("CNC", "RN",
+ *  "ICU", "QA") instead of being flattened to "Cnc". Connectors are always
+ *  lowercased mid-title regardless of length ("AND" -> "and", never "AND"). */
+const TITLE_CASE_SHORT_ACRONYM_MAX_LEN = 3;
+
 export function titleCaseDisplay(value: string): string {
-    const hasMixedCase = value !== value.toLowerCase() && value !== value.toUpperCase();
+    const isAllUpper = value === value.toUpperCase();
+    const hasMixedCase = value !== value.toLowerCase() && !isAllUpper;
     if (hasMixedCase) return value;
-    return value.replace(/[\p{L}\p{N}']+/gu, (w) => w[0]!.toUpperCase() + w.slice(1).toLowerCase());
+
+    let tokenIndex = -1;
+    return value.replace(/[\p{L}\p{N}']+/gu, (w) => {
+        tokenIndex++;
+        // A token carrying a digit ("310T") is a code, not a word — casing
+        // rules don't apply, so it passes through exactly as scraped.
+        if (/\d/.test(w)) return w;
+        const lower = w.toLowerCase();
+        const isConnector = TITLE_CASE_CONNECTORS.has(lower);
+        if (isConnector && tokenIndex !== 0) return lower;
+        if (isAllUpper && !isConnector && w.length <= TITLE_CASE_SHORT_ACRONYM_MAX_LEN) return w.toUpperCase();
+        return w[0]!.toUpperCase() + w.slice(1).toLowerCase();
+    });
 }
 
 export function prettyEnum(s: string | null | undefined): string {
@@ -855,10 +888,10 @@ export function displayCompanyBrand(
 ): string {
     const brand = displayCompanyName(name);
     if (!brand) {
-        if (domain) return humanizeTenantSubdomain(domain);
+        if (domain) return titleCaseDisplay(humanizeTenantSubdomain(domain));
         return "";
     }
-    return preferBrandSegment(brand, domain, title);
+    return titleCaseDisplay(preferBrandSegment(brand, domain, title));
 }
 
 /**
@@ -898,6 +931,76 @@ export function humanizeRawLocation(raw: string): string | null {
     return s;
 }
 
+const STREET_HOUSE_NUMBER_RE = /^\d+[A-Za-z]?[\s-]/;
+const STREET_BARE_NUMBER_RE = /^\d+$/;
+const STREET_UNIT_WORD_RE = /^(suite|ste|unit|floor|fl|bldg|building|po box|p\.o\. box|#)\b/i;
+
+// Postal-code SHAPES worth stripping out of a surviving part (e.g. "ON N0N
+// 1G0" -> "ON") — same shape classes `locationSummary` (lib/presentation/
+// location.ts) matches as a whole segment, here matched as a substring
+// since a street-address part often carries the code glued to a state/
+// province abbreviation rather than as its own comma segment.
+const STREET_CA_POSTAL_RE = /\b[A-Z]\d[A-Z] ?\d[A-Z]\d\b/g;
+const STREET_US_POSTAL_RE = /\b\d{5}(?:-\d{4})?\b/g;
+const STREET_UK_POSTAL_RE = /\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b/g;
+
+// A bare numeric code dash-joined onto the end of a part (e.g. "Atlanta -
+// 9141", a retailer's own store number) — the same "junk digits" class
+// `STREET_BARE_NUMBER_RE` drops when the number is its own comma segment,
+// here glued on with a dash instead. Anchored to a run of ALL digits at the
+// end so it never eats a real dash-joined place qualifier ("Remote - AZ",
+// "Remote - EMEA"), which is letters, not digits.
+const STREET_TRAILING_DASH_NUMBER_RE = /\s+-\s+\d+$/;
+
+function stripEmbeddedNoise(part: string): string {
+    return part
+        .replace(STREET_CA_POSTAL_RE, "")
+        .replace(STREET_US_POSTAL_RE, "")
+        .replace(STREET_UK_POSTAL_RE, "")
+        .replace(STREET_TRAILING_DASH_NUMBER_RE, "")
+        .replace(/^[\s,.-]+|[\s,.-]+$/g, "");
+}
+
+/**
+ * Strips street-address components (house number + street, suite/unit,
+ * postal code) out of a location string so a single mailing address stops
+ * masquerading as several distinct locations downstream — `locationSummary`
+ * reads a comma-joined string as an ATS breadcrumb, so a full street
+ * address ("626 Polymoore Drive, Corunna, ON N0N 1G0, Canada") reads as 4
+ * "locations" and prints "626 Polymoore Drive +3 more" instead of a place.
+ *
+ * Pattern-based, not a place-name lookup: splits on commas, drops a part
+ * that IS a house number, a bare number, or a unit/suite marker, then
+ * strips an embedded postal code — or a dash-joined trailing store/building
+ * number ("Atlanta - 9141") — out of whatever survives. `;`-joined
+ * multi-location strings (aggregator feeds stuffing several roles' worth of
+ * locations into one field) are handled per-segment so "Remote Canada;
+ * Remote USA" is untouched. Returns "" when nothing survives a part — the
+ * caller (`locationText`) falls through to the structured city/state/
+ * country fields rather than trusting an invented value.
+ */
+export function stripStreetAddress(raw: string): string {
+    return raw
+        .split(";")
+        .map((locationPart) =>
+            locationPart
+                .split(",")
+                .map((part) => part.trim())
+                .filter(
+                    (part) =>
+                        part &&
+                        !STREET_HOUSE_NUMBER_RE.test(part) &&
+                        !STREET_BARE_NUMBER_RE.test(part) &&
+                        !STREET_UNIT_WORD_RE.test(part),
+                )
+                .map(stripEmbeddedNoise)
+                .filter(Boolean)
+                .join(", "),
+        )
+        .filter(Boolean)
+        .join("; ");
+}
+
 /** `locationText`'s own "nothing usable came off the posting" sentinel —
  *  exported so callers gating on it (the SERP row's meta line) compare
  *  against the same constant `locationText` returns, rather than a second
@@ -907,11 +1010,19 @@ export const LOCATION_UNKNOWN_TEXT = "Location not listed";
 export function locationText(j: PublicJob): string {
     if (j.location) {
         const readable = humanizeRawLocation(decodeText(j.location));
-        if (readable) {
-            if (j.work_type === "remote" && !/\bremote\b/i.test(readable)) {
-                return `Remote · ${readable}`;
+        // Street-address components (house number, unit, postal code)
+        // stripped BEFORE the remote-prefix check, so "Remote" only ever
+        // prefixes an actual place, never a mailing address. Nothing
+        // surviving the strip (e.g. a bare street address with no city)
+        // falls through to the structured fields below rather than
+        // returning the still-address-shaped raw string.
+        const stripped = readable ? stripStreetAddress(readable) : "";
+        if (stripped) {
+            const cased = titleCaseDisplay(stripped);
+            if (j.work_type === "remote" && !/\bremote\b/i.test(cased)) {
+                return `Remote · ${cased}`;
             }
-            return readable;
+            return cased;
         }
     }
     // The STRUCTURED fields carry the same accident: the Toolbx doc holds
@@ -920,13 +1031,15 @@ export function locationText(j: PublicJob): string {
     // country posting (`location_country` as an array) joins its distinct
     // values into one string BEFORE hitting that same pipeline, so a
     // 2-country posting reads "United States, Canada" like any other joined
-    // part rather than needing its own junk-filter pass.
+    // part rather than needing its own junk-filter pass. Each field also
+    // gets the same street-address strip as the raw branch above — a
+    // scraped `location_city` can carry the same house-number/unit noise.
     const country = Array.from(new Set(toValueArray(j.location_country))).join(", ");
     const parts = [j.location_city, j.location_state, country]
-        .map((v) => (v ? humanizeRawLocation(decodeText(v)) : null))
-        .filter((v): v is string => Boolean(v));
+        .map((v) => (v ? stripStreetAddress(humanizeRawLocation(decodeText(v)) ?? "") : ""))
+        .filter(Boolean);
     if (parts.length) {
-        const loc = parts.join(", ");
+        const loc = titleCaseDisplay(parts.join(", "));
         if (j.work_type === "remote" && !/\bremote\b/i.test(loc)) {
             return `Remote · ${loc}`;
         }

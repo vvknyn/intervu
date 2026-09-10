@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { humanizeRawLocation, locationText, clampLocationSegments } from "../../src/lib/jobs/presentation";
+import { humanizeRawLocation, locationText, clampLocationSegments, stripStreetAddress } from "../../src/lib/jobs/presentation";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 const job = (over: Partial<PublicJob>): PublicJob =>
@@ -136,4 +136,76 @@ test("whitespace around semicolons is trimmed and empty segments are dropped", (
         visible: ["A", "B"],
         hidden: ["C", "D", "E"],
     });
+});
+
+// A1 audit defect (2026-09-09 prod screenshot): a full mailing address in the
+// `location` field reads as several distinct "locations" downstream
+// (comma-joined breadcrumb -> `locationSummary` sees 4+ segments and prints
+// "626 Polymoore Drive +3 more"). `stripStreetAddress` drops the house
+// number / unit / postal-code parts BEFORE that ever happens, and
+// `locationText` runs it ahead of the remote-prefix check on both the raw
+// string and each structured field.
+test("strips a Canadian street address down to city, province, country", () => {
+    assert.equal(
+        stripStreetAddress("626 Polymoore Drive, Corunna, ON N0N 1G0, Canada"),
+        "Corunna, ON, Canada",
+    );
+    assert.equal(
+        locationText(job({ location: "626 Polymoore Drive, Corunna, ON N0N 1G0, Canada" })),
+        "Corunna, ON, Canada",
+    );
+});
+
+test("strips a highway-numbered street address (house number carries a letter suffix)", () => {
+    assert.equal(
+        locationText(job({ location: "23520 Hwy 16A, Sherwood Park, AB T8A 4Y3, Canada" })),
+        "Sherwood Park, AB, Canada",
+    );
+});
+
+test("drops a suite/unit marker as its own segment, not just the street line", () => {
+    assert.equal(
+        locationText(job({ location: "1700 Pacific Avenue, Suite 200, Dallas, TX 75201, United States" })),
+        "Dallas, TX, United States",
+    );
+});
+
+test("strips a UK postcode glued onto the city segment", () => {
+    assert.equal(locationText(job({ location: "London EC1A 1BB, UK" })), "London, UK");
+});
+
+test("a location with no street-address parts at all is untouched", () => {
+    assert.equal(
+        locationText(job({ location: "Halifax, Nova Scotia, Canada" })),
+        "Halifax, Nova Scotia, Canada",
+    );
+});
+
+test("a semicolon-joined multi-location string with no addresses in it is untouched", () => {
+    assert.equal(
+        locationText(job({ location: "Remote Canada; Remote USA" })),
+        "Remote Canada; Remote USA",
+    );
+});
+
+// Live prod row (2026-09-09, Home Depot Canada listing): a retailer's own
+// store number glued onto the city with a dash, not a comma, so it never
+// becomes its own segment for `STREET_BARE_NUMBER_RE` to drop — the same
+// "junk digits" class, a different join character.
+test("strips a dash-joined trailing store number, but not a dash-joined remote qualifier", () => {
+    assert.equal(
+        locationText(job({ location: "PENNANT PARK, ATLANTA - 9141", work_type: "hybrid" })),
+        "Pennant Park, Atlanta",
+    );
+    assert.equal(locationText(job({ location: "Remote - EMEA" })), "Remote - EMEA");
+});
+
+test("a bare street address with nothing else falls through to the structured fields", () => {
+    assert.equal(locationText(job({ location: "10 Downing Street" })), "Location not listed");
+    assert.equal(
+        locationText(
+            job({ location: "10 Downing Street", location_city: "London", location_country: "United Kingdom" }),
+        ),
+        "London, United Kingdom",
+    );
 });

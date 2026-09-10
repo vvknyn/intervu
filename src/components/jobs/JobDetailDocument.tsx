@@ -36,6 +36,7 @@ import {
     ghostMetaFor,
     locationText,
     salaryText,
+    titleCaseDisplay,
 } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
@@ -280,6 +281,7 @@ export function JobDetailDocument({
     const salary = salaryText(job);
     const cleanedCompany = displayCompany(job.company, job.company_domain);
     const companyBrand = displayCompanyBrand(job.company, job.company_domain, job.title);
+    const jobTitle = titleCaseDisplay(decodeText(job.title));
     const location = locationText(job);
     const locationDisclosure = clampLocationSegments(location);
     const locationClamped = locationDisclosure.hidden.length > 0;
@@ -319,7 +321,7 @@ export function JobDetailDocument({
             <div className="flex items-start gap-4">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-xl font-semibold leading-snug text-foreground sm:text-2xl">{decodeText(job.title)}</h1>
+                    <h1 className="text-xl font-semibold leading-snug text-foreground sm:text-2xl">{jobTitle}</h1>
                     {matchScore && (
                         <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -455,7 +457,7 @@ export function JobDetailDocument({
                 <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
             </div>
             {reportJobEnabled && job.apply_url && (
-                <ReportJobButton jobUrl={job.apply_url} jobTitle={job.title} onRequireAuth={() => onRequestSignIn?.()} className="mt-2" />
+                <ReportJobButton jobUrl={job.apply_url} jobTitle={jobTitle} onRequireAuth={() => onRequestSignIn?.()} className="mt-2" />
             )}
         </div>
     );
@@ -501,7 +503,7 @@ export function JobDetailDocument({
                 className="border-0 bg-transparent p-0 [&_button.bg-brand]:!border-0 [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!px-0 [&_button.bg-brand]:!text-brand [&_button.bg-brand]:hover:!bg-transparent [&_button.bg-brand]:hover:!underline"
                 job={{
                     id: job.id,
-                    title: decodeText(job.title),
+                    title: jobTitle,
                     company: companyBrand || job.company || "Unknown company",
                     location: locationText(job) || null,
                 }}

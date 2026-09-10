@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { locationSummary, splitLocationLabel } from "../../src/lib/presentation/location";
+import { locationText } from "../../src/lib/jobs/presentation";
+import type { PublicJob } from "../../src/lib/jobs/types";
 
 // --- Rule 1: strip a trailing postal code ---------------------------------
 
@@ -45,6 +47,35 @@ test("summarizes any long breadcrumb, not just the audit's Toronto one", () => {
 
 test("keeps a 3-segment location intact (boundary — not yet a summary)", () => {
   assert.equal(locationSummary("Waterloo, Ontario, CAN"), "Waterloo, Ontario, CAN");
+});
+
+// A1 audit defect (2026-09-09 prod screenshot): a raw street address fed
+// straight into `locationSummary` still reads as a 4-segment breadcrumb and
+// summarizes to "626 Polymoore Drive +3 more" — `locationSummary` itself has
+// no notion of a street address, so that's not this module's bug to fix.
+// The fix lives upstream: `locationText` (jobs/presentation.ts) runs
+// `stripStreetAddress` before handing its output to `locationSummary`, so
+// the address never reaches this module as more than 3 segments.
+const job = (over: Partial<PublicJob>): PublicJob =>
+  ({
+    location: null,
+    location_city: null,
+    location_state: null,
+    location_country: null,
+    work_type: null,
+    ...over,
+  }) as PublicJob;
+
+test("a street address still summarizes to '+N more' when read raw, unmediated by locationText", () => {
+  assert.equal(
+    locationSummary("626 Polymoore Drive, Corunna, ON N0N 1G0, Canada"),
+    "626 Polymoore Drive +3 more",
+  );
+});
+
+test("regression: locationText's sanitised output no longer trips the '+N more' summary", () => {
+  const cleaned = locationText(job({ location: "626 Polymoore Drive, Corunna, ON N0N 1G0, Canada" }));
+  assert.equal(locationSummary(cleaned), "Corunna, ON, Canada");
 });
 
 // --- Rule 4: an all "Remote - XX" US-state list collapses -----------------

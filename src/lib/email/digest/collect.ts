@@ -17,7 +17,7 @@ import {
 import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
 import { serializeJobsUrl } from "@/lib/jobs/url-state";
 import { jobPath } from "@/lib/jobs/job-slug";
-import { displayCompanyBrand, locationText } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { domainToSlug } from "@/lib/boards/slug";
 import { getAgentPreferences } from "@/lib/agent/preferences";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -35,7 +35,7 @@ import {
 
 export function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionItem {
   return {
-    title: job.title,
+    title: titleCaseDisplay(decodeText(job.title)),
     // The index carries the ATS-stated raw name (intervu owns display-time
     // cleaning, not ingest) — `digest.ts` prints `item.company` straight into
     // the sent HTML/text email, so it needs the same chain the SERP/detail

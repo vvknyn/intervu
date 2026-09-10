@@ -22,6 +22,39 @@ test("leaves already-normal title case untouched", () => {
   assert.equal(titleCaseDisplay("Warszawa, Poland"), "Warszawa, Poland");
 });
 
+// A2 audit defect (2026-09-09 prod screenshot): ALL-CAPS/lowercase job
+// titles and company names render raw ("DENTAL ASSISTANT / STERILIZATION /
+// JR ADMIN", "the home depot canada"). A digit-bearing token is left alone
+// (a job code, not a word to re-case), and a short all-letter token survives
+// as an acronym only when the WHOLE source was already shouting — the same
+// "JR"/"CNC" would flatten to "Jr"/"Cnc" if the source were mixed-case, per
+// the "leaves deliberately mixed-case names untouched" rule above.
+test("re-cases a slash-separated all-caps job title, keeping short acronyms shouting", () => {
+  assert.equal(
+    titleCaseDisplay("DENTAL ASSISTANT / STERILIZATION / JR ADMIN"),
+    "Dental Assistant / Sterilization / JR Admin",
+  );
+});
+
+test("a token carrying a digit is left exactly as-is, not re-cased", () => {
+  assert.equal(titleCaseDisplay("CNC MACHINIST - 310T"), "CNC Machinist - 310T");
+});
+
+test("lowercases a small connector mid-title but not the leading word", () => {
+  assert.equal(titleCaseDisplay("SALES AND MARKETING MANAGER"), "Sales and Marketing Manager");
+  assert.equal(titleCaseDisplay("THE HOME DEPOT CANADA"), "The Home Depot Canada");
+});
+
+test("re-cases an all-lowercase company name the same as its all-caps twin", () => {
+  assert.equal(titleCaseDisplay("the home depot canada"), "The Home Depot Canada");
+  assert.equal(titleCaseDisplay("kijiji canada"), "Kijiji Canada");
+});
+
+test("a mixed-case brand or role name already carrying deliberate casing is untouched", () => {
+  assert.equal(titleCaseDisplay("eBay Product Manager"), "eBay Product Manager");
+  assert.equal(titleCaseDisplay("Senior EMT"), "Senior EMT");
+});
+
 // GHOST_META used to hand-pick a STATUS_PILL entry per badge, and that copy
 // drifted: `ghostBadgeTone` was introduced specifically to stop `caution` and
 // `likely_ghost` sharing one amber tone ("collapsing 'review' and 'possible

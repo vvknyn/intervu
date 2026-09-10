@@ -11,7 +11,7 @@ import {
 import type { FollowAlertGroup } from "@/lib/follows/alerts";
 import { jobPostedMs } from "@/lib/follows/alerts";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
-import { locationText } from "@/lib/jobs/presentation";
+import { decodeText, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { PublicJob } from "@/lib/jobs/types";
 import { useFollows } from "@/lib/follows/use-follows";
@@ -153,7 +153,7 @@ export function FollowAlertsBell() {
                   className="flex items-center justify-between gap-3 px-4 py-3 text-sm transition-colors hover:text-brand"
                 >
                   <div className="min-w-0">
-                    <div className="truncate">{job.title}</div>
+                    <div className="truncate">{titleCaseDisplay(decodeText(job.title))}</div>
                     <div className="mt-0.5 truncate text-xs text-muted-foreground">
                       {meta}
                     </div>

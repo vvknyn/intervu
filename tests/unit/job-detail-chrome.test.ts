@@ -24,7 +24,10 @@ describe("JobDetail guest chrome", () => {
 
     it("detail card owns the single visible title heading", () => {
         const detail = readFileSync(JOB_DETAIL, "utf8");
-        assert.match(detail, /<h1[^>]*>\{decodeText\(job\.title\)\}/);
+        // The h1 renders the cased, decoded title (`jobTitle`, assigned from
+        // `presentJob(job).title` above) — not the raw `job.title` and not a
+        // bare `decodeText(job.title)` that skips title-casing.
+        assert.match(detail, /<h1[^>]*>\{jobTitle\}/);
 
         const page = readFileSync(JOB_PAGE, "utf8");
         assert.doesNotMatch(page, /<h1[^>]*>\s*\{job\.title\}/);

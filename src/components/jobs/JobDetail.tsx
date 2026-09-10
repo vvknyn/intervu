@@ -342,7 +342,7 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
             }}
             className="flex w-full flex-col gap-0.5 rounded-none px-0 py-3 text-left transition-colors hover:bg-muted cursor-pointer group"
         >
-            <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{decodeText(job.title)}</span>
+            <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
             <span className="mono-data truncate text-xs text-muted-foreground">
                 {displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company"}
                 {loc ? ` · ${loc}` : ""}
@@ -471,7 +471,9 @@ export function JobDetail({
     // orthogonal to (and upstream of) the single-location cleanup
     // `locationSummary` does, so cleaning before the split risks mangling a
     // semicolon-joined string that also happens to contain a dash.
-    const locationDisplay = presentJob(job).location;
+    const presented = presentJob(job);
+    const locationDisplay = presented.location;
+    const jobTitle = presented.title;
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // `formatDescription(undefined)` and `formatDescription("")` both return
     // `[]` — collapsing "not yet hydrated" (list-scope stub, no `description`
@@ -640,7 +642,7 @@ export function JobDetail({
                             <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h1 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{decodeText(job.title)}</h1>
+                            <h1 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{jobTitle}</h1>
                             {matchScore && (
                                 <div className="mt-2">
                                     <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -762,7 +764,7 @@ export function JobDetail({
                                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                             />
                             <ShareAction
-                                title={`${job.title} at ${companyBrand}`}
+                                title={`${jobTitle} at ${companyBrand}`}
                                 text={SHARE_JOB_TEXT}
                                 url={withShareRef(
                                     jobShareUrl(typeof window !== "undefined" ? window.location.origin : "", job),
@@ -813,7 +815,7 @@ export function JobDetail({
                         {reportJobEnabled && job.apply_url && (
                             <ReportJobButton
                                 jobUrl={job.apply_url}
-                                jobTitle={job.title}
+                                jobTitle={jobTitle}
                                 onRequireAuth={() => onRequestSignIn?.()}
                                 className="ml-auto"
                             />
@@ -1108,7 +1110,7 @@ export function JobDetail({
                         className="border-0 bg-transparent p-0 [&_button.bg-brand]:!border-0 [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!px-0 [&_button.bg-brand]:!text-brand [&_button.bg-brand]:hover:!bg-transparent [&_button.bg-brand]:hover:!underline"
                         job={{
                             id: job.id,
-                            title: decodeText(job.title),
+                            title: jobTitle,
                             company: companyBrand || job.company || "Unknown company",
                             location: locationText(job) || null,
                         }}

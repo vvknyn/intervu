@@ -46,12 +46,13 @@ export async function generateMetadata({
 
     const { job, path } = found;
     const company = displayCompanyFor(job);
-    const where = titleCaseDisplay(locationText(job));
-    const title = `${job.title}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | ${SITE_NAME}`;
+    const where = locationText(job);
+    const jobTitle = titleCaseDisplay(decodeText(job.title));
+    const title = `${jobTitle}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | ${SITE_NAME}`;
     const description =
         job.company_opened_90d != null && job.company_closed_90d != null && company
             ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
-            : `${job.title}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
+            : `${jobTitle}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
 
     return {
         title,
@@ -96,7 +97,7 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
                     All jobs
                 </Link>
                 <span aria-hidden>/</span>
-                <span className="truncate text-foreground">{decodeText(job.title)}</span>
+                <span className="truncate text-foreground">{titleCaseDisplay(decodeText(job.title))}</span>
             </nav>
             <PublicJobDetail job={job} layout="document" />
         </main>

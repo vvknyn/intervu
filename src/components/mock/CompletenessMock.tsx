@@ -34,6 +34,7 @@ import {
     postedAgeShort,
     prettyEnum,
     salaryText,
+    titleCaseDisplay,
 } from "@/lib/jobs/presentation";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -379,7 +380,7 @@ function MockJobRow({
             </div>
             <div className="min-w-0">
                 <div className="text-sm font-semibold leading-snug text-foreground">
-                    {decodeText(job.title)}
+                    {titleCaseDisplay(decodeText(job.title))}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">{cleanCompany(job.company) || "Unknown company"}</div>
             </div>
@@ -440,7 +441,7 @@ function MockJobDetail({
     const checkedText = ghostCheckedText(job, MOCK_NOW);
     const handoffJob = {
         id: job.id,
-        title: decodeText(job.title),
+        title: titleCaseDisplay(decodeText(job.title)),
         company: cleanCompany(job.company) || job.company || "Unknown company",
         location: locationText(job) || null,
     };
@@ -451,7 +452,7 @@ function MockJobDetail({
                 <div className="flex items-start gap-3">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                     <div className="min-w-0 flex-1">
-                        <h2 className="text-lg font-semibold leading-tight">{decodeText(job.title)}</h2>
+                        <h2 className="text-lg font-semibold leading-tight">{titleCaseDisplay(decodeText(job.title))}</h2>
                         <div className="mt-1 text-sm text-muted-foreground">
                             {cleanCompany(job.company) || "Unknown company"} · {locationText(job)}
                         </div>
