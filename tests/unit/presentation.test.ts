@@ -25,14 +25,13 @@ test("leaves already-normal title case untouched", () => {
 // A2 audit defect (2026-09-09 prod screenshot): ALL-CAPS/lowercase job
 // titles and company names render raw ("DENTAL ASSISTANT / STERILIZATION /
 // JR ADMIN", "the home depot canada"). A digit-bearing token is left alone
-// (a job code, not a word to re-case), and a short all-letter token survives
-// as an acronym only when the WHOLE source was already shouting — the same
-// "JR"/"CNC" would flatten to "Jr"/"Cnc" if the source were mixed-case, per
-// the "leaves deliberately mixed-case names untouched" rule above.
-test("re-cases a slash-separated all-caps job title, keeping short acronyms shouting", () => {
+// (a job code, not a word to re-case). "JR" is an ordinary short word (the
+// TITLE_CASE_SHORT_WORDS_2 lexicon), not a code, so it re-cases like any
+// other short word regardless of whether the whole source was shouting.
+test("re-cases a slash-separated all-caps job title, treating JR as a word not a code", () => {
   assert.equal(
     titleCaseDisplay("DENTAL ASSISTANT / STERILIZATION / JR ADMIN"),
-    "Dental Assistant / Sterilization / JR Admin",
+    "Dental Assistant / Sterilization / Jr Admin",
   );
 });
 
@@ -78,6 +77,10 @@ test("an ordinary short word is capitalized, not kept shouting, even next to a r
 
 test("a 2-letter token immediately followed by a period is capitalized as an abbreviation", () => {
   assert.equal(titleCaseDisplay("ST. LOUIS, MO"), "St. Louis, MO");
+});
+
+test("SR is an ordinary word, not a code, even without a trailing period; HR stays a code", () => {
+  assert.equal(titleCaseDisplay("SR MANAGER, HR"), "Sr Manager, HR");
 });
 
 test("a connector mid-title is still lowercased when it genuinely joins two words", () => {

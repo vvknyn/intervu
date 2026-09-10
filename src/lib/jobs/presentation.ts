@@ -199,7 +199,7 @@ const TITLE_CASE_CONNECTORS = new Set([
  * a fallback to "leave it alone."
  */
 const TITLE_CASE_SHORT_WORDS_2 = new Set([
-    "am", "as", "be", "do", "go", "if", "is", "my", "no", "so", "up", "we",
+    "am", "as", "be", "do", "go", "if", "is", "jr", "my", "no", "so", "sr", "up", "we",
 ]);
 
 /** 3-letter ordinary English/French words that read as prose, not an
