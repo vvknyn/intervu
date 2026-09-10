@@ -3,7 +3,11 @@ import { authkit, handleAuthkitHeaders } from "@workos-inc/authkit-nextjs";
 import { isAuthGatedProductPath, loginRedirectUrl } from "@/lib/auth/product-routes";
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
 import { JOBS_QUERY_HEADER } from "@/lib/seo/jobs-query-header";
-import { JOBS_VISITOR_COOKIE, JOBS_VISITOR_COOKIE_MAX_AGE } from "@/lib/jobs-visitor-cookie";
+import {
+    JOBS_VISITOR_COOKIE,
+    JOBS_VISITOR_COOKIE_MAX_AGE,
+    shouldStampJobsVisitor,
+} from "@/lib/jobs-visitor-cookie";
 
 export async function middleware(request: NextRequest) {
     // P27 shield — block only the one obvious bulk signature: an
@@ -46,7 +50,7 @@ export async function middleware(request: NextRequest) {
     // before" flag for `/`'s bar, never an auth artifact.
     const response = handleAuthkitHeaders(request, headers);
 
-    if (pathname.startsWith("/jobs")) {
+    if (shouldStampJobsVisitor({ method: request.method, pathname })) {
         response.cookies.set(JOBS_VISITOR_COOKIE, "1", {
             maxAge: JOBS_VISITOR_COOKIE_MAX_AGE,
             secure: process.env.NODE_ENV === "production",
