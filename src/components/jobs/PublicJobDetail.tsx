@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { goAfterJobAction } from "@/actions/application";
 import { markJobAppliedAction } from "@/actions/jobs";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { AuthPopover } from "@/components/auth/auth-popover";
+import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { ApplyReturnPrompt, useApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
 import { fetchResumeData } from "@/actions/resume";
@@ -20,13 +21,7 @@ import {
 import { getGuestSaveCount, recordGuestSave } from "@/lib/auth/guest-save-gate";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { shortDate } from "@/lib/jobs/presentation";
-import {
-    emptyPending,
-    queuePending,
-    resolveApplyGateDecision,
-    takeReplay,
-    type PendingState,
-} from "@/lib/jobs/pending-actions";
+import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
 import type { PublicJob } from "@/lib/jobs/types";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { classifySentinel } from "@/lib/llm/sentinels";
@@ -81,12 +76,13 @@ export function PublicJobDetail({
     const [goingAfter, setGoingAfter] = useState(false);
     const [applyIntentOpen, setApplyIntentOpen] = useState(false);
     const [user, setUser] = useState<User | null>(() => getCurrentUser());
-    const [authOpen, setAuthOpen] = useState(false);
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
+    // Controls the report dialog from outside `ReportJobButton` so a
+    // post-auth replay (see `useAuthGate` below) can reopen the exact
+    // dialog the user was filling out before sign-in.
+    const [reportDialogOpen, setReportDialogOpen] = useState(false);
     const router = useRouter();
     const { byJobId } = usePursuits();
-    const authedRef = useRef(false);
-    const pendingRef = useRef<PendingState<PublicJob, PublicJob>>(emptyPending());
 
     useEffect(() => onAuthChange(setUser), []);
 
@@ -133,8 +129,34 @@ export function PublicJobDetail({
         };
     }, []);
 
+    // The one auth gate (`use-auth-gate.ts`): signed in → run the handler
+    // now; signed out → persist the action (survives both in-place login and
+    // a hard OAuth/passkey navigation away and back) and open the popover.
+    // `apply`/`gate` reference `doMarkApplied`/`replayApplyGate`, declared
+    // later in this component — safe because these are arrow functions, not
+    // calls: the reference resolves only when the auth gate invokes them,
+    // long after this component has finished its first render.
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob, PublicJob>({
+        handlers: {
+            apply: (action) => void doMarkApplied(action.payload),
+            gate: (action) => void replayApplyGate(action.payload),
+            // This surface has no résumé importer — nothing here ever calls
+            // `gate({ kind: "upload", ... })`, so this is unreachable. Still
+            // required: `AuthGateHandlers` is a mapped type over every
+            // `PendingAction` kind, so every caller supplies all four.
+            upload: () => {},
+            // Single-job page: only reopen the dialog when the persisted
+            // report actually belongs to THIS job — a stale or foreign
+            // record must never pop the dialog for whatever job this route
+            // happens to be showing.
+            report: (action) => {
+                if (action.payload?.id === job.id) setReportDialogOpen(true);
+            },
+        },
+        user,
+    });
+
     const openAuth = (reason: AuthGateReason | null = null) => {
-        authedRef.current = false;
         setAuthGateReason(reason);
         setAuthOpen(true);
     };
@@ -195,33 +217,9 @@ export function PublicJobDetail({
         if (target.apply_url) window.location.href = target.apply_url;
     };
 
-    const maybeReplay = useCallback(() => {
-        if (!authedRef.current) return;
-        const { next, action } = takeReplay(pendingRef.current);
-        pendingRef.current = next;
-        if (!action) return;
-        switch (action.kind) {
-            case "gate":
-                void replayApplyGate(action.payload);
-                break;
-            default:
-                break;
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const handleAuthed = () => {
-        authedRef.current = true;
-        maybeReplay();
-    };
-
-    useEffect(() => {
-        if (user) maybeReplay();
-    }, [user, maybeReplay]);
-
     const handleApplyGate = (target: PublicJob) => {
-        pendingRef.current = queuePending(pendingRef.current, { kind: "gate", payload: target });
-        openAuth("apply");
+        setAuthGateReason("apply");
+        gate({ kind: "gate", payload: target });
     };
 
     const handleOpenPosting = (target: PublicJob) => {
@@ -286,8 +284,13 @@ export function PublicJobDetail({
         }
     };
 
-    const requireAuth = () => {
-        openAuth("generic");
+    // The only `onRequestSignIn` consumer on this surface is `ReportJobButton`
+    // (both `JobDetail`/`JobDetailDocument` reserve that prop for it) — route
+    // it through the report gate so a signed-out report reopens this exact
+    // dialog once the user is back, same as Apply.
+    const requireReportAuth = () => {
+        setAuthGateReason("generic");
+        gate({ kind: "report", payload: job });
     };
 
     return (
@@ -301,7 +304,7 @@ export function PublicJobDetail({
             <AuthPopover
                 open={authOpen}
                 onOpenChange={setAuthOpen}
-                onAuthed={handleAuthed}
+                onAuthed={onAuthed}
                 showTrigger={false}
                 valueLine={
                     authGateReason
@@ -319,8 +322,10 @@ export function PublicJobDetail({
                     pursuit={byJobId.get(job.id)}
                     goingAfter={goingAfter}
                     reportJobEnabled={reportJobEnabled}
+                    reportDialogOpen={reportDialogOpen}
+                    onReportDialogOpenChange={setReportDialogOpen}
                     onOpenRelated={handleOpenRelated}
-                    onRequestSignIn={requireAuth}
+                    onRequestSignIn={requireReportAuth}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
@@ -335,9 +340,11 @@ export function PublicJobDetail({
                     pursuit={byJobId.get(job.id)}
                     goingAfter={goingAfter}
                     reportJobEnabled={reportJobEnabled}
+                    reportDialogOpen={reportDialogOpen}
+                    onReportDialogOpenChange={setReportDialogOpen}
                     onClose={onClose}
                     onOpenRelated={handleOpenRelated}
-                    onRequestSignIn={requireAuth}
+                    onRequestSignIn={requireReportAuth}
                     collapseDescription={collapseDescription}
                     className={cn(detailClassName)}
                     onOpenPosting={() => handleOpenPosting(job)}

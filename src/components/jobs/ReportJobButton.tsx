@@ -1,32 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FlagIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Affordance } from "@/components/jobs/SerpFilters";
-import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
-import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { reportJobAction, type ReportJobReason } from "@/actions/report-job";
 import { cn } from "@/lib/utils";
 
 /**
- * ITEM O-FE (2026-08-15, Vivek-approved, SIGNED-IN ONLY) — one component,
- * two mounts (`JobDetail`'s action row, `PublicJobDetail`'s pass-through).
- * The gate mirrors the EXISTING apply-adjacent CTA pattern (Apply/Save —
- * see `PublicJobDetail`'s `onOpenPosting`): reads real client auth state
- * with `getCurrentUser()` directly, rather than taking a `signedIn` prop,
- * because `JobDetail`'s own `signedIn` prop is a DIFFERENT concern (guest
- * content-preview truncation) that `PublicJobDetail` hardcodes to `true`
- * for every real visitor — reusing it here would let a real guest on
- * `/jobs/[slug]` skip the gate entirely. `resolveApplyGateDecision` decides
- * signed-out → the caller's own auth gate (`onRequireAuth` — AuthPopover on
- * the board, a `/login` redirect on the standalone job page; each mount
- * already owns one, this does not add a second), signed-in → open the
- * dialog. No queue/replay: unlike Apply, a report isn't something the page
- * needs to finish automatically after a sign-in round-trip — the user
- * reopens the dialog and reports again.
+ * ITEM O-FE (2026-08-15, Vivek-approved) — one component, two mounts
+ * (`JobDetail`'s action row, `JobDetailDocument`'s pass-through, both via
+ * `PublicJobDetail` or `jobs/page.tsx`). Every trigger click hands off to
+ * the caller's `onRequireAuth` unconditionally — this component makes NO
+ * auth decision of its own. It used to gate itself with
+ * `resolveApplyGateDecision(Boolean(getCurrentUser()))`, but `getCurrentUser()`
+ * only ever answers synchronously from the e2e mock (see
+ * `lib/firebase/client-auth.ts`) — in production it is always `null`, so
+ * that check always read "signed out" and silently re-gated every already
+ * signed-in user's report, too (bug, fixed 2026-09-10). The caller's
+ * `onRequireAuth` now IS the one auth gate (`useAuthGate`'s `gate({kind:
+ * "report", ...})`): signed in → it flips `open` true itself (see the
+ * `open`/`onOpenChange` props below); signed out → it persists the report
+ * intent and prompts sign-in, then reopens this exact dialog on return —
+ * same as Apply, not the "reopen and try again" this component used to be
+ * the one holdout on.
  */
 
 const REASON_OPTIONS: { value: ReportJobReason; label: string }[] = [
@@ -45,13 +44,22 @@ export function ReportJobButton({
     jobTitle,
     onRequireAuth,
     className,
+    open: openProp,
+    onOpenChange,
 }: {
     jobUrl: string;
     jobTitle: string;
     onRequireAuth: () => void;
     className?: string;
+    /** Controlled by the parent so a post-auth replay can reopen this exact
+     *  dialog once the user is back — omit both to keep this button's own
+     *  default (uncontrolled) open state. */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }) {
-    const [open, setOpen] = useState(false);
+    const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+    const open = openProp ?? uncontrolledOpen;
+    const setOpen = onOpenChange ?? setUncontrolledOpen;
     const [reason, setReason] = useState<ReportJobReason>("dead_link");
     const [notes, setNotes] = useState("");
     const [phase, setPhase] = useState<Phase>("form");
@@ -63,6 +71,20 @@ export function ReportJobButton({
     // this job in this session — not persisted, not the same field as the
     // corpus-backed `report_count` chip (ITEM Q) other jobs may carry.
     const [reported, setReported] = useState(false);
+
+    // Fresh form state every time the dialog opens — whether that's this
+    // click (open goes true synchronously below) or a controlled parent
+    // reopening it on a post-auth replay, which never runs `handleTrigger`
+    // at all. Kept ABOVE the `reported` early return below (Rules of Hooks —
+    // every hook here must run on every render, including the ones that
+    // return the "Reported ✓" pill instead of the dialog).
+    useEffect(() => {
+        if (!open) return;
+        setPhase("form");
+        setResultText(null);
+        setResultIsError(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     if (reported) {
         return (
@@ -77,14 +99,7 @@ export function ReportJobButton({
     }
 
     const handleTrigger = () => {
-        if (resolveApplyGateDecision(Boolean(getCurrentUser())) === "gate") {
-            onRequireAuth();
-            return;
-        }
-        setPhase("form");
-        setResultText(null);
-        setResultIsError(false);
-        setOpen(true);
+        onRequireAuth();
     };
 
     const submit = async () => {
