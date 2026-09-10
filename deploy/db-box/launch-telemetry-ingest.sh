@@ -300,7 +300,7 @@ if [[ "${#pw}" -lt 32 ]]; then
   echo "generated candidate is only ${#pw} alphanumeric chars after stripping non-alphanumerics — openssl rand needs a larger input" >&2
   exit 1
 fi
-sudo -u postgres psql -v ON_ERROR_STOP=1 -d postgres <<SQL
+sudo -u postgres psql -v ON_ERROR_STOP=1 -d postgres >/dev/null <<SQL
 \set pw '$pw'
 ALTER ROLE telemetry_pg PASSWORD :'pw';
 SQL
@@ -310,7 +310,7 @@ REMOTE_GEN
     die "could not generate/set telemetry_pg's password on $DB_SSH — see stderr above. No partial state to unwind: the role either has its old password (possibly none) or the new one, never a half-written value."
   fi
 
-  is_valid_generated_password "$pw" || die "generated password failed local validation (alphanumeric, >=${MIN_PASSWORD_LEN} chars) after the remote side's own check already passed — MIN_PASSWORD_LEN must have drifted out of sync between here and step 2's remote generator. Refusing to use it."
+  is_valid_generated_password "$pw" || die "generated password failed local validation (alphanumeric, >=${MIN_PASSWORD_LEN} chars) — the remote leg's stdout must be exactly the password (psql's stdout is silenced there for this reason), so something else printed on that channel. Refusing to use it."
 
   URL_FILE="$(mktemp)"
   chmod 600 "$URL_FILE"
