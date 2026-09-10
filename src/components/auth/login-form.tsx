@@ -13,6 +13,7 @@ import { CircleNotch, Fingerprint } from '@phosphor-icons/react'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
+import { buildReturnTo } from '@/lib/jobs/pending-actions'
 import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from 'next/link'
@@ -105,7 +106,11 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     const startAuthKit = (provider?: string) => {
         setAuthKitPending(provider ?? 'passkey')
         const params = new URLSearchParams()
-        const next = new URLSearchParams(window.location.search).get("next")
+        // `next` already on this URL (e.g. middleware bounced here from a
+        // gated route) wins; otherwise fall back to wherever the user
+        // actually is, so a hard-nav OAuth/passkey round trip returns to the
+        // same page instead of AuthKit's own default.
+        const next = new URLSearchParams(window.location.search).get("next") || buildReturnTo(window.location)
         if (next) params.set("next", next)
         if (activeTab === "signup") params.set("mode", "signup")
         if (provider) params.set("provider", provider)

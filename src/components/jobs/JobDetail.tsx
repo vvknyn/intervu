@@ -384,6 +384,8 @@ export function JobDetail({
     onRequestSignIn,
     onOpenRelated,
     reportJobEnabled = false,
+    reportDialogOpen,
+    onReportDialogOpenChange,
     collapseDescription = true,
     matchScore = null,
     matchAsOfDate = null,
@@ -403,6 +405,12 @@ export function JobDetail({
      *  `reportJobEnabledAction`; the flags endpoint isn't deployed yet, so
      *  this defaults to hidden rather than showing a button that 404s. */
     reportJobEnabled?: boolean;
+    /** Forwarded straight to `ReportJobButton`'s own `open`/`onOpenChange` —
+     *  lets the caller reopen the report dialog after a gated report action
+     *  replays post-auth. Both optional: omit to keep the button's own
+     *  default (uncontrolled) state. */
+    reportDialogOpen?: boolean;
+    onReportDialogOpenChange?: (open: boolean) => void;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
      *  so callers built before the removal — e.g. app/page.tsx, out of this
      *  change's scope — still typecheck without editing their call sites. */
@@ -839,6 +847,8 @@ export function JobDetail({
                                 jobUrl={job.apply_url}
                                 jobTitle={jobTitle}
                                 onRequireAuth={() => onRequestSignIn?.()}
+                                open={reportDialogOpen}
+                                onOpenChange={onReportDialogOpenChange}
                                 className="ml-auto"
                             />
                         )}

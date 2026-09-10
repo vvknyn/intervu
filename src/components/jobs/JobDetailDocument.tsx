@@ -220,6 +220,12 @@ export interface JobDetailDocumentProps {
     onRequestSignIn?: () => void;
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
     reportJobEnabled?: boolean;
+    /** Forwarded straight to `ReportJobButton`'s own `open`/`onOpenChange` —
+     *  lets the caller reopen the report dialog after a gated report action
+     *  replays post-auth. Both optional: omit to keep the button's own
+     *  default (uncontrolled) state. */
+    reportDialogOpen?: boolean;
+    onReportDialogOpenChange?: (open: boolean) => void;
     /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
      *  no signed-in résumé or no comparable field — renders no chip, never a
      *  fabricated 0 (Rule 3, match-contract.md). Same value the SERP panel
@@ -259,6 +265,8 @@ export function JobDetailDocument({
     onRequestSignIn,
     onOpenRelated,
     reportJobEnabled = false,
+    reportDialogOpen,
+    onReportDialogOpenChange,
     matchScore = null,
     matchAsOfDate = null,
 }: JobDetailDocumentProps) {
@@ -448,7 +456,14 @@ export function JobDetailDocument({
                 <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
             </div>
             {reportJobEnabled && job.apply_url && (
-                <ReportJobButton jobUrl={job.apply_url} jobTitle={jobTitle} onRequireAuth={() => onRequestSignIn?.()} className="mt-2" />
+                <ReportJobButton
+                    jobUrl={job.apply_url}
+                    jobTitle={jobTitle}
+                    onRequireAuth={() => onRequestSignIn?.()}
+                    open={reportDialogOpen}
+                    onOpenChange={onReportDialogOpenChange}
+                    className="mt-2"
+                />
             )}
         </div>
     );
