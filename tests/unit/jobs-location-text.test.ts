@@ -143,8 +143,7 @@ test("whitespace around semicolons is trimmed and empty segments are dropped", (
 // (comma-joined breadcrumb -> `locationSummary` sees 4+ segments and prints
 // "626 Polymoore Drive +3 more"). `stripStreetAddress` drops the house
 // number / unit / postal-code parts BEFORE that ever happens, and
-// `locationText` runs it ahead of the remote-prefix check on both the raw
-// string and each structured field.
+// `locationText` runs it on both the raw string and each structured field.
 test("strips a Canadian street address down to city, province, country", () => {
     assert.equal(
         stripStreetAddress("626 Polymoore Drive, Corunna, ON N0N 1G0, Canada"),
@@ -219,4 +218,24 @@ test("a bare street address with nothing else falls through to the structured fi
         ),
         "London, United Kingdom",
     );
+});
+
+// Every surface rendering `locationText` also renders `work_type` as its
+// own adjacent chip/fact (row chip row, detail meta line), so a remote
+// job's place text must NOT repeat "Remote" — that duplicated the word in
+// one line ("📍 Remote · Milan, Italy · Remote · Full Time").
+test("a remote job's location is the place only, never 'Remote'-prefixed", () => {
+    assert.equal(locationText(job({ location: "Toronto, ON", work_type: "remote" })), "Toronto, ON");
+    assert.equal(
+        locationText(job({ location_city: "Toronto", location_country: "Canada", work_type: "remote" })),
+        "Toronto, Canada",
+    );
+});
+
+test("a remote job with no location text at all still falls back to the word 'Remote'", () => {
+    assert.equal(locationText(job({ location: "", work_type: "remote" })), "Remote");
+});
+
+test("a hybrid job's location is unaffected by the remote-prefix removal", () => {
+    assert.equal(locationText(job({ location: "Austin, TX", work_type: "hybrid" })), "Austin, TX");
 });

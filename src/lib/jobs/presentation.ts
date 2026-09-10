@@ -1106,18 +1106,17 @@ export function locationText(j: PublicJob): string {
     if (j.location) {
         const readable = humanizeRawLocation(decodeText(j.location));
         // Street-address components (house number, unit, postal code)
-        // stripped BEFORE the remote-prefix check, so "Remote" only ever
-        // prefixes an actual place, never a mailing address. Nothing
-        // surviving the strip (e.g. a bare street address with no city)
-        // falls through to the structured fields below rather than
-        // returning the still-address-shaped raw string.
+        // stripped so a mailing address never masquerades as the place.
+        // Nothing surviving the strip (e.g. a bare street address with no
+        // city) falls through to the structured fields below rather than
+        // returning the still-address-shaped raw string. Work mode is NOT
+        // prefixed here — every caller that renders this string also
+        // renders `work_type` as its own chip/fact adjacent to it, so a
+        // remote job wouldn't just repeat the word, it'd repeat it right
+        // next to itself ("📍 Remote · Milan, Italy · Remote · Full Time").
         const stripped = readable ? stripStreetAddress(readable) : "";
         if (stripped) {
-            const cased = titleCaseDisplay(stripped);
-            if (j.work_type === "remote" && !/\bremote\b/i.test(cased)) {
-                return `Remote · ${cased}`;
-            }
-            return cased;
+            return titleCaseDisplay(stripped);
         }
     }
     // The STRUCTURED fields carry the same accident: the Toolbx doc holds
@@ -1134,11 +1133,7 @@ export function locationText(j: PublicJob): string {
         .map((v) => (v ? stripStreetAddress(humanizeRawLocation(decodeText(v)) ?? "") : ""))
         .filter(Boolean);
     if (parts.length) {
-        const loc = titleCaseDisplay(parts.join(", "));
-        if (j.work_type === "remote" && !/\bremote\b/i.test(loc)) {
-            return `Remote · ${loc}`;
-        }
-        return loc;
+        return titleCaseDisplay(parts.join(", "));
     }
     if (j.work_type === "remote") return "Remote";
     return LOCATION_UNKNOWN_TEXT;

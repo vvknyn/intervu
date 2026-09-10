@@ -42,10 +42,12 @@ export function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionIte
     // panes apply, not the raw corpus string this used to pass through.
     company: displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company",
     href: `${siteUrl}${jobPath(job)}`,
-    // The site's own formatter, not a second one: it already handles the
-    // "Remote ·" prefix, multi-country arrays, and the "[object Object]"
-    // junk class the corpus carries in both the free-text and structured
-    // location fields.
+    // The site's own formatter, not a second one: it already handles
+    // multi-country arrays and the "[object Object]" junk class the corpus
+    // carries in both the free-text and structured location fields. Note:
+    // unlike the SERP/detail panes, this email has no separate work-type
+    // chip, so a remote job's location here reads as the place only (no
+    // "Remote" marker) since locationText() dropped that prefix.
     location: locationText(job),
   };
 }
