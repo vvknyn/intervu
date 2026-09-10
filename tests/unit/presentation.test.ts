@@ -170,10 +170,23 @@ test("a genuine house number + street is still dropped, postcode+city rule aside
   assert.equal(stripStreetAddress("100 Broadway, New York, NY 10001"), "New York, NY");
   assert.equal(stripStreetAddress("1600 Amphitheatre Parkway, Mountain View, CA"), "Mountain View, CA");
   assert.equal(stripStreetAddress("12 Rue Nationale, 75001 Paris"), "Paris");
-  // Un-numbered part with a street word ("Musterstraße") is NOT dropped —
-  // STREET_WORDS is only consulted inside a numbered part, so a real place
-  // name carrying a street-suffix-shaped word never false-drops.
-  assert.equal(stripStreetAddress("Musterstraße 5, 80331 München"), "Musterstraße 5, München");
+});
+
+// Rule 2': street-name-first addresses (IT/ES/DE/FR) put the house number
+// at the END of the part instead of the start, so rule 2 (number-first)
+// never sees them. `endsWithStreetWord` catches both the separate-token
+// shape ("Via Roma", "Calle Mayor") and the DE compound shape, where the
+// street suffix is fused directly onto the name with no separator
+// ("Musterstraße"). Both a street word AND a trailing house number are
+// required, proven by two keeps: a number alone ("Dublin 2", a postal
+// district, not an address) and a street-word lookalike alone ("Trail, BC",
+// a real place name) each survive on their own.
+test("a name-first street address is still dropped, across languages", () => {
+  assert.equal(stripStreetAddress("Via Roma 10, 00100 Roma"), "Roma");
+  assert.equal(stripStreetAddress("Musterstraße 5, 80331 München"), "München");
+  assert.equal(stripStreetAddress("Calle Mayor 3, 28013 Madrid"), "Madrid");
+  assert.equal(stripStreetAddress("Dublin 2"), "Dublin 2");
+  assert.equal(stripStreetAddress("Trail, BC"), "Trail, BC");
 });
 
 // D3: ordinal suffixes ("1st", "21st") are two letters, and a unit word

@@ -1077,14 +1077,37 @@ const NUM_RE = /^(\d+)(?:st|nd|rd|th|[A-Za-z])?(?=[\s-]|$)/i;
 const UNIT_NUMBER_RE = /^(suite|ste|unit|floor|bldg|building|apt|apartment|level|po\s*box|p\.o\.\s*box)\.?\s*(?:#\s*)?\S*\d/i;
 const BARE_HASH_NUMBER_RE = /^#\s*\d/;
 
+/** A trailing house-number token — "10", "5", "3B" — glued onto the end of
+ *  a street-name-first part ("Via Roma 10", "Musterstraße 5"). */
+const HOUSE_NUMBER_SUFFIX_RE = /\s\d+[A-Za-z]?$/;
+
+/** Same lexicon as `hasWord`, plus a suffix match against the 4+ letter
+ *  entries: IT/ES/FR street words are their own token ("Via Roma"), but
+ *  DE/NL compound the street suffix directly onto the name with no
+ *  separator ("Musterstraße", "Bahnhofplein") — a whole-word split alone
+ *  never sees those. The length floor excludes the 2-3 letter abbreviation
+ *  entries (st, dr, rd, ln, pl, ct, av, sq, ring, …), which are only
+ *  meaningful as their own token; matching those as a bare suffix would
+ *  false-positive on ordinary words that happen to end the same way. */
+function endsWithStreetWord(part: string): boolean {
+    const suffixWords = [...STREET_WORDS].filter((w) => w.length >= 4);
+    return part
+        .toLowerCase()
+        .split(/[\s\-.,]+/)
+        .some((token) => STREET_WORDS.has(token) || suffixWords.some((w) => token.endsWith(w)));
+}
+
 /**
  * Classifies one comma/underscore-split location part for
  * `stripStreetAddress`: `"drop"` when the part is street-address noise with
  * nothing worth keeping, `"keep"` when it's untouched prose, or
  * `{ keep }` when it's a postcode+city part that keeps its city with the
- * leading digits removed. `STREET_WORDS` is only ever consulted inside a
- * numbered part (case 2) — never on an un-numbered one — so real places
- * named Trail, Terrace, Circle Pines, or Plaza keep working.
+ * leading digits removed. `STREET_WORDS` is consulted inside a numbered
+ * part (case 2, number-first: "100 Broadway") and, via `endsWithStreetWord`,
+ * on an un-numbered part that ends with a house number (case 2', name-first:
+ * "Via Roma 10") — never on a part with neither signal, so real places named
+ * Trail, Terrace, Circle Pines, Plaza, or Dublin (postal district "2") keep
+ * working.
  */
 function classifyLocationPart(part: string): "keep" | "drop" | { keep: string } {
     if (/^\d+$/.test(part)) return "drop";
@@ -1099,6 +1122,13 @@ function classifyLocationPart(part: string): "keep" | "drop" | { keep: string } 
         }
         return "drop";
     }
+
+    // Rule 2': street-name-first addresses (IT/ES/DE/FR/NL) put the house
+    // number at the END instead of the start. Both signals are required —
+    // a street word alone would drop a real place whose name happens to
+    // carry one ("Trail, BC"), and a trailing number alone would drop a
+    // genuine place+number ("Dublin 2").
+    if (HOUSE_NUMBER_SUFFIX_RE.test(part) && endsWithStreetWord(part)) return "drop";
 
     if (UNIT_NUMBER_RE.test(part) || BARE_HASH_NUMBER_RE.test(part)) return "drop";
 
