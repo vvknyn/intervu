@@ -15,13 +15,33 @@
  * already uses. Returning intervu users carry the tag → no cookie. Brand-new
  * Google/passkey/magic-auth users do not → short-lived cookie the client reads
  * once after `posthog.identify(uid)`.
+ *
+ * Deliberately no `next/server` import — PostHogProvider and login-form are
+ * client components. The callback sets the cookie with `cookies().set()`
+ * (same API WorkOS `saveSession` already uses on this route) so we never
+ * wrap handleAuth's Response and risk dropping the session cookie.
  */
-import { NextResponse } from "next/server";
 import type { SignupMethod } from "@/lib/analytics/event-names";
 import { APP_INTERVU, hasApp } from "@/lib/auth/workos-apps";
 
 export const SIGNUP_SIGNAL_COOKIE_NAME = "intervu_signup_completed";
-const SIGNUP_SIGNAL_COOKIE_MAX_AGE = 300;
+export const SIGNUP_SIGNAL_COOKIE_MAX_AGE = 300;
+
+export function signupSignalCookieOptions(): {
+  path: string;
+  maxAge: number;
+  sameSite: "lax";
+  secure: boolean;
+  httpOnly: false;
+} {
+  return {
+    path: "/",
+    maxAge: SIGNUP_SIGNAL_COOKIE_MAX_AGE,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: false,
+  };
+}
 
 const SIGNUP_METHODS: readonly SignupMethod[] = ["email", "google", "username", "passkey"];
 
@@ -60,13 +80,14 @@ export function resolveAuthKitSignupSignal({
 
 /** Full `Set-Cookie` header value — NOT httpOnly so the client can read it. */
 export function serializeSignupSignalCookie(method: SignupMethod): string {
+  const opts = signupSignalCookieOptions();
   const parts = [
     `${SIGNUP_SIGNAL_COOKIE_NAME}=${method}`,
-    "Path=/",
-    `Max-Age=${SIGNUP_SIGNAL_COOKIE_MAX_AGE}`,
+    `Path=${opts.path}`,
+    `Max-Age=${opts.maxAge}`,
     "SameSite=Lax",
   ];
-  if (process.env.NODE_ENV === "production") parts.push("Secure");
+  if (opts.secure) parts.push("Secure");
   return parts.join("; ");
 }
 
@@ -88,18 +109,6 @@ export function parseSignupSignalCookie(cookieHeader: string): SignupMethod | nu
     if (name === SIGNUP_SIGNAL_COOKIE_NAME && isSignupMethod(value)) return value;
   }
   return null;
-}
-
-/** Append the signal onto handleAuth's Response — cookies().set() cannot merge into a third-party Response. */
-export function attachSignupSignalCookie(response: Response, method: SignupMethod | null): Response {
-  if (!method) return response;
-  const next = new NextResponse(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  });
-  next.headers.append("Set-Cookie", serializeSignupSignalCookie(method));
-  return next;
 }
 
 /** Read-once consume in the browser after identify. */

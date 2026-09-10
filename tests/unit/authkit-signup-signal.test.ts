@@ -6,7 +6,7 @@ import {
   serializeSignupSignalCookie,
   serializeExpiredSignupSignalCookie,
   parseSignupSignalCookie,
-  attachSignupSignalCookie,
+  signupSignalCookieOptions,
   isSignupMethod,
   SIGNUP_SIGNAL_COOKIE_NAME,
 } from "../../src/lib/auth/authkit-signup-signal";
@@ -95,27 +95,10 @@ test("serializeExpiredSignupSignalCookie clears with Max-Age=0", () => {
   assert.match(serialized, /Max-Age=0/);
 });
 
-test("attachSignupSignalCookie: null method leaves headers unchanged", () => {
-  const original = new Response(null, {
-    status: 307,
-    headers: { location: "https://velai.app/jobs" },
-  });
-  const wrapped = attachSignupSignalCookie(original, null);
-  assert.equal(wrapped, original);
-  assert.equal(wrapped.headers.get("Set-Cookie"), null);
-});
-
-test("attachSignupSignalCookie: google appends Set-Cookie without HttpOnly", () => {
-  const original = new Response(null, {
-    status: 307,
-    headers: { location: "https://velai.app/jobs" },
-  });
-  const wrapped = attachSignupSignalCookie(original, "google");
-  assert.notEqual(wrapped, original);
-  assert.equal(wrapped.status, 307);
-  assert.equal(wrapped.headers.get("location"), "https://velai.app/jobs");
-  const setCookie = wrapped.headers.get("Set-Cookie");
-  assert.ok(setCookie);
-  assert.match(setCookie, new RegExp(`${SIGNUP_SIGNAL_COOKIE_NAME}=google`));
-  assert.doesNotMatch(setCookie, /HttpOnly/i);
+test("signupSignalCookieOptions is client-readable (not httpOnly)", () => {
+  const opts = signupSignalCookieOptions();
+  assert.equal(opts.httpOnly, false);
+  assert.equal(opts.path, "/");
+  assert.equal(opts.maxAge, 300);
+  assert.equal(opts.sameSite, "lax");
 });
