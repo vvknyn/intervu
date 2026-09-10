@@ -1380,6 +1380,18 @@ export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): P
 /** The three location fields a parsed place can constrain. */
 export const LOCATION_FACET_FIELDS = ["location_city", "location_state", "location_country"] as const;
 
+/** True when a `work_type` facet value looks like "remote" for whatever this
+ *  corpus happens to call it — never a hardcoded `"remote"` string, since the
+ *  upstream feed's casing/spelling isn't a contract ("Remote", "remote_us",
+ *  etc. must all match). Single source of truth for that test: picking the
+ *  live remote facet VALUE out of a distribution (`pickRemoteFacetValue`,
+ *  FilterChipsRow.tsx) and recognizing an already-committed remote selection
+ *  from filter state alone (`locationTriggerLabel`, jobs/location-label.ts)
+ *  both call this rather than each keeping its own regex. */
+export function isRemoteWorkTypeValue(value: string): boolean {
+  return /remote/i.test(value);
+}
+
 /**
  * Read-path: does a specific candidate STRING exist as a value in a given
  * facet — the corpus validation layer behind gazetteer-backed place

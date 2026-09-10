@@ -98,13 +98,24 @@ test("locationTriggerLabel: an explicit committed country wins", () => {
 // Item 7e (2026-08-21 front-door audit): live prod prefilled "Near Canada"
 // into this field from the IP-geo default alone — a country is not a
 // locality, and this field's own placeholder promises "City, state, or
-// remote". `locationTriggerLabel` no longer takes a detected-default input
-// at all, so there is nothing left that CAN synthesize a "Near {Country}"
-// label — this pins the empty-input fallback rather than a specific detected
-// value, since the function's signature itself now makes the old bug
-// unreachable.
-test("locationTriggerLabel: falls back to the plain placeholder with no explicit country — never synthesizes one from a country-level default", () => {
+// remote". That prefill was PASSIVE: nothing marked it as a guess, so it
+// read as an explicit choice the searcher never made. 2026-09-10 ("auto
+// location detect is not working" — the disclosure was missing entirely on
+// the pristine mobile landing) reintroduces the default into this same
+// function, but only ever as an explicitly-labeled "Near {region} ·
+// detected" (see location-label.ts's doc comment) — never a bare "Near
+// {Country}" indistinguishable from a typed value. With no default to show
+// at all, the fallback is still the plain placeholder.
+test("locationTriggerLabel: falls back to the plain placeholder with no explicit country and no detected default", () => {
     assert.equal(locationTriggerLabel(PRISTINE_FILTER_STATE), "City, state, or remote");
+});
+
+test("locationTriggerLabel: an explicit committed country still wins over a detected default — never shows 'detected' once the searcher has chosen", () => {
+    const label = locationTriggerLabel(
+        { ...PRISTINE_FILTER_STATE, facets: { location_country: ["Germany"] } },
+        "US",
+    );
+    assert.equal(label, "Germany");
 });
 
 test("initLocationSheetDraft: marks detected when default is active and no explicit location", () => {

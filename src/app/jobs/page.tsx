@@ -4006,7 +4006,7 @@ function JobsContent() {
     // gated on `isSerpAsk` — matches this file's other render-prep consts.
     const searchSeeds = resolveSearchSeeds(recentSearches);
 
-    const mobileLocationLabel = locationTriggerLabel(filterState);
+    const mobileLocationLabel = locationTriggerLabel(filterState, result?.defaultedLocation);
     // The category chip whose search query matches the current COMMITTED query
     // (case-insensitive) AND whose text also matches the draft (i.e. the user
     // has not yet typed something different in the search box without
@@ -4724,6 +4724,8 @@ function JobsContent() {
                                 <button
                                     type="button"
                                     data-testid="location-picker-trigger"
+                                    aria-label={mobileLocationLabel}
+                                    title={mobileLocationLabel}
                                     onClick={() => setLocationSheetOpen(true)}
                                     className="flex h-11 min-w-0 flex-1 items-center truncate rounded-none border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
                                 >
