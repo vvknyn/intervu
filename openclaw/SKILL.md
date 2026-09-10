@@ -112,10 +112,15 @@ applies to WORKING silence as much as to failure:
 calls hung, the 8am digest died with a 401, and the only thing that ended it
 was the user typing "??".)
 
-All eleven tools are live: `search_jobs`, `get_job`, `save_job`, `mark_applied`
+All fourteen tools are live: `search_jobs`, `get_job`, `save_job`, `mark_applied`
 (returns `resume_on_file`), `get_resume`, `save_resume_variant`,
 `get_resume_variant`, `set_resume` (replaces the base resume from a chat
-upload — see §0), `get_applications`, `get_preferences`, `set_preferences`.
+upload — see §0), `get_applications`, `get_preferences`, `set_preferences`,
+`get_company`, `get_company_timeline`, `search_companies`. The last three
+share their own daily call budget, separate from the search_jobs/get_job
+record budget above — the server enforces it independently, so treat hitting
+it as a signal you're over-fetching company data, not an obstacle to route
+around.
 If a resume tool errors, say so and stop the PREPARE flow there — do not
 invent resume content to route around it.
 
@@ -258,6 +263,17 @@ preferences" request reopens it.
    that day's digest reasoning; never silently substitute a stale local
    cache for a working server call.
 2. `mcporter call intervu-cc-mcp.search_jobs --args '<search prefs from step 1 as JSON, plus limit:20>' --output json`.
+   `search_jobs` also takes structured filters (`location`, `remote_only`,
+   `experience_level`, `employment_type`, `salary_min`, `visa_sponsorship_only`,
+   `sort`, `years_experience`, `facets`) beyond free-text `query` — prefer these
+   over stuffing everything into `query` when step 1's preferences map onto
+   one directly. Each hit now carries `salary_min`/`salary_max`/`currency`,
+   `work_type`, `employment_type`, `experience_level`, `tags`,
+   `company_domain`, and `location_country` — use them for ranking/why-lines
+   in step 4 instead of re-deriving from the title/description text. The
+   MCP tool description (`search_jobs` in the connected server's tool list)
+   is the source of truth for the current filter and field set — this list
+   is a pointer, not a copy to keep in sync by hand.
 3. `mcporter call intervu-cc-mcp.get_resume --args '{}' --output json` for fit context.
 4. Rank per `RANKING.md` (next to this file) — it IS the relevance
    algorithm: hard excludes, ordered scoring signals, tie-breakers, and the

@@ -1,9 +1,9 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
+import { unauthorizedResponse, toolResult } from '../../src/app/api/mcp/route';
 import {
-  unauthorizedResponse, toolResult, searchJobsInput,
-  getResumeInput, saveResumeVariantInput, getResumeVariantInput, setResumeInput,
-  getPreferencesInput, setPreferencesInput,
-} from '../../src/app/api/mcp/route';
+  searchJobsInput, getResumeInput, saveResumeVariantInput, getResumeVariantInput, setResumeInput,
+  getPreferencesInput, setPreferencesInput, MCP_TOOL_SPECS,
+} from '../../src/lib/agent/mcp-tool-specs';
 import { AGENT } from '../../src/lib/agent/config';
 import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES } from '../../src/lib/agent/facets';
 import { JOB_SORT_MODES, YEARS_EXPERIENCE_BUCKETS, PANEL_FACET_KEYS } from '../../src/lib/jobs/types';
@@ -314,5 +314,17 @@ describe('mcp route: set_preferences wire schema', () => {
     } as unknown);
     assert.equal('uid' in parsed, false);
     assert.equal('user_id' in parsed, false);
+  });
+});
+
+describe('mcp route: MCP_TOOL_SPECS catalog (Slice 3 — one tool list)', () => {
+  it('registers exactly 14 tools', () => {
+    assert.equal(Object.keys(MCP_TOOL_SPECS).length, 14);
+  });
+
+  it('every spec carries a real ZodObject inputSchema, not a raw shape', () => {
+    for (const [name, spec] of Object.entries(MCP_TOOL_SPECS)) {
+      assert.ok('shape' in spec.inputSchema, `${name}'s inputSchema is not a ZodObject`);
+    }
   });
 });
