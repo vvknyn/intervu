@@ -54,10 +54,23 @@ Observed (`200 OK`, `content-type: text/event-stream`):
 
 ```
 event: message
-data: {"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":true}},"serverInfo":{"name":"intervu-agent","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+data: {"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":true}},"serverInfo":{"name":"velai-agent","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
 ```
 
-## 3. `tools/list` — expect exactly 4 tools
+(`serverInfo.name` updated above from the `intervu-agent` actually observed
+on 2026-08-02 to `velai-agent`, the current `serverInfo` in `createMcpHandler`
+(src/app/api/mcp/route.ts) — everything else in this file is left as
+literally observed.)
+
+## 3. `tools/list` — expect one tool per `MCP_TOOL_SPECS` entry (14 as of Sep 2026)
+
+This transcript predates `get_resume`/`save_resume_variant`/`get_resume_variant`/
+`set_resume`, `get_applications`, `get_preferences`/`set_preferences`, and the
+three `get_company`/`get_company_timeline`/`search_companies` tools — it is
+kept as-is below for the request/response shape, not as a current tool
+count. The current source of truth for what's registered is `MCP_TOOL_SPECS`
+in `src/lib/agent/mcp-tool-specs.ts` (and `/llms.txt`, which is generated
+from it).
 
 ```bash
 curl -sS -i http://localhost:3000/api/mcp \

@@ -571,7 +571,7 @@ export function isNeutralLocationFacetValue(v: string): boolean {
   return t === "any" || t === "all";
 }
 
-function canonicalFacetValues(rawVals: string[]): string[] {
+export function canonicalFacetValues(rawVals: string[]): string[] {
   const vals = rawVals.filter((v) => !isNeutralLocationFacetValue(v));
   return [...new Set(vals)].sort();
 }

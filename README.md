@@ -22,7 +22,7 @@
 
 ## What is Intervu?
 
-Intervu ([intervu.cc](https://intervu.cc)) is a single workspace for the whole job
+Intervu ([velai.app](https://velai.app)) is a single workspace for the whole job
 search loop: discover roles, tailor your resume, write cover letters, track
 applications, and prep for the interview.
 

@@ -18,7 +18,15 @@
 #                      by design.
 #
 # Checks, modeled on verify-firestore-load.sh's OK/FAIL-per-row shape:
-#   1. telemetry_pg CAN insert.
+#   1. telemetry_pg CAN insert — using the exact statement shape
+#      src/app/api/telemetry/route.ts sends (`on conflict do nothing`, no
+#      inference target), not a plain INSERT. A plain INSERT and this clause
+#      are different privilege checks: Postgres requires SELECT on any
+#      column named in an ON CONFLICT inference target, which telemetry_pg
+#      (insert-only by design) does not have, so a probe that omits the
+#      clause can pass while the app's real insert is denied. That gap is
+#      exactly what shipped once already — keep this probe's SQL identical
+#      to route.ts's `insertRows`, which points back here.
 #   2. telemetry_pg CANNOT select — a successful select here is the FAIL
 #      condition: it means the grants are too wide.
 #   3. telemetry_pg CANNOT delete — same reasoning, `where false` so even a
@@ -97,6 +105,12 @@
 # Exit code is non-zero if ANY check fails, so this is usable as a gate.
 set -euo pipefail
 
+# pg_env_from_url/psql_from_url live in lib/pg-env.sh, shared with every
+# other db-box script that needs a libpq connection from a *_PG_URL value.
+# No fallback if this file is missing next to a copy of this script — `set
+# -e` above fails the whole run loudly, which is the correct behavior.
+source "$(dirname "${BASH_SOURCE[0]}")/lib/pg-env.sh"
+
 : "${TELEMETRY_PG_URL:?set TELEMETRY_PG_URL (connects as telemetry_pg)}"
 : "${AGENT_PG_URL:?set AGENT_PG_URL (connects as agent_pg)}"
 : "${BATCH_PG_URL:?set BATCH_PG_URL (connects as the table owner, e.g. pipeline)}"
@@ -110,17 +124,17 @@ err_file="$(mktemp)"
 cleanup() {
   rm -f "$err_file"
   if [[ -n "${TEST_EVENT_ID:-}" ]]; then
-    psql "$BATCH_PG_URL" -qAt \
+    psql_from_url "$BATCH_PG_URL" -qAt \
       -c "delete from intervu.telemetry_events where event_id = '${TEST_EVENT_ID}'" \
       >/dev/null || true
   fi
   if [[ -n "${TEST_FORGET_EVENT_ID:-}" ]]; then
-    psql "$BATCH_PG_URL" -qAt \
+    psql_from_url "$BATCH_PG_URL" -qAt \
       -c "delete from intervu.telemetry_events where event_id = '${TEST_FORGET_EVENT_ID}'" \
       >/dev/null || true
   fi
   if [[ -n "${TEST_UID:-}" ]]; then
-    psql "$BATCH_PG_URL" -qAt \
+    psql_from_url "$BATCH_PG_URL" -qAt \
       -c "delete from intervu.telemetry_events where user_id = '${TEST_UID}'" \
       >/dev/null || true
   fi
@@ -134,17 +148,17 @@ fail() { printf '  FAIL  %s\n' "$1"; failed=1; }
 # Runs a single statement over connection $1; true if it succeeds. Stderr
 # lands in $err_file so callers can report why an *expected* success failed.
 sql_ok() {
-  psql "$1" -v ON_ERROR_STOP=1 -qAt -c "$2" >/dev/null 2>"$err_file"
+  psql_from_url "$1" -v ON_ERROR_STOP=1 -qAt -c "$2" >/dev/null 2>"$err_file"
 }
 
-echo "checking: telemetry_pg can insert into intervu.telemetry_events"
-TEST_EVENT_ID="$(psql "$BATCH_PG_URL" -qAtc "select gen_random_uuid()")"
+echo "checking: telemetry_pg can insert into intervu.telemetry_events (app's exact statement shape — on conflict do nothing, no inference target)"
+TEST_EVENT_ID="$(psql_from_url "$BATCH_PG_URL" -qAtc "select gen_random_uuid()")"
 if sql_ok "$TELEMETRY_PG_URL" \
-  "insert into intervu.telemetry_events (event_id, occurred_at, session_id, event_name) values ('${TEST_EVENT_ID}', now(), gen_random_uuid(), 'verify_test_event')"
+  "insert into intervu.telemetry_events (event_id, occurred_at, session_id, event_name) values ('${TEST_EVENT_ID}', now(), gen_random_uuid(), 'verify_test_event') on conflict do nothing"
 then
-  pass "telemetry_pg INSERT"
+  pass "telemetry_pg INSERT ... ON CONFLICT DO NOTHING"
 else
-  fail "telemetry_pg INSERT — $(cat "$err_file")"
+  fail "telemetry_pg INSERT ... ON CONFLICT DO NOTHING — $(cat "$err_file")"
 fi
 
 echo "checking: telemetry_pg cannot select from intervu.telemetry_events"
@@ -194,17 +208,17 @@ check_census() {
   # absent, which would abort the whole script instead of reporting a clean
   # FAIL. Absent must never read as a silent pass: a table this check has
   # never seen is exactly the pre-deploy state of the derived tables below.
-  exists="$(psql "$BATCH_PG_URL" -qAtc "select (to_regclass('${rel}') is not null)")"
+  exists="$(psql_from_url "$BATCH_PG_URL" -qAtc "select (to_regclass('${rel}') is not null)")"
   if [[ "$exists" != "t" ]]; then
     fail "${rel} does not exist"
     return
   fi
-  owner="$(psql "$BATCH_PG_URL" -qAtc "select pg_get_userbyid(relowner) from pg_class where oid = '${rel}'::regclass")"
+  owner="$(psql_from_url "$BATCH_PG_URL" -qAtc "select pg_get_userbyid(relowner) from pg_class where oid = '${rel}'::regclass")"
   if [[ "$owner" != "pipeline" ]]; then
     fail "${rel} is owned by '${owner}', expected 'pipeline'"
     return
   fi
-  actual="$(psql "$BATCH_PG_URL" -qAtc "
+  actual="$(psql_from_url "$BATCH_PG_URL" -qAtc "
     select coalesce(string_agg(
         (case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end)
         || ':' || a.privilege_type, ',' order by 1), '')
@@ -294,20 +308,20 @@ declare -A fn_allowed_grants=(
 
 check_function_census() {
   local ident="$1" proname owner prokind search_path_ok public_exec actual expected
-  proname="$(psql "$BATCH_PG_URL" -qAtc "select proname from pg_proc where oid = '${ident}'::regprocedure")"
-  owner="$(psql "$BATCH_PG_URL" -qAtc "select pg_get_userbyid(proowner) from pg_proc where oid = '${ident}'::regprocedure")"
+  proname="$(psql_from_url "$BATCH_PG_URL" -qAtc "select proname from pg_proc where oid = '${ident}'::regprocedure")"
+  owner="$(psql_from_url "$BATCH_PG_URL" -qAtc "select pg_get_userbyid(proowner) from pg_proc where oid = '${ident}'::regprocedure")"
   if [[ "$owner" != "pipeline" ]]; then
     fail "${ident} is owned by '${owner}', expected 'pipeline'"
     return
   fi
-  prokind="$(psql "$BATCH_PG_URL" -qAtc "select prokind from pg_proc where oid = '${ident}'::regprocedure")"
+  prokind="$(psql_from_url "$BATCH_PG_URL" -qAtc "select prokind from pg_proc where oid = '${ident}'::regprocedure")"
   # An AGGREGATE has no SQL body of its own, so it has no search_path to
   # pin — §8 of telemetry-schema.sql skips it for the same reason (measured
   # 2026-09-04: `alter routine ... set search_path` errors "... is an
   # aggregate function"). Skipping the assertion here is not error
   # avoidance either; a correctly-hardened aggregate will never have one.
   if [[ "$prokind" != "a" ]]; then
-    search_path_ok="$(psql "$BATCH_PG_URL" -qAtc "
+    search_path_ok="$(psql_from_url "$BATCH_PG_URL" -qAtc "
       select exists (
         select 1 from unnest(coalesce(proconfig, '{}'::text[])) c
         where c like 'search_path=%'
@@ -317,7 +331,7 @@ check_function_census() {
       return
     fi
   fi
-  public_exec="$(psql "$BATCH_PG_URL" -qAtc "select has_function_privilege('public', '${ident}', 'EXECUTE')")"
+  public_exec="$(psql_from_url "$BATCH_PG_URL" -qAtc "select has_function_privilege('public', '${ident}', 'EXECUTE')")"
   if [[ "$public_exec" != "f" ]]; then
     fail "${ident} — PUBLIC can EXECUTE (revoke did not take)"
     return
@@ -330,7 +344,7 @@ check_function_census() {
   # returns `pipeline=X/pipeline` alongside any real grant. Without this
   # filter every correctly-hardened function fails this check, because the
   # owner's own entry would never appear in fn_allowed_grants.
-  actual="$(psql "$BATCH_PG_URL" -qAtc "
+  actual="$(psql_from_url "$BATCH_PG_URL" -qAtc "
     select coalesce(string_agg(
         (case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end)
         || ':' || a.privilege_type, ',' order by 1), '')
@@ -348,7 +362,7 @@ check_function_census() {
 }
 
 echo "checking: catalog-driven function census for every function in schema intervu"
-fn_list="$(psql "$BATCH_PG_URL" -qAtc "
+fn_list="$(psql_from_url "$BATCH_PG_URL" -qAtc "
   select p.oid::regprocedure
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'intervu'")"
@@ -358,14 +372,14 @@ done <<< "$fn_list"
 
 echo "checking: intervu.reap_telemetry() runs and heartbeats"
 REAP_VERIFY_MAX_ROWS="${REAP_VERIFY_MAX_ROWS:-5000}"
-eligible_rows="$(psql "$BATCH_PG_URL" -qAtc \
+eligible_rows="$(psql_from_url "$BATCH_PG_URL" -qAtc \
   "select count(*) from intervu.telemetry_events where received_at < now() - interval '90 days'")"
 if [[ "$eligible_rows" -gt "$REAP_VERIFY_MAX_ROWS" && "${VERIFY_ALLOW_UNBATCHED_REAP:-}" != "1" ]]; then
   fail "reap_telemetry() would delete ${eligible_rows} rows in one unbatched transaction (> REAP_VERIFY_MAX_ROWS=${REAP_VERIFY_MAX_ROWS}) — use scripts/reap-telemetry.ts's batched delete against real data, or set VERIFY_ALLOW_UNBATCHED_REAP=1 to run this check's direct call anyway"
 else
-  pre_ts="$(psql "$BATCH_PG_URL" -qAtc "select now()")"
+  pre_ts="$(psql_from_url "$BATCH_PG_URL" -qAtc "select now()")"
   if sql_ok "$BATCH_PG_URL" "select intervu.reap_telemetry(90)"; then
-    fresh="$(psql "$BATCH_PG_URL" -qAtc \
+    fresh="$(psql_from_url "$BATCH_PG_URL" -qAtc \
       "select (last_run_at > '${pre_ts}'::timestamptz and ok) from intervu.job_heartbeats where job_name = 'reap_telemetry'")"
     if [[ "$fresh" == "t" ]]; then
       pass "reap_telemetry heartbeat is fresh"
@@ -384,7 +398,7 @@ echo "checking: intervu.forget_telemetry_user(text) exists and is SECURITY DEFIN
 # property that check is not generic over (reap_telemetry deliberately
 # stays SECURITY INVOKER, so a schema-wide assertion would be wrong), so
 # it's checked here where the function-specific rationale (§7) lives.
-forget_exists="$(psql "$BATCH_PG_URL" -qAtc \
+forget_exists="$(psql_from_url "$BATCH_PG_URL" -qAtc \
   "select (to_regprocedure('intervu.forget_telemetry_user(text)') is not null)")"
 if [[ "$forget_exists" != "t" ]]; then
   fail "intervu.forget_telemetry_user(text) does not exist"
@@ -392,7 +406,7 @@ if [[ "$forget_exists" != "t" ]]; then
   fail "telemetry_pg can execute intervu.forget_telemetry_user(text) and it deletes — function does not exist"
   fail "forget_telemetry_user(null/'') is refused without touching the table — function does not exist"
 else
-  secdef_ok="$(psql "$BATCH_PG_URL" -qAtc "
+  secdef_ok="$(psql_from_url "$BATCH_PG_URL" -qAtc "
     select prosecdef from pg_proc
     where oid = to_regprocedure('intervu.forget_telemetry_user(text)')")"
   if [[ "$secdef_ok" == "t" ]]; then
@@ -408,16 +422,16 @@ else
   echo "checking: telemetry_pg can execute forget_telemetry_user and it genuinely deletes"
   # Sentinel uid cannot collide with a real WorkOS id (those look like
   # user_01H...).
-  TEST_FORGET_EVENT_ID="$(psql "$BATCH_PG_URL" -qAtc "select gen_random_uuid()")"
-  TEST_UID="verify-forget-test-$(psql "$BATCH_PG_URL" -qAtc 'select gen_random_uuid()')"
+  TEST_FORGET_EVENT_ID="$(psql_from_url "$BATCH_PG_URL" -qAtc "select gen_random_uuid()")"
+  TEST_UID="verify-forget-test-$(psql_from_url "$BATCH_PG_URL" -qAtc 'select gen_random_uuid()')"
   if sql_ok "$BATCH_PG_URL" \
     "insert into intervu.telemetry_events (event_id, occurred_at, session_id, event_name, user_id) values ('${TEST_FORGET_EVENT_ID}', now(), gen_random_uuid(), 'verify_forget_test_event', '${TEST_UID}')"
   then
-    if forget_count="$(psql "$TELEMETRY_PG_URL" -qAtc \
+    if forget_count="$(psql_from_url "$TELEMETRY_PG_URL" -qAtc \
       "select intervu.forget_telemetry_user('${TEST_UID}')" 2>"$err_file")"
     then
       if [[ "$forget_count" == "1" ]]; then
-        remaining="$(psql "$BATCH_PG_URL" -qAtc \
+        remaining="$(psql_from_url "$BATCH_PG_URL" -qAtc \
           "select count(*) from intervu.telemetry_events where user_id = '${TEST_UID}'")"
         if [[ "$remaining" == "0" ]]; then
           pass "telemetry_pg executed forget_telemetry_user and the row is actually gone"
@@ -435,11 +449,11 @@ else
   fi
 
   echo "checking: forget_telemetry_user(null/'') is refused without touching the table"
-  total_before="$(psql "$BATCH_PG_URL" -qAtc "select count(*) from intervu.telemetry_events")"
-  if null_count="$(psql "$TELEMETRY_PG_URL" -qAtc "select intervu.forget_telemetry_user(null)" 2>"$err_file")" \
-    && empty_count="$(psql "$TELEMETRY_PG_URL" -qAtc "select intervu.forget_telemetry_user('')" 2>"$err_file")"
+  total_before="$(psql_from_url "$BATCH_PG_URL" -qAtc "select count(*) from intervu.telemetry_events")"
+  if null_count="$(psql_from_url "$TELEMETRY_PG_URL" -qAtc "select intervu.forget_telemetry_user(null)" 2>"$err_file")" \
+    && empty_count="$(psql_from_url "$TELEMETRY_PG_URL" -qAtc "select intervu.forget_telemetry_user('')" 2>"$err_file")"
   then
-    total_after="$(psql "$BATCH_PG_URL" -qAtc "select count(*) from intervu.telemetry_events")"
+    total_after="$(psql_from_url "$BATCH_PG_URL" -qAtc "select count(*) from intervu.telemetry_events")"
     if [[ "$null_count" == "0" && "$empty_count" == "0" && "$total_before" == "$total_after" ]]; then
       pass "forget_telemetry_user(null/'') returned 0 and left the table row count unchanged"
     else

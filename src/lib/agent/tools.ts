@@ -8,8 +8,12 @@
  * off tool input — so a call can only ever act as the authenticated
  * credential's own subject.
  */
-import type { JobSearchParams, JobSearchResult, PlaceClause, PostedBucket, PublicJob } from "../jobs/types";
+import type {
+  JobSearchParams, JobSearchResult, JobSortMode, PanelFacetKey, PlaceClause, PostedBucket, PublicJob,
+  YearsExperienceBucket,
+} from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
+import { canonicalFacetValues } from "../jobs/meilisearch";
 import { scoreJobAgainstResume, type MatchScore } from "../match/score";
 import type { ResumeData } from "../../types/resume";
 import type { CompanyPageData } from "../companies/types";
@@ -98,11 +102,11 @@ export interface ToolDeps {
    *  `record-budget.ts`) — `count` is the ACTUAL number of records a call
    *  is about to hand back, never the requested page size, so the
    *  accounting can't be gamed by asking for a small limit and paging
-   *  more. Call this wherever a tool is about to hand real corpus job
-   *  fields back to the caller — today that's `toolSearchJobs` (with
-   *  `hits.length`) and `toolGetJob` (with `1`); a future corpus-reading
-   *  tool must call it too, the same way it must build its payload through
-   *  `toJobDetailFields`/`toSearchHit` above. Injected so tools never touch
+   *  more. Every tool that hands real corpus job fields back to the caller
+   *  must call this with that actual count before returning them — the
+   *  same rule that requires building the payload through
+   *  `toJobDetailFields` above, so a tool can't route around the budget by
+   *  skipping one and not the other. Injected so tools never touch
    *  the store directly, matching every other I/O dep here. */
   consumeRecordBudget: (count: number) => Promise<{ ok: true } | { ok: false; error: string }>;
   /** Full company-profile + exhaust assembly for one domain-resolved slug —
@@ -170,11 +174,17 @@ const POSTED_WITHIN_DAYS_TO_BUCKET: Record<PostedWithinDays, { bucket: PostedBuc
  * (company_opened_90d/company_closed_90d/company_open_count/company_stage,
  * types.ts:55-58) and `source`/`location_city`/`location_state`/
  * `visa_sponsorship`/`posted_ts` are deliberately absent — none of them
- * render anywhere in the web UI today. Both `toSearchHit` (list cards) and
- * `toJobDetailFields` (get_job) are `Pick`s off this ONE type, so a field
- * missing here can never reach either surface no matter what Meili starts
- * syncing next — a raw `...job` spread anywhere in this file would defeat
- * that, which is why neither function below ever does one.
+ * render anywhere in the web UI today.
+ *
+ * `search_jobs` hits carry this SAME full allowlist, not a narrower subset
+ * (see `SearchHit` below) — so an agent can evaluate several roles off one
+ * search call instead of spending its daily record budget
+ * (`AGENT.DAILY_RECORD_BUDGET`, config.ts) on a `get_job` call per candidate.
+ * `toJobDetailFields` is the ONE projection every job-returning surface
+ * (`toolSearchJobs`, `toolGetJob`, and `get_company`'s embedded jobs list via
+ * company-tools.ts) is built from — a field missing here can never reach any
+ * of them no matter what Meili starts syncing next, which is exactly why
+ * that function never does a raw `...job` spread.
  */
 export type JobDetailFields = Pick<
   PublicJob,
@@ -197,7 +207,7 @@ export type JobDetailFields = Pick<
    *  recently as that morning (the 2026-08-11 fix exists because the issuer
    *  was then a redirect-only domain, giving every agent-shared link an
    *  extra 301 hop). Always present (pure function of `id` + the app's own base URL)
-   *  even when `apply_url` is blank — see `toSearchHit`'s absent-apply_url
+   *  even when `apply_url` is blank — see `toolSearchJobs`'s absent-apply_url
    *  test. */
   intervu_url: string;
   /** MC3 — present only when the caller has a stored résumé AND
@@ -209,7 +219,7 @@ export type JobDetailFields = Pick<
   match?: MatchScore;
 };
 
-function toJobDetailFields(job: PublicJob, resume: ResumeData | null = null): JobDetailFields {
+export function toJobDetailFields(job: PublicJob, resume: ResumeData | null = null): JobDetailFields {
   const {
     id, title, company, company_domain, location, location_country,
     work_type, employment_type, experience_level,
@@ -223,8 +233,7 @@ function toJobDetailFields(job: PublicJob, resume: ResumeData | null = null): Jo
     // The index carries the ATS-stated raw name (intervu owns display-time
     // cleaning, not ingest) — an MCP client renders `company` straight into
     // an agent's own UI, so it needs the same chain the SERP/detail panes
-    // apply, not the raw corpus string `toSearchHit`'s Pick used to pass
-    // through unchanged.
+    // apply, not the raw corpus string passed through unchanged.
     company: displayCompanyBrand(company, company_domain, title) || company,
     company_domain, location, location_country,
     work_type, employment_type, experience_level,
@@ -236,18 +245,11 @@ function toJobDetailFields(job: PublicJob, resume: ResumeData | null = null): Jo
   };
 }
 
-export type SearchHit = Pick<
-  JobDetailFields,
-  | "id" | "title" | "company" | "location" | "ghost_badge"
-  | "posted_at" | "first_seen_at" | "updated_at" | "vacancy_status" | "apply_url" | "intervu_url" | "match"
->;
-
-// Exported — company-tools.ts reuses this SAME wire-allowlist mapping for
-// get_company's embedded jobs list, rather than duplicating the Pick/spread.
-export function toSearchHit(job: PublicJob, resume: ResumeData | null = null): SearchHit {
-  const { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url, intervu_url, match } = toJobDetailFields(job, resume);
-  return { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url, intervu_url, ...(match ? { match } : {}) };
-}
+// Alias, not a narrower Pick — kept so company-tools.ts's `CompanyOut.jobs`
+// (which reuses this SAME wire-allowlist mapping for get_company's embedded
+// jobs list) reads as its own concern rather than reaching for
+// `JobDetailFields` directly.
+export type SearchHit = JobDetailFields;
 
 export interface SearchOut {
   hits: SearchHit[];
@@ -307,22 +309,71 @@ export interface SearchJobsInput {
    *  meilisearch.ts's `visa_sponsorship = true` clause). Not a facet — see
    *  `buildFacets` below, which only ever composes `facets.*` fields. */
   visa_sponsorship_only?: boolean;
+  /** → `JobSearchParams.sort` — the SAME field the web SERP's sort control
+   *  resolves to (`resolveUrlSort`, app/jobs/page.tsx) before sending a
+   *  search; omitted means auto (see `resolveEffectiveSort`, sort.ts).
+   *  Reaches Meilisearch via `buildMeiliSort` (meilisearch.ts:904). */
+  sort?: JobSortMode;
+  /** → `JobSearchParams.yearsExperience` — the SAME field the web filter
+   *  panel's "Years of experience" picker sets. Reaches Meilisearch via
+   *  `buildFilter`'s missing-field-safe union clause (meilisearch.ts). */
+  years_experience?: YearsExperienceBucket;
+  /** → merged into `JobSearchParams.facets` (below `buildFacets`), keyed
+   *  EXACTLY to `PanelFacetKey` — the subset of `FacetKey` the web filter
+   *  panel renders as a generic checkbox picker (`PANEL_FACET_KEYS`,
+   *  jobs/types.ts). Lets a caller reach any panel-rendered facet
+   *  (`tech_stack`, `must_have_skills`, `location_country`, ...) generically,
+   *  on top of the three named params above, without a new named param per
+   *  key. The wire schema (route.ts) rejects any key outside that set. */
+  facets?: Partial<Record<PanelFacetKey, string[]>>;
   /** Opaque pagination cursor from a previous call's `next_cursor`. */
   cursor?: string;
 }
 
 /** The one place a wire filter turns into `JobSearchParams.facets` — every
- *  new Task 12 filter lands here, so `toolSearchJobs` itself stays a plain
- *  read of ONE composed object instead of accreting a filter at a time.
- *  `location` is NOT a facet — see `resolvePlaces` below. */
+ *  named filter (remote_only/experience_level/employment_type) AND the
+ *  generic `facets` input both land here, so `toolSearchJobs` itself stays a
+ *  plain read of ONE composed object instead of accreting a filter at a
+ *  time. `location` is NOT a facet — see `resolvePlaces` below. A named
+ *  filter is the explicit contract for its key: a `facets` entry for that
+ *  SAME key may only NARROW it (intersect), never widen it — otherwise
+ *  `{remote_only:true, facets:{work_type:["onsite"]}}` would compose
+ *  `work_type IN (remote, onsite)` and silently stop `remote_only` from
+ *  filtering anything. No overlap for a contested key is a caller input
+ *  error, not a silent empty page. No per-key branch — any `PanelFacetKey`
+ *  the wire schema accepts is covered by construction either way. Every
+ *  entry is run through `canonicalFacetValues` (meilisearch.ts — the SAME
+ *  function `buildFilter` canonicalizes with) before narrowing, so the
+ *  "any"/"all" widen sentinels are dropped here rather than surviving to
+ *  falsely conflict with a named filter; an entry that canonicalizes to
+ *  empty is skipped exactly like an absent one. */
 function buildFacets(
-  input: Pick<SearchJobsInput, "remote_only" | "experience_level" | "employment_type">,
-): NonNullable<JobSearchParams["facets"]> {
+  input: Pick<SearchJobsInput, "remote_only" | "experience_level" | "employment_type" | "facets">,
+): { facets: NonNullable<JobSearchParams["facets"]> } | { error: string } {
   const facets: NonNullable<JobSearchParams["facets"]> = {};
   if (input.remote_only) facets.work_type = ["remote"];
   if (input.experience_level) facets.experience_level = [input.experience_level];
   if (input.employment_type) facets.employment_type = [input.employment_type];
-  return facets;
+  for (const [key, rawValues] of Object.entries(input.facets ?? {}) as [PanelFacetKey, string[] | undefined][]) {
+    if (!rawValues?.length) continue;
+    const values = canonicalFacetValues(rawValues);
+    if (!values.length) continue;
+    const named = facets[key];
+    if (!named) {
+      facets[key] = values;
+      continue;
+    }
+    const narrowed = values.filter((v) => named.includes(v));
+    if (!narrowed.length) {
+      return {
+        error:
+          `facets.${key} [${values.join(", ")}] has no overlap with the value a named filter ` +
+          `already set for ${key} [${named.join(", ")}]`,
+      };
+    }
+    facets[key] = narrowed;
+  }
+  return { facets };
 }
 
 /**
@@ -429,7 +480,7 @@ export async function toolSearchJobs(
   const decoded = decodeCursor(input.cursor);
   if ("error" in decoded) return decoded;
   const offset = decoded.offset;
-  const requestedLimit = Math.min(input.limit ?? 10, AGENT.RESULT_CAP);
+  const requestedLimit = Math.min(input.limit ?? AGENT.SEARCH_DEFAULT_LIMIT, AGENT.RESULT_CAP);
   // Page size is asked of the backend AS-IS, even near the depth cap — never
   // clamped to 0 there. `buildSearchBody` (meilisearch.ts) computes
   // `page: offset / (p.limit ?? 40)`; a literal `limit: 0` isn't nullish, so it
@@ -438,7 +489,9 @@ export async function toolSearchJobs(
   const { limit, note: limitNote } = resolvePageSize(decoded, input.limit, requestedLimit);
   const hideGhosts = !(input.includeGhostFlagged ?? false);
   const { bucket, note: bucketNote } = POSTED_WITHIN_DAYS_TO_BUCKET[input.postedWithinDays ?? 30];
-  const facets = buildFacets(input);
+  const facetsResult = buildFacets(input);
+  if ("error" in facetsResult) return facetsResult;
+  const facets = facetsResult.facets;
   const places = await resolvePlaces(deps, input.location);
   const result = await deps.search({
     q: input.query,
@@ -450,6 +503,8 @@ export async function toolSearchJobs(
     ...(Object.keys(facets).length ? { facets } : {}),
     ...(places.length ? { places } : {}),
     ...(input.visa_sponsorship_only ? { visaOnly: true } : {}),
+    ...(input.sort ? { sort: input.sort } : {}),
+    ...(input.years_experience ? { yearsExperience: input.years_experience } : {}),
   });
   // A backend failure must never read like a true zero-match — the MCP
   // response is the agent's only channel, so an empty `hits` here has to be
@@ -475,7 +530,7 @@ export async function toolSearchJobs(
   // Depth-cap truncation: the backend was asked for a full page (see the
   // limit comment above), but only `depthCapRemaining(offset)` of those hits
   // are ever handed back — 0 once `offset` has reached the cap.
-  const hits = result.hits.slice(0, depthCapRemaining(offset)).map((job) => toSearchHit(job, resume));
+  const hits = result.hits.slice(0, depthCapRemaining(offset)).map((job) => toJobDetailFields(job, resume));
   // Corpus-harvesting guardrail: meter the ACTUAL hits about to be returned
   // against the credential's daily record budget before handing them back.
   const budget = await deps.consumeRecordBudget(hits.length);

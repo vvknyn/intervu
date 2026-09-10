@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAgentStore } from "@/lib/agent/store";
 import { registerClient } from "@/lib/agent/oauth";
-import { AGENT } from "@/lib/agent/config";
+import { AGENT, trimAndCapLabel } from "@/lib/agent/config";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
 
@@ -17,10 +17,7 @@ import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
  * not a failed registration.
  */
 export function sanitizeClientName(value: unknown): string | undefined {
-    if (typeof value !== "string") return undefined;
-    const trimmed = value.trim();
-    if (trimmed.length === 0) return undefined;
-    return trimmed.length > AGENT.MAX_CLIENT_NAME_LENGTH ? trimmed.slice(0, AGENT.MAX_CLIENT_NAME_LENGTH) : trimmed;
+    return trimAndCapLabel(value, AGENT.MAX_CLIENT_NAME_LENGTH);
 }
 
 /**
