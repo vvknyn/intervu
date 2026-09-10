@@ -13,7 +13,7 @@ import { toast } from "@/lib/toast";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { updateApplication } from "@/actions/application";
 import { searchJobsAction } from "@/actions/jobs";
-import { runExistenceCheck } from "@/lib/jobs/result-state";
+import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
@@ -109,9 +109,11 @@ export default function PursuitDetailPage() {
      * was absent for the six days before, during which this lookup failed
      * outright, and a future re-provision can drop it again with no deploy.
      * Collapsing "couldn't check" into "no longer live" would tell people a
-     * role they can still apply to is dead. `runExistenceCheck` is the
+     * role they can still apply to is dead. `detailFetcher.fetch`
+     * (lib/jobs/detail-fetch.ts, wrapping `runExistenceCheck`) is the
      * existing chokepoint for exactly this call, and it degrades to "unknown"
-     * whether the response classifies that way or the request itself throws.
+     * whether the response classifies that way, its own settle budget lapses,
+     * or the request itself throws.
      */
     const [detail, setDetail] = useState<{
         open: boolean;
@@ -173,7 +175,7 @@ export default function PursuitDetailPage() {
     const openDetail = async (jobId: string) => {
         if (detail.job) return setDetail((d) => ({ ...d, open: true }));
         setDetail({ open: true, job: null, state: "loading", descriptionPending: false });
-        const check = await runExistenceCheck(jobId, searchJobsAction);
+        const check = await detailFetcher.fetch(jobId, searchJobsAction);
         setDetail({
             open: true,
             job: check.status === "found" ? check.job : null,
@@ -197,12 +199,12 @@ export default function PursuitDetailPage() {
         const jobId = pursuit?.job_id;
         if (!jobId) return;
         void (async () => {
-            const check = await runExistenceCheck(jobId, searchJobsAction);
+            const check = await detailFetcher.fetch(jobId, searchJobsAction);
             // A failed retry ("unknown", or a "not_found" for a job that WAS
             // showing a moment ago) keeps the previously rendered job and its
-            // pending flag on screen — see `runExistenceCheck`'s doc comment
-            // for why a failed request is never treated as proof the role is
-            // gone.
+            // pending flag on screen — see `runExistenceCheck`'s (lib/jobs/
+            // result-state.ts) doc comment for why a failed request is never
+            // treated as proof the role is gone.
             setDetail((d) =>
                 check.status === "found"
                     ? { ...d, job: check.job, state: "idle", descriptionPending: check.descriptionPending }
