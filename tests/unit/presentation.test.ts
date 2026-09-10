@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { GHOST_META, isInternalPosting, titleCaseDisplay } from "../../src/lib/jobs/presentation";
+import { GHOST_META, isInternalPosting, stripStreetAddress, titleCaseDisplay } from "../../src/lib/jobs/presentation";
 import { ghostBadgeTone, STATUS_PILL } from "../../src/lib/ui/status-tokens";
 
 test("title-cases an all-uppercase string", () => {
@@ -134,4 +134,55 @@ test("isInternalPosting never flags a normal public title", () => {
   assert.equal(isInternalPosting("Senior Software Engineer"), false);
   assert.equal(isInternalPosting(null), false);
   assert.equal(isInternalPosting(undefined), false);
+});
+
+// D1: a 2-letter unit-word lookalike ("fl") colliding with a state/province
+// code used to drop the whole part. `classifyLocationPart`'s rule 3 only
+// drops a unit marker followed by ITS OWN number ("Suite 200"); "FL 33602"
+// keeps the code and lets `stripEmbeddedNoise`'s US postal regex take the
+// ZIP on its own.
+test("a 2-letter state code is never mistaken for a unit-word marker", () => {
+  assert.equal(stripStreetAddress("Miami, FL"), "Miami, FL");
+  assert.equal(stripStreetAddress("Tampa, FL 33602"), "Tampa, FL");
+  assert.equal(stripStreetAddress("Orlando, FL, United States"), "Orlando, FL, United States");
+  // AU 4-digit postcode: the un-numbered part "Sydney NSW 2000" is kept
+  // whole — stripEmbeddedNoise only strips a US 5-digit shape, so the code
+  // deliberately produces "Sydney NSW 2000" rather than adding an
+  // AU-specific rule.
+  assert.equal(stripStreetAddress("Level 3, Sydney NSW 2000"), "Sydney NSW 2000");
+});
+
+// D2: postcode-then-city (DE/AT/FR/NL/DK …) used to read as a house number
+// and drop the whole part.
+test("a leading 4+ digit postcode keeps its city, unlike a short house number", () => {
+  assert.equal(stripStreetAddress("10115 Berlin"), "Berlin");
+  assert.equal(stripStreetAddress("1010 Wien, Austria"), "Wien, Austria");
+  assert.equal(stripStreetAddress("60313 Frankfurt am Main, Germany"), "Frankfurt am Main, Germany");
+  assert.equal(stripStreetAddress("1012 AB Amsterdam"), "Amsterdam");
+  assert.equal(stripStreetAddress("8000 Aarhus C, Denmark"), "Aarhus C, Denmark");
+});
+
+test("a genuine house number + street is still dropped, postcode+city rule aside", () => {
+  assert.equal(
+    stripStreetAddress("626 Polymoore Drive, Corunna, ON N0N 1G0, Canada"),
+    "Corunna, ON, Canada",
+  );
+  assert.equal(stripStreetAddress("100 Broadway, New York, NY 10001"), "New York, NY");
+  assert.equal(stripStreetAddress("1600 Amphitheatre Parkway, Mountain View, CA"), "Mountain View, CA");
+  assert.equal(stripStreetAddress("12 Rue Nationale, 75001 Paris"), "Paris");
+  // Un-numbered part with a street word ("Musterstraße") is NOT dropped —
+  // STREET_WORDS is only consulted inside a numbered part, so a real place
+  // name carrying a street-suffix-shaped word never false-drops.
+  assert.equal(stripStreetAddress("Musterstraße 5, 80331 München"), "Musterstraße 5, München");
+});
+
+// D3: ordinal suffixes ("1st", "21st") are two letters, and a unit word
+// used to only match at the very start of a part.
+test("an ordinal house number or a unit word mid-part is still dropped", () => {
+  assert.equal(stripStreetAddress("1st Avenue, Seattle, WA 98101"), "Seattle, WA");
+  assert.equal(stripStreetAddress("42nd Street, New York, NY"), "New York, NY");
+  assert.equal(stripStreetAddress("21st Floor, 100 Broadway, New York, NY"), "New York, NY");
+  assert.equal(stripStreetAddress("Suite 200, 1 Main St, Boston, MA"), "Boston, MA");
+  assert.equal(stripStreetAddress("Floor 2, Dublin"), "Dublin");
+  assert.equal(stripStreetAddress("Unit 4, 20 Queen St W, Toronto, ON M5H 3R3"), "Toronto, ON");
 });

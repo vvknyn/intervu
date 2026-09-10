@@ -1026,9 +1026,84 @@ export function humanizeRawLocation(raw: string): string | null {
     return s;
 }
 
-const STREET_HOUSE_NUMBER_RE = /^\d+[A-Za-z]?[\s-]/;
-const STREET_BARE_NUMBER_RE = /^\d+$/;
-const STREET_UNIT_WORD_RE = /^(suite|ste|unit|floor|fl|bldg|building|po box|p\.o\. box|#)\b/i;
+// Address-vocabulary lexicons `classifyLocationPart` matches whole-word
+// (via `hasWord`) — a linguistic dictionary, not a per-tenant/spelling
+// special case, so a new language just adds entries here.
+const STREET_WORDS = new Set([
+    // en
+    "street", "st", "ave", "avenue", "blvd", "boulevard", "road", "rd", "drive", "dr",
+    "lane", "ln", "way", "court", "ct", "place", "pl", "highway", "hwy", "parkway", "pkwy",
+    "route", "rte", "circle", "cir", "terrace", "ter", "trail", "trl", "plaza", "square", "sq", "loop",
+    // fr
+    "rue", "chemin", "allée", "allee", "impasse", "quai", "cours",
+    // es/pt
+    "calle", "carrera", "avenida", "av", "paseo", "rua", "praça", "praca",
+    // it
+    "via", "viale", "piazza", "corso",
+    // de
+    "straße", "strasse", "str", "platz", "weg", "gasse", "ring",
+    // nl
+    "straat", "laan", "plein", "gracht",
+]);
+
+const UNIT_WORDS = new Set([
+    "suite", "ste", "unit", "floor", "fl", "bldg", "building", "apt", "apartment", "level", "po", "box", "#",
+]);
+
+/** Whole-word, case-insensitive membership test against a lexicon Set —
+ *  splits on the same punctuation a location part is ever glued together
+ *  with, so "21st Floor" matches "floor" but "Broadway" never false-matches
+ *  "way" mid-word, and a real place named "Trail" or "Terrace" never
+ *  false-matches the street-suffix reading of its own name. */
+function hasWord(part: string, words: ReadonlySet<string>): boolean {
+    return part
+        .toLowerCase()
+        .split(/[\s\-.,]+/)
+        .some((token) => words.has(token));
+}
+
+/** Leading number token: a digit run optionally followed by an ordinal
+ *  suffix or a single letter, ending at a word boundary. Captures the digit
+ *  run alone so callers can read its length without the suffix. */
+const NUM_RE = /^(\d+)(?:st|nd|rd|th|[A-Za-z])?(?=[\s-]|$)/i;
+
+/** A unit/suite marker immediately followed by its own number — "Suite
+ *  200", "Floor 2", "Bldg 5", "PO Box 12". Deliberately excludes the
+ *  2-letter entries in `UNIT_WORDS` ("fl"): those collide with
+ *  state/province codes ("FL"), and a 2-letter code followed by a long
+ *  digit run is a postal code riding along the state ("FL 33602"), not a
+ *  floor number — `stripEmbeddedNoise` strips that digit run on its own,
+ *  leaving the code. */
+const UNIT_NUMBER_RE = /^(suite|ste|unit|floor|bldg|building|apt|apartment|level|po\s*box|p\.o\.\s*box)\.?\s*(?:#\s*)?\S*\d/i;
+const BARE_HASH_NUMBER_RE = /^#\s*\d/;
+
+/**
+ * Classifies one comma/underscore-split location part for
+ * `stripStreetAddress`: `"drop"` when the part is street-address noise with
+ * nothing worth keeping, `"keep"` when it's untouched prose, or
+ * `{ keep }` when it's a postcode+city part that keeps its city with the
+ * leading digits removed. `STREET_WORDS` is only ever consulted inside a
+ * numbered part (case 2) — never on an un-numbered one — so real places
+ * named Trail, Terrace, Circle Pines, or Plaza keep working.
+ */
+function classifyLocationPart(part: string): "keep" | "drop" | { keep: string } {
+    if (/^\d+$/.test(part)) return "drop";
+
+    const numMatch = part.match(NUM_RE);
+    if (numMatch) {
+        if (hasWord(part, STREET_WORDS) || hasWord(part, UNIT_WORDS)) return "drop";
+        const digits = numMatch[1]!;
+        if (digits.length >= 4) {
+            const rest = part.slice(numMatch[0].length).replace(/^[\s-]+/, "");
+            return { keep: rest.replace(/^[A-Z]{2}\s+(?=\S)/, "") };
+        }
+        return "drop";
+    }
+
+    if (UNIT_NUMBER_RE.test(part) || BARE_HASH_NUMBER_RE.test(part)) return "drop";
+
+    return "keep";
+}
 
 // Postal-code SHAPES worth stripping out of a surviving part (e.g. "ON N0N
 // 1G0" -> "ON") — same shape classes `locationSummary` (lib/presentation/
@@ -1038,13 +1113,14 @@ const STREET_UNIT_WORD_RE = /^(suite|ste|unit|floor|fl|bldg|building|po box|p\.o
 const STREET_CA_POSTAL_RE = /\b[A-Z]\d[A-Z] ?\d[A-Z]\d\b/g;
 const STREET_US_POSTAL_RE = /\b\d{5}(?:-\d{4})?\b/g;
 const STREET_UK_POSTAL_RE = /\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b/g;
+const STREET_NL_POSTAL_RE = /\b\d{4} ?[A-Z]{2}\b/g;
 
 // A bare numeric code dash-joined onto the end of a part (e.g. "Atlanta -
 // 9141", a retailer's own store number) — the same "junk digits" class
-// `STREET_BARE_NUMBER_RE` drops when the number is its own comma segment,
-// here glued on with a dash instead. Anchored to a run of ALL digits at the
-// end so it never eats a real dash-joined place qualifier ("Remote - AZ",
-// "Remote - EMEA"), which is letters, not digits.
+// `classifyLocationPart`'s rule 1 drops when the number is its own comma
+// segment, here glued on with a dash instead. Anchored to a run of ALL
+// digits at the end so it never eats a real dash-joined place qualifier
+// ("Remote - AZ", "Remote - EMEA"), which is letters, not digits.
 const STREET_TRAILING_DASH_NUMBER_RE = /\s+-\s+\d+$/;
 
 function stripEmbeddedNoise(part: string): string {
@@ -1052,6 +1128,7 @@ function stripEmbeddedNoise(part: string): string {
         .replace(STREET_CA_POSTAL_RE, "")
         .replace(STREET_US_POSTAL_RE, "")
         .replace(STREET_UK_POSTAL_RE, "")
+        .replace(STREET_NL_POSTAL_RE, "")
         .replace(STREET_TRAILING_DASH_NUMBER_RE, "")
         .replace(/^[\s,.-]+|[\s,.-]+$/g, "");
 }
@@ -1067,8 +1144,10 @@ function stripEmbeddedNoise(part: string): string {
  * Pattern-based, not a place-name lookup: splits on commas (or underscores —
  * some feeds join parts "MEX_Santa Catarina_Nuevo León_206 Canada" instead
  * of with a comma; same parts, same rule, just a different glue character),
- * drops a part that IS a house number, a bare number, or a unit/suite
- * marker, then strips an embedded postal code — or a dash-joined trailing
+ * classifies each part (`classifyLocationPart`) as street-address noise to
+ * drop (a house number, a bare number, a unit/suite marker), a postcode+city
+ * part to keep with its digits removed, or plain prose to keep untouched,
+ * then strips an embedded postal code — or a dash-joined trailing
  * store/building number ("Atlanta - 9141") — out of whatever survives.
  * `;`-joined multi-location strings (aggregator feeds stuffing several
  * roles' worth of locations into one field) are handled per-segment so
@@ -1084,13 +1163,13 @@ export function stripStreetAddress(raw: string): string {
             locationPart
                 .split(/[,_]/)
                 .map((part) => part.trim())
-                .filter(
-                    (part) =>
-                        part &&
-                        !STREET_HOUSE_NUMBER_RE.test(part) &&
-                        !STREET_BARE_NUMBER_RE.test(part) &&
-                        !STREET_UNIT_WORD_RE.test(part),
-                )
+                .filter(Boolean)
+                .map((part) => {
+                    const verdict = classifyLocationPart(part);
+                    if (verdict === "drop") return "";
+                    return verdict === "keep" ? part : verdict.keep;
+                })
+                .filter(Boolean)
                 .map(stripEmbeddedNoise)
                 .filter(Boolean)
                 .join(", "),
