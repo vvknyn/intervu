@@ -167,6 +167,7 @@ import {
     resolveEndOfListState,
     shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
+import { resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
@@ -2744,7 +2745,7 @@ function JobsContent() {
     // cleanup needed.
     const [deadJobCheck, setDeadJobCheck] = useState<
         | { id: string; status: "checking" | "not_found" | "unknown" }
-        | { id: string; status: "found"; job: PublicJob }
+        | { id: string; status: "found"; job: PublicJob; descriptionPending: boolean }
         | null
     >(null);
     const deadJobGuardRef = useRef<FitIntentGuard | null>(null);
@@ -2778,7 +2779,12 @@ function JobsContent() {
                 // hypothetical: verified live that `id = ...` currently
                 // 400s against production until the index picks up the
                 // `filterableAttributes` addition in meilisearch.ts.
-                setDeadJobCheck({ id, ...classifyExistenceCheck(id, r) });
+                const classified = classifyExistenceCheck(id, r);
+                setDeadJobCheck(
+                    classified.status === "found"
+                        ? { id, ...classified, descriptionPending: Boolean(r.descriptionPending) }
+                        : { id, ...classified },
+                );
             } catch {
                 if (deadJobGuardRef.current!.isCurrent(token)) setDeadJobCheck({ id, status: "unknown" });
             }
@@ -2797,20 +2803,36 @@ function JobsContent() {
 
     // List hits omit `description` for payload size — hydrate the selected
     // in-list job on demand (same id lookup as the dead-job existence check).
+    // Also doubles as the direct-open (`/jobs?job=<id>`) path's retry target:
+    // that path's job comes from the existence check above instead, but a
+    // "try again" hydrate for it lands here the same way.
     const [hydratedDetail, setHydratedDetail] = useState<{ id: string; job: PublicJob; descriptionPending: boolean } | null>(null);
     const detailHydrationGuardRef = useRef<FitIntentGuard | null>(null);
     if (!detailHydrationGuardRef.current) detailHydrationGuardRef.current = new FitIntentGuard();
-    // Bumped by `retryDescription` to force the hydration effect below to
+    // Set by `retryDescription` to force the hydration effect below to
     // re-run for the SAME job id after a timed-out fill (its deps otherwise
     // only change on id/description, neither of which moves on retry).
-    const [descriptionRetryNonce, setDescriptionRetryNonce] = useState(0);
+    const [retryRequest, setRetryRequest] = useState<{ id: string; nonce: number } | null>(null);
     useEffect(() => {
         setHydratedDetail((prev) => (prev && prev.id === selectedId ? prev : null));
     }, [selectedId]);
+
+    // The job to actually render in the detail pane/sheet — `selected`
+    // (in `hits`) first, else the existence check's confirmed-alive job.
+    const detailJob = useMemo(() => {
+        const base = selected ?? deadJobFoundJob;
+        if (!base) return null;
+        if (hydratedDetail?.id === base.id) return hydratedDetail.job;
+        return base;
+    }, [selected, deadJobFoundJob, hydratedDetail]);
+
     useEffect(() => {
-        if (!selected || selected.description !== undefined) return;
-        const id = selected.id;
-        if (hydratedDetail?.id === id) return;
+        const base = selected ?? deadJobFoundJob;
+        if (!base) return;
+        const wantsRetry = retryRequest?.id === base.id;
+        if (base.description !== undefined && !wantsRetry) return;
+        if (hydratedDetail?.id === base.id) return;
+        const id = base.id;
         const token = detailHydrationGuardRef.current!.begin();
         void (async () => {
             try {
@@ -2823,23 +2845,34 @@ function JobsContent() {
             }
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selected?.id, selected?.description, descriptionRetryNonce]);
-    // Clears the cached (timed-out) hydrate and bumps the nonce so the effect
-    // above re-fires for the same job id — wired to the pending note's
-    // "try again" button.
+    }, [selected?.id ?? deadJobFoundJob?.id, selected?.description ?? deadJobFoundJob?.description, retryRequest]);
+    // Clears the cached (timed-out) hydrate and requests a fresh fetch for
+    // whichever job is currently in the detail pane — wired to the pending
+    // note's "try again" button, for both the SERP-hydrate and direct-open
+    // (existence-check) sources.
     const retryDescription = useCallback(() => {
+        const id = detailJob?.id;
+        if (!id) return;
         setHydratedDetail(null);
-        setDescriptionRetryNonce((n) => n + 1);
-    }, []);
+        setRetryRequest((prev) => ({ id, nonce: (prev?.nonce ?? 0) + 1 }));
+    }, [detailJob?.id]);
 
-    // The job to actually render in the detail pane/sheet — `selected`
-    // (in `hits`) first, else the existence check's confirmed-alive job.
-    const detailJob = useMemo(() => {
-        const base = selected ?? deadJobFoundJob;
-        if (!base) return null;
-        if (hydratedDetail?.id === base.id) return hydratedDetail.job;
-        return base;
-    }, [selected, deadJobFoundJob, hydratedDetail]);
+    // Whichever source produced `detailJob` supplies its pending flag: the
+    // most recent hydrate for this id if one landed, else the existence
+    // check's own answer (direct-open path) — see
+    // `resolveDetailDescriptionPending`'s doc comment.
+    const detailDescriptionPending = useMemo(
+        () =>
+            resolveDetailDescriptionPending({
+                detailId: detailJob?.id ?? null,
+                hydrated: hydratedDetail ? { id: hydratedDetail.id, pending: hydratedDetail.descriptionPending } : null,
+                found:
+                    deadJobResolved?.status === "found"
+                        ? { id: deadJobResolved.id, pending: deadJobResolved.descriptionPending }
+                        : null,
+            }),
+        [detailJob?.id, hydratedDetail, deadJobResolved],
+    );
     const detailPursuit = detailJob ? pursuitsByJobId.get(detailJob.id) : undefined;
 
     const mainJobsTourActive = tourActive && tourPageId === "jobs";
@@ -4197,7 +4230,7 @@ function JobsContent() {
                     reportJobEnabled={reportJobEnabled}
                     collapseDescription={collapseDescription}
                     className="border-0 bg-transparent"
-                    descriptionPending={hydratedDetail?.id === detailJob.id && hydratedDetail.descriptionPending}
+                    descriptionPending={detailDescriptionPending}
                     onRetryDescription={retryDescription}
                 />
                 {!collapseDescription && (

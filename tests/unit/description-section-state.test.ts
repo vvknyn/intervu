@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   resolveDescriptionSectionState,
+  resolveDetailDescriptionPending,
   type DescriptionSectionState,
 } from "../../src/lib/jobs/description-section-state";
 
@@ -51,6 +52,52 @@ describe("resolveDescriptionSectionState", () => {
   for (const { name, input, expected } of cases) {
     it(`${name} -> "${expected}"`, () => {
       assert.equal(resolveDescriptionSectionState(input), expected);
+    });
+  }
+});
+
+describe("resolveDetailDescriptionPending", () => {
+  const cases: Array<{
+    name: string;
+    input: {
+      detailId: string | null;
+      hydrated: { id: string; pending: boolean } | null;
+      found: { id: string; pending: boolean } | null;
+    };
+    expected: boolean;
+  }> = [
+    {
+      name: "hydrated wins over found for the same id, even when they disagree",
+      input: {
+        detailId: "job-1",
+        hydrated: { id: "job-1", pending: false },
+        found: { id: "job-1", pending: true },
+      },
+      expected: false,
+    },
+    {
+      name: "found is used when there's no hydrated entry for this id yet (direct-open)",
+      input: {
+        detailId: "job-1",
+        hydrated: null,
+        found: { id: "job-1", pending: true },
+      },
+      expected: true,
+    },
+    {
+      name: "neither source matches the rendered id -> false, not a stale flag",
+      input: {
+        detailId: "job-2",
+        hydrated: { id: "job-1", pending: true },
+        found: { id: "job-1", pending: true },
+      },
+      expected: false,
+    },
+  ];
+
+  for (const { name, input, expected } of cases) {
+    it(`${name} -> ${expected}`, () => {
+      assert.equal(resolveDetailDescriptionPending(input), expected);
     });
   }
 });

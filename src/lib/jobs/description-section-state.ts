@@ -27,3 +27,23 @@ export function resolveDescriptionSectionState(i: {
   if (i.pending) return "pending";
   return "empty";
 }
+
+/**
+ * Which source's `descriptionPending` flag applies to the job actually
+ * rendered in the detail pane (jobs/page.tsx's `detailJob`), regardless of
+ * whether that job arrived via a SERP row's on-demand hydrate or the
+ * direct-open (`/jobs?job=<id>`) existence check — both fetches carry a
+ * `descriptionPending` flag, and whichever one produced `detailJob` supplies
+ * it. `hydrated` wins when present because it's always the MOST RECENT fetch
+ * for that id (initial hydrate or a "try again" retry); `found` is the
+ * existence check's own answer, used until a hydrate for the same id lands.
+ */
+export function resolveDetailDescriptionPending(i: {
+  detailId: string | null;
+  hydrated: { id: string; pending: boolean } | null;
+  found: { id: string; pending: boolean } | null;
+}): boolean {
+  if (i.detailId != null && i.hydrated?.id === i.detailId) return i.hydrated.pending;
+  if (i.detailId != null && i.found?.id === i.detailId) return i.found.pending;
+  return false;
+}
