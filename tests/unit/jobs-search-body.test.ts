@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     buildSearchBody,
+    isBareRoleQuery,
     JOB_LIST_ATTRIBUTES_TO_RETRIEVE,
     JOBS_INDEX_SETTINGS,
     mergeExpandedIntoStrict,
@@ -173,6 +174,31 @@ test("Staff Engineer query: relevance and newest share matching fields", () => {
         "attributesToSearchOn" in relevance ? relevance.attributesToSearchOn : undefined,
         "attributesToSearchOn" in newest ? newest.attributesToSearchOn : undefined,
     );
+});
+
+test("isBareRoleQuery: a plain role query with no company/tech/lane signal is bare", () => {
+    assert.equal(isBareRoleQuery("software engineer", false), true);
+    assert.equal(isBareRoleQuery("registered nurse", false), true);
+});
+
+test("isBareRoleQuery: company-scoped intent always wins, regardless of query text", () => {
+    assert.equal(isBareRoleQuery("software engineer", true), false);
+    assert.equal(isBareRoleQuery("cloudflare", true), false);
+});
+
+test("isBareRoleQuery: a tech-skill query is not a bare role query — it keeps its own description-inclusive scoping", () => {
+    assert.equal(isBareRoleQuery("Rust", false), false);
+    assert.equal(isBareRoleQuery("python", false), false);
+});
+
+test("isBareRoleQuery: a seniority/role-title-lane query defers to the lane, not the tiered bare-role path", () => {
+    assert.equal(isBareRoleQuery("director product", false), false);
+    assert.equal(isBareRoleQuery("vp product", false), false);
+});
+
+test("isBareRoleQuery: an empty or whitespace-only query is a browse, not a bare role query", () => {
+    assert.equal(isBareRoleQuery("", false), false);
+    assert.equal(isBareRoleQuery("   ", false), false);
 });
 
 test("quoteShortTokens wraps tokens below the typo-tolerance floor in phrase quotes", () => {

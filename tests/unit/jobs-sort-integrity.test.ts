@@ -150,7 +150,12 @@ describe("searchMeili sort-integrity guard — relevance mode is never touched",
         const result = await searchMeili({ q: "engineer" });
 
         assert.deepEqual(result.hits.map((h) => h.id), ["a", "b", "c"], "hits pass through exactly as the engine returned them");
-        assert.equal(calls, 1, "no retry — relevance has no engine-decided order to verify");
+        // A bare role query ("engineer") is now `runTieredRetrieval`'s one
+        // federated /multi-search PLUS one parallel tier1Total count pass —
+        // 2 real fetches for this one logical search pass, not 1. No RETRY
+        // fires (calls stays at exactly 2, not 4): relevance mode is still
+        // never checked or re-issued.
+        assert.equal(calls, 2, "no retry — relevance has no engine-decided order to verify");
         mock.reset();
     });
 });
@@ -225,7 +230,10 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
         const result = await searchMeili({ q: "engineer", sort: "newest" });
 
         assert.deepEqual(result.hits.map((h) => h.id), ["a", "b", "c"], "page returned as-is — no retry, no local re-sort");
-        assert.equal(calls, 1, "titled subsequence [a, c] is monotonic, so the whole page is treated as sorted");
+        // 2, not 1: a bare role query is `runTieredRetrieval`'s one federated
+        // /multi-search plus one parallel tier1Total count pass — still only
+        // ONE logical search pass (no retry), just 2 real fetches for it.
+        assert.equal(calls, 2, "titled subsequence [a, c] is monotonic, so the whole page is treated as sorted");
         mock.reset();
     });
 
@@ -257,7 +265,11 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
         const result = await searchMeili({ q: "engineer", sort: "newest" });
 
         assert.deepEqual(result.hits.map((h) => h.id), ["c", "b", "a"], "returns the retry's hits once the titled subsequence is sorted");
-        assert.equal(calls, 2, "retried once — titled subsequence [a, c] was genuinely disordered");
+        // 4, not 2: each of the two logical passes (initial + the one retry)
+        // is `runTieredRetrieval`'s federated /multi-search plus its parallel
+        // tier1Total count pass — 2 real fetches per pass, still exactly one
+        // retry.
+        assert.equal(calls, 4, "retried once — titled subsequence [a, c] was genuinely disordered");
         mock.reset();
     });
 
@@ -300,7 +312,9 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
         const result = await searchMeili({ q: "engineer", sort: "salary_desc" });
 
         assert.deepEqual(result.hits.map((h) => h.id), ["a", "b", "c"]);
-        assert.equal(calls, 1, "titled subsequence [a, c] is salary-descending, so no retry fires");
+        // 2, not 1 — see the "monotonic" test above for why a no-retry pass
+        // is 2 real fetches under `runTieredRetrieval`.
+        assert.equal(calls, 2, "titled subsequence [a, c] is salary-descending, so no retry fires");
         mock.reset();
     });
 });

@@ -430,4 +430,14 @@ export interface JobSearchResult {
    *  `runWithIntent` retry). `domains` are the probed employer domains the
    *  scoped pass pinned to; `scopedTotal` is always 0 (the trigger). */
   companyIntent?: { domains: string[]; scopedTotal: number; fallback: boolean };
+  /**
+   * Strict-scope-only count for a tiered-retrieval result (see
+   * `runTieredRetrieval` in meilisearch.ts): how many of `total`'s
+   * whole-document pool matched under the tight title/company/tags scope.
+   * This is the seam a client uses to rank/label those hits ahead of the
+   * mention-only remainder — a server-computed replacement for the old
+   * client-side re-derivation (`firstMentionIndex`/`partitionByTitleMatch`)
+   * that reshuffled under an explicit sort. Absent on every other path.
+   */
+  tier1Total?: number;
 }

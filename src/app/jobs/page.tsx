@@ -69,6 +69,7 @@ import {
     firstMentionIndex,
     interleaveByCompany,
     partitionByTitleMatch,
+    resolveHeadlineTotal,
     seamSummary,
     shortDate,
 } from "@/lib/jobs/presentation";
@@ -2573,7 +2574,17 @@ function JobsContent() {
     // reordering `displayHits` — titled block first, each half keeping its
     // sorted order — instead of counting a run, so it's used in place of
     // `firstMentionIndex` for every sort mode other than relevance.
+    // Tiered-retrieval result (`tier1Total` set — see `runTieredRetrieval`,
+    // meilisearch.ts): the federation already ranks strict-scope hits ahead
+    // of mention-only ones under every sort (verified live, leg 7 A2-A5), so
+    // `hits` needs no client-side reordering — only a seam index, and the
+    // server-computed strict-only count IS that seam, exactly (no
+    // re-derivation from titles, no reshuffle-under-sort risk).
     const { hits: displayHits, seamIndex } = useMemo(() => {
+        if (result?.tier1Total !== undefined) {
+            const seam = result.tier1Total;
+            return { hits, seamIndex: seam > 0 && seam < hits.length ? seam : -1 };
+        }
         const q = result?.effectiveQ ?? "";
         if (sortScopedSeam) return partitionByTitleMatch(hits, q);
         return { hits, seamIndex: firstMentionIndex(hits.map((h) => decodeText(h.title)), q) };
@@ -2994,7 +3005,7 @@ function JobsContent() {
         [visibleHits, selectedId, selectJob],
     );
 
-    const total = result?.total ?? 0;
+    const total = result ? resolveHeadlineTotal(result) : 0;
     const hasMore =
         result?.configured === true && hits.length > 0 && hits.length < total && hits.length < MAX_REACHABLE;
     // Honest display count for THIS search's result total (result-count

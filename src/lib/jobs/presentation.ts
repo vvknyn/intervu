@@ -1563,6 +1563,22 @@ export function partitionByTitleMatch(hits: PublicJob[], q: string): { hits: Pub
 }
 
 /**
+ * The one flip point for "what number is the headline total" — shared by
+ * `/jobs`'s displayed count and `/api/jobs/count`'s `total` field so the
+ * union-vs-strict ruling can never drift between the two callers. For a
+ * tiered-retrieval result (`tier1Total` present — see `runTieredRetrieval`,
+ * meilisearch.ts) `total` is already the whole-document pool's own
+ * `estimatedTotalHits` (a federated union, not a client-side sum), which is
+ * the corrected headline per this fix — the old bug was reporting the
+ * strict-scope count (`tier1Total`) as if it were the whole corpus. Every
+ * other path has no `tier1Total` and `total` is already whatever that path
+ * always reported (untouched by this change).
+ */
+export function resolveHeadlineTotal(input: { total: number; tier1Total?: number }): number {
+    return input.total;
+}
+
+/**
  * Reorders one fetched batch of hits so no more than `maxRun` consecutive
  * rows share a company — live prod (2026-08-21 audit): 10 straight
  * Extendicare rows, then 7 straight from one other employer, then 3 more,

@@ -831,6 +831,22 @@ export function quoteShortTokens(q: string): string {
  */
 const TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON = ["title", "company", "tags"] as const;
 
+/**
+ * A "bare role query" — free text with no other lane claiming it (not
+ * company-named, not a tech-skill token, not a seniority+role pair the
+ * role-title lane already owns). This is the exact predicate under which
+ * `buildSearchBody` (below) scopes retrieval to `TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON`
+ * — pulled out as its own export so `searchMeili`'s tiered-retrieval branch
+ * can ask the SAME question ("does this query get the title-first scope?")
+ * before it has a `MeiliSearchBody` to inspect, rather than re-deriving a
+ * second copy of this condition that could drift from `buildSearchBody`'s.
+ */
+export function isBareRoleQuery(q: string, companyScoped: boolean): boolean {
+  if (companyScoped) return false;
+  if (isTechSkillQuery(q)) return false;
+  return Boolean(q.trim()) && !shouldRunRoleTitleLane(q, companyScoped);
+}
+
 export function buildSearchBody(
   p: JobSearchParams,
   legacy: boolean,
@@ -854,8 +870,7 @@ export function buildSearchBody(
   const titleFirstScoped =
     !opts?.wholeDocument &&
     !techSkillScoped &&
-    Boolean((p.q ?? "").trim()) &&
-    !shouldRunRoleTitleLane(p.q ?? "", !!opts?.companyScoped);
+    isBareRoleQuery(p.q ?? "", !!opts?.companyScoped);
   return {
     // `quoteShortTokens` only rewrites the text handed to Meilisearch — every
     // classifier below (`techSkillScoped`, `buildFilter`, …) still reads the
@@ -904,6 +919,37 @@ export function buildSearchBody(
     sort: buildMeiliSort(p, legacy),
     ...(p.id ? {} : { attributesToRetrieve: [...JOB_LIST_ATTRIBUTES_TO_RETRIEVE] }),
   };
+}
+
+/**
+ * One limit-0 Meilisearch count pass — `buildSearchBody`'s body for `p`,
+ * pinned to `limit: 0, offset: 0`, POSTed through the shared `meiliFetch`
+ * chokepoint. Shared by `searchMeili`'s tiered-retrieval branch (the
+ * parallel tier-1 strict count that supplies `tier1Total`) and by
+ * `/api/jobs/count` (the recall canary's `titled`/`wholeDoc` fields), so
+ * "how many strict-scope/whole-document matches does this query have" is
+ * computed identically wherever either number is needed — never re-derived
+ * from a different call's result. Exported (not a `searchMeili`-local
+ * closure) because the count route is a separate caller with no `intent`/
+ * `companyScoped` resolution of its own to piggyback on.
+ */
+export async function runCountPass(
+  h: string,
+  p: JobSearchParams,
+  opts: BuildSearchBodyOpts,
+): Promise<number> {
+  const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+    cache: "no-store",
+    body: JSON.stringify(buildSearchBody({ ...p, limit: 0, offset: 0 }, false, "all", opts)),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Meilisearch count pass failed: ${res.status} ${text.slice(0, 300)}`);
+  }
+  const body = (await res.json()) as { estimatedTotalHits?: number; totalHits?: number; hits?: unknown[] };
+  return body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0;
 }
 
 const POST_FILTER_PAGE_SIZE = 500;
@@ -1029,6 +1075,84 @@ async function applySortIntegrityGuard(
   return { ...retry, hits: [...retry.hits].sort((a, b) => compareJobsBySort(a, b, mode)) };
 }
 
+/**
+ * Tiered retrieval for a bare role query (`isBareRoleQuery`): ONE federated
+ * `/multi-search` blending tier 1 (strict title/company/tags scope, weight
+ * 100 — byte-identical to `buildSearchBody(params, false, "all", {})`, the
+ * pre-existing strict pass) ahead of tier 2 (whole-document, weight 1) into
+ * a single deduplicated pool. Meilisearch's federation dedupes hits by
+ * document id and unions the totals into `estimatedTotalHits` — verified
+ * live (leg 7 A2-A5): the union total, strict-scope hits ranked first under
+ * every sort (posted_ts included), continuing into whole-document-only
+ * hits once the strict pool is exhausted. `total` here IS the whole-document
+ * pool size — no separate "expand on zero hits" fallback, no merge step.
+ *
+ * `federation.limit`/`offset`/`facetsByIndex` carry what a per-query
+ * `facets`/`limit`/`offset` would under a plain search — federation rejects
+ * those per-query (400 `invalid_multi_search_query_facets`), so they're
+ * stripped from each query body and moved to the federation envelope.
+ * Facets requested only when the caller asked for them (`p.withFacets`),
+ * using the same `REQUESTED_FACET_KEYS` the SERP has always requested.
+ *
+ * `tier1Total` — the strict-only count — comes from a parallel limit-0
+ * `runCountPass` (shared with `/api/jobs/count`'s `titled` field) rather
+ * than from the federated response: federation doesn't report a per-query
+ * sub-total, only the union. This is what lets the client use a
+ * server-supplied seam index instead of re-deriving it from loaded hits
+ * (`firstMentionIndex`/`partitionByTitleMatch`), which reshuffles under an
+ * explicit sort (leg 6 §2).
+ *
+ * No 400/posted_ts legacy retry here (unlike `runPass` below) and no
+ * fallback to the old scoped-pass mechanism on failure — a federation error
+ * surfaces like any other Meilisearch error.
+ */
+async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
+  const strictBody = buildSearchBody(p, false, "all", {});
+  const wholeBody = buildSearchBody(p, false, "all", { wholeDocument: true });
+  const { limit: _sLimit, offset: _sOffset, facets: _sFacets, ...strictQuery } = strictBody;
+  const { limit: _wLimit, offset: _wOffset, facets: _wFacets, ...wholeQuery } = wholeBody;
+
+  const federatedBody = {
+    federation: {
+      limit: p.limit ?? 40,
+      offset: p.offset ?? 0,
+      ...(p.withFacets ? { facetsByIndex: { [JOBS_INDEX]: [...REQUESTED_FACET_KEYS] } } : {}),
+    },
+    queries: [
+      { ...strictQuery, indexUid: JOBS_INDEX, federationOptions: { weight: 100 } },
+      { ...wholeQuery, indexUid: JOBS_INDEX, federationOptions: { weight: 1 } },
+    ],
+  };
+
+  const [fedRes, tier1Total] = await Promise.all([
+    meiliFetch(`${h}/multi-search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(federatedBody),
+    }),
+    runCountPass(h, p, {}),
+  ]);
+
+  if (!fedRes.ok) {
+    const text = await fedRes.text().catch(() => "");
+    throw new Error(`Meilisearch federated search failed: ${fedRes.status} ${text.slice(0, 300)}`);
+  }
+  const body = (await fedRes.json()) as {
+    hits?: PublicJob[];
+    estimatedTotalHits?: number;
+    facetsByIndex?: Record<string, { distribution?: Record<string, Record<string, number>> }>;
+  };
+  return {
+    hits: body.hits ?? [],
+    total: body.estimatedTotalHits ?? body.hits?.length ?? 0,
+    backend: "meilisearch",
+    configured: true,
+    facetDistribution: body.facetsByIndex?.[JOBS_INDEX]?.distribution as FacetDistribution | undefined,
+    tier1Total,
+  };
+}
+
 export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> {
   const h = host();
   if (!h) {
@@ -1066,6 +1190,15 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         if (!shouldRelaxSearch(strict.total, params.q ?? "")) return strict;
         const expanded = await runDomainPostFilter(true);
         return mergeExpandedIntoStrict(strict, expanded);
+      }
+
+      // Bare role query ("software engineer", "registered nurse", …, no
+      // other lane claiming it): tiered federated retrieval replaces the
+      // old "strict pass, expand only on zero hits" mechanism below for
+      // THIS query class only — company-name/tech-skill/browse queries
+      // still fall through to `runPass`. See `runTieredRetrieval`'s doc.
+      if (isBareRoleQuery(params.q ?? "", companyScoped)) {
+        return runTieredRetrieval(h, params);
       }
 
       // One extra round trip, memoized per query across requests
