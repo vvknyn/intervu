@@ -2459,7 +2459,7 @@ function JobsContent() {
         // request instead of queuing a second one behind the telemetry below.
         const hit = resultRef.current?.hits.find((h) => h.id === id);
         if (hit?.description === undefined && hydratedDetail?.id !== id) {
-            void detailFetcher.fetch(id, searchJobsAction);
+            void detailFetcher.fetch(id, searchJobsActionRaw);
         }
         // Telemetry before navigation: the rank is only knowable against the
         // result set currently on screen. A miss yields -1, which the action
@@ -2788,7 +2788,7 @@ function JobsContent() {
             // `filterableAttributes` addition in meilisearch.ts. Going
             // through `detailFetcher` here means a same-id fetch already
             // primed by `openJob` is joined rather than re-dispatched.
-            const check = await detailFetcher.fetch(id, searchJobsAction);
+            const check = await detailFetcher.fetch(id, searchJobsActionRaw);
             if (!deadJobGuardRef.current!.isCurrent(token)) return;
             setDeadJobCheck({ id, ...check });
         })();
@@ -2856,7 +2856,7 @@ function JobsContent() {
             // primed for this id (`detailFetcher`, lib/jobs/detail-fetch.ts)
             // instead of dispatching a second POST behind it in Next's
             // serial client-action queue.
-            const check = await detailFetcher.fetch(id, searchJobsAction);
+            const check = await detailFetcher.fetch(id, searchJobsActionRaw);
             if (!detailHydrationGuardRef.current!.isCurrent(token)) return;
             if (check.status === "found") {
                 setHydratedDetail({ id, job: check.job, descriptionPending: check.descriptionPending });
@@ -2894,7 +2894,7 @@ function JobsContent() {
         // Next's client action queue is strictly serial, so this POST must
         // be the one dispatched first. The hydration effect's own
         // `detailFetcher.fetch` call joins this same in-flight request.
-        void detailFetcher.fetch(id, searchJobsAction);
+        void detailFetcher.fetch(id, searchJobsActionRaw);
         setHydratedDetail(null);
         setRetryRequest((prev) => ({ id, nonce: (prev?.nonce ?? 0) + 1 }));
     }, [detailJob?.id]);
