@@ -42,6 +42,10 @@ describe('sanitizeClientName (pure) — DCR body.client_name is attacker-control
     const atCap = 'B'.repeat(AGENT.MAX_CLIENT_NAME_LENGTH);
     assert.equal(sanitizeClientName(atCap), atCap);
   });
+
+  it('strips a NUL rather than storing it — same chokepoint as the manual-token label sanitizer', () => {
+    assert.equal(sanitizeClientName('Acme\u0000 Agent'), 'Acme Agent');
+  });
 });
 
 describe('register route + registerClient integration — stored name is always a string', () => {

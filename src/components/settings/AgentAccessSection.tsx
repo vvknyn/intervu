@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast, confirmToast } from "@/lib/toast";
 import { AGENT, claudeCodeConnectCommand, chatAppConnectInstruction } from "@/lib/agent/config";
 import type { User } from "@/lib/firebase/client-auth";
@@ -18,17 +19,20 @@ function formatDate(ts: number | null): string {
     return new Date(ts).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-/** Manual tokens carry no client name (there's no OAuth client to name them
- *  after); everything else came from an OAuth exchange, so its clientName is
- *  the one meaningful "who is this" a user can recognize. */
+/** `clientName` is the one "who is this" a user can recognize, whether it
+ *  came from an OAuth exchange or the user's own label on a manual token
+ *  (see `createManualTokenAction`) — shown when set, else a kind-based
+ *  fallback for the (still common) unlabeled case. */
 function displayName(c: AgentCredentialSummary): string {
-    if (c.kind === "manual") return "Personal access token";
-    return c.clientName ?? "Unknown client";
+    if (c.clientName) return c.clientName;
+    return c.kind === "manual" ? "Personal access token" : "Unknown client";
 }
 
 function kindLabel(c: AgentCredentialSummary): string {
     return c.kind === "manual" ? "Manual token" : "OAuth connection";
 }
+
+const TOKEN_CREATE_ERROR = "Couldn't create a token. Try again.";
 
 function CopyButton({ value, label }: { value: string; label: string }) {
     const [copied, setCopied] = useState(false);
@@ -67,6 +71,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
     const [generating, setGenerating] = useState(false);
     const [newSecret, setNewSecret] = useState<string | null>(null);
     const [revokingId, setRevokingId] = useState<string | null>(null);
+    const [label, setLabel] = useState("");
 
     const loadCredentials = useCallback(async () => {
         // Right after a fresh sign-in, the client's `user` can flip truthy a
@@ -99,13 +104,16 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
     const handleGenerate = async () => {
         setGenerating(true);
         try {
-            const res = await createManualTokenAction();
+            const res = await createManualTokenAction(label);
             if (res.error || !res.secret) {
-                toast.error(res.error || "Couldn't create a token. Try again.");
+                toast.error(res.error || TOKEN_CREATE_ERROR);
                 return;
             }
             setNewSecret(res.secret);
+            setLabel("");
             await loadCredentials();
+        } catch {
+            toast.error(TOKEN_CREATE_ERROR);
         } finally {
             setGenerating(false);
         }
@@ -200,10 +208,24 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             </div>
 
             <div className="mb-6">
-                <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating}>
-                    {generating ? <CircleNotch className="animate-spin" /> : null}
-                    {generating ? "Generating..." : "Generate manual token"}
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Input
+                        value={label}
+                        onChange={(e) => setLabel(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.nativeEvent.isComposing && !generating) void handleGenerate();
+                        }}
+                        placeholder="Label (optional)"
+                        aria-label="Token label"
+                        maxLength={AGENT.MAX_TOKEN_LABEL_LENGTH}
+                        disabled={generating}
+                        className="max-w-64"
+                    />
+                    <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating} className="shrink-0">
+                        {generating ? <CircleNotch className="animate-spin" /> : null}
+                        {generating ? "Generating..." : "Generate manual token"}
+                    </Button>
+                </div>
 
                 {newSecret && (
                     <div className="mt-3 rounded-none border border-warn bg-muted p-3 space-y-2">
