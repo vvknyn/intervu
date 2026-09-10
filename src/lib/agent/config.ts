@@ -119,6 +119,12 @@ export const AGENT = {
     MAX_REDIRECT_URIS: 10,
     MAX_REDIRECT_URI_LENGTH: 2048,
     MAX_CLIENT_NAME_LENGTH: 256,
+    /** Manual-token "label" cap (Settings → Connected agents' create-token
+     *  input) — the label IS `clientName` (see `trimAndCapLabel`'s doc
+     *  comment), but this is a short user-typed display name ("Laptop Claude
+     *  Code"), not an OAuth client's self-declared name, so it gets its own,
+     *  much tighter cap rather than sharing MAX_CLIENT_NAME_LENGTH. */
+    MAX_TOKEN_LABEL_LENGTH: 40,
     /** `save_resume_variant`'s `resume_text` cap (tools.ts) — DoS/cost-
      *  amplification guard: this field is agent-supplied free text written
      *  straight into a Firestore document, so it needs a hard ceiling before
@@ -170,6 +176,27 @@ export const AGENT = {
      *  own constant rather than reusing RESULT_CAP for an unrelated concern. */
     COMPANY_SEARCH_LIMIT: 20,
 };
+
+/**
+ * Trims a free-text display label and caps it at `max` chars — the one
+ * place any user- or client-supplied name (an OAuth client's self-declared
+ * `client_name`, a manual token's user-typed label) is sanitized before it
+ * reaches storage as `clientName`. A wildly long value is shortened rather
+ * than rejected outright — it's just a display label, not something
+ * structural. Control characters (NUL included) and lone surrogates aren't
+ * valid JSON text for the jsonb column the credential doc lands in, so they
+ * are stripped first; the cap then counts code points, not UTF-16 units, so
+ * it can never split a surrogate pair. Empty after trim is `undefined` ("no
+ * label supplied"), so a blank/whitespace-only input falls back to the
+ * caller's default display string instead of storing an empty string.
+ */
+export function trimAndCapLabel(value: unknown, max: number): string | undefined {
+    if (typeof value !== "string") return undefined;
+    const cleaned = value.replace(/[\p{Cc}\p{Cs}]/gu, "").trim();
+    if (cleaned.length === 0) return undefined;
+    const points = Array.from(cleaned);
+    return points.length > max ? points.slice(0, max).join("").trimEnd() : cleaned;
+}
 
 /**
  * The canonical `claude mcp add` invocation for connecting Claude Code to

@@ -10,6 +10,7 @@ import {
     type CredentialSummary,
     type CredentialSummaryKind,
 } from "@/lib/agent/tokens";
+import { AGENT, trimAndCapLabel } from "@/lib/agent/config";
 import { getServerUser } from "@/lib/auth/server-user";
 
 export type { CredentialSummary as AgentCredentialSummary } from "@/lib/agent/tokens";
@@ -22,11 +23,18 @@ export async function listAgentCredentialsAction(): Promise<{ data?: CredentialS
 }
 
 /** Mints a long-lived manual token. The plaintext secret is returned to the
- *  caller exactly once here — it is never stored anywhere but the hash. */
-export async function createManualTokenAction(): Promise<{ secret?: string; error?: string }> {
+ *  caller exactly once here — it is never stored anywhere but the hash.
+ *  `label` is the user's own name for this token ("Laptop Claude Code") so
+ *  Settings can tell multiple manual tokens apart later — it's the same
+ *  concern `clientName` already carries for OAuth clients (see
+ *  `toActiveCredentialSummaries`), so it's stored there rather than as a new
+ *  field; trimmed/capped/blank-to-`undefined` by the same `trimAndCapLabel`
+ *  DCR's `client_name` uses. */
+export async function createManualTokenAction(label?: string): Promise<{ secret?: string; error?: string }> {
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
-    const { secret } = await issueCredential(getAgentStore(), { uid: user.uid, kind: "manual" });
+    const clientName = trimAndCapLabel(label, AGENT.MAX_TOKEN_LABEL_LENGTH);
+    const { secret } = await issueCredential(getAgentStore(), { uid: user.uid, kind: "manual", clientName });
     return { secret };
 }
 
