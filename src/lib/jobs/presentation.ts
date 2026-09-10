@@ -1380,6 +1380,25 @@ export function locationWithMode(location: string, workType: string | null | und
 }
 
 /**
+ * Same work-mode token the SERP row's fact-chip row renders
+ * (`buildFactChips`' work_type chip label, which is just `prettyEnum`),
+ * folded onto an already-computed place string as its own " · Mode"
+ * segment — for the surfaces that render `locationText` with no adjacent
+ * work-mode chip of their own (`RelatedJobRow`, `FollowAlertsBell`, the
+ * digest email) and so lost their only remote/hybrid signal once
+ * `locationText` stopped prefixing "Remote ·" onto the place text. Skipped
+ * when the mode token already IS the place text — `locationText`'s own
+ * no-structured-location fallback returns the bare word "Remote", and
+ * appending the same word again would repeat it on one line, exactly the
+ * defect `locationText`'s prefix removal fixed elsewhere.
+ */
+export function placeWithWorkMode(place: string, workType: string | null | undefined): string {
+    const mode = prettyEnum(workType);
+    if (!mode || mode === place) return place;
+    return place ? `${place} · ${mode}` : mode;
+}
+
+/**
  * The SERP row's meta line: salary leads (semibold), then whichever of
  * location/employment-type are known, joined "·" in that order — absence is
  * silence, never a placeholder ("pay undisclosed"/"Unknown"). When nothing

@@ -10,10 +10,12 @@ export interface DigestSectionItem {
   title: string;
   company: string;
   href: string;
-  /** Rendered location, already through `locationText` (which prefixes
-   *  "Remote ·" and strips the junk values the corpus carries). Empty when
-   *  the posting genuinely has no location — the template then omits the
-   *  line rather than printing a blank one. */
+  /** Rendered location, already through `locationText` (which strips the
+   *  junk values the corpus carries) and `placeWithWorkMode` (which appends
+   *  the work mode as its own " · Mode" segment, since this email has no
+   *  separate work-type chip). Empty when the posting genuinely has no
+   *  location and isn't remote — the template then omits the line rather
+   *  than printing a blank one. */
   location: string;
 }
 

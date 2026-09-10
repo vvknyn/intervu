@@ -17,7 +17,7 @@ import {
 import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
 import { serializeJobsUrl } from "@/lib/jobs/url-state";
 import { jobPath } from "@/lib/jobs/job-slug";
-import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, locationText, placeWithWorkMode, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { domainToSlug } from "@/lib/boards/slug";
 import { getAgentPreferences } from "@/lib/agent/preferences";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -44,11 +44,11 @@ export function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionIte
     href: `${siteUrl}${jobPath(job)}`,
     // The site's own formatter, not a second one: it already handles
     // multi-country arrays and the "[object Object]" junk class the corpus
-    // carries in both the free-text and structured location fields. Note:
-    // unlike the SERP/detail panes, this email has no separate work-type
-    // chip, so a remote job's location here reads as the place only (no
-    // "Remote" marker) since locationText() dropped that prefix.
-    location: locationText(job),
+    // carries in both the free-text and structured location fields. This
+    // email has no separate work-type chip, so placeWithWorkMode folds the
+    // mode onto the place as its own " · Mode" segment — the same token the
+    // SERP/detail panes' adjacent chip would show.
+    location: placeWithWorkMode(locationText(job), job.work_type),
   };
 }
 

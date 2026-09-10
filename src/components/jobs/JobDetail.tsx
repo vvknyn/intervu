@@ -22,7 +22,7 @@ import { formatDescription, type DescBlock } from "@/lib/jobs/format-description
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, clampLocationSegments, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
+import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, placeWithWorkMode, clampLocationSegments, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { presentJob } from "@/lib/presentation";
 import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
@@ -343,7 +343,10 @@ export function JobDetailActionBar({
 export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onClick: () => void }) {
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
-    const loc = locationText(job);
+    // placeWithWorkMode, not locationText alone: this row has no adjacent
+    // work-type chip (unlike JobCard's SERP row), so it's the only place a
+    // remote/hybrid job's work mode can show up.
+    const loc = placeWithWorkMode(locationText(job), job.work_type);
     return (
         <button
             type="button"
