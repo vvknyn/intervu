@@ -313,7 +313,19 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     type="text"
                     aria-label={ariaLabel}
                     placeholder={placeholder}
-                    className={cn("relative z-20 transition-all", leadingIcon && "min-w-0 flex-1", showClear && "pr-10", className)}
+                    className={cn(
+                        "relative z-20 transition-all",
+                        leadingIcon && "min-w-0 flex-1",
+                        // Must clear the button's own footprint (inset + size),
+                        // which differs per breakpoint below: mobile needs
+                        // right-1.5 (6px) + w-10 (40px) = 46px -> pr-12 (48px);
+                        // lg needs lg:right-2.5 (10px) + lg:w-6 (24px) = 34px
+                        // -> lg:pr-9 (36px). A single non-responsive value here
+                        // either clips the button's own breakpoint or leaves
+                        // slack under the other one.
+                        showClear && "pr-12 lg:pr-9",
+                        className,
+                    )}
                     value={value}
                     onChange={(e) => {
                         onChange(e.target.value);
@@ -346,6 +358,13 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         data-testid="search-input-clear"
                         aria-label="Clear search"
                         title="Clear search"
+                        // Same guard as the suggestion `<li>` items above and
+                        // the sibling `topbar-docked-location-clear` button:
+                        // without it, mousedown moves focus to this button
+                        // before onClick fires, blurring the Input. Touch taps
+                        // are unaffected — they fire their own click regardless
+                        // of what a mousedown handler does.
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onClear?.()}
                         className="absolute right-1.5 z-30 flex h-10 w-10 items-center justify-center rounded-none bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5 lg:h-6 lg:w-6"
                     >

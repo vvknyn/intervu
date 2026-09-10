@@ -89,6 +89,13 @@ for (const { name, viewport, isMobile, hasTouch, userAgent, fieldSelector } of C
 
             await clearButton.click();
             await expect(input).toHaveValue('');
+
+            // Regression guard: clicking the button must not blur the field.
+            // A shared button covering both the mobile and desktop fields
+            // needs `onMouseDown={preventDefault}` (matching the sibling
+            // location-clear button and the suggestion-list items) or the
+            // mousedown moves focus to the button before onClick runs.
+            await expect(input).toBeFocused();
         });
     });
 }
