@@ -220,6 +220,64 @@ echo 'UNRELATED=1' > "$depdir3/c.env"
 if read_key_from_deploy_dir "$depdir3" MISSING_KEY >/dev/null 2>&1; then r=pass; else r=fail; fi
 check "read_key_from_deploy_dir: key absent from every file -> fails" "$r" fail
 
+# --- pg_env_from_url ---------------------------------------------------
+# Each case runs in its own subshell: pg_env_from_url exports PGUSER/
+# PGPASSWORD/PGHOST/PGPORT/PGDATABASE into the CALLING shell (that's its
+# whole job), so letting those leak between cases — or into the rest of
+# this harness — would make one case's fixture data contaminate the next
+# case's assertions. `unset` at the top of each subshell (harmless if
+# already unset) makes "nothing got exported" mean that, not "whatever
+# was already in this shell's environment survived untouched". The
+# `&& rc=0 || rc=$?` form (rather than a bare call) keeps every case safe
+# under the `set -e` this harness inherited from sourcing the real
+# script above, whether the call is expected to succeed or fail — a
+# regression that flips the outcome must land in `check` as a reported
+# mismatch, not silently abort the rest of the harness.
+(
+  unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
+  pg_env_from_url 'postgresql://alice:s3cret@db.example.com:6543/telemetry' && rc=0 || rc=$?
+  check "pg_env_from_url (full URL w/ port): returns 0" "$rc" 0
+  check "pg_env_from_url (full URL w/ port): PGUSER" "${PGUSER-}" "alice"
+  check "pg_env_from_url (full URL w/ port): PGPASSWORD" "${PGPASSWORD-}" "s3cret"
+  check "pg_env_from_url (full URL w/ port): PGHOST" "${PGHOST-}" "db.example.com"
+  check "pg_env_from_url (full URL w/ port): PGPORT" "${PGPORT-}" "6543"
+  check "pg_env_from_url (full URL w/ port): PGDATABASE" "${PGDATABASE-}" "telemetry"
+)
+
+(
+  unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
+  pg_env_from_url 'postgresql://carol:pw@db2.example.com/analytics' && rc=0 || rc=$?
+  check "pg_env_from_url (no port): returns 0" "$rc" 0
+  check "pg_env_from_url (no port): PGUSER" "${PGUSER-}" "carol"
+  check "pg_env_from_url (no port): PGHOST" "${PGHOST-}" "db2.example.com"
+  check "pg_env_from_url (no port): PGDATABASE" "${PGDATABASE-}" "analytics"
+  # -z "${PGPORT+x}" tests UNSET, not empty-string — a bug that exported
+  # PGPORT="" would pass an empty-string check and fail this one.
+  if [[ -z "${PGPORT+x}" ]]; then r=port_unset; else r=port_set; fi
+  check "pg_env_from_url (no port): PGPORT left unset" "$r" port_unset
+)
+
+(
+  unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
+  pg_env_from_url 'postgresql://bob:p%40ss@db.example.com/telemetry' && rc=0 || rc=$?
+  check "pg_env_from_url (password contains %): returns 1" "$rc" 1
+  if [[ -z "${PGUSER+x}" && -z "${PGPASSWORD+x}" && -z "${PGHOST+x}" && -z "${PGPORT+x}" && -z "${PGDATABASE+x}" ]]; then r=none_set; else r=SOME_SET; fi
+  check "pg_env_from_url (password contains %): exports nothing" "$r" none_set
+)
+
+(
+  unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
+  pg_env_from_url 'not-a-url' && rc=0 || rc=$?
+  check "pg_env_from_url (not a postgres URL): returns 1" "$rc" 1
+)
+
+# Regression pin: the fixed PGDATABASE="<url>" pattern must not survive
+# anywhere in the file. `|| true` guards the same `set -e`-vs-`grep -c`
+# interaction noted above (grep -c exits 1 when its count is 0 — exactly
+# what a passing test here looks like).
+occurrences_pgdatabase_url="$(grep -cF 'PGDATABASE="$batch_url"' "$SCRIPT_DIR/launch-telemetry-ingest.sh")" || true
+check "regression pin: PGDATABASE=\$batch_url is gone from launch-telemetry-ingest.sh" "$occurrences_pgdatabase_url" 0
+
 # step 2 captures the remote leg's whole stdout as the password. Real psql
 # prints its command tag ("ALTER ROLE") to stdout, so anything the remote
 # script lets through lands in front of the password and the local validator
