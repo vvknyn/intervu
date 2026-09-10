@@ -42,6 +42,26 @@ describe("validateSignupEmail", () => {
     it("accepts a lookalike domain that only contains the minted domain as a substring", () => {
         assert.equal(validateSignupEmail("person@notintervu.cc").ok, true);
     });
+
+    // `screenSignupEmail` (email-quality.ts) folded into this same call
+    // site — verifies the wiring, not just the underlying function (that's
+    // email-quality.test.ts's job).
+    it("rejects a disposable address and reports it as the reason, for telemetry", () => {
+        const result = validateSignupEmail("x@mailinator.com");
+        assert.equal(result.ok, false);
+        assert.equal((result as { reason?: string }).reason, "disposable");
+    });
+
+    it("rejects malformed syntax and reports it as the reason, distinctly from the anti-mint rejection", () => {
+        const malformed = validateSignupEmail("a@@b.com") as { ok: false; reason?: string };
+        assert.equal(malformed.reason, "syntax");
+
+        // The minted-address rejection is a separate concern — it must not
+        // carry an email-quality `reason`, or a caller logging telemetry on
+        // `reason` would misclassify it as a quality complaint.
+        const minted = validateSignupEmail("x@intervu.cc") as { ok: false; reason?: string };
+        assert.equal(minted.reason, undefined);
+    });
 });
 
 /**

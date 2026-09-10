@@ -30,6 +30,14 @@ import { withDirectHitGuard } from "@/lib/auth/callback-guard";
  * turn a successful WorkOS exchange into a redirect error, and a person
  * finishing sign-in should not wait on Resend or Firestore to land on the app.
  *
+ * `authenticationMethod` comes straight off the session WorkOS just handed
+ * back (`"GoogleOAuth"`, `"Passkey"`, `"MagicAuth"`, ...) — free to read, so
+ * `provisionAppAccess`'s telemetry gets the real method instead of a
+ * one-size-fits-all `"oauth"` that would mislabel a passkey or magic-link
+ * sign-in. It's typed optional upstream; `"ExternalAuth"` (WorkOS's own
+ * catch-all member of the same union) covers the rare case it's absent
+ * rather than inventing a new label.
+ *
  * `withDirectHitGuard` (src/lib/auth/callback-guard.ts) redirects a request
  * that carries neither `code` nor `error` straight to /login instead of
  * letting it fall into handleAuth's generic 500 — see that file for why.
@@ -37,10 +45,10 @@ import { withDirectHitGuard } from "@/lib/auth/callback-guard";
 export const GET = withDirectHitGuard(
     handleAuth({
         baseURL: getSiteUrl(),
-        onSuccess: async ({ user }) => {
+        onSuccess: async ({ user, authenticationMethod }) => {
             after(() =>
                 realProvisioningDeps()
-                    .then((deps) => provisionAppAccess(deps, user))
+                    .then((deps) => provisionAppAccess(deps, user, authenticationMethod ?? "ExternalAuth"))
                     .catch((err) => console.error("[Auth] callback provisioning failed:", err)),
             );
         },

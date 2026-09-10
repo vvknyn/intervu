@@ -6,6 +6,7 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { runUserDataPlan } from "@/lib/db/user-data";
 import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/lib/auth/username-email";
+import { assessSignupEmail, realEmailQualityDeps, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowAuthSignupRequest, allowAuthSignInRequest, allowAuthResetRequest } from "@/lib/shield/rate-limit";
 import { verifyTurnstile } from "@/lib/shield/turnstile";
@@ -112,6 +113,9 @@ export async function signUp(
     // without mocking Turnstile/rate-limiting/WorkOS.
     const emailResult = validateSignupEmail(formData.get("email"));
     if (!emailResult.ok) {
+        if (emailResult.reason) {
+            console.warn("[Auth] signup_email_rejected", { reason: emailResult.reason, domain: emailResult.domain });
+        }
         return { error: emailResult.error };
     }
     const email = emailResult.email;
@@ -124,6 +128,15 @@ export async function signUp(
     const turnstile = await verifyTurnstile(turnstileToken, ip);
     if (turnstile.status === "reject") {
         return { error: "Verification failed — please try again." };
+    }
+
+    // Deliverability (MX/A/AAAA) check runs only here — after rate-limiting
+    // and Turnstile — so a DNS resolver round trip is never a free
+    // amplification vector for someone probing arbitrary domains.
+    const emailQuality = await assessSignupEmail(email, realEmailQualityDeps);
+    if (!emailQuality.ok) {
+        console.warn("[Auth] signup_email_rejected", { reason: emailQuality.reason, domain: emailDomain(email) });
+        return { error: EMAIL_QUALITY_MESSAGES[emailQuality.reason] };
     }
 
     // Check availability again to be safe (a race against another signup
@@ -143,7 +156,7 @@ export async function signUp(
     // succeed. Same reasoning `POST /api/auth/session` used to run this
     // under before the WorkOS migration — see provisioning.ts's module doc.
     after(() =>
-        provisionAppAccess(deps.provisioning, result.user).catch((err) =>
+        provisionAppAccess(deps.provisioning, result.user, "password").catch((err) =>
             console.error("[Auth] post-signup provisioning failed:", err),
         ),
     );
@@ -194,7 +207,7 @@ export async function signIn(
     // user's sign-in must not wait on, or fail because of, the welcome/
     // membership self-heal.
     after(() =>
-        provisionAppAccess(deps.provisioning, result.user).catch((err) =>
+        provisionAppAccess(deps.provisioning, result.user, "password").catch((err) =>
             console.error("[Auth] post-signin provisioning failed:", err),
         ),
     );
