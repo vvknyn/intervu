@@ -125,6 +125,12 @@
 # ssh, never on the machine invoking this script.
 set -euo pipefail
 
+# pg_env_from_url/psql_from_url live in lib/pg-env.sh, shared with every
+# other db-box script that needs a libpq connection from a *_PG_URL value.
+# No fallback if this file is missing next to a copy of this script — `set
+# -e` above fails the whole run loudly, which is the correct behavior.
+source "$(dirname "${BASH_SOURCE[0]}")/lib/pg-env.sh"
+
 DB_SSH="${DB_SSH:-root@169.58.140.49}"
 APP_SSH="${APP_SSH:-subspace@194.163.147.154}"
 DB_HOST="${DB_HOST:-169.58.140.49}"
@@ -254,53 +260,6 @@ read_key_from_deploy_dir() {
   printf '%s' "$value"
 }
 
-# pg_env_from_url <url>
-# Splits a "postgres[ql]://user:password@host[:port]/dbname" URL into
-# libpq's own connection env vars (PGUSER, PGPASSWORD, PGHOST, PGPORT,
-# PGDATABASE) and exports them into the CURRENT shell. This is the one
-# chokepoint step6_prove_e2e's remote poll uses to turn BATCH_PG_URL into a
-# working psql connection.
-#
-# WHY NOT `PGDATABASE="$url" psql`: libpq only expands a postgresql:// URI
-# when it arrives via the `-d`/`dbname` connection parameter. PGDATABASE the
-# ENV VAR is not that parameter — libpq treats it as a literal database
-# NAME, so `PGDATABASE="$url" psql` dials the LOCAL socket looking for a
-# (nonexistent) database whose name is the whole URL string, never reaching
-# the URL's actual host at all. Every query against that connection then
-# fails, and a caller that swallows the failure into a "<query failed>"
-# fallback (as step6 does) can never tell that apart from ingest genuinely
-# being broken.
-#
-# WHY NOT `psql "$url"`: this script's SECRET HANDLING policy (see header)
-# forbids putting the password in any process's argv — `ps` is
-# world-readable on both boxes. Splitting into PG* env vars first, then
-# calling bare `psql` with no positional argument, keeps the password out of
-# argv on every invocation.
-#
-# Exports all five vars on success (PGPORT only when the URL carried an
-# explicit port — otherwise libpq's own default applies) and returns 0.
-# Exports NOTHING and returns 1 when the string doesn't match the expected
-# shape, or when the password contains a literal `%`: percent-encoding
-# would need a real URL-decode this function doesn't do, and silently using
-# the raw `%XX` sequence as the literal password is exactly the "parses to a
-# DIFFERENT, wrong value" trap is_valid_generated_password's own docblock
-# above warns about — refusing beats guessing. A trailing `?query` or
-# `#fragment` is refused for the same reason: this function does not model
-# either one, and letting the dbname group swallow one silently (e.g.
-# dropping `?sslmode=require` into PGDATABASE) could silently change
-# connection security instead of just the database name.
-pg_env_from_url() {
-  local url="$1"
-  local re='^postgres(ql)?://([^:@/]+):([^@]+)@([^:/@]+)(:([0-9]+))?/([^/?#]+)$'
-  [[ "$url" =~ $re ]] || return 1
-  local user="${BASH_REMATCH[2]}" password="${BASH_REMATCH[3]}"
-  local host="${BASH_REMATCH[4]}" port="${BASH_REMATCH[6]}" dbname="${BASH_REMATCH[7]}"
-  [[ "$password" == *%* ]] && return 1
-  export PGUSER="$user" PGPASSWORD="$password" PGHOST="$host" PGDATABASE="$dbname"
-  [[ -n "$port" ]] && export PGPORT="$port"
-  return 0
-}
-
 # ops_check_left_crit <status>
 # True iff <status> — a raw value read from ops_check_results.status — is
 # non-empty AND anything other than the literal 'crit'. Empty (no such row,
@@ -309,7 +268,10 @@ pg_env_from_url() {
 # call that produces <status> (step 6, prove_e2e) so the recovery predicate
 # is unit-testable without a database, and so the SAME definition — via
 # `declare -f`, never a second hand-copied version — runs both here and
-# inside the remote polling loop step 6 builds.
+# inside the remote polling loop step 6 builds. lib/pg-env.sh's own
+# functions travel the same way, via that lib's `PG_ENV_FUNCS` list, so a
+# helper added there is shipped automatically rather than needing a new
+# `declare -f` line here.
 ops_check_left_crit() {
   [[ -n "$1" && "$1" != "crit" ]]
 }
@@ -491,7 +453,10 @@ env_file="$ENV_FILE"
 deploy_dir="\$(dirname "\$env_file")"
 $(declare -f ops_check_left_crit)
 $(declare -f read_key_from_deploy_dir)
-$(declare -f pg_env_from_url)
+# shellcheck disable=SC2086  # unquoted on purpose: PG_ENV_FUNCS is a
+# space-separated list of function names that must word-split for declare -f
+# to see each one — see lib/pg-env.sh's own PG_ENV_FUNCS docblock.
+$(declare -f $PG_ENV_FUNCS)
 $(declare -f run_poll_query)
 batch_url="\$(read_key_from_deploy_dir "\$deploy_dir" BATCH_PG_URL)"
 pg_env_from_url "\$batch_url" || { echo "BATCH_PG_URL: not a parseable postgresql://user:pass@host[:port]/db URL" >&2; exit 1; }
