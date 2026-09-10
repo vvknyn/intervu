@@ -260,9 +260,8 @@ check "read_key_from_deploy_dir: key absent from every file -> fails" "$r" fail
 (
   unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
   pg_env_from_url 'postgresql://bob:p%40ss@db.example.com/telemetry' && rc=0 || rc=$?
-  check "pg_env_from_url (password contains %): returns 1" "$rc" 1
-  if [[ -z "${PGUSER+x}" && -z "${PGPASSWORD+x}" && -z "${PGHOST+x}" && -z "${PGPORT+x}" && -z "${PGDATABASE+x}" ]]; then r=none_set; else r=SOME_SET; fi
-  check "pg_env_from_url (password contains %): exports nothing" "$r" none_set
+  check "pg_env_from_url (password contains %40): returns 0" "$rc" 0
+  check "pg_env_from_url (password contains %40): PGPASSWORD decoded" "$PGPASSWORD" 'p@ss'
 )
 
 (

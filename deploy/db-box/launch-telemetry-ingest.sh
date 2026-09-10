@@ -450,6 +450,7 @@ env_file="$ENV_FILE"
 deploy_dir="\$(dirname "\$env_file")"
 $(declare -f ops_check_left_crit)
 $(declare -f read_key_from_deploy_dir)
+$(declare -f _pg_urldecode)
 $(declare -f pg_env_from_url)
 $(declare -f run_poll_query)
 batch_url="\$(read_key_from_deploy_dir "\$deploy_dir" BATCH_PG_URL)"

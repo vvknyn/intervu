@@ -91,12 +91,38 @@ unset_all() {
   check "fragment: exports nothing" "$(none_set)" none_set
 )
 
-# --- %40 in password: refused, exports nothing -------------------------------
+# --- %40 in password: decoded, not refused -----------------------------------
 (
   unset_all
   pg_env_from_url 'postgres://bob:p%40ss@h/mydb' && rc=0 || rc=$?
-  check "password with %: returns 1" "$rc" 1
-  check "password with %: exports nothing" "$(none_set)" none_set
+  check "password with %40: returns 0" "$rc" 0
+  check "password with %40: PGPASSWORD decoded" "$PGPASSWORD" 'p@ss'
+)
+
+# --- %2F in dbname: decoded ---------------------------------------------------
+(
+  unset_all
+  pg_env_from_url 'postgres://u:p@h/my%2Fdb' && rc=0 || rc=$?
+  check "dbname with %2F: returns 0" "$rc" 0
+  check "dbname with %2F: PGDATABASE decoded" "$PGDATABASE" 'my/db'
+)
+
+# --- %zz malformed escape: refused, names the component, exports nothing -----
+(
+  unset_all
+  err="$(pg_env_from_url 'postgres://bob:p%zzss@h/mydb' 2>&1 >/dev/null)"; rc=$?
+  check "malformed %-escape: returns 1" "$rc" 1
+  check "malformed %-escape: exports nothing" "$(none_set)" none_set
+  check "malformed %-escape: stderr names the component, not the value" "$err" \
+    "pg_env_from_url: malformed %-escape in the password component"
+)
+
+# --- password with no % at all: unchanged by the decode step -----------------
+(
+  unset_all
+  pg_env_from_url 'postgres://bob:plainpass@h/mydb' && rc=0 || rc=$?
+  check "password without %: returns 0" "$rc" 0
+  check "password without %: PGPASSWORD unchanged" "$PGPASSWORD" 'plainpass'
 )
 
 # --- postgresql:// scheme ----------------------------------------------------
