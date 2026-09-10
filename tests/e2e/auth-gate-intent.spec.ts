@@ -54,6 +54,15 @@ async function interceptAuthStart(page: Page): Promise<() => string | null> {
     return () => intercepted;
 }
 
+/** Single source of truth for "the report surface isn't deployed here" —
+ *  every spec below that touches `report-job-trigger`/`report-job-dialog`
+ *  skips with this exact reason instead of each restating it. */
+const REPORT_FLAG_SKIP_REASON =
+    "report-job-trigger not rendered: reportJobEnabledAction() (src/actions/report-job.ts) returns " +
+    "false whenever INTERVU_FLAGS_API_URL/INTERVU_FLAGS_API_KEY are unset, which is the case in " +
+    "this environment — the report gate can't be exercised end-to-end here. See the Apply test " +
+    "above for coverage of the identical useAuthGate mechanism via a different kind.";
+
 test.describe("AUTH-GATE - pending action survives a hard-nav OAuth round trip", () => {
     test("signed-out Apply persists the action and the /auth/start next param matches the current page", async ({ page }) => {
         await page.goto("/jobs?q=engineer");
@@ -91,13 +100,7 @@ test.describe("AUTH-GATE - pending action survives a hard-nav OAuth round trip",
 
         const reportTrigger = page.getByTestId("report-job-trigger");
         const flagEnabled = await reportTrigger.isVisible().catch(() => false);
-        test.skip(
-            !flagEnabled,
-            "report-job-trigger not rendered: reportJobEnabledAction() (src/actions/report-job.ts) returns " +
-                "false whenever INTERVU_FLAGS_API_URL/INTERVU_FLAGS_API_KEY are unset, which is the case in " +
-                "this environment — the report gate can't be exercised end-to-end here. See the Apply test " +
-                "above for coverage of the identical useAuthGate mechanism via a different kind.",
-        );
+        test.skip(!flagEnabled, REPORT_FLAG_SKIP_REASON);
 
         const expectedReturnTo = await currentReturnTo(page);
         expect(expectedReturnTo).toContain("q=engineer");
@@ -117,6 +120,99 @@ test.describe("AUTH-GATE - pending action survives a hard-nav OAuth round trip",
 
         const nextParam = new URL(getIntercepted() as string).searchParams.get("next");
         expect(nextParam).toBe(expectedReturnTo);
+    });
+});
+
+/** A minimal signed-in `ServerUser` for `window.__INTERVU_E2E_AUTH__` — see
+ *  the "Set by Playwright addInitScript in e2e" comment on that global in
+ *  `lib/firebase/client-auth.ts`. Only `uid` is load-bearing here: it's
+ *  enough for `getCurrentUser()`/`onAuthChange` to answer "signed in"
+ *  synchronously, with no real WorkOS session or `/api/auth/session` call. */
+const E2E_MOCK_USER = { uid: "e2e-auth-gate-intent-user" };
+
+test.describe("AUTH-GATE - a persisted pending action replays on load (mocked sign-in, no real login)", () => {
+    test("a persisted \"report\" action reopens the report dialog for that exact job on load", async ({ page }) => {
+        // Discover a real job id from the board itself before seeding anything
+        // — the persisted record below must name a job that actually exists on
+        // the page it's replayed on, not a fabricated id.
+        await page.goto("/jobs?q=engineer");
+        await page.waitForLoadState("networkidle");
+        const rows = page.getByTestId("job-row");
+        await expect(rows.first()).toBeVisible();
+        const jobId = await rows.first().getAttribute("data-job-id");
+        expect(jobId, "job-row must carry data-job-id").toBeTruthy();
+
+        await rows.first().click();
+        const flagEnabled = await page
+            .getByTestId("report-job-trigger")
+            .isVisible()
+            .catch(() => false);
+        test.skip(!flagEnabled, REPORT_FLAG_SKIP_REASON);
+
+        const record = {
+            action: { kind: "report", payload: { id: jobId } },
+            returnTo: "/jobs",
+            scrollY: 0,
+            createdAt: Date.now(),
+        };
+        await page.addInitScript(
+            ([key, rec, user]) => {
+                window.sessionStorage.setItem(key as string, JSON.stringify(rec));
+                (window as unknown as { __INTERVU_E2E_AUTH__: unknown }).__INTERVU_E2E_AUTH__ = user;
+            },
+            [PENDING_ACTION_STORAGE_KEY, record, E2E_MOCK_USER] as const,
+        );
+
+        // A fresh mount — `useAuthGate`'s effect fires `onAuthChange` on mount,
+        // which the mock answers synchronously "signed in", replaying the
+        // persisted action with no navigation to /auth/start and no real login.
+        await page.goto("/jobs");
+        await page.waitForLoadState("networkidle");
+
+        await expect(page.getByTestId("report-job-dialog")).toBeVisible();
+        expect(page.url()).toContain(`job=${jobId}`);
+
+        const raw = await page.evaluate((key) => window.sessionStorage.getItem(key), PENDING_ACTION_STORAGE_KEY);
+        expect(raw, "a replayed action must be cleared, not left to replay again").toBeNull();
+    });
+
+    test("a persisted record with an unknown action kind opens nothing and logs no console error", async ({ page }) => {
+        await page.goto("/jobs?q=engineer");
+        await page.waitForLoadState("networkidle");
+
+        const consoleErrors: string[] = [];
+        page.on("console", (msg) => {
+            if (msg.type() === "error") consoleErrors.push(msg.text());
+        });
+        page.on("pageerror", (err) => consoleErrors.push(err.message));
+
+        // "explore" — a kind this file's own docstring says was removed
+        // 2026-08-02 — is exactly the deploy-shape-drift a stale persisted
+        // record can carry; `takePersistedPendingAction`'s validation must
+        // drop it rather than handing an unrecognized kind to `runHandler`.
+        const record = {
+            action: { kind: "explore", payload: { id: "does-not-matter" } },
+            returnTo: "/jobs",
+            scrollY: 0,
+            createdAt: Date.now(),
+        };
+        await page.addInitScript(
+            ([key, rec, user]) => {
+                window.sessionStorage.setItem(key as string, JSON.stringify(rec));
+                (window as unknown as { __INTERVU_E2E_AUTH__: unknown }).__INTERVU_E2E_AUTH__ = user;
+            },
+            [PENDING_ACTION_STORAGE_KEY, record, E2E_MOCK_USER] as const,
+        );
+
+        await page.goto("/jobs");
+        await page.waitForLoadState("networkidle");
+
+        await expect(page.getByTestId("report-job-dialog")).toHaveCount(0);
+        expect(page.url()).not.toContain("job=does-not-matter");
+        expect(consoleErrors, `unexpected console error(s): ${consoleErrors.join(" | ")}`).toHaveLength(0);
+
+        const raw = await page.evaluate((key) => window.sessionStorage.getItem(key), PENDING_ACTION_STORAGE_KEY);
+        expect(raw, "a malformed record must still be cleared, not left to be retried").toBeNull();
     });
 });
 

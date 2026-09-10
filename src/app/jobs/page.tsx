@@ -1796,8 +1796,20 @@ function JobsContent() {
             upload: () => {
                 setImportOpen(true);
             },
-            report: () => setReportDialogOpen(true),
+            // Reopening the dialog isn't enough on its own — the page's
+            // current overlay may be showing a DIFFERENT job than the one
+            // reported (browser back/forward while the auth popover was
+            // open). Re-select the reported job by id via the same `openJob`
+            // every SERP row/permalink uses (declared below — safe for the
+            // same closure reason as `doMarkApplied`/`replayApplyGate`
+            // above), and skip the dialog entirely if it can't be identified.
+            report: (action) => {
+                if (!action.payload?.id) return;
+                openJob(action.payload.id);
+                setReportDialogOpen(true);
+            },
         },
+        user,
     });
 
     useEffect(() => {
@@ -5563,8 +5575,17 @@ function JobsContent() {
                         // WAS a successful auth, skip this: the hook's own
                         // replay (`handlers.upload` → `setImportOpen`) may
                         // have just read that ref, moments before this fires.
-                        if (!justAuthedRef.current) clearPendingGate();
+                        // Either branch sets `authOpen` exactly once —
+                        // `clearPendingGate()` already does it on the dismiss
+                        // path, so this must not also fall through to the
+                        // unconditional `setAuthOpen(open)` below.
+                        if (justAuthedRef.current) {
+                            setAuthOpen(false);
+                        } else {
+                            clearPendingGate();
+                        }
                         justAuthedRef.current = false;
+                        return;
                     }
                     setAuthOpen(open);
                 }}

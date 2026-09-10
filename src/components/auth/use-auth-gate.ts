@@ -64,16 +64,29 @@ function runHandler<Apply, Gate, Report>(
 ): void {
     // One cast at the single dispatch chokepoint: TS can't carry the
     // Extract<...> narrowing through a generic indexed lookup, but the
-    // key/value pairing is exactly what `AuthGateHandlers` enforces at
-    // every call site that builds one.
-    const handler = handlers[action.kind] as (a: PendingAction<Apply, Gate, Report>) => void | Promise<void>;
+    // key/value pairing is exactly what `AuthGateHandlers` enforces at every
+    // call site that builds one. A page registering only a SUBSET of
+    // handlers (or a persisted record surviving a deploy that dropped a
+    // kind) must not crash a `useEffect`/event-handler callback — no
+    // matching handler is a no-op, not a throw.
+    const handler = handlers[action.kind] as
+        | ((a: PendingAction<Apply, Gate, Report>) => void | Promise<void>)
+        | undefined;
+    if (!handler) return;
     void handler(action);
 }
 
 export function useAuthGate<Apply, Gate, Report = Gate>({
     handlers,
+    user,
 }: {
     handlers: AuthGateHandlers<Apply, Gate, Report>;
+    /** The page's already-known signed-in state (whatever it fills via its
+     *  own `onAuthChange(setUser)` subscription). Truthy here lets `gate()`
+     *  run the handler synchronously with no `/api/auth/session` round trip;
+     *  falsy falls back to asking the server, since a page's `user` state can
+     *  still be null on first paint even when a real session exists. */
+    user: unknown;
 }): UseAuthGateResult<Apply, Gate, Report> {
     const [authOpen, setAuthOpenState] = useState(false);
     // Handlers close over page state (job lists, telemetry, dialogs) that
@@ -81,6 +94,11 @@ export function useAuthGate<Apply, Gate, Report = Gate>({
     // without forcing every caller to `useCallback` its whole handlers object.
     const handlersRef = useRef(handlers);
     handlersRef.current = handlers;
+    // Same ref idiom as `handlersRef` — `gate` must see the LATEST `user`
+    // without itself being recreated (and re-triggering effects) every time
+    // the page's auth state changes render to render.
+    const userRef = useRef(user);
+    userRef.current = user;
 
     const setAuthOpen = useCallback((open: boolean) => {
         setAuthOpenState(open);
@@ -110,6 +128,14 @@ export function useAuthGate<Apply, Gate, Report = Gate>({
 
     const gate = useCallback(
         (action: PendingAction<Apply, Gate, Report>) => {
+            // Sync fast path: the caller already knows it's signed in (its
+            // own `onAuthChange` subscription already resolved), so skip the
+            // round trip entirely instead of paying one on every gated click
+            // regardless of auth state.
+            if (userRef.current) {
+                runHandler(handlersRef.current, action);
+                return;
+            }
             onAuthChange((user) => {
                 if (user) {
                     runHandler(handlersRef.current, action);

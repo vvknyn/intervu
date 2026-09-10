@@ -145,8 +145,15 @@ export function PublicJobDetail({
             // required: `AuthGateHandlers` is a mapped type over every
             // `PendingAction` kind, so every caller supplies all four.
             upload: () => {},
-            report: () => setReportDialogOpen(true),
+            // Single-job page: only reopen the dialog when the persisted
+            // report actually belongs to THIS job — a stale or foreign
+            // record must never pop the dialog for whatever job this route
+            // happens to be showing.
+            report: (action) => {
+                if (action.payload?.id === job.id) setReportDialogOpen(true);
+            },
         },
+        user,
     });
 
     const openAuth = (reason: AuthGateReason | null = null) => {
