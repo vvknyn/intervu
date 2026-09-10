@@ -88,6 +88,15 @@ import type { CompanyPageData } from "./types";
  */
 export const MIN_INDEXABLE_ROLES = 3;
 
+/** Sitemap-only floor — well above page indexability so `/sitemap.xml` submits
+ *  employers with enough roles to rank as a hub, not every page that clears
+ *  the thin-content gate. Page robots still use {@link MIN_INDEXABLE_ROLES}. */
+export const MIN_SITEMAP_ROLES = 25;
+
+/** Hard cap on `/co/` URLs submitted — the top employers by live role count
+ *  after {@link MIN_SITEMAP_ROLES} filtering. */
+export const SITEMAP_COMPANY_CAP = 3000;
+
 /**
  * The two counts `resolveCompanyIndexability` needs — one per surface,
  * sampled at different times BY DESIGN rather than by accident:
@@ -115,8 +124,12 @@ export interface CompanyIndexability {
   pageIndexable: boolean;
 }
 
-function qualifies(n: number | null): boolean {
+function qualifiesForPage(n: number | null): boolean {
   return n != null && n >= MIN_INDEXABLE_ROLES;
+}
+
+function qualifiesForSitemap(n: number | null): boolean {
+  return n != null && n >= MIN_SITEMAP_ROLES;
 }
 
 /**
@@ -141,8 +154,11 @@ export function resolveCompanyIndexability({
   snapshotRoleCount,
   liveRoleCount,
 }: CompanyIndexabilityInput): CompanyIndexability {
-  const inSitemap = qualifies(snapshotRoleCount);
-  return { inSitemap, pageIndexable: inSitemap || qualifies(liveRoleCount) };
+  const inSitemap = qualifiesForSitemap(snapshotRoleCount);
+  return {
+    inSitemap,
+    pageIndexable: qualifiesForPage(snapshotRoleCount) || qualifiesForPage(liveRoleCount),
+  };
 }
 
 /** One company the `company_directory` index carries, with the live-role
@@ -247,10 +263,11 @@ async function searchCompanyDirectoryPage(
  * repo, off-app, admin key) publishes on its own schedule — see the file
  * docblock's 2026-08-13 update for why this replaced both the curated
  * "elite" list and the reverted #186 facet walk. Filters server-side on
- * `open_role_count >= MIN_INDEXABLE_ROLES` (this file's single copy of that
- * threshold — never reimplemented here as a second gate to drift from it)
- * and pages by `offset` until a page comes back short of
- * `COMPANY_DIRECTORY_PAGE_SIZE`, i.e. the last page.
+ * `open_role_count >= MIN_SITEMAP_ROLES` (sitemap-only — page indexability
+ * still uses {@link MIN_INDEXABLE_ROLES} via {@link resolveCompanyIndexability})
+ * sorted by `open_role_count` descending when Meilisearch accepts it, capped
+ * at {@link SITEMAP_COMPANY_CAP}. When sort is unavailable, falls back to
+ * paging with the same filter and sorting in memory before slicing.
  *
  * THROW POSTURE — deliberately the opposite of `market-stats.ts`'s
  * `fetchMarketStats`, which returns `null` on any failure so `/trends` can
@@ -276,42 +293,92 @@ async function searchCompanyDirectoryPage(
  * `search` is injectable (default-parameter DI, same pattern the reverted
  * #186 used for `multiSearch`) so tests never hit the network.
  */
+const SITEMAP_FILTER = `open_role_count >= ${MIN_SITEMAP_ROLES}`;
+
+function parseCompanyDirectoryPage(hits: unknown[]): { parsed: IndexableCompanyDomain[]; skipped: number } {
+  const parsed: IndexableCompanyDomain[] = [];
+  let skipped = 0;
+  for (const hit of hits) {
+    const row = parseCompanyDirectoryHit(hit);
+    if (row) parsed.push(row);
+    else skipped += 1;
+  }
+  return { parsed, skipped };
+}
+
+function capSitemapCompanies(companies: IndexableCompanyDomain[]): IndexableCompanyDomain[] {
+  return companies
+    .slice()
+    .sort((a, b) => b.openRoleCount - a.openRoleCount || a.domain.localeCompare(b.domain))
+    .slice(0, SITEMAP_COMPANY_CAP);
+}
+
+function zeroHitsOnFirstPageError(): Error {
+  return new Error(
+    "company_directory returned zero hits on the first page — either the publisher " +
+      "(push-company-directory.mjs) hasn't run yet, or no company clears MIN_SITEMAP_ROLES. " +
+      "Not treating this as 'zero indexable companies' — see fetchIndexableCompanyDomains's docblock.",
+  );
+}
+
+async function fetchSitemapCompaniesSorted(
+  search: typeof searchCompanyDirectoryPage,
+): Promise<IndexableCompanyDomain[] | null> {
+  try {
+    const { hits } = await search({
+      sort: ["open_role_count:desc"],
+      filter: SITEMAP_FILTER,
+      limit: SITEMAP_COMPANY_CAP,
+      offset: 0,
+    });
+    if (hits.length === 0) throw zeroHitsOnFirstPageError();
+    const { parsed, skipped } = parseCompanyDirectoryPage(hits);
+    if (skipped > 0) {
+      console.warn(`fetchIndexableCompanyDomains: skipped ${skipped} malformed company_directory hit(s)`);
+    }
+    return parsed;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("zero hits on the first page")) throw err;
+    return null;
+  }
+}
+
+async function fetchSitemapCompaniesPaged(
+  search: typeof searchCompanyDirectoryPage,
+): Promise<IndexableCompanyDomain[]> {
+  const indexable: IndexableCompanyDomain[] = [];
+  let skipped = 0;
+  for (let offset = 0; ; offset += COMPANY_DIRECTORY_PAGE_SIZE) {
+    const { hits } = await search({
+      sort: ["domain:asc"],
+      filter: SITEMAP_FILTER,
+      limit: COMPANY_DIRECTORY_PAGE_SIZE,
+      offset,
+    });
+    if (hits.length === 0) {
+      if (offset === 0) throw zeroHitsOnFirstPageError();
+      break;
+    }
+    const page = parseCompanyDirectoryPage(hits);
+    indexable.push(...page.parsed);
+    skipped += page.skipped;
+    if (hits.length < COMPANY_DIRECTORY_PAGE_SIZE) break;
+  }
+  if (skipped > 0) {
+    console.warn(`fetchIndexableCompanyDomains: skipped ${skipped} malformed company_directory hit(s)`);
+  }
+  return capSitemapCompanies(indexable);
+}
+
 export async function fetchIndexableCompanyDomains(
   search: typeof searchCompanyDirectoryPage = searchCompanyDirectoryPage,
 ): Promise<IndexableCompanyDomain[]> {
   if (!hasMeilisearch()) {
     throw new Error("MEILISEARCH_HOST is not set — cannot discover which company pages have content.");
   }
-  const indexable: IndexableCompanyDomain[] = [];
-  let skipped = 0;
-  for (let offset = 0; ; offset += COMPANY_DIRECTORY_PAGE_SIZE) {
-    const { hits } = await search({
-      sort: ["domain:asc"],
-      filter: `open_role_count >= ${MIN_INDEXABLE_ROLES}`,
-      limit: COMPANY_DIRECTORY_PAGE_SIZE,
-      offset,
-    });
-    if (hits.length === 0) {
-      if (offset === 0) {
-        throw new Error(
-          "company_directory returned zero hits on the first page — either the publisher " +
-            "(push-company-directory.mjs) hasn't run yet, or no company clears MIN_INDEXABLE_ROLES. " +
-            "Not treating this as 'zero indexable companies' — see fetchIndexableCompanyDomains's docblock.",
-        );
-      }
-      break;
-    }
-    for (const hit of hits) {
-      const parsed = parseCompanyDirectoryHit(hit);
-      if (parsed) indexable.push(parsed);
-      else skipped += 1;
-    }
-    if (hits.length < COMPANY_DIRECTORY_PAGE_SIZE) break;
-  }
-  if (skipped > 0) {
-    console.warn(`fetchIndexableCompanyDomains: skipped ${skipped} malformed company_directory hit(s)`);
-  }
-  return indexable;
+  const sorted = await fetchSitemapCompaniesSorted(search);
+  if (sorted) return sorted;
+  return fetchSitemapCompaniesPaged(search);
 }
 
 /**

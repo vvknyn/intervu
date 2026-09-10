@@ -17,6 +17,10 @@ import { FOOTER_PROVENANCE_LINE } from "@/lib/marketing-stats";
 export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true }[] = [
     { label: "Research", href: "/research/ghost-jobs" },
     { label: "About", href: "/about" },
+    { label: "Remote jobs", href: "/careers/remote-jobs" },
+    { label: "Company career pages", href: "/careers/company-career-pages" },
+    { label: "Indeed alternative", href: "/indeed-alternative" },
+    { label: "LinkedIn Jobs alternative", href: "/linkedin-jobs-alternative" },
     { label: "Contact", href: "/contact" },
     { label: "Report a bug", href: "/contact?kind=bug", fromCurrentPage: true },
     { label: "Setup help", href: "/connect/help" },
