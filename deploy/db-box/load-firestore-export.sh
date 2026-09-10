@@ -17,6 +17,12 @@
 # `public` are not read, written, or locked by anything here.
 set -euo pipefail
 
+# pg_env_from_url/psql_from_url live in lib/pg-env.sh, shared with every
+# other db-box script that needs a libpq connection from a *_PG_URL value.
+# No fallback if this file is missing next to a copy of this script — `set
+# -e` above fails the whole run loudly, which is the correct behavior.
+source "$(dirname "${BASH_SOURCE[0]}")/lib/pg-env.sh"
+
 EXPORT_DIR="${1:?usage: load-firestore-export.sh <export-dir> [pg-url]}"
 PG_URL="${2:-$(grep -ho 'BATCH_PG_URL=.*' /opt/interview-os/.env.local | cut -d= -f2-)}"
 
@@ -27,7 +33,7 @@ fi
 
 # Fail before touching anything if the schema was never applied, rather than
 # emitting one "relation does not exist" per table and exiting on the first.
-if ! psql "$PG_URL" -qAtc "select 1 from pg_namespace where nspname='intervu'" | grep -q 1; then
+if ! psql_from_url "$PG_URL" -qAtc "select 1 from pg_namespace where nspname='intervu'" | grep -q 1; then
     echo "schema 'intervu' does not exist — apply deploy/db-box/intervu-schema.sql first" >&2
     exit 1
 fi
@@ -40,7 +46,7 @@ for file in "$EXPORT_DIR"/*.csv; do
     # Staging + upsert rather than a direct \copy into the target: the
     # target's generated columns cannot be written to, and this makes a
     # re-run a delta rather than a duplicate-key failure.
-    psql "$PG_URL" -q -v ON_ERROR_STOP=1 <<SQL
+    psql_from_url "$PG_URL" -q -v ON_ERROR_STOP=1 <<SQL
 BEGIN;
 CREATE TEMP TABLE stage_load (path text PRIMARY KEY, doc jsonb) ON COMMIT DROP;
 \\copy stage_load (path, doc) FROM '${file}' WITH (FORMAT csv)
@@ -50,7 +56,7 @@ ON CONFLICT (path) DO UPDATE SET doc = EXCLUDED.doc, copied_at = now();
 COMMIT;
 SQL
 
-    psql "$PG_URL" -qAtc "select count(*) from intervu.\"${table}\"" | tr -d '\n'
+    psql_from_url "$PG_URL" -qAtc "select count(*) from intervu.\"${table}\"" | tr -d '\n'
     echo " rows"
 done
 

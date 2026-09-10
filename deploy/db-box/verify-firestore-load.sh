@@ -20,6 +20,12 @@
 # Exit code is non-zero if ANY table mismatches, so this is usable as a gate.
 set -euo pipefail
 
+# pg_env_from_url/psql_from_url live in lib/pg-env.sh, shared with every
+# other db-box script that needs a libpq connection from a *_PG_URL value.
+# No fallback if this file is missing next to a copy of this script — `set
+# -e` above fails the whole run loudly, which is the correct behavior.
+source "$(dirname "${BASH_SOURCE[0]}")/lib/pg-env.sh"
+
 EXPORT_DIR="${1:?usage: verify-firestore-load.sh <export-dir> [pg-url]}"
 PG_URL="${2:-$(grep -ho 'BATCH_PG_URL=.*' /opt/interview-os/.env.local | cut -d= -f2-)}"
 MANIFEST="${EXPORT_DIR}/manifest.json"
@@ -30,8 +36,8 @@ failed=0
 while IFS=$'\t' read -r table rows digest; do
     # `string_agg` over an ordered subquery reproduces exactly what the
     # exporter hashed: paths sorted, newline-joined, no trailing newline.
-    actual_rows=$(psql "$PG_URL" -qAtc "select count(*) from intervu.\"${table}\"")
-    actual_digest=$(psql "$PG_URL" -qAtc \
+    actual_rows=$(psql_from_url "$PG_URL" -qAtc "select count(*) from intervu.\"${table}\"")
+    actual_digest=$(psql_from_url "$PG_URL" -qAtc \
         "select coalesce(encode(sha256(convert_to(string_agg(path, e'\n' order by path), 'UTF8')), 'hex'), '') from intervu.\"${table}\"")
 
     if [[ "$actual_rows" == "$rows" && "$actual_digest" == "$digest" ]]; then

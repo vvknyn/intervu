@@ -272,11 +272,17 @@ check "read_key_from_deploy_dir: key absent from every file -> fails" "$r" fail
 )
 
 (
-  unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
+  # pg_env_from_url now maps ?sslmode=... to PGSSLMODE (see lib/pg-env.sh)
+  # instead of refusing every query string outright — verify-telemetry-
+  # grants.sh accepted such URLs via argv before it switched to going
+  # through this function, so refusing them here would have been a
+  # regression. See test-pg-env.sh for the full query-string coverage
+  # (mapped keys, an unrecognized key, and the still-refused #fragment).
+  unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE PGSSLMODE
   pg_env_from_url 'postgres://u:p@h:5432/mydb?sslmode=require' && rc=0 || rc=$?
-  check "pg_env_from_url (dbname w/ query string): returns 1" "$rc" 1
-  if [[ -z "${PGUSER+x}" && -z "${PGPASSWORD+x}" && -z "${PGHOST+x}" && -z "${PGPORT+x}" && -z "${PGDATABASE+x}" ]]; then r=none_set; else r=SOME_SET; fi
-  check "pg_env_from_url (dbname w/ query string): exports nothing" "$r" none_set
+  check "pg_env_from_url (dbname w/ query string): returns 0" "$rc" 0
+  check "pg_env_from_url (dbname w/ query string): PGDATABASE clean" "$PGDATABASE" mydb
+  check "pg_env_from_url (dbname w/ query string): PGSSLMODE mapped" "$PGSSLMODE" require
 )
 
 (
