@@ -2829,8 +2829,12 @@ function JobsContent() {
     useEffect(() => {
         const base = selected ?? deadJobFoundJob;
         if (!base) return;
-        const wantsRetry = retryRequest?.id === base.id;
-        if (base.description !== undefined && !wantsRetry) return;
+        const fetchInFlight = isDetailFetchInFlight({
+            detailId: base.id,
+            hydratedId: hydratedDetail?.id ?? null,
+            retryId: retryRequest?.id ?? null,
+        });
+        if (base.description !== undefined && !fetchInFlight) return;
         if (hydratedDetail?.id === base.id) return;
         const id = base.id;
         const token = detailHydrationGuardRef.current!.begin();
@@ -2839,6 +2843,11 @@ function JobsContent() {
             if (!detailHydrationGuardRef.current!.isCurrent(token)) return;
             if (check.status === "found") {
                 setHydratedDetail({ id, job: check.job, descriptionPending: check.descriptionPending });
+                // Consume the retry now that its fetch has landed — leaving it
+                // set would re-trip `isDetailFetchInFlight` (and the loading
+                // skeleton) every time this id is reselected for the rest of
+                // the session, since `retryRequest` otherwise never clears.
+                setRetryRequest((prev) => (prev?.id === id ? null : prev));
                 return;
             }
             // A failed request or a genuine no-hit both still hydrate `base`
@@ -2852,6 +2861,7 @@ function JobsContent() {
                 job: { ...base, description: null },
                 descriptionPending: check.status === "unknown",
             });
+            setRetryRequest((prev) => (prev?.id === id ? null : prev));
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selected?.id ?? deadJobFoundJob?.id, selected?.description ?? deadJobFoundJob?.description, retryRequest]);

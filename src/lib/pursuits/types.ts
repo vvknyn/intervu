@@ -48,7 +48,11 @@ export interface JobSnapshot {
     title: string;
     company: string | null;
     location: string | null;
-    description: string | null;
+    /** Absent = not captured at save time (listing wasn't hydrated yet, the
+     *  established `PublicJob.description` "not hydrated" sentinel); `null` =
+     *  the listing has none. Never write `undefined` as `null` — they mean
+     *  different things. */
+    description?: string | null;
     apply_url: string;
 }
 
