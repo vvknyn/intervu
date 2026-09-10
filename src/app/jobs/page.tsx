@@ -89,7 +89,7 @@ import {
     getRecentlyViewedServerSnapshot,
     recordRecentlyViewedJob,
 } from "@/lib/jobs/recently-viewed";
-import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
+import { jobsUrlStateFromSavedHref, suggestSavedSearchName } from "@/lib/jobs/saved-searches";
 import { useSavedSearches, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import {
     subscribeSuppressLocationDefault,
@@ -180,7 +180,6 @@ import {
     isSearchAlertSubmitted,
     shouldShowSearchAlertCapture,
 } from "@/lib/jobs/search-alert-capture";
-import { suggestSavedSearchName } from "@/lib/jobs/saved-searches";
 import { resolveFacetsMountSite, showsFiltersToggle } from "@/lib/jobs/serp-density";
 import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
