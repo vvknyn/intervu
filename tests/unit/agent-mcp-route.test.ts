@@ -147,6 +147,11 @@ describe('mcp route: search_jobs wire schema (Task 12 filters + cursor)', () => 
   it('rejects a facets key that is not a FacetKey at all', () => {
     assert.equal(searchJobsInput.safeParse({ facets: { not_a_real_key: ['x'] } }).success, false);
   });
+
+  it('rejects an empty-string facet value — two different keys, so this is a class fix, not one spot patch', () => {
+    assert.equal(searchJobsInput.safeParse({ facets: { tech_stack: [''] } }).success, false);
+    assert.equal(searchJobsInput.safeParse({ facets: { work_type: [''] } }).success, false);
+  });
 });
 
 describe('mcp route: get_resume wire schema (MCP resume tools)', () => {

@@ -40,7 +40,7 @@ Two ways in:
 
 ## Limits
 
-Per credential: ${AGENT.RATE_LIMIT} calls/hour, up to ${AGENT.RESULT_CAP} results per search_jobs page (default 10), up to ${AGENT.SEARCH_DEPTH_CAP} results per query via cursor pagination, a ${AGENT.DAILY_RECORD_BUDGET}-record daily budget shared by search_jobs and get_job, and a ${AGENT.DAILY_COMPANY_READ_BUDGET}-call daily budget shared by the company tools (each of those says so in its own description). Exceeding a rate limit returns HTTP 429 with a Retry-After header; a bad, expired, or revoked token returns HTTP 401.
+Per credential: ${AGENT.RATE_LIMIT} calls/hour, up to ${AGENT.RESULT_CAP} results per search_jobs page (default ${AGENT.SEARCH_DEFAULT_LIMIT}), up to ${AGENT.SEARCH_DEPTH_CAP} results per query via cursor pagination, a ${AGENT.DAILY_RECORD_BUDGET}-record daily budget shared by every tool that returns job records (each says so in its description), and a ${AGENT.DAILY_COMPANY_READ_BUDGET}-call daily budget shared by the company tools (each of those says so in its own description). Exceeding a rate limit returns HTTP 429 with a Retry-After header; a bad, expired, or revoked token returns HTTP 401.
 
 ## Tools
 

@@ -124,7 +124,11 @@ function withDeps<In, Out extends object>(
  * rather than inferred — a spec added to `MCP_TOOL_SPECS`
  * (src/lib/agent/mcp-tool-specs.ts) with no matching handler here (or vice
  * versa) is a TYPECHECK error, so there is no runtime tool-name list to keep
- * in sync by hand.
+ * in sync by hand. That check only proves each entry's callback accepts the
+ * INPUT SHAPE its own catalog key's spec declares — it does not prove the
+ * RIGHT tool is bound to that key: `get_job`/`save_job`/`mark_applied` all
+ * share `jobIdInput`, so a handler swapped between those three keys would
+ * still typecheck here and is a correctness bug this mapped type can't catch.
  */
 const handlers: { [K in McpToolName]: ToolCallback<(typeof MCP_TOOL_SPECS)[K]["inputSchema"]> } = {
     search_jobs: withDeps(toolSearchJobs),
@@ -152,8 +156,12 @@ const handlers: { [K in McpToolName]: ToolCallback<(typeof MCP_TOOL_SPECS)[K]["i
  * type across that union (it silently infers an empty schema and rejects
  * every real handler). Pinning `name` to one generic `K` per call fixes the
  * union problem, but inference still can't reach through the indexed-access
- * types on a generic K — so `InputArgs` is given explicitly here rather
- * than cast; `handlers`' own declared type above is what actually keeps
+ * types on a generic K, so both type arguments of the selected overload
+ * (`registerTool<OutputArgs, InputArgs>`) are given explicitly rather than
+ * cast: the first slot is `OutputArgs`, filled with a placeholder
+ * (`config.outputSchema` is never set, so its actual value is unused) — the
+ * second slot is the real `InputArgs`, `(typeof MCP_TOOL_SPECS)[K]["inputSchema"]`.
+ * `handlers`' own declared type above is what actually keeps
  * `MCP_TOOL_SPECS[K]` and `handlers[K]` honest against each other.
  */
 function registerCatalogTool<K extends McpToolName>(server: McpServer, name: K): void {

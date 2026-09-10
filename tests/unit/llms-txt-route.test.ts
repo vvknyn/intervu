@@ -41,6 +41,7 @@ describe('GET /llms.txt', () => {
     const body = await (await GET()).text();
     assert.ok(body.includes(`${AGENT.RATE_LIMIT} calls/hour`));
     assert.ok(body.includes(`${AGENT.RESULT_CAP} results per search_jobs page`));
+    assert.ok(body.includes(`default ${AGENT.SEARCH_DEFAULT_LIMIT}`));
     assert.ok(body.includes(`${AGENT.SEARCH_DEPTH_CAP} results per query`));
     assert.ok(body.includes(`${AGENT.DAILY_RECORD_BUDGET}-record daily budget`));
     assert.ok(body.includes(`${AGENT.DAILY_COMPANY_READ_BUDGET}-call daily budget`));

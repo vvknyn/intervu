@@ -35,11 +35,16 @@ export interface CompanyOut extends Omit<CompanyPageData, "jobs"> {
      *  search_jobs/get_job use (`toJobDetailFields`) — a raw `PublicJob[]`
      *  spread here would defeat that allowlist for this one surface. */
     jobs: SearchHit[];
+    /** Set only when the daily record budget withheld the embedded roles
+     *  list (same optional `note` field name search_jobs already uses) —
+     *  `openCount` above still reports the true total, so a withheld list
+     *  is never silent. */
+    note?: string;
 }
 
 export async function toolGetCompany(
     deps: ToolDeps,
-    input: { slug_or_domain: string },
+    input: { slug_or_domain: string; limit?: number },
 ): Promise<CompanyOut | { error: string }> {
     const domain = resolveCompanyDomain(input.slug_or_domain);
     if (!domain) return { error: "invalid company identifier" };
@@ -54,7 +59,13 @@ export async function toolGetCompany(
         return { error: "search backend unavailable" };
     }
     if (!page) return { error: "company not found" };
-    return { ...page, jobs: page.jobs.map((job) => toJobDetailFields(job)) };
+    const jobs = page.jobs.slice(0, input.limit ?? AGENT.RESULT_CAP).map((job) => toJobDetailFields(job));
+    // Corpus-harvesting guardrail — same daily record budget search_jobs/
+    // get_job meter against, so embedded company roles can't be used to
+    // route around it.
+    const budget = await deps.consumeRecordBudget(jobs.length);
+    if (!budget.ok) return { ...page, jobs: [], note: budget.error };
+    return { ...page, jobs };
 }
 
 export interface CompanyTimelineOut {

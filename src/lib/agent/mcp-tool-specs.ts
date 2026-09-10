@@ -4,6 +4,7 @@ import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS } from 
 import { JOB_SORT_MODES, YEARS_EXPERIENCE_BUCKETS, PANEL_FACET_KEYS } from "@/lib/jobs/types";
 import { PURSUIT_STAGES } from "@/lib/pursuits/types";
 import { CHANGE_HISTORY_LIMIT } from "@/lib/companies/exhaust";
+import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
 import { optionalString } from "@/lib/validation";
 
 /** Agent-facing choices per the CARRIED FINDING from Task 6: `tools.ts`
@@ -48,7 +49,7 @@ export const searchJobsInput = z.object({
     visa_sponsorship_only: z.boolean().optional(),
     sort: z.enum(JOB_SORT_MODES).optional(),
     years_experience: z.enum(YEARS_EXPERIENCE_BUCKETS).optional(),
-    facets: z.partialRecord(z.enum(PANEL_FACET_KEYS), z.array(z.string().max(200)).max(50)).optional(),
+    facets: z.partialRecord(z.enum(PANEL_FACET_KEYS), z.array(z.string().min(1).max(200)).max(50)).optional(),
     cursor: z.string().max(128).optional(),
 });
 
@@ -161,7 +162,13 @@ export const getApplicationsInput = z.object({
  *  company-tools.ts). */
 const companyIdentifierInput = z.object({ slug_or_domain: z.string().min(1).max(255) });
 
-export const getCompanyInput = companyIdentifierInput;
+export const getCompanyInput = companyIdentifierInput.extend({
+    /** Embedded open-roles window — defaults to `AGENT.RESULT_CAP` (same
+     *  page size search_jobs defaults to) and can be raised up to
+     *  `COMPANY_JOBS_FETCH_LIMIT`, the window `getCompanyPageData` itself
+     *  fetched roles from (get-company.ts). */
+    limit: z.number().int().min(1).max(COMPANY_JOBS_FETCH_LIMIT).optional(),
+});
 
 export const getCompanyTimelineInput = companyIdentifierInput.extend({
     limit: z.number().int().min(1).max(CHANGE_HISTORY_LIMIT).optional(),
@@ -195,11 +202,13 @@ export const MCP_TOOL_SPECS = {
             `(${YEARS_EXPERIENCE_BUCKETS.join("|")}, matched against min_years_experience — jobs missing ` +
             `that field are always included since corpus coverage is still backfilling), and facets (an ` +
             `object keyed by ${PANEL_FACET_KEYS.join("|")}, each value an array of strings OR'd together — ` +
-            `e.g. {"tech_stack":["python","go"]} — for filters with no dedicated named param above; merges ` +
-            `with remote_only/experience_level/employment_type rather than overriding them) — all AND ` +
+            `e.g. {"tech_stack":["python","go"]} — for filters with no dedicated named param above; a ` +
+            `facets entry for a key remote_only/experience_level/employment_type already set may only ` +
+            `NARROW that filter, never widen it — no overlap between the two is an input error, never a ` +
+            `silent empty page) — all AND ` +
             `together and with query. Postings that look stale (unlikely to lead to an ` +
             `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
-            `Returns up to ${AGENT.RESULT_CAP} results per page (default 10), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
+            `Returns up to ${AGENT.RESULT_CAP} results per page (default ${AGENT.SEARCH_DEFAULT_LIMIT}), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
             `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +
             `(the page size that minted a cursor stays pinned for the rest of that walk). Each credential ` +
             `also has a ${AGENT.DAILY_RECORD_BUDGET}-record daily budget shared with get_job, generous for ` +
@@ -313,7 +322,10 @@ export const MCP_TOOL_SPECS = {
             "government contracts, tech stack, hiring health/cadence, and its current open roles. Accepts " +
             "either velai's own company slug or a bare domain (e.g. \"stripe.com\"). Budgeted at " +
             `${AGENT.DAILY_COMPANY_READ_BUDGET} calls/day (UTC), shared with get_company_timeline and ` +
-            "search_companies.",
+            `search_companies. Embedded open roles default to ${AGENT.RESULT_CAP} (limit raises that up ` +
+            `to ${COMPANY_JOBS_FETCH_LIMIT}); each counts against the same daily record budget as ` +
+            "search_jobs/get_job — openCount always reports the true total even when the roles list " +
+            "itself is truncated or withheld.",
         inputSchema: getCompanyInput,
     },
     get_company_timeline: {

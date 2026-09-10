@@ -185,12 +185,13 @@ export type FacetKey = (typeof FACETABLE_KEYS)[number];
  *  location_country/tech_stack/must_have_skills, SerpFilters.tsx) or a
  *  bespoke reader of its own facet values (ghost_badge → the ghost-hide
  *  count; visa_sponsorship → the sparse-filter honesty caption). `source` is
- *  FACETABLE (filterable via ?src=, url-state.ts, and by MCP) but never
- *  rendered — requesting its distribution on every search computes a count
- *  nothing reads. The per-search Meilisearch `facets:` request
- *  (buildSearchBody, meilisearch.ts) asks for exactly this list, not the
- *  full FACETABLE_KEYS. */
-export const REQUESTED_FACET_KEYS: readonly FacetKey[] = [
+ *  FACETABLE (filterable via ?src=, url-state.ts) but never rendered, and
+ *  MCP's search_jobs `facets` input does NOT accept it either (it's keyed to
+ *  `PANEL_FACET_KEYS` below, a narrower set) — requesting its distribution on
+ *  every search computes a count nothing reads. The per-search Meilisearch
+ *  `facets:` request (buildSearchBody, meilisearch.ts) asks for exactly this
+ *  list, not the full FACETABLE_KEYS. */
+export const REQUESTED_FACET_KEYS = [
   "work_type",
   "experience_level",
   "employment_type",
@@ -199,24 +200,28 @@ export const REQUESTED_FACET_KEYS: readonly FacetKey[] = [
   "visa_sponsorship",
   "tech_stack",
   "must_have_skills",
-] as const;
+] as const satisfies readonly FacetKey[];
+
+/** `REQUESTED_FACET_KEYS` entries that get their OWN bespoke boolean control
+ *  on the web filter panel (ghost_badge → the ghost-hide count;
+ *  visa_sponsorship → the sparse-filter honesty caption) rather than the
+ *  generic checkbox picker — named once here so `PANEL_FACET_KEYS` can
+ *  derive "every requested key except these" instead of a second hand-typed
+ *  subset that could silently drift from `REQUESTED_FACET_KEYS`. */
+export const GATED_FACET_KEYS = ["ghost_badge", "visa_sponsorship"] as const satisfies readonly FacetKey[];
 
 /** The subset of REQUESTED_FACET_KEYS the web filter panel renders as a
  *  generic checkbox picker (`<FacetGroup facetKey=...>`, SerpFilters.tsx) —
- *  REQUESTED_FACET_KEYS minus ghost_badge/visa_sponsorship, which get their
- *  own bespoke boolean controls there instead of a generic multi-select.
- *  The ONE source both surfaces derive from: MCP's search_jobs `facets`
- *  input takes its allowed keys here (agent/tools.ts, api/mcp/route.ts) and
+ *  derived as REQUESTED_FACET_KEYS minus GATED_FACET_KEYS so adding a key to
+ *  REQUESTED_FACET_KEYS can never silently leave this list stale. The ONE
+ *  source both surfaces derive from: MCP's search_jobs `facets` input takes
+ *  its allowed keys here (agent/mcp-tool-specs.ts, tools.ts) and
  *  SerpFilters.tsx's `FacetGroup` types its `facetKey` prop as
  *  `PanelFacetKey`, so a panel group outside this set fails typecheck. */
-export const PANEL_FACET_KEYS = [
-  "work_type",
-  "experience_level",
-  "employment_type",
-  "location_country",
-  "tech_stack",
-  "must_have_skills",
-] as const satisfies readonly FacetKey[];
+export const PANEL_FACET_KEYS = REQUESTED_FACET_KEYS.filter(
+  (key): key is Exclude<(typeof REQUESTED_FACET_KEYS)[number], (typeof GATED_FACET_KEYS)[number]> =>
+    !(GATED_FACET_KEYS as readonly string[]).includes(key),
+);
 export type PanelFacetKey = (typeof PANEL_FACET_KEYS)[number];
 
 /** Per-facet value→count, for rendering filter options with live counts. */

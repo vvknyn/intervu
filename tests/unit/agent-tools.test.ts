@@ -264,10 +264,11 @@ describe('toolSearchJobs', () => {
     assert.deepEqual(out, { error: 'Daily corpus budget reached: resets at 2026-08-05T00:00:00.000Z' });
   });
 
-  it('defaults limit to 10 when omitted', async () => {
+  it('defaults limit to AGENT.SEARCH_DEFAULT_LIMIT when omitted', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, {});
-    assert.equal(searchCalls[0].limit, 10);
+    assert.equal(searchCalls[0].limit, AGENT.SEARCH_DEFAULT_LIMIT);
+    assert.equal(AGENT.SEARCH_DEFAULT_LIMIT, 10);
   });
 
   it('defaults hideGhosts to true when includeGhostFlagged is omitted', async () => {
@@ -775,6 +776,27 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { experience_level: 'senior', facets: { tech_stack: ['rust'] } });
     assert.deepEqual(searchCalls[0].facets, { experience_level: ['senior'], tech_stack: ['rust'] });
+  });
+
+  it('a facets entry for the SAME key a named filter set only NARROWS it (intersect), never widens it', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { remote_only: true, facets: { work_type: ['remote', 'hybrid'] } });
+    assert.deepEqual(searchCalls[0].facets, { work_type: ['remote'] });
+  });
+
+  it('a facets entry with NO overlap against a named filter for the same key is an input error, not a silent empty page', async () => {
+    const { deps } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { experience_level: 'senior', facets: { experience_level: ['entry'] } });
+    if (!('error' in out)) throw new Error('expected an error shape');
+    assert.match(out.error, /facets\.experience_level/);
+  });
+
+  it('a no-overlap facets/named-filter conflict never reaches the search backend', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { remote_only: true, facets: { work_type: ['onsite'] } });
+    if (!('error' in out)) throw new Error('expected an error shape');
+    assert.match(out.error, /facets\.work_type/);
+    assert.equal(searchCalls.length, 0);
   });
 
   it('composes every filter together with query into the one params object the backend sees', async () => {

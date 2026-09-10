@@ -101,11 +101,11 @@ export interface ToolDeps {
    *  `record-budget.ts`) — `count` is the ACTUAL number of records a call
    *  is about to hand back, never the requested page size, so the
    *  accounting can't be gamed by asking for a small limit and paging
-   *  more. Call this wherever a tool is about to hand real corpus job
-   *  fields back to the caller — today that's `toolSearchJobs` (with
-   *  `hits.length`) and `toolGetJob` (with `1`); a future corpus-reading
-   *  tool must call it too, the same way it must build its payload through
-   *  `toJobDetailFields` above. Injected so tools never touch
+   *  more. Every tool that hands real corpus job fields back to the caller
+   *  must call this with that actual count before returning them — the
+   *  same rule that requires building the payload through
+   *  `toJobDetailFields` above, so a tool can't route around the budget by
+   *  skipping one and not the other. Injected so tools never touch
    *  the store directly, matching every other I/O dep here. */
   consumeRecordBudget: (count: number) => Promise<{ ok: true } | { ok: false; error: string }>;
   /** Full company-profile + exhaust assembly for one domain-resolved slug —
@@ -333,22 +333,39 @@ export interface SearchJobsInput {
  *  named filter (remote_only/experience_level/employment_type) AND the
  *  generic `facets` input both land here, so `toolSearchJobs` itself stays a
  *  plain read of ONE composed object instead of accreting a filter at a
- *  time. `location` is NOT a facet — see `resolvePlaces` below. The generic
- *  `facets` merge unions onto whatever a named param already set for that
- *  key (deduped) — no per-key branch, so any `PanelFacetKey` the wire schema
- *  accepts is covered by construction. */
+ *  time. `location` is NOT a facet — see `resolvePlaces` below. A named
+ *  filter is the explicit contract for its key: a `facets` entry for that
+ *  SAME key may only NARROW it (intersect), never widen it — otherwise
+ *  `{remote_only:true, facets:{work_type:["onsite"]}}` would compose
+ *  `work_type IN (remote, onsite)` and silently stop `remote_only` from
+ *  filtering anything. No overlap for a contested key is a caller input
+ *  error, not a silent empty page. No per-key branch — any `PanelFacetKey`
+ *  the wire schema accepts is covered by construction either way. */
 function buildFacets(
   input: Pick<SearchJobsInput, "remote_only" | "experience_level" | "employment_type" | "facets">,
-): NonNullable<JobSearchParams["facets"]> {
+): { facets: NonNullable<JobSearchParams["facets"]> } | { error: string } {
   const facets: NonNullable<JobSearchParams["facets"]> = {};
   if (input.remote_only) facets.work_type = ["remote"];
   if (input.experience_level) facets.experience_level = [input.experience_level];
   if (input.employment_type) facets.employment_type = [input.employment_type];
   for (const [key, values] of Object.entries(input.facets ?? {}) as [PanelFacetKey, string[] | undefined][]) {
     if (!values?.length) continue;
-    facets[key] = [...new Set([...(facets[key] ?? []), ...values])];
+    const named = facets[key];
+    if (!named) {
+      facets[key] = [...new Set(values)];
+      continue;
+    }
+    const narrowed = [...new Set(values.filter((v) => named.includes(v)))];
+    if (!narrowed.length) {
+      return {
+        error:
+          `facets.${key} [${values.join(", ")}] has no overlap with the value a named filter ` +
+          `already set for ${key} [${named.join(", ")}]`,
+      };
+    }
+    facets[key] = narrowed;
   }
-  return facets;
+  return { facets };
 }
 
 /**
@@ -455,7 +472,7 @@ export async function toolSearchJobs(
   const decoded = decodeCursor(input.cursor);
   if ("error" in decoded) return decoded;
   const offset = decoded.offset;
-  const requestedLimit = Math.min(input.limit ?? 10, AGENT.RESULT_CAP);
+  const requestedLimit = Math.min(input.limit ?? AGENT.SEARCH_DEFAULT_LIMIT, AGENT.RESULT_CAP);
   // Page size is asked of the backend AS-IS, even near the depth cap — never
   // clamped to 0 there. `buildSearchBody` (meilisearch.ts) computes
   // `page: offset / (p.limit ?? 40)`; a literal `limit: 0` isn't nullish, so it
@@ -464,7 +481,9 @@ export async function toolSearchJobs(
   const { limit, note: limitNote } = resolvePageSize(decoded, input.limit, requestedLimit);
   const hideGhosts = !(input.includeGhostFlagged ?? false);
   const { bucket, note: bucketNote } = POSTED_WITHIN_DAYS_TO_BUCKET[input.postedWithinDays ?? 30];
-  const facets = buildFacets(input);
+  const facetsResult = buildFacets(input);
+  if ("error" in facetsResult) return facetsResult;
+  const facets = facetsResult.facets;
   const places = await resolvePlaces(deps, input.location);
   const result = await deps.search({
     q: input.query,

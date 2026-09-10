@@ -5,8 +5,10 @@ import {
 } from '../../src/lib/agent/company-tools';
 import type { ToolDeps } from '../../src/lib/agent/tools';
 import { AGENT } from '../../src/lib/agent/config';
+import { getCompanyInput } from '../../src/lib/agent/mcp-tool-specs';
 import { CHANGE_HISTORY_LIMIT, type CompanyExhaust, type ChangeEventRow } from '../../src/lib/companies/exhaust';
 import type { CompanyPageData } from '../../src/lib/companies/types';
+import { COMPANY_JOBS_FETCH_LIMIT } from '../../src/lib/companies/get-company';
 import type { CompanySearchHit } from '../../src/lib/companies/company-search';
 
 function notImplemented(name: string) {
@@ -61,6 +63,22 @@ function makeCompanyPage(overrides: Partial<CompanyPageData> = {}): CompanyPageD
     nowMs: 1_700_000_000_000,
     ...overrides,
   } as CompanyPageData;
+}
+
+/** Minimal `PublicJob`-shaped fixture, field set copied from the inline
+ *  literal `toolGetCompany`'s wire-allowlist test already used below —
+ *  parameterized by `id` so budget/limit tests can build a distinct page of
+ *  N jobs without repeating the whole shape N times. */
+function makeJob(id: string): CompanyPageData['jobs'][number] {
+  return {
+    id, title: 'Engineer', company: 'Acme', company_domain: 'acme.com',
+    location: 'Remote', location_city: null, location_state: null, location_country: 'US',
+    work_type: 'remote', description: 'x'.repeat(50), employment_type: 'full_time',
+    experience_level: 'senior', salary_min: null, salary_max: null, salary_currency: null,
+    salary_period: null, visa_sponsorship: false, tags: [], apply_url: 'https://acme.com/apply',
+    source: 'greenhouse', posted_at: '2026-07-20T00:00:00.000Z', first_seen_at: '2026-07-19T00:00:00.000Z',
+    updated_at: '2026-07-21T00:00:00.000Z', vacancy_status: 'open', ghost_badge: 'clear',
+  } as CompanyPageData['jobs'][number];
 }
 
 function makeExhaust(overrides: Partial<CompanyExhaust> = {}): CompanyExhaust {
@@ -129,7 +147,10 @@ describe('toolGetCompany', () => {
       updated_at: '2026-07-21T00:00:00.000Z', vacancy_status: 'open', ghost_badge: 'clear',
     } as CompanyPageData['jobs'][number];
     const page = makeCompanyPage({ jobs: [job], openCount: 1 });
-    const deps = baseDeps({ getCompanyPageData: async (slug) => (slug === 'acme--com' ? page : null) });
+    const deps = baseDeps({
+      getCompanyPageData: async (slug) => (slug === 'acme--com' ? page : null),
+      consumeRecordBudget: async () => ({ ok: true }),
+    });
     const out = await toolGetCompany(deps, { slug_or_domain: 'acme.com' });
     if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.domain, 'acme.com');
@@ -138,6 +159,75 @@ describe('toolGetCompany', () => {
     // toJobDetailFields's wire allowlist drops raw job fields like `description`.
     assert.ok(!('description' in out.jobs[0]));
     assert.equal(out.jobs[0].id, 'job-1');
+  });
+
+  it('meters embedded jobs against the daily record budget — 25 jobs, no limit, clamps to AGENT.RESULT_CAP and budgets exactly that many', async () => {
+    const jobs = Array.from({ length: 25 }, (_, i) => makeJob(`job-${i}`));
+    const page = makeCompanyPage({ jobs, openCount: 25 });
+    let budgetedCount: number | undefined;
+    const deps = baseDeps({
+      getCompanyPageData: async () => page,
+      consumeRecordBudget: async (count) => {
+        budgetedCount = count;
+        return { ok: true };
+      },
+    });
+    const out = await toolGetCompany(deps, { slug_or_domain: 'acme.com' });
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.jobs.length, AGENT.RESULT_CAP);
+    assert.equal(budgetedCount, AGENT.RESULT_CAP);
+  });
+
+  it('a caller-supplied limit below RESULT_CAP both slices the jobs and meters the smaller count', async () => {
+    const jobs = Array.from({ length: 25 }, (_, i) => makeJob(`job-${i}`));
+    const page = makeCompanyPage({ jobs, openCount: 25 });
+    let budgetedCount: number | undefined;
+    const deps = baseDeps({
+      getCompanyPageData: async () => page,
+      consumeRecordBudget: async (count) => {
+        budgetedCount = count;
+        return { ok: true };
+      },
+    });
+    const out = await toolGetCompany(deps, { slug_or_domain: 'acme.com', limit: 3 });
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.jobs.length, 3);
+    assert.equal(budgetedCount, 3);
+  });
+
+  it('withholds jobs (not the whole profile) when the daily record budget is exhausted — openCount stays the true total', async () => {
+    const jobs = [makeJob('job-1'), makeJob('job-2')];
+    const page = makeCompanyPage({ jobs, openCount: 2, name: 'Acme Corp' });
+    const deps = baseDeps({
+      getCompanyPageData: async () => page,
+      consumeRecordBudget: async () => ({ ok: false, error: 'x' }),
+    });
+    const out = await toolGetCompany(deps, { slug_or_domain: 'acme.com' });
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.deepEqual(out.jobs, []);
+    assert.equal(out.note, 'x');
+    assert.equal(out.openCount, 2);
+    assert.equal(out.name, 'Acme Corp');
+  });
+});
+
+describe('getCompanyInput (limit bounds — MCP wire schema)', () => {
+  it('rejects limit: 0 (below the minimum)', () => {
+    assert.equal(getCompanyInput.safeParse({ slug_or_domain: 'acme.com', limit: 0 }).success, false);
+  });
+
+  it('rejects a limit above COMPANY_JOBS_FETCH_LIMIT', () => {
+    assert.equal(
+      getCompanyInput.safeParse({ slug_or_domain: 'acme.com', limit: COMPANY_JOBS_FETCH_LIMIT + 1 }).success,
+      false,
+    );
+  });
+
+  it('accepts a limit exactly at COMPANY_JOBS_FETCH_LIMIT', () => {
+    assert.equal(
+      getCompanyInput.safeParse({ slug_or_domain: 'acme.com', limit: COMPANY_JOBS_FETCH_LIMIT }).success,
+      true,
+    );
   });
 });
 

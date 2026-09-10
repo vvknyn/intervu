@@ -135,6 +135,10 @@ export const AGENT = {
     /** `get_applications`'s default page size (tools.ts) — how many pursuits
      *  `listPursuitsForUser` returns when the caller omits `limit`. */
     APPLICATIONS_DEFAULT_LIMIT: 20,
+    /** `search_jobs`'s default page size (tools.ts) when the caller omits
+     *  `limit` — the ONE place this number lives; the catalog description
+     *  and llms.txt both interpolate it rather than hand-typing "10" again. */
+    SEARCH_DEFAULT_LIMIT: 10,
     /** `get_applications`'s page-size ceiling (tools.ts, route.ts) — same
      *  corpus/cost-protection spirit as `RESULT_CAP`, sized for a user's own
      *  application history rather than the whole job corpus. */
