@@ -5,6 +5,7 @@ import {
     resolveSelectionAfterRefresh,
     resolveGhostReveal,
     classifyExistenceCheck,
+    runExistenceCheck,
     resolveEmptySearchState,
     resolveJobsRenderMode,
     resolveJobsResultsPanel,
@@ -28,7 +29,9 @@ import {
     type FilterState,
 } from '../../src/components/jobs/FilterPanel';
 
-function result(overrides: Partial<JobSearchResult> = {}): JobSearchResult {
+function result(
+    overrides: Partial<JobSearchResult> & { descriptionPending?: boolean } = {},
+): JobSearchResult & { descriptionPending?: boolean } {
     return {
         hits: [],
         total: 0,
@@ -194,7 +197,14 @@ describe('classifyExistenceCheck', () => {
     it('found: the id is in the result hits', () => {
         assert.deepEqual(
             classifyExistenceCheck('abc-123', result({ hits: [job], total: 1 })),
-            { status: 'found', job },
+            { status: 'found', job, descriptionPending: false },
+        );
+    });
+
+    it('found: descriptionPending is carried through when the fill hit its deadline', () => {
+        assert.deepEqual(
+            classifyExistenceCheck('abc-123', result({ hits: [job], total: 1, descriptionPending: true })),
+            { status: 'found', job, descriptionPending: true },
         );
     });
 
@@ -260,6 +270,48 @@ describe('classifyExistenceCheck', () => {
             ),
             { status: 'not_found' },
         );
+    });
+});
+
+// `runExistenceCheck` is the chokepoint every id-scoped detail fetch (jobs/
+// page.tsx's dead-job check + hydrate, yours/[id]/page.tsx's open + retry)
+// goes through. `classifyExistenceCheck` above never sees a thrown request —
+// this is what proves the added try/catch degrades it to "unknown" rather
+// than letting the throw reach the caller, on top of delegating a resolved
+// response to the exact same classification.
+describe('runExistenceCheck', () => {
+    const job = { id: 'abc-123', title: 'Staff Engineer' } as unknown as PublicJob;
+
+    it('a thrown request resolves to unknown, never rejects', async () => {
+        const search = async () => {
+            throw new Error('network down');
+        };
+        assert.deepEqual(await runExistenceCheck('abc-123', search), { status: 'unknown' });
+    });
+
+    it('a resolved hit classifies found, carrying descriptionPending through', async () => {
+        const search = async () => result({ hits: [job], total: 1, descriptionPending: true });
+        assert.deepEqual(await runExistenceCheck('abc-123', search), {
+            status: 'found',
+            job,
+            descriptionPending: true,
+        });
+    });
+
+    it('a resolved, clean, empty result classifies not_found', async () => {
+        const search = async () =>
+            result({ backend: 'meilisearch', configured: true, hits: [], total: 0, note: undefined });
+        assert.deepEqual(await runExistenceCheck('abc-123', search), { status: 'not_found' });
+    });
+
+    it('calls search with the fixed query shape — id, limit 1, offset 0, hideGhosts false', async () => {
+        let received: unknown;
+        const search = async (query: unknown) => {
+            received = query;
+            return result();
+        };
+        await runExistenceCheck('abc-123', search);
+        assert.deepEqual(received, { id: 'abc-123', limit: 1, offset: 0, hideGhosts: false });
     });
 });
 
