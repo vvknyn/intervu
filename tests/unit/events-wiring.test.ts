@@ -110,7 +110,7 @@ test("search events carry a length, never the query itself", () => {
  * apply_clicked must fire before the auth gate so gate drop-off is measurable
  * (docs/analytics/EVENTS.md). Source-order lock — no runtime behavior change.
  */
-test("apply_clicked fires before resolveApplyGateDecision in handleOpenPosting", () => {
+test("apply_clicked fires before resolveApplyClickDecision in handleOpenPosting", () => {
   const jobsPage = readFileSync(join(SRC, "app/jobs/page.tsx"), "utf8");
   const fnMatch = jobsPage.match(
     /const handleOpenPosting = \(job: PublicJob\) => \{([\s\S]*?)\n    \};/,
@@ -118,8 +118,8 @@ test("apply_clicked fires before resolveApplyGateDecision in handleOpenPosting",
   assert.ok(fnMatch, "handleOpenPosting not found");
   const body = fnMatch[1];
   const applyIdx = body.indexOf('captureEvent("apply_clicked"');
-  const gateIdx = body.indexOf("resolveApplyGateDecision");
+  const gateIdx = body.indexOf("resolveApplyClickDecision");
   assert.ok(applyIdx !== -1, "apply_clicked capture not found in handleOpenPosting");
-  assert.ok(gateIdx !== -1, "resolveApplyGateDecision not found in handleOpenPosting");
+  assert.ok(gateIdx !== -1, "resolveApplyClickDecision not found in handleOpenPosting");
   assert.ok(applyIdx < gateIdx, "apply_clicked must fire before the auth gate");
 });

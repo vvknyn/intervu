@@ -72,18 +72,27 @@ multi-step onboarding flow. Skipped rather than invented.
 
 ## Reading the funnel
 
-1. land → search (`$pageview` on `/jobs` → `search_submitted`)
-2. search → impression → result click (`search_submitted` →
-   `results_impressed` → `result_clicked`)
-3. result click → view → apply (`result_clicked` → `job_viewed` →
+North-star for Velai cold traffic:
+
+`$pageview` → `results_impressed` / `result_clicked` / `job_viewed` →
+`auth_started` → `signup_completed`
+
+`search_submitted` is a **typed/chip search**, not the top of the cold-browse
+funnel. Default browse (`getDefaultBrowseAction` / `overlay-ask`) does not
+fire it; that is intentional — `results_impressed` already fires on visible
+SERP rows, including default browse.
+
+Secondary paths:
+
+1. result click → view → apply (`result_clicked` → `job_viewed` →
    `apply_clicked` → `job_marked_applied`)
-4. visit → follow or save (`company_viewed`/`$pageview` → `company_followed`
+2. visit → follow or save (`company_viewed`/`$pageview` → `company_followed`
    or `job_saved`)
-5. follow/save → auth → signup (`company_followed` or `job_saved` →
+3. follow/save → auth → signup (`company_followed` or `job_saved` →
    `auth_started` → `signup_completed`)
-6. save → stage progress (`job_saved` → `application_stage_changed`,
+4. save → stage progress (`job_saved` → `application_stage_changed`,
    repeated per stage move)
-7. D7 return (repeat `$pageview` from the same identified/anonymous user
+5. D7 return (repeat `$pageview` from the same identified/anonymous user
    within 7 days)
 
 Reading these requires the PostHog dashboard (funnel/retention insights) or
@@ -130,25 +139,25 @@ no `job_id` to carry). That's its only remaining caller. `job_shared`
 `trackEvent` stays alive only for the case that doesn't fit `EventPayloads`'
 shape (no entity id to key on).
 
-## Auth gates (follow-up)
+## Auth gates (what this PR ships)
 
-Guests are still **hard-gated on Apply** — `apply_clicked` fires before the
-gate (`src/app/jobs/page.tsx`, events-wiring lock), but reaching the posting
-requires sign-in. Save uses a **2nd-save** gate (`reason: "save"` on
-`auth_started`); a softer post-engage auth nudge after first `result_clicked`
-/ N `job_viewed` is follow-up work, not wired here.
+Guest **Apply** — `apply_clicked` still fires first (`src/app/jobs/page.tsx`,
+events-wiring lock). The ATS opens synchronously in the click gesture; auth
+(`auth_started` reason `"apply"`, pending kind `"apply"`) follows only to
+**track** the application — no second navigation after sign-in. Save uses a
+**2nd-save** gate (`reason: "save"` on `auth_started`).
 
-## Search cold-start (what shipped vs leftover)
+Post-engage soft auth nudge — after first `result_clicked` or two
+`job_viewed` events, a dismissible banner on `/jobs` offers sign-in
+(`auth_started` reason `"generic"`). Hidden when the guest-save banner is
+showing or the nudge was dismissed (`src/lib/auth/guest-engage-nudge.ts`).
 
-Zero-query `/jobs` already fetches the cached default browse
+## Browse cold-start (what shipped)
+
+Zero-query `/jobs` fetches the cached default browse
 (`getDefaultBrowseAction` when `resolveEmptySearchState` is `"overlay-ask"` —
-`src/lib/jobs/result-state.ts`, `src/app/jobs/page.tsx`). Desktop already
-showed those hits. This PR **un-hides the mobile results column** that used
-to sit behind "Pick one to start searching" / "Show jobs"
-(`LandingMarketingShowcase` chips stay above the list).
-
-Leftover, not in this PR: default browse still does **not** fire
-`search_submitted` (so pageview→search funnels stay low even when
-`result_clicked` / `job_viewed` move); the sticky mobile "Show jobs" CTA
-still dismisses the marketing block (`shouldShowMobileSearchCta`). Do not
-invent a fake `search_submitted` for the seed list.
+`src/lib/jobs/result-state.ts`, `src/app/jobs/page.tsx`). Desktop and mobile
+both show those hits — the mobile results column is no longer hidden behind
+"Pick one to start searching" / "Show jobs" (`LandingMarketingShowcase` chips
+stay above the list). Default browse does **not** fire `search_submitted`; do
+not invent one for the seed list.

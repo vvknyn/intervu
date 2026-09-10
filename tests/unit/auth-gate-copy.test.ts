@@ -20,7 +20,7 @@ test("guestKeepLine uses plural copy for multiple pursuits", () => {
 });
 
 test("formatAuthGateValueLine varies by reason class", () => {
-    assert.match(formatAuthGateValueLine("apply", 0), /posting/);
+    assert.match(formatAuthGateValueLine("apply", 0), /track this application/i);
     assert.match(formatAuthGateValueLine("generic", 0), /sync/);
 });
 

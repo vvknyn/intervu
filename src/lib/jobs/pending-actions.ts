@@ -5,15 +5,11 @@
  * On /jobs a logged-out user can trigger four actions that require sign-in:
  *
  *   - apply   — "Mark as applied"  → write an application after login
- *   - gate    — any apply-adjacent CTA reachable signed out (card "Apply",
- *               detail "Go after this job", "Open posting") → after login,
- *               open the posting and write the tracker application, same as
- *               "Mark as applied" above. Job 2 (2026-08-01, Vivek: account
- *               creation BEFORE applying) deliberately funnels every such
- *               button into this ONE kind instead of each keeping its own
- *               pre-auth behavior, so a new gated button is covered by
- *               reusing "gate" too, not by adding another kind here or
- *               another handler case in `useAuthGate`.
+ *   - gate    — legacy replay kind: after login, open the posting and write
+ *               the tracker application. Guest Apply no longer queues this
+ *               (2026-09-10: open ATS first, then auth with kind `"apply"` to
+ *               track only). Stale persisted `"gate"` records still replay via
+ *               the handler map; new guest apply clicks use `"apply"`.
  *   - upload  — gate: open the resume-import modal
  *   - report  — flag/report a job → after login, reopen the report dialog
  *               for that job and let the user resubmit
@@ -235,14 +231,12 @@ export function takePersistedPendingAction<Apply, Gate, Report>(
     return record;
 }
 
-/**
- * Pure decision for any of the apply-adjacent gated CTAs: signed out
- * always opens the auth gate (queue + prompt sign-in), signed in always
- * performs the button's own action immediately. One function so the
- * signed-in/signed-out branch is expressed once and unit-testable without a
- * React user/session mock, instead of each call site in app/page.tsx
- * repeating its own `if (!user)` check.
- */
-export function resolveApplyGateDecision(signedIn: boolean): "gate" | "perform" {
-    return signedIn ? "perform" : "gate";
+/** Signed-in vs guest Apply click — one function so both entry points share
+ *  the same branch without each repeating `if (!user)`. Guests open the ATS
+ *  synchronously in the click gesture, then auth tracks the application;
+ *  signed-in users go straight to apply-intent / departure. */
+export type ApplyClickDecision = "perform" | "open-then-auth";
+
+export function resolveApplyClickDecision(signedIn: boolean): ApplyClickDecision {
+    return signedIn ? "perform" : "open-then-auth";
 }

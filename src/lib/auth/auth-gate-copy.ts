@@ -24,7 +24,7 @@ export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 export const SIGNUP_SUBCOPY = "Get job alerts, saved searches, and an application tracker — on any device.";
 
 const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
-    apply: "Create a free account — we'll take you straight to the posting and start tracking this application.",
+    apply: "Create a free account to track this application across devices.",
     generic: "Sign in to sync your tracker across devices.",
     save: "Sign in to keep your list across devices and get alerts when new roles match.",
 };

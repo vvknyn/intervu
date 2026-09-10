@@ -8,11 +8,11 @@ const JOB_PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "[slug]", "pa
 const JOB_DOCUMENT = join(__dirname, "..", "..", "src", "components", "jobs", "JobDetailDocument.tsx");
 
 describe("JobDetail guest chrome", () => {
-    it("uses one guest apply label in action surfaces", () => {
+    it("uses Apply labels for guests and signed-in users alike", () => {
         const src = readFileSync(JOB_DETAIL, "utf8");
-        const guestLabels = src.match(/Sign in to apply/g) ?? [];
-        assert.ok(guestLabels.length >= 2, "guest apply label should appear in header and action bar");
-        assert.match(src, /\{signedIn \? "Apply" : "Sign in to apply"\}/);
+        assert.doesNotMatch(src, /Sign in to apply/);
+        assert.match(src, />\s*Apply\s*</);
+        assert.match(src, /Apply on Company Site/);
     });
 
     it("save button uses bookmark icon when unsaved", () => {

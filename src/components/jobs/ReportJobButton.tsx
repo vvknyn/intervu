@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * `PublicJobDetail` or `jobs/page.tsx`). Every trigger click hands off to
  * the caller's `onRequireAuth` unconditionally — this component makes NO
  * auth decision of its own. It used to gate itself with
- * `resolveApplyGateDecision(Boolean(getCurrentUser()))`, but `getCurrentUser()`
+ * a local `getCurrentUser()` check mirroring the apply gate, but `getCurrentUser()`
  * only ever answers synchronously from the e2e mock (see
  * `lib/firebase/client-auth.ts`) — in production it is always `null`, so
  * that check always read "signed out" and silently re-gated every already
