@@ -4597,7 +4597,7 @@ function JobsContent() {
                 (`cappedContentClass`) — masthead, search shell and toolbar
                 deliberately don't, so they line up against the same gutter,
                 and the results grid is the one thing that stops widening. */}
-            <main data-shell="bleed" className="shell-row flex min-h-screen flex-col pb-20 pt-2 sm:pt-3">
+            <div data-shell="bleed" className="shell-row flex min-h-screen flex-col pb-20 pt-2 sm:pt-3">
                 {/* Landing masthead — mounts only for a zero-intent pristine
                     visitor (`showLandingMarketing`), at every width, not just
                     mobile: the header's docked search took over the box on
@@ -4645,7 +4645,7 @@ function JobsContent() {
                     `fieldDirectoryMenu`. */}
                 {!headerDockActive && (
                 <section
-                    className="rounded-none bg-card border border-border border-t-2 border-t-brand p-2 sm:p-2.5 transition-colors"
+                    className="rounded-none bg-card p-2 sm:p-2.5 transition-colors"
                 >
                     {/* The live count, moved here off the TopBar. Same /trends
                         destination it always had — it is a way into the report,
@@ -5547,7 +5547,7 @@ function JobsContent() {
                         </div>
                     </div>
                 </div>
-            </main>
+            </div>
 
             <LocationPickerSheet
                 open={locationSheetOpen}

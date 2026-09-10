@@ -31,7 +31,7 @@ export default function OpenclawPage() {
   const SETUP_STEPS = setupSteps(AGENT.issuer());
   const installCommand = openclawInstallCommand(AGENT.issuer());
   return (
-    <main data-testid="openclaw-page" className="bg-background">
+    <div data-testid="openclaw-page" className="bg-background">
       {/* Hero */}
       <section className="mx-auto flex max-w-3xl flex-col items-center px-4 pb-14 pt-16 text-center sm:px-6">
         <OpenclawStatusBadge />
@@ -168,6 +168,6 @@ export default function OpenclawPage() {
           </p>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

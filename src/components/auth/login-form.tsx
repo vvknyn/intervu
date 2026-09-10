@@ -15,6 +15,8 @@ import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
 import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import Link from 'next/link'
+import { BrandLockup } from '@/components/brand/BrandMark'
 
 interface LoginFormProps {
     onSuccess?: () => void;
@@ -156,12 +158,15 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     return (
         <div className="space-y-5 pt-1">
             <div className="space-y-1.5">
-                <p className="text-xs font-semibold text-brand">
-                    {copy.eyebrow}
-                </p>
-                <h3 className="font-semibold text-xl text-foreground">
+                {/* A dead end otherwise — this card had no wordmark/home link
+                    back to the rest of the site. Reuses TopBar's own lockup
+                    (BrandMark.tsx) rather than a second copy of the mark. */}
+                <Link href="/jobs" className="inline-flex w-fit text-brand transition-opacity hover:opacity-90" data-rulebook-exempt>
+                    <BrandLockup />
+                </Link>
+                <h1 className="font-semibold text-xl text-foreground">
                     {copy.title}
-                </h3>
+                </h1>
                 {activeTab === "signup" && (
                     <p className="text-xs text-muted-foreground">{SIGNUP_SUBCOPY}</p>
                 )}

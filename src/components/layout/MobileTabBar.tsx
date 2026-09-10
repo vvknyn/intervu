@@ -8,11 +8,13 @@ import { cn } from "@/lib/utils";
 
 const MOBILE_TABS = [...NAV_TABS, MOBILE_ACCOUNT_TAB];
 
-/** HIG tab bar in house paint: 48px + the safe-area inset, five 40px-tall hit
- *  areas, 20px icons (the one documented "icon sits in a 40px control"
- *  exception to the 16px site-wide default), Klein tint on the active tab,
- *  secondary on the rest — no counts/dots (that's TopBar's desktop menu
- *  list's own affordance, not this bar's). */
+/** HIG tab bar in house paint: 48px + the safe-area inset, five hit areas
+ *  stretched to the bar's full height (HIG/Material minimum touch target is
+ *  44px — a bar-height tab clears that with room to spare), 20px icons (the
+ *  one documented "icon sits in a stretched control" exception to the 16px
+ *  site-wide default), Klein tint on the active tab, secondary on the rest —
+ *  no counts/dots (that's TopBar's desktop menu list's own affordance, not
+ *  this bar's). */
 export function MobileTabBar() {
     const pathname = usePathname();
     const hideNav = shouldHideSiteChrome(pathname);
@@ -42,7 +44,7 @@ export function MobileTabBar() {
                         data-tour={tab.tourSelector}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                            "flex h-10 flex-col items-center justify-center gap-0.5 whitespace-nowrap text-xs font-normal transition-colors duration-100 [&_svg]:size-5",
+                            "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap text-xs font-normal transition-colors duration-100 [&_svg]:size-5",
                             active ? "text-brand" : "text-muted-foreground",
                         )}
                     >

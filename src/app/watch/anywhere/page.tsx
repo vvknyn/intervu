@@ -24,7 +24,7 @@ export const metadata: Metadata = {
  */
 export default function WatchAnywherePage() {
     return (
-        <main className="min-h-dvh bg-background flex items-center justify-center p-6">
+        <div className="min-h-dvh bg-background flex items-center justify-center p-6">
             <div className="max-w-sm space-y-6" data-testid="watch-anywhere-guide">
                 <h1 className="text-lg font-semibold text-foreground">Watch from anywhere</h1>
                 <p className="text-sm text-muted-foreground">
@@ -40,6 +40,6 @@ export default function WatchAnywherePage() {
                     it whenever you&apos;re ready.
                 </p>
             </div>
-        </main>
+        </div>
     );
 }

@@ -40,7 +40,6 @@ export function formatAuthGateValueLine(reason: AuthGateReason, guestPursuitCoun
 export type AuthCardTab = "login" | "signup";
 
 export interface AuthCardCopy {
-    eyebrow: string;
     title: string;
     tabLabel: string;
     submitLabel: string;
@@ -48,13 +47,12 @@ export interface AuthCardCopy {
 
 /** Single source of truth for LoginForm's per-tab wording. The tab label,
  *  card heading, and submit button all have to name the same action
- *  (control-names-the-action) — deriving all four from one `label` instead
+ *  (control-names-the-action) — deriving all three from one `label` instead
  *  of three call sites each picking their own string is what makes them
  *  incapable of drifting apart. */
 export function authCardCopy(tab: AuthCardTab): AuthCardCopy {
     const label = tab === "signup" ? "Create account" : "Sign in";
     return {
-        eyebrow: `velai · ${label.toLowerCase()}`,
         title: label,
         tabLabel: label,
         submitLabel: label,
