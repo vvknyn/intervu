@@ -93,7 +93,7 @@ test("fetchPostedDateFilterSupported: probe failure is null (unknown), success m
 
 test("F6: buildSearchBody requests only REQUESTED_FACET_KEYS, not the full FACETABLE_KEYS — 'source' costs a Meili facet computation on every search for a value nothing renders", () => {
     const body = buildSearchBody({ q: "", withFacets: true }, false);
-    assert.deepEqual(body.facets, [...REQUESTED_FACET_KEYS]);
+    assert.deepEqual(body.facets, [...REQUESTED_FACET_KEYS] as string[]);
     assert.ok(FACETABLE_KEYS.includes("source"), "source stays a legal filter (?src=, MCP) — just not a requested facet");
     assert.ok(!body.facets!.includes("source"));
 });
@@ -110,7 +110,7 @@ test("F6 guard: every REQUESTED_FACET_KEYS member is referenced somewhere in the
 });
 
 test("F6 guard: 'source' is FACETABLE but deliberately absent from both the requested-keys list and the render path", () => {
-    assert.ok(!REQUESTED_FACET_KEYS.includes("source"));
+    assert.ok(!(REQUESTED_FACET_KEYS as readonly string[]).includes("source"));
     assert.ok(!RENDER_PATH_SRC.includes('"source"'));
 });
 

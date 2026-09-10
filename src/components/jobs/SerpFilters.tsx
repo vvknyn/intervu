@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import type { FacetDistribution, FacetKey, PostedBucket, YearsExperienceBucket } from "@/lib/jobs/types";
+import type { FacetDistribution, FacetKey, PanelFacetKey, PostedBucket, YearsExperienceBucket } from "@/lib/jobs/types";
 import {
     appliedPostedBucket,
     facetKeyLabel,
@@ -119,7 +119,10 @@ function FacetGroup({
     caption,
 }: {
     label: string;
-    facetKey: FacetKey;
+    /** Typed off PANEL_FACET_KEYS (jobs/types.ts) — the same set MCP's
+     *  search_jobs `facets` input accepts — so a generic picker for a key
+     *  outside it is a typecheck error, not a silent drift between surfaces. */
+    facetKey: PanelFacetKey;
     distribution: FacetDistribution | undefined;
     resultTotal: number;
     state: FilterState;

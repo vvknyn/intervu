@@ -11,7 +11,7 @@ import { CHANGE_HISTORY_LIMIT, type ChangeEventRow } from "../companies/exhaust"
 import type { CompanyPageData } from "../companies/types";
 import type { CompanySearchHit } from "../companies/company-search";
 import { AGENT } from "./config";
-import { toSearchHit, type SearchHit, type ToolDeps } from "./tools";
+import { toJobDetailFields, type SearchHit, type ToolDeps } from "./tools";
 
 /**
  * Resolves an MCP caller's free-form `slug_or_domain` to a domain.
@@ -32,14 +32,19 @@ export function resolveCompanyDomain(input: string): string | null {
 
 export interface CompanyOut extends Omit<CompanyPageData, "jobs"> {
     /** `CompanyPageData.jobs` re-mapped through the SAME wire allowlist
-     *  search_jobs/get_job use (`toSearchHit`) — a raw `PublicJob[]` spread
-     *  here would defeat that allowlist for this one surface. */
+     *  search_jobs/get_job use (`toJobDetailFields`) — a raw `PublicJob[]`
+     *  spread here would defeat that allowlist for this one surface. */
     jobs: SearchHit[];
+    /** Set only when the daily record budget withheld the embedded roles
+     *  list (same optional `note` field name search_jobs already uses) —
+     *  `openCount` above still reports the true total, so a withheld list
+     *  is never silent. */
+    note?: string;
 }
 
 export async function toolGetCompany(
     deps: ToolDeps,
-    input: { slug_or_domain: string },
+    input: { slug_or_domain: string; limit?: number },
 ): Promise<CompanyOut | { error: string }> {
     const domain = resolveCompanyDomain(input.slug_or_domain);
     if (!domain) return { error: "invalid company identifier" };
@@ -54,7 +59,13 @@ export async function toolGetCompany(
         return { error: "search backend unavailable" };
     }
     if (!page) return { error: "company not found" };
-    return { ...page, jobs: page.jobs.map((job) => toSearchHit(job)) };
+    const jobs = page.jobs.slice(0, input.limit ?? AGENT.RESULT_CAP).map((job) => toJobDetailFields(job));
+    // Corpus-harvesting guardrail — same daily record budget search_jobs/
+    // get_job meter against, so embedded company roles can't be used to
+    // route around it.
+    const budget = await deps.consumeRecordBudget(jobs.length);
+    if (!budget.ok) return { ...page, jobs: [], note: budget.error };
+    return { ...page, jobs };
 }
 
 export interface CompanyTimelineOut {
