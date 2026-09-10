@@ -49,7 +49,13 @@ export function buildMeiliSort(p: JobSearchParams, legacy = false): string[] | u
  * interleave by date/pay. This flag drives the client seam
  * (`partitionByTitleMatch`) and the sort-integrity titled subsequence
  * (`sortVerifiableHits`) — display and monotonicity checks, not retrieval.
- * Matching itself is whole-document for every sort (`buildSearchBody`).
+ * Retrieval is title/company/tags-scoped for a bare role query
+ * (`titleFirstScoped`, `buildSearchBody`) under EVERY sort including
+ * relevance, and similarly scoped for a company or tech-skill query — but a
+ * non-title hit can still surface: tech-skill scoping admits `description`
+ * matches, and a scoped pass that returns zero hits falls back to one
+ * whole-document expand pass (`shouldRelaxSearch`/`mergeExpandedIntoStrict`
+ * in meilisearch.ts). This flag still partitions those for display.
  *
  * Classified by `mode`, not by enumerating sort names: any resolved sort
  * OTHER than `"relevance"` is an explicit global ordering. A bare browse
@@ -119,11 +125,13 @@ export function isPageSorted(hits: PublicJob[], mode: JobSortMode): boolean {
  * each tier sorted within itself), not the searchCutoffMs partial-sort
  * disorder this guard exists to catch.
  *
- * Retrieval is whole-document for every sort. The titled hits (matched via
- * the SAME `titleMatchesQuery` predicate the client-side seam partition
- * (`partitionByTitleMatch`, presentation.ts) uses) are still the 0-typo
- * bucket's visible face. Checking sortedness on that subsequence alone
- * restores a promise the guard can actually verify. Below the seam carries
+ * Retrieval is title-scoped (title/company/tags) for role queries under every
+ * sort, whole-document only for the tech-skill path and the empty-pool fallback.
+ * The titled hits (matched via the SAME `titleMatchesQuery` predicate the
+ * client-side seam partition (`partitionByTitleMatch`, presentation.ts) uses)
+ * are still the 0-typo bucket's visible face. Checking sortedness on that
+ * subsequence alone restores a promise the guard can actually verify. Below
+ * the seam carries
  * no such promise ("weaker matches" — see `seamSummarySorted`,
  * presentation.ts); it was never this guard's job to order that tail.
  *

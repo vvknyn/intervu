@@ -19,14 +19,14 @@ function omitSort(body: ReturnType<typeof buildSearchBody>) {
     return rest;
 }
 
-test("default SERP retrieval is whole-document — no title-first attributesToSearchOn", () => {
+test("default SERP retrieval for a bare role query is title/company/tags-scoped — never description", () => {
     const body = buildSearchBody({ q: "product manager canada" }, false);
-    assert.ok(!("attributesToSearchOn" in body), JSON.stringify(body));
+    assert.deepEqual(body.attributesToSearchOn, ["title", "company", "tags"], JSON.stringify(body));
 });
 
-test("the expand pass drops attribute scoping back to whole-document search", () => {
+test("the expand pass drops title-first scoping back to whole-document search", () => {
     const strict = buildSearchBody({ q: "product manager canada" }, false, "all");
-    assert.ok(!("attributesToSearchOn" in strict));
+    assert.deepEqual(strict.attributesToSearchOn, ["title", "company", "tags"]);
     const expanded = buildSearchBody({ q: "product manager canada" }, false, "all", { wholeDocument: true });
     assert.ok(!("attributesToSearchOn" in expanded));
     assert.equal(expanded.matchingStrategy, "all");
@@ -79,20 +79,43 @@ test("mergeExpandedIntoStrict unions strict hits then extras and sets widened on
     assert.equal(mergeExpandedIntoStrict(strict, { ...expanded, hits: [expanded.hits[0]] }).widened, undefined);
 });
 
-test("explicit newest and salary_desc sorts with a query stay whole-document", () => {
+test("explicit newest and salary_desc sorts with a role query stay title-scoped, matching relevance — a sort permutes, never selects", () => {
     const relevance = buildSearchBody({ q: Q }, false);
-    assert.ok(!("attributesToSearchOn" in relevance));
+    assert.deepEqual(relevance.attributesToSearchOn, ["title", "company", "tags"]);
     for (const sort of ["newest", "salary_desc"] as const) {
         const body = buildSearchBody({ q: Q, sort }, false);
-        assert.ok(!("attributesToSearchOn" in body), `${sort}: ${JSON.stringify(body)}`);
+        assert.deepEqual(body.attributesToSearchOn, relevance.attributesToSearchOn, `${sort}: ${JSON.stringify(body)}`);
     }
 });
 
-test("relevance sort (explicit or auto) with a query stays whole-document", () => {
+test("relevance sort (explicit or auto) with a role query title-scopes identically", () => {
     const explicit = buildSearchBody({ q: Q, sort: "relevance" }, false);
-    assert.ok(!("attributesToSearchOn" in explicit), JSON.stringify(explicit));
+    assert.deepEqual(explicit.attributesToSearchOn, ["title", "company", "tags"], JSON.stringify(explicit));
     const auto = buildSearchBody({ q: Q }, false);
-    assert.ok(!("attributesToSearchOn" in auto), JSON.stringify(auto));
+    assert.deepEqual(auto.attributesToSearchOn, explicit.attributesToSearchOn, JSON.stringify(auto));
+});
+
+test("Freshest sort scopes 'product manager' to title/company/tags — regression test for the Eg Otm 'Assistant Store Manager' defect (description mention of \"product information\" no longer matches)", () => {
+    const body = buildSearchBody({ q: Q, sort: "newest" }, false);
+    assert.deepEqual(body.attributesToSearchOn, ["title", "company", "tags"]);
+    assert.ok(!(body.attributesToSearchOn as readonly string[]).includes("description"));
+});
+
+test("invariant: Best match and Freshest bodies for the same role query differ ONLY in sort — 'registered nurse' and 'data analyst', not just the motivating instance", () => {
+    for (const q of ["registered nurse", "data analyst"]) {
+        const bestMatch = omitSort(buildSearchBody({ q, sort: "relevance" }, false));
+        const freshest = omitSort(buildSearchBody({ q, sort: "newest" }, false));
+        assert.deepEqual(freshest, bestMatch, `${q}: Freshest body diverged from Best match beyond sort`);
+        assert.deepEqual(bestMatch.attributesToSearchOn, ["title", "company", "tags"], q);
+    }
+});
+
+test("a seniority-anchored query defers to the role-title lane — buildSearchBody stays whole-document rather than double-scoping", () => {
+    const q = "director product";
+    const relevance = buildSearchBody({ q, sort: "relevance" }, false);
+    const newest = buildSearchBody({ q, sort: "newest" }, false);
+    assert.ok(!("attributesToSearchOn" in relevance), JSON.stringify(relevance));
+    assert.ok(!("attributesToSearchOn" in newest), JSON.stringify(newest));
 });
 
 test("browse mode (no query) stays unscoped regardless of sort", () => {

@@ -220,6 +220,24 @@ echo 'UNRELATED=1' > "$depdir3/c.env"
 if read_key_from_deploy_dir "$depdir3" MISSING_KEY >/dev/null 2>&1; then r=pass; else r=fail; fi
 check "read_key_from_deploy_dir: key absent from every file -> fails" "$r" fail
 
+# step 2 captures the remote leg's whole stdout as the password. Real psql
+# prints its command tag ("ALTER ROLE") to stdout, so anything the remote
+# script lets through lands in front of the password and the local validator
+# rejects it — exactly how the first real run died on 2026-09-09. Emulate
+# ssh/sudo/psql locally with psql's real stdout behaviour and assert the
+# staged URL carries only the alphanumeric password.
+ssh() { bash -s; }
+sudo() { shift 2; "$@"; }
+psql() { cat >/dev/null; echo "ALTER ROLE"; }
+export -f sudo psql
+got_shape="$(
+  DB_SSH=fake-db step2_set_password >/dev/null 2>&1 || exit 1
+  sed -E 's#^postgresql://telemetry_pg:[A-Za-z0-9]{32,}@[^/]+/postgres$#SHAPE_OK#' "$URL_FILE"
+  rm -f "$URL_FILE"
+)" || got_shape="step2_set_password died (rc=$?)"
+unset -f ssh sudo psql
+check "step2_set_password: psql's command tag on the remote stdout never leaks into the staged password" "$got_shape" "SHAPE_OK"
+
 echo
 if [[ "$fail" -eq 0 ]]; then
   echo "ALL TESTS PASSED"
