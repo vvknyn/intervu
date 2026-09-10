@@ -24,7 +24,7 @@ const ASEC = "mt-8 mb-3 text-xl font-semibold text-foreground";
 
 export default function AboutPage() {
   return (
-    <main data-testid="about-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div data-testid="about-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <p className="text-xs font-semibold text-muted-foreground">About velai</p>
       <h1 className="mt-3 font-display text-display font-semibold text-foreground">About velai</h1>
       <p className="mt-1.5 text-xl text-muted-foreground">
@@ -115,6 +115,6 @@ export default function AboutPage() {
           Questions or feedback: use the <Link href="/contact">contact page</Link>.
         </p>
       </article>
-    </main>
+    </div>
   );
 }

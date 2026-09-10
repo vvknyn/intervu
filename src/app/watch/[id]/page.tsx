@@ -21,7 +21,7 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
 
     if (!user) {
         return (
-            <main className="min-h-dvh bg-background flex items-center justify-center p-6">
+            <div className="min-h-dvh bg-background flex items-center justify-center p-6">
                 <div className="max-w-sm text-center space-y-4" data-testid="watch-login-required">
                     <h1 className="text-lg font-semibold text-foreground">Sign in to watch</h1>
                     <p className="text-sm text-muted-foreground">
@@ -32,7 +32,7 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
                         <Link href="/">Go to velai</Link>
                     </Button>
                 </div>
-            </main>
+            </div>
         );
     }
 

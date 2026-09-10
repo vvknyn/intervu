@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Loading() {
     return (
-        <main
+        <div
             className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6"
             role="status"
             aria-busy="true"
@@ -14,6 +14,6 @@ export default function Loading() {
                 <JobDetailSkeleton />
                 <Skeleton className="hidden h-64 lg:block" />
             </div>
-        </main>
+        </div>
     );
 }

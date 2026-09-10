@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Loading() {
     return (
-        <main
+        <div
             data-testid="company-truth-page"
             className="mx-auto max-w-3xl px-4 py-10 sm:px-6"
             role="status"
@@ -23,6 +23,6 @@ export default function Loading() {
                     ))}
                 </div>
             </div>
-        </main>
+        </div>
     );
 }

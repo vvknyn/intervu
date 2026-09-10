@@ -54,19 +54,27 @@ import type { Pursuit } from "@/lib/pursuits/types";
 
 /** Render structured description blocks (heading / para / list). Descriptions
  *  arrive flattened from the Subspace feed; `formatDescription` reconstructs
- *  the structure. See lib/jobs/format-description.ts. */
-export function JobDescription({ blocks }: { blocks: DescBlock[] }) {
+ *  the structure. See lib/jobs/format-description.ts.
+ *
+ *  `headingLevel` is the caller's own "About this role" section-heading
+ *  level + 1 — these headings ("Key Responsibilities" etc.) sit one level
+ *  under it in the outline, so each mount passes what keeps that true: the
+ *  inline pane/sheet (JobDetail.tsx, "About this role" = h3) passes 4, the
+ *  standalone document (JobDetailDocument.tsx, "About this role" = h2)
+ *  passes 3. No default — a heading level is never a safe guess. */
+export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; headingLevel: 3 | 4 }) {
+    const HeadingTag = `h${headingLevel}` as const;
     return (
         <div className="text-base leading-normal text-foreground">
             {blocks.map((b, i) => {
                 if (b.type === "heading") {
                     return (
-                        <h4
+                        <HeadingTag
                             key={i}
                             className="mb-2 mt-4 text-xs font-semibold text-foreground first:mt-0"
                         >
                             {b.text}
-                        </h4>
+                        </HeadingTag>
                     );
                 }
                 if (b.type === "list") {
@@ -162,6 +170,7 @@ export function PostingCheckHeader({
     verdictLabel,
     verdictClassName,
     checkedText,
+    headingLevel,
 }: {
     favorableCount: number;
     assessedCount: number;
@@ -169,12 +178,16 @@ export function PostingCheckHeader({
     verdictLabel: string;
     verdictClassName: string;
     checkedText: string;
+    /** This section's own outline level — h3 under the pane/sheet's h2 title
+     *  (JobDetail.tsx), h2 under the standalone document's h1 (JobDetailDocument.tsx). */
+    headingLevel: 2 | 3;
 }) {
+    const HeadingTag = `h${headingLevel}` as const;
     return (
         <div className="@container">
             <div className="flex flex-col gap-2 @min-[480px]:flex-row @min-[480px]:items-center @min-[480px]:justify-between @min-[480px]:gap-3">
                 <div className="flex flex-wrap items-baseline gap-1 text-sm">
-                    <span className="font-semibold text-foreground">Posting check</span>
+                    <HeadingTag className="font-semibold text-foreground">Posting check</HeadingTag>
                     {assessedCount > 0 && (
                         <span className="text-muted-foreground">
                             · {favorableCount}/{assessedCount} favorable
@@ -640,7 +653,7 @@ export function JobDetail({
                             <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h1 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{decodeText(job.title)}</h1>
+                            <h2 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{decodeText(job.title)}</h2>
                             {matchScore && (
                                 <div className="mt-2">
                                     <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -842,6 +855,7 @@ export function JobDetail({
                             verdictLabel={ghost.label}
                             verdictClassName={ghost.cls.split(" ").find((c) => c.startsWith("text-")) ?? ""}
                             checkedText={checkedText}
+                            headingLevel={3}
                         />
                         {/* Explain copy only earns its place when the verdict isn't
                             already the unremarkable "clear and current" case — the
@@ -933,14 +947,14 @@ export function JobDetail({
                     hairline top border + 24px vertical padding — no card/panel
                     per section. Body copy sits at a 640px reading measure. */}
                 <div className="border-t border-border py-6">
-                    <div className="mb-2 text-sm font-semibold text-foreground">About this role</div>
+                    <h3 className="mb-2 text-sm font-semibold text-foreground">About this role</h3>
                     {blocks.length > 0 ? (
                         <>
                             <div
                                 data-testid="job-detail-description"
                                 className={cn("relative max-w-[640px]", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
                             >
-                                <JobDescription blocks={blocks} />
+                                <JobDescription blocks={blocks} headingLevel={4} />
                                 {collapsible && !descExpanded && (
                                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
                                 )}
@@ -1003,9 +1017,9 @@ export function JobDetail({
                     instead of a bordered/bg panel. */}
                 {hasCompanyIntel && (
                     <div className="border-t border-border py-6">
-                        <div className="text-base font-semibold text-foreground">
+                        <h3 className="text-base font-semibold text-foreground">
                             {companyBrand || "This company"} · hiring truth
-                        </div>
+                        </h3>
                         {/* Verbatim-or-absent (founding-wound law, about-line.ts) — a
                             single job's description is a much thinner corpus than
                             /co's full posting set, so this returns null far more
@@ -1072,9 +1086,9 @@ export function JobDetail({
                     (see the fetch effect above's error handling too). */}
                 {related.length > 0 && (
                     <div className="border-t border-border py-6">
-                        <div className="mb-2 text-sm font-semibold text-foreground">
+                        <h3 className="mb-2 text-sm font-semibold text-foreground">
                             More like this
-                        </div>
+                        </h3>
                         {/* Rulebook item h: rows separated only by a hairline,
                             not bordered cards — same divide-y idiom as the SERP
                             list, applied here via RelatedJobRow's own anatomy. */}

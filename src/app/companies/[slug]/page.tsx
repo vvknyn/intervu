@@ -72,16 +72,16 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
 
   if (!profile) {
     return (
-      <main data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <p className="text-sm text-muted-foreground">Company data isn&apos;t available right now.</p>
-      </main>
+      </div>
     );
   }
 
   const jobsSearchUrl = `/?q=${encodeURIComponent(profile.name)}`;
 
   return (
-    <main data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <CompanyHeader name={profile.name} totalOpenRoles={profile.totalOpenRoles} />
 
       {profile.roles.length === 0 ? (
@@ -99,6 +99,6 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
       ) : (
         <CompanyRolesList roles={profile.roles} jobsSearchUrl={jobsSearchUrl} now={Date.now()} />
       )}
-    </main>
+    </div>
   );
 }
