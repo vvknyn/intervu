@@ -29,6 +29,7 @@ import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
+import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
 import { getMarketingStatsAction } from "@/actions/marketing";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
@@ -211,14 +212,7 @@ import { domainToSlug } from "@/lib/boards/slug";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
-import {
-    emptyPending,
-    queuePending,
-    clearPending,
-    takeReplay,
-    resolveApplyGateDecision,
-    type PendingState,
-} from "@/lib/jobs/pending-actions";
+import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
@@ -1302,7 +1296,7 @@ function JobsContent() {
     const [fitActive, setFitActive] = useState(initialUrlState.sort === "fit");
     const [fitResolving, setFitResolving] = useState(false);
     // Mirrors `fitActive` for read access from callbacks that can outlive the
-    // render that defined them (`maybeReplay`'s stable-identity closure) —
+    // render that defined them (the debounced search-fetch callback below) —
     // same reason `resultRef`/`selectedIdRef` exist below.
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
@@ -1695,7 +1689,6 @@ function JobsContent() {
             setAccountPendingEmail(res.data.pendingEmail);
         });
     }, [user?.uid]);
-    const [authOpen, setAuthOpen] = useState(false);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Progressive guest save gating — initialized post-mount (localStorage
     // is not available during SSR). `guestSaveCount` drives both the banner
@@ -1782,23 +1775,30 @@ function JobsContent() {
         }
     };
 
-    // All three "run this after the user signs in" actions (apply / gate /
-    // upload) live in one pure pending-state ref so only the LATEST intent
-    // is ever queued and a dismissed action can never replay. See
-    // lib/jobs/pending-actions.ts — `gate` is the generic apply-intent gate
-    // (Job 2, 2026-08-01) shared by every apply-adjacent CTA reachable signed
-    // out. `authedRef` is the deterministic success signal from this page's
-    // AuthPopover (`onAuthed`) — replay fires only when it's set, so an
-    // unrelated later sign-in (e.g. the sidebar "Log in", which never
-    // touches this popover) replays nothing, race-free regardless of
-    // whether `setUser(true)` or the popover-close lands first.
-    const pendingRef = useRef<PendingState<PublicJob, PublicJob>>(
-        emptyPending<PublicJob, PublicJob>(),
-    );
-    const authedRef = useRef(false);
     // Which auth value-line reason class to show (apply / generic).
     // Set by the call site that opened the popover; null = no value line.
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
+    // Controls the report dialog from outside `ReportJobButton` so a
+    // post-auth replay (see `useAuthGate` below) can reopen the exact
+    // dialog the user was filling out before sign-in.
+    const [reportDialogOpen, setReportDialogOpen] = useState(false);
+    // The one auth gate (`use-auth-gate.ts`): signed in → run the handler
+    // now; signed out → persist the action (survives both in-place login and
+    // a hard OAuth/passkey navigation away and back) and open the popover.
+    // Handlers below reference `doMarkApplied`/`replayApplyGate`, declared
+    // later in this component — safe because these are arrow functions, not
+    // calls: the reference resolves only when the auth gate invokes them,
+    // long after this component has finished its first render.
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob, PublicJob>({
+        handlers: {
+            apply: (action) => void doMarkApplied(action.payload),
+            gate: (action) => void replayApplyGate(action.payload),
+            upload: () => {
+                setImportOpen(true);
+            },
+            report: () => setReportDialogOpen(true),
+        },
+    });
 
     useEffect(() => {
         const current = getCurrentUser();
@@ -3529,10 +3529,10 @@ function JobsContent() {
     // tailored resume" (see their own call sites above/below) all call this
     // instead of performing their own action or keeping their own pre-auth
     // behavior. A fifth gated button is covered by calling this too, not by
-    // adding another branch here or another case in `maybeReplay` below.
+    // adding another branch here or another handler case in `useAuthGate`.
     const handleApplyGate = (job: PublicJob) => {
-        pendingRef.current = queuePending(pendingRef.current, { kind: "gate", payload: job });
-        openAuth("apply");
+        setAuthGateReason("apply");
+        gate({ kind: "gate", payload: job });
     };
 
     // "Save" — signed out writes to the guest store immediately for the FIRST
@@ -3600,60 +3600,15 @@ function JobsContent() {
         return "proceed";
     };
 
-    // Run whatever the user queued before signing in — exactly once, and ONLY
-    // after this page's AuthPopover confirmed a real sign-in (`authedRef`). Any
-    // other path to being logged-in (sidebar login, an already-signed-in tab)
-    // never sets `authedRef`, so a stale apply/gate/upload can't fire.
-    // `takeReplay` empties the state, so the dispatch is idempotent no matter
-    // how many times this runs or in what order relative to `setUser`.
-    const maybeReplay = useCallback(() => {
-        if (!authedRef.current) return;
-        const { next, action } = takeReplay(pendingRef.current);
-        pendingRef.current = next;
-        if (!action) return;
-        switch (action.kind) {
-            case "apply":
-                void doMarkApplied(action.payload);
-                break;
-            case "gate":
-                void replayApplyGate(action.payload);
-                break;
-            case "upload":
-                setImportOpen(true);
-                break;
-        }
-        // doMarkApplied / replayApplyGate read no changing
-        // component state (only stable setters + the action payload), so
-        // capturing the first render's closures here is safe — keep a
-        // stable identity.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Open the auth popover for a freshly-queued action. Resetting `authedRef`
-    // here scopes the "success" signal to THIS attempt, so a prior confirmed
-    // sign-in can't be mistaken for the new one. Also resets the Job 2 value-
-    // line flag — `handleApplyGate` (the only caller that wants it shown)
-    // flips it back on immediately after calling this, synchronously in the
-    // same handler, so the two writes land as one state update.
+    // Open the auth popover for a reason that has no replay of its own (only
+    // shows a value line) — "save"'s guest-gate prompts below. Anything that
+    // DOES need to replay after sign-in goes through `gate(...)` instead
+    // (see `handleApplyGate`, `beginResumeUpload`, the report gate below),
+    // which persists the action itself; this just opens the popover.
     const openAuth = (reason: AuthGateReason | null = null) => {
-        authedRef.current = false;
         setAuthGateReason(reason);
         setAuthOpen(true);
     };
-
-    // Fired by AuthPopover on a *successful* sign-in, before it closes. This is
-    // the deterministic success signal; mark authed, then attempt the replay.
-    const handleAuthed = () => {
-        authedRef.current = true;
-        maybeReplay();
-    };
-
-    // Defensive: if `user` flips truthy after `authedRef` was set but before the
-    // direct replay could run (unusual ordering), this still fires it once.
-    useEffect(() => {
-        if (user) maybeReplay();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]);
 
     // Guest→auth merge (pursuits + follows + saved searches) — at most once
     // per load; only mark done after every merge succeeds so a failed
@@ -3707,10 +3662,21 @@ function JobsContent() {
     // nothing on completion). `fitToken` pins the `fitIntentRef` generation
     // at the moment "fit" was queued — see `handleUploadClick`'s doc
     // comment for why. `clearPendingGate` (below) resets it on every
-    // alternate path/dismiss, same invariant as `pendingRef`: only the
-    // latest intent survives. (A second variant, `{ kind: "explore" }`,
+    // alternate path/dismiss, same invariant the auth gate's own persisted
+    // action keeps: only the latest intent survives. (A second variant,
+    // `{ kind: "explore" }`,
     // existed here through 2026-08-02 — removed with the feature.)
     const resumeActionAfterImportRef = useRef<{ kind: "fit"; fitToken: number } | null>(null);
+
+    // A successful in-place auth's replay (`handlers.upload` → `setImportOpen`)
+    // reads `resumeActionAfterImportRef` moments before AuthPopover's own
+    // `onOpenChange(false)` fires as it visually closes — unconditionally
+    // clearing the ref on every close (via `clearPendingGate` below) would
+    // wipe out what the replay just relied on. This flag distinguishes that
+    // case from an actual dismiss-without-auth; it's a résumé-continuation
+    // lifecycle concern, unrelated to the auth gate's own (sessionStorage)
+    // pending-action bookkeeping.
+    const justAuthedRef = useRef(false);
 
     // Guards `handleRankByFit`'s async résumé fetch against being superseded
     // by a LATER sort choice (fit again, or any other sort option) made
@@ -3727,7 +3693,7 @@ function JobsContent() {
     // popover. (code review, 2026-06-07; pending-state unified + apply/
     // tailor leak closed, 2026-06-08; apply-gate added Job 2, 2026-08-01)
     const clearPendingGate = () => {
-        pendingRef.current = clearPending(pendingRef.current);
+        setAuthOpen(false);
         resumeActionAfterImportRef.current = null;
     };
 
@@ -3899,8 +3865,8 @@ function JobsContent() {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         if (!user) {
-            pendingRef.current = queuePending(pendingRef.current, { kind: "upload", payload: true });
-            openAuth("generic");
+            setAuthGateReason("generic");
+            gate({ kind: "upload", payload: true });
             return;
         }
         setImportOpen(true);
@@ -4174,7 +4140,10 @@ function JobsContent() {
                     now={nowMs}
                     source="serp"
                     signedIn={Boolean(user)}
-                    onRequestSignIn={() => openAuth("generic")}
+                    onRequestSignIn={() => {
+                        setAuthGateReason("generic");
+                        gate({ kind: "report", payload: detailJob });
+                    }}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
                     onOpenRelated={openJob}
@@ -4183,6 +4152,8 @@ function JobsContent() {
                     goingAfter={goingAfterId === detailJob.id}
                     onClose={onClose}
                     reportJobEnabled={reportJobEnabled}
+                    reportDialogOpen={reportDialogOpen}
+                    onReportDialogOpenChange={setReportDialogOpen}
                     collapseDescription={collapseDescription}
                     className="border-0 bg-transparent"
                 />
@@ -5583,16 +5554,24 @@ function JobsContent() {
             <AuthPopover
                 open={authOpen}
                 onOpenChange={(open) => {
-                    // A close WITHOUT a preceding `onAuthed` (handleAuthed sets
-                    // authedRef before this fires on success) is a dismissal —
-                    // drop any queued action so it can't replay on a later,
-                    // unrelated sign-in. Race-free: this reads authedRef, never
-                    // the relative timing of setUser / setAuthOpen.
-                    if (!open && !authedRef.current) clearPendingGate();
-                    if (!open) setAuthGateReason(null);
+                    if (!open) {
+                        setAuthGateReason(null);
+                        // A close WITHOUT a preceding successful auth
+                        // (`justAuthedRef`, set by `onAuthed` below) is a
+                        // dismissal — also drop the résumé-continuation ref so
+                        // it can't fire on a later, unrelated sign-in. When it
+                        // WAS a successful auth, skip this: the hook's own
+                        // replay (`handlers.upload` → `setImportOpen`) may
+                        // have just read that ref, moments before this fires.
+                        if (!justAuthedRef.current) clearPendingGate();
+                        justAuthedRef.current = false;
+                    }
                     setAuthOpen(open);
                 }}
-                onAuthed={handleAuthed}
+                onAuthed={() => {
+                    justAuthedRef.current = true;
+                    onAuthed();
+                }}
                 showTrigger={false}
                 valueLine={
                     authGateReason
