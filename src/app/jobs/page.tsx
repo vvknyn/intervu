@@ -102,6 +102,7 @@ import {
     buildDockedChips,
     DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
+import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
@@ -5557,11 +5558,7 @@ function JobsContent() {
                 state={filterState}
                 distribution={result?.facetDistribution}
                 defaultedIso2={result?.defaultedLocation}
-                detectedLabel={
-                    result?.defaultedLocation
-                        ? `Near ${regionDisplayName(result.defaultedLocation)} (detected)`
-                        : undefined
-                }
+                detectedLabel={result?.defaultedLocation ? detectedLocationLabel(result.defaultedLocation) : undefined}
                 locationDefaultSuppressed={locationDefaultSuppressed}
                 onRestoreDetected={restoreLocationDefault}
                 onContinue={handleLocationSheetContinue}
