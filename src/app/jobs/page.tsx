@@ -4840,7 +4840,6 @@ function JobsContent() {
                                         Searching:
                                     </span>
                                     <span>{activeCategory.title}</span>
-                                    <span aria-hidden className="text-border">·</span>
                                     <button
                                         type="button"
                                         onClick={handleClearSearch}
@@ -4848,7 +4847,6 @@ function JobsContent() {
                                     >
                                         clear ✕
                                     </button>
-                                    {canSaveSearch && !showJobsToolbarRow && <span aria-hidden className="text-border">·</span>}
                                 </>
                             )}
                             {!showJobsToolbarRow && savedSearchControl}

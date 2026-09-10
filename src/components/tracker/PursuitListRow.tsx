@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { DotSeparated } from "@/components/ui/dot-separated";
 import type { Pursuit } from "@/lib/pursuits/types";
 import {
     daysInTracker,
@@ -40,22 +41,15 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
             <span className={cn("h-fit text-sm", trackerStatusColorClass(pursuit.status))}>
                 {trackerStatusLabel(pursuit.status)}
             </span>
-            <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                <span>{days}d in tracker</span>
-                <span aria-hidden="true">·</span>
-                <span>{resumeLinked ? "resume linked" : "no resume"}</span>
-                {stale && (
-                    <>
-                        <span aria-hidden="true">·</span>
-                        <span>no update in {daysSinceUpdate(pursuit)}d</span>
-                    </>
-                )}
-                {note && (
-                    <>
-                        <span aria-hidden="true">·</span>
-                        <span className="truncate">{note}</span>
-                    </>
-                )}
+            <div className="col-span-2 text-sm text-muted-foreground">
+                <DotSeparated
+                    items={[
+                        `${days}d in tracker`,
+                        resumeLinked ? "resume linked" : "no resume",
+                        stale && `no update in ${daysSinceUpdate(pursuit)}d`,
+                        note,
+                    ]}
+                />
             </div>
         </button>
     );

@@ -26,6 +26,7 @@ import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
+import { DotSeparated } from "@/components/ui/dot-separated";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import type { JobView } from "@/lib/views/types";
 
@@ -99,14 +100,13 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
                     {stageLabel(stage, Date.now())}
                 </span>
             )}
-            <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-sm text-muted-foreground">
-                <span>{formatRelativeAge(view.last_viewed_at, Date.now())}</span>
-                {view.view_count > 1 && (
-                    <>
-                        <span aria-hidden="true">·</span>
-                        <span>viewed {view.view_count}×</span>
-                    </>
-                )}
+            <div className="col-span-2 font-mono text-sm text-muted-foreground">
+                <DotSeparated
+                    items={[
+                        formatRelativeAge(view.last_viewed_at, Date.now()),
+                        view.view_count > 1 && `viewed ${view.view_count}×`,
+                    ]}
+                />
             </div>
         </div>
     );
