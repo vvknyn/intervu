@@ -26,7 +26,7 @@ export async function GET() {
 
     const body = `# velai
 
-velai is a job search platform that verifies listings are real (filtering out ghost jobs) and tracks your applications — this file describes velai's agent integration for AI agents and the humans configuring them.
+velai is a job search platform that flags listings that look possibly stale so you know what's worth verifying before you apply, and tracks your applications — this file describes velai's agent integration for AI agents and the humans configuring them.
 
 ## MCP endpoint
 

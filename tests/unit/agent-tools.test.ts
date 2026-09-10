@@ -760,10 +760,10 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
     assert.equal(searchCalls[0].yearsExperience, '6-10');
   });
 
-  it('maps a facets object key (tech_stack) to JobSearchParams.facets', async () => {
+  it('maps a facets object key (tech_stack) to JobSearchParams.facets, canonicalized (deduped + sorted) the SAME way buildFilter\'s downstream canonicalFacetValues would', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { facets: { tech_stack: ['python', 'go'] } });
-    assert.deepEqual(searchCalls[0].facets, { tech_stack: ['python', 'go'] });
+    assert.deepEqual(searchCalls[0].facets, { tech_stack: ['go', 'python'] });
   });
 
   it('maps a DIFFERENT facets object key (location_country) to JobSearchParams.facets — proves the merge is generic, not a tech_stack special case', async () => {
@@ -797,6 +797,27 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
     if (!('error' in out)) throw new Error('expected an error shape');
     assert.match(out.error, /facets\.work_type/);
     assert.equal(searchCalls.length, 0);
+  });
+
+  it('a facets entry using the "any" widen sentinel for a named-filter key never conflicts with it — canonicalizes to empty and is skipped like an absent entry', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { remote_only: true, facets: { work_type: ['any'] } });
+    if ('error' in out) throw new Error(`expected no error, got: ${out.error}`);
+    assert.deepEqual(searchCalls[0].facets, { work_type: ['remote'] });
+  });
+
+  it('a facets entry using the "all" widen sentinel for a named-filter key never conflicts with it either — proves the skip is class-wide, not a work_type/"any" special case', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { experience_level: 'senior', facets: { experience_level: ['all'] } });
+    if ('error' in out) throw new Error(`expected no error, got: ${out.error}`);
+    assert.deepEqual(searchCalls[0].facets, { experience_level: ['senior'] });
+  });
+
+  it('a facets entry that is ONLY a widen sentinel, with no named filter for that key, drops the facet entirely rather than sending it through as a literal value', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { facets: { tech_stack: ['all'] } });
+    if ('error' in out) throw new Error(`expected no error, got: ${out.error}`);
+    assert.equal(searchCalls[0].facets, undefined);
   });
 
   it('composes every filter together with query into the one params object the backend sees', async () => {

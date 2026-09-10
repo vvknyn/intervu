@@ -118,8 +118,11 @@ All fourteen tools are live: `search_jobs`, `get_job`, `save_job`, `mark_applied
 upload — see §0), `get_applications`, `get_preferences`, `set_preferences`,
 `get_company`, `get_company_timeline`, `search_companies`. The last three
 share their own daily call budget, separate from the search_jobs/get_job
-record budget above — the server enforces it independently, so treat hitting
-it as a signal you're over-fetching company data, not an obstacle to route
+record budget above — the server enforces it independently. `get_company`'s
+embedded roles list ALSO counts against that record budget, per role
+returned (default RESULT_CAP roles per call, `limit` raises that up to the
+fetch window), so one company read spends from both budgets at once. Treat
+hitting either as a signal you're over-fetching, not an obstacle to route
 around.
 If a resume tool errors, say so and stop the PREPARE flow there — do not
 invent resume content to route around it.

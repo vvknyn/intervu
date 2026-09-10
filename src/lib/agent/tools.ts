@@ -13,6 +13,7 @@ import type {
   YearsExperienceBucket,
 } from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
+import { canonicalFacetValues } from "../jobs/meilisearch";
 import { scoreJobAgainstResume, type MatchScore } from "../match/score";
 import type { ResumeData } from "../../types/resume";
 import type { CompanyPageData } from "../companies/types";
@@ -340,7 +341,12 @@ export interface SearchJobsInput {
  *  `work_type IN (remote, onsite)` and silently stop `remote_only` from
  *  filtering anything. No overlap for a contested key is a caller input
  *  error, not a silent empty page. No per-key branch — any `PanelFacetKey`
- *  the wire schema accepts is covered by construction either way. */
+ *  the wire schema accepts is covered by construction either way. Every
+ *  entry is run through `canonicalFacetValues` (meilisearch.ts — the SAME
+ *  function `buildFilter` canonicalizes with) before narrowing, so the
+ *  "any"/"all" widen sentinels are dropped here rather than surviving to
+ *  falsely conflict with a named filter; an entry that canonicalizes to
+ *  empty is skipped exactly like an absent one. */
 function buildFacets(
   input: Pick<SearchJobsInput, "remote_only" | "experience_level" | "employment_type" | "facets">,
 ): { facets: NonNullable<JobSearchParams["facets"]> } | { error: string } {
@@ -348,14 +354,16 @@ function buildFacets(
   if (input.remote_only) facets.work_type = ["remote"];
   if (input.experience_level) facets.experience_level = [input.experience_level];
   if (input.employment_type) facets.employment_type = [input.employment_type];
-  for (const [key, values] of Object.entries(input.facets ?? {}) as [PanelFacetKey, string[] | undefined][]) {
-    if (!values?.length) continue;
+  for (const [key, rawValues] of Object.entries(input.facets ?? {}) as [PanelFacetKey, string[] | undefined][]) {
+    if (!rawValues?.length) continue;
+    const values = canonicalFacetValues(rawValues);
+    if (!values.length) continue;
     const named = facets[key];
     if (!named) {
-      facets[key] = [...new Set(values)];
+      facets[key] = values;
       continue;
     }
-    const narrowed = [...new Set(values.filter((v) => named.includes(v)))];
+    const narrowed = values.filter((v) => named.includes(v));
     if (!narrowed.length) {
       return {
         error:

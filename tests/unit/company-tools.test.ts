@@ -65,10 +65,9 @@ function makeCompanyPage(overrides: Partial<CompanyPageData> = {}): CompanyPageD
   } as CompanyPageData;
 }
 
-/** Minimal `PublicJob`-shaped fixture, field set copied from the inline
- *  literal `toolGetCompany`'s wire-allowlist test already used below —
- *  parameterized by `id` so budget/limit tests can build a distinct page of
- *  N jobs without repeating the whole shape N times. */
+/** Minimal `PublicJob`-shaped fixture, parameterized by `id` so every
+ *  `toolGetCompany` test below — the wire-allowlist test included — can
+ *  build one job or a distinct page of N jobs without repeating the shape. */
 function makeJob(id: string): CompanyPageData['jobs'][number] {
   return {
     id, title: 'Engineer', company: 'Acme', company_domain: 'acme.com',
@@ -137,15 +136,7 @@ describe('toolGetCompany', () => {
   });
 
   it('re-maps jobs through the SAME wire allowlist search_jobs/get_job use, and passes the rest of the page through', async () => {
-    const job = {
-      id: 'job-1', title: 'Engineer', company: 'Acme', company_domain: 'acme.com',
-      location: 'Remote', location_city: null, location_state: null, location_country: 'US',
-      work_type: 'remote', description: 'x'.repeat(50), employment_type: 'full_time',
-      experience_level: 'senior', salary_min: null, salary_max: null, salary_currency: null,
-      salary_period: null, visa_sponsorship: false, tags: [], apply_url: 'https://acme.com/apply',
-      source: 'greenhouse', posted_at: '2026-07-20T00:00:00.000Z', first_seen_at: '2026-07-19T00:00:00.000Z',
-      updated_at: '2026-07-21T00:00:00.000Z', vacancy_status: 'open', ghost_badge: 'clear',
-    } as CompanyPageData['jobs'][number];
+    const job = makeJob('job-1');
     const page = makeCompanyPage({ jobs: [job], openCount: 1 });
     const deps = baseDeps({
       getCompanyPageData: async (slug) => (slug === 'acme--com' ? page : null),
