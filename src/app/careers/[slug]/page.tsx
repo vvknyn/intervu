@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAllCareerHubSlugs, getCareerHub } from "@/lib/seo/career-hubs";
+import { careerHubJobsHref, getAllCareerHubSlugs, getCareerHub } from "@/lib/seo/career-hubs";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 export function generateStaticParams() {
@@ -17,7 +17,7 @@ export async function generateMetadata({
   const hub = getCareerHub(slug);
   if (!hub) return {};
   return {
-    title: hub.title,
+    title: { absolute: hub.title },
     description: hub.description,
     robots: { index: true, follow: true },
     ...canonicalMetadata(hub.path, hub.title, hub.description),
@@ -32,6 +32,7 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
   const related = hub.relatedSlugs
     .map((relatedSlug) => getCareerHub(relatedSlug))
     .filter((entry): entry is NonNullable<typeof entry> => entry != null);
+  const facetJobsHref = careerHubJobsHref(hub);
 
   return (
     <main data-testid={`career-hub-${hub.slug}`} className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -48,6 +49,11 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
         <Link href="/jobs" className="font-medium text-brand hover:underline">
           Search live jobs
         </Link>
+        {facetJobsHref && (
+          <Link href={facetJobsHref} className="font-medium text-brand hover:underline">
+            Search these jobs
+          </Link>
+        )}
         {related.map((relatedHub) => (
           <Link key={relatedHub.slug} href={relatedHub.path} className="text-muted-foreground hover:text-foreground">
             {relatedHub.h1}

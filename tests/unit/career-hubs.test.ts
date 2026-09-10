@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   CAREER_HUBS,
+  careerHubJobsHref,
   getAllCareerHubSlugs,
   getCareerHub,
 } from "@/lib/seo/career-hubs";
@@ -23,6 +24,12 @@ describe("career intent hubs", () => {
       "tech-jobs",
       "entry-level-jobs",
       "canada-jobs",
+      "toronto-jobs",
+      "vancouver-jobs",
+      "montreal-jobs",
+      "calgary-jobs",
+      "ottawa-jobs",
+      "remote-jobs-canada",
       "open-positions",
       "company-career-pages",
     ];
@@ -54,5 +61,19 @@ describe("career intent hubs", () => {
     assert.match(pageSrc, /generateStaticParams/);
     assert.match(pageSrc, /getAllCareerHubSlugs/);
     assert.match(pageSrc, /notFound\(\)/);
+  });
+
+  it("careerHubJobsHref encodes location facets for /jobs deep links", () => {
+    const canada = getCareerHub("canada-jobs");
+    assert.ok(canada?.jobsFacets);
+    const href = careerHubJobsHref(canada!);
+    assert.ok(href);
+    assert.match(href, /country=Canada/);
+
+    const toronto = getCareerHub("toronto-jobs");
+    assert.ok(toronto?.jobsFacets);
+    assert.match(careerHubJobsHref(toronto!)!, /city=Toronto/);
+
+    assert.equal(careerHubJobsHref({ jobsFacets: undefined }), null);
   });
 });
