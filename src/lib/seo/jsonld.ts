@@ -213,18 +213,10 @@ export function buildWebsiteJsonLd(): WebsiteJsonLd {
     "@type": "WebSite",
     url: siteUrl,
     name: SITE_NAME,
-    alternateName: [
-      "Velai",
-      "Velai Jobs",
-      "Velai Job Search",
-      "Velai Remote Jobs",
-      "Velai Canada Remote Jobs",
-      "Velai - Indeed & LinkedIn Alternative",
-      "Velai HQ",
-    ],
+    alternateName: ["Velai.app", "Velai", "Velai Jobs"],
     description:
-      "Search live, verified remote and tech jobs directly from company career pages with ghost-job screening and hiring signals.",
-    inLanguage: "en-US",
+      "Search live, verified jobs from company career pages in Canada and the US with ghost-job screening and hiring signals.",
+    inLanguage: "en",
     potentialAction: {
       "@type": "SearchAction",
       target: `${siteUrl}/jobs?q={search_term_string}`,
@@ -245,7 +237,7 @@ export function buildOrganizationJsonLd(): OrganizationJsonLd {
     url: siteUrl,
     logo: `${siteUrl}/icon-512.png`,
     description:
-      "Velai is an independent job search platform that verifies listings directly against company career pages and screens for ghost jobs.",
+      "Velai.app is an independent job search at velai.app that reads listings from employer career pages in Canada and the US and screens for ghost jobs.",
     slogan:
       "Live jobs, checked for ghost postings — the transparent alternative to Indeed & LinkedIn",
     knowsAbout: [

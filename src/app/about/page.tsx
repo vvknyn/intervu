@@ -59,9 +59,11 @@ export default function AboutPage() {
         <h2 className={ASEC}>Compared to Indeed and LinkedIn</h2>
         <p>
           The full write-ups are separate:{" "}
-          <Link href="/indeed-alternative">Indeed alternative</Link> and{" "}
-          <Link href="/linkedin-jobs-alternative">LinkedIn Jobs alternative</Link>. Career-page hubs live under{" "}
-          <Link href="/careers/company-career-pages">company career pages</Link> and{" "}
+          <Link href="/indeed-alternative">Indeed alternative</Link>,{" "}
+          <Link href="/linkedin-jobs-alternative">LinkedIn Jobs alternative</Link>, and{" "}
+          <Link href="/eluta-alternative">Eluta alternative</Link> for Canada. Career-page hubs live under{" "}
+          <Link href="/careers/company-career-pages">company career pages</Link>,{" "}
+          <Link href="/careers/canada-jobs">Canada jobs</Link>, and{" "}
           <Link href="/careers/remote-jobs">remote jobs</Link>.
         </p>
       </article>
