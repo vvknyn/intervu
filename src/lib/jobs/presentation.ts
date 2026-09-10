@@ -1064,22 +1064,25 @@ function stripEmbeddedNoise(part: string): string {
  * address ("626 Polymoore Drive, Corunna, ON N0N 1G0, Canada") reads as 4
  * "locations" and prints "626 Polymoore Drive +3 more" instead of a place.
  *
- * Pattern-based, not a place-name lookup: splits on commas, drops a part
- * that IS a house number, a bare number, or a unit/suite marker, then
- * strips an embedded postal code — or a dash-joined trailing store/building
- * number ("Atlanta - 9141") — out of whatever survives. `;`-joined
- * multi-location strings (aggregator feeds stuffing several roles' worth of
- * locations into one field) are handled per-segment so "Remote Canada;
- * Remote USA" is untouched. Returns "" when nothing survives a part — the
- * caller (`locationText`) falls through to the structured city/state/
- * country fields rather than trusting an invented value.
+ * Pattern-based, not a place-name lookup: splits on commas (or underscores —
+ * some feeds join parts "MEX_Santa Catarina_Nuevo León_206 Canada" instead
+ * of with a comma; same parts, same rule, just a different glue character),
+ * drops a part that IS a house number, a bare number, or a unit/suite
+ * marker, then strips an embedded postal code — or a dash-joined trailing
+ * store/building number ("Atlanta - 9141") — out of whatever survives.
+ * `;`-joined multi-location strings (aggregator feeds stuffing several
+ * roles' worth of locations into one field) are handled per-segment so
+ * "Remote Canada; Remote USA" is untouched. Returns "" when nothing
+ * survives a part — the caller (`locationText`) falls through to the
+ * structured city/state/country fields rather than trusting an invented
+ * value.
  */
 export function stripStreetAddress(raw: string): string {
     return raw
         .split(";")
         .map((locationPart) =>
             locationPart
-                .split(",")
+                .split(/[,_]/)
                 .map((part) => part.trim())
                 .filter(
                     (part) =>

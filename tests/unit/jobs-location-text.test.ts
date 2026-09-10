@@ -155,6 +155,26 @@ test("strips a Canadian street address down to city, province, country", () => {
     );
 });
 
+// Live prod row: some feeds join parts with "_" instead of "," — same
+// house-number rule, different glue character.
+test("strips an underscore-joined street address the same as a comma-joined one", () => {
+    assert.equal(
+        stripStreetAddress("MEX_Santa Catarina_Nuevo León_206 Canada"),
+        "MEX, Santa Catarina, Nuevo León",
+    );
+    assert.equal(
+        stripStreetAddress("US_Austin_TX_500 Congress Ave"),
+        "US, Austin, TX",
+    );
+});
+
+test("a comma-joined address is unchanged by underscore support", () => {
+    assert.equal(
+        stripStreetAddress("500 Congress Ave, Austin, TX"),
+        "Austin, TX",
+    );
+});
+
 test("strips a highway-numbered street address (house number carries a letter suffix)", () => {
     assert.equal(
         locationText(job({ location: "23520 Hwy 16A, Sherwood Park, AB T8A 4Y3, Canada" })),
