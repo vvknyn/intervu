@@ -47,3 +47,21 @@ export function resolveDetailDescriptionPending(i: {
   if (i.detailId != null && i.found?.id === i.detailId) return i.found.pending;
   return false;
 }
+
+/**
+ * True while a hydrate/retry fetch for `detailId` has been requested (via
+ * `retryDescription`, id-keyed by `retryId`) but its result has not landed
+ * yet (`hydratedId` still names the previous fetch, or none at all). Covers
+ * BOTH the SERP-hydrate and direct-open (existence-check) sources of the
+ * detail pane's base job — either can be mid-retry when this is read.
+ *
+ * Once the retry lands, `hydratedId === detailId` and this returns false —
+ * the hydrated job wins the same way it always has.
+ */
+export function isDetailFetchInFlight(i: {
+  detailId: string | null;
+  hydratedId: string | null;
+  retryId: string | null;
+}): boolean {
+  return i.detailId != null && i.retryId === i.detailId && i.hydratedId !== i.detailId;
+}

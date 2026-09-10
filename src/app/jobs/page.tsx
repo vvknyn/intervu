@@ -169,7 +169,7 @@ import {
     resolveEndOfListState,
     shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
-import { resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
+import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
@@ -2813,8 +2813,18 @@ function JobsContent() {
         const base = selected ?? deadJobFoundJob;
         if (!base) return null;
         if (hydratedDetail?.id === base.id) return hydratedDetail.job;
+        // A retry in flight for `base` has already cleared `hydratedDetail`,
+        // but `base` itself (e.g. the direct-open existence check's job)
+        // can still carry a resolved `description` from BEFORE the retry —
+        // render it as not-yet-hydrated so the pane shows "loading" instead
+        // of a stale pending/empty note until the retry's result lands. Cast
+        // matches the same known type/runtime gap `as PublicJob[]` already
+        // carries for this field (see `PublicJob.description`'s doc comment).
+        if (isDetailFetchInFlight({ detailId: base.id, hydratedId: hydratedDetail?.id ?? null, retryId: retryRequest?.id ?? null })) {
+            return { ...base, description: undefined } as unknown as PublicJob;
+        }
         return base;
-    }, [selected, deadJobFoundJob, hydratedDetail]);
+    }, [selected, deadJobFoundJob, hydratedDetail, retryRequest]);
 
     useEffect(() => {
         const base = selected ?? deadJobFoundJob;
