@@ -7,7 +7,7 @@ import { describe, it } from 'node:test'; import assert from 'node:assert/strict
 process.env.NEXT_PUBLIC_SITE_URL = 'https://intervuhq.com';
 
 import { GET } from '../../src/app/llms.txt/route';
-import { MCP_TOOL_SPECS, searchJobsInput } from '../../src/lib/agent/mcp-tool-specs';
+import { MCP_TOOL_SPECS, RECORD_BUDGET_NOTE, searchJobsInput } from '../../src/lib/agent/mcp-tool-specs';
 import { AGENT } from '../../src/lib/agent/config';
 import { getSiteUrl } from '../../src/lib/seo/constants';
 
@@ -45,6 +45,7 @@ describe('GET /llms.txt', () => {
     assert.ok(body.includes(`${AGENT.SEARCH_DEPTH_CAP} results per query`));
     assert.ok(body.includes(`${AGENT.DAILY_RECORD_BUDGET}-record daily budget`));
     assert.ok(body.includes(`${AGENT.DAILY_COMPANY_READ_BUDGET}-call daily budget`));
+    assert.ok(body.includes(RECORD_BUDGET_NOTE));
   });
 
   it('links to the site\'s /connect page via getSiteUrl()', async () => {

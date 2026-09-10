@@ -180,14 +180,13 @@ export const searchCompaniesInput = z.object({
 });
 
 /**
- * The one record-budget sentence, hand-mirrored no longer — every tool
- * description below that counts against `DAILY_RECORD_BUDGET` (search_jobs,
- * get_job, get_company's embedded roles) interpolates this instead of
- * restating it, so the wording can't drift between tools or from
- * `/llms.txt` (`src/app/llms.txt/route.ts`), which uses the same phrase
- * "every tool that returns job records".
+ * The one record-budget sentence. Every tool description below that counts
+ * against `DAILY_RECORD_BUDGET` (search_jobs, get_job, get_company's
+ * embedded roles) interpolates this instead of restating it, and so does
+ * `/llms.txt`'s "## Limits" paragraph (`src/app/llms.txt/route.ts`), so the
+ * wording can't drift between any of them.
  */
-const RECORD_BUDGET_NOTE = `a ${AGENT.DAILY_RECORD_BUDGET}-record daily budget shared by every tool that returns job records`;
+export const RECORD_BUDGET_NOTE = `a ${AGENT.DAILY_RECORD_BUDGET}-record daily budget shared by every tool that returns job records`;
 
 /**
  * The one tool catalog — title, description, and wire schema for every tool
