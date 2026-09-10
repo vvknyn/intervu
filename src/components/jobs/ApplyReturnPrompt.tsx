@@ -52,6 +52,11 @@ export function useApplyReturnPrompt({
             );
             if (record) setPending(record);
         };
+        // Also check once on mount, not just on the listeners' first fire: a
+        // reload of the armed tab (e.g. iOS Safari discarding a background
+        // tab) after the threshold already elapsed never fires
+        // visibilitychange/focus, so without this the return goes undetected.
+        checkReturn();
         document.addEventListener("visibilitychange", checkReturn);
         window.addEventListener("focus", checkReturn);
         return () => {

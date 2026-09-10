@@ -150,6 +150,21 @@ describe('armApplyReturn / evaluateApplyReturn (storage + one-shot record)', () 
         });
     });
 
+    // E1: `useApplyReturnPrompt` now calls `checkReturn` once on mount, not
+    // just from the visibilitychange/focus listeners — this is that mount
+    // check's exact shape, evaluate() called cold at a point in time with no
+    // event driving it (a reload of the armed tab after the threshold
+    // already elapsed, e.g. iOS Safari discarding a background tab).
+    it('a mount-time check (no preceding event) still surfaces an overdue return', () => {
+        const storage = memoryStorage();
+        const leftAt = 0;
+        armApplyReturn(storage, JOB_A, leftAt);
+
+        const result = evaluateApplyReturn(storage, leftAt + APPLY_RETURN_THRESHOLD_MS, neverApplied);
+        assert.ok(result);
+        assert.equal(result?.jobId, JOB_A.jobId);
+    });
+
     it('a second job replaces the first — one slot, latest wins', () => {
         const storage = memoryStorage();
         armApplyReturn(storage, JOB_A, 0);
