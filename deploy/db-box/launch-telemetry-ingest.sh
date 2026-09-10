@@ -268,7 +268,10 @@ read_key_from_deploy_dir() {
 # call that produces <status> (step 6, prove_e2e) so the recovery predicate
 # is unit-testable without a database, and so the SAME definition — via
 # `declare -f`, never a second hand-copied version — runs both here and
-# inside the remote polling loop step 6 builds.
+# inside the remote polling loop step 6 builds. lib/pg-env.sh's own
+# functions travel the same way, via that lib's `PG_ENV_FUNCS` list, so a
+# helper added there is shipped automatically rather than needing a new
+# `declare -f` line here.
 ops_check_left_crit() {
   [[ -n "$1" && "$1" != "crit" ]]
 }
@@ -450,8 +453,10 @@ env_file="$ENV_FILE"
 deploy_dir="\$(dirname "\$env_file")"
 $(declare -f ops_check_left_crit)
 $(declare -f read_key_from_deploy_dir)
-$(declare -f _pg_urldecode)
-$(declare -f pg_env_from_url)
+# shellcheck disable=SC2086  # unquoted on purpose: PG_ENV_FUNCS is a
+# space-separated list of function names that must word-split for declare -f
+# to see each one — see lib/pg-env.sh's own PG_ENV_FUNCS docblock.
+$(declare -f $PG_ENV_FUNCS)
 $(declare -f run_poll_query)
 batch_url="\$(read_key_from_deploy_dir "\$deploy_dir" BATCH_PG_URL)"
 pg_env_from_url "\$batch_url" || { echo "BATCH_PG_URL: not a parseable postgresql://user:pass@host[:port]/db URL" >&2; exit 1; }
