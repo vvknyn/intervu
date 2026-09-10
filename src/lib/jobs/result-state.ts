@@ -339,7 +339,7 @@ export const DEAD_JOB_TOMBSTONE_TEXT = "This role is no longer available.";
 
 /** Outcome of the Task 11 dead-link existence check (`classifyExistenceCheck` below). */
 export type ExistenceCheckStatus =
-    | { status: "found"; job: PublicJob }
+    | { status: "found"; job: PublicJob; descriptionPending: boolean }
     | { status: "not_found" }
     /** The check itself was inconclusive — backend unconfigured, or the
      *  request failed (e.g. `id` isn't a legal filter on this index yet —
@@ -391,9 +391,12 @@ export type ExistenceCheckStatus =
  * called by `searchJobs`'s meilisearch path, so its note never reaches a
  * `JobSearchResult` at all.
  */
-export function classifyExistenceCheck(id: string, result: JobSearchResult): ExistenceCheckStatus {
+export function classifyExistenceCheck(
+    id: string,
+    result: JobSearchResult & { descriptionPending?: boolean },
+): ExistenceCheckStatus {
     const job = result.hits.find((h) => h.id === id) ?? null;
-    if (job) return { status: "found", job };
+    if (job) return { status: "found", job, descriptionPending: Boolean(result.descriptionPending) };
     const isCompleteAndClean =
         result.configured &&
         result.backend === "meilisearch" &&
@@ -402,6 +405,46 @@ export function classifyExistenceCheck(id: string, result: JobSearchResult): Exi
         result.hits.length === 0;
     if (isCompleteAndClean) return { status: "not_found" };
     return { status: "unknown" };
+}
+
+/**
+ * The one chokepoint every id-scoped detail fetch goes through (jobs/page.tsx's
+ * dead-job check + on-demand hydrate, yours/[id]/page.tsx's open + retry).
+ * `classifyExistenceCheck` above only ever sees a resolved `JobSearchResult`
+ * — it has no opinion on the REQUEST itself throwing (dropped connection, a
+ * server action rejecting). Every prior call site hand-rolled that try/catch
+ * differently: one mapped a throw to `unknown`, another silently swallowed it
+ * and left its caller's state untouched. This is that mapping, written once.
+ *
+ * Query shape is fixed at `{ id, limit: 1, offset: 0, hideGhosts: false }`
+ * for every caller — `hideGhosts` must stay false so this sees the WHOLE
+ * corpus, not just the non-ghost subset, or a genuinely live likely_ghost
+ * posting would classify `not_found` and get declared dead (verified in
+ * `buildFilter`, lib/jobs/meilisearch.ts).
+ *
+ * `search` is injected rather than importing `searchJobsAction` directly, so
+ * this stays a plain unit-tested function with no Next server-action/runtime
+ * dependency.
+ *
+ * Contract: never throws. The request failing is `unknown`, exactly like
+ * every other inconclusive case `classifyExistenceCheck` already covers —
+ * never a thrown error reaching the caller, and never a false `not_found`.
+ */
+export async function runExistenceCheck(
+    id: string,
+    search: (query: {
+        id: string;
+        limit: number;
+        offset: number;
+        hideGhosts: boolean;
+    }) => Promise<JobSearchResult & { descriptionPending?: boolean }>,
+): Promise<ExistenceCheckStatus> {
+    try {
+        const result = await search({ id, limit: 1, offset: 0, hideGhosts: false });
+        return classifyExistenceCheck(id, result);
+    } catch {
+        return { status: "unknown" };
+    }
 }
 
 /**

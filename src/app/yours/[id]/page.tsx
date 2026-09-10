@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ArrowSquareOut, Buildings, CalendarBlank } from "@phosphor-icons/react";
@@ -13,7 +13,7 @@ import { toast } from "@/lib/toast";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { updateApplication } from "@/actions/application";
 import { searchJobsAction } from "@/actions/jobs";
-import { classifyExistenceCheck } from "@/lib/jobs/result-state";
+import { runExistenceCheck } from "@/lib/jobs/result-state";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
@@ -109,14 +109,19 @@ export default function PursuitDetailPage() {
      * was absent for the six days before, during which this lookup failed
      * outright, and a future re-provision can drop it again with no deploy.
      * Collapsing "couldn't check" into "no longer live" would tell people a
-     * role they can still apply to is dead. `classifyExistenceCheck` is the
-     * existing chokepoint for exactly this call, and it degrades to "unknown".
+     * role they can still apply to is dead. `runExistenceCheck` is the
+     * existing chokepoint for exactly this call, and it degrades to "unknown"
+     * whether the response classifies that way or the request itself throws.
      */
     const [detail, setDetail] = useState<{
         open: boolean;
         job: PublicJob | null;
         state: "idle" | "loading" | "gone" | "unknown";
-    }>({ open: false, job: null, state: "idle" });
+        descriptionPending: boolean;
+    }>({ open: false, job: null, state: "idle", descriptionPending: false });
+    // Bumped by `retryDescription` to force the existence-check effect below
+    // to re-run for the same job id after a timed-out fill (0 = no retry yet).
+    const [retryNonce, setRetryNonce] = useState(0);
 
     const pursuit = pursuits.find((p) => p.id === id);
 
@@ -167,15 +172,45 @@ export default function PursuitDetailPage() {
      */
     const openDetail = async (jobId: string) => {
         if (detail.job) return setDetail((d) => ({ ...d, open: true }));
-        setDetail({ open: true, job: null, state: "loading" });
-        const res = await searchJobsAction({ id: jobId, limit: 1, offset: 0, hideGhosts: false });
-        const check = classifyExistenceCheck(jobId, res);
+        setDetail({ open: true, job: null, state: "loading", descriptionPending: false });
+        const check = await runExistenceCheck(jobId, searchJobsAction);
         setDetail({
             open: true,
             job: check.status === "found" ? check.job : null,
             state: check.status === "found" ? "idle" : check.status === "not_found" ? "gone" : "unknown",
+            descriptionPending: check.status === "found" && check.descriptionPending,
         });
     };
+
+    // "try again" on a timed-out description — re-runs the SAME existence
+    // check for the currently open job. A pending result never refetches on
+    // its own (no auto-polling); this only fires from the explicit click.
+    const retryDescription = useCallback(() => {
+        const jobId = pursuit?.job_id;
+        if (!jobId) return;
+        setDetail((d) => ({ ...d, state: "loading" }));
+        setRetryNonce((n) => n + 1);
+    }, [pursuit?.job_id]);
+
+    useEffect(() => {
+        if (retryNonce === 0) return;
+        const jobId = pursuit?.job_id;
+        if (!jobId) return;
+        void (async () => {
+            const check = await runExistenceCheck(jobId, searchJobsAction);
+            // A failed retry ("unknown", or a "not_found" for a job that WAS
+            // showing a moment ago) keeps the previously rendered job and its
+            // pending flag on screen — see `runExistenceCheck`'s doc comment
+            // for why a failed request is never treated as proof the role is
+            // gone.
+            setDetail((d) =>
+                check.status === "found"
+                    ? { ...d, job: check.job, state: "idle", descriptionPending: check.descriptionPending }
+                    : { ...d, state: "idle" },
+            );
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [retryNonce]);
 
     const mutate = async (patch: Partial<Pursuit>) => {
         setSaving(true);
@@ -372,6 +407,8 @@ export default function PursuitDetailPage() {
                                 const href = pursuit.job_url ?? detail.job?.apply_url;
                                 if (href) window.open(href, "_blank", "noopener,noreferrer");
                             }}
+                            descriptionPending={detail.descriptionPending}
+                            onRetryDescription={retryDescription}
                         />
                     ) : detail.state === "gone" ? (
                         /* Says what actually happened. The pursuit's own saved

@@ -37,10 +37,12 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 import {
+  DESCRIPTION_FILL_PREFETCH_DEADLINE_MS,
+  DESCRIPTION_FILL_VISIBLE_DEADLINE_MS,
   mergeDescriptionFills,
   planDescriptionFill,
 } from "@/lib/jobs/fill-description";
-import { fillVisibleDescriptions, hasSubspaceApiKey } from "@/lib/jobs/subspaceJobs";
+import { fillVisibleDescriptions, hasSubspaceApiKey, isSubspaceTimeout } from "@/lib/jobs/subspaceJobs";
 
 /**
  * `meta` is additive by convention (see `SearchServedMeta` in
@@ -86,6 +88,10 @@ export async function searchJobsAction(
     meta?: ShieldSearchServeMeta;
     defaultedLocation?: string;
     unmatchedPlaceMentions?: string[];
+    /** True when the stored description is still a stub AND the live fill
+     *  hit its deadline while this request awaited it — the hit's
+     *  `description` is whatever we had at that point, not a final answer. */
+    descriptionPending?: true;
   }
 > {
   const searchId = randomUUID();
@@ -135,19 +141,28 @@ export async function searchJobsAction(
 
   const fillPlan = planDescriptionFill(params, result.hits, result.unavailable);
   let hits = result.hits;
+  let descriptionPending = false;
   if (hasSubspaceApiKey() && fillPlan.mode !== "none") {
     if (fillPlan.mode === "prefetch") {
       after(() => {
-        void fillVisibleDescriptions(fillPlan.ids).catch((e) =>
+        void fillVisibleDescriptions(fillPlan.ids, { timeoutMs: DESCRIPTION_FILL_PREFETCH_DEADLINE_MS }).catch((e) =>
           console.error("[jobs-desc-fill] prefetch failed:", e),
         );
       });
     } else {
       try {
-        const fills = await fillVisibleDescriptions(fillPlan.ids, { mode: "visible" });
+        const fills = await fillVisibleDescriptions(fillPlan.ids, {
+          mode: "visible",
+          timeoutMs: DESCRIPTION_FILL_VISIBLE_DEADLINE_MS,
+        });
         hits = mergeDescriptionFills(hits, fills);
       } catch (e) {
-        console.error("[jobs-desc-fill] await fill failed:", e);
+        if (isSubspaceTimeout(e)) {
+          descriptionPending = true;
+          console.warn("[jobs-desc-fill] visible fill hit the deadline", { searchId, ids: fillPlan.ids });
+        } else {
+          console.error("[jobs-desc-fill] await fill failed:", e);
+        }
       }
     }
   }
@@ -157,7 +172,7 @@ export async function searchJobsAction(
     after(() => recordSearch(entry));
   }
 
-  return { ...result, hits, searchId };
+  return { ...result, hits, searchId, ...(descriptionPending ? { descriptionPending: true as const } : {}) };
 }
 
 /** How many related jobs the detail panel's "More like this" shows. */
