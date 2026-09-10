@@ -113,7 +113,7 @@ export function validateSignupEmail(raw: unknown): SignupEmailResult {
     if (typeof raw !== "string") {
         return { ok: false, error: EMAIL_QUALITY_MESSAGES.syntax, reason: "syntax", domain: null };
     }
-    const email = raw.trim().toLowerCase();
+    const email = normalizeEmail(raw);
     const screenResult = screenSignupEmail(email);
     if (screenResult) {
         return { ok: false, error: EMAIL_QUALITY_MESSAGES[screenResult], reason: screenResult, domain: emailDomain(email) };

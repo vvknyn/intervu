@@ -13,11 +13,19 @@
  *    fakes rather than a real DNS server; `realEmailQualityDeps` wires
  *    `node:dns/promises` for production.
  *
- * Fail-open is deliberate: a DNS timeout or resolver error (SERVFAIL,
- * EAI_AGAIN, our own resolver having a bad day) must never block a real
- * signup — only a domain that plainly answers "no MX, no A/AAAA either" is
- * rejected. Rejections are the only closed outcomes; everything else is a
- * logged warning and `{ ok: true }`.
+ * Fail-open is deliberate: a DNS timeout or resolver error (ESERVFAIL,
+ * EREFUSED, our own resolver having a bad day) must never block a real
+ * signup — only a domain that plainly answers "no MX, no A/AAAA either", or
+ * one that publishes an RFC 7505 null MX ("this domain accepts no mail"),
+ * is rejected. Rejections are the only closed outcomes; everything else is
+ * a logged warning and `{ ok: true }`.
+ *
+ * `timeoutMs` bounds the ENTIRE call, not each lookup independently: the
+ * deadline is computed once from the start of `assessSignupEmail`, and the
+ * A/AAAA fallback (when the MX lookup answers quickly with "no records")
+ * gets whatever's left of that budget rather than a fresh `timeoutMs` of
+ * its own — otherwise a domain with slow-but-answering DNS could burn close
+ * to 2×`timeoutMs` in one request.
  */
 import MailChecker from "mailchecker";
 import { resolveMx as dnsResolveMx, resolve4, resolve6 } from "node:dns/promises";
@@ -47,11 +55,19 @@ const DEFAULT_TIMEOUT_MS = 2500;
 // part's own, much looser, character set.
 const DOMAIN_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i;
 
+// RFC 5322 dot-atom "atext" charset for the local part — excludes spaces,
+// control characters, and the quoted-string punctuation mailchecker's own
+// regex also rejects. This is the single authority for "syntax" so that
+// syntax can never come back reported as "disposable" (see screenSignupEmail
+// below): an input that fails this can't reach the disposable check at all.
+const LOCAL_ATEXT_RE = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+$/;
+
 /** `null` means "no complaint" — deliberately not a boolean, so callers never
  *  have to remember which way a `screenSignupEmail(...)` truthiness reads. */
 export function screenSignupEmail(email: string): "syntax" | "disposable" | null {
     if (!hasValidSyntax(email)) return "syntax";
-    if (!MailChecker.isValid(email)) return "disposable";
+    const domain = emailDomain(email) as string; // hasValidSyntax above guarantees an "@"
+    if (isDisposableDomain(domain)) return "disposable";
     return null;
 }
 
@@ -62,8 +78,28 @@ function hasValidSyntax(email: string): boolean {
     const [local, domain] = parts;
     if (local.length < 1 || local.length > 64) return false;
     if (local.startsWith(".") || local.endsWith(".") || local.includes("..")) return false;
+    if (!LOCAL_ATEXT_RE.test(local)) return false;
     if (domain.startsWith(".") || domain.endsWith(".") || domain.includes("..")) return false;
     return DOMAIN_RE.test(domain);
+}
+
+/** Disposable-domain lookup against mailchecker's own blacklist Set —
+ *  deliberately NOT `MailChecker.isValid()`, which also re-runs mailchecker's
+ *  own (stricter) syntax regex and reports both defects as "not valid". That
+ *  conflation is exactly what let a syntax defect (e.g. a stray space in the
+ *  local part) come back mislabeled as "disposable" for a domain that was
+ *  never on the list. Walks up the labels the same way mailchecker's
+ *  internal `isBlacklisted` does, so `foo.mailinator.com` still matches via
+ *  `mailinator.com`. */
+function isDisposableDomain(domain: string): boolean {
+    const blacklist = MailChecker.blacklist();
+    let current = domain.toLowerCase();
+    for (;;) {
+        if (blacklist.has(current)) return true;
+        const dot = current.indexOf(".");
+        if (dot === -1) return false;
+        current = current.slice(dot + 1);
+    }
 }
 
 /** `null` when the address has no `@` at all — a caller logging this
@@ -85,25 +121,37 @@ export async function assessSignupEmail(email: string, deps: EmailQualityDeps): 
     if (syncReason) return { ok: false, reason: syncReason };
 
     const domain = emailDomain(email) as string; // syntax check above guarantees an "@"
-    const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    // One deadline for the whole call (see module doc) — every lookup below
+    // draws down the SAME budget instead of getting a fresh `timeoutMs`.
+    const deadline = Date.now() + (deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
     try {
-        const mx = await withTimeout(deps.resolveMx(domain), timeoutMs);
-        if (mx.length > 0) return { ok: true };
+        const mx = await withTimeout(deps.resolveMx(domain), remainingMs(deadline));
+        if (mx.length > 0) {
+            // RFC 7505: a single MX RR whose exchange is "." is a domain
+            // affirmatively declaring it accepts no mail at all — not the
+            // same as "no MX record" (which still gets the A/AAAA fallback).
+            if (isNullMx(mx)) return { ok: false, reason: "no_mail_host" };
+            return { ok: true };
+        }
         // Resolved cleanly but published no MX record — RFC 5321 fallback.
-        return await checkAddressFallback(domain, deps, timeoutMs);
+        return await checkAddressFallback(domain, deps, remainingMs(deadline));
     } catch (error) {
         if (isNoRecordsError(error)) {
-            return await checkAddressFallback(domain, deps, timeoutMs);
+            return await checkAddressFallback(domain, deps, remainingMs(deadline));
         }
         console.warn("[email-quality] MX lookup failed open", { domain, error: describeError(error) });
         return { ok: true };
     }
 }
 
-async function checkAddressFallback(domain: string, deps: EmailQualityDeps, timeoutMs: number): Promise<EmailVerdict> {
+function isNullMx(mx: { exchange: string }[]): boolean {
+    return mx.every((record) => record.exchange === ".");
+}
+
+async function checkAddressFallback(domain: string, deps: EmailQualityDeps, remainingMs: number): Promise<EmailVerdict> {
     try {
-        const addresses = await withTimeout(deps.resolveAddress(domain), timeoutMs);
+        const addresses = await withTimeout(deps.resolveAddress(domain), remainingMs);
         return addresses.length > 0 ? { ok: true } : { ok: false, reason: "no_mail_host" };
     } catch (error) {
         if (isNoRecordsError(error)) {
@@ -123,7 +171,17 @@ function describeError(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+function remainingMs(deadline: number): number {
+    return Math.max(0, deadline - Date.now());
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    // No budget left: fail open exactly like a real timeout would, rather
+    // than racing a `setTimeout(fn, 0)` against a promise that might settle
+    // synchronously first.
+    if (ms <= 0) {
+        return Promise.reject(Object.assign(new Error("email-quality DNS lookup timed out (no budget remaining)"), { code: "ETIMEDOUT" }));
+    }
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
             reject(Object.assign(new Error(`email-quality DNS lookup timed out after ${ms}ms`), { code: "ETIMEDOUT" }));
