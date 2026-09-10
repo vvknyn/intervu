@@ -135,5 +135,20 @@ shape (no entity id to key on).
 Guests are still **hard-gated on Apply** — `apply_clicked` fires before the
 gate (`src/app/jobs/page.tsx`, events-wiring lock), but reaching the posting
 requires sign-in. Save uses a **2nd-save** gate (`reason: "save"` on
-`auth_started`); a softer post-engage auth nudge after the first save is
-follow-up work, not wired here.
+`auth_started`); a softer post-engage auth nudge after first `result_clicked`
+/ N `job_viewed` is follow-up work, not wired here.
+
+## Search cold-start (what shipped vs leftover)
+
+Zero-query `/jobs` already fetches the cached default browse
+(`getDefaultBrowseAction` when `resolveEmptySearchState` is `"overlay-ask"` —
+`src/lib/jobs/result-state.ts`, `src/app/jobs/page.tsx`). Desktop already
+showed those hits. This PR **un-hides the mobile results column** that used
+to sit behind "Pick one to start searching" / "Show jobs"
+(`LandingMarketingShowcase` chips stay above the list).
+
+Leftover, not in this PR: default browse still does **not** fire
+`search_submitted` (so pageview→search funnels stay low even when
+`result_clicked` / `job_viewed` move); the sticky mobile "Show jobs" CTA
+still dismisses the marketing block (`shouldShowMobileSearchCta`). Do not
+invent a fake `search_submitted` for the seed list.
