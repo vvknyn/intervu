@@ -90,12 +90,20 @@ export function restoreLocationDefault(): void {
 }
 
 /**
- * G3 (Grok UX wave) — the ONE decision for whether the location control
- * shows the applied-default disclosure chip: the server actually applied a
- * default (`defaultedLocation` is set) AND the searcher has not chosen a
- * place of their own. Once they have, their choice takes over the control
- * and the chip would just be noise sitting on top of it. Pure so the
- * disclosure logic is testable without a DOM.
+ * G3 (Grok UX wave) — the ONE decision for whether the geo default is still
+ * in effect: the server actually applied a default (`defaultedLocation` is
+ * set) AND the searcher has not chosen a place of their own. Once they have,
+ * their choice takes over the control. Pure so the disclosure logic is
+ * testable without a DOM.
+ *
+ * Shared chokepoint, not just the toolbar chip's gate: `locationTriggerLabel`
+ * (lib/jobs/location-label.ts) calls this exact function too, so the chip
+ * and the mobile trigger can never disagree about whether the default is
+ * showing (PR #461 review BLOCKER — they used to each keep their own
+ * check). Deliberately has no `work_type`/remote check, matching the
+ * server's own `hasLocationSignal` (lib/geo/ip-default.ts), which doesn't
+ * check it either — a remote-only pick doesn't suppress the default
+ * server-side.
  *
  * Takes the CHOSEN places, not the location box's draft text. The draft was
  * an exact proxy only while the box itself was the state; now that the box

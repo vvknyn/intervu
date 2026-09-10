@@ -6,6 +6,7 @@ import { chipVariants } from "@/components/ui/chip";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import { SALARY_PRESETS, appliedPostedBucket, postedBucketLabel, type FilterState } from "@/components/jobs/FilterPanel";
 import { toolbarChipClass } from "@/lib/jobs/toolbar-control-height";
+import { isRemoteWorkTypeValue } from "@/lib/jobs/meilisearch";
 
 /**
  * Mobile "Posted" chip cycle — a tighter subset of the rail's full
@@ -74,7 +75,7 @@ export function nextSalaryPreset(current: number): number {
 export function pickRemoteFacetValue(distribution: FacetDistribution | undefined): string | undefined {
     const workTypes = distribution?.work_type;
     if (!workTypes) return undefined;
-    const matches = Object.keys(workTypes).filter((k) => /remote/i.test(k));
+    const matches = Object.keys(workTypes).filter(isRemoteWorkTypeValue);
     if (matches.length === 0) return undefined;
     return matches.reduce((best, k) => (workTypes[k] > workTypes[best] ? k : best), matches[0]);
 }
