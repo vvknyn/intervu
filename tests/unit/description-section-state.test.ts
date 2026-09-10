@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  isDetailFetchInFlight,
   resolveDescriptionSectionState,
   resolveDetailDescriptionPending,
   type DescriptionSectionState,
@@ -98,6 +99,46 @@ describe("resolveDetailDescriptionPending", () => {
   for (const { name, input, expected } of cases) {
     it(`${name} -> ${expected}`, () => {
       assert.equal(resolveDetailDescriptionPending(input), expected);
+    });
+  }
+});
+
+describe("isDetailFetchInFlight", () => {
+  const cases: Array<{
+    name: string;
+    input: { detailId: string | null; hydratedId: string | null; retryId: string | null };
+    expected: boolean;
+  }> = [
+    {
+      name: "direct-open retry requested, no hydrate has landed for this id yet -> in flight",
+      input: { detailId: "job-1", hydratedId: null, retryId: "job-1" },
+      expected: true,
+    },
+    {
+      name: "retry landed (hydratedId matches detailId) -> not in flight",
+      input: { detailId: "job-1", hydratedId: "job-1", retryId: "job-1" },
+      expected: false,
+    },
+    {
+      name: "a retry was requested for a DIFFERENT id -> not in flight for this one",
+      input: { detailId: "job-2", hydratedId: null, retryId: "job-1" },
+      expected: false,
+    },
+    {
+      name: "no retry requested at all -> not in flight",
+      input: { detailId: "job-1", hydratedId: null, retryId: null },
+      expected: false,
+    },
+    {
+      name: "no detail job rendered -> not in flight",
+      input: { detailId: null, hydratedId: null, retryId: null },
+      expected: false,
+    },
+  ];
+
+  for (const { name, input, expected } of cases) {
+    it(`${name} -> ${expected}`, () => {
+      assert.equal(isDetailFetchInFlight(input), expected);
     });
   }
 });

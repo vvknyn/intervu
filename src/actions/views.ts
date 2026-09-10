@@ -17,6 +17,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { validate, recordJobViewSchema } from "@/lib/validation";
 import type { JobSnapshot } from "@/lib/pursuits/types";
+import { stripUndefinedDeep } from "@/lib/pursuits/upsert-core";
 import { orderJobViewsLatestFirst, type JobView } from "@/lib/views/types";
 
 /** Fire-and-forget from `openJob` (jobs/page.tsx) — signed-out visitors
@@ -52,20 +53,24 @@ export async function recordJobViewAction(
         // later view.
         const existing = await ref.get();
         if (existing.exists) {
-            await ref.update({
-                last_viewed_at: now,
-                view_count: FieldValue.increment(1),
-                job_snapshot: snapshot,
-            });
+            await ref.update(
+                stripUndefinedDeep({
+                    last_viewed_at: now,
+                    view_count: FieldValue.increment(1),
+                    job_snapshot: snapshot,
+                }),
+            );
         } else {
-            await ref.set({
-                user_id: user.uid,
-                job_id: parsed.data.job_id,
-                first_viewed_at: now,
-                last_viewed_at: now,
-                view_count: 1,
-                job_snapshot: snapshot,
-            });
+            await ref.set(
+                stripUndefinedDeep({
+                    user_id: user.uid,
+                    job_id: parsed.data.job_id,
+                    first_viewed_at: now,
+                    last_viewed_at: now,
+                    view_count: 1,
+                    job_snapshot: snapshot,
+                }),
+            );
         }
         return { recorded: true };
     } catch (error) {

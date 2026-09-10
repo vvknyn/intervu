@@ -112,7 +112,7 @@ const jobSnapshotShape = {
   title: nonEmptyString(300),
   company: z.string().trim().max(200).nullable(),
   location: z.string().trim().max(200).nullable(),
-  description: z.string().trim().max(20000).nullable(),
+  description: z.string().trim().max(20000).nullable().optional(),
   apply_url: z.string().trim().max(2048),
 };
 

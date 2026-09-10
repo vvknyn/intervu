@@ -9,3 +9,11 @@
  */
 export const JOBS_VISITOR_COOKIE = "sb_jobs_visitor";
 export const JOBS_VISITOR_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days, in seconds
+
+/** Stamp only on document/RSC navigations. A Set-Cookie on a server-action
+ *  POST makes Next report `x-action-revalidated` and the client router then
+ *  refreshes the whole route after every action (Next 16 request-store.js
+ *  mergeMiddlewareCookies → action-handler.js addRevalidationHeader). */
+export function shouldStampJobsVisitor(input: { method: string; pathname: string }): boolean {
+    return input.method === "GET" && input.pathname.startsWith("/jobs");
+}
