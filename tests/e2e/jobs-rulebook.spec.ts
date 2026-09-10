@@ -21,10 +21,9 @@ import path from 'node:path';
  * selectors, so a check can be scoped to "everything actually inside this
  * region" without hand-maintaining a list of components per region. Anything
  * carrying `data-rulebook-exempt` (the wordmark's allowed 700-weight
- * lockup type, a company-logo tile's documented raw-hex fill, or the
- * report-listing tooltip's local-env-only "not configured" bubble — see
- * ReportListingButton.tsx) is skipped by every check, the same
- * whole-subtree skip preview.cjs's `[data-exempt]` used.
+ * lockup type, or a company-logo tile's documented raw-hex fill) is
+ * skipped by every check, the same whole-subtree skip preview.cjs's
+ * `[data-exempt]` used.
  *
  * One page load, computed once in `beforeAll` and cached — 20 region×check
  * assertions below all read the same snapshot rather than each re-rendering

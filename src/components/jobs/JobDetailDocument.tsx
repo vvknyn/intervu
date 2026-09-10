@@ -13,7 +13,6 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import type { MatchScore } from "@/lib/match/score";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
-import { ReportListingButton } from "@/components/jobs/ReportListingButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
     assessedGhostSignals,
@@ -351,12 +350,6 @@ export function JobDetailDocument({
                         )}
                     </div>
                 </div>
-                {/* Rulebook item f: 40px bordered square → ghost 40px icon-only,
-                    no border. */}
-                <ReportListingButton
-                    job={job}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                />
             </div>
 
             {exceptionMark && (

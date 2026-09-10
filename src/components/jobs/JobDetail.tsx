@@ -6,11 +6,11 @@ import { ArrowSquareOut } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
-import { ReportListingButton } from "@/components/jobs/ReportListingButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel } from "@/components/jobs/job-detail-facts";
@@ -756,21 +756,27 @@ export function JobDetail({
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                             {/* Rulebook item f: these were hairline-boxed 44px
-                                squares — ghost 40px icon-only controls, no border. */}
-                            <ReportListingButton
-                                job={job}
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            />
-                            <ShareAction
-                                title={`${job.title} at ${companyBrand}`}
-                                text={SHARE_JOB_TEXT}
-                                url={withShareRef(
-                                    jobShareUrl(typeof window !== "undefined" ? window.location.origin : "", job),
-                                    "job",
-                                )}
-                                jobId={job.id}
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            />
+                                squares — ghost 40px icon-only controls, no border.
+                                Report is a detail-only action (GROUP-C, standard
+                                one-entry-point-per-listing) — it lives in the
+                                action row below (ReportJobButton), not here. */}
+                            <TooltipProvider delayDuration={300}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <ShareAction
+                                            title={`${job.title} at ${companyBrand}`}
+                                            text={SHARE_JOB_TEXT}
+                                            url={withShareRef(
+                                                jobShareUrl(typeof window !== "undefined" ? window.location.origin : "", job),
+                                                "job",
+                                            )}
+                                            jobId={job.id}
+                                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                        />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="text-xs">Copy link</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                             {onClose && (
                                 <button
                                     type="button"
