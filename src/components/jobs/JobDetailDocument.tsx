@@ -10,6 +10,7 @@ import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDescription, JobDetailActionBar, MetaLine, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobRow } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
+import { DotSeparated } from "@/components/ui/dot-separated";
 import type { MatchScore } from "@/lib/match/score";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
@@ -198,13 +199,8 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
                 </PostingCheckSignalsGrid>
             )}
             {exposureBadges.length > 0 && (
-                <div className="mono-data mt-3 flex flex-wrap items-center text-xs text-muted-foreground">
-                    {exposureBadges.map((b, i) => (
-                        <span key={b.label} className="inline-flex items-center">
-                            {i > 0 && <span className="mx-1" aria-hidden>·</span>}
-                            {b.label}
-                        </span>
-                    ))}
+                <div className="mono-data mt-3 text-xs text-muted-foreground">
+                    <DotSeparated items={exposureBadges.map((b) => b.label)} />
                 </div>
             )}
         </div>
@@ -365,14 +361,11 @@ export function JobDetailDocument({
                 // `part.className` (row-exception.ts).
                 <div className="mt-4 text-xs font-semibold">
                     <ContextHelp content={exceptionMark.explain} side="right">
-                        <span className="inline-flex flex-wrap items-center gap-x-1">
-                            {exceptionMark.parts.map((part, i) => (
-                                <span key={part.text} className="inline-flex items-center">
-                                    {i > 0 && <span className="mx-1 text-muted-foreground" aria-hidden>·</span>}
-                                    <span className={part.className}>{part.text}</span>
-                                </span>
+                        <DotSeparated
+                            items={exceptionMark.parts.map((part) => (
+                                <span className={part.className}>{part.text}</span>
                             ))}
-                        </span>
+                        />
                     </ContextHelp>
                 </div>
             )}
@@ -529,57 +522,55 @@ export function JobDetailDocument({
     // related).
     return (
         <div data-testid="job-detail-document">
-            {/* Mobile / tablet: single column, spec reading order. Sections
-                self-space via their own hairline top border + padding
-                (rulebook item d), so this stack applies no extra gap. */}
-            <div className={cn("flex flex-col lg:hidden", !closed && "pb-12")}>
-                {heroEl}
-                {applyCardEl}
-                {receiptEl}
-                {closed && relatedEl}
-                {postingEl}
-                {employerCardEl}
-                {aiBoxEl}
-                {!closed && relatedEl}
-                {/* Sticky mobile action bar (rulebook "sticky mobile action
-                    bar"): the same chokepoint the SERP Sheet's mobile detail
-                    already mounts (JobDetail.tsx doc comment), stacked
-                    `bottom-12` — above the sitewide `MobileTabBar`'s 48px
-                    base height — since this document scrolls the real page,
-                    unlike the Sheet's own `overflow-y-auto` container that
-                    paints over the tab bar. `pb-12` above gives the last
-                    in-flow content the same clearance so nothing sits under
-                    either bar at full scroll. Closed jobs keep their own
-                    "See open roles" card inline — this bar doesn't model
-                    that state. */}
-                {!closed && (
-                    <JobDetailActionBar
-                        job={job}
-                        signedIn={signedIn}
-                        onOpenPosting={onOpenPosting}
-                        onGoAfter={onGoAfter}
-                        pursuit={pursuit}
-                        goingAfter={goingAfter}
-                        className="bottom-12"
-                    />
-                )}
+            {/* Single render, CSS-only reordering: below `lg`, `max-lg:contents`
+                on both wrappers unwraps them so their children become direct
+                items of this flex column, ordered by each block's own
+                `max-lg:order-*` (mobile reading order below); at `lg`+ this
+                becomes the real two-column grid (content + sticky rail) and
+                the wrappers govern layout again. Every block mounts exactly
+                once — previously the mobile stack and desktop grid each
+                mounted the same elements, doubling every effect and the
+                served HTML, including the page heading. */}
+            <div className={cn("flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6", !closed && "max-lg:pb-12")}>
+                <div className="flex min-w-0 flex-col max-lg:contents">
+                    <div className="max-lg:order-1">{heroEl}</div>
+                    {closed && <div className="max-lg:order-4">{relatedEl}</div>}
+                    <div className="max-lg:order-5">{postingEl}</div>
+                    {!closed && <div className="max-lg:order-8">{relatedEl}</div>}
+                </div>
+                <div className="flex flex-col max-lg:contents lg:sticky lg:top-6">
+                    <div className="max-lg:order-2">{applyCardEl}</div>
+                    <div className="max-lg:order-3">{receiptEl}</div>
+                    <div className="max-lg:order-6">{employerCardEl}</div>
+                    <div className="max-lg:order-7">{aiBoxEl}</div>
+                </div>
             </div>
 
-            {/* Desktop: two-column document, rail sticky. */}
-            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
-                <div className="flex min-w-0 flex-col">
-                    {heroEl}
-                    {closed && relatedEl}
-                    {postingEl}
-                    {!closed && relatedEl}
-                </div>
-                <div className="sticky top-6 flex flex-col">
-                    {applyCardEl}
-                    {receiptEl}
-                    {employerCardEl}
-                    {aiBoxEl}
-                </div>
-            </div>
+            {/* Sticky mobile action bar (rulebook "sticky mobile action
+                bar"): the same chokepoint the SERP Sheet's mobile detail
+                already mounts (JobDetail.tsx doc comment), stacked
+                `bottom-12` — above the sitewide `MobileTabBar`'s 48px
+                base height — since this document scrolls the real page,
+                unlike the Sheet's own `overflow-y-auto` container that
+                paints over the tab bar. `max-lg:pb-12` above gives the last
+                in-flow content the same clearance so nothing sits under
+                either bar at full scroll. Closed jobs keep their own
+                "See open roles" card inline — this bar doesn't model
+                that state. It's fixed-position, so its place in the DOM
+                (after, not inside, the reordered column) doesn't affect
+                layout; `lg:hidden` since the rail's apply card covers this
+                surface at `lg`+. */}
+            {!closed && (
+                <JobDetailActionBar
+                    job={job}
+                    signedIn={signedIn}
+                    onOpenPosting={onOpenPosting}
+                    onGoAfter={onGoAfter}
+                    pursuit={pursuit}
+                    goingAfter={goingAfter}
+                    className="bottom-12 lg:hidden"
+                />
+            )}
         </div>
     );
 }
