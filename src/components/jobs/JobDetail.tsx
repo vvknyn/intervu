@@ -37,6 +37,7 @@ import { shouldSuppressOpenCount, type OpenCount } from "@/lib/companies/open-co
 import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
+import { resolveDescriptionSectionState, DESCRIPTION_SLOW_HINT_MS } from "@/lib/jobs/description-section-state";
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -387,6 +388,8 @@ export function JobDetail({
     collapseDescription = true,
     matchScore = null,
     matchAsOfDate = null,
+    descriptionPending,
+    onRetryDescription,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -437,6 +440,14 @@ export function JobDetail({
     matchScore?: MatchScore | null;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
+    /** True when the stored description is a stub AND searchJobsAction's live
+     *  fill hit its deadline still waiting on it — see description-section-
+     *  state.ts's "pending" state. */
+    descriptionPending?: boolean;
+    /** Re-hydrates this job (clears the cached detail + refetches) — wired to
+     *  the pending note's "try again" button. Omitted → the note renders
+     *  without a button (see the markup below). */
+    onRetryDescription?: () => void;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -496,6 +507,21 @@ export function JobDetail({
     // key at all) into the same bucket as "hydrated, genuinely no
     // description." Only the field's presence distinguishes them.
     const hydrated = job.description !== undefined;
+    const descriptionSectionState = resolveDescriptionSectionState({
+        hydrated,
+        hasBlocks: blocks.length > 0,
+        pending: Boolean(descriptionPending),
+    });
+    // Delayed progress message for the "loading" state — resets whenever the
+    // job or the state itself changes, so switching jobs (or a retry landing
+    // on "body"/"pending") never leaves a stale hint counting down.
+    const [showSlowHint, setShowSlowHint] = useState(false);
+    useEffect(() => {
+        setShowSlowHint(false);
+        if (descriptionSectionState !== "loading") return;
+        const timer = setTimeout(() => setShowSlowHint(true), DESCRIPTION_SLOW_HINT_MS);
+        return () => clearTimeout(timer);
+    }, [job.id, descriptionSectionState]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
     // detail panel doesn't run thousands of pixels tall. `collapseDescription`
     // (default true) is the seam that turns this off for mount sites that
@@ -959,57 +985,102 @@ export function JobDetail({
                     per section. Body copy sits at a 640px reading measure. */}
                 <div className="border-t border-border py-6">
                     <h3 className="mb-2 text-sm font-semibold text-foreground">About this role</h3>
-                    {blocks.length > 0 ? (
-                        <>
-                            <div
-                                data-testid="job-detail-description"
-                                className={cn("relative max-w-[640px]", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
-                            >
-                                <JobDescription blocks={blocks} headingLevel={4} />
-                                {collapsible && !descExpanded && (
-                                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
+                    {(() => {
+                        // The employer's-site-is-slow note — shared by the "body" case
+                        // (teaser stub still showing while the fill runs) and the
+                        // "pending" case (nothing to show yet at all). Single copy of
+                        // the sentence rather than two near-identical paragraphs.
+                        const pendingNote = (
+                            <p className="max-w-[640px] text-base leading-normal text-foreground">
+                                The employer&apos;s site is taking a while to answer, so the full description isn&apos;t here yet.
+                                {job.apply_url ? " Open the posting to read it there, or " : " "}
+                                {onRetryDescription ? (
+                                    <button
+                                        type="button"
+                                        onClick={onRetryDescription}
+                                        className="text-brand hover:underline cursor-pointer"
+                                    >
+                                        try again
+                                    </button>
+                                ) : (
+                                    "try again"
                                 )}
-                            </div>
-                            {collapsible && (
-                                <button
-                                    type="button"
-                                    onClick={() => setDescExpanded((v) => !v)}
-                                    className="mt-2 text-sm text-brand hover:underline cursor-pointer"
-                                >
-                                    {descExpanded ? "Show less" : "Show full description"}
-                                </button>
-                            )}
-                        </>
-                    ) : hydrated ? (
-                        <p className="max-w-[640px] text-base leading-normal text-foreground">
-                            No description was captured for this role.{" "}
-                            {job.apply_url ? (
-                                <>
-                                    Use{" "}
-                                    <span className="font-semibold text-foreground">
-                                        {signedIn ? "Apply" : "Sign in to apply"}
-                                    </span>{" "}
-                                    to read the full details on the employer&apos;s site.
-                                </>
-                            ) : (
-                                "Try the original posting for full details."
-                            )}
-                        </p>
-                    ) : (
-                        // Not hydrated yet (the SERP's list-scope stub has no
-                        // `description` field, meilisearch.ts's
-                        // JOB_LIST_ATTRIBUTES_TO_RETRIEVE) — distinct from a
-                        // hydrated job that genuinely has no description
-                        // (case above). Rendering the neutral empty-state copy
-                        // here would claim "nothing was captured" before the
-                        // full doc even arrived. Same `.skeleton-bar` idiom
-                        // as JobDetailSkeleton.
-                        <div className="space-y-2" aria-hidden="true">
-                            <div className="skeleton-bar h-3.5 w-full" />
-                            <div className="skeleton-bar h-3.5 w-full" />
-                            <div className="skeleton-bar h-3.5 w-5/6" />
-                        </div>
-                    )}
+                                {job.apply_url ? "." : " in a moment."}
+                            </p>
+                        );
+
+                        switch (descriptionSectionState) {
+                            case "body":
+                                return (
+                                    <>
+                                        <div
+                                            data-testid="job-detail-description"
+                                            className={cn("relative max-w-[640px]", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
+                                        >
+                                            <JobDescription blocks={blocks} headingLevel={4} />
+                                            {collapsible && !descExpanded && (
+                                                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
+                                            )}
+                                        </div>
+                                        {collapsible && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setDescExpanded((v) => !v)}
+                                                className="mt-2 text-sm text-brand hover:underline cursor-pointer"
+                                            >
+                                                {descExpanded ? "Show less" : "Show full description"}
+                                            </button>
+                                        )}
+                                        {/* Teaser stub rendered above AND the live fill is
+                                            still running — the body isn't final. */}
+                                        {descriptionPending && pendingNote}
+                                    </>
+                                );
+                            case "loading":
+                                return (
+                                    // Not hydrated yet (the SERP's list-scope stub has no
+                                    // `description` field, meilisearch.ts's
+                                    // JOB_LIST_ATTRIBUTES_TO_RETRIEVE) — distinct from a
+                                    // hydrated job that genuinely has no description
+                                    // ("empty" case below). Rendering the neutral empty-
+                                    // state copy here would claim "nothing was captured"
+                                    // before the full doc even arrived. Same
+                                    // `.skeleton-bar` idiom as JobDetailSkeleton.
+                                    <>
+                                        <div className="space-y-2" aria-hidden="true">
+                                            <div className="skeleton-bar h-3.5 w-full" />
+                                            <div className="skeleton-bar h-3.5 w-full" />
+                                            <div className="skeleton-bar h-3.5 w-5/6" />
+                                        </div>
+                                        {showSlowHint && (
+                                            <p className="mt-3 text-xs text-muted-foreground" aria-live="polite">
+                                                Fetching the full description from the employer&apos;s site…
+                                            </p>
+                                        )}
+                                    </>
+                                );
+                            case "pending":
+                                return pendingNote;
+                            case "empty":
+                            default:
+                                return (
+                                    <p className="max-w-[640px] text-base leading-normal text-foreground">
+                                        No description was captured for this role.{" "}
+                                        {job.apply_url ? (
+                                            <>
+                                                Use{" "}
+                                                <span className="font-semibold text-foreground">
+                                                    {signedIn ? "Apply" : "Sign in to apply"}
+                                                </span>{" "}
+                                                to read the full details on the employer&apos;s site.
+                                            </>
+                                        ) : (
+                                            "Try the original posting for full details."
+                                        )}
+                                    </p>
+                                );
+                        }
+                    })()}
                 </div>
 
                 {job.tags && job.tags.length > 0 && (

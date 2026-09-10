@@ -2797,9 +2797,13 @@ function JobsContent() {
 
     // List hits omit `description` for payload size — hydrate the selected
     // in-list job on demand (same id lookup as the dead-job existence check).
-    const [hydratedDetail, setHydratedDetail] = useState<{ id: string; job: PublicJob } | null>(null);
+    const [hydratedDetail, setHydratedDetail] = useState<{ id: string; job: PublicJob; descriptionPending: boolean } | null>(null);
     const detailHydrationGuardRef = useRef<FitIntentGuard | null>(null);
     if (!detailHydrationGuardRef.current) detailHydrationGuardRef.current = new FitIntentGuard();
+    // Bumped by `retryDescription` to force the hydration effect below to
+    // re-run for the SAME job id after a timed-out fill (its deps otherwise
+    // only change on id/description, neither of which moves on retry).
+    const [descriptionRetryNonce, setDescriptionRetryNonce] = useState(0);
     useEffect(() => {
         setHydratedDetail((prev) => (prev && prev.id === selectedId ? prev : null));
     }, [selectedId]);
@@ -2813,13 +2817,20 @@ function JobsContent() {
                 const r = await searchJobsAction({ id, limit: 1, offset: 0, hideGhosts: false });
                 if (!detailHydrationGuardRef.current!.isCurrent(token)) return;
                 const job = r.hits?.[0];
-                if (job?.id === id) setHydratedDetail({ id, job });
+                if (job?.id === id) setHydratedDetail({ id, job, descriptionPending: Boolean(r.descriptionPending) });
             } catch {
                 /* detail renders without description until retry/select */
             }
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selected?.id, selected?.description]);
+    }, [selected?.id, selected?.description, descriptionRetryNonce]);
+    // Clears the cached (timed-out) hydrate and bumps the nonce so the effect
+    // above re-fires for the same job id — wired to the pending note's
+    // "try again" button.
+    const retryDescription = useCallback(() => {
+        setHydratedDetail(null);
+        setDescriptionRetryNonce((n) => n + 1);
+    }, []);
 
     // The job to actually render in the detail pane/sheet — `selected`
     // (in `hits`) first, else the existence check's confirmed-alive job.
@@ -4186,6 +4197,8 @@ function JobsContent() {
                     reportJobEnabled={reportJobEnabled}
                     collapseDescription={collapseDescription}
                     className="border-0 bg-transparent"
+                    descriptionPending={hydratedDetail?.id === detailJob.id && hydratedDetail.descriptionPending}
+                    onRetryDescription={retryDescription}
                 />
                 {!collapseDescription && (
                 <JobDetailActionBar

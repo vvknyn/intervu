@@ -47,11 +47,17 @@ export function hasSubspaceApiKey(): boolean {
   return Boolean(process.env.SUBSPACE_API_KEY);
 }
 
+/** True when `e` is a `SubspaceJobsError` raised because a request hit its
+ *  `timeoutMs` deadline (as opposed to a real network/server failure). */
+export function isSubspaceTimeout(e: unknown): boolean {
+  return e instanceof SubspaceJobsError && e.code === "timeout";
+}
+
 interface FillDescriptionsEnvelope {
   data: Array<{ id: string; description: string | null }>;
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function postJson<T>(path: string, body: unknown, opts?: { timeoutMs?: number }): Promise<T> {
   const url = new URL(`${baseUrl()}${path}`);
 
   let res: Response;
@@ -65,8 +71,12 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
       },
       body: JSON.stringify(body),
       cache: "no-store",
+      ...(opts?.timeoutMs != null ? { signal: AbortSignal.timeout(opts.timeoutMs) } : {}),
     });
   } catch (e) {
+    if (e instanceof Error && e.name === "TimeoutError") {
+      throw new SubspaceJobsError(`Timed out after ${opts?.timeoutMs} ms calling ${path}`, undefined, "timeout");
+    }
     throw new SubspaceJobsError(
       `Network error calling ${path}: ${e instanceof Error ? e.message : String(e)}`,
       undefined,
@@ -95,6 +105,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 async function getJson(
   path: string,
   params: Record<string, string | number | undefined>,
+  opts?: { timeoutMs?: number },
 ): Promise<JobsApiEnvelope> {
   const url = new URL(`${baseUrl()}${path}`);
   for (const [k, v] of Object.entries(params)) {
@@ -107,8 +118,12 @@ async function getJson(
       headers: { "x-api-key": requireApiKey(), accept: "application/json" },
       // Always read the source of truth; intervu does its own caching/indexing.
       cache: "no-store",
+      ...(opts?.timeoutMs != null ? { signal: AbortSignal.timeout(opts.timeoutMs) } : {}),
     });
   } catch (e) {
+    if (e instanceof Error && e.name === "TimeoutError") {
+      throw new SubspaceJobsError(`Timed out after ${opts?.timeoutMs} ms calling ${path}`, undefined, "timeout");
+    }
     throw new SubspaceJobsError(
       `Network error calling ${path}: ${e instanceof Error ? e.message : String(e)}`,
       undefined,
@@ -177,7 +192,7 @@ export async function* iterateSnapshot(
 /** Demand-fill empty descriptions for visible hit ids (Subspace ladder/Postgres). */
 export async function fillVisibleDescriptions(
   ids: string[],
-  opts?: { mode?: "visible" },
+  opts?: { mode?: "visible"; timeoutMs?: number },
 ): Promise<Array<{ id: string; description: string | null }>> {
   const capped = ids.slice(0, 20);
   if (capped.length === 0) return [];
@@ -185,7 +200,9 @@ export async function fillVisibleDescriptions(
   if (opts?.mode === "visible") {
     body.mode = "visible";
   }
-  const env = await postJson<FillDescriptionsEnvelope>("/jobs/fill-descriptions", body);
+  const env = await postJson<FillDescriptionsEnvelope>("/jobs/fill-descriptions", body, {
+    timeoutMs: opts?.timeoutMs,
+  });
   return env.data ?? [];
 }
 
