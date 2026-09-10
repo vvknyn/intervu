@@ -1,7 +1,7 @@
 /**
  * Pending post-auth action state for /jobs (pure reducer).
  *
- * On /jobs a logged-out user can trigger three actions that require sign-in:
+ * On /jobs a logged-out user can trigger four actions that require sign-in:
  *
  *   - apply   — "Mark as applied"  → write an application after login
  *   - gate    — any apply-adjacent CTA reachable signed out (card "Apply",
@@ -14,8 +14,10 @@
  *               queuing "gate" too, not by adding another slot here or
  *               another replay case.
  *   - upload  — gate: open the resume-import modal
+ *   - report  — flag/report a job → after login, reopen the report dialog
+ *               for that job and let the user resubmit
  *
- * (A fourth slot, "explore" — résumé-driven AI-suggested adjacent roles —
+ * (A fifth slot, "explore" — résumé-driven AI-suggested adjacent roles —
  * existed here through 2026-08-02; removed along with the feature when it
  * moved to MCP.)
  *
@@ -31,51 +33,60 @@
  * scattered across imperative ref mutations in the page component.
  *
  * Purity: the module never inspects the payloads — they are opaque generics
- * (the page passes `PublicJob` for both apply and gate). That keeps it
+ * (the page passes `PublicJob` for apply/gate/report). That keeps it
  * runtime-dependency-free so it loads under `tsx` for unit tests without `@/`
  * path resolution. `upload` carries no payload of its own (it is a plain
  * "open the importer" flag), so its slot is a `boolean`.
+ *
+ * A second, independent mechanism lives below the reducer: `persistPendingAction`
+ * / `takePersistedPendingAction` mirror one action into `sessionStorage` so it
+ * survives a hard navigation away from the page entirely (WorkOS AuthKit's
+ * OAuth/passkey handoff reloads the document — the in-memory reducer above is
+ * gone when the tab comes back). Same "queue → replay-once → clear" shape,
+ * same opaque-payload purity, just durable across a reload instead of a ref.
  */
 
-/** The three pending slots. At most one is ever non-empty (see `queuePending`).
+/** The four pending slots. At most one is ever non-empty (see `queuePending`).
  *  Empty in every slot is `null` (including `upload`, whose queued value is the
  *  `true` flag) so the state has one uniform "nothing here" sentinel. */
-export interface PendingState<Apply, Gate> {
+export interface PendingState<Apply, Gate, Report = Gate> {
     apply: Apply | null;
     gate: Gate | null;
     upload: boolean | null;
+    report: Report | null;
 }
 
 /**
  * An action to queue (or that was taken for replay). `upload` carries a
  * `boolean` flag (always `true` when queued); the rest carry an opaque payload.
  */
-export type PendingAction<Apply, Gate> =
+export type PendingAction<Apply, Gate, Report = Gate> =
     | { kind: "apply"; payload: Apply }
     | { kind: "gate"; payload: Gate }
-    | { kind: "upload"; payload: boolean };
+    | { kind: "upload"; payload: boolean }
+    | { kind: "report"; payload: Report };
 
 /** The empty / nothing-pending state. */
-export function emptyPending<Apply, Gate>(): PendingState<Apply, Gate> {
-    return { apply: null, gate: null, upload: null };
+export function emptyPending<Apply, Gate, Report = Gate>(): PendingState<Apply, Gate, Report> {
+    return { apply: null, gate: null, upload: null, report: null };
 }
 
 /** True when any action is queued for replay-after-auth. */
-export function hasPending<Apply, Gate>(s: PendingState<Apply, Gate>): boolean {
-    return s.apply !== null || s.gate !== null || s.upload !== null;
+export function hasPending<Apply, Gate, Report = Gate>(s: PendingState<Apply, Gate, Report>): boolean {
+    return s.apply !== null || s.gate !== null || s.upload !== null || s.report !== null;
 }
 
 /**
  * Queue one action for replay after sign-in. Queuing ALWAYS clears the other
- * two slots, so only the latest user intent is ever pending — the core
+ * slots, so only the latest user intent is ever pending — the core
  * invariant that prevents a stale apply/gate from co-existing with a newer
  * gate action (or vice versa).
  */
-export function queuePending<Apply, Gate>(
-    _prev: PendingState<Apply, Gate>,
-    action: PendingAction<Apply, Gate>,
-): PendingState<Apply, Gate> {
-    const next = emptyPending<Apply, Gate>();
+export function queuePending<Apply, Gate, Report = Gate>(
+    _prev: PendingState<Apply, Gate, Report>,
+    action: PendingAction<Apply, Gate, Report>,
+): PendingState<Apply, Gate, Report> {
+    const next = emptyPending<Apply, Gate, Report>();
     switch (action.kind) {
         case "apply":
             next.apply = action.payload;
@@ -85,6 +96,9 @@ export function queuePending<Apply, Gate>(
             break;
         case "upload":
             next.upload = action.payload;
+            break;
+        case "report":
+            next.report = action.payload;
             break;
     }
     return next;
@@ -96,12 +110,12 @@ export function queuePending<Apply, Gate>(
  * different gate path) or dismisses the popover without authenticating, so a
  * later unrelated sign-in replays nothing.
  */
-export function clearPending<Apply, Gate>(
+export function clearPending<Apply, Gate, Report = Gate>(
     // Reducer shape `(prev, event) => next`; clearing ignores `prev` by design.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _prev: PendingState<Apply, Gate>,
-): PendingState<Apply, Gate> {
-    return emptyPending<Apply, Gate>();
+    _prev: PendingState<Apply, Gate, Report>,
+): PendingState<Apply, Gate, Report> {
+    return emptyPending<Apply, Gate, Report>();
 }
 
 /**
@@ -112,14 +126,137 @@ export function clearPending<Apply, Gate>(
  * Slots are checked in a fixed order, but `queuePending` guarantees at most one
  * is set, so the order only matters as a defensive tie-break.
  */
-export function takeReplay<Apply, Gate>(
-    s: PendingState<Apply, Gate>,
-): { next: PendingState<Apply, Gate>; action: PendingAction<Apply, Gate> | null } {
-    const next = emptyPending<Apply, Gate>();
+export function takeReplay<Apply, Gate, Report = Gate>(
+    s: PendingState<Apply, Gate, Report>,
+): { next: PendingState<Apply, Gate, Report>; action: PendingAction<Apply, Gate, Report> | null } {
+    const next = emptyPending<Apply, Gate, Report>();
     if (s.apply !== null) return { next, action: { kind: "apply", payload: s.apply } };
     if (s.gate !== null) return { next, action: { kind: "gate", payload: s.gate } };
     if (s.upload !== null) return { next, action: { kind: "upload", payload: true } };
+    if (s.report !== null) return { next, action: { kind: "report", payload: s.report } };
     return { next, action: null };
+}
+
+/**
+ * Cross-navigation persistence: survives a hard-nav auth round trip (WorkOS
+ * AuthKit for OAuth/passkeys reloads the document via `window.location.href`,
+ * which drops every React ref/state). `sessionStorage` is tab-scoped — dies
+ * with the tab, never leaks an intent into a different tab or a later day —
+ * which is exactly the lifetime a "finish what I was doing" prompt needs.
+ *
+ * A single key: like the in-memory reducer above, at most one pending action
+ * exists at a time, so persisting one action is a plain overwrite, not a queue.
+ */
+export const PENDING_ACTION_STORAGE_KEY = "velai.auth.pendingAction";
+
+/** The subset of the `Storage` interface these helpers need — small enough to
+ *  hand-mock in unit tests without `jsdom`, and satisfied by real `sessionStorage`. */
+export interface PendingActionStorage {
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+}
+
+/** A persisted pending action: the action itself, where to return the user to
+ *  replay it, how far down the page they were, and when it was queued (for
+ *  expiry). `returnTo` is `pathname + search + hash` — see `buildReturnTo`. */
+export interface PersistedPendingAction<Apply, Gate, Report> {
+    action: PendingAction<Apply, Gate, Report>;
+    returnTo: string;
+    scrollY: number;
+    createdAt: number;
+}
+
+/** `pathname + search + hash` — the round-trippable "come back here" target,
+ *  built once at gate time so persistence never re-derives it from a URL that
+ *  may have changed by the time it's read back. */
+export function buildReturnTo(location: Pick<Location, "pathname" | "search" | "hash">): string {
+    return `${location.pathname}${location.search}${location.hash}`;
+}
+
+/**
+ * Persist one action ahead of a hard-nav auth handoff. Best-effort: a full or
+ * blocked `sessionStorage` (private browsing, quota) must never crash the
+ * gate — it just means the OAuth-return replay silently can't happen, same
+ * as today, while the in-memory reducer still covers in-place login.
+ */
+export function persistPendingAction<Apply, Gate, Report>(
+    storage: PendingActionStorage,
+    record: PersistedPendingAction<Apply, Gate, Report>,
+): void {
+    try {
+        storage.setItem(PENDING_ACTION_STORAGE_KEY, JSON.stringify(record));
+    } catch {
+        // Best-effort persistence — see function doc.
+    }
+}
+
+/** Clear a persisted action — the dismiss-without-auth transition's durable
+ *  counterpart to `clearPending`. Also best-effort; see `persistPendingAction`. */
+export function clearPersistedPendingAction(storage: PendingActionStorage): void {
+    try {
+        storage.removeItem(PENDING_ACTION_STORAGE_KEY);
+    } catch {
+        // Best-effort — see persistPendingAction.
+    }
+}
+
+const DEFAULT_MAX_PENDING_ACTION_AGE_MS = 15 * 60_000;
+
+export interface TakePersistedPendingActionOptions {
+    /** The path the caller is currently rendering (e.g. `usePathname()`),
+     *  compared against the persisted record's `returnTo` pathname. */
+    currentPath: string;
+    /** Injected clock (`Date.now()`), for deterministic expiry tests. */
+    now: number;
+    maxAgeMs?: number;
+}
+
+/**
+ * Consume a persisted action on return from a hard-nav auth round trip.
+ * Always clears the stored record — matched, expired, or path-mismatched —
+ * so a stale record can never be read a second time; it is returned only
+ * when it belongs on the page currently mounting it and hasn't expired.
+ *
+ * The path check matters because sessionStorage is tab-scoped but not
+ * page-scoped: a user could queue an action on job A, then (same tab)
+ * navigate to job B before ever authenticating. Replaying on the wrong page
+ * would be the same "phantom action on an abandoned job" bug this module
+ * exists to kill, just via the durable path instead of the in-memory one.
+ */
+export function takePersistedPendingAction<Apply, Gate, Report>(
+    storage: PendingActionStorage,
+    { currentPath, now, maxAgeMs = DEFAULT_MAX_PENDING_ACTION_AGE_MS }: TakePersistedPendingActionOptions,
+): PersistedPendingAction<Apply, Gate, Report> | null {
+    let raw: string | null;
+    try {
+        raw = storage.getItem(PENDING_ACTION_STORAGE_KEY);
+    } catch {
+        return null;
+    }
+    if (!raw) return null;
+
+    clearPersistedPendingAction(storage);
+
+    let record: PersistedPendingAction<Apply, Gate, Report>;
+    try {
+        record = JSON.parse(raw);
+    } catch {
+        return null;
+    }
+    if (!record || typeof record.returnTo !== "string" || typeof record.createdAt !== "number") return null;
+
+    if (now - record.createdAt > maxAgeMs) return null;
+
+    let recordPath: string;
+    try {
+        recordPath = new URL(record.returnTo, "http://localhost").pathname;
+    } catch {
+        return null;
+    }
+    if (recordPath !== currentPath) return null;
+
+    return record;
 }
 
 /**
