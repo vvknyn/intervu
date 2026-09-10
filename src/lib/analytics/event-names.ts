@@ -17,6 +17,7 @@ export const ANALYTICS_EVENTS = {
   apply_clicked: "apply_clicked",
   job_saved: "job_saved",
   company_followed: "company_followed",
+  auth_started: "auth_started",
   signup_completed: "signup_completed",
 
   // Job entity

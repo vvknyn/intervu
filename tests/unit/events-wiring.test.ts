@@ -20,7 +20,7 @@ import { ANALYTICS_EVENTS } from "../../src/lib/analytics/events";
  * an accepted orphan. This test is per-EVENT rather than per-module, so
  * wiring one event can no longer vouch for the rest of the catalog —
  * `events.ts` (the funnel module generalized to every entity) now declares
- * 19.
+ * 24.
  */
 
 const SRC = join(process.cwd(), "src");

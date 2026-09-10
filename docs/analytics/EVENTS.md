@@ -19,6 +19,7 @@ dead — the table below is what the code does, not what a doc promises.
 | `apply_clicked` | `{ job_id, source, query_id? }` | `src/app/jobs/page.tsx:3454` — the **first line** of `handleOpenPosting`, before the auth gate and the AI hand-off prompt, so the event means "clicked Apply" and not "reached the posting." `source` is `"serp"`; `"co"` and `"email"` stay in the type but are **not reachable today** — `src/app/co/**` has no apply handler of its own, and there is no emailed-link landing handler. `query_id` has the same `resultRef.current?.searchId` contract as `result_clicked`. |
 | `job_saved` | `{ job_id }` | `src/app/jobs/page.tsx:3376,3397` (guest and signed-in `handleGoAfter` branches) and `src/components/jobs/PublicJobDetail.tsx:230,247` (same two branches, `/co`'s job-detail wrapper). The `/co` pair was a real gap this wave closed — `handleGoAfter` there never fired the event at all before. Internally this concept is called a "pursuit" (`src/lib/pursuits/`); the event name stays `job_saved` because that's the user-facing verb. |
 | `company_followed` | `{ company_domain }` | `src/components/companies/FollowButton.tsx:172` — the same chokepoint that already fires `recordFollowFunnelAction("follow_click", ...)`, so both funnels record a follow the same way. `CompanyFollowControl.tsx` wraps `FollowButton` and needs no separate wiring. |
+| `auth_started` | `{ reason }` | **`reason`** is `"apply"`, `"save"`, or `"generic"` (`AuthGateReason`, `src/lib/auth/auth-gate-copy.ts`). **`src/components/auth/auth-popover.tsx`** — fires once when `open` transitions false→true (not on close, not on every re-render while open); the in-app auth modal chokepoint. Callers with an auth-gate reason pass it through (`src/app/jobs/page.tsx`, `src/components/jobs/PublicJobDetail.tsx`); header CTAs, follow, settings, and other mounts omit it → `"generic"`. **`src/app/login/login-client.tsx`** — fires once on `/login` full-page mount with `reason: "generic"` (not from `LoginForm`, which would double-count when nested in AuthPopover). |
 | `signup_completed` | `{ method }` | **Username/password:** `src/components/auth/login-form.tsx` — immediately after `signUp(...)` returns without an error (`method: "username"`). **AuthKit (Google/passkey/magic-auth/email verification):** `/auth/callback` sets a short-lived `intervu_signup_completed` cookie when the WorkOS user is not yet tagged `metadata.apps` with `intervu` (evaluated *before* `provisionAppAccess` tags them); `PostHogProvider` reads it after `posthog.identify(uid)` and fires here with the mapped method. Mapping: `GoogleOAuth` → `google`, `MagicAuth`/`EmailVerification` → `email`, `Passkey` → `passkey`, `Password` → `username`; unknown methods are skipped rather than guessed. We do **not** infer signups from `user.createdAt ≈ now`. **Verify in PostHog:** filter `signup_completed` where `$host` is `velai.app` (or super-property `product` is `intervu`); Google signups should show `method: google`. |
 
 No landing/pageview event is defined here — `POSTHOG_OPTIONS.capture_pageview:
@@ -78,8 +79,8 @@ multi-step onboarding flow. Skipped rather than invented.
    `apply_clicked` → `job_marked_applied`)
 4. visit → follow or save (`company_viewed`/`$pageview` → `company_followed`
    or `job_saved`)
-5. follow/save → signup (`company_followed` or `job_saved` →
-   `signup_completed`)
+5. follow/save → auth → signup (`company_followed` or `job_saved` →
+   `auth_started` → `signup_completed`)
 6. save → stage progress (`job_saved` → `application_stage_changed`,
    repeated per stage move)
 7. D7 return (repeat `$pageview` from the same identified/anonymous user
@@ -128,3 +129,11 @@ no `job_id` to carry). That's its only remaining caller. `job_shared`
 (above) covers the job-surface case through the typed catalog instead —
 `trackEvent` stays alive only for the case that doesn't fit `EventPayloads`'
 shape (no entity id to key on).
+
+## Auth gates (follow-up)
+
+Guests are still **hard-gated on Apply** — `apply_clicked` fires before the
+gate (`src/app/jobs/page.tsx`, events-wiring lock), but reaching the posting
+requires sign-in. Save uses a **2nd-save** gate (`reason: "save"` on
+`auth_started`); a softer post-engage auth nudge after the first save is
+follow-up work, not wired here.

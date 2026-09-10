@@ -2938,7 +2938,7 @@ function JobsContent() {
             bothInDom,
             staleInDom,
             relistInDom,
-            listingsVisible: hits.length > 0 && (!showLandingMarketing || isLgUp),
+            listingsVisible: hits.length > 0,
         });
         if (!kind) return;
 
@@ -5106,12 +5106,11 @@ function JobsContent() {
                     )}
 
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
-                        <div
-                            className={cn(
-                                "flex min-h-0 flex-1 flex-col",
-                                showLandingMarketing && !isLgUp && "hidden",
-                            )}
-                            aria-hidden={showLandingMarketing && !isLgUp}                        >
+                        {/* Mobile cold visitors already get a seeded default browse
+                            (overlay-ask); hiding the results column forced an extra
+                            typed query / "Show jobs" tap before result_clicked /
+                            job_viewed, dropping the funnel at pageview. */}
+                        <div className="flex min-h-0 flex-1 flex-col">
                             <>
                                 <BoardVisitBanner />
 
@@ -5654,6 +5653,7 @@ function JobsContent() {
                         : undefined
                 }
                 defaultTab={authGateReason === "apply" ? "signup" : "login"}
+                reason={authGateReason ?? undefined}
             />
             <ResumeImportModal
                 isOpen={importOpen}

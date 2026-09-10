@@ -312,6 +312,7 @@ export function PublicJobDetail({
                         : undefined
                 }
                 defaultTab={authGateReason === "apply" ? "signup" : "login"}
+                reason={authGateReason ?? undefined}
             />
             {layout === "document" ? (
                 <JobDetailDocument

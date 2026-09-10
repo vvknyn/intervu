@@ -435,7 +435,7 @@ describe("jobs page chrome guards", () => {
     it("exception JIT queries data-exception selectors and pickExceptionJit", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.match(src, /pickExceptionJit/);
-        assert.match(src, /listingsVisible: hits\.length > 0 && \(!showLandingMarketing \|\| isLgUp\)/);
+        assert.match(src, /listingsVisible: hits\.length > 0/);
         assert.match(src, /\[data-exception="both"\]/);
         assert.match(src, /\[data-exception="stale"\]/);
         assert.match(src, /\[data-exception="relisted"\]/);
