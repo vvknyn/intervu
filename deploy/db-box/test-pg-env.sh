@@ -236,6 +236,42 @@ unset_all() {
     "pg_env_from_url: query parameter 'sslmode' given more than once"
 )
 
+# --- query VALUE is percent-decoded, matching libpq's own conninfo_uri_parse_params ---
+(
+  unset_all
+  pg_env_from_url 'postgres://u:p@h/mydb?application_name=my%20service' && rc=0 || rc=$?
+  check "query value %20: returns 0" "$rc" 0
+  check "query value %20: PGAPPNAME decoded" "$PGAPPNAME" 'my service'
+)
+
+# --- query value with an encoded '=' (%3D): split happens BEFORE decode, so the
+# encoded '=' survives as part of the value instead of acting as a second separator ---
+(
+  unset_all
+  pg_env_from_url 'postgres://u:p@h/mydb?options=-c%20search_path%3Dintervu' && rc=0 || rc=$?
+  check "query value %3D: returns 0" "$rc" 0
+  check "query value %3D: PGOPTIONS decoded, '=' survives from the split" "$PGOPTIONS" \
+    '-c search_path=intervu'
+)
+
+# --- query value with an encoded '&' (%26): must NOT be mistaken for the '&' separator ---
+(
+  unset_all
+  pg_env_from_url 'postgres://u:p@h/mydb?application_name=a%26b' && rc=0 || rc=$?
+  check "query value %26: returns 0 (not an unknown-key refusal)" "$rc" 0
+  check "query value %26: PGAPPNAME decoded, '&' did not split the pair" "$PGAPPNAME" 'a&b'
+)
+
+# --- duplicate query key detected even across an encoded key spelling -------
+(
+  unset_all
+  err="$(pg_env_from_url 'postgres://u:p@h:5432/mydb?ssl%6Dode=require&sslmode=disable' 2>&1 >/dev/null)"; rc=$?
+  check "duplicate key, one spelling encoded: returns 1" "$rc" 1
+  check "duplicate key, one spelling encoded: exports nothing" "$(none_set)" none_set
+  check "duplicate key, one spelling encoded: stderr names the decoded key" "$err" \
+    "pg_env_from_url: query parameter 'sslmode' given more than once"
+)
+
 # --- PG_ENV_FUNCS: single source of truth for what a remote heredoc ships --
 (
   # shellcheck disable=SC2086  # unquoted on purpose: word-splits into

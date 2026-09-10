@@ -72,7 +72,11 @@ _pg_urldecode() {
 # user, password and dbname components are percent-decoded per RFC 3986
 # before export, exactly what libpq itself does when it parses a URI — host
 # and port are never percent-encoded by libpq's own URI grammar, so those
-# two pass through as-is. A bracketed IPv6 literal host (`[::1]`) is
+# two pass through as-is. Each query-string key and value is percent-decoded
+# too, AFTER the string is split on `&` and `=` — the same order libpq's own
+# conninfo_uri_parse_params uses — so an encoded separator inside a value
+# (`%26`, `%3D`) can never be mistaken for a literal one. A bracketed IPv6
+# literal host (`[::1]`) is
 # accepted the way libpq's own URI grammar accepts it, but PGHOST is
 # exported WITHOUT the brackets — libpq's PGHOST env var takes the bare
 # address; the brackets are a URI-syntax-only disambiguator for the
@@ -136,18 +140,29 @@ pg_env_from_url() {
   # Pass 1: validate every query-string key before exporting anything, so a
   # single unrecognized key leaves the environment untouched — the same
   # "exports nothing on failure" contract the shape/password/fragment
-  # checks above already keep.
-  # `${pairs[@]+"${pairs[@]}"}`, not a bare `"${pairs[@]}"`, in both loops
-  # below: this script runs under bash 3.2 (Vivek's Mac), which throws
-  # "unbound variable" under `set -u` on `"${arr[@]}"` when arr is a
-  # declared-but-still-empty array; the `+` form sidesteps that.
-  local pairs=() pair key
+  # checks above already keep. Split on `&`, then split each pair on its
+  # first `=`, THEN percent-decode key and value — same order as libpq's
+  # own conninfo_uri_parse_params — so a `%26`/`%3D` inside a value can
+  # never act as a separator, and an encoded key spelling (`ssl%6Dode`) is
+  # recognized/deduped exactly like its plain spelling. Staged into
+  # `q_*` locals rather than exported here, so pass 2 below never has to
+  # re-split or re-decode.
+  # `${pairs[@]+"${pairs[@]}"}`, not a bare `"${pairs[@]}"`: this script
+  # runs under bash 3.2 (Vivek's Mac), which throws "unbound variable"
+  # under `set -u` on `"${arr[@]}"` when arr is a declared-but-still-empty
+  # array; the `+` form sidesteps that.
+  local pairs=() pair raw_key key value
   local seen_keys=""
+  local q_sslmode q_appname q_connect_timeout q_options
   if [[ -n "$has_query" ]]; then
     IFS='&' read -ra pairs <<<"$query"
     for pair in ${pairs[@]+"${pairs[@]}"}; do
       [[ -z "$pair" ]] && continue
-      key="${pair%%=*}"
+      raw_key="${pair%%=*}"
+      key="$(_pg_urldecode "$raw_key")" \
+        || { echo "pg_env_from_url: malformed %-escape in query parameter name '$raw_key'" >&2; return 1; }
+      value="$(_pg_urldecode "${pair#*=}")" \
+        || { echo "pg_env_from_url: malformed %-escape in the '$key' query parameter" >&2; return 1; }
       case "$key" in
         sslmode | application_name | connect_timeout | options) ;;
         *)
@@ -165,23 +180,21 @@ pg_env_from_url() {
           ;;
       esac
       seen_keys="$seen_keys $key"
+      case "$key" in
+        sslmode) q_sslmode="$value" ;;
+        application_name) q_appname="$value" ;;
+        connect_timeout) q_connect_timeout="$value" ;;
+        options) q_options="$value" ;;
+      esac
     done
   fi
 
   export PGUSER="$user" PGPASSWORD="$password" PGHOST="$host" PGDATABASE="$dbname"
   [[ -n "$port" ]] && export PGPORT="$port"
-  local value
-  for pair in ${pairs[@]+"${pairs[@]}"}; do
-    [[ -z "$pair" ]] && continue
-    key="${pair%%=*}"
-    value="${pair#*=}"
-    case "$key" in
-      sslmode) export PGSSLMODE="$value" ;;
-      application_name) export PGAPPNAME="$value" ;;
-      connect_timeout) export PGCONNECT_TIMEOUT="$value" ;;
-      options) export PGOPTIONS="$value" ;;
-    esac
-  done
+  [[ -n "${q_sslmode+x}" ]] && export PGSSLMODE="$q_sslmode"
+  [[ -n "${q_appname+x}" ]] && export PGAPPNAME="$q_appname"
+  [[ -n "${q_connect_timeout+x}" ]] && export PGCONNECT_TIMEOUT="$q_connect_timeout"
+  [[ -n "${q_options+x}" ]] && export PGOPTIONS="$q_options"
   return 0
 }
 
