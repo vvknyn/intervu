@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { domainToSlug } from "@/lib/boards/slug";
 import { Button } from "@/components/ui/button";
 import { fetchCompanyProfile } from "@/lib/companies/company-stats";
-import { companyFromSlug } from "@/lib/companies/paths";
+import { companyBoardPath, companyFromSlug, companyPagePath } from "@/lib/companies/paths";
 import { CompanyHeader } from "@/components/company/CompanyHeader";
 import { CompanyRolesList } from "@/components/company/CompanyRolesList";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
@@ -53,11 +53,17 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const name = companyFromSlug(slug);
+  const profile = await fetchCompanyProfile(name);
+  const title = `Is ${name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`;
+  const description = `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${name} on velai.`;
+  const canonical = profile?.domain
+    ? companyBoardPath(profile.domain)
+    : companyPagePath(name);
   return {
-    title: `Is ${name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`,
-    description: `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${name} on velai.`,
+    title,
+    description,
     robots: { index: false, follow: true },
-    alternates: { canonical: "/jobs" },
+    alternates: { canonical },
   };
 }
 

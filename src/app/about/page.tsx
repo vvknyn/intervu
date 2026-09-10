@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BoardComparisonTable } from "@/components/marketing/BoardComparisonTable";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 const TITLE = "About velai";
@@ -10,12 +11,6 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   ...canonicalMetadata("/about", TITLE, DESCRIPTION),
 };
-
-// Squared "rtable" treatment, same convention as research/ghost-jobs/page.tsx:
-// one hairline border around the whole table, header cells uppercase with no
-// top border, every data-row cell gets a top hairline instead of a bottom one.
-const RTABLE_TH = "px-4 py-3 text-left text-xs font-semibold text-muted-foreground";
-const RTABLE_TD = "border-t border-border px-4 py-3 align-top";
 
 // Full section headings (per-page note: "/about ... sections 20/28 600") —
 // `:where()` in the typography plugin keeps its own h2 styling at zero
@@ -62,40 +57,17 @@ export default function AboutPage() {
         </p>
 
         <h2 className={ASEC}>Compared to Indeed and LinkedIn</h2>
+        <p>
+          The full write-ups are separate:{" "}
+          <Link href="/indeed-alternative">Indeed alternative</Link> and{" "}
+          <Link href="/linkedin-jobs-alternative">LinkedIn Jobs alternative</Link>. Career-page hubs live under{" "}
+          <Link href="/careers/company-career-pages">company career pages</Link> and{" "}
+          <Link href="/careers/remote-jobs">remote jobs</Link>.
+        </p>
       </article>
 
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-border text-sm">
-          <thead>
-            <tr>
-              <th className={RTABLE_TH}></th>
-              <th className={RTABLE_TH}>velai</th>
-              <th className={RTABLE_TH}>typical job board</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className={RTABLE_TD}>listings come from</td>
-              <td className={RTABLE_TD}>employers&apos; own career pages</td>
-              <td className={RTABLE_TD}>employer ads + resold feeds</td>
-            </tr>
-            <tr>
-              <td className={RTABLE_TD}>when a role closes</td>
-              <td className={RTABLE_TD}>gone, usually within a day</td>
-              <td className={RTABLE_TD}>lingers until the ad lapses</td>
-            </tr>
-            <tr>
-              <td className={RTABLE_TD}>screening</td>
-              <td className={RTABLE_TD}>posting check on every role</td>
-              <td className={RTABLE_TD}>none disclosed</td>
-            </tr>
-            <tr>
-              <td className={RTABLE_TD}>match scores</td>
-              <td className={RTABLE_TD}>none — facts only</td>
-              <td className={RTABLE_TD}>invented percentages</td>
-            </tr>
-          </tbody>
-        </table>
+      <div className="mt-4">
+        <BoardComparisonTable board="typical" />
       </div>
 
       <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">

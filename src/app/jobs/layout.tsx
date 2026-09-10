@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import {
     getSiteUrl,
     LANDING_DESCRIPTION,
@@ -6,41 +7,48 @@ import {
     SITE_KEYWORDS,
     SITE_NAME,
 } from "@/lib/seo/constants";
+import { JOBS_QUERY_HEADER } from "@/lib/seo/jobs-query-header";
+
+function jobsBaseMetadata(): Metadata {
+    return {
+        title: { absolute: LANDING_TITLE },
+        description: LANDING_DESCRIPTION,
+        keywords: SITE_KEYWORDS,
+        alternates: {
+            canonical: "/jobs",
+        },
+        openGraph: {
+            type: "website",
+            locale: "en_US",
+            siteName: SITE_NAME,
+            title: LANDING_TITLE,
+            description: LANDING_DESCRIPTION,
+            url: `${getSiteUrl()}/jobs`,
+        },
+        twitter: {
+            card: "summary_large_image",
+            title: LANDING_TITLE,
+            description: LANDING_DESCRIPTION,
+        },
+    };
+}
 
 /**
  * /jobs is the front door (spec Phase 1b — `/` redirects here), and its page
  * is a client component, so the front-door metadata lives in this layout.
+ * Parameterized `/jobs?...` URLs stay canonical to `/jobs` but emit noindex
+ * HTML meta to match middleware's `X-Robots-Tag`.
  */
-export const metadata: Metadata = {
-    title: { absolute: LANDING_TITLE },
-    description: LANDING_DESCRIPTION,
-    keywords: SITE_KEYWORDS,
-    alternates: {
-        canonical: "/jobs",
-    },
-    // No `images` here either (same fix as root layout.tsx, 2026-08-24):
-    // /jobs is the front door `/` redirects to, so THIS explicit array —
-    // not the root layout's — was the one actually serving the 512x512
-    // square app icon as prod's og:image. Leaving it unset lets it fall
-    // back to the root's file-based opengraph-image.tsx (1200x630) since
-    // /jobs has no more specific generator of its own; /jobs/[slug] keeps
-    // its own per-job opengraph-image.tsx, which is more specific than
-    // either and still wins.
-    openGraph: {
-        type: "website",
-        locale: "en_US",
-        siteName: SITE_NAME,
-        title: LANDING_TITLE,
-        description: LANDING_DESCRIPTION,
-        url: `${getSiteUrl()}/jobs`,
-    },
-    twitter: {
-        card: "summary_large_image",
-        title: LANDING_TITLE,
-        description: LANDING_DESCRIPTION,
-    },
-};
-
+export async function generateMetadata(): Promise<Metadata> {
+    const headerList = await headers();
+    const hasQuery = headerList.get(JOBS_QUERY_HEADER) === "1";
+    const base = jobsBaseMetadata();
+    if (!hasQuery) return base;
+    return {
+        ...base,
+        robots: { index: false, follow: false, noarchive: true, nosnippet: true },
+    };
+}
 
 export default function JobsLayout({ children }: { children: React.ReactNode }) {
     return children;
