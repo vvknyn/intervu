@@ -712,15 +712,16 @@ export function JobCard({
                         row anatomy allows ("HIG prefix before the place,
                         never icon+word for the same fact twice"), so it's
                         marked exempt from the list region's zero-icon count
-                        rather than counted as a "fact icon." */}
+                        rather than counted as a "fact icon." No "·" before
+                        it — the pin icon already separates it from the
+                        company name, and at narrow widths the location
+                        wraps to its own line, leaving a lone "·" dangling
+                        at the end of the company line above it. */}
                     {locationKnown && (
-                        <>
-                            <span aria-hidden>·</span>
-                            <span data-rulebook-exempt className="inline-flex items-center gap-1">
-                                <FACT_CHIP_ICON.location size={14} className="shrink-0" aria-hidden />
-                                {presented.location}
-                            </span>
-                        </>
+                        <span data-rulebook-exempt className="inline-flex items-center gap-1">
+                            <FACT_CHIP_ICON.location size={14} className="shrink-0" aria-hidden />
+                            {presented.location}
+                        </span>
                     )}
                 </div>
                 {/* Facts + status, one 14/20-scale secondary line joined by

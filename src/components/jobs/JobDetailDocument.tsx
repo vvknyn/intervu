@@ -335,9 +335,13 @@ export function JobDetailDocument({
                         ) : (
                             "Unknown company"
                         )}
-                        {" · "}
                         {/* Rulebook item b: at most one 16px pin as HIG prefix,
-                            no flag emoji ahead of it. */}
+                            no flag emoji ahead of it. No "·" before it — the
+                            pin already separates this from the company name
+                            above, and a wrap at narrow widths otherwise
+                            leaves a lone "·" dangling at the end of the
+                            company line. */}
+                        {" "}
                         <MapPin size={16} className="mr-0.5 inline-block align-[-1px] text-muted-foreground" aria-hidden />
                         {locationClamped ? (
                             <>
