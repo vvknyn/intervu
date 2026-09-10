@@ -267,4 +267,30 @@ describe("runTieredRetrieval — federated multi-search for bare role queries", 
         assert.deepEqual(strict.filter, whole.filter, "the two tiers must share one filter construction, no special-casing");
         assert.ok(strict.filter.length > 1, "sanity: the scoped filters actually landed in the body");
     });
+
+    it("(h) each hit carries a `tier` derived from its OWN `_federation.queriesPosition` (0→1, 1→2), and `_federation` is stripped off the wire shape", async () => {
+        const q = "software engineer";
+        await primeNonCompanyIntent(q);
+        const rawHits = [
+            { ...job({ id: "strict-1" }), _federation: { queriesPosition: 0 } },
+            { ...job({ id: "whole-1" }), _federation: { queriesPosition: 1 } },
+            { ...job({ id: "strict-2" }), _federation: { queriesPosition: 0 } },
+        ] as unknown as PublicJob[];
+        installRoutedMock({ federatedHits: rawHits, federatedTotal: 3, countTotal: 2 });
+
+        const result = await searchMeili({ q });
+
+        assert.deepEqual(
+            result.hits.map((h) => [h.id, h.tier]),
+            [
+                ["strict-1", 1],
+                ["whole-1", 2],
+                ["strict-2", 1],
+            ],
+        );
+        assert.ok(
+            result.hits.every((h) => !("_federation" in h)),
+            "the raw federation envelope must not leak onto the outgoing hit",
+        );
+    });
 });

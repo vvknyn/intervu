@@ -1,7 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { GHOST_META, isInternalPosting, stripStreetAddress, titleCaseDisplay } from "../../src/lib/jobs/presentation";
+import {
+  GHOST_META,
+  HEADLINE_POLICY,
+  isInternalPosting,
+  resolveHeadlineTotal,
+  stripStreetAddress,
+  tieredSeamIndex,
+  titleCaseDisplay,
+} from "../../src/lib/jobs/presentation";
+import type { PublicJob } from "../../src/lib/jobs/types";
 import { ghostBadgeTone, STATUS_PILL } from "../../src/lib/ui/status-tokens";
+
+function hit(id: string, tier?: 1 | 2): PublicJob {
+  return { id, tier } as unknown as PublicJob;
+}
 
 test("title-cases an all-uppercase string", () => {
   assert.equal(titleCaseDisplay("WARSZAWA, POLAND"), "Warszawa, Poland");
@@ -198,4 +211,48 @@ test("an ordinal house number or a unit word mid-part is still dropped", () => {
   assert.equal(stripStreetAddress("Suite 200, 1 Main St, Boston, MA"), "Boston, MA");
   assert.equal(stripStreetAddress("Floor 2, Dublin"), "Dublin");
   assert.equal(stripStreetAddress("Unit 4, 20 Queen St W, Toronto, ON M5H 3R3"), "Toronto, ON");
+});
+
+// Round 2 (Sep 10 2026) defect: the seam used to be `tier1Total` (an
+// absolute count over the UNFILTERED pool) indexed into a `hideViewed`-
+// filtered `hits` array, so it landed on the wrong row whenever a client
+// filter removed rows ahead of it. `tieredSeamIndex` fixes the class of bug
+// by reading each hit's OWN `tier`, so it must still be correct once rows
+// are removed — not just on the untouched list.
+test("tieredSeamIndex: hideViewed removing two tier-1 rows still seams before the first tier-2 row", () => {
+  // Simulates `hits` AFTER hideViewed already dropped two tier-1 rows that
+  // sat ahead of the tier-2 block in the original (unfiltered) pool.
+  const filtered = [hit("t1-a", 1), hit("t2-a", 2), hit("t2-b", 2)];
+  assert.equal(tieredSeamIndex(filtered), 1);
+});
+
+test("tieredSeamIndex: a list whose very first hit is tier 2 seams at index 0, not -1", () => {
+  const filtered = [hit("t2-a", 2), hit("t2-b", 2)];
+  assert.equal(tieredSeamIndex(filtered), 0);
+});
+
+test("tieredSeamIndex: no hit carries `tier` (non-federated mechanism) returns null, not a seam", () => {
+  const hits = [hit("a"), hit("b"), hit("c")];
+  assert.equal(tieredSeamIndex(hits), null);
+});
+
+test("tieredSeamIndex: an all-tier-1 tiered result has no seam to draw", () => {
+  const hits = [hit("a", 1), hit("b", 1)];
+  assert.equal(tieredSeamIndex(hits), -1);
+});
+
+// Round 2 defect: `resolveHeadlineTotal`'s doc claimed to "select" between
+// `total`/`tier1Total` but its body was a hardcoded `return input.total`.
+// `HEADLINE_POLICY` is now the one real flip point.
+test("resolveHeadlineTotal: HEADLINE_POLICY defaults to \"union\" (input.total), the current product default", () => {
+  assert.equal(HEADLINE_POLICY, "union");
+  assert.equal(resolveHeadlineTotal({ total: 2231, tier1Total: 589 }), 2231);
+});
+
+test("resolveHeadlineTotal: policy \"titled\" returns tier1Total when present", () => {
+  assert.equal(resolveHeadlineTotal({ total: 2231, tier1Total: 589 }, "titled"), 589);
+});
+
+test("resolveHeadlineTotal: policy \"titled\" with tier1Total undefined falls back to total", () => {
+  assert.equal(resolveHeadlineTotal({ total: 42 }, "titled"), 42);
 });

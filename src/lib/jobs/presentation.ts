@@ -1563,19 +1563,51 @@ export function partitionByTitleMatch(hits: PublicJob[], q: string): { hits: Pub
 }
 
 /**
+ * The tier-1/tier-2 seam for a federated tiered-retrieval result
+ * (`runTieredRetrieval`, meilisearch.ts) — placed from each hit's OWN `tier`
+ * (per-hit provenance) rather than a carried count like `tier1Total`. A
+ * count is an absolute index into the UNFILTERED pool; `hits` here may
+ * already have passed through a client-side filter (e.g. "hide viewed"), so
+ * indexing by that count lands on the wrong row the moment a filter removes
+ * any row ahead of the seam. Walking `hits` for the first `tier === 2` entry
+ * is correct regardless of what was filtered out ahead of it.
+ *
+ * Returns `null` when `hits` carries no tier at all — the non-federated
+ * mechanism — telling the caller to fall back to `firstMentionIndex`/
+ * `partitionByTitleMatch` instead. Returns `-1` for a tiered result with no
+ * tier-2 hit (every hit is tier 1 — nothing to seam). Returns `0` when the
+ * very FIRST hit is already tier 2 (a filtered/paged list can start entirely
+ * inside tier 2) — callers must render that as a real seam, not treat it as
+ * falsy/no-seam the way `-1` is.
+ */
+export function tieredSeamIndex(hits: PublicJob[]): number | null {
+    if (!hits.some((h) => h.tier !== undefined)) return null;
+    return hits.findIndex((h) => h.tier === 2);
+}
+
+/**
  * The one flip point for "what number is the headline total" — shared by
  * `/jobs`'s displayed count and `/api/jobs/count`'s `total` field so the
- * union-vs-strict ruling can never drift between the two callers. For a
- * tiered-retrieval result (`tier1Total` present — see `runTieredRetrieval`,
- * meilisearch.ts) `total` is already the whole-document pool's own
- * `estimatedTotalHits` (a federated union, not a client-side sum), which is
- * the corrected headline per this fix — the old bug was reporting the
- * strict-scope count (`tier1Total`) as if it were the whole corpus. Every
- * other path has no `tier1Total` and `total` is already whatever that path
- * always reported (untouched by this change).
+ * union-vs-strict ruling can never drift between the two callers. Which
+ * number wins is `policy`, defaulting to the module constant
+ * `HEADLINE_POLICY`: `"union"` returns `input.total` — for a tiered-retrieval
+ * result (`tier1Total` present — see `runTieredRetrieval`, meilisearch.ts)
+ * that's the whole-document pool's own `estimatedTotalHits` (a federated
+ * union, not a client-side sum); `"titled"` returns `input.tier1Total`
+ * instead, when it's present, falling back to `input.total` when it isn't
+ * (every non-tiered path, where there is no strict-only count to prefer).
+ * `HEADLINE_POLICY` is `"union"` today — the old bug was reporting the
+ * strict-scope count as if it were the whole corpus, and union is the
+ * corrected reading — pending a product ruling on whether the headline
+ * should instead reflect only the strict-scope count.
  */
-export function resolveHeadlineTotal(input: { total: number; tier1Total?: number }): number {
-    return input.total;
+export const HEADLINE_POLICY: "union" | "titled" = "union";
+
+export function resolveHeadlineTotal(
+    input: { total: number; tier1Total?: number },
+    policy: "union" | "titled" = HEADLINE_POLICY,
+): number {
+    return policy === "titled" && typeof input.tier1Total === "number" ? input.tier1Total : input.total;
 }
 
 /**

@@ -37,11 +37,42 @@
  */
 import { NextResponse } from "next/server";
 import { applyCompanyDomainPin } from "@/lib/jobs/company-intent";
-import { host, isBareRoleQuery, resolveCompanyIntentResult, runCountPass } from "@/lib/jobs/meilisearch";
+import {
+    host,
+    isBareRoleQuery,
+    resolveCompanyIntentResult,
+    runCountPass,
+    shouldRelaxSearch,
+} from "@/lib/jobs/meilisearch";
 import { resolveHeadlineTotal } from "@/lib/jobs/presentation";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { isPostedDateFilterSupported } from "@/lib/jobs/search";
 import { parseJobsUrl, urlSortToMode } from "@/lib/jobs/url-state";
+
+/**
+ * The one place this route decides which count is `total` — pulled out of
+ * `GET` so the decision is unit-testable without mocking the whole request
+ * pipeline (posted-date-support probe, company-intent probe, two live
+ * `runCountPass` calls). `tiered` routes through `resolveHeadlineTotal`
+ * (the same chokepoint `/jobs`'s headline uses); `strict` must apply the
+ * SAME relax rule the SERP falls back on (`shouldRelaxSearch`, meilisearch.ts)
+ * rather than unconditionally reporting `titled` — `/jobs` relaxes to the
+ * whole-document pass when the strict pass comes back empty, so a strict
+ * query with titled=0 has to report `wholeDoc` here too, or this canary and
+ * the page it's checking disagree on a zero-hit query.
+ */
+export function resolveCountRouteTotal(
+    mechanism: "tiered" | "strict",
+    titled: number,
+    wholeDoc: number,
+    q: string,
+): number {
+    return mechanism === "tiered"
+        ? resolveHeadlineTotal({ total: wholeDoc, tier1Total: titled })
+        : shouldRelaxSearch(titled, q)
+          ? wholeDoc
+          : titled;
+}
 
 export async function GET(request: Request): Promise<NextResponse> {
     const sp = new URL(request.url).searchParams;
@@ -82,7 +113,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         runCountPass(h, searchParams, { companyScoped }),
         runCountPass(h, searchParams, { companyScoped, wholeDocument: true }),
     ]);
-    const total = mechanism === "tiered" ? resolveHeadlineTotal({ total: wholeDoc, tier1Total: titled }) : titled;
+    const total = resolveCountRouteTotal(mechanism, titled, wholeDoc, searchParams.q ?? "");
 
     return NextResponse.json(
         {

@@ -1139,12 +1139,21 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
     throw new Error(`Meilisearch federated search failed: ${fedRes.status} ${text.slice(0, 300)}`);
   }
   const body = (await fedRes.json()) as {
-    hits?: PublicJob[];
+    hits?: (PublicJob & { _federation?: { queriesPosition?: number } })[];
     estimatedTotalHits?: number;
     facetsByIndex?: Record<string, { distribution?: Record<string, Record<string, number>> }>;
   };
+  // Per-hit provenance, not a carried count: `queriesPosition` reflects each
+  // hit's OWN place in the federated `queries` array (0 = strict, 1 = whole
+  // document) regardless of where a client-side filter later moves it in the
+  // rendered list — see `PublicJob.tier` (types.ts) for why this beats
+  // indexing into `hits` by `tier1Total`.
+  const hits = (body.hits ?? []).map(({ _federation, ...hit }) => ({
+    ...hit,
+    tier: (_federation?.queriesPosition === 0 ? 1 : 2) as 1 | 2,
+  }));
   return {
-    hits: body.hits ?? [],
+    hits,
     total: body.estimatedTotalHits ?? body.hits?.length ?? 0,
     backend: "meilisearch",
     configured: true,
