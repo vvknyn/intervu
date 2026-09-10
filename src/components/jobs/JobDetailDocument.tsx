@@ -556,9 +556,14 @@ export function JobDetailDocument({
                 in-flow content the same clearance so nothing sits under
                 either bar at full scroll. Closed jobs keep their own
                 "See open roles" card inline — this bar doesn't model
-                that state. It's fixed-position, so its place in the DOM
-                (after, not inside, the reordered column) doesn't affect
-                layout; `lg:hidden` since the rail's apply card covers this
+                that state. It's `sticky` (base class in JobDetail.tsx),
+                overridden here to `bottom-12`: it sticks 48px above the
+                viewport bottom — above MobileTabBar — while the document
+                is in view. Mounted after the padded two-column container,
+                so its rest position at full scroll sits directly above
+                the Footer, and that container's `max-lg:pb-12` is what
+                keeps 48px of clearance between the last in-flow block and
+                the bar. `lg:hidden` since the rail's apply card covers this
                 surface at `lg`+. */}
             {!closed && (
                 <JobDetailActionBar
