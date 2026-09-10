@@ -19,8 +19,8 @@
  * detector that eventually says "real address" about something we made up.
  * Change the domain and both move together, by construction.
  */
-import { z } from "zod";
 import { normalizeEmail } from "@/lib/email/normalize-email";
+import { screenSignupEmail, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
 
 /** The domain password signups are registered under. Not a mail domain we
  *  deliver to — see this module's header. */
@@ -88,13 +88,14 @@ export function resolveLoginEmail(identifier: string): string {
     return isEmailIdentifier(trimmed) ? trimmed : usernameEmail(trimmed);
 }
 
-const signupEmailSchema = z.string().trim().toLowerCase().email();
-
-export type SignupEmailResult = { ok: true; email: string } | { ok: false; error: string };
+export type SignupEmailResult =
+    | { ok: true; email: string }
+    | { ok: false; error: string; reason?: "syntax" | "disposable"; domain?: string | null };
 
 /**
  * The signup-email decision, pulled out of `signUp` (actions/auth.ts) as a
- * pure function: format-valid, and not one of our own minted addresses
+ * pure function: well-formed and not disposable (`screenSignupEmail`,
+ * email-quality.ts), and not one of our own minted addresses
  * (`isMintedLoginEmail`, above — never a literal domain compare, so a future
  * domain change stays covered by construction). `signUp` is a "use server"
  * file, which Next.js requires to export only async actions, so this can't
@@ -103,14 +104,22 @@ export type SignupEmailResult = { ok: true; email: string } | { ok: false; error
  * to "is this address usable." Runs before any I/O (rate limiting,
  * Turnstile, Firebase Admin), so it's unit-testable without mocking any of
  * that, and callers fail fast on the cheap check first.
+ *
+ * `reason`/`domain` are populated only for the two `screenSignupEmail`
+ * outcomes — the anti-self-mint rejection is a separate, unrelated concern
+ * and callers should not conflate it with an email-quality telemetry event.
  */
 export function validateSignupEmail(raw: unknown): SignupEmailResult {
-    const parsed = signupEmailSchema.safeParse(raw);
-    if (!parsed.success) {
-        return { ok: false, error: "Enter a valid email address" };
+    if (typeof raw !== "string") {
+        return { ok: false, error: EMAIL_QUALITY_MESSAGES.syntax, reason: "syntax", domain: null };
     }
-    if (isMintedLoginEmail(parsed.data)) {
+    const email = raw.trim().toLowerCase();
+    const screenResult = screenSignupEmail(email);
+    if (screenResult) {
+        return { ok: false, error: EMAIL_QUALITY_MESSAGES[screenResult], reason: screenResult, domain: emailDomain(email) };
+    }
+    if (isMintedLoginEmail(email)) {
         return { ok: false, error: "That email can't be used to sign up" };
     }
-    return { ok: true, email: parsed.data };
+    return { ok: true, email };
 }

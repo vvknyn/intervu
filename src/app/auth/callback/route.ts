@@ -40,7 +40,7 @@ export const GET = withDirectHitGuard(
         onSuccess: async ({ user }) => {
             after(() =>
                 realProvisioningDeps()
-                    .then((deps) => provisionAppAccess(deps, user))
+                    .then((deps) => provisionAppAccess(deps, user, "oauth"))
                     .catch((err) => console.error("[Auth] callback provisioning failed:", err)),
             );
         },

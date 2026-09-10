@@ -65,6 +65,7 @@
     "groq-sdk": "^0.37.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
+    "mailchecker": "^6.0.21",
     "mammoth": "^1.11.0",
     "markdown-it": "^14.1.0",
     "maxmind": "^5.0.7",
