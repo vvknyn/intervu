@@ -284,10 +284,14 @@ read_key_from_deploy_dir() {
 # would need a real URL-decode this function doesn't do, and silently using
 # the raw `%XX` sequence as the literal password is exactly the "parses to a
 # DIFFERENT, wrong value" trap is_valid_generated_password's own docblock
-# above warns about — refusing beats guessing.
+# above warns about — refusing beats guessing. A trailing `?query` or
+# `#fragment` is refused for the same reason: this function does not model
+# either one, and letting the dbname group swallow one silently (e.g.
+# dropping `?sslmode=require` into PGDATABASE) could silently change
+# connection security instead of just the database name.
 pg_env_from_url() {
   local url="$1"
-  local re='^postgres(ql)?://([^:@/]+):([^@]+)@([^:/@]+)(:([0-9]+))?/([^/]+)$'
+  local re='^postgres(ql)?://([^:@/]+):([^@]+)@([^:/@]+)(:([0-9]+))?/([^/?#]+)$'
   [[ "$url" =~ $re ]] || return 1
   local user="${BASH_REMATCH[2]}" password="${BASH_REMATCH[3]}"
   local host="${BASH_REMATCH[4]}" port="${BASH_REMATCH[6]}" dbname="${BASH_REMATCH[7]}"

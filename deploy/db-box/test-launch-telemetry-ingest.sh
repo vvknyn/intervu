@@ -271,6 +271,22 @@ check "read_key_from_deploy_dir: key absent from every file -> fails" "$r" fail
   check "pg_env_from_url (not a postgres URL): returns 1" "$rc" 1
 )
 
+(
+  unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
+  pg_env_from_url 'postgres://u:p@h:5432/mydb?sslmode=require' && rc=0 || rc=$?
+  check "pg_env_from_url (dbname w/ query string): returns 1" "$rc" 1
+  if [[ -z "${PGUSER+x}" && -z "${PGPASSWORD+x}" && -z "${PGHOST+x}" && -z "${PGPORT+x}" && -z "${PGDATABASE+x}" ]]; then r=none_set; else r=SOME_SET; fi
+  check "pg_env_from_url (dbname w/ query string): exports nothing" "$r" none_set
+)
+
+(
+  unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
+  pg_env_from_url 'postgres://u:p@h:5432/mydb#frag' && rc=0 || rc=$?
+  check "pg_env_from_url (dbname w/ fragment): returns 1" "$rc" 1
+  if [[ -z "${PGUSER+x}" && -z "${PGPASSWORD+x}" && -z "${PGHOST+x}" && -z "${PGPORT+x}" && -z "${PGDATABASE+x}" ]]; then r=none_set; else r=SOME_SET; fi
+  check "pg_env_from_url (dbname w/ fragment): exports nothing" "$r" none_set
+)
+
 # Regression pin: the fixed PGDATABASE="<url>" pattern must not survive
 # anywhere in the file. `|| true` guards the same `set -e`-vs-`grep -c`
 # interaction noted above (grep -c exits 1 when its count is 0 — exactly
