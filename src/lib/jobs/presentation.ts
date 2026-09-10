@@ -171,42 +171,137 @@ export function rowExceptionMeta(job: GhostChecked, nowMs: number) {
  * only: callers never write the result back to the stored record.
  */
 /**
- * Small connectors `titleCaseDisplay` lowercases mid-title (never as the
- * first token) — English + French, matched against the corpus's actual
- * language mix (Canadian postings). Deliberately NOT `FUNCTION_WORDS`
- * (lib/geo/common-words.ts): that set exists for search-relevance stopword
- * filtering, is English-only, and is far broader than the small connector
- * class a title actually wants lowercased ("and"/"of"/"the", not
- * "however"/"whereas").
+ * Small connectors `titleCaseDisplay` lowercases mid-title — English +
+ * French, matched against the corpus's actual language mix (Canadian
+ * postings). A connector only lowercases when it actually JOINS two other
+ * tokens (see `isConnectorPosition` below): the same word at a title's
+ * start, end, or against punctuation ("TORONTO, ON", "PORTLAND, OR -
+ * REMOTE") is a trailing code or a leading word, not a connector, and falls
+ * through to the length-based rules instead. Deliberately NOT
+ * `FUNCTION_WORDS` (lib/geo/common-words.ts): that set exists for search-
+ * relevance stopword filtering, is English-only, and is far broader than
+ * the small connector class a title actually wants lowercased ("and"/"of"/
+ * "the", not "however"/"whereas").
  */
 const TITLE_CASE_CONNECTORS = new Set([
     "a", "an", "and", "or", "the", "for", "of", "in", "at", "to", "by", "on", "per",
     "de", "du", "et", "la", "le",
 ]);
 
-/** Pure-letter tokens at or under this length stay uppercase when the whole
- *  source is already uppercase — an acronym survives re-casing ("CNC", "RN",
- *  "ICU", "QA") instead of being flattened to "Cnc". Connectors are always
- *  lowercased mid-title regardless of length ("AND" -> "and", never "AND"). */
-const TITLE_CASE_SHORT_ACRONYM_MAX_LEN = 3;
+/**
+ * A 2-3 letter ALL-CAPS token in a job title or location is overwhelmingly a
+ * code (a credential, a state/province abbreviation), not a word shouting —
+ * so the default for those lengths is to keep it uppercase. The two lexicons
+ * below name the closed set of exceptions: ordinary short words ("NEW",
+ * "SAN", "IN") that would otherwise misread as a code. This is a linguistic
+ * dictionary, not a tenant/feature gate — it doesn't grow per caller, and a
+ * token missing from it still gets a rule-based answer (stays a code), never
+ * a fallback to "leave it alone."
+ */
+const TITLE_CASE_SHORT_WORDS_2 = new Set([
+    "am", "as", "be", "do", "go", "if", "is", "my", "no", "so", "up", "we",
+]);
+
+/** 3-letter ordinary English/French words that read as prose, not an
+ *  acronym like "CNC"/"ICU"/"CDL". Also carries every 3-letter member of
+ *  `TITLE_CASE_CONNECTORS` ("and", "for", "per", "the"): a 2-letter
+ *  connector legitimately doubles as a real code often enough to keep the
+ *  code-default when it fails `isConnectorPosition` ("TORONTO, ON" must
+ *  stay "ON", not become "On"), but no 3-letter connector is ever a
+ *  plausible 3-letter job/location code, so those fall here instead — the
+ *  leading "THE" in "THE HOME DEPOT CANADA" is why this matters: it fails
+ *  `isConnectorPosition` (no left neighbour) same as "ON" does, but reads as
+ *  "The", not "THE". Exported so a test can assert against the exact
+ *  dictionary this function reads, rather than a copy of it. */
+export const TITLE_CASE_SHORT_WORDS_3: ReadonlySet<string> = new Set(
+    [
+        "air", "all", "and", "any", "art", "aux", "bar", "bay", "big", "box",
+        "bus", "but", "can", "car", "cut", "day", "des", "dry", "due", "end",
+        "est", "eye", "far", "fee", "few", "fly", "for", "fun", "gas", "get",
+        "gym", "hot", "how", "hub", "ice", "inn", "jet", "job", "key", "kid",
+        "kit", "las", "law", "les", "lot", "los", "low", "man", "map", "may",
+        "mid", "mix", "net", "new", "non", "not", "now", "off", "oil", "old",
+        "one", "our", "out", "own", "pay", "per", "pet", "pit", "pot", "pre",
+        "pro", "raw", "red", "row", "run", "san", "saw", "sea", "see", "set",
+        "sky", "spa", "sub", "sud", "sun", "sur", "tax", "tea", "the", "tip",
+        "top", "toy", "tub", "two", "use", "van", "via", "way", "who",
+    ].sort(),
+);
+
+/** The inverse dictionary for 4+ letter tokens, which are overwhelmingly
+ *  ordinary words by default: a closed set of acronyms that stay shouting
+ *  ("HVAC") instead of flattening to a fake word ("Hvac"). */
+const TITLE_CASE_KNOWN_ACRONYMS = new Set([
+    "apac", "asap", "cctv", "crna", "emea", "fema", "hipaa", "hvac", "latam",
+    "nasa", "nicu", "osha", "picu", "pmhnp", "scada", "usmc",
+]);
+
+const TITLE_CASE_TOKEN_RE = /[\p{L}\p{N}']+/gu;
+
+/** True only when `matches[i]` sits between two neighbouring tokens with
+ *  nothing but whitespace on either side. The first/last token in the
+ *  string has no neighbour on one side, and punctuation in the gap (a
+ *  comma, a dash, a period) means the token is glued to that punctuation,
+ *  not joining two words — "TORONTO, ON" (the original defect) fails on
+ *  both counts: ON is the last token, and its left gap is ", ", not pure
+ *  whitespace. */
+function isConnectorPosition(matches: RegExpMatchArray[], i: number, value: string): boolean {
+    if (i === 0 || i === matches.length - 1) return false;
+    const prev = matches[i - 1]!;
+    const next = matches[i + 1]!;
+    const leftGap = value.slice(prev.index! + prev[0].length, matches[i]!.index!);
+    const rightGap = value.slice(matches[i]!.index! + matches[i]![0].length, next.index!);
+    return /^\s+$/.test(leftGap) && /^\s+$/.test(rightGap);
+}
+
+function recaseToken(
+    w: string,
+    opts: { isConnector: boolean; isAllUpper: boolean; followedByDot: boolean },
+): string {
+    // A token carrying a digit ("310T") is a code, not a word — casing
+    // rules don't apply, so it passes through exactly as scraped.
+    if (/\d/.test(w)) return w;
+    const lower = w.toLowerCase();
+    const capitalized = lower[0]!.toUpperCase() + lower.slice(1);
+
+    if (opts.isConnector) return lower;
+    if (!opts.isAllUpper) return capitalized; // all-lowercase source: capitalize every token
+
+    if (w.length === 1) return w.toUpperCase();
+    if (w.length === 2) {
+        if (opts.followedByDot) return capitalized; // "ST." -> "St."
+        if (TITLE_CASE_SHORT_WORDS_2.has(lower)) return capitalized; // "NO" -> "No"
+        return w.toUpperCase(); // code default: "ON", "RN", "IT"
+    }
+    if (w.length === 3) {
+        if (TITLE_CASE_SHORT_WORDS_3.has(lower)) return capitalized; // "NEW" -> "New"
+        return w.toUpperCase(); // acronym default: "CNC", "ICU", "CDL"
+    }
+    if (TITLE_CASE_KNOWN_ACRONYMS.has(lower)) return w.toUpperCase(); // "HVAC"
+    return capitalized; // 4+ letters: overwhelmingly a word
+}
 
 export function titleCaseDisplay(value: string): string {
     const isAllUpper = value === value.toUpperCase();
     const hasMixedCase = value !== value.toLowerCase() && !isAllUpper;
     if (hasMixedCase) return value;
 
-    let tokenIndex = -1;
-    return value.replace(/[\p{L}\p{N}']+/gu, (w) => {
-        tokenIndex++;
-        // A token carrying a digit ("310T") is a code, not a word — casing
-        // rules don't apply, so it passes through exactly as scraped.
-        if (/\d/.test(w)) return w;
-        const lower = w.toLowerCase();
-        const isConnector = TITLE_CASE_CONNECTORS.has(lower);
-        if (isConnector && tokenIndex !== 0) return lower;
-        if (isAllUpper && !isConnector && w.length <= TITLE_CASE_SHORT_ACRONYM_MAX_LEN) return w.toUpperCase();
-        return w[0]!.toUpperCase() + w.slice(1).toLowerCase();
+    const matches = Array.from(value.matchAll(TITLE_CASE_TOKEN_RE));
+    let result = "";
+    let cursor = 0;
+    matches.forEach((m, i) => {
+        const w = m[0];
+        const start = m.index!;
+        result += value.slice(cursor, start);
+        result += recaseToken(w, {
+            isConnector: TITLE_CASE_CONNECTORS.has(w.toLowerCase()) && isConnectorPosition(matches, i, value),
+            isAllUpper,
+            followedByDot: value[start + w.length] === ".",
+        });
+        cursor = start + w.length;
     });
+    result += value.slice(cursor);
+    return result;
 }
 
 export function prettyEnum(s: string | null | undefined): string {

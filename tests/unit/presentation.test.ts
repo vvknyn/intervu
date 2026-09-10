@@ -55,6 +55,46 @@ test("a mixed-case brand or role name already carrying deliberate casing is unto
   assert.equal(titleCaseDisplay("Senior EMT"), "Senior EMT");
 });
 
+// Class defect found by a probe against commit 2ffe511: the connector rule
+// fired on ANY occurrence of a connector word regardless of position, so a
+// trailing province/state code that happens to spell a connector ("ON",
+// "OR", "IN") got silently lowercased ("TORONTO, ON" -> "Toronto, on"); and
+// the blanket "<=3 letters stays shouting" rule caught ordinary short words
+// ("NEW", "SAN") right along with real 2-3 letter codes. Fixed by making the
+// connector rule position-aware (only fires when the token actually joins
+// two neighbours, nothing but whitespace on either side) and replacing the
+// length cutoff with two closed dictionaries of ordinary short words.
+test("a trailing province/state code that spells a connector word stays a code, not a lowercase word", () => {
+  assert.equal(titleCaseDisplay("TORONTO, ON"), "Toronto, ON");
+  assert.equal(titleCaseDisplay("PORTLAND, OR - REMOTE"), "Portland, OR - Remote");
+  assert.equal(titleCaseDisplay("DIRECTOR OF SALES, IN"), "Director of Sales, IN");
+});
+
+test("an ordinary short word is capitalized, not kept shouting, even next to a real code", () => {
+  assert.equal(titleCaseDisplay("NEW ORLEANS, LA"), "New Orleans, LA");
+  assert.equal(titleCaseDisplay("SAN DIEGO, CA"), "San Diego, CA");
+  assert.equal(titleCaseDisplay("NEW GRAD RN"), "New Grad RN");
+});
+
+test("a 2-letter token immediately followed by a period is capitalized as an abbreviation", () => {
+  assert.equal(titleCaseDisplay("ST. LOUIS, MO"), "St. Louis, MO");
+});
+
+test("a connector mid-title is still lowercased when it genuinely joins two words", () => {
+  assert.equal(titleCaseDisplay("SALES AND MARKETING MANAGER"), "Sales and Marketing Manager");
+});
+
+test("a known 4+ letter acronym stays shouting, an ordinary 4+ letter word does not", () => {
+  assert.equal(titleCaseDisplay("HVAC TECHNICIAN - ICU"), "HVAC Technician - ICU");
+});
+
+test("documented limitation: an all-lowercase source can't distinguish a code from a word", () => {
+  // Unlike the all-caps path (which has the two dictionaries to fall back
+  // on), a lowercase source only capitalizes every non-connector token —
+  // there is no signal left in "on" to say it should become "ON" not "On".
+  assert.equal(titleCaseDisplay("toronto, on"), "Toronto, On");
+});
+
 // GHOST_META used to hand-pick a STATUS_PILL entry per badge, and that copy
 // drifted: `ghostBadgeTone` was introduced specifically to stop `caution` and
 // `likely_ghost` sharing one amber tone ("collapsing 'review' and 'possible

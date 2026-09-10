@@ -200,6 +200,17 @@ test("strips a dash-joined trailing store number, but not a dash-joined remote q
     assert.equal(locationText(job({ location: "Remote - EMEA" })), "Remote - EMEA");
 });
 
+// Full path through locationText for the titleCaseDisplay class defect
+// (fixed alongside the A1 street-address strip, same commit series): an
+// all-caps raw location with a Canadian postal code must both lose the
+// postal code AND come out with the province code intact, not lowercased.
+test("an all-caps raw location strips its postal code and keeps the province code intact", () => {
+    assert.equal(
+        locationText(job({ location: "TORONTO, ON M5V 3L9, CANADA" })),
+        "Toronto, ON, Canada",
+    );
+});
+
 test("a bare street address with nothing else falls through to the structured fields", () => {
     assert.equal(locationText(job({ location: "10 Downing Street" })), "Location not listed");
     assert.equal(
