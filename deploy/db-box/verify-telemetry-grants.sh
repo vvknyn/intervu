@@ -18,7 +18,15 @@
 #                      by design.
 #
 # Checks, modeled on verify-firestore-load.sh's OK/FAIL-per-row shape:
-#   1. telemetry_pg CAN insert.
+#   1. telemetry_pg CAN insert — using the exact statement shape
+#      src/app/api/telemetry/route.ts sends (`on conflict do nothing`, no
+#      inference target), not a plain INSERT. A plain INSERT and this clause
+#      are different privilege checks: Postgres requires SELECT on any
+#      column named in an ON CONFLICT inference target, which telemetry_pg
+#      (insert-only by design) does not have, so a probe that omits the
+#      clause can pass while the app's real insert is denied. That gap is
+#      exactly what shipped once already — keep this probe's SQL identical
+#      to route.ts's `insertRows`, which points back here.
 #   2. telemetry_pg CANNOT select — a successful select here is the FAIL
 #      condition: it means the grants are too wide.
 #   3. telemetry_pg CANNOT delete — same reasoning, `where false` so even a
@@ -137,14 +145,14 @@ sql_ok() {
   psql "$1" -v ON_ERROR_STOP=1 -qAt -c "$2" >/dev/null 2>"$err_file"
 }
 
-echo "checking: telemetry_pg can insert into intervu.telemetry_events"
+echo "checking: telemetry_pg can insert into intervu.telemetry_events (app's exact statement shape — on conflict do nothing, no inference target)"
 TEST_EVENT_ID="$(psql "$BATCH_PG_URL" -qAtc "select gen_random_uuid()")"
 if sql_ok "$TELEMETRY_PG_URL" \
-  "insert into intervu.telemetry_events (event_id, occurred_at, session_id, event_name) values ('${TEST_EVENT_ID}', now(), gen_random_uuid(), 'verify_test_event')"
+  "insert into intervu.telemetry_events (event_id, occurred_at, session_id, event_name) values ('${TEST_EVENT_ID}', now(), gen_random_uuid(), 'verify_test_event') on conflict do nothing"
 then
-  pass "telemetry_pg INSERT"
+  pass "telemetry_pg INSERT ... ON CONFLICT DO NOTHING"
 else
-  fail "telemetry_pg INSERT — $(cat "$err_file")"
+  fail "telemetry_pg INSERT ... ON CONFLICT DO NOTHING — $(cat "$err_file")"
 fi
 
 echo "checking: telemetry_pg cannot select from intervu.telemetry_events"
