@@ -4,6 +4,30 @@ import { validate, upsertPursuitSchema } from "@/lib/validation";
 import { mergeGuestPursuit, type JobSnapshot, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
 
 /**
+ * Recursively drop `undefined` values from plain objects and arrays — the
+ * Admin SDK rejects `undefined` field values at ANY depth, not just the top
+ * level (e.g. a nested `job_snapshot.description` is `undefined` when the
+ * source listing wasn't hydrated at save time — see `JobSnapshot.description`'s
+ * doc comment). Plain objects are recursed into; arrays are mapped; `null`,
+ * `Date`, Firestore `Timestamp`/`FieldValue` sentinels, and other class
+ * instances pass through unchanged (their prototype isn't `Object.prototype`).
+ */
+export function stripUndefinedDeep<T>(value: T): T {
+    if (Array.isArray(value)) {
+        return value.map((item) => stripUndefinedDeep(item)) as unknown as T;
+    }
+    if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+        const out: Record<string, unknown> = {};
+        for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+            if (v === undefined) continue;
+            out[key] = stripUndefinedDeep(v);
+        }
+        return out as T;
+    }
+    return value;
+}
+
+/**
  * Find the caller's own pursuit for a job_id, or `null` if none exists yet —
  * the ONE place the `user_id == uid AND job_id == jobId` query is written.
  * `upsertPursuitCore` below uses it as its find-half; callers that need to
@@ -69,11 +93,13 @@ export async function upsertPursuitCore(
                 status: parsed.data.stage,
                 job_snapshot: snapshot,
             });
-            await db.collection("applications").doc(existing.id).update({
-                status: merged.status,
-                job_snapshot: merged.job_snapshot ?? null,
-                updated_at: now,
-            });
+            await db.collection("applications").doc(existing.id).update(
+                stripUndefinedDeep({
+                    status: merged.status,
+                    job_snapshot: merged.job_snapshot ?? null,
+                    updated_at: now,
+                }),
+            );
             revalidatePath("/yours");
             return { data: { ...merged, updated_at: now } };
         }
@@ -89,8 +115,8 @@ export async function upsertPursuitCore(
             created_at: now,
             updated_at: now,
         };
-        // The Admin SDK rejects `undefined` field values.
-        const clean = Object.fromEntries(Object.entries(docData).filter(([, v]) => v !== undefined));
+        // The Admin SDK rejects `undefined` field values, at any depth.
+        const clean = stripUndefinedDeep(docData);
 
         const docRef = await db.collection("applications").add(clean);
         revalidatePath("/yours");
