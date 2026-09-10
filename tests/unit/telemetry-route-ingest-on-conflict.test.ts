@@ -24,6 +24,13 @@ import type { TelemetryRow } from "../../src/lib/telemetry/types";
  * two cannot silently drift apart again.
  */
 
+// Shared between both tests so the app's statement and the verifier's probe
+// are held to the identical strictness. `BARE_DO_NOTHING` tolerates a
+// trailing quote character because the verifier probe lives inside a
+// shell-quoted string literal, unlike the app's raw SQL.
+const BARE_DO_NOTHING = /on conflict do nothing["']?\s*$/i;
+const HAS_INFERENCE_TARGET = /on conflict\s*(\(|on constraint)/i;
+
 function makeRow(id: string): TelemetryRow {
   return {
     event_id: id,
@@ -54,10 +61,10 @@ test("insertRows (via writeAdmittedRows) sends ON CONFLICT DO NOTHING with no in
 
   assert.equal(calls.length, 1, "exactly one insert statement must be sent");
   const sql = calls[0].trim();
-  assert.match(sql, /on conflict do nothing$/i, "must end with a bare ON CONFLICT DO NOTHING");
+  assert.match(sql, BARE_DO_NOTHING, "must end with a bare ON CONFLICT DO NOTHING");
   assert.doesNotMatch(
     sql,
-    /on conflict\s*\(/i,
+    HAS_INFERENCE_TARGET,
     "must never name an inference target — telemetry_pg has no SELECT grant to support one",
   );
 });
@@ -77,12 +84,12 @@ test("verify-telemetry-grants.sh's insert probe carries the identical ON CONFLIC
   assert.ok(probeLine, "verify-telemetry-grants.sh must still contain the telemetry_pg insert probe statement");
   assert.match(
     probeLine!,
-    /on conflict do nothing/i,
+    BARE_DO_NOTHING,
     "the verifier's probe must exercise the app's real ON CONFLICT DO NOTHING clause, not a plain INSERT",
   );
   assert.doesNotMatch(
     probeLine!,
-    /on conflict\s*\(/i,
+    HAS_INFERENCE_TARGET,
     "the verifier must not silently regress to naming an inference target the app doesn't use",
   );
 });

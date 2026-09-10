@@ -143,6 +143,10 @@ create table if not exists intervu.telemetry_events (
   company_domain text,
   position       integer,
   props          jsonb       not null default '{}'::jsonb,
+  -- Any NEW unique constraint or unique index added to this table will be
+  -- silently absorbed by the untargeted `on conflict do nothing` in
+  -- `insertRows` (src/app/api/telemetry/route.ts) — revisit that clause
+  -- (and verify-telemetry-grants.sh's insert probe) before adding one.
   constraint telemetry_events_event_id_key unique (event_id)
 );
 
