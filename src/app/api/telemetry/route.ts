@@ -14,9 +14,10 @@
  *   3–5. per-event props/name/clock guards (ingest.processBatch)
  *   6. bot UA -> drop silently
  *   7. per-session AND per-IP rate limits (rate-limit.partitionByRateLimit)
- *   8. insert, ON CONFLICT (event_id) DO NOTHING, one multi-row statement,
- *      rows pre-sorted by event_id (unsorted multi-row upserts caused 7,318
- *      deadlocks in this codebase's history)
+ *   8. insert, ON CONFLICT DO NOTHING (no inference target — see
+ *      `insertRows` for why), one multi-row statement, rows pre-sorted by
+ *      event_id (unsorted multi-row upserts caused 7,318 deadlocks in this
+ *      codebase's history)
  *   9. the success path always answers 204 — guards 1-2 above can still
  *      answer 413/400, but NO response ever carries a body (every return
  *      is `new NextResponse(null, ...)`) and no per-event outcome is ever
@@ -173,9 +174,17 @@ async function insertRows(pg: Queryable, rows: readonly TelemetryRow[]): Promise
   });
 
   await pg.query(
+    // No inference target on ON CONFLICT: Postgres requires SELECT on any
+    // column named there, and `telemetry_pg` is insert-only by design (no
+    // SELECT grant — deploy/db-box/telemetry-schema.sql). The table's only
+    // unique constraints are PRIMARY KEY (id) (server-generated) and
+    // UNIQUE (event_id), so a bare `do nothing` can only ever resolve an
+    // event_id duplicate in practice. Kept identical, on purpose, to the
+    // probe in deploy/db-box/verify-telemetry-grants.sh so that script can
+    // never pass while this statement is the one actually denied.
     `insert into intervu.telemetry_events (${TELEMETRY_COLUMNS.join(", ")})
      values ${tuples.join(", ")}
-     on conflict (event_id) do nothing`,
+     on conflict do nothing`,
     values,
   );
 }
