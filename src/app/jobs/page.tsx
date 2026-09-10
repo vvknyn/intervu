@@ -215,7 +215,7 @@ import { domainToSlug } from "@/lib/boards/slug";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
-import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
+import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
@@ -224,6 +224,7 @@ import { useResumePresence } from "@/lib/resume/use-resume-presence";
 import {
     formatAuthGateValueLine,
     GUEST_SAVE_TOAST,
+    SIGNUP_SUBCOPY,
     type AuthGateReason,
 } from "@/lib/auth/auth-gate-copy";
 import {
@@ -232,6 +233,15 @@ import {
     isGuestSaveBannerDismissed,
     dismissGuestSaveBanner,
 } from "@/lib/auth/guest-save-gate";
+import {
+    dismissGuestEngageNudge,
+    getGuestJobViewCount,
+    getGuestResultClickCount,
+    isGuestEngageNudgeDismissed,
+    recordGuestResultClick,
+    shouldShowGuestEngageNudge,
+    subscribeGuestEngageNudge,
+} from "@/lib/auth/guest-engage-nudge";
 import { ANONYMOUS_DEPTH_GATE_MESSAGE } from "@/lib/shield/depth-cap";
 import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
 
@@ -1698,9 +1708,19 @@ function JobsContent() {
     // (≥ 1) and the gate (≥ 1 → require sign-in on the next save).
     const [guestSaveCount, setGuestSaveCount] = useState(0);
     const [guestSaveBannerDismissed, setGuestSaveBannerDismissed] = useState(true);
+    const [guestEngageResultClicks, setGuestEngageResultClicks] = useState(0);
+    const [guestEngageJobViews, setGuestEngageJobViews] = useState(0);
+    const [guestEngageNudgeDismissed, setGuestEngageNudgeDismissed] = useState(true);
     useEffect(() => {
         setGuestSaveCount(getGuestSaveCount());
         setGuestSaveBannerDismissed(isGuestSaveBannerDismissed());
+        setGuestEngageResultClicks(getGuestResultClickCount());
+        setGuestEngageJobViews(getGuestJobViewCount());
+        setGuestEngageNudgeDismissed(isGuestEngageNudgeDismissed());
+        return subscribeGuestEngageNudge(() => {
+            setGuestEngageResultClicks(getGuestResultClickCount());
+            setGuestEngageJobViews(getGuestJobViewCount());
+        });
     }, []);
     const [searchAlertDismissed, setSearchAlertDismissed] = useState(true);
     const [searchAlertSubmitted, setSearchAlertSubmitted] = useState(true);
@@ -2489,6 +2509,7 @@ function JobsContent() {
                 // back to the impression it came from (SPEC §5).
                 ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
             });
+            if (!user) recordGuestResultClick();
         }
         setOpensThisSession((n) => n + 1);
         const alreadyOpened = openedIds.has(id);
@@ -2938,7 +2959,7 @@ function JobsContent() {
             bothInDom,
             staleInDom,
             relistInDom,
-            listingsVisible: hits.length > 0 && (!showLandingMarketing || isLgUp),
+            listingsVisible: hits.length > 0,
         });
         if (!kind) return;
 
@@ -2946,7 +2967,7 @@ function JobsContent() {
             kind === "both" ? "jobs-exception-both" : kind === "stale" ? "jobs-stale" : "jobs-relist";
         const id = requestAnimationFrame(() => startTour(tourId));
         return () => cancelAnimationFrame(id);
-    }, [mainJobsTourActive, hasSeenTour, startTour, tourActive, tourPageId, selectedId, hits.length, detailJob?.id, showLandingMarketing, isLgUp]);
+    }, [mainJobsTourActive, hasSeenTour, startTour, tourActive, tourPageId, selectedId, hits.length, detailJob?.id]);
 
     // The detail panel's "also in" chip (docs-mockup.html Comp B2) reads the
     // SAME `clusters` the SERP rows already group `hits` into (cluster.ts) —
@@ -3487,6 +3508,17 @@ function JobsContent() {
         dismissGuestSaveBanner();
         setGuestSaveBannerDismissed(true);
     };
+    const showGuestEngageNudge = shouldShowGuestEngageNudge({
+        signedIn: Boolean(user),
+        dismissed: guestEngageNudgeDismissed,
+        showingSaveBanner: showGuestSaveBanner,
+        resultClicks: guestEngageResultClicks,
+        jobViews: guestEngageJobViews,
+    });
+    const handleDismissGuestEngageNudge = () => {
+        dismissGuestEngageNudge();
+        setGuestEngageNudgeDismissed(true);
+    };
 
     // The job whose apply click is currently held open by the AI hand-off
     // prompt. Holding the job rather than a boolean keeps the dialog's content
@@ -3495,9 +3527,8 @@ function JobsContent() {
 
     // "Apply with tailored resume" / the fit-check drawer moved to MCP
     // 2026-08-02 — openTailor/handleTailor and the FitDrawer/
-    // TailorAnalysisSheet mounts they drove are gone; `handleApplyGate`
-    // stays (Apply, Go after this job, and Open posting still gate through
-    // it — see its own comment).
+    // TailorAnalysisSheet mounts they drove are gone; guest Apply now opens
+    // the ATS first, then auth for tracking (see `handleOpenPosting`).
     const handleCompany = (job: PublicJob) => {
         if (!job.company_domain) return;
         router.push(`/co/${domainToSlug(job.company_domain)}`);
@@ -3513,10 +3544,9 @@ function JobsContent() {
     // gesture is what popup blockers exist to stop.
     const openPostingNow = (job: PublicJob) => {
         if (!job.apply_url) return;
-        // A1 — only a real, signed-in departure to the employer's site arms the
-        // return prompt; the gated branches return before reaching here, so
-        // guests never do.
-        armApplyReturnJob(job);
+        // A1 — only a signed-in departure arms the return prompt; guests
+        // already left via this same call but auth for tracking is separate.
+        if (user) armApplyReturnJob(job);
         window.open(job.apply_url, "_blank", "noopener,noreferrer");
     };
 
@@ -3535,15 +3565,18 @@ function JobsContent() {
             // armed with for the currently-rendered result set (SPEC §5).
             ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
         });
-        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
-            handleApplyGate(job);
+        const decision = resolveApplyClickDecision(Boolean(user));
+        if (decision === "open-then-auth") {
+            // ATS first — must stay synchronous in the click gesture; auth
+            // after only marks applied (no second navigation).
+            if (job.apply_url) openPostingNow(job);
+            setAuthGateReason("apply");
+            gate({ kind: "apply", payload: job });
             return;
         }
         // Offer the AI hand-off once, at the only moment it is worth anything.
-        // Ordered after the auth gate on purpose: a signed-out visitor has no
-        // résumé or tracker for an assistant to read, so the offer would be
-        // hollow, and two interruptions stacked on one click is worse than the
-        // problem either solves.
+        // Guests skip this path entirely (hollow without a résumé); signed-in
+        // only.
         if (job.apply_url && shouldPromptApplyIntent()) {
             setApplyIntentJob(job);
             return;
@@ -3610,22 +3643,11 @@ function JobsContent() {
         if (job.apply_url) window.location.href = job.apply_url;
     };
 
-    // Job 2 (2026-08-01, Vivek: account creation BEFORE applying) — the ONE
-    // gate every apply-adjacent CTA reachable signed out funnels through:
-    // card "Apply", "Go after this job", "Open posting", and "Apply with
-    // tailored resume" (see their own call sites above/below) all call this
-    // instead of performing their own action or keeping their own pre-auth
-    // behavior. A fifth gated button is covered by calling this too, not by
-    // adding another branch here or another handler case in `useAuthGate`.
-    const handleApplyGate = (job: PublicJob) => {
-        setAuthGateReason("apply");
-        gate({ kind: "gate", payload: job });
-    };
-
     // "Save" — signed out writes to the guest store immediately for the FIRST
     // save; on the second+ guest save, require sign-in so the list isn't
-    // silently lost (progressive gating spec). Apply-adjacent CTAs still gate
-    // via `handleApplyGate` above.
+    // silently lost (progressive gating spec). Guest Apply no longer brick-
+    // walls here (2026-09-10): `handleOpenPosting` opens ATS first, then
+    // `gate({ kind: "apply" })` for tracking only — Save's 2nd-gate stays.
     const handleGoAfter = (job: PublicJob) => {
         if (!user) {
             if (getGuestSaveCount() >= 1) {
@@ -3690,7 +3712,8 @@ function JobsContent() {
     // Open the auth popover for a reason that has no replay of its own (only
     // shows a value line) — "save"'s guest-gate prompts below. Anything that
     // DOES need to replay after sign-in goes through `gate(...)` instead
-    // (see `handleApplyGate`, `beginResumeUpload`, the report gate below),
+    // (see `handleOpenPosting`'s guest branch, `beginResumeUpload`, the report
+    // gate below),
     // which persists the action itself; this just opens the popover.
     const openAuth = (reason: AuthGateReason | null = null) => {
         setAuthGateReason(reason);
@@ -5106,12 +5129,11 @@ function JobsContent() {
                     )}
 
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
-                        <div
-                            className={cn(
-                                "flex min-h-0 flex-1 flex-col",
-                                showLandingMarketing && !isLgUp && "hidden",
-                            )}
-                            aria-hidden={showLandingMarketing && !isLgUp}                        >
+                        {/* Mobile cold visitors already get a seeded default browse
+                            (overlay-ask); hiding the results column forced an extra
+                            typed query / "Show jobs" tap before result_clicked /
+                            job_viewed, dropping the funnel at pageview. */}
+                        <div className="flex min-h-0 flex-1 flex-col">
                             <>
                                 <BoardVisitBanner />
 
@@ -5137,6 +5159,29 @@ function JobsContent() {
                                         <button
                                             type="button"
                                             onClick={handleDismissGuestSaveBanner}
+                                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                        >
+                                            not now
+                                        </button>
+                                    </div>
+                                )}
+
+                                {showGuestEngageNudge && (
+                                    <div
+                                        data-testid="guest-engage-banner"
+                                        className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
+                                    >
+                                        <span>{SIGNUP_SUBCOPY} —</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => openAuth("generic")}
+                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                        >
+                                            sign in
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleDismissGuestEngageNudge}
                                             className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                                         >
                                             not now
@@ -5654,6 +5699,7 @@ function JobsContent() {
                         : undefined
                 }
                 defaultTab={authGateReason === "apply" ? "signup" : "login"}
+                reason={authGateReason ?? undefined}
             />
             <ResumeImportModal
                 isOpen={importOpen}

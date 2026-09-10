@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    resolveApplyGateDecision,
+    resolveApplyClickDecision,
     buildReturnTo,
     persistPendingAction,
     takePersistedPendingAction,
@@ -11,13 +11,13 @@ import {
 } from '../../src/lib/jobs/pending-actions';
 import { validateNextParam } from '../../src/lib/auth/product-routes';
 
-describe('resolveApplyGateDecision — signed-in vs signed-out branch for the apply gate', () => {
-    it('signed out always gates', () => {
-        assert.equal(resolveApplyGateDecision(false), 'gate');
+describe('resolveApplyClickDecision — signed-in vs guest Apply click', () => {
+    it('signed out opens ATS first then auth for tracking', () => {
+        assert.equal(resolveApplyClickDecision(false), 'open-then-auth');
     });
 
-    it('signed in always performs the action immediately, no dialog', () => {
-        assert.equal(resolveApplyGateDecision(true), 'perform');
+    it('signed in performs the action immediately, no auth interstitial', () => {
+        assert.equal(resolveApplyClickDecision(true), 'perform');
     });
 });
 

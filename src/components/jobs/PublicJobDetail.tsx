@@ -21,7 +21,7 @@ import {
 import { getGuestSaveCount, recordGuestSave } from "@/lib/auth/guest-save-gate";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { shortDate } from "@/lib/jobs/presentation";
-import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
+import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
 import type { PublicJob } from "@/lib/jobs/types";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { classifySentinel } from "@/lib/llm/sentinels";
@@ -163,11 +163,9 @@ export function PublicJobDetail({
 
     const openPostingNow = (target: PublicJob) => {
         if (!target.apply_url) return;
-        // A1 — arms the shared "did you apply?" return prompt (see
-        // ApplyReturnPrompt.tsx) the same way jobs/page.tsx's own
-        // `openPostingNow` does, for this standalone `/jobs/[slug]` and `/co`
-        // panel surface.
-        armApplyReturnJob(target);
+        // A1 — only a signed-in departure arms the return prompt; guests
+        // already left via this same call but auth for tracking is separate.
+        if (user) armApplyReturnJob(target);
         window.open(target.apply_url, "_blank", "noopener,noreferrer");
     };
 
@@ -217,14 +215,12 @@ export function PublicJobDetail({
         if (target.apply_url) window.location.href = target.apply_url;
     };
 
-    const handleApplyGate = (target: PublicJob) => {
-        setAuthGateReason("apply");
-        gate({ kind: "gate", payload: target });
-    };
-
     const handleOpenPosting = (target: PublicJob) => {
-        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
-            handleApplyGate(target);
+        const decision = resolveApplyClickDecision(Boolean(user));
+        if (decision === "open-then-auth") {
+            if (target.apply_url) openPostingNow(target);
+            setAuthGateReason("apply");
+            gate({ kind: "apply", payload: target });
             return;
         }
         if (target.apply_url && shouldPromptApplyIntent()) {
@@ -312,6 +308,7 @@ export function PublicJobDetail({
                         : undefined
                 }
                 defaultTab={authGateReason === "apply" ? "signup" : "login"}
+                reason={authGateReason ?? undefined}
             />
             {layout === "document" ? (
                 <JobDetailDocument

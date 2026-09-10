@@ -19,7 +19,8 @@ dead — the table below is what the code does, not what a doc promises.
 | `apply_clicked` | `{ job_id, source, query_id? }` | `src/app/jobs/page.tsx:3454` — the **first line** of `handleOpenPosting`, before the auth gate and the AI hand-off prompt, so the event means "clicked Apply" and not "reached the posting." `source` is `"serp"`; `"co"` and `"email"` stay in the type but are **not reachable today** — `src/app/co/**` has no apply handler of its own, and there is no emailed-link landing handler. `query_id` has the same `resultRef.current?.searchId` contract as `result_clicked`. |
 | `job_saved` | `{ job_id }` | `src/app/jobs/page.tsx:3376,3397` (guest and signed-in `handleGoAfter` branches) and `src/components/jobs/PublicJobDetail.tsx:230,247` (same two branches, `/co`'s job-detail wrapper). The `/co` pair was a real gap this wave closed — `handleGoAfter` there never fired the event at all before. Internally this concept is called a "pursuit" (`src/lib/pursuits/`); the event name stays `job_saved` because that's the user-facing verb. |
 | `company_followed` | `{ company_domain }` | `src/components/companies/FollowButton.tsx:172` — the same chokepoint that already fires `recordFollowFunnelAction("follow_click", ...)`, so both funnels record a follow the same way. `CompanyFollowControl.tsx` wraps `FollowButton` and needs no separate wiring. |
-| `signup_completed` | `{ method }` | `src/components/auth/login-form.tsx:144`, immediately after `signUp(...)` returns without an error (`method: "username"`). ⚠️ **PARTIAL — counts the username/password form only.** Google moved to WorkOS AuthKit (`startAuthKit("GoogleOAuth")`), a full-page redirect whose callback is server-side, where posthog-js does not run — AuthKit signups are **uncounted rather than guessed at**. Closing the gap needs server-side capture (posthog-node) or `/auth/callback` handing an explicit new-user signal back to the client. Deriving it from `user.createdAt ≈ now` would be an inference, not a fact, and is deliberately not done. |
+| `auth_started` | `{ reason }` | **`reason`** is `"apply"`, `"save"`, or `"generic"` (`AuthGateReason`, `src/lib/auth/auth-gate-copy.ts`). **`src/components/auth/auth-popover.tsx`** — fires once when `open` transitions false→true (not on close, not on every re-render while open); the in-app auth modal chokepoint. Callers with an auth-gate reason pass it through (`src/app/jobs/page.tsx`, `src/components/jobs/PublicJobDetail.tsx`); header CTAs, follow, settings, and other mounts omit it → `"generic"`. **`src/app/login/login-client.tsx`** — fires once on `/login` full-page mount with `reason: "generic"` (not from `LoginForm`, which would double-count when nested in AuthPopover). |
+| `signup_completed` | `{ method }` | **Username/password:** `src/components/auth/login-form.tsx` — immediately after `signUp(...)` returns without an error (`method: "username"`). **AuthKit (Google/passkey/magic-auth/email verification):** `/auth/callback` sets a short-lived `intervu_signup_completed` cookie when the WorkOS user is not yet tagged `metadata.apps` with `intervu` (evaluated *before* `provisionAppAccess` tags them); `PostHogProvider` reads it after `posthog.identify(uid)` and fires here with the mapped method. Mapping: `GoogleOAuth` → `google`, `MagicAuth`/`EmailVerification` → `email`, `Passkey` → `passkey`, `Password` → `username`; unknown methods are skipped rather than guessed. We do **not** infer signups from `user.createdAt ≈ now`. **Verify in PostHog:** filter `signup_completed` where `$host` is `velai.app` (or super-property `product` is `intervu`); Google signups should show `method: google`. |
 
 No landing/pageview event is defined here — `POSTHOG_OPTIONS.capture_pageview:
 "history_change"` (`src/lib/posthog-options.ts`) already fires a `$pageview`
@@ -71,18 +72,27 @@ multi-step onboarding flow. Skipped rather than invented.
 
 ## Reading the funnel
 
-1. land → search (`$pageview` on `/jobs` → `search_submitted`)
-2. search → impression → result click (`search_submitted` →
-   `results_impressed` → `result_clicked`)
-3. result click → view → apply (`result_clicked` → `job_viewed` →
+North-star for Velai cold traffic:
+
+`$pageview` → `results_impressed` / `result_clicked` / `job_viewed` →
+`auth_started` → `signup_completed`
+
+`search_submitted` is a **typed/chip search**, not the top of the cold-browse
+funnel. Default browse (`getDefaultBrowseAction` / `overlay-ask`) does not
+fire it; that is intentional — `results_impressed` already fires on visible
+SERP rows, including default browse.
+
+Secondary paths:
+
+1. result click → view → apply (`result_clicked` → `job_viewed` →
    `apply_clicked` → `job_marked_applied`)
-4. visit → follow or save (`company_viewed`/`$pageview` → `company_followed`
+2. visit → follow or save (`company_viewed`/`$pageview` → `company_followed`
    or `job_saved`)
-5. follow/save → signup (`company_followed` or `job_saved` →
-   `signup_completed`)
-6. save → stage progress (`job_saved` → `application_stage_changed`,
+3. follow/save → auth → signup (`company_followed` or `job_saved` →
+   `auth_started` → `signup_completed`)
+4. save → stage progress (`job_saved` → `application_stage_changed`,
    repeated per stage move)
-7. D7 return (repeat `$pageview` from the same identified/anonymous user
+5. D7 return (repeat `$pageview` from the same identified/anonymous user
    within 7 days)
 
 Reading these requires the PostHog dashboard (funnel/retention insights) or
@@ -128,3 +138,26 @@ no `job_id` to carry). That's its only remaining caller. `job_shared`
 (above) covers the job-surface case through the typed catalog instead —
 `trackEvent` stays alive only for the case that doesn't fit `EventPayloads`'
 shape (no entity id to key on).
+
+## Auth gates (what this PR ships)
+
+Guest **Apply** — `apply_clicked` still fires first (`src/app/jobs/page.tsx`,
+events-wiring lock). The ATS opens synchronously in the click gesture; auth
+(`auth_started` reason `"apply"`, pending kind `"apply"`) follows only to
+**track** the application — no second navigation after sign-in. Save uses a
+**2nd-save** gate (`reason: "save"` on `auth_started`).
+
+Post-engage soft auth nudge — after first `result_clicked` or two
+`job_viewed` events, a dismissible banner on `/jobs` offers sign-in
+(`auth_started` reason `"generic"`). Hidden when the guest-save banner is
+showing or the nudge was dismissed (`src/lib/auth/guest-engage-nudge.ts`).
+
+## Browse cold-start (what shipped)
+
+Zero-query `/jobs` fetches the cached default browse
+(`getDefaultBrowseAction` when `resolveEmptySearchState` is `"overlay-ask"` —
+`src/lib/jobs/result-state.ts`, `src/app/jobs/page.tsx`). Desktop and mobile
+both show those hits — the mobile results column is no longer hidden behind
+"Pick one to start searching" / "Show jobs" (`LandingMarketingShowcase` chips
+stay above the list). Default browse does **not** fire `search_submitted`; do
+not invent one for the seed list.

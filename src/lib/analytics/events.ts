@@ -1,6 +1,11 @@
 import posthog from "posthog-js";
 import { trackToLedger } from "@/lib/telemetry/client";
-import { ANALYTICS_EVENTS, type AnalyticsEventKey } from "@/lib/analytics/event-names";
+import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
+import {
+  ANALYTICS_EVENTS,
+  type AnalyticsEventKey,
+  type SignupMethod,
+} from "@/lib/analytics/event-names";
 
 /**
  * Wave-2 package F wired up the first six wire names (search → apply →
@@ -20,7 +25,7 @@ import { ANALYTICS_EVENTS, type AnalyticsEventKey } from "@/lib/analytics/event-
  * would just re-set the same value on every capture.
  */
 
-export { ANALYTICS_EVENTS, type AnalyticsEventKey };
+export { ANALYTICS_EVENTS, type AnalyticsEventKey, type SignupMethod };
 
 /** Where a job result/apply/view/share originated. */
 export type EventSource = "serp" | "co" | "board" | "email" | "direct";
@@ -55,8 +60,11 @@ export interface EventPayloads {
   company_followed: {
     company_domain: string;
   };
+  auth_started: {
+    reason: AuthGateReason;
+  };
   signup_completed: {
-    method: "email" | "google" | "username";
+    method: SignupMethod;
   };
 
   job_viewed: {
@@ -290,7 +298,7 @@ export function buildLedgerProps(
  *
  * The ONE chokepoint every event passes through — `trackToLedger`
  * (lib/telemetry/client.ts) rides the same guarded branch as the PostHog
- * capture, so every one of this module's 22 event names reaches the
+ * capture, so every one of this module's 24 event names reaches the
  * telemetry ledger for free, and a future 23rd does too, with no second
  * tracking call to add at any call site (SPEC.md §5).
  *

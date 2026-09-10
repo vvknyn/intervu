@@ -20,8 +20,14 @@ test("guestKeepLine uses plural copy for multiple pursuits", () => {
 });
 
 test("formatAuthGateValueLine varies by reason class", () => {
-    assert.match(formatAuthGateValueLine("apply", 0), /posting/);
+    assert.match(formatAuthGateValueLine("apply", 0), /track this application/i);
     assert.match(formatAuthGateValueLine("generic", 0), /sync/);
+});
+
+test('formatAuthGateValueLine for reason "save" mentions keep-across-devices and alerts', () => {
+    const line = formatAuthGateValueLine("save", 0);
+    assert.match(line, /across devices/i);
+    assert.match(line, /alert/i);
 });
 
 test("formatAuthGateValueLine prepends keep-line only when count is real", () => {
