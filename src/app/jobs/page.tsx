@@ -102,6 +102,7 @@ import {
     buildDockedChips,
     DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
+import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
@@ -4006,7 +4007,7 @@ function JobsContent() {
     // gated on `isSerpAsk` — matches this file's other render-prep consts.
     const searchSeeds = resolveSearchSeeds(recentSearches);
 
-    const mobileLocationLabel = locationTriggerLabel(filterState);
+    const mobileLocationLabel = locationTriggerLabel(filterState, result?.defaultedLocation);
     // The category chip whose search query matches the current COMMITTED query
     // (case-insensitive) AND whose text also matches the draft (i.e. the user
     // has not yet typed something different in the search box without
@@ -4701,6 +4702,8 @@ function JobsContent() {
                                 <button
                                     type="button"
                                     data-testid="location-picker-trigger"
+                                    aria-label={mobileLocationLabel}
+                                    title={mobileLocationLabel}
                                     onClick={() => setLocationSheetOpen(true)}
                                     className="flex h-11 min-w-0 flex-1 items-center truncate rounded-none border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
                                 >
@@ -5534,11 +5537,7 @@ function JobsContent() {
                 state={filterState}
                 distribution={result?.facetDistribution}
                 defaultedIso2={result?.defaultedLocation}
-                detectedLabel={
-                    result?.defaultedLocation
-                        ? `Near ${regionDisplayName(result.defaultedLocation)} (detected)`
-                        : undefined
-                }
+                detectedLabel={result?.defaultedLocation ? detectedLocationLabel(result.defaultedLocation) : undefined}
                 locationDefaultSuppressed={locationDefaultSuppressed}
                 onRestoreDetected={restoreLocationDefault}
                 onContinue={handleLocationSheetContinue}

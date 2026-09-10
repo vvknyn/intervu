@@ -159,33 +159,10 @@ export function applyLocationSheetDraft(
     return { ...state, facets };
 }
 
-/**
- * Label for the mobile location trigger from committed filter state.
- *
- * Item 7e (2026-08-21 front-door audit): used to also synthesize "Near
- * {Country}" from the server's IP-geo default when nothing was explicitly
- * picked — live prod showed "Near Canada" prefilled into what reads as a
- * CITY field. `result.defaultedLocation` is always country-granularity
- * (there is no city-level geo signal anywhere in this codebase — see
- * `lib/geo/ip-default.ts`), and a country is not a locality, so that
- * default can only ever produce copy this field's own placeholder
- * ("City, state, or remote") explicitly promises it won't. The
- * `LocationPickerSheet`'s own "(detected)" sheet OPTION is a different,
- * already-honest affordance (explicit, disclosed, opt-in) and is
- * unaffected — this only removes the passive, undisclosed prefill.
- */
-export const LOCATION_TRIGGER_PLACEHOLDER = "City, state, or remote";
-
-export function locationTriggerLabel(state: FilterState): string {
-    const values = (state.facets.location_country ?? []).map((v) => v.trim()).filter(Boolean);
-    if (values.length === 0) return LOCATION_TRIGGER_PLACEHOLDER;
-    if (values.length === 1) return values[0]!;
-    // A trigger is one line of a narrow control, so past the first place it
-    // reports a COUNT rather than truncating a list — "Montréal +2" says how
-    // much is hidden, where "Montréal, Toron…" only says that something is.
-    // The chips row below spells all of them out and can remove any one.
-    return `${values[0]} +${values.length - 1}`;
-}
+/** Moved to `lib/jobs/location-label.ts` (pure, no React/DOM) so it's
+ *  importable directly from `node:test` — re-exported here since this is
+ *  still the file every caller and existing test imports it from. */
+export { LOCATION_TRIGGER_PLACEHOLDER, locationTriggerLabel } from "@/lib/jobs/location-label";
 
 /** Static facet option ladders — always shown in SerpFilters even when the
  *  current result set's distribution is empty (selected values still merge in). */
