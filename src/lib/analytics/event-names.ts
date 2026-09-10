@@ -50,3 +50,6 @@ export const ANALYTICS_EVENTS = {
 } as const;
 
 export type AnalyticsEventKey = keyof typeof ANALYTICS_EVENTS;
+
+/** How the account was created — the `method` on `signup_completed`. */
+export type SignupMethod = "email" | "google" | "username" | "passkey";

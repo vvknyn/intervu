@@ -24,6 +24,12 @@ test("formatAuthGateValueLine varies by reason class", () => {
     assert.match(formatAuthGateValueLine("generic", 0), /sync/);
 });
 
+test('formatAuthGateValueLine for reason "save" mentions keep-across-devices and alerts', () => {
+    const line = formatAuthGateValueLine("save", 0);
+    assert.match(line, /across devices/i);
+    assert.match(line, /alert/i);
+});
+
 test("formatAuthGateValueLine prepends keep-line only when count is real", () => {
     assert.doesNotMatch(formatAuthGateValueLine("generic", 0), /keep/i);
     assert.match(formatAuthGateValueLine("generic", 2), /keep the 2 roles/);

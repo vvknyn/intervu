@@ -1,8 +1,11 @@
 import { handleAuth } from "@workos-inc/authkit-nextjs";
 import { after } from "next/server";
+import type { NextRequest } from "next/server";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisioning";
 import { withDirectHitGuard } from "@/lib/auth/callback-guard";
+import type { SignupMethod } from "@/lib/analytics/event-names";
+import { attachSignupSignalCookie, resolveAuthKitSignupSignal } from "@/lib/auth/authkit-signup-signal";
 
 /**
  * WorkOS AuthKit OAuth callback route.
@@ -38,19 +41,33 @@ import { withDirectHitGuard } from "@/lib/auth/callback-guard";
  * catch-all member of the same union) covers the rare case it's absent
  * rather than inventing a new label.
  *
+ * AuthKit signups emit `signup_completed` via a short-lived
+ * `intervu_signup_completed` cookie set here and consumed client-side in
+ * `PostHogProvider` after `posthog.identify(uid)`. The signal is
+ * `!hasApp(metadata.apps, intervu)` evaluated BEFORE `provisionAppAccess`
+ * tags them — not `user.createdAt ≈ now`. Username/password signups never hit
+ * this route; they fire from `login-form.tsx` directly.
+ *
  * `withDirectHitGuard` (src/lib/auth/callback-guard.ts) redirects a request
  * that carries neither `code` nor `error` straight to /login instead of
  * letting it fall into handleAuth's generic 500 — see that file for why.
  */
-export const GET = withDirectHitGuard(
-    handleAuth({
+export const GET = withDirectHitGuard(async (request: NextRequest) => {
+    let signal: SignupMethod | null = null;
+    const workos = handleAuth({
         baseURL: getSiteUrl(),
         onSuccess: async ({ user, authenticationMethod }) => {
+            signal = resolveAuthKitSignupSignal({
+                apps: user.metadata?.apps,
+                authenticationMethod: authenticationMethod ?? "ExternalAuth",
+            });
             after(() =>
                 realProvisioningDeps()
                     .then((deps) => provisionAppAccess(deps, user, authenticationMethod ?? "ExternalAuth"))
                     .catch((err) => console.error("[Auth] callback provisioning failed:", err)),
             );
         },
-    }),
-);
+    });
+    const response = await workos(request);
+    return attachSignupSignalCookie(response, signal);
+});

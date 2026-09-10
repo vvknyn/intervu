@@ -10,6 +10,8 @@ import {
   posthogApiHost,
 } from "@/lib/posthog-options";
 import { identityAction } from "@/lib/posthog-identity";
+import { captureEvent } from "@/lib/analytics/events";
+import { consumeSignupSignalFromDocumentCookie } from "@/lib/auth/authkit-signup-signal";
 
 // intervu reuses subspace's PostHog project/key — no separate project, no
 // dashboard step. In-project demarcation is the `product` super property
@@ -61,7 +63,11 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     return onAuthChange((user) => {
       const uid = user?.uid ?? null;
       const action = identityAction(identified, uid);
-      if (action === "identify" && uid) posthog.identify(uid);
+      if (action === "identify" && uid) {
+        posthog.identify(uid);
+        const method = consumeSignupSignalFromDocumentCookie();
+        if (method) captureEvent("signup_completed", { method });
+      }
       if (action === "reset") posthog.reset();
       identified = uid;
     });

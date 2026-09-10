@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
 import { captureEvent } from '@/lib/analytics/events'
+import { clearSignupSignalCookieFromDocument } from '@/lib/auth/authkit-signup-signal'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -141,14 +142,11 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
             // `signUp` already authenticates the fresh account and saves the
             // session server-side — no second client-side sign-in round trip.
             //
-            // ⚠️ This covers the username/password form ONLY. Google now
-            // goes through WorkOS AuthKit (`startAuthKit`), which is a full
-            // page redirect — the browser leaves before any signup could be
-            // observed, and the callback is server-side where posthog-js
-            // does not run. So AuthKit signups are currently UNCOUNTED
-            // rather than guessed at. Closing that gap needs either
-            // server-side capture or an explicit new-user signal handed
-            // back from /auth/callback; see docs/analytics/FUNNEL.md.
+            // Username/password path only — AuthKit (Google/passkey/magic-auth)
+            // emits via /auth/callback cookie + PostHogProvider after identify;
+            // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
+            // so an abandoned Google redirect + password signup cannot double-fire.
+            clearSignupSignalCookieFromDocument()
             captureEvent('signup_completed', { method: 'username' })
             router.refresh()
             await syncGuestFollowsToServer()

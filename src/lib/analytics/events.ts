@@ -1,6 +1,10 @@
 import posthog from "posthog-js";
 import { trackToLedger } from "@/lib/telemetry/client";
-import { ANALYTICS_EVENTS, type AnalyticsEventKey } from "@/lib/analytics/event-names";
+import {
+  ANALYTICS_EVENTS,
+  type AnalyticsEventKey,
+  type SignupMethod,
+} from "@/lib/analytics/event-names";
 
 /**
  * Wave-2 package F wired up the first six wire names (search → apply →
@@ -20,7 +24,7 @@ import { ANALYTICS_EVENTS, type AnalyticsEventKey } from "@/lib/analytics/event-
  * would just re-set the same value on every capture.
  */
 
-export { ANALYTICS_EVENTS, type AnalyticsEventKey };
+export { ANALYTICS_EVENTS, type AnalyticsEventKey, type SignupMethod };
 
 /** Where a job result/apply/view/share originated. */
 export type EventSource = "serp" | "co" | "board" | "email" | "direct";
@@ -56,7 +60,7 @@ export interface EventPayloads {
     company_domain: string;
   };
   signup_completed: {
-    method: "email" | "google" | "username";
+    method: SignupMethod;
   };
 
   job_viewed: {
