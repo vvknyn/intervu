@@ -63,7 +63,7 @@ const SUBHEAD = "mt-8 mb-3 text-base font-semibold text-foreground";
 
 export default function GhostJobsResearchPage() {
   return (
-    <main data-testid="research-ghost-jobs-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div data-testid="research-ghost-jobs-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
@@ -346,6 +346,6 @@ export default function GhostJobsResearchPage() {
           data · the Subspace jobs corpus
         </div>
       </article>
-    </main>
+    </div>
   );
 }

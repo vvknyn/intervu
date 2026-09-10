@@ -33,10 +33,10 @@ function rootClassName(src: string, label: string): string {
     return m[1];
 }
 
-/** The className of the `<main>` element in a file. */
-function mainClassName(src: string, label: string): string {
-    const m = src.match(/<main[\s\S]{0,200}?className="([^"]*)"/);
-    assert.ok(m, `${label}: no <main> with a className`);
+/** The className of the outermost element the file's component returns, tag-agnostic. */
+function frameClassName(src: string, label: string): string {
+    const m = src.match(/return \(\s*<\w+\b[^>]*?className="([^"]*)"/);
+    assert.ok(m, `${label}: could not read the className of its frame element`);
     return m[1];
 }
 
@@ -109,9 +109,9 @@ describe("company page: the wait is shown, and shaped like the page", () => {
         // A skeleton whose container differs from the page's makes the content
         // jump on arrival, which is worse than no skeleton at all.
         assert.equal(
-            mainClassName(CO_LOADING, "loading.tsx"),
-            mainClassName(CO_PAGE, "page.tsx"),
-            "the skeleton's <main> must use the page's own gutters and max-width",
+            frameClassName(CO_LOADING, "loading.tsx"),
+            frameClassName(CO_PAGE, "page.tsx"),
+            "the skeleton's frame must use the page's own gutters and max-width",
         );
     });
 

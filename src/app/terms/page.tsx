@@ -17,7 +17,7 @@ const LAST_UPDATED = "August 27, 2026";
 
 export default function TermsPage() {
   return (
-    <main data-testid="terms-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div data-testid="terms-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <div className="rounded-none border border-border bg-card p-6 sm:p-10">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
@@ -82,6 +82,6 @@ export default function TermsPage() {
         </p>
       </article>
       </div>
-    </main>
+    </div>
   );
 }

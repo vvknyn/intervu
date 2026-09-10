@@ -42,7 +42,7 @@ export default function Loading() {
                 </nav>
             </div>
 
-            <main
+            <div
                 aria-hidden="true"
                 className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10"
             >
@@ -87,7 +87,7 @@ export default function Loading() {
                         <Skeleton className="mt-2 h-4 w-1/2" />
                     </div>
                 </div>
-            </main>
+            </div>
         </div>
     );
 }

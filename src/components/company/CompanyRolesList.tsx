@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { decodeText, rowExceptionMeta } from "@/lib/jobs/presentation";
+import { decodeText, rowExceptionMeta, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { companyRowMetaSegments } from "@/lib/presentation";
 
@@ -51,7 +51,7 @@ export function CompanyRolesList({
                 className="flex items-center justify-between gap-4 px-3 py-4 transition-colors hover:bg-muted"
               >
                 <div className="min-w-0">
-                  <div className="text-base font-semibold text-foreground">{decodeText(job.title)}</div>
+                  <div className="text-base font-semibold text-foreground">{titleCaseDisplay(decodeText(job.title))}</div>
                   {meta.length > 0 && (
                     <div className="mt-1 text-sm text-muted-foreground">
                       {meta.map((segment, i) => (

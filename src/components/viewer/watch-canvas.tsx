@@ -352,7 +352,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
     };
 
     return (
-        <main className="min-h-dvh bg-black text-white">
+        <div className="min-h-dvh bg-black text-white">
             <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-white bg-black px-4 py-3 text-sm">
                 <span className={`h-2 w-2 flex-none rounded-none ${STATUS_TONE_STYLE[statusTone].dot}`} />
                 <span data-testid="watch-status" className={STATUS_TONE_STYLE[statusTone].text}>
@@ -402,6 +402,6 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                     sendSafe(keyMessage(event.key));
                 }}
             />
-        </main>
+        </div>
     );
 }

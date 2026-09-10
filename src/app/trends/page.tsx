@@ -74,9 +74,9 @@ export default async function TrendsPage() {
 
   if (!data) {
     return (
-      <main data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-10 sm:px-8 xl:px-10">
+      <div data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-10 sm:px-8 xl:px-10">
         <p className="text-sm text-muted-foreground">Market data isn&apos;t available right now.</p>
-      </main>
+      </div>
     );
   }
 
@@ -92,7 +92,7 @@ export default async function TrendsPage() {
   const snapshots = await readRecentSnapshots();
 
   return (
-    <main data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-20 sm:px-8 sm:py-10 xl:px-10">
+    <div data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-20 sm:px-8 sm:py-10 xl:px-10">
       <PageHeader
         bare
         size="display"
@@ -138,6 +138,6 @@ export default async function TrendsPage() {
           />
         </div>
       </div>
-    </main>
+    </div>
   );
 }

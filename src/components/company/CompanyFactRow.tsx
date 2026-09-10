@@ -36,7 +36,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       value: profile.organizationType
         ? `${profile.yearFounded} · ${profile.organizationType}`
         : String(profile.yearFounded),
-      receipt: exhaust.profile!.source,
+      receipt: exhaust.profile!.label,
     });
   }
 
@@ -45,7 +45,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       key: "headcount",
       label: "Headcount",
       value: `≈${profile.nbEmployees} people`,
-      receipt: exhaust.profile!.source,
+      receipt: exhaust.profile!.label,
     });
   }
 
@@ -63,7 +63,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       key: "sec-listing",
       label: "SEC listing",
       value: latestFiling ? `Public filer · latest filing ${eventDate(latestFiling)}` : "Public filer",
-      receipt: exhaust.secListing.source,
+      receipt: exhaust.secListing.label,
     });
   } else if (fundingCell === "funding" && exhaust.funding) {
     const f = exhaust.funding.data;
@@ -77,7 +77,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       );
     }
     if (parts.length > 0) {
-      cells.push({ key: "funding", label: "Funding", value: parts.join(" · "), receipt: exhaust.funding.source });
+      cells.push({ key: "funding", label: "Funding", value: parts.join(" · "), receipt: exhaust.funding.label });
     }
   }
 
@@ -86,7 +86,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       key: "gov-contracts",
       label: "Federal contracts",
       value: `${money(exhaust.govContracts.data.totalAmount)} active`,
-      receipt: exhaust.govContracts.source,
+      receipt: exhaust.govContracts.label,
     });
   }
 

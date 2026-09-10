@@ -73,9 +73,9 @@ import {
 } from "@/lib/jobs/presentation";
 import { presentJob } from "@/lib/presentation";
 import { ContextHelp } from "@/components/ui/context-help";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { MatchChip } from "@/components/jobs/MatchChip";
-import { ReportListingButton } from "@/components/jobs/ReportListingButton";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
@@ -89,7 +89,7 @@ import {
     getRecentlyViewedServerSnapshot,
     recordRecentlyViewedJob,
 } from "@/lib/jobs/recently-viewed";
-import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
+import { jobsUrlStateFromSavedHref, suggestSavedSearchName } from "@/lib/jobs/saved-searches";
 import { useSavedSearches, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import {
     subscribeSuppressLocationDefault,
@@ -180,13 +180,12 @@ import {
     isSearchAlertSubmitted,
     shouldShowSearchAlertCapture,
 } from "@/lib/jobs/search-alert-capture";
-import { suggestSavedSearchName } from "@/lib/jobs/saved-searches";
 import { resolveFacetsMountSite, showsFiltersToggle } from "@/lib/jobs/serp-density";
 import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import { SearchAlertCapture } from "@/components/jobs/SearchAlertCapture";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
-import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
+import { useApplyReturnPrompt, ApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
 import {
@@ -471,18 +470,25 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 function JobsTourReplayButton() {
     const { startTour } = useTour();
     return (
-        <button
-            type="button"
-            data-testid="jobs-tour-replay"
-            aria-label="How these listings work"
-            onClick={() => startTour()}
-            className={cn(
-                toolbarControlHeight,
-                "inline-flex w-11 shrink-0 items-center justify-center whitespace-nowrap rounded-none p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:w-7",
-            )}
-        >
-            <Question size={16} weight="bold" aria-hidden />
-        </button>
+        <TooltipProvider delayDuration={300}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        data-testid="jobs-tour-replay"
+                        aria-label="How these listings work"
+                        onClick={() => startTour()}
+                        className={cn(
+                            toolbarControlHeight,
+                            "inline-flex w-11 shrink-0 items-center justify-center whitespace-nowrap rounded-none p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:w-7",
+                        )}
+                    >
+                        <Question size={16} weight="bold" aria-hidden />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">How these listings work</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     );
 }
 
@@ -705,15 +711,16 @@ export function JobCard({
                         row anatomy allows ("HIG prefix before the place,
                         never icon+word for the same fact twice"), so it's
                         marked exempt from the list region's zero-icon count
-                        rather than counted as a "fact icon." */}
+                        rather than counted as a "fact icon." No "·" before
+                        it — the pin icon already separates it from the
+                        company name, and at narrow widths the location
+                        wraps to its own line, leaving a lone "·" dangling
+                        at the end of the company line above it. */}
                     {locationKnown && (
-                        <>
-                            <span aria-hidden>·</span>
-                            <span data-rulebook-exempt className="inline-flex items-center gap-1">
-                                <FACT_CHIP_ICON.location size={14} className="shrink-0" aria-hidden />
-                                {presented.location}
-                            </span>
-                        </>
+                        <span data-rulebook-exempt className="inline-flex items-center gap-1">
+                            <FACT_CHIP_ICON.location size={14} className="shrink-0" aria-hidden />
+                            {presented.location}
+                        </span>
                     )}
                 </div>
                 {/* Facts + status, one 14/20-scale secondary line joined by
@@ -764,16 +771,14 @@ export function JobCard({
                 )}
             </div>
             {/* Right meta column: bookmark (rulebook's 40px icon-only row
-                control) + report trigger share one row (both are compact
-                icon-only controls, not stacked fact lines) so this column's
-                height tracks the mid column's text instead of driving the
-                row past the rulebook's 96-112px band; match receipt and
-                posted age sit below. The report trigger and bookmark are
-                real interactive controls, not decorative fact icons —
-                exempted from the list region's svg count the same way
-                ContextHelp's sr-only text and CompanyLogo already are,
-                without touching ReportListingButton's own (deliberately
-                untouched, see GROUP-C) exemption logic. */}
+                control) sits above match receipt and posted age so this
+                column's height tracks the mid column's text instead of
+                driving the row past the rulebook's 96-112px band. The
+                bookmark is a real interactive control, not a decorative
+                fact icon — exempted from the list region's svg count the
+                same way ContextHelp's sr-only text and CompanyLogo already
+                are. Report is a detail-only action (GROUP-C, standard one-
+                entry-point-per-listing) — no row-level mount here. */}
             <span className="flex h-fit flex-col items-end gap-1 self-start">
                 <span className="flex items-center gap-1">
                     {onGoAfter && (
@@ -781,9 +786,6 @@ export function JobCard({
                             <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
                         </span>
                     )}
-                    <span data-rulebook-exempt>
-                        <ReportListingButton job={job} className="h-6 w-6" />
-                    </span>
                 </span>
                 {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />}
                 {age && (
@@ -3399,25 +3401,6 @@ function JobsContent() {
         setGuestSaveBannerDismissed(true);
     };
 
-    // A1 — apply-return capture (Zeigarnik Effect). `handleOpenPosting`
-    // below stamps this the moment a signed-in visitor leaves for the
-    // employer's site; the visibilitychange effect further down reads it
-    // back on tab-return. Not React state — the away window has no render
-    // of its own — and deliberately holds the whole `job`, not just the
-    // `{jobId, title, leftAt}` triple: `doMarkApplied` (below) needs
-    // `company`/`apply_url` too, and re-deriving those from an id would just
-    // be a second lookup path for data already on hand here.
-    const awayForApplyRef = useRef<{ job: PublicJob; leftAt: number } | null>(null);
-    // One prompt max per job per session (brief) — ids that have already
-    // shown the "did you apply?" prompt, regardless of outcome.
-    const applyReturnPromptedRef = useRef<Set<string>>(new Set());
-    // Latest `pursuitsByJobId` for the visibilitychange handler below, which
-    // is registered once on mount (see its own comment) and would otherwise
-    // close over a stale map — same mirroring idiom as `resultRef`/
-    // `fitActiveRef` above.
-    const pursuitsByJobIdRef = useRef(pursuitsByJobId);
-    pursuitsByJobIdRef.current = pursuitsByJobId;
-    const [applyReturnPrompt, setApplyReturnPrompt] = useState<PublicJob | null>(null);
     // The job whose apply click is currently held open by the AI hand-off
     // prompt. Holding the job rather than a boolean keeps the dialog's content
     // and its "continue" target the same object the click started from.
@@ -3446,7 +3429,7 @@ function JobsContent() {
         // A1 — only a real, signed-in departure to the employer's site arms the
         // return prompt; the gated branches return before reaching here, so
         // guests never do.
-        awayForApplyRef.current = { job, leftAt: Date.now() };
+        armApplyReturnJob(job);
         window.open(job.apply_url, "_blank", "noopener,noreferrer");
     };
 
@@ -3481,7 +3464,7 @@ function JobsContent() {
         openPostingNow(job);
     };
 
-    const doMarkApplied = async (job: PublicJob) => {
+    const doMarkApplied = async (job: ApplyReturnJob) => {
         try {
             const res = await markJobAppliedAction({
                 company: job.company ?? "",
@@ -3510,35 +3493,21 @@ function JobsContent() {
         }
     };
 
-    // A1 — apply-return capture. Registered once (mount-only): the handler
-    // reads `awayForApplyRef`/`applyReturnPromptedRef`/`pursuitsByJobIdRef`
-    // fresh on every fire rather than closing over this render's values, so
-    // there's no reason to tear down and re-add the listener on every
-    // dependency change — same "stable listener, live refs" shape as the
-    // IntersectionObserver setup below (`observerRef`/`loadMoreRef`).
-    useEffect(() => {
-        const handleVisibility = () => {
-            if (document.visibilityState !== "visible") return;
-            const away = awayForApplyRef.current;
-            if (!away) return;
-            awayForApplyRef.current = null;
-            const pursuit = pursuitsByJobIdRef.current.get(away.job.id);
-            const alreadyApplied = !!pursuit && hasReachedStage(pursuit, "applied");
-            const alreadyPrompted = applyReturnPromptedRef.current.has(away.job.id);
-            if (
-                shouldPromptApplyReturn({
-                    awayMs: Date.now() - away.leftAt,
-                    alreadyApplied,
-                    alreadyPrompted,
-                })
-            ) {
-                applyReturnPromptedRef.current.add(away.job.id);
-                setApplyReturnPrompt(away.job);
-            }
-        };
-        document.addEventListener("visibilitychange", handleVisibility);
-        return () => document.removeEventListener("visibilitychange", handleVisibility);
-    }, []);
+    // A1 — apply-return capture (Zeigarnik Effect). Shared hook (board +
+    // standalone `PublicJobDetail.tsx` both mount it — see its own comment):
+    // `openPostingNow` above arms it on departure; it self-registers
+    // visibilitychange/focus listeners and owns the one-shot decision. This
+    // surface's "already applied" is the tracker's `pursuitsByJobId` map;
+    // marking applied from the prompt reuses `doMarkApplied`, the exact
+    // write "Mark as applied" uses, not a second copy of it.
+    const { prompt: applyReturnPrompt, arm: armApplyReturnJob, markApplied: markApplyReturnApplied, dismiss: dismissApplyReturn } =
+        useApplyReturnPrompt({
+            isAlreadyApplied: (jobId) => {
+                const pursuit = pursuitsByJobId.get(jobId);
+                return !!pursuit && hasReachedStage(pursuit, "applied");
+            },
+            onMarkApplied: doMarkApplied,
+        });
 
     // Job 2 replay: reuses `doMarkApplied` — the EXACT tracker-write
     // "Mark as applied" uses, not a second copy of it — then navigates
@@ -4383,8 +4352,9 @@ function JobsContent() {
             title="Add your résumé to rank these roles by fit"
             onClick={() => void handleRankByFit()}
             className={cn(
+                chipVariants({ active: false }),
                 toolbarControlHeight,
-                "inline-flex shrink-0 items-center justify-center whitespace-nowrap px-2 text-xs leading-none text-brand transition-colors hover:opacity-80",
+                "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap leading-none rounded-none px-3 lg:px-2",
             )}
         >
             Rank by fit
@@ -4627,7 +4597,7 @@ function JobsContent() {
                 (`cappedContentClass`) — masthead, search shell and toolbar
                 deliberately don't, so they line up against the same gutter,
                 and the results grid is the one thing that stops widening. */}
-            <main data-shell="bleed" className="shell-row flex min-h-screen flex-col pb-20 pt-2 sm:pt-3">
+            <div data-shell="bleed" className="shell-row flex min-h-screen flex-col pb-20 pt-2 sm:pt-3">
                 {/* Landing masthead — mounts only for a zero-intent pristine
                     visitor (`showLandingMarketing`), at every width, not just
                     mobile: the header's docked search took over the box on
@@ -4675,7 +4645,7 @@ function JobsContent() {
                     `fieldDirectoryMenu`. */}
                 {!headerDockActive && (
                 <section
-                    className="rounded-none bg-card border border-border border-t-2 border-t-brand p-2 sm:p-2.5 transition-colors"
+                    className="rounded-none bg-card p-2 sm:p-2.5 transition-colors"
                 >
                     {/* The live count, moved here off the TopBar. Same /trends
                         destination it always had — it is a way into the report,
@@ -5343,7 +5313,7 @@ function JobsContent() {
                                     {!isSerpAsk && (
                                         <>
                                             {/* Count line: plain secondary text, no panel (rulebook
-                                                item i) — "show all" reads as the one Klein text link. */}
+                                                item i) — "Show all" reads as the one Klein text link. */}
                                             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 py-2 text-sm text-muted-foreground">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
@@ -5353,14 +5323,18 @@ function JobsContent() {
                                                         {resultCountLine}
                                                     </span>
                                                     {beyondWindow.show && (
-                                                        <button
-                                                            type="button"
-                                                            data-testid="beyond-window-show-all"
-                                                            onClick={() => panelPostedBucket(undefined)}
-                                                            className="text-brand hover:underline"
-                                                        >
-                                                            ({beyondWindowText} — show all)
-                                                        </button>
+                                                        <span className="flex items-center gap-1.5">
+                                                            {beyondWindowText}
+                                                            <span aria-hidden>·</span>
+                                                            <button
+                                                                type="button"
+                                                                data-testid="beyond-window-show-all"
+                                                                onClick={() => panelPostedBucket(undefined)}
+                                                                className="text-brand hover:underline"
+                                                            >
+                                                                Show all
+                                                            </button>
+                                                        </span>
                                                     )}
                                                 </div>
                                                 {/* Employer-scope disclosure — the standard removable
@@ -5573,7 +5547,7 @@ function JobsContent() {
                         </div>
                     </div>
                 </div>
-            </main>
+            </div>
 
             <LocationPickerSheet
                 open={locationSheetOpen}
@@ -5760,41 +5734,11 @@ function JobsContent() {
                 }}
             />
 
-            {applyReturnPrompt && (
-                <div
-                    data-testid="apply-return-prompt"
-                    role="status"
-                    className="fixed bottom-24 right-4 z-[190] flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3"
-                >
-                    <div className="min-w-0 flex-1">
-                        <div className="mono-data whitespace-nowrap text-xs text-muted-foreground">
-                            Did you apply?
-                        </div>
-                        <div className="mt-0.5 truncate text-meta text-foreground">
-                            {decodeText(applyReturnPrompt.title)}
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            const job = applyReturnPrompt;
-                            setApplyReturnPrompt(null);
-                            void doMarkApplied(job);
-                        }}
-                        className="shrink-0 border border-border bg-background px-2.5 py-1.5 text-xs text-foreground hover:bg-muted"
-                    >
-                        Mark applied
-                    </button>
-                    <button
-                        type="button"
-                        aria-label="Dismiss"
-                        onClick={() => setApplyReturnPrompt(null)}
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
-                    >
-                        ×
-                    </button>
-                </div>
-            )}
+            <ApplyReturnPrompt
+                record={applyReturnPrompt}
+                onMarkApplied={markApplyReturnApplied}
+                onDismiss={dismissApplyReturn}
+            />
         </div>
     );
 }

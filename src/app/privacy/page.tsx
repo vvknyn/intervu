@@ -69,7 +69,7 @@ export const FIRESTORE_COLLECTIONS_DISCLOSED: readonly string[] = [
 
 export default function PrivacyPage() {
   return (
-    <main data-testid="privacy-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div data-testid="privacy-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <div className="rounded-none border border-border bg-card p-6 sm:p-10">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
@@ -234,6 +234,6 @@ export default function PrivacyPage() {
         </p>
       </article>
       </div>
-    </main>
+    </div>
   );
 }

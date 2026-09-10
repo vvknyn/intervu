@@ -196,9 +196,15 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
                           <div
                             role="img"
                             aria-label={msg.attachment}
-                            className="mt-1 flex items-center gap-2 rounded-lg bg-muted px-2 py-1"
+                            /* `bg-muted` (the app's light chip token) read as
+                               white-on-near-white here — 1.1:1 measured — because
+                               this chip sits on the dark bubble fill, not the app
+                               surface. Reuses the SAME dark inset already proven
+                               legible in this file (the date pill above, `#1F2C34`
+                               with white text) instead of a new colour. */
+                            className="mt-1 flex items-center gap-2 rounded-lg bg-[#1F2C34] px-2 py-1"
                           >
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#2A3942]">
                               <FileText size={13} weight="bold" className="text-white" aria-hidden="true" />
                             </span>
                             <span className="flex min-w-0 flex-col leading-tight">

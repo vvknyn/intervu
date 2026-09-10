@@ -6,11 +6,11 @@ import { ArrowSquareOut } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
-import { ReportListingButton } from "@/components/jobs/ReportListingButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel } from "@/components/jobs/job-detail-facts";
@@ -22,7 +22,7 @@ import { formatDescription, type DescBlock } from "@/lib/jobs/format-description
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, clampLocationSegments, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
+import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, placeWithWorkMode, clampLocationSegments, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { presentJob } from "@/lib/presentation";
 import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
@@ -54,19 +54,27 @@ import type { Pursuit } from "@/lib/pursuits/types";
 
 /** Render structured description blocks (heading / para / list). Descriptions
  *  arrive flattened from the Subspace feed; `formatDescription` reconstructs
- *  the structure. See lib/jobs/format-description.ts. */
-export function JobDescription({ blocks }: { blocks: DescBlock[] }) {
+ *  the structure. See lib/jobs/format-description.ts.
+ *
+ *  `headingLevel` is the caller's own "About this role" section-heading
+ *  level + 1 — these headings ("Key Responsibilities" etc.) sit one level
+ *  under it in the outline, so each mount passes what keeps that true: the
+ *  inline pane/sheet (JobDetail.tsx, "About this role" = h3) passes 4, the
+ *  standalone document (JobDetailDocument.tsx, "About this role" = h2)
+ *  passes 3. No default — a heading level is never a safe guess. */
+export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; headingLevel: 3 | 4 }) {
+    const HeadingTag = `h${headingLevel}` as const;
     return (
         <div className="text-base leading-normal text-foreground">
             {blocks.map((b, i) => {
                 if (b.type === "heading") {
                     return (
-                        <h4
+                        <HeadingTag
                             key={i}
                             className="mb-2 mt-4 text-xs font-semibold text-foreground first:mt-0"
                         >
                             {b.text}
-                        </h4>
+                        </HeadingTag>
                     );
                 }
                 if (b.type === "list") {
@@ -162,6 +170,7 @@ export function PostingCheckHeader({
     verdictLabel,
     verdictClassName,
     checkedText,
+    headingLevel,
 }: {
     favorableCount: number;
     assessedCount: number;
@@ -169,12 +178,16 @@ export function PostingCheckHeader({
     verdictLabel: string;
     verdictClassName: string;
     checkedText: string;
+    /** This section's own outline level — h3 under the pane/sheet's h2 title
+     *  (JobDetail.tsx), h2 under the standalone document's h1 (JobDetailDocument.tsx). */
+    headingLevel: 2 | 3;
 }) {
+    const HeadingTag = `h${headingLevel}` as const;
     return (
         <div className="@container">
             <div className="flex flex-col gap-2 @min-[480px]:flex-row @min-[480px]:items-center @min-[480px]:justify-between @min-[480px]:gap-3">
                 <div className="flex flex-wrap items-baseline gap-1 text-sm">
-                    <span className="font-semibold text-foreground">Posting check</span>
+                    <HeadingTag className="font-semibold text-foreground">Posting check</HeadingTag>
                     {assessedCount > 0 && (
                         <span className="text-muted-foreground">
                             · {favorableCount}/{assessedCount} favorable
@@ -330,7 +343,10 @@ export function JobDetailActionBar({
 export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onClick: () => void }) {
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
-    const loc = locationText(job);
+    // placeWithWorkMode, not locationText alone: this row has no adjacent
+    // work-type chip (unlike JobCard's SERP row), so it's the only place a
+    // remote/hybrid job's work mode can show up.
+    const loc = placeWithWorkMode(locationText(job), job.work_type);
     return (
         <button
             type="button"
@@ -342,7 +358,7 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
             }}
             className="flex w-full flex-col gap-0.5 rounded-none px-0 py-3 text-left transition-colors hover:bg-muted cursor-pointer group"
         >
-            <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{decodeText(job.title)}</span>
+            <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
             <span className="mono-data truncate text-xs text-muted-foreground">
                 {displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company"}
                 {loc ? ` · ${loc}` : ""}
@@ -471,7 +487,9 @@ export function JobDetail({
     // orthogonal to (and upstream of) the single-location cleanup
     // `locationSummary` does, so cleaning before the split risks mangling a
     // semicolon-joined string that also happens to contain a dash.
-    const locationDisplay = presentJob(job).location;
+    const presented = presentJob(job);
+    const locationDisplay = presented.location;
+    const jobTitle = presented.title;
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // `formatDescription(undefined)` and `formatDescription("")` both return
     // `[]` — collapsing "not yet hydrated" (list-scope stub, no `description`
@@ -640,7 +658,7 @@ export function JobDetail({
                             <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h1 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{decodeText(job.title)}</h1>
+                            <h2 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{jobTitle}</h2>
                             {matchScore && (
                                 <div className="mt-2">
                                     <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -756,21 +774,27 @@ export function JobDetail({
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                             {/* Rulebook item f: these were hairline-boxed 44px
-                                squares — ghost 40px icon-only controls, no border. */}
-                            <ReportListingButton
-                                job={job}
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            />
-                            <ShareAction
-                                title={`${job.title} at ${companyBrand}`}
-                                text={SHARE_JOB_TEXT}
-                                url={withShareRef(
-                                    jobShareUrl(typeof window !== "undefined" ? window.location.origin : "", job),
-                                    "job",
-                                )}
-                                jobId={job.id}
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            />
+                                squares — ghost 40px icon-only controls, no border.
+                                Report is a detail-only action (GROUP-C, standard
+                                one-entry-point-per-listing) — it lives in the
+                                action row below (ReportJobButton), not here. */}
+                            <TooltipProvider delayDuration={300}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <ShareAction
+                                            title={`${jobTitle} at ${companyBrand}`}
+                                            text={SHARE_JOB_TEXT}
+                                            url={withShareRef(
+                                                jobShareUrl(typeof window !== "undefined" ? window.location.origin : "", job),
+                                                "job",
+                                            )}
+                                            jobId={job.id}
+                                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                        />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="text-xs">Copy link</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                             {onClose && (
                                 <button
                                     type="button"
@@ -813,7 +837,7 @@ export function JobDetail({
                         {reportJobEnabled && job.apply_url && (
                             <ReportJobButton
                                 jobUrl={job.apply_url}
-                                jobTitle={job.title}
+                                jobTitle={jobTitle}
                                 onRequireAuth={() => onRequestSignIn?.()}
                                 className="ml-auto"
                             />
@@ -842,6 +866,7 @@ export function JobDetail({
                             verdictLabel={ghost.label}
                             verdictClassName={ghost.cls.split(" ").find((c) => c.startsWith("text-")) ?? ""}
                             checkedText={checkedText}
+                            headingLevel={3}
                         />
                         {/* Explain copy only earns its place when the verdict isn't
                             already the unremarkable "clear and current" case — the
@@ -933,14 +958,14 @@ export function JobDetail({
                     hairline top border + 24px vertical padding — no card/panel
                     per section. Body copy sits at a 640px reading measure. */}
                 <div className="border-t border-border py-6">
-                    <div className="mb-2 text-sm font-semibold text-foreground">About this role</div>
+                    <h3 className="mb-2 text-sm font-semibold text-foreground">About this role</h3>
                     {blocks.length > 0 ? (
                         <>
                             <div
                                 data-testid="job-detail-description"
                                 className={cn("relative max-w-[640px]", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
                             >
-                                <JobDescription blocks={blocks} />
+                                <JobDescription blocks={blocks} headingLevel={4} />
                                 {collapsible && !descExpanded && (
                                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
                                 )}
@@ -1003,9 +1028,9 @@ export function JobDetail({
                     instead of a bordered/bg panel. */}
                 {hasCompanyIntel && (
                     <div className="border-t border-border py-6">
-                        <div className="text-base font-semibold text-foreground">
+                        <h3 className="text-base font-semibold text-foreground">
                             {companyBrand || "This company"} · hiring truth
-                        </div>
+                        </h3>
                         {/* Verbatim-or-absent (founding-wound law, about-line.ts) — a
                             single job's description is a much thinner corpus than
                             /co's full posting set, so this returns null far more
@@ -1072,9 +1097,9 @@ export function JobDetail({
                     (see the fetch effect above's error handling too). */}
                 {related.length > 0 && (
                     <div className="border-t border-border py-6">
-                        <div className="mb-2 text-sm font-semibold text-foreground">
+                        <h3 className="mb-2 text-sm font-semibold text-foreground">
                             More like this
-                        </div>
+                        </h3>
                         {/* Rulebook item h: rows separated only by a hairline,
                             not bordered cards — same divide-y idiom as the SERP
                             list, applied here via RelatedJobRow's own anatomy. */}
@@ -1108,7 +1133,7 @@ export function JobDetail({
                         className="border-0 bg-transparent p-0 [&_button.bg-brand]:!border-0 [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!px-0 [&_button.bg-brand]:!text-brand [&_button.bg-brand]:hover:!bg-transparent [&_button.bg-brand]:hover:!underline"
                         job={{
                             id: job.id,
-                            title: decodeText(job.title),
+                            title: jobTitle,
                             company: companyBrand || job.company || "Unknown company",
                             location: locationText(job) || null,
                         }}

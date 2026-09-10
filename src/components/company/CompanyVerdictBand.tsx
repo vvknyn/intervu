@@ -1,6 +1,6 @@
 import { eventDate } from "@/components/company/CompanyChangeEvents";
 import { eventTypeLabel } from "@/lib/companies/events";
-import { isVerdictWindowSufficient, type HealthFacts } from "@/lib/companies/exhaust";
+import { isVerdictWindowSufficient, type ExhaustSection, type HealthFacts } from "@/lib/companies/exhaust";
 
 /**
  * Band 2 — "Are they actually hiring?" The health-review verdict, stated as
@@ -14,11 +14,11 @@ export function CompanyVerdictBand({
   health,
   nowMs,
 }: {
-  health: { data: HealthFacts; source: string; asOf: string } | null;
+  health: ExhaustSection<HealthFacts>;
   nowMs: number;
 }) {
   if (!health) return null;
-  const { data, source, asOf } = health;
+  const { data, label, asOf } = health;
 
   const hasNumbers = data.score != null || data.repostRate != null || data.operatingStatus;
   const verdictLabel = data.verdict ? eventTypeLabel(data.verdict) : null;
@@ -64,7 +64,7 @@ export function CompanyVerdictBand({
         </div>
       )}
       <p className="mono-data mt-3 text-xs text-muted-foreground">
-        {source}
+        {label}
         {asOfLabel ? ` · updated ${asOfLabel}` : ""}
       </p>
     </section>

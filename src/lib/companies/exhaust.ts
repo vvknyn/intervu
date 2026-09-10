@@ -17,7 +17,7 @@
 import { eventTypeLabel } from "@/lib/companies/events";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
 
-export type ExhaustSection<T> = { data: T; source: string; asOf: string } | null;
+export type ExhaustSection<T> = { data: T; source: string; label: string; asOf: string } | null;
 
 export interface CompanyProfile {
   tagline: string | null;
@@ -412,6 +412,7 @@ function buildProfileSection(row: EnrichmentRow | undefined): ExhaustSection<Com
       totalJobs: num(p.total_jobs),
     },
     source: "company_enrichment · company_profile",
+    label: "Company profile",
     asOf: row.fetched_at,
   };
 }
@@ -436,6 +437,7 @@ function buildFundingSection(
       formDDates: strArray(f.form_d_dates),
     },
     source: "company_enrichment · funding",
+    label: "Funding",
     asOf: asOf ?? new Date(0).toISOString(),
   };
 }
@@ -457,6 +459,7 @@ function buildSecSection(row: EnrichmentRow | undefined): ExhaustSection<SecFact
       totalFilings2y: num(p.total_filings_2y),
     },
     source: "company_enrichment · sec_filing_summary",
+    label: "SEC filings",
     asOf: row.fetched_at,
   };
 }
@@ -475,6 +478,7 @@ function buildGovSection(row: EnrichmentRow | undefined): ExhaustSection<GovCont
       totalAmount,
     },
     source: "company_enrichment · government_contract",
+    label: "Federal contracts",
     asOf: row.fetched_at,
   };
 }
@@ -514,6 +518,7 @@ export function buildH1bSection(row: EnrichmentRow | undefined): ExhaustSection<
       employerState: str(p.employer_state),
     },
     source: "company_enrichment · h1b_lca",
+    label: "H-1B visa filings",
     asOf: row.fetched_at,
   };
 }
@@ -541,6 +546,7 @@ export function buildWarnSection(row: EnrichmentRow | undefined): ExhaustSection
   return {
     data: { noticeCount, totalEmployeesAffected, states: strArray(p.states), recent },
     source: "company_enrichment · warn_notice",
+    label: "WARN Act notices",
     asOf: row.fetched_at,
   };
 }
@@ -558,6 +564,7 @@ function buildTechSection(row: EnrichmentRow | undefined): ExhaustSection<TechFa
       hasAnalytics: bool(p.has_analytics),
     },
     source: "company_enrichment · tech_profile",
+    label: "Technology profile",
     asOf: row.fetched_at,
   };
 }
@@ -573,6 +580,7 @@ function buildHealthSection(row: HealthRow | null): ExhaustSection<HealthFacts> 
       observedSinceIso: row.created_at,
     },
     source: "company_health_reviews",
+    label: "Company health review",
     asOf: row.last_checked_at ?? row.created_at,
   };
 }
@@ -583,6 +591,7 @@ function buildCadenceSection(rows: CadenceRow[], nowMs: number): ExhaustSection<
   return {
     data: buildWeeklyCadence(weekSums, nowMs),
     source: "company_posting_daily",
+    label: "Posting activity",
     asOf: new Date(nowMs).toISOString(),
   };
 }
@@ -604,6 +613,7 @@ function buildIntegritySection(
       openedCount: result.openedCount,
     },
     source: "job_listings",
+    label: "Job listings",
     asOf: new Date(nowMs).toISOString(),
   };
 }
@@ -619,6 +629,7 @@ function buildChangeHistorySection(rows: ChangeEventDbRow[], nowMs: number): Exh
       confidence: num(r.confidence),
     })),
     source: "company_change_events",
+    label: "Company change history",
     asOf: new Date(nowMs).toISOString(),
   };
 }

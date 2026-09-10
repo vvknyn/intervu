@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { forwardRef, useState, type ComponentPropsWithoutRef } from "react";
 import { Check, Copy, WarningCircle } from "@phosphor-icons/react";
 import { performShare, type ShareRequest } from "@/lib/share/share-decision";
 
@@ -30,7 +30,7 @@ export function useShareControl() {
   return { state, trigger };
 }
 
-interface ShareActionProps {
+interface ShareActionProps extends Omit<ComponentPropsWithoutRef<"button">, "onClick" | "children" | "aria-label"> {
   title: string;
   text: string;
   url: string;
@@ -38,7 +38,6 @@ interface ShareActionProps {
    *  (see CopyJobLinkButton's old idiom in JobDetail.tsx, which this
    *  replaces) — provided, it renders as text instead (e.g. a menu item). */
   label?: string;
-  className?: string;
   /** Job-surface share — see `ShareRequest.jobId` (share-decision.ts). */
   jobId?: string;
 }
@@ -48,8 +47,20 @@ interface ShareActionProps {
  * exposes it, clipboard copy otherwise. Mirrors JobDetail's old
  * CopyJobLinkButton copied-state idiom (Check/Copy icon swap, an aria-label
  * that tracks state) so it reads as native to the rest of the app.
+ *
+ * `forwardRef` + `...rest` spread (rather than a plain function destructuring
+ * only its own props) so this can sit under a Radix `TooltipTrigger asChild`
+ * (see JobDetail.tsx's pane-header usage) — `asChild` clones its child via
+ * `Slot`, which merges a `ref` and the trigger's pointer/focus handlers onto
+ * whatever the child renders; a component that doesn't forward both would
+ * silently never open the tooltip, the same way every other `asChild`
+ * trigger in this codebase (ContextHelp, JobsTourReplayButton) is a bare
+ * `<button>` rather than an opaque component.
  */
-export function ShareAction({ title, text, url, label, className, jobId }: ShareActionProps) {
+export const ShareAction = forwardRef<HTMLButtonElement, ShareActionProps>(function ShareAction(
+  { title, text, url, label, className, jobId, ...rest },
+  ref,
+) {
   const { state, trigger } = useShareControl();
 
   const displayText = state === "copied" ? "Copied" : state === "failed" ? "Couldn't share" : label;
@@ -57,9 +68,11 @@ export function ShareAction({ title, text, url, label, className, jobId }: Share
   return (
     <button
       type="button"
+      ref={ref}
       onClick={() => trigger({ title, text, url, jobId })}
       aria-label={displayText ?? "Share"}
       className={className}
+      {...rest}
     >
       {label ? (
         displayText
@@ -72,4 +85,4 @@ export function ShareAction({ title, text, url, label, className, jobId }: Share
       )}
     </button>
   );
-}
+});
