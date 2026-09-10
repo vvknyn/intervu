@@ -2509,7 +2509,7 @@ function JobsContent() {
                 // back to the impression it came from (SPEC §5).
                 ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
             });
-            recordGuestResultClick();
+            if (!user) recordGuestResultClick();
         }
         setOpensThisSession((n) => n + 1);
         const alreadyOpened = openedIds.has(id);

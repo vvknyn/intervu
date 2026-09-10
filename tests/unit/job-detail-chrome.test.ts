@@ -15,12 +15,10 @@ describe("JobDetail guest chrome", () => {
         assert.match(src, /Apply on Company Site/);
     });
 
-    it("save button uses bookmark icon when unsaved", () => {
+    it("save control is the shared row bookmark, not a labeled Save button", () => {
         const src = readFileSync(JOB_DETAIL, "utf8");
-        assert.match(src, /BookmarkSimple/);
-        const saveBtn = src.slice(src.indexOf("goingAfter ? \"Saving…\" : \"Save\"") - 400, src.indexOf("goingAfter ? \"Saving…\" : \"Save\"") + 80);
-        assert.match(saveBtn, /BookmarkSimple|Plus/);
-        assert.doesNotMatch(saveBtn, /<Check size=\{16\} \/>\s*\{goingAfter/);
+        assert.match(src, /RowBookmarkButton/);
+        assert.doesNotMatch(src, /goingAfter \? "Saving…" : "Save"/);
     });
 
     it("the job title is the page heading only on the standalone document", () => {

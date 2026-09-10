@@ -485,9 +485,9 @@ export function JobDetail({
     }, [job.id]);
     useEffect(() => {
         captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
-        recordGuestJobView();
+        if (!signedIn) recordGuestJobView();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [job.id, source]);
+    }, [job.id, source, signedIn]);
     // Identity-header location line — same progressive-disclosure idiom as
     // the description clamp above, for aggregator-feed `location` strings
     // that stuff many semicolon-joined locations into one field (see

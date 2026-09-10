@@ -296,9 +296,9 @@ export function JobDetailDocument({
 
     useEffect(() => {
         captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
-        recordGuestJobView();
+        if (!signedIn) recordGuestJobView();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [job.id, source]);
+    }, [job.id, source, signedIn]);
 
     const [related, setRelated] = useState<PublicJob[]>([]);
     useEffect(() => {
