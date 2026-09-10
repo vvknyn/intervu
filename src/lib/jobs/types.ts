@@ -201,11 +201,30 @@ export const REQUESTED_FACET_KEYS: readonly FacetKey[] = [
   "must_have_skills",
 ] as const;
 
+/** The subset of REQUESTED_FACET_KEYS the web filter panel renders as a
+ *  generic checkbox picker (`<FacetGroup facetKey=...>`, SerpFilters.tsx) —
+ *  REQUESTED_FACET_KEYS minus ghost_badge/visa_sponsorship, which get their
+ *  own bespoke boolean controls there instead of a generic multi-select.
+ *  The ONE source both surfaces derive from: MCP's search_jobs `facets`
+ *  input takes its allowed keys here (agent/tools.ts, api/mcp/route.ts) and
+ *  SerpFilters.tsx's `FacetGroup` types its `facetKey` prop as
+ *  `PanelFacetKey`, so a panel group outside this set fails typecheck. */
+export const PANEL_FACET_KEYS = [
+  "work_type",
+  "experience_level",
+  "employment_type",
+  "location_country",
+  "tech_stack",
+  "must_have_skills",
+] as const satisfies readonly FacetKey[];
+export type PanelFacetKey = (typeof PANEL_FACET_KEYS)[number];
+
 /** Per-facet value→count, for rendering filter options with live counts. */
 export type FacetDistribution = Partial<Record<FacetKey, Record<string, number>>>;
 
 /** Explicit sort choice. Omitted = auto (newest with no query, relevance with a query). */
-export type JobSortMode = "newest" | "relevance" | "salary_desc";
+export const JOB_SORT_MODES = ["newest", "relevance", "salary_desc"] as const;
+export type JobSortMode = (typeof JOB_SORT_MODES)[number];
 
 /** Age-bucket filter, computed against sanitized `posted_ts` at request time. */
 export type PostedBucket = "1d" | "3d" | "7d" | "30d" | "older";
@@ -219,7 +238,8 @@ export type PostedBucket = "1d" | "3d" | "7d" | "30d" | "older";
  * the pristine state (see `FilterPanel.PRISTINE_FILTER_STATE`), since backfill
  * coverage (~47% of the corpus) means the field is still draining in.
  */
-export type YearsExperienceBucket = "0-2" | "3-5" | "6-10" | "11+";
+export const YEARS_EXPERIENCE_BUCKETS = ["0-2", "3-5", "6-10", "11+"] as const;
+export type YearsExperienceBucket = (typeof YEARS_EXPERIENCE_BUCKETS)[number];
 
 /** Search request shape shared across every backend + the server action. */
 export interface JobSearchParams {

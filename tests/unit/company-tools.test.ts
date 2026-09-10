@@ -135,7 +135,7 @@ describe('toolGetCompany', () => {
     assert.equal(out.domain, 'acme.com');
     assert.equal(out.openCount, 1);
     assert.equal(out.jobs.length, 1);
-    // toSearchHit's wire allowlist drops raw job fields like `description`.
+    // toJobDetailFields's wire allowlist drops raw job fields like `description`.
     assert.ok(!('description' in out.jobs[0]));
     assert.equal(out.jobs[0].id, 'job-1');
   });

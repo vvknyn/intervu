@@ -6,6 +6,7 @@ import {
 } from '../../src/app/api/mcp/route';
 import { AGENT } from '../../src/lib/agent/config';
 import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES } from '../../src/lib/agent/facets';
+import { JOB_SORT_MODES, YEARS_EXPERIENCE_BUCKETS, PANEL_FACET_KEYS } from '../../src/lib/jobs/types';
 
 // Bearer extraction moved to src/lib/agent/http.ts — see agent-http.test.ts.
 // The credential-kind gate moved to src/lib/agent/tokens.ts — see agent-tokens.test.ts.
@@ -106,6 +107,45 @@ describe('mcp route: search_jobs wire schema (Task 12 filters + cursor)', () => 
 
   it('every new field stays optional (an empty object still parses)', () => {
     assert.equal(searchJobsInput.safeParse({}).success, true);
+  });
+
+  it('accepts every real sort value from JOB_SORT_MODES', () => {
+    for (const v of JOB_SORT_MODES) {
+      assert.equal(searchJobsInput.safeParse({ sort: v }).success, true);
+    }
+  });
+
+  it('rejects a sort value outside JOB_SORT_MODES', () => {
+    assert.equal(searchJobsInput.safeParse({ sort: 'oldest' }).success, false);
+  });
+
+  it('accepts every real years_experience value from YEARS_EXPERIENCE_BUCKETS', () => {
+    for (const v of YEARS_EXPERIENCE_BUCKETS) {
+      assert.equal(searchJobsInput.safeParse({ years_experience: v }).success, true);
+    }
+  });
+
+  it('rejects a years_experience value outside YEARS_EXPERIENCE_BUCKETS', () => {
+    assert.equal(searchJobsInput.safeParse({ years_experience: '20+' }).success, false);
+  });
+
+  it('accepts a facets object keyed by every real PANEL_FACET_KEYS entry', () => {
+    for (const key of PANEL_FACET_KEYS) {
+      assert.equal(searchJobsInput.safeParse({ facets: { [key]: ['x'] } }).success, true);
+    }
+  });
+
+  it('accepts a facets object with two different panel keys at once', () => {
+    const res = searchJobsInput.safeParse({ facets: { tech_stack: ['python'], location_country: ['Canada'] } });
+    assert.equal(res.success, true);
+  });
+
+  it('rejects a facets key NOT in PANEL_FACET_KEYS — a real FacetKey (ghost_badge) with its own bespoke boolean control, not a generic picker', () => {
+    assert.equal(searchJobsInput.safeParse({ facets: { ghost_badge: ['clear'] } }).success, false);
+  });
+
+  it('rejects a facets key that is not a FacetKey at all', () => {
+    assert.equal(searchJobsInput.safeParse({ facets: { not_a_real_key: ['x'] } }).success, false);
   });
 });
 

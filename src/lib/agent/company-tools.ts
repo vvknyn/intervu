@@ -11,7 +11,7 @@ import { CHANGE_HISTORY_LIMIT, type ChangeEventRow } from "../companies/exhaust"
 import type { CompanyPageData } from "../companies/types";
 import type { CompanySearchHit } from "../companies/company-search";
 import { AGENT } from "./config";
-import { toSearchHit, type SearchHit, type ToolDeps } from "./tools";
+import { toJobDetailFields, type SearchHit, type ToolDeps } from "./tools";
 
 /**
  * Resolves an MCP caller's free-form `slug_or_domain` to a domain.
@@ -32,8 +32,8 @@ export function resolveCompanyDomain(input: string): string | null {
 
 export interface CompanyOut extends Omit<CompanyPageData, "jobs"> {
     /** `CompanyPageData.jobs` re-mapped through the SAME wire allowlist
-     *  search_jobs/get_job use (`toSearchHit`) — a raw `PublicJob[]` spread
-     *  here would defeat that allowlist for this one surface. */
+     *  search_jobs/get_job use (`toJobDetailFields`) — a raw `PublicJob[]`
+     *  spread here would defeat that allowlist for this one surface. */
     jobs: SearchHit[];
 }
 
@@ -54,7 +54,7 @@ export async function toolGetCompany(
         return { error: "search backend unavailable" };
     }
     if (!page) return { error: "company not found" };
-    return { ...page, jobs: page.jobs.map((job) => toSearchHit(job)) };
+    return { ...page, jobs: page.jobs.map((job) => toJobDetailFields(job)) };
 }
 
 export interface CompanyTimelineOut {

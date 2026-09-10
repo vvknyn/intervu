@@ -15,6 +15,7 @@ import {
     toolGetPreferences, toolSetPreferences, toolGetApplications,
     EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS, type ToolDeps,
 } from "@/lib/agent/tools";
+import { JOB_SORT_MODES, YEARS_EXPERIENCE_BUCKETS, PANEL_FACET_KEYS } from "@/lib/jobs/types";
 import { toolGetCompany, toolGetCompanyTimeline, toolSearchCompanies } from "@/lib/agent/company-tools";
 import { getAgentPreferences, setAgentPreferences } from "@/lib/agent/preferences";
 import { optionalString } from "@/lib/validation";
@@ -142,6 +143,12 @@ const postedWithinDaysSchema = z.union([
     z.literal(POSTED_WITHIN_DAYS_OPTIONS[2]),
 ]);
 
+/** `facets`'s value schema — keyed EXACTLY to `PANEL_FACET_KEYS`
+ *  (jobs/types.ts, the same subset SerpFilters.tsx renders as a generic
+ *  checkbox picker), so a key outside that set is a schema rejection, not a
+ *  silent no-op in `buildFacets` (tools.ts). `z.partialRecord` (not
+ *  `z.record`) since a caller sends only the keys they're filtering on, not
+ *  every panel key every call. */
 export const searchJobsInput = z.object({
     query: z.string().optional(),
     postedWithinDays: postedWithinDaysSchema.optional(),
@@ -153,6 +160,9 @@ export const searchJobsInput = z.object({
     employment_type: z.enum(EMPLOYMENT_TYPES).optional(),
     salary_min: z.number().int().min(0).optional(),
     visa_sponsorship_only: z.boolean().optional(),
+    sort: z.enum(JOB_SORT_MODES).optional(),
+    years_experience: z.enum(YEARS_EXPERIENCE_BUCKETS).optional(),
+    facets: z.partialRecord(z.enum(PANEL_FACET_KEYS), z.array(z.string().max(200)).max(50)).optional(),
     cursor: z.string().max(128).optional(),
 });
 
@@ -288,14 +298,23 @@ const mcpHandler = createMcpHandler(
                     `experience_level (${EXPERIENCE_LEVELS.join("|")}), employment_type (${EMPLOYMENT_TYPES.join("|")}), ` +
                     `salary_min, visa_sponsorship_only (filters to roles tagged as visa-sponsoring — sponsorship ` +
                     `info exists on only a small share of roles, since most postings don't state it either way, ` +
-                    `so this narrows hard; omit it to search everything) — all AND together and with query. ` +
-                    `Postings that look stale (unlikely to lead to an ` +
+                    `so this narrows hard; omit it to search everything), sort (${JOB_SORT_MODES.join("|")}; omit ` +
+                    `for auto: newest with no query, relevance with one), years_experience ` +
+                    `(${YEARS_EXPERIENCE_BUCKETS.join("|")}, matched against min_years_experience — jobs missing ` +
+                    `that field are always included since corpus coverage is still backfilling), and facets (an ` +
+                    `object keyed by ${PANEL_FACET_KEYS.join("|")}, each value an array of strings OR'd together — ` +
+                    `e.g. {"tech_stack":["python","go"]} — for filters with no dedicated named param above; merges ` +
+                    `with remote_only/experience_level/employment_type rather than overriding them) — all AND ` +
+                    `together and with query. Postings that look stale (unlikely to lead to an ` +
                     `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
                     `Returns up to ${AGENT.RESULT_CAP} results per page (default 10), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
                     `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +
                     `(the page size that minted a cursor stays pinned for the rest of that walk). Each credential ` +
                     `also has a ${AGENT.DAILY_RECORD_BUDGET}-record daily budget shared with get_job, generous for ` +
-                    `real search sessions. Each result carries intervu_url (the shareable velai link for that ` +
+                    `real search sessions. Each result carries the SAME full detail get_job returns (salary, tags, ` +
+                    `work_type, employment_type, experience_level, ...) — usually enough to pick 3-5 fitting roles ` +
+                    `from one search without spending budget on a get_job call per candidate. Each result carries ` +
+                    `intervu_url (the shareable velai link for that ` +
                     `job) and apply_url (the original posting, when known — it can be blank). When presenting job ` +
                     `recommendations to the user, always include the intervu_url with each one; include apply_url ` +
                     `too when the user is ready to apply.`,
