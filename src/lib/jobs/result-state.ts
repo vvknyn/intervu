@@ -408,6 +408,46 @@ export function classifyExistenceCheck(
 }
 
 /**
+ * The one chokepoint every id-scoped detail fetch goes through (jobs/page.tsx's
+ * dead-job check + on-demand hydrate, yours/[id]/page.tsx's open + retry).
+ * `classifyExistenceCheck` above only ever sees a resolved `JobSearchResult`
+ * — it has no opinion on the REQUEST itself throwing (dropped connection, a
+ * server action rejecting). Every prior call site hand-rolled that try/catch
+ * differently: one mapped a throw to `unknown`, another silently swallowed it
+ * and left its caller's state untouched. This is that mapping, written once.
+ *
+ * Query shape is fixed at `{ id, limit: 1, offset: 0, hideGhosts: false }`
+ * for every caller — `hideGhosts` must stay false so this sees the WHOLE
+ * corpus, not just the non-ghost subset, or a genuinely live likely_ghost
+ * posting would classify `not_found` and get declared dead (verified in
+ * `buildFilter`, lib/jobs/meilisearch.ts).
+ *
+ * `search` is injected rather than importing `searchJobsAction` directly, so
+ * this stays a plain unit-tested function with no Next server-action/runtime
+ * dependency.
+ *
+ * Contract: never throws. The request failing is `unknown`, exactly like
+ * every other inconclusive case `classifyExistenceCheck` already covers —
+ * never a thrown error reaching the caller, and never a false `not_found`.
+ */
+export async function runExistenceCheck(
+    id: string,
+    search: (query: {
+        id: string;
+        limit: number;
+        offset: number;
+        hideGhosts: boolean;
+    }) => Promise<JobSearchResult & { descriptionPending?: boolean }>,
+): Promise<ExistenceCheckStatus> {
+    try {
+        const result = await search({ id, limit: 1, offset: 0, hideGhosts: false });
+        return classifyExistenceCheck(id, result);
+    } catch {
+        return { status: "unknown" };
+    }
+}
+
+/**
  * The empty-query landing state (page.tsx's `emptySearchState`, unit-tested
  * here rather than only inline in the component). Classifies the
  * query/filter state alone — before any fetch outcome is known — into one

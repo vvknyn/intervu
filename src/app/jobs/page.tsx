@@ -151,7 +151,7 @@ import {
     isUnavailableJobsResult,
     resolveSelectionAfterRefresh,
     resolveGhostReveal,
-    classifyExistenceCheck,
+    runExistenceCheck,
     type ExistenceCheckStatus,
     resolveEmptySearchState,
     resolveJobsRenderMode,
@@ -2756,32 +2756,16 @@ function JobsContent() {
         const token = deadJobGuardRef.current!.begin();
         setDeadJobCheck({ id, status: "checking" });
         void (async () => {
-            try {
-                // Review fix — explicit `hideGhosts: false`: this must see
-                // the WHOLE corpus, not just the non-ghost subset, or a
-                // genuinely live likely_ghost posting would classify
-                // not_found and get declared dead. Verified in
-                // `buildFilter` (lib/jobs/meilisearch.ts): an omitted
-                // `hideGhosts` is already falsy there (no ghost-exclusion
-                // clause gets added either way) — so this wasn't silently
-                // wrong today, but leaving it implicit relied on that one
-                // line never changing. Every other field (facets/q/
-                // salaryMin/visaOnly/postedBucket/sort) stays omitted on
-                // purpose — see `JobSearchParams.id`'s own doc comment.
-                const r = await searchJobsAction({ id, limit: 1, offset: 0, hideGhosts: false });
-                if (!deadJobGuardRef.current!.isCurrent(token)) return;
-                // `classifyExistenceCheck` (lib/jobs/result-state.ts,
-                // unit-tested) treats an unconfigured backend OR a failed
-                // request as "unknown" — neither confirms nor denies, so it
-                // falls back to a NON-assertive state rather than claiming
-                // the role is gone. That "unknown" branch is not
-                // hypothetical: verified live that `id = ...` currently
-                // 400s against production until the index picks up the
-                // `filterableAttributes` addition in meilisearch.ts.
-                setDeadJobCheck({ id, ...classifyExistenceCheck(id, r) });
-            } catch {
-                if (deadJobGuardRef.current!.isCurrent(token)) setDeadJobCheck({ id, status: "unknown" });
-            }
+            // `runExistenceCheck` (lib/jobs/result-state.ts, unit-tested)
+            // owns the query shape (including why `hideGhosts` stays false)
+            // and the found/not_found/unknown classification, including a
+            // thrown request — see its doc comment. "unknown" is not
+            // hypothetical: verified live that `id = ...` currently 400s
+            // against production until the index picks up the
+            // `filterableAttributes` addition in meilisearch.ts.
+            const check = await runExistenceCheck(id, searchJobsAction);
+            if (!deadJobGuardRef.current!.isCurrent(token)) return;
+            setDeadJobCheck({ id, ...check });
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isDeadJobCandidate, selectedId]);
@@ -2829,14 +2813,23 @@ function JobsContent() {
         const id = base.id;
         const token = detailHydrationGuardRef.current!.begin();
         void (async () => {
-            try {
-                const r = await searchJobsAction({ id, limit: 1, offset: 0, hideGhosts: false });
-                if (!detailHydrationGuardRef.current!.isCurrent(token)) return;
-                const job = r.hits?.[0];
-                if (job?.id === id) setHydratedDetail({ id, job, descriptionPending: Boolean(r.descriptionPending) });
-            } catch {
-                /* detail renders without description until retry/select */
+            const check = await runExistenceCheck(id, searchJobsAction);
+            if (!detailHydrationGuardRef.current!.isCurrent(token)) return;
+            if (check.status === "found") {
+                setHydratedDetail({ id, job: check.job, descriptionPending: check.descriptionPending });
+                return;
             }
+            // A failed request or a genuine no-hit both still hydrate `base`
+            // (its `description` moves from `undefined` to `null`, so the
+            // guard above stops re-firing every render) rather than leaving
+            // the pane on an endless skeleton with no retry affordance.
+            // "unknown" marks it pending (retryable, same note the timeout
+            // path shows); "not_found" marks it resolved-empty.
+            setHydratedDetail({
+                id,
+                job: { ...base, description: null },
+                descriptionPending: check.status === "unknown",
+            });
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selected?.id ?? deadJobFoundJob?.id, selected?.description ?? deadJobFoundJob?.description, retryRequest]);

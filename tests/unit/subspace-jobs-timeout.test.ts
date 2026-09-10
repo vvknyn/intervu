@@ -63,40 +63,6 @@ describe("subspaceJobs deadline at the HTTP-client seam", () => {
     }
   });
 
-  it("getSnapshot (the GET/getJson path) rejects with a timeout SubspaceJobsError once the deadline fires", async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
-      return new Promise<Response>((_resolve, reject) => {
-        const signal = init?.signal;
-        if (!signal) return;
-        const keepAlive = setInterval(() => {}, 1000);
-        const settle = (err: unknown) => {
-          clearInterval(keepAlive);
-          reject(err);
-        };
-        if (signal.aborted) {
-          settle(signal.reason);
-          return;
-        }
-        signal.addEventListener("abort", () => settle(signal.reason));
-      });
-    }) as typeof fetch;
-
-    try {
-      await assert.rejects(
-        subspaceJobs.getSnapshot({ timeoutMs: 20 }),
-        (e: unknown) => {
-          assert.ok(e instanceof subspaceJobs.SubspaceJobsError, "expected a SubspaceJobsError");
-          assert.equal((e as InstanceType<SubspaceJobsModule["SubspaceJobsError"]>).code, "timeout");
-          assert.equal(subspaceJobs.isSubspaceTimeout(e), true);
-          return true;
-        },
-      );
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
   it("a fast response wins before the deadline — timeoutMs never breaks the fast path", async () => {
     const originalFetch = globalThis.fetch;
     const body = { data: [{ id: VALID_ID, description: "Filled by the ladder." }] };

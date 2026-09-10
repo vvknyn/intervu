@@ -13,7 +13,7 @@ import { toast } from "@/lib/toast";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { updateApplication } from "@/actions/application";
 import { searchJobsAction } from "@/actions/jobs";
-import { classifyExistenceCheck } from "@/lib/jobs/result-state";
+import { runExistenceCheck } from "@/lib/jobs/result-state";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
@@ -109,8 +109,9 @@ export default function PursuitDetailPage() {
      * was absent for the six days before, during which this lookup failed
      * outright, and a future re-provision can drop it again with no deploy.
      * Collapsing "couldn't check" into "no longer live" would tell people a
-     * role they can still apply to is dead. `classifyExistenceCheck` is the
-     * existing chokepoint for exactly this call, and it degrades to "unknown".
+     * role they can still apply to is dead. `runExistenceCheck` is the
+     * existing chokepoint for exactly this call, and it degrades to "unknown"
+     * whether the response classifies that way or the request itself throws.
      */
     const [detail, setDetail] = useState<{
         open: boolean;
@@ -169,21 +170,16 @@ export default function PursuitDetailPage() {
      * stays inert rather than opening a sheet that can only apologise.
      * Fetched once and kept; reopening doesn't re-query.
      */
-    const runExistenceCheck = useCallback(async (jobId: string) => {
-        const res = await searchJobsAction({ id: jobId, limit: 1, offset: 0, hideGhosts: false });
-        const check = classifyExistenceCheck(jobId, res);
+    const openDetail = async (jobId: string) => {
+        if (detail.job) return setDetail((d) => ({ ...d, open: true }));
+        setDetail({ open: true, job: null, state: "loading", descriptionPending: false });
+        const check = await runExistenceCheck(jobId, searchJobsAction);
         setDetail({
             open: true,
             job: check.status === "found" ? check.job : null,
             state: check.status === "found" ? "idle" : check.status === "not_found" ? "gone" : "unknown",
             descriptionPending: check.status === "found" && check.descriptionPending,
         });
-    }, []);
-
-    const openDetail = async (jobId: string) => {
-        if (detail.job) return setDetail((d) => ({ ...d, open: true }));
-        setDetail({ open: true, job: null, state: "loading", descriptionPending: false });
-        await runExistenceCheck(jobId);
     };
 
     // "try again" on a timed-out description — re-runs the SAME existence
@@ -200,7 +196,19 @@ export default function PursuitDetailPage() {
         if (retryNonce === 0) return;
         const jobId = pursuit?.job_id;
         if (!jobId) return;
-        void runExistenceCheck(jobId);
+        void (async () => {
+            const check = await runExistenceCheck(jobId, searchJobsAction);
+            // A failed retry ("unknown", or a "not_found" for a job that WAS
+            // showing a moment ago) keeps the previously rendered job and its
+            // pending flag on screen — see `runExistenceCheck`'s doc comment
+            // for why a failed request is never treated as proof the role is
+            // gone.
+            setDetail((d) =>
+                check.status === "found"
+                    ? { ...d, job: check.job, state: "idle", descriptionPending: check.descriptionPending }
+                    : { ...d, state: "idle" },
+            );
+        })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [retryNonce]);
 

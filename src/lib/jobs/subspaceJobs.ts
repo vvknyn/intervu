@@ -166,14 +166,8 @@ export interface SnapshotPage {
 }
 
 /** One page of the full active corpus. `limit` default 500, max 1000. */
-export async function getSnapshot(
-  opts: { cursor?: string; limit?: number; timeoutMs?: number } = {},
-): Promise<SnapshotPage> {
-  const env = await getJson(
-    "/jobs/snapshot",
-    { cursor: opts.cursor, limit: opts.limit },
-    { timeoutMs: opts.timeoutMs },
-  );
+export async function getSnapshot(opts: { cursor?: string; limit?: number } = {}): Promise<SnapshotPage> {
+  const env = await getJson("/jobs/snapshot", { cursor: opts.cursor, limit: opts.limit });
   return { jobs: env.data ?? [], nextCursor: env.meta?.next_cursor ?? null };
 }
 
