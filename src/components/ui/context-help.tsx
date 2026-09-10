@@ -47,8 +47,8 @@ export function ContextHelp({ content, className, side = "top", icon, children, 
                             construction — an off-Carbon-scale value the rulebook's
                             spacing probe can't tell apart from a real layout bug, on an
                             element with zero visual footprint. `data-rulebook-exempt`
-                            (the same mechanism CompanyLogo/ReportListingButton already
-                            use) opts this one always-invisible node out rather than
+                            (the same mechanism CompanyLogo already uses) opts this
+                            one always-invisible node out rather than
                             widening the scale or hiding real offenders. */}
                         <span className="sr-only" data-rulebook-exempt>More information</span>
                     </button>

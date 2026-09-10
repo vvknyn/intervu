@@ -115,6 +115,16 @@ const ALLOWLIST: AllowEntry[] = [
     reason: "Firestore write payload for markJobAppliedAction — same as jobs/page.tsx's mirror call",
   },
   {
+    file: "src/components/jobs/ApplyReturnPrompt.tsx",
+    match: "company: job.company }",
+    reason: "write-only sessionStorage field written by armApplyReturn — the record is never rendered raw, only decodeText(record.title) is displayed",
+  },
+  {
+    file: "src/components/jobs/ApplyReturnPrompt.tsx",
+    match: "company: pending.company, apply_url: \"\"",
+    reason: "pass-through of the already-stored sessionStorage record back to the caller's doMarkApplied, which itself only uses it as a Firestore write payload (see the jobs/page.tsx and PublicJobDetail.tsx entries above)",
+  },
+  {
     file: "src/components/modals/FavoritesModal.tsx",
     match: "favorite.company",
     reason: "free-text field on a saved interview question, unrelated to the job corpus",

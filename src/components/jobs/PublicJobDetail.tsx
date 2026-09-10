@@ -7,6 +7,7 @@ import { markJobAppliedAction } from "@/actions/jobs";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { ApplyReturnPrompt, useApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
 import { fetchResumeData } from "@/actions/resume";
 import { JobDetail, JobDetailActionBar } from "@/components/jobs/JobDetail";
 import { JobDetailDocument } from "@/components/jobs/JobDetailDocument";
@@ -31,6 +32,7 @@ import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
+import { hasReachedStage } from "@/lib/pursuits/types";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { toast } from "@/lib/toast";
@@ -139,10 +141,15 @@ export function PublicJobDetail({
 
     const openPostingNow = (target: PublicJob) => {
         if (!target.apply_url) return;
+        // A1 — arms the shared "did you apply?" return prompt (see
+        // ApplyReturnPrompt.tsx) the same way jobs/page.tsx's own
+        // `openPostingNow` does, for this standalone `/jobs/[slug]` and `/co`
+        // panel surface.
+        armApplyReturnJob(target);
         window.open(target.apply_url, "_blank", "noopener,noreferrer");
     };
 
-    const doMarkApplied = async (target: PublicJob) => {
+    const doMarkApplied = async (target: ApplyReturnJob) => {
         try {
             const res = await markJobAppliedAction({
                 company: target.company ?? "",
@@ -160,6 +167,7 @@ export function PublicJobDetail({
             }
             invalidatePursuitsCache();
             captureEvent("job_marked_applied", { job_id: target.id });
+            toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
                 openAuth("apply");
@@ -168,6 +176,19 @@ export function PublicJobDetail({
             }
         }
     };
+
+    // A1 — shared hook (see jobs/page.tsx's own mount for the sibling
+    // comment): this surface's "already applied" is the same
+    // `byJobId`/`hasReachedStage` pursuit check, and marking applied from
+    // the prompt reuses `doMarkApplied` above rather than a second write path.
+    const { prompt: applyReturnPrompt, arm: armApplyReturnJob, markApplied: markApplyReturnApplied, dismiss: dismissApplyReturn } =
+        useApplyReturnPrompt({
+            isAlreadyApplied: (jobId) => {
+                const pursuit = byJobId.get(jobId);
+                return !!pursuit && hasReachedStage(pursuit, "applied");
+            },
+            onMarkApplied: doMarkApplied,
+        });
 
     const replayApplyGate = async (target: PublicJob) => {
         await doMarkApplied(target);
@@ -343,6 +364,11 @@ export function PublicJobDetail({
                     goingAfter={goingAfter}
                 />
             )}
+            <ApplyReturnPrompt
+                record={applyReturnPrompt}
+                onMarkApplied={markApplyReturnApplied}
+                onDismiss={dismissApplyReturn}
+            />
         </>
     );
 }

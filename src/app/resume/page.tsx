@@ -34,7 +34,7 @@ function SignedOutState({ onLoginClick }: { onLoginClick: () => void }) {
         <div className="mx-auto max-w-[480px] space-y-4 rounded-none border border-border bg-card p-8 text-center">
             <FileText size={24} className="mx-auto text-muted-foreground" />
             <div className="space-y-1">
-                <h3 className="text-base font-semibold text-foreground">Sign in to see your resume</h3>
+                <h2 className="text-base font-semibold text-foreground">Sign in to see your resume</h2>
                 <p className="text-sm text-muted-foreground">
                     Your resume and any versions you tailor for a role live on your account.
                 </p>

@@ -232,6 +232,7 @@ export function LocationPickerSheet({
                             <Input
                                 data-testid="location-sheet-other-input"
                                 type="text"
+                                aria-label="Location"
                                 placeholder="Country or city"
                                 value={draft.otherText}
                                 onChange={(e) =>

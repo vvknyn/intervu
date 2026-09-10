@@ -178,12 +178,32 @@ export default function RootLayout({
           <ThemeProvider>
             <IconDefaultsProvider>
             <TourProvider>
+              {/* First focusable element on every page (keyboard-only rule:
+                  standard "skip to main content" pattern). Same visually-hidden-
+                  until-focus classes as /jobs's own "Skip to results" link
+                  (src/app/jobs/page.tsx) — that one stays too, it targets a
+                  narrower destination inside this same <main>; two skip links
+                  is the standard pattern, not a duplicate. */}
+              <a
+                href="#main"
+                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
+              >
+                Skip to main content
+              </a>
               {/* Wraps BOTH the header and the page: /jobs publishes its search
                   summary here once its own search box scrolls away, and TopBar
                   renders it. Siblings can't share state without this. */}
               <SearchDockProvider>
               <TopBar />
+              {/* The one <main> landmark per page (standard-pattern rule) —
+                  every page used to own its own <main>, so a page with a
+                  selected job (two h1-bearing regions) rendered two, and ~19
+                  pages rendered none. Page-level `<main>`s were converted to
+                  `<div>` (classes untouched) so this is the only one; `tabIndex=
+                  {-1}` lets the skip link above actually move focus here. */}
+              <main id="main" tabIndex={-1}>
               {children}
+              </main>
               </SearchDockProvider>
               <Footer />
               <MobileTabBar />

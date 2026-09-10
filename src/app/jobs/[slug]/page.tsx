@@ -85,7 +85,7 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
     if (`/jobs/${slug}` !== path) permanentRedirect(path);
 
     return (
-        <main data-testid="job-page" className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6">
+        <div data-testid="job-page" className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6">
             {/* Breadcrumb (spec annotation #1) — a cold visitor landing on a
                 shared job link otherwise has no path into the board. Two
                 segments only: back to /jobs, then the current job title as
@@ -100,6 +100,6 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
                 <span className="truncate text-foreground">{titleCaseDisplay(decodeText(job.title))}</span>
             </nav>
             <PublicJobDetail job={job} layout="document" />
-        </main>
+        </div>
     );
 }

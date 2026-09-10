@@ -13,7 +13,6 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import type { MatchScore } from "@/lib/match/score";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
-import { ReportListingButton } from "@/components/jobs/ReportListingButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
     assessedGhostSignals,
@@ -80,9 +79,9 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
     // text with no forced underline decoration.
     return (
         <div data-testid="job-detail-employer-card" className="border-t border-border py-6">
-            <div className="text-base font-semibold text-foreground">
+            <h2 className="text-base font-semibold text-foreground">
                 {companyBrand || "This company"}
-            </div>
+            </h2>
             {rail?.aboutLine && <p className="mt-2 max-w-[640px] text-sm leading-relaxed text-muted-foreground">{rail.aboutLine}</p>}
             {(showOpenCount || hasTrackRecord) && (
                 <div className="mt-4 flex flex-wrap gap-4">
@@ -165,6 +164,7 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
                 unknownCount={unknownCount}
                 verdictLabel={ghost.label}
                 verdictClassName={ghost.cls.split(" ").find((c) => c.startsWith("text-")) ?? ""}
+                headingLevel={2}
                 checkedText={checkedText}
             />
             {signals.length > 0 && (
@@ -353,12 +353,6 @@ export function JobDetailDocument({
                         )}
                     </div>
                 </div>
-                {/* Rulebook item f: 40px bordered square → ghost 40px icon-only,
-                    no border. */}
-                <ReportListingButton
-                    job={job}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                />
             </div>
 
             {exceptionMark && (
@@ -466,10 +460,10 @@ export function JobDetailDocument({
 
     const postingEl = (
         <div data-testid="job-detail-posting" className="border-t border-border py-6">
-            <div className="mb-2 text-sm font-semibold text-foreground">About this role</div>
+            <h2 className="mb-2 text-sm font-semibold text-foreground">About this role</h2>
             {blocks.length > 0 ? (
                 <div className="max-w-[640px]">
-                    <JobDescription blocks={blocks} />
+                    <JobDescription blocks={blocks} headingLevel={3} />
                 </div>
             ) : (
                 <p className="max-w-[640px] text-base leading-normal text-foreground">
@@ -513,7 +507,7 @@ export function JobDetailDocument({
 
     const relatedEl = related.length > 0 && (
         <div data-testid="job-detail-related" className="border-t border-border py-6">
-            <div className="mb-2 text-sm font-semibold text-foreground">More like this</div>
+            <h2 className="mb-2 text-sm font-semibold text-foreground">More like this</h2>
             {/* Rulebook item h: rows separated only by a hairline, not
                 bordered cards — RelatedJobRow itself carries no border now
                 (see JobDetail.tsx), so this wrapper supplies the dividers. */}

@@ -24,7 +24,7 @@ export function PageLayout({ children, header, sidebar, fullWidth, className, sh
   return (
     <div className={cn("min-h-screen bg-background flex flex-col", shellClassName)}>
       {header}
-      <main className={cn(
+      <div className={cn(
         "flex-1",
         !fullWidth && "mx-auto w-full max-w-6xl xl:max-w-7xl px-4 sm:px-8 py-6 xl:px-10",
         className
@@ -37,7 +37,7 @@ export function PageLayout({ children, header, sidebar, fullWidth, className, sh
             </aside>
           </div>
         ) : children}
-      </main>
+      </div>
     </div>
   );
 }

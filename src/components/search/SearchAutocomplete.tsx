@@ -24,6 +24,11 @@ interface SearchAutocompleteProps {
     containerClassName?: string;
     autoFocus?: boolean;
     leadingIcon?: React.ReactNode;
+    /** Accessible name for the underlying `<input>` — it carries no visible
+     *  `<label>` (the placeholder is not one), so screen readers need this
+     *  instead. Defaults to the query-search case; a non-search mount would
+     *  pass its own. */
+    ariaLabel?: string;
     /**
      * Optional async suggestion source (e.g. title/company from a live search
      * index). When provided, it REPLACES the local `getSuggestions` + history
@@ -95,7 +100,8 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     autoFocus,
     leadingIcon,
     suggest,
-    seeds
+    seeds,
+    ariaLabel = "Search jobs"
 }, ref) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [suggestLoading, setSuggestLoading] = useState(false);
@@ -291,6 +297,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 <Input
                     ref={inputRef}
                     type="text"
+                    aria-label={ariaLabel}
                     placeholder={placeholder}
                     className={cn("relative z-20 transition-all", leadingIcon && "min-w-0 flex-1", className)}
                     value={value}
