@@ -55,4 +55,23 @@ describe("JobDetail guest chrome", () => {
         const page = readFileSync(JOB_PAGE, "utf8");
         assert.doesNotMatch(page, /<h1[^>]*>\s*\{job\.title\}/);
     });
+
+    it("mounts every job-detail block exactly once (no parallel mobile/desktop copies)", () => {
+        // Each block used to be referenced once in a `lg:hidden` mobile stack
+        // AND once in a `hidden lg:grid` desktop grid — both mounted, so the
+        // served HTML (and every effect inside these blocks) doubled. A
+        // single CSS-reordered render must reference each block exactly once.
+        const doc = readFileSync(JOB_DOCUMENT, "utf8");
+        for (const block of ["heroEl", "applyCardEl", "receiptEl", "postingEl", "employerCardEl", "aiBoxEl"]) {
+            const uses = doc.match(new RegExp(`\\{${block}\\}`, "g")) ?? [];
+            assert.equal(uses.length, 1, `{${block}} must be referenced exactly once — a second reference re-mounts the block`);
+        }
+        // relatedEl is the one block that legitimately renders in two
+        // different reading-order positions (closed vs. open jobs), but the
+        // two uses must be mutually exclusive on `closed`, never both mounted.
+        const relatedUses = doc.match(/\{relatedEl\}/g) ?? [];
+        assert.equal(relatedUses.length, 2, "{relatedEl} must appear in exactly two guarded positions");
+        assert.match(doc, /\{closed && <div[^>]*>\{relatedEl\}<\/div>\}/, "one relatedEl use must be gated on closed");
+        assert.match(doc, /\{!closed && <div[^>]*>\{relatedEl\}<\/div>\}/, "the other relatedEl use must be gated on !closed");
+    });
 });

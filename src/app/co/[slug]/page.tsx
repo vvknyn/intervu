@@ -17,6 +17,7 @@ import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { CompanyTechStackBand } from "@/components/company/CompanyTechStackBand";
 import { CompanyVerdictBand } from "@/components/company/CompanyVerdictBand";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { DotSeparated } from "@/components/ui/dot-separated";
 import type { CompanyChangeEvent } from "@/lib/companies/types";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import { getCompanyPageData } from "@/lib/companies/get-company";
@@ -201,31 +202,26 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                   tags/pills are excluded). Absence is still silence: a fact
                   with nothing behind it (`buildCompanyFacts`) just doesn't
                   contribute a segment. */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-sm text-muted-foreground">
-                <a
-                  href={`https://${facts.domain}`}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="text-brand hover:underline"
-                >
-                  {facts.domain}
-                </a>
-                {[
-                  // HQ renders at the precision the box actually stored —
-                  // country only, never an invented city (contract rule).
-                  profile?.hqCountry,
-                  facts.hiringGeos,
-                  facts.remoteShare,
-                  data.stage,
-                  ...headerChips,
-                ]
-                  .filter((v): v is string => Boolean(v))
-                  .map((segment) => (
-                    <span key={segment}>
-                      <span className="mx-0.5" aria-hidden>·</span>
-                      {segment}
-                    </span>
-                  ))}
+              <div className="mt-3 text-sm text-muted-foreground">
+                <DotSeparated
+                  items={[
+                    <a
+                      href={`https://${facts.domain}`}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="text-brand hover:underline"
+                    >
+                      {facts.domain}
+                    </a>,
+                    // HQ renders at the precision the box actually stored —
+                    // country only, never an invented city (contract rule).
+                    profile?.hqCountry,
+                    facts.hiringGeos,
+                    facts.remoteShare,
+                    data.stage,
+                    ...headerChips,
+                  ]}
+                />
               </div>
             </div>
           </div>

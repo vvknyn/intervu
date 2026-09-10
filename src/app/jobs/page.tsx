@@ -4807,6 +4807,10 @@ function JobsContent() {
                         `savedSearchControl`) was already the one rendering it —
                         the mobile SERP's blank ~44px band under the search bar. */}
                     {!showLandingMarketing && (activeCategory || (!showJobsToolbarRow && canSaveSearch)) && (
+                        /* Chip rows separate by `gap` on purpose — a glyph
+                           separator as its own flex item lands at the start
+                           of a wrapped line; `DotSeparated` is for inline
+                           text runs, not chips. */
                         <div
                             data-testid="active-category-indicator"
                             className="mt-1 flex min-h-[2.75rem] flex-wrap items-center gap-1.5 px-0.5 text-xs text-muted-foreground sm:min-h-0"
@@ -4817,7 +4821,6 @@ function JobsContent() {
                                         Searching:
                                     </span>
                                     <span>{activeCategory.title}</span>
-                                    <span aria-hidden className="text-border">·</span>
                                     <button
                                         type="button"
                                         onClick={handleClearSearch}
@@ -4825,7 +4828,6 @@ function JobsContent() {
                                     >
                                         clear ✕
                                     </button>
-                                    {canSaveSearch && !showJobsToolbarRow && <span aria-hidden className="text-border">·</span>}
                                 </>
                             )}
                             {!showJobsToolbarRow && savedSearchControl}
