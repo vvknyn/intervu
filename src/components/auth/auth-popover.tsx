@@ -1,9 +1,12 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { captureEvent } from "@/lib/analytics/events";
+import { type AuthGateReason, shouldCaptureAuthStarted } from "@/lib/auth/auth-gate-copy";
 
 interface AuthPopoverProps {
     open: boolean;
@@ -27,9 +30,20 @@ interface AuthPopoverProps {
     valueLine?: React.ReactNode;
     /** Initial login-form tab — signup for apply gates, login otherwise. */
     defaultTab?: "login" | "signup";
+    /** Auth-gate reason class for auth_started telemetry — omit for generic. */
+    reason?: AuthGateReason;
 }
 
-export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine, defaultTab = "login" }: AuthPopoverProps) {
+export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine, defaultTab = "login", reason }: AuthPopoverProps) {
+    const wasOpenRef = useRef(false);
+
+    useEffect(() => {
+        if (shouldCaptureAuthStarted(wasOpenRef.current, open)) {
+            captureEvent("auth_started", { reason: reason ?? "generic" });
+        }
+        wasOpenRef.current = open;
+    }, [open, reason]);
+
     const handleSuccess = () => {
         onAuthed?.();
         onOpenChange(false);

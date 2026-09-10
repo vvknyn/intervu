@@ -79,7 +79,7 @@ test.describe("AUTH-GATE - pending action survives a hard-nav OAuth round trip",
         await expect(googleButton).toBeVisible();
 
         const persisted = await readPersistedPendingAction(page);
-        expect(persisted.action.kind).toBe("gate");
+        expect(persisted.action.kind).toBe("apply");
         expect(persisted.returnTo).toBe(expectedReturnTo);
 
         await googleButton.click();

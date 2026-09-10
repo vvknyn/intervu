@@ -13,6 +13,7 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import type { MatchScore } from "@/lib/match/score";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
+import { recordGuestJobView } from "@/lib/auth/guest-engage-nudge";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
@@ -295,8 +296,9 @@ export function JobDetailDocument({
 
     useEffect(() => {
         captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
+        if (!signedIn) recordGuestJobView();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [job.id, source]);
+    }, [job.id, source, signedIn]);
 
     const [related, setRelated] = useState<PublicJob[]>([]);
     useEffect(() => {
@@ -446,7 +448,7 @@ export function JobDetailDocument({
                 {job.apply_url && (
                     <Button onClick={onOpenPosting} className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
                         <ArrowSquareOut size={16} />
-                        {signedIn ? "Apply on Company Site" : "Sign in to apply"}
+                        Apply on Company Site
                     </Button>
                 )}
                 {/* Rulebook item f: Save outline → the same 40px icon-only

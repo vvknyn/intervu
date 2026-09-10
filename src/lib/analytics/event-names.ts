@@ -17,6 +17,7 @@ export const ANALYTICS_EVENTS = {
   apply_clicked: "apply_clicked",
   job_saved: "job_saved",
   company_followed: "company_followed",
+  auth_started: "auth_started",
   signup_completed: "signup_completed",
 
   // Job entity
@@ -50,3 +51,6 @@ export const ANALYTICS_EVENTS = {
 } as const;
 
 export type AnalyticsEventKey = keyof typeof ANALYTICS_EVENTS;
+
+/** How the account was created — the `method` on `signup_completed`. */
+export type SignupMethod = "email" | "google" | "username" | "passkey";

@@ -30,6 +30,7 @@ import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { withShareRef } from "@/lib/share/share-decision";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
+import { recordGuestJobView } from "@/lib/auth/guest-engage-nudge";
 import { SHARE_JOB_TEXT } from "@/lib/seo/constants";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
 import { getRelatedJobsAction, getCompanyOpenCountAction } from "@/actions/jobs";
@@ -297,7 +298,7 @@ export function JobDetailActionBar({
      *  bookmark control rendered inline above. */
     pursuit: Pursuit | undefined;
     goingAfter: boolean;
-    /** When false, the apply CTA reads "Sign in to apply" (handler still gates). */
+    /** When false, guest chrome still shows "Apply" (auth is a separate step). */
     signedIn?: boolean;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
      *  so callers built before the removal — e.g. app/page.tsx, out of this
@@ -318,7 +319,7 @@ export function JobDetailActionBar({
             {job.apply_url && (
                 <Button className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
                     <ArrowSquareOut weight="bold" />
-                    {signedIn ? "Apply on Company Site" : "Sign in to apply"}
+                    Apply on Company Site
                 </Button>
             )}
             {/* Same 40px icon-only ghost bookmark as the desktop action row —
@@ -484,8 +485,9 @@ export function JobDetail({
     }, [job.id]);
     useEffect(() => {
         captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
+        if (!signedIn) recordGuestJobView();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [job.id, source]);
+    }, [job.id, source, signedIn]);
     // Identity-header location line — same progressive-disclosure idiom as
     // the description clamp above, for aggregator-feed `location` strings
     // that stuff many semicolon-joined locations into one field (see
@@ -856,7 +858,7 @@ export function JobDetail({
                         {job.apply_url && (
                             <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-4 rounded-none bg-brand text-brand-foreground hover:bg-brand text-xs font-semibold transition-colors">
                                 <ArrowSquareOut size={16} />
-                                {signedIn ? "Apply" : "Sign in to apply"}
+                                Apply
                             </Button>
                         )}
                         {/* Bookmark: 40px icon-only ghost control (rulebook — icon
@@ -1082,7 +1084,7 @@ export function JobDetail({
                                             <>
                                                 Use{" "}
                                                 <span className="font-semibold text-foreground">
-                                                    {signedIn ? "Apply" : "Sign in to apply"}
+                                                    Apply
                                                 </span>{" "}
                                                 to read the full details on the employer&apos;s site.
                                             </>

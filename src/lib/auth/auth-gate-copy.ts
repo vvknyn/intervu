@@ -6,6 +6,13 @@
 
 export type AuthGateReason = "apply" | "generic" | "save";
 
+/** Pure guard for auth_started — fire only on false→true, not on close or
+ *  re-renders while open. Kept next to AuthGateReason so AuthPopover and
+ *  tests share one rule without mounting the modal. */
+export function shouldCaptureAuthStarted(wasOpen: boolean, nowOpen: boolean): boolean {
+    return !wasOpen && nowOpen;
+}
+
 export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 
 /** Shown on LoginForm's own signup-tab header, on every AuthPopover surface
@@ -17,7 +24,7 @@ export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 export const SIGNUP_SUBCOPY = "Get job alerts, saved searches, and an application tracker — on any device.";
 
 const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
-    apply: "Create a free account — we'll take you straight to the posting and start tracking this application.",
+    apply: "Create a free account to track this application across devices.",
     generic: "Sign in to sync your tracker across devices.",
     save: "Sign in to keep your list across devices and get alerts when new roles match.",
 };

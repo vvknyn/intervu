@@ -35,7 +35,7 @@ function withReadyPostHog(t: TestContext, fn: (capture: ReturnType<TestContext["
 // Event-name stability: this map is the naming contract every dashboard
 // funnel/chart is built on. Renaming any value here breaks whatever's
 // already built on the old string, so a fixed-object assertion is the
-// guard — deliberately exhaustive (all 19), not a sample, so a new event
+// guard — deliberately exhaustive (all 24), not a sample, so a new event
 // added to ANALYTICS_EVENTS without a matching line here fails loudly
 // instead of just widening silently.
 test("ANALYTICS_EVENTS pins the exact wire name for every declared event", () => {
@@ -46,6 +46,7 @@ test("ANALYTICS_EVENTS pins the exact wire name for every declared event", () =>
     apply_clicked: "apply_clicked",
     job_saved: "job_saved",
     company_followed: "company_followed",
+    auth_started: "auth_started",
     signup_completed: "signup_completed",
 
     job_viewed: "job_viewed",

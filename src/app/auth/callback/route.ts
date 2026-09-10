@@ -1,8 +1,14 @@
 import { handleAuth } from "@workos-inc/authkit-nextjs";
 import { after } from "next/server";
+import { cookies } from "next/headers";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisioning";
 import { withDirectHitGuard } from "@/lib/auth/callback-guard";
+import {
+    resolveAuthKitSignupSignal,
+    SIGNUP_SIGNAL_COOKIE_NAME,
+    signupSignalCookieOptions,
+} from "@/lib/auth/authkit-signup-signal";
 
 /**
  * WorkOS AuthKit OAuth callback route.
@@ -38,6 +44,16 @@ import { withDirectHitGuard } from "@/lib/auth/callback-guard";
  * catch-all member of the same union) covers the rare case it's absent
  * rather than inventing a new label.
  *
+ * AuthKit signups emit `signup_completed` via a short-lived
+ * `intervu_signup_completed` cookie set here (`cookies().set()`, the same
+ * API WorkOS `saveSession` already uses on this route — wrapping
+ * handleAuth's Response to append Set-Cookie would risk dropping the
+ * session cookie) and consumed client-side in `PostHogProvider` after
+ * `posthog.identify(uid)`. The signal is `!hasApp(metadata.apps, intervu)`
+ * evaluated BEFORE `provisionAppAccess` tags them — not
+ * `user.createdAt ≈ now`. Username/password signups never hit this route;
+ * they fire from `login-form.tsx` directly.
+ *
  * `withDirectHitGuard` (src/lib/auth/callback-guard.ts) redirects a request
  * that carries neither `code` nor `error` straight to /login instead of
  * letting it fall into handleAuth's generic 500 — see that file for why.
@@ -46,6 +62,14 @@ export const GET = withDirectHitGuard(
     handleAuth({
         baseURL: getSiteUrl(),
         onSuccess: async ({ user, authenticationMethod }) => {
+            const signal = resolveAuthKitSignupSignal({
+                apps: user.metadata?.apps,
+                authenticationMethod: authenticationMethod ?? "ExternalAuth",
+            });
+            if (signal) {
+                const cookieStore = await cookies();
+                cookieStore.set(SIGNUP_SIGNAL_COOKIE_NAME, signal, signupSignalCookieOptions());
+            }
             after(() =>
                 realProvisioningDeps()
                     .then((deps) => provisionAppAccess(deps, user, authenticationMethod ?? "ExternalAuth"))
