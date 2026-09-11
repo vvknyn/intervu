@@ -305,7 +305,7 @@ export function TopBar() {
                             aria-controls="filters-panel"
                             data-testid="topbar-docked-filters-toggle"
                             className={cn(
-                                chipVariants({ active: docked.filtersExpanded || docked.filterCount > 0 }),
+                                chipVariants({ active: docked.filtersExpanded }),
                                 toolbarControlHeight,
                                 "box-border shrink-0 items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold lg:px-3",
                             )}

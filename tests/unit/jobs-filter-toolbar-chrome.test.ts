@@ -3,14 +3,23 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import {
+    facetBarShouldRenderChip,
+    hasStandingFacetSelection,
+} from "../../src/components/jobs/FacetBar";
+import { PRISTINE_FILTER_STATE, type FilterState } from "../../src/components/jobs/FilterPanel";
+
 const CHIP = join(__dirname, "..", "..", "src", "components", "ui", "chip.tsx");
 const FILTER_CHIPS_ROW = join(__dirname, "..", "..", "src", "components", "jobs", "FilterChipsRow.tsx");
 const FACET_BAR = join(__dirname, "..", "..", "src", "components", "jobs", "FacetBar.tsx");
 const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx");
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
+const SAVED_SEARCHES = join(__dirname, "..", "..", "src", "components", "jobs", "SavedSearchesPanel.tsx");
 const GLOBALS = join(__dirname, "..", "..", "src", "app", "globals.css");
 
-const CHANGED = [CHIP, FILTER_CHIPS_ROW, FACET_BAR, PAGE, TOPBAR, GLOBALS];
+const CHANGED = [CHIP, FILTER_CHIPS_ROW, FACET_BAR, PAGE, TOPBAR, SAVED_SEARCHES, GLOBALS];
+
+const pristine: FilterState = { ...PRISTINE_FILTER_STATE };
 
 describe("jobs filter toolbar chrome", () => {
     it("chip active variant uses a 3px brand blade, tinted fill, squared geometry", () => {
@@ -80,8 +89,8 @@ describe("jobs filter toolbar chrome", () => {
         const toolbar = page.slice(page.indexOf('data-testid="jobs-toolbar"'), page.indexOf('data-testid="active-filter-row"'));
         const inPageClear = toolbar.indexOf("unnamedEntries.length === 0 && clearFiltersEl");
         const inPageSpacer = toolbar.indexOf("min-w-0 flex-1");
-        const inPageSave = toolbar.indexOf("savedSearchMountEl");
-        assert.ok(inPageClear > -1 && inPageSpacer > inPageClear && inPageSave > inPageSpacer);
+        const inPageActions = toolbar.indexOf('data-testid="jobs-toolbar-actions"');
+        assert.ok(inPageClear > -1 && inPageSpacer > inPageClear && inPageActions > inPageSpacer);
 
         const activeRow = page.slice(
             page.indexOf('data-testid="active-filter-row"'),
@@ -113,6 +122,66 @@ describe("jobs filter toolbar chrome", () => {
         assert.match(src, /\[data-testid="topbar-docked-save-search"\]:empty/);
         assert.match(src, /\[data-testid="topbar-docked-sort"\]:empty/);
         assert.match(src, /\[data-testid="topbar-docked-extras"\]:empty/);
+    });
+
+    it("undocked actions cluster sits after the flex-1 spacer", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const toolbar = page.slice(page.indexOf('data-testid="jobs-toolbar"'), page.indexOf('data-testid="active-filter-row"'));
+        const spacerIdx = toolbar.indexOf("min-w-0 flex-1");
+        const actionsIdx = toolbar.indexOf('data-testid="jobs-toolbar-actions"');
+        assert.ok(spacerIdx > -1 && actionsIdx > spacerIdx);
+        assert.match(toolbar.slice(actionsIdx, actionsIdx + 400), /savedSearchMountEl/);
+        assert.match(toolbar.slice(actionsIdx, actionsIdx + 400), /\{sortEl\}/);
+    });
+
+    it("facetBarShouldRenderChip hides inactive standing facets and shows applied ones", () => {
+        assert.equal(facetBarShouldRenderChip("postedBucket", pristine, true), false);
+        assert.equal(facetBarShouldRenderChip("salaryMin", pristine, false), false);
+        assert.equal(facetBarShouldRenderChip("work_type", pristine, true), false);
+        assert.equal(facetBarShouldRenderChip("experience_level", pristine, true), false);
+        assert.equal(hasStandingFacetSelection(pristine, true), false);
+
+        const withPosted: FilterState = { ...pristine, postedBucket: "7d", postedExplicit: true };
+        assert.equal(facetBarShouldRenderChip("postedBucket", withPosted, true), true);
+        assert.equal(hasStandingFacetSelection(withPosted, true), true);
+
+        const withSalary: FilterState = { ...pristine, salaryMin: 100_000 };
+        assert.equal(facetBarShouldRenderChip("salaryMin", withSalary, true), true);
+
+        const withWorkType: FilterState = { ...pristine, facets: { work_type: ["remote"] } };
+        assert.equal(facetBarShouldRenderChip("work_type", withWorkType, true), true);
+
+        const withExperience: FilterState = { ...pristine, facets: { experience_level: ["senior"] } };
+        assert.equal(facetBarShouldRenderChip("experience_level", withExperience, true), true);
+    });
+
+    it("FacetBar returns null when no standing facet is applied", () => {
+        const src = readFileSync(FACET_BAR, "utf8");
+        assert.match(src, /hasStandingFacetSelection\(state, postedDateSupported\)\) return null/);
+        assert.match(src, /facetBarShouldRenderChip\("postedBucket"/);
+        assert.match(src, /facetBarShouldRenderChip\("salaryMin"/);
+    });
+
+    it("Filters toggle is active only when expanded, not when filter count is nonzero", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const topbar = readFileSync(TOPBAR, "utf8");
+        assert.match(page, /chipVariants\(\{ active: filtersOpen \}\)/);
+        assert.doesNotMatch(page, /chipVariants\(\{ active: filtersOpen \|\| activeCount/);
+        assert.match(topbar, /chipVariants\(\{ active: docked\.filtersExpanded \}\)/);
+        assert.doesNotMatch(topbar, /chipVariants\(\{ active: docked\.filtersExpanded \|\| docked\.filterCount/);
+    });
+
+    it("Rank by fit and compact Save search use quiet text, not chipVariants", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const saved = readFileSync(SAVED_SEARCHES, "utf8");
+        const rankBlock = page.slice(page.indexOf('data-testid="jobs-rank-by-fit"'), page.indexOf('data-testid="jobs-rank-by-fit"') + 350);
+        assert.doesNotMatch(rankBlock, /chipVariants/);
+        assert.match(rankBlock, /text-xs font-semibold text-foreground/);
+
+        const saveTrigger = saved.slice(saved.indexOf('data-testid="save-search-trigger"'), saved.indexOf('data-testid="save-search-trigger"') + 450);
+        assert.doesNotMatch(saveTrigger, /chipVariants/);
+        assert.match(saveTrigger, /toolbarControlHeight/);
+        assert.match(saveTrigger, /text-xs font-semibold text-foreground/);
     });
 
     it("changed files do not touch JobDetail handoff or list-detail motion", () => {

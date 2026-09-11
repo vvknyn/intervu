@@ -73,7 +73,7 @@ test("toolbar control height", async (t) => {
         const blocks = classNameBlocksContaining("chipVariants(");
         // If this ever reads 0, the scan stopped finding the call sites and
         // every assertion below would pass vacuously.
-        assert.ok(blocks.length >= 6, `expected to find the chip call sites, found ${blocks.length}`);
+        assert.ok(blocks.length >= 4, `expected to find the chip call sites, found ${blocks.length}`);
 
         const offenders = blocks.filter((b) => HEIGHT_UTIL.test(b));
         assert.deepEqual(
