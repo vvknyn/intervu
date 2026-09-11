@@ -5004,27 +5004,29 @@ function JobsContent() {
                             <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
                         )}
                         {!headerDockActive && unnamedEntries.length > 0 && (
-                            <div className="w-px shrink-0 self-stretch bg-border" aria-hidden />
+                            <>
+                                <div className="w-px shrink-0 self-stretch bg-border" aria-hidden />
+                                <div
+                                    role="group"
+                                    aria-label="Active filters"
+                                    className="flex shrink-0 items-center gap-2"
+                                >
+                                    {unnamedEntries.map((entry) => (
+                                        <span
+                                            key={entry.key}
+                                            data-testid="active-filter-chip"
+                                            className={cn(chipVariants({ active: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
+                                        >
+                                            {chipLabelForEntry(entry)}
+                                            <ChipDismiss
+                                                label={`Clear ${chipLabelForEntry(entry)}`}
+                                                onClick={() => applyFilterState(entry.clear(filterState))}
+                                            />
+                                        </span>
+                                    ))}
+                                </div>
+                            </>
                         )}
-                        <div
-                            role="group"
-                            aria-label="Active filters"
-                            className={cn("contents", unnamedEntries.length === 0 && "hidden")}
-                        >
-                        {!headerDockActive && unnamedEntries.map((entry) => (
-                            <span
-                                key={entry.key}
-                                data-testid="active-filter-chip"
-                                className={cn(chipVariants({ active: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
-                            >
-                                {chipLabelForEntry(entry)}
-                                <ChipDismiss
-                                    label={`Clear ${chipLabelForEntry(entry)}`}
-                                    onClick={() => applyFilterState(entry.clear(filterState))}
-                                />
-                            </span>
-                        ))}
-                        </div>
                         {!headerDockActive && clearFiltersEl}
                         {!headerDockActive && savedSearchMountEl}
                         </>

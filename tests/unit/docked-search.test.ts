@@ -114,7 +114,8 @@ describe("dock chips: sourced from activeFilterEntries only", () => {
         // active" is the duplicate-affordance regression this whole feature
         // was built to avoid repeating.
         const src = stripComments(JOBS);
-        assert.match(src, /!headerDockActive && unnamedEntries\.map/);
+        assert.match(src, /!headerDockActive && unnamedEntries\.length > 0/);
+        assert.match(src, /unnamedEntries\.map\(\(entry\)/);
         assert.match(src, /showsFiltersToggle\(facetsMountSite\) && !headerDockActive/);
     });
 });

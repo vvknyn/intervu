@@ -321,20 +321,26 @@ export function TopBar() {
                         {docked.chips.length > 0 && (
                             <>
                                 <div className="w-px shrink-0 self-stretch bg-border" aria-hidden />
-                                {docked.chips.map((chip) => (
-                                    <span
-                                        key={chip.key}
-                                        data-testid="topbar-docked-chip"
-                                        className={cn(
-                                            chipVariants({ active: true }),
-                                            toolbarControlHeight,
-                                            "box-border items-center gap-2 px-3 lg:px-3",
-                                        )}
-                                    >
-                                        {chip.label}
-                                        <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
-                                    </span>
-                                ))}
+                                <div
+                                    role="group"
+                                    aria-label="Active filters"
+                                    className="flex shrink-0 items-center gap-2"
+                                >
+                                    {docked.chips.map((chip) => (
+                                        <span
+                                            key={chip.key}
+                                            data-testid="topbar-docked-chip"
+                                            className={cn(
+                                                chipVariants({ active: true }),
+                                                toolbarControlHeight,
+                                                "box-border items-center gap-2 px-3 lg:px-3",
+                                            )}
+                                        >
+                                            {chip.label}
+                                            <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
+                                        </span>
+                                    ))}
+                                </div>
                             </>
                         )}
                         <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />

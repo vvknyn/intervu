@@ -101,7 +101,8 @@ function Chip({
             className={cn(
                 chipVariants({ active }),
                 toolbarChipClass,
-                "shrink-0 leading-none gap-1",
+                "shrink-0 self-stretch leading-none gap-1 border-y-0 border-r-0",
+                !active && "border-l-0",
                 className,
             )}
         >
@@ -159,7 +160,7 @@ export function FilterChipsRow({
         <div
             role="group"
             aria-label="Quick filters"
-            className="flex shrink-0 items-center gap-2 lg:hidden"
+            className="flex shrink-0 items-stretch divide-x divide-border border border-border bg-background lg:hidden"
         >
             {/* Same rule as the rail's "Date posted" section: no control when the
                 corpus can't answer it. Both surfaces read one flag so they can't

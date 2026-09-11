@@ -50,12 +50,13 @@ describe("jobs filter strip chrome guards", () => {
         assert.match(dockedChips, /chipVariants\(\{ active: true \}\)/);
     });
 
-    it("FilterChipsRow defers colour to chipVariants", () => {
+    it("FilterChipsRow defers colour to chipVariants and clusters like FacetBar", () => {
         const src = readFileSync(FILTER_CHIPS, "utf8");
         assert.doesNotMatch(src, /border-foreground/);
         assert.doesNotMatch(src, /!active && "border-foreground/);
         assert.doesNotMatch(src, /active && "border-brand bg-muted/);
         assert.match(src, /chipVariants\(\{ active \}\)/);
+        assert.match(src, /divide-x divide-border/);
     });
 
     it("changed sources do not mention JobDetailHandoff", () => {

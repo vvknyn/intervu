@@ -127,7 +127,7 @@ test("toolbar control height", async (t) => {
     await t.test("FilterChipsRow is a nowrap chip rail, not a 3-column grid", () => {
         assert.doesNotMatch(filterChipsSrc, /grid-cols-3/);
         assert.doesNotMatch(filterChipsSrc, /w-full justify-center/);
-        assert.match(filterChipsSrc, /flex shrink-0 items-center/);
+        assert.match(filterChipsSrc, /flex shrink-0 items-stretch/);
         assert.match(filterChipsSrc, /toolbarChipClass/);
     });
 
