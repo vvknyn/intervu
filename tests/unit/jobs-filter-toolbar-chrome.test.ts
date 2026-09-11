@@ -51,6 +51,13 @@ describe("jobs filter toolbar chrome", () => {
         assert.match(facetChip, /text-xs/);
     });
 
+    it("FacetBar root is visible below lg (no hidden lg:flex)", () => {
+        const src = readFileSync(FACET_BAR, "utf8");
+        const root = src.slice(src.indexOf('data-testid="facet-bar"'), src.indexOf('data-testid="facet-bar"') + 120);
+        assert.match(root, /flex flex-nowrap/);
+        assert.doesNotMatch(root, /hidden lg:flex/);
+    });
+
     it("page.tsx renders distinct active-filter row with required source patterns", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.match(src, /data-testid="active-filter-row"/);
@@ -112,9 +119,14 @@ describe("jobs filter toolbar chrome", () => {
         const filtersToggleIdxUndocked = toolbar.indexOf('data-testid="filters-toggle"');
         const inPageSpacer = toolbar.indexOf("min-w-0 flex-1");
         const inPageActions = toolbar.indexOf('data-testid="jobs-toolbar-actions"');
-        assert.ok(filterChipsRowIdx > -1 && filtersToggleIdxUndocked > filterChipsRowIdx, "undocked filters-toggle after FilterChipsRow");
+        assert.equal(filterChipsRowIdx, -1, "undocked toolbar must not mount FilterChipsRow");
+        assert.ok(filtersToggleIdxUndocked > -1, "undocked filters-toggle present");
         assert.ok(filtersToggleIdxUndocked < fieldDirectoryIdx, "undocked filters-toggle before fieldDirectory");
         assert.ok(fieldDirectoryIdx > -1 && facetBarIdx > fieldDirectoryIdx, "undocked fieldDirectory before facetBar");
+        assert.ok(
+            filtersToggleIdxUndocked < fieldDirectoryIdx && filtersToggleIdxUndocked < facetBarIdx,
+            "undocked filters-toggle must not sit between field-directory and facets",
+        );
         assert.ok(inPageClear > -1 && inPageClear < inPageSpacer, "undocked clear before spacer");
         assert.ok(inPageSpacer < inPageActions, "undocked spacer before actions");
 

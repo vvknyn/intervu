@@ -462,12 +462,11 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /!showJobsToolbarRow && savedSearchControl/);
     });
 
-    it("mounts FilterChipsRow inside the toolbar scroller", () => {
+    it("mounts FacetBar as the in-page applied-chip rail, not FilterChipsRow", () => {
         const src = readFileSync(PAGE, "utf8");
-        const toolbar = src.slice(src.indexOf('data-testid="jobs-toolbar"'));
-        assert.match(toolbar, /<FilterChipsRow/);
-        const beforeToolbar = src.slice(0, src.indexOf('data-testid="jobs-toolbar"'));
-        assert.doesNotMatch(beforeToolbar, /<FilterChipsRow/);
+        const toolbar = src.slice(src.indexOf('data-testid="jobs-toolbar"'), src.indexOf('data-testid="active-filter-row"'));
+        assert.match(toolbar, /facetBarEl/);
+        assert.doesNotMatch(toolbar, /<FilterChipsRow/);
     });
 
     it("mounts the filter toolbar before Browse by field on the landing", () => {

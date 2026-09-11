@@ -129,7 +129,7 @@ import {
     type FilterState,
     type LocationSheetDraft,
 } from "@/components/jobs/FilterPanel";
-import { FilterChipsRow, pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
+import { pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
 import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
 import { LocationCombobox } from "@/components/jobs/LocationCombobox";
 import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
@@ -4962,16 +4962,6 @@ function JobsContent() {
                 >
                     {showJobsToolbarRow && (
                     <div className="flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain lg:gap-3">
-                        {showToolbarFilters && (
-                            <FilterChipsRow
-                                state={filterState}
-                                distribution={result?.facetDistribution}
-                                onPostedBucket={panelPostedBucket}
-                                onToggleFacet={panelToggleFacet}
-                                onSalaryMin={panelSalaryMin}
-                                postedDateSupported={postedDateSupported}
-                            />
-                        )}
                         {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
                         <button
                             type="button"
