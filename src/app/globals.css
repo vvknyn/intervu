@@ -645,6 +645,131 @@ h4 {
   animation: panel-enter var(--transition-fast) ease-out both;
 }
 
+/* Job detail SERP handoff — signature clip/mask/overlap on explicit list→detail
+   selection. Exceeds the 150ms colour-only motion budget (DESIGN-LANGUAGE.md)
+   because hard clip geometry, overlapping planes, and a brand blade on the
+   leading edge are the verification-instrument affordance for job selection —
+   not a decorative colour fade. */
+@keyframes job-handoff-pane-clip {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes job-handoff-sheet-clip {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+
+  to {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes job-handoff-overlap-pane {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes job-handoff-overlap-sheet {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+
+  to {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes job-handoff-blade-pane-x {
+  from {
+    left: 0;
+  }
+
+  to {
+    /* Park fully past the pane's overflow:hidden right edge — a 10px blade
+       at left:100% would otherwise sit as a leftover brand strip. */
+    left: 100%;
+    margin-left: 0;
+  }
+}
+
+@keyframes job-handoff-blade-sheet-y {
+  from {
+    bottom: 0;
+  }
+
+  to {
+    bottom: 100%;
+  }
+}
+
+@keyframes job-handoff-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.job-detail-handoff[data-handoff="clip"][data-surface="pane"].job-detail-handoff-playing
+  .job-detail-handoff-body-clip {
+  animation: job-handoff-pane-clip 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.job-detail-handoff[data-handoff="clip"][data-surface="sheet"].job-detail-handoff-playing
+  .job-detail-handoff-body-clip {
+  animation: job-handoff-sheet-clip 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.job-detail-handoff[data-handoff="clip"][data-surface="pane"].job-detail-handoff-playing
+  .job-detail-handoff-overlap {
+  /* Shorter than the body clip so the paper plane leads and the two overlap. */
+  animation: job-handoff-overlap-pane 340ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.job-detail-handoff[data-handoff="clip"][data-surface="sheet"].job-detail-handoff-playing
+  .job-detail-handoff-overlap {
+  animation: job-handoff-overlap-sheet 340ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.job-detail-handoff[data-handoff="clip"][data-surface="pane"] .job-detail-handoff-blade {
+  top: 0;
+  bottom: 0;
+  width: 10px;
+}
+
+.job-detail-handoff[data-handoff="clip"][data-surface="sheet"] .job-detail-handoff-blade {
+  right: 0;
+  left: 0;
+  height: 10px;
+}
+
+.job-detail-handoff[data-handoff="clip"][data-surface="pane"].job-detail-handoff-playing
+  .job-detail-handoff-blade {
+  animation: job-handoff-blade-pane-x 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.job-detail-handoff[data-handoff="clip"][data-surface="sheet"].job-detail-handoff-playing
+  .job-detail-handoff-blade {
+  animation: job-handoff-blade-sheet-y 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.job-detail-handoff[data-handoff="fade"].job-detail-handoff-playing .job-detail-handoff-body {
+  animation: job-handoff-fade-in 150ms ease-out both;
+}
+
 /* Selection colors tied to brand */
 ::selection {
   background-color: rgb(var(--brand) / 0.2);
@@ -917,6 +1042,16 @@ select {
   :root {
     --transition-fast: 0s;
     --transition-panel: 0s;
+  }
+
+  /* Job detail handoff fade fallback — the wildcard rule above collapses every
+     animation to ~0ms; re-enable ONLY the fade body so reduced-motion visitors
+     still get a perceptible 150ms opacity settle without clip/blade motion. */
+  .job-detail-handoff[data-handoff="fade"].job-detail-handoff-playing .job-detail-handoff-body {
+    animation-name: job-handoff-fade-in !important;
+    animation-duration: 150ms !important;
+    animation-timing-function: ease-out !important;
+    animation-fill-mode: both !important;
   }
 }
 

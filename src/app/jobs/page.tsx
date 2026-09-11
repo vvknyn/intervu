@@ -139,6 +139,7 @@ import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton, MetaLine } from "@/components/jobs/JobDetail";
+import { JobDetailHandoff } from "@/components/jobs/JobDetailHandoff";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { rowTrustChip } from "@/lib/jobs/badges";
@@ -4175,6 +4176,7 @@ function JobsContent() {
     // diverge (hits present, preview suppressed), at xl+ they converge again
     // via ambient `hits[0]` without writing `?job=`.
     const detailMountSite = resolveDetailMountSite(isXlUp, detailSheetOpen, Boolean(detailJob));
+    const detailExplicit = Boolean(searchParams.get("job"));
     // The row the pane is currently showing — explicit selection when one
     // exists, else the ambient auto-preview. Drives the list's active ring
     // so the highlighted row and the pane's content can never disagree.
@@ -5129,7 +5131,13 @@ function JobsContent() {
                             className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border-l xl:border-border"
                         >
                             {detailMountSite === "pane" ? (
-                                renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
+                                <JobDetailHandoff
+                                    identity={detailJob?.id ?? null}
+                                    explicit={detailExplicit}
+                                    surface="pane"
+                                >
+                                    {renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)}
+                                </JobDetailHandoff>
                             ) : loading ? (
                                 <div className="p-4">
                                     <JobDetailSkeleton />
@@ -5824,7 +5832,13 @@ function JobsContent() {
                             description-length-based inner clamp is a second,
                             redundant height cap one level deeper (mobile
                             detail-scroll fix part 2, 2026-08-18). */}
-                        {renderDetailSurface(undefined, false)}
+                        <JobDetailHandoff
+                            identity={detailJob?.id ?? null}
+                            explicit={detailExplicit}
+                            surface="sheet"
+                        >
+                            {renderDetailSurface(undefined, false)}
+                        </JobDetailHandoff>
                     </div>
                 </SheetContent>
             </Sheet>
