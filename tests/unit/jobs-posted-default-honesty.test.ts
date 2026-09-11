@@ -83,7 +83,7 @@ test("the quick chip's face names the applied window, including the fresh-visit 
 // unfiltered result set.
 const FLOOR = { kind: "floor", value: 100_000 } as const;
 const line = (postedBucket: FilterState["postedBucket"]) =>
-    searchResultLine({ count: { kind: "exact", value: 344_549 }, postedBucket, lastUpdated: null, nowMs: Date.now() });
+    searchResultLine({ count: { kind: "exact", value: 344_549 }, postedBucket, lastUpdated: null, nowMs: Date.now(), narrowed: false });
 
 test("the count sentence names a window only when one is applied", () => {
     assert.doesNotMatch(line(undefined), /last 30 days/, "captioned an unfiltered corpus as a 30-day slice");

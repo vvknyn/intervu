@@ -66,6 +66,7 @@ import {
     LOCATION_UNKNOWN_TEXT,
     postedAgeShort,
     searchResultLine,
+    isNarrowedResultSet,
     firstMentionIndex,
     interleaveByCompany,
     partitionByTitleMatch,
@@ -2017,11 +2018,15 @@ function JobsContent() {
      * `hits`/`loading` are in scope) for the separate render-fallback
      * decision.
      */
+    // Curated-board/single-employer scope. Its own variable (not inlined
+    // twice) because `searchResultLine`'s narrowed-set check below needs the
+    // exact same fact `resolveEmptySearchState` does here.
+    const hasCorpusScope = Boolean(filterState.board || filterState.companyDomain);
     const emptySearchState = resolveEmptySearchState({
         hasQuery: Boolean(query.trim()),
         fitActive,
         activeFilterCount: activeEntries.length,
-        hasCorpusScope: Boolean(filterState.board || filterState.companyDomain),
+        hasCorpusScope,
     });
     // `!searchParams.get("job")` — the RAW url param, not `selectedId` (whose
     // default-browse auto-selection of `hits[0]` is not a deliberate pick —
@@ -4138,7 +4143,17 @@ function JobsContent() {
     // sentence carries that state instead.
     const resultCountLine =
         result?.configured && !loading && !result.widened
-            ? searchResultLine({ count: totalCount, postedBucket: appliedPosted, lastUpdated, nowMs })
+            ? searchResultLine({
+                  count: totalCount,
+                  postedBucket: appliedPosted,
+                  lastUpdated,
+                  nowMs,
+                  narrowed: isNarrowedResultSet({
+                      hasQuery: Boolean(query.trim()),
+                      activeFilterCount: activeEntries.length,
+                      hasCorpusScope,
+                  }),
+              })
             : null;
 
     // "N more beyond 30 days — show all" affordance (2026-08-12) — gated on
