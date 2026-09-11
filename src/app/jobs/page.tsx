@@ -5002,11 +5002,11 @@ function JobsContent() {
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
                             <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
                         )}
-                        {!headerDockActive && clearFiltersEl}
-                        {!headerDockActive && savedSearchMountEl}
+                        {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
+                        {showToolbarFilters && !headerDockActive && savedSearchMountEl}
                         {!headerDockActive && sortEl}
                         {!headerDockActive && tourReplayEl}
                         {!headerDockActive && asOfEl}
@@ -5030,6 +5030,7 @@ function JobsContent() {
                                     />
                                 </span>
                             ))}
+                            {clearFiltersEl}
                         </div>
                     )}
 

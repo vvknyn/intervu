@@ -64,6 +64,37 @@ describe("jobs filter toolbar chrome", () => {
         assert.doesNotMatch(toolbarScroller, /flex-wrap/);
     });
 
+    it("Clear sits at the trailing end of the filter/chip cluster, not between chips and Save", () => {
+        const topbar = readFileSync(TOPBAR, "utf8");
+        const page = readFileSync(PAGE, "utf8");
+        const dockedRow = topbar.slice(
+            topbar.indexOf('data-testid="topbar-docked-field-directory"'),
+            topbar.indexOf('data-testid="topbar-docked-extras"'),
+        );
+        const clearIdx = dockedRow.indexOf("topbar-docked-clear-filters");
+        const saveIdx = dockedRow.indexOf("topbar-docked-save-search");
+        const spacerIdx = dockedRow.indexOf("min-w-0 flex-1");
+        assert.ok(clearIdx > -1 && saveIdx > -1 && spacerIdx > -1);
+        assert.ok(clearIdx < spacerIdx && spacerIdx < saveIdx, "docked Clear is last in the left cluster; Save is far right");
+
+        const toolbar = page.slice(page.indexOf('data-testid="jobs-toolbar"'), page.indexOf('data-testid="active-filter-row"'));
+        const inPageClear = toolbar.indexOf("unnamedEntries.length === 0 && clearFiltersEl");
+        const inPageSpacer = toolbar.indexOf("min-w-0 flex-1");
+        const inPageSave = toolbar.indexOf("savedSearchMountEl");
+        assert.ok(inPageClear > -1 && inPageSpacer > inPageClear && inPageSave > inPageSpacer);
+
+        const activeRow = page.slice(
+            page.indexOf('data-testid="active-filter-row"'),
+            page.indexOf("{facetsMountSite ==="),
+        );
+        assert.match(activeRow, /unnamedEntries\.map/);
+        assert.match(activeRow, /\{clearFiltersEl\}/);
+        assert.ok(
+            activeRow.indexOf("unnamedEntries.map") < activeRow.indexOf("{clearFiltersEl}"),
+            "when leftover chips have their own row, Clear trails that row",
+        );
+    });
+
     it("TopBar docked band wraps active chips with instrument rule", () => {
         const src = readFileSync(TOPBAR, "utf8");
         assert.match(src, /data-testid="topbar-docked-active-filters"/);
