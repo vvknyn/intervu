@@ -210,7 +210,14 @@ export async function parsePlaceTokens(
     const any = results[i * 2];
     if (any.length === 0) return; // nothing this resolution proposed exists in the corpus at all
     const scope = results[i * 2 + 1];
-    places.push(scope.length > 0 ? { any, scopedToCountry: scope } : { any });
+    const clause: PlaceClause = scope.length > 0 ? { any, scopedToCountry: scope } : { any };
+    // See `PlaceClause.remoteAnywhere`'s doc — a remote-anywhere job must
+    // surface under every COUNTRY filter, never a city/state/region one.
+    // This is the single site every typed or picked country resolution
+    // converges on (subdivision expansion's own chokepoint, resolve-
+    // place.ts's `countryCandidates`), so marking it here covers both.
+    if (r.entity.type === "country") clause.remoteAnywhere = true;
+    places.push(clause);
   });
   return { residualQ, places };
 }
