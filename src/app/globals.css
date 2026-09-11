@@ -478,6 +478,25 @@ html:has([data-testid="topbar-docked-filters-toggle"]) {
   --jobs-sticky-offset: calc(var(--topbar-h) + var(--jobs-filter-row-h) + var(--jobs-bar-content-gap));
 }
 
+.jobs-instrument-rule {
+  display: block;
+  width: 1px;
+  height: 1.25rem;
+  flex-shrink: 0;
+  align-self: center;
+  background: rgb(var(--border));
+}
+
+/* Empty portal mounts must not leave gap holes in the docked instrument row */
+[data-testid="topbar-docked-field-directory"]:empty,
+[data-testid="topbar-docked-facets"]:empty,
+[data-testid="topbar-docked-clear-filters"]:empty,
+[data-testid="topbar-docked-save-search"]:empty,
+[data-testid="topbar-docked-sort"]:empty,
+[data-testid="topbar-docked-extras"]:empty {
+  display: none;
+}
+
 body {
   background-color: rgb(var(--background));
   color: rgb(var(--foreground));

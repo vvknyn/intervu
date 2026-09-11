@@ -11,7 +11,7 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { Button } from "@/components/ui/button";
-import { chipVariants, ChipDismiss } from "@/components/ui/chip";
+import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -295,8 +295,8 @@ export function TopBar() {
                 that changes. Chip-less (a fresh search, nothing narrowed
                 yet) still renders the row for the "Filters" button alone. */}
             {docked && (
-                <div data-region="band" className="hidden bg-background lg:block">
-                    <div className="shell-row box-border flex h-10 flex-nowrap items-center gap-4 overflow-x-auto border-t border-border">
+                <div data-region="band" className="hidden bg-muted lg:block">
+                    <div className="shell-row box-border flex h-10 flex-nowrap items-center gap-2 overflow-x-auto border-t border-border">
                         <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
                         <button
                             type="button"
@@ -312,26 +312,33 @@ export function TopBar() {
                         >
                             Filters
                             {docked.filterCount > 0 && (
-                                <span className="ml-0.5 inline-flex min-w-[16px] items-center justify-center rounded-none border border-brand bg-muted px-1 text-xs font-semibold text-brand">
+                                <span className={cn("ml-0.5", filterCountBadgeClass)}>
                                     {docked.filterCount}
                                 </span>
                             )}
                         </button>
                         <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
-                        {docked.chips.map((chip) => (
-                            <span
-                                key={chip.key}
-                                data-testid="topbar-docked-chip"
-                                className={cn(
-                                    chipVariants({ active: false }),
-                                    toolbarControlHeight,
-                                    "box-border items-center gap-2 px-3 lg:px-3",
-                                )}
-                            >
-                                {chip.label}
-                                <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
-                            </span>
-                        ))}
+                        {docked.chips.length > 0 && (
+                            <>
+                                <span aria-hidden className="jobs-instrument-rule" />
+                                <div data-testid="topbar-docked-active-filters" className="flex shrink-0 items-center gap-2">
+                                    {docked.chips.map((chip) => (
+                                        <span
+                                            key={chip.key}
+                                            data-testid="topbar-docked-chip"
+                                            className={cn(
+                                                chipVariants({ active: true }),
+                                                toolbarControlHeight,
+                                                "box-border items-center gap-2 px-3 lg:px-3",
+                                            )}
+                                        >
+                                            {chip.label}
+                                            <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
+                                        </span>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                         <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />
                         <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-2" />
                         <div className="min-w-0 flex-1" aria-hidden />
