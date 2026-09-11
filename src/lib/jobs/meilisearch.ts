@@ -520,12 +520,29 @@ export function filterHitsByDomainFilters(
   return hits.filter((j) => jobMatchesDomainFilters(j, p));
 }
 
+/**
+ * A remote job carrying no geographic restriction — ruling + data fact are
+ * on `PlaceClause.remoteAnywhere` (jobs/types.ts), the one field that gates
+ * whether `renderPlaceClause` below ORs this in. Exported so the sizing
+ * probe (PR #479 body) and any future caller building the equivalent
+ * top-level predicate quote the same literal, never a hand-copied second
+ * one.
+ */
+export const REMOTE_ANYWHERE_CLAUSE = 'work_type = "remote" AND location_country IS NULL';
+
 /** Pure: one `PlaceClause` -> its Meilisearch boolean sub-expression — the
  *  `any` OR-group alone, or ANDed against `scopedToCountry` when present
  *  (see `PlaceClause`'s doc, jobs/types.ts, for why only a city/metro
- *  mention ever carries that second group). */
+ *  mention ever carries that second group). When `remoteAnywhere` is set
+ *  (country resolutions only), `REMOTE_ANYWHERE_CLAUSE` is OR'd into the
+ *  `any` group itself — never a separate AND'd part — so a place-bound work
+ *  type ("onsite canada") or a global `work_type` facet still excludes it by
+ *  construction: both render as a top-level AND against a clause that can
+ *  only ever be satisfied by a `work_type = "remote"` doc. No explicit
+ *  work-type guard needed here. */
 export function renderPlaceClause(clause: PlaceClause): string {
-  const parts = ["(" + clause.any.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")"];
+  const anyExpr = clause.any.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ");
+  const parts = [clause.remoteAnywhere ? `(${anyExpr} OR (${REMOTE_ANYWHERE_CLAUSE}))` : `(${anyExpr})`];
   if (clause.scopedToCountry?.length) {
     parts.push("(" + clause.scopedToCountry.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")");
   }

@@ -394,6 +394,25 @@ export interface PlaceClause {
    * ("remote anywhere" vs "remote in Canada") and both remain askable.
    */
   workTypes?: string[];
+  /**
+   * Ruling (Vivek, Sep 2026): a remote job with no geographic restriction
+   * must be listed under ANY country filter. Data fact (live-verified
+   * against the Meili `jobs` index): that set is exactly
+   * `work_type = "remote" AND location_country IS NULL` (52,512 docs
+   * all-dates; `IS EMPTY` and `NOT EXISTS` both measured 0).
+   *
+   * Set ONLY where a resolved place is known to be a COUNTRY — a city/state/
+   * region mention (or a literal that isn't a country reading) is asking for
+   * a specific place, not "remote with no restriction," so it never gets
+   * this. `placeClause` (geo/resolve-place.ts) is the ONE builder of every
+   * `PlaceClause` in src — see its doc comment for the full list of callers
+   * and how each decides whether its clause is a country filter, rather than
+   * re-listing them here to go stale again. `renderPlaceClause`
+   * (meilisearch.ts) is the only reader: it OR's `REMOTE_ANYWHERE_CLAUSE`
+   * into the `any` group alone, leaving `scopedToCountry`/`workTypes`
+   * AND-ed unchanged.
+   */
+  remoteAnywhere?: true;
 }
 
 export type JobsBackendKind = "meilisearch" | "snapshot-preview" | "unconfigured";
