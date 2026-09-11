@@ -8,11 +8,16 @@
  * check would be brittle, and reimplementing `/jobs`'s scope logic in the
  * checker would be a test derived from the code it's meant to catch
  * regressions in. This route goes through the SAME parser
- * (`parseJobsUrl`) + payload builder (`buildJobSearchPayload`) + company-
- * intent resolution (`resolveCompanyIntentResult`/`applyCompanyDomainPin`)
- * + bare-role-query classifier (`isBareRoleQuery`) that `/jobs` itself uses,
- * so the canary observes exactly the scope `/jobs` would apply — never its
- * own approximation of it.
+ * (`parseJobsUrl`) + payload builder (`buildJobSearchPayload`) + query-
+ * understanding step (`understandSearchParams`, lib/jobs/search.ts — place/
+ * work-mode resolution, subdivision expansion, remote-anywhere widening) +
+ * company-intent resolution (`resolveCompanyIntentResult`/
+ * `applyCompanyDomainPin`, run on the SAME post-understanding residual query
+ * `/jobs` itself runs it on) + bare-role-query classifier (`isBareRoleQuery`)
+ * that `/jobs` itself uses, in the SAME relative order, so the canary
+ * observes exactly the scope `/jobs` would apply — never its own
+ * approximation of it. (Round 1 of this PR skipped this step entirely; the
+ * canary silently disagreed with `/jobs` on every location-filtered query.)
  *
  * `titled`/`wholeDoc` are ALWAYS measured independently via two genuine
  * limit-0 `runCountPass` calls, regardless of `mechanism` — never derived
@@ -46,7 +51,7 @@ import {
 } from "@/lib/jobs/meilisearch";
 import { resolveHeadlineTotal } from "@/lib/jobs/presentation";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
-import { isPostedDateFilterSupported } from "@/lib/jobs/search";
+import { isPostedDateFilterSupported, understandSearchParams } from "@/lib/jobs/search";
 import { parseJobsUrl, urlSortToMode } from "@/lib/jobs/url-state";
 
 /**
@@ -102,9 +107,15 @@ export async function GET(request: Request): Promise<NextResponse> {
         postedDateSupported,
     );
 
-    const intent = await resolveCompanyIntentResult(payload.q);
+    // Same relative order search.ts's `searchJobs` runs in: query
+    // understanding (place/work-mode resolution) FIRST, company intent
+    // resolved off the post-understanding residual query second — never the
+    // other way around, or a place phrase still sitting in `q` would be fed
+    // to the company-name prober as if it were content text.
+    const understood = await understandSearchParams(payload);
+    const intent = await resolveCompanyIntentResult(understood.q);
     const companyScoped = intent.companyScoped;
-    const searchParams = applyCompanyDomainPin(payload, intent);
+    const searchParams = applyCompanyDomainPin(understood, intent);
     const mechanism: "tiered" | "strict" = isBareRoleQuery(searchParams.q ?? "", companyScoped)
         ? "tiered"
         : "strict";
