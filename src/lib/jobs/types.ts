@@ -402,16 +402,15 @@ export interface PlaceClause {
    * all-dates; `IS EMPTY` and `NOT EXISTS` both measured 0).
    *
    * Set ONLY where a resolved place is known to be a COUNTRY — a city/state/
-   * region mention is asking for a specific place, not "remote with no
-   * restriction," so it never gets this. `placeClause` (geo/resolve-place.ts)
-   * is the ONE builder of a country `PlaceClause`: every entry point that
-   * produces one — a typed/picked country facet (`parsePlaceTokens`,
-   * query-understanding.ts), the IP-geolocated default
-   * (`resolveLocationDefault`, geo/ip-default.ts), and the cached cold-visit
-   * /jobs front door (`placesForCountry`, geo/ip-default.ts) — calls it
-   * rather than hand-writing `{ any }`. `renderPlaceClause` (meilisearch.ts)
-   * is the only reader: it OR's `REMOTE_ANYWHERE_CLAUSE` into the `any`
-   * group alone, leaving `scopedToCountry`/`workTypes` AND-ed unchanged.
+   * region mention (or a literal that isn't a country reading) is asking for
+   * a specific place, not "remote with no restriction," so it never gets
+   * this. `placeClause` (geo/resolve-place.ts) is the ONE builder of every
+   * `PlaceClause` in src — see its doc comment for the full list of callers
+   * and how each decides whether its clause is a country filter, rather than
+   * re-listing them here to go stale again. `renderPlaceClause`
+   * (meilisearch.ts) is the only reader: it OR's `REMOTE_ANYWHERE_CLAUSE`
+   * into the `any` group alone, leaving `scopedToCountry`/`workTypes`
+   * AND-ed unchanged.
    */
   remoteAnywhere?: true;
 }

@@ -185,27 +185,39 @@ export function countryPlaceCandidates(iso2: string, gazetteer: Gazetteer): Plac
 }
 
 /**
- * The ONE builder of a country `PlaceClause` — do not hand-write `{ any }`
- * for a country. Ruling (Vivek, Sep 2026): a remote job with no geographic
- * restriction must be listed under ANY country filter. Data fact
- * (live-verified against the Meili `jobs` index): that set is exactly
- * `work_type = "remote" AND location_country IS NULL` (52,512 docs
- * all-dates; `IS EMPTY` and `NOT EXISTS` both measured 0).
+ * Every `PlaceClause` in src is built here; the caller states whether the
+ * clause is a country filter (`opts.country`) rather than handing in an
+ * entity type — a caller working from a raw corpus literal, not a
+ * `PlaceResolution`, has no entity type to hand in at all. Ruling (Vivek,
+ * Sep 2026): a remote job with no geographic restriction must be listed
+ * under ANY country filter. Data fact (live-verified against the Meili
+ * `jobs` index): that set is exactly `work_type = "remote" AND
+ * location_country IS NULL` (52,512 docs all-dates; `IS EMPTY` and
+ * `NOT EXISTS` both measured 0). `opts.country: true` stamps
+ * `remoteAnywhere: true` on unconditionally; a specific city/admin1/region
+ * (or a literal that isn't a country reading) never gets this.
  *
- * A `PlaceResolution.entity.type === "country"` gets `remoteAnywhere: true`
- * stamped on unconditionally; every other entity type (city/admin1/region)
- * is asking for a specific place, not "remote with no restriction," so it
- * never gets this. Every country `PlaceClause` in the product funnels
- * through here: `parsePlaceTokens` (query-understanding.ts, a typed/picked
- * country facet), `resolveLocationDefault` (ip-default.ts, the IP-geolocated
- * default), and `placesForCountry` (ip-default.ts, the cached cold-visit
- * /jobs front door) all call this instead of building `{ any }` by hand —
- * that three-way duplication (round 2 of PR #479) is exactly how two of
- * those builders shipped without the flag.
+ * The five callers, each deciding `opts.country` from the fact it actually
+ * has:
+ *  - `parsePlaceTokens` (query-understanding.ts) — a typed/picked country
+ *    facet the gazetteer resolved: `entity.type === "country"`.
+ *  - `resolveLocationDefault` (ip-default.ts) — the IP-geolocated default:
+ *    always a country.
+ *  - `placesForCountry` (ip-default.ts) — the cached cold-visit /jobs front
+ *    door: always a country.
+ *  - `resolvePhraseOrRawLiteral` (query-understanding.ts) — the raw-literal
+ *    fallback for a phrase the gazetteer can't resolve at all but the corpus
+ *    has as an exact value: a country iff one of the exact hits landed on
+ *    `location_country` (see that call site's comment).
+ *  - `resolveLocationFacet`'s picked-value loop (query-understanding.ts) —
+ *    a clicked city/state suggestion: never a country by construction
+ *    (`PICKED_LOCATION_FIELDS` excludes `location_country`), so always
+ *    `false`.
  */
-export function placeClause(entityType: PlaceEntityType, any: PlaceFilter[], scopedToCountry?: PlaceFilter[]): PlaceClause {
-  const clause: PlaceClause = scopedToCountry && scopedToCountry.length > 0 ? { any, scopedToCountry } : { any };
-  if (entityType === "country") clause.remoteAnywhere = true;
+export function placeClause(any: PlaceFilter[], opts: { country: boolean; scopedToCountry?: PlaceFilter[] }): PlaceClause {
+  const clause: PlaceClause =
+    opts.scopedToCountry && opts.scopedToCountry.length > 0 ? { any, scopedToCountry: opts.scopedToCountry } : { any };
+  if (opts.country) clause.remoteAnywhere = true;
   return clause;
 }
 

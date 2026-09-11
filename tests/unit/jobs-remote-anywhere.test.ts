@@ -71,6 +71,12 @@ const VOCAB = fakeVocab([
   { field: "location_country", value: "United Kingdom" },
   { field: "location_city", value: "Toronto" },
   { field: "location_state", value: "Ontario" },
+  // Raw-ingest literals GAZETTEER can't resolve as any place (not a country/
+  // admin1/city/alias/region in its small fixture data) but this fake corpus
+  // carries as exact values — (k)-(n)'s tier-2 raw-literal fallback fixtures.
+  { field: "location_country", value: "Worldwide" },
+  { field: "location_country", value: "Czechia" },
+  { field: "location_city", value: "Nullville" },
 ]);
 
 test("(a) typed 'Canada' widens the place clause to admit remote-anywhere jobs; posted/ghost clauses are untouched", async () => {
@@ -191,6 +197,73 @@ test("(j) guard: all three country-clause builders render the IDENTICAL place cl
     typedClause === ipDefaultClause && ipDefaultClause === coldVisitClause,
     `the three country-clause builders diverged: typed=${typedClause} ipDefault=${ipDefaultClause} coldVisit=${coldVisitClause}`,
   );
+});
+
+/**
+ * Round 4 of #479: `resolvePhraseOrRawLiteral`'s tier-2 fallback
+ * (query-understanding.ts) built its clause by hand — `{ any: exact }` —
+ * bypassing `placeClause` entirely. A typed/picked country the gazetteer
+ * cannot resolve but the corpus has as an exact `location_country` value
+ * (the review's reproduction: `location_country = "worldwide"`) rendered
+ * with NO widening. (k)-(n) cover the fourth builder through its REAL
+ * caller, `resolveLocationFacet` -> `buildFilter`, same fixture shape as
+ * (a)-(j) — GAZETTEER simply has no entry for these strings, so tier 1
+ * (`parsePlaceTokens`) always falls through to the tier-2 literal probe.
+ */
+test("(k) a typed literal the gazetteer can't resolve, but the corpus has as an exact location_country value, still widens — the reviewer's 'worldwide' reproduction", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["worldwide"] } }, VOCAB);
+  const filter = buildFilter(p);
+  const placeClause = filter.find((f) => f.includes("location_country"));
+  assert.equal(placeClause, `((location_country = "Worldwide" OR (${REMOTE_ANYWHERE_CLAUSE})))`);
+});
+
+test("(l) a second unresolvable country spelling widens too — the fix is class-wide, not a 'worldwide' special case", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["czechia"] } }, VOCAB);
+  const filter = buildFilter(p);
+  const placeClause = filter.find((f) => f.includes("location_country"));
+  assert.equal(placeClause, `((location_country = "Czechia" OR (${REMOTE_ANYWHERE_CLAUSE})))`);
+});
+
+test("(m) a literal that matches ONLY location_city is NOT widened — the raw-literal fallback widens only a location_country hit", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["nullville"] } }, VOCAB);
+  const filter = buildFilter(p);
+  const placeClause = filter.find((f) => f.includes("location_city"));
+  assert.ok(placeClause, `expected a place clause for nullville: ${JSON.stringify(filter)}`);
+  assert.ok(!placeClause!.includes("remote"), `a city-only literal must not be widened: ${placeClause}`);
+});
+
+test("(n) guard: all FOUR country-clause builders render a widened clause — extends (j) from three to four ways; a fifth builder that diverges fails this", async () => {
+  const vocabPassthrough: LocationVocabulary = {
+    gazetteer: GAZETTEER,
+    corpusChecker: PASSTHROUGH_CORPUS_CHECKER,
+    companyProbe: NEVER_CORROBORATES,
+  };
+
+  const typed = await resolveLocationFacet({ facets: { location_country: ["Canada"] } }, vocabPassthrough);
+  const typedClause = buildFilter(typed).find((f) => f.includes("location_country"));
+
+  const ipDefault = await resolveLocationDefault("1.2.3.4", GAZETTEER, PASSTHROUGH_CORPUS_CHECKER, async () => "CA");
+  const ipDefaultClause = buildFilter({ places: ipDefault!.places }).find((f) => f.includes("location_country"));
+
+  const coldVisit = placesForCountry("CA", GAZETTEER);
+  const coldVisitClause = buildFilter({ places: coldVisit }).find((f) => f.includes("location_country"));
+
+  // (j)'s original three-way guard, kept intact: these three all resolve
+  // "Canada" through the gazetteer, so they render byte-identical.
+  assert.ok(
+    typedClause === ipDefaultClause && ipDefaultClause === coldVisitClause,
+    `the three country-clause builders diverged: typed=${typedClause} ipDefault=${ipDefaultClause} coldVisit=${coldVisitClause}`,
+  );
+
+  // The literal path's `any` is a single raw-ingest value ("Worldwide"), not
+  // Canada's multi-candidate gazetteer expansion, so its clause differs in
+  // SHAPE from the three above — only the widening fragment is asserted for
+  // all four, rather than full-string equality.
+  const literal = await resolveLocationFacet({ facets: { location_country: ["worldwide"] } }, VOCAB);
+  const literalClause = buildFilter(literal).find((f) => f.includes("location_country"));
+  for (const clause of [typedClause, ipDefaultClause, coldVisitClause, literalClause]) {
+    assert.ok(clause?.includes(`OR (${REMOTE_ANYWHERE_CLAUSE})`), `expected widening in: ${clause}`);
+  }
 });
 
 test("(f) the count route runs the same query-understanding step, in the same relative order, as /jobs — regression guard", () => {

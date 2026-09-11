@@ -62,7 +62,7 @@ export async function resolveLocationDefault(
   const [any] = await corpusChecker([candidates]);
   if (any.length === 0) return null;
   // A country-level default IS the country — nothing left to further scope.
-  return { places: [placeClause("country", any)], countryCode: iso2 };
+  return { places: [placeClause(any, { country: true })], countryCode: iso2 };
 }
 
 /**
@@ -78,7 +78,7 @@ export async function resolveLocationDefault(
  */
 export function placesForCountry(iso2: string, gazetteer: Gazetteer): PlaceClause[] | undefined {
   const candidates = countryPlaceCandidates(iso2, gazetteer);
-  return candidates?.length ? [placeClause("country", candidates)] : undefined;
+  return candidates?.length ? [placeClause(candidates, { country: true })] : undefined;
 }
 
 export interface LocationDefaultApplication {

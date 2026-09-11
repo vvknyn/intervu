@@ -361,7 +361,10 @@ test("a real gazetteer place this corpus has no postings for is ALSO dropped and
 
 test("a value WITH corpus support keeps its exact facet (no regression): a raw-ingest literal the gazetteer can't resolve as any place, but the corpus genuinely has, still becomes a filter", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["worldwide"] } }, VOCAB);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Worldwide" }] }]);
+  // Ruling (Vivek, Sep 2026): an exact location_country hit IS a country
+  // filter even when the gazetteer never recognized the string as a place —
+  // see placeClause's doc (geo/resolve-place.ts) for the raw-literal caller.
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Worldwide" }], remoteAnywhere: true }]);
   assert.equal(p.facets?.location_country, undefined);
   assert.equal(p.unmatchedPlaceMentions, undefined, "a value the corpus actually has is never reported as unmatched");
 });

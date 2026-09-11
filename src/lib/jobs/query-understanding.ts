@@ -210,7 +210,7 @@ export async function parsePlaceTokens(
     const any = results[i * 2];
     if (any.length === 0) return; // nothing this resolution proposed exists in the corpus at all
     const scope = results[i * 2 + 1];
-    places.push(placeClause(r.entity.type, any, scope.length > 0 ? scope : undefined));
+    places.push(placeClause(any, { country: r.entity.type === "country", scopedToCountry: scope.length > 0 ? scope : undefined }));
   });
   return { residualQ, places };
 }
@@ -406,7 +406,14 @@ async function resolvePhraseOrRawLiteral(
   if (places.length === 1 && residualQ.trim() === "") return { places, unmatched: [] };
 
   const exact = await resolveExactFacetValue(phrase, vocab);
-  if (exact.length > 0) return { places: [{ any: exact }], unmatched: [] };
+  if (exact.length > 0) {
+    // A literal that matched an exact location_country value IS a country
+    // filter from the searcher's point of view — this clause already ORs
+    // city/state/country readings of the same string, and remote-anywhere
+    // is one more such reading (placeClause, geo/resolve-place.ts).
+    const country = exact.some((f) => f.field === "location_country");
+    return { places: [placeClause(exact, { country })], unmatched: [] };
+  }
 
   if (places.length > 0) return { places, unmatched: [] };
   return { places: [], unmatched: [phrase] };
@@ -525,7 +532,9 @@ export async function resolveLocationFacet(
       unmatched.push(value);
       continue;
     }
-    resolved.push({ any: hits });
+    // Never a country filter by construction — `field` is drawn from
+    // `PICKED_LOCATION_FIELDS`, which excludes `location_country`.
+    resolved.push(placeClause(hits, { country: false }));
   }
 
   // Every location field this function resolves is stripped from the
