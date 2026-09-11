@@ -4055,6 +4055,7 @@ function JobsContent() {
             submitted: searchAlertSubmitted,
             interactions: searchInteractions,
             hasResults: false,
+            authGateVisible: showGuestEngageNudge || showGuestSaveBanner,
         });
     const hasResultsPanel =
         resultsPanel !== "empty" &&
@@ -4071,6 +4072,7 @@ function JobsContent() {
             submitted: searchAlertSubmitted,
             interactions: searchInteractions,
             hasResults: true,
+            authGateVisible: showGuestEngageNudge || showGuestSaveBanner,
         });
 
     const handleDismissSearchAlert = useCallback(() => {
@@ -4449,9 +4451,8 @@ function JobsContent() {
             title="Add your résumé to rank these roles by fit"
             onClick={() => void handleRankByFit()}
             className={cn(
-                chipVariants({ active: false }),
                 toolbarControlHeight,
-                "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap leading-none rounded-none px-3 lg:px-2",
+                "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand",
             )}
         >
             Rank by fit
@@ -4980,7 +4981,7 @@ function JobsContent() {
                             aria-controls="filters-panel"
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
-                                chipVariants({ active: filtersOpen || activeCount > 0 }),
+                                chipVariants({ active: filtersOpen }),
                                 toolbarControlHeight,
                                 "box-border shrink-0 px-3.5 rounded-none font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
                             )}
@@ -5006,10 +5007,14 @@ function JobsContent() {
                         </>
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
-                        {showToolbarFilters && !headerDockActive && savedSearchMountEl}
-                        {!headerDockActive && sortEl}
-                        {!headerDockActive && tourReplayEl}
-                        {!headerDockActive && asOfEl}
+                        {!headerDockActive && (
+                            <div data-testid="jobs-toolbar-actions" className="flex shrink-0 items-center gap-2">
+                                {showToolbarFilters && savedSearchMountEl}
+                                {sortEl}
+                                {tourReplayEl}
+                                {asOfEl}
+                            </div>
+                        )}
                     </div>
                     )}
                     {!headerDockActive && unnamedEntries.length > 0 && (

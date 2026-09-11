@@ -65,6 +65,49 @@ describe("shouldShowSearchAlertCapture", () => {
     assert.equal(shouldShowSearchAlertCapture({ ...base, dismissed: true, submitted: false }), false);
     assert.equal(shouldShowSearchAlertCapture({ ...base, dismissed: false, submitted: true }), false);
   });
+
+  it("hides when auth gate banner is visible", () => {
+    const zeroResults = {
+      signedIn: false,
+      dismissed: false,
+      submitted: false,
+      interactions: 0,
+      hasResults: false,
+      authGateVisible: true,
+    };
+    const withResults = {
+      signedIn: false,
+      dismissed: false,
+      submitted: false,
+      interactions: SHOW_AFTER_INTERACTIONS,
+      hasResults: true,
+      authGateVisible: true,
+    };
+    assert.equal(shouldShowSearchAlertCapture(zeroResults), false);
+    assert.equal(shouldShowSearchAlertCapture(withResults), false);
+  });
+
+  it("shows when authGateVisible is omitted or false", () => {
+    const zeroResults = {
+      signedIn: false,
+      dismissed: false,
+      submitted: false,
+      interactions: 0,
+      hasResults: false,
+    };
+    assert.equal(shouldShowSearchAlertCapture(zeroResults), true);
+    assert.equal(shouldShowSearchAlertCapture({ ...zeroResults, authGateVisible: false }), true);
+
+    const withResults = {
+      signedIn: false,
+      dismissed: false,
+      submitted: false,
+      interactions: SHOW_AFTER_INTERACTIONS,
+      hasResults: true,
+    };
+    assert.equal(shouldShowSearchAlertCapture(withResults), true);
+    assert.equal(shouldShowSearchAlertCapture({ ...withResults, authGateVisible: false }), true);
+  });
 });
 
 describe("search alert cooldown constant", () => {

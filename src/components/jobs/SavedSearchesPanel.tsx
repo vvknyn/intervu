@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { BookmarkSimple, X, CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { chipVariants } from "@/components/ui/chip";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-searches";
@@ -157,9 +156,8 @@ export function SavedSearchesPanel({
                     className={cn(
                         compact
                             ? cn(
-                                  chipVariants({ active: false }),
                                   toolbarControlHeight,
-                                  "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap leading-none rounded-none px-3 lg:px-2",
+                                  "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand px-3 lg:px-2",
                               )
                             : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none bg-muted px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
                     )}

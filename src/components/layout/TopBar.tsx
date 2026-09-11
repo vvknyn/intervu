@@ -297,7 +297,6 @@ export function TopBar() {
             {docked && (
                 <div data-region="band" className="hidden bg-muted lg:block">
                     <div className="shell-row box-border flex h-10 flex-nowrap items-center gap-2 overflow-x-auto border-t border-border">
-                        <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
                         <button
                             type="button"
                             onClick={docked.onOpenFilters}
@@ -305,7 +304,7 @@ export function TopBar() {
                             aria-controls="filters-panel"
                             data-testid="topbar-docked-filters-toggle"
                             className={cn(
-                                chipVariants({ active: docked.filtersExpanded || docked.filterCount > 0 }),
+                                chipVariants({ active: docked.filtersExpanded }),
                                 toolbarControlHeight,
                                 "box-border shrink-0 items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold lg:px-3",
                             )}
@@ -317,6 +316,7 @@ export function TopBar() {
                                 </span>
                             )}
                         </button>
+                        <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
                         <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
                         {docked.chips.length > 0 && (
                             <>
