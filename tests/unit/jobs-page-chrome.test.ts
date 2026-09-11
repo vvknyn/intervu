@@ -344,22 +344,23 @@ describe("jobs page chrome guards", () => {
         assert.match(topbar, /data-testid="topbar-docked-clear-filters"/);
         assert.match(topbar, /data-testid="topbar-docked-save-search"/);
         const dockedRow = topbar.slice(
-            topbar.indexOf('data-testid="topbar-docked-field-directory"'),
+            topbar.indexOf('data-testid="topbar-docked-filters-toggle"'),
             topbar.indexOf('data-testid="topbar-docked-extras"'),
         );
+        const filtersIdx = dockedRow.indexOf("topbar-docked-filters-toggle");
         const fieldIdx = dockedRow.indexOf("topbar-docked-field-directory");
         const facetsIdx = dockedRow.indexOf("topbar-docked-facets");
-        const filtersIdx = dockedRow.indexOf("topbar-docked-filters-toggle");
         const clearIdx = dockedRow.indexOf("topbar-docked-clear-filters");
         const saveIdx = dockedRow.indexOf("topbar-docked-save-search");
         const chipIdx = dockedRow.indexOf("topbar-docked-chip");
         const sortIdx = dockedRow.indexOf("topbar-docked-sort");
         const spacerIdx = dockedRow.indexOf('min-w-0 flex-1');
+        assert.ok(filtersIdx > -1 && filtersIdx < fieldIdx, "Filters toggle leads the left cluster");
         assert.ok(fieldIdx > -1 && facetsIdx > fieldIdx, "Browse by field mounts before facets");
-        assert.ok(filtersIdx > facetsIdx, "Filters toggle trails applied facets/chips, not between field and facets");
+        assert.ok(filtersIdx < facetsIdx, "Filters toggle must not sit between field and facets");
         assert.ok(chipIdx > facetsIdx, "Leftover filter chips mount after facet dropdowns");
         assert.ok(clearIdx > chipIdx, "Clear filters mounts at the trailing end of the chip cluster");
-        assert.ok(filtersIdx > clearIdx && spacerIdx > filtersIdx, "Filters toggle is last in the left cluster before the spacer");
+        assert.ok(filtersIdx < clearIdx && clearIdx < spacerIdx, "Filters toggle before Clear, Clear before spacer");
         assert.ok(saveIdx > spacerIdx, "Save search is after the flex spacer");
         assert.doesNotMatch(topbar, /topbar-docked-status/, "live corpus count deferred from docked toolbar");
         assert.ok(sortIdx > saveIdx, "Sort segments mount after save search");

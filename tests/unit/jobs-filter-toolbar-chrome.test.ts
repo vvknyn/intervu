@@ -77,38 +77,46 @@ describe("jobs filter toolbar chrome", () => {
         const topbar = readFileSync(TOPBAR, "utf8");
         const page = readFileSync(PAGE, "utf8");
         const dockedRow = topbar.slice(
-            topbar.indexOf('data-testid="topbar-docked-field-directory"'),
+            topbar.indexOf('data-testid="topbar-docked-filters-toggle"'),
             topbar.indexOf('data-testid="topbar-docked-extras"'),
         );
+        const filtersToggleIdx = dockedRow.indexOf("topbar-docked-filters-toggle");
         const fieldIdx = dockedRow.indexOf("topbar-docked-field-directory");
         const facetsIdx = dockedRow.indexOf("topbar-docked-facets");
         const activeIdx = dockedRow.indexOf("topbar-docked-active-filters");
         const clearIdx = dockedRow.indexOf("topbar-docked-clear-filters");
-        const filtersToggleIdx = dockedRow.indexOf("topbar-docked-filters-toggle");
         const saveIdx = dockedRow.indexOf("topbar-docked-save-search");
         const spacerIdx = dockedRow.indexOf("min-w-0 flex-1");
-        assert.ok(fieldIdx > -1 && facetsIdx > -1 && clearIdx > -1 && filtersToggleIdx > -1 && saveIdx > -1 && spacerIdx > -1);
+        assert.ok(filtersToggleIdx > -1 && fieldIdx > -1 && facetsIdx > -1 && clearIdx > -1 && saveIdx > -1 && spacerIdx > -1);
+        assert.ok(filtersToggleIdx < fieldIdx, "docked filters-toggle leads the left cluster");
         assert.ok(fieldIdx < facetsIdx, "docked field-directory before facets");
         assert.ok(facetsIdx < clearIdx, "docked facets before clear-filters");
         if (activeIdx > -1) {
             assert.ok(facetsIdx < activeIdx && activeIdx < clearIdx, "docked active-filters between facets and clear");
         }
-        assert.ok(clearIdx < filtersToggleIdx && filtersToggleIdx < spacerIdx && spacerIdx < saveIdx, "docked Clear then Filters then spacer then Save");
+        assert.ok(clearIdx < spacerIdx && spacerIdx < saveIdx, "docked Clear then spacer then Save");
         assert.ok(
-            filtersToggleIdx > facetsIdx && (activeIdx === -1 || filtersToggleIdx > activeIdx),
-            "docked filters-toggle must not sit between field-directory and facets/active-filters",
+            filtersToggleIdx < fieldIdx && filtersToggleIdx < facetsIdx,
+            "docked filters-toggle must not sit between field-directory and facets",
+        );
+        assert.ok(
+            filtersToggleIdx < clearIdx,
+            "docked filters-toggle must not sit after Clear",
         );
 
         const toolbar = page.slice(page.indexOf('data-testid="jobs-toolbar"'), page.indexOf('data-testid="active-filter-row"'));
+        const filterChipsRowIdx = toolbar.indexOf("<FilterChipsRow");
         const fieldDirectoryIdx = toolbar.indexOf("fieldDirectoryMenu");
         const facetBarIdx = toolbar.indexOf("facetBarEl");
         const inPageClear = toolbar.indexOf("unnamedEntries.length === 0 && clearFiltersEl");
         const filtersToggleIdxUndocked = toolbar.indexOf('data-testid="filters-toggle"');
         const inPageSpacer = toolbar.indexOf("min-w-0 flex-1");
         const inPageActions = toolbar.indexOf('data-testid="jobs-toolbar-actions"');
+        assert.ok(filterChipsRowIdx > -1 && filtersToggleIdxUndocked > filterChipsRowIdx, "undocked filters-toggle after FilterChipsRow");
+        assert.ok(filtersToggleIdxUndocked < fieldDirectoryIdx, "undocked filters-toggle before fieldDirectory");
         assert.ok(fieldDirectoryIdx > -1 && facetBarIdx > fieldDirectoryIdx, "undocked fieldDirectory before facetBar");
-        assert.ok(inPageClear > -1 && filtersToggleIdxUndocked > inPageClear, "undocked clear before filters-toggle");
-        assert.ok(filtersToggleIdxUndocked < inPageSpacer && inPageSpacer < inPageActions, "undocked filters-toggle before spacer before actions");
+        assert.ok(inPageClear > -1 && inPageClear < inPageSpacer, "undocked clear before spacer");
+        assert.ok(inPageSpacer < inPageActions, "undocked spacer before actions");
 
         const activeRow = page.slice(
             page.indexOf('data-testid="active-filter-row"'),
