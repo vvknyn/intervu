@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils"
 
 /**
  * Carbon field chip — sharp 0px geometry, 1px hairline border. Active state
- * mirrors job-row selection: brand blade + muted fill + brand text (brand is
- * a sparing accent, not a filled loud control).
+ * mirrors job-row selection: 3px brand blade + tinted fill + brand text
+ * (brand is a sparing accent, not a filled loud control).
  */
 export const chipVariants = cva(
   // A chip carries a label, never code, so it takes the sans — with tabular
@@ -16,7 +16,7 @@ export const chipVariants = cva(
   {
     variants: {
       active: {
-        true: "border-brand bg-muted text-brand shadow-[inset_3px_0_0_0_rgb(var(--brand))]",
+        true: "border-brand border-l-[3px] border-l-brand bg-brand/[0.06] pl-2.5 text-brand",
         false: "",
       },
     },

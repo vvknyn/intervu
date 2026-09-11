@@ -13,10 +13,11 @@ const GLOBALS = join(__dirname, "..", "..", "src", "app", "globals.css");
 const CHANGED = [CHIP, FILTER_CHIPS_ROW, FACET_BAR, PAGE, TOPBAR, GLOBALS];
 
 describe("jobs filter toolbar chrome", () => {
-    it("chip active variant uses inset brand blade, muted fill, squared geometry", () => {
+    it("chip active variant uses a 3px brand blade, tinted fill, squared geometry", () => {
         const src = readFileSync(CHIP, "utf8");
-        assert.match(src, /inset_3px|shadow-\[inset_3px_0_0_0_rgb\(var\(--brand\)\)\]/);
-        assert.match(src, /bg-muted text-brand/);
+        assert.match(src, /border-l-\[3px\]/);
+        assert.match(src, /border-l-brand/);
+        assert.match(src, /bg-brand\/\[0\.06\]/);
         assert.match(src, /rounded-none/);
         assert.match(src, /motion-reduce:transition-none/);
         assert.doesNotMatch(src, /rounded-full/);

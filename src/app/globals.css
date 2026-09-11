@@ -481,10 +481,10 @@ html:has([data-testid="topbar-docked-filters-toggle"]) {
 .jobs-instrument-rule {
   display: block;
   width: 1px;
-  height: 1.25rem;
+  height: 1.5rem;
   flex-shrink: 0;
   align-self: center;
-  background: rgb(var(--border));
+  background: rgb(var(--border-strong) / 0.22);
 }
 
 /* Empty portal mounts must not leave gap holes in the docked instrument row */
