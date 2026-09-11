@@ -69,8 +69,10 @@ import {
     firstMentionIndex,
     interleaveByCompany,
     partitionByTitleMatch,
+    resolveHeadlineTotal,
     seamSummary,
     shortDate,
+    tieredSeamIndex,
 } from "@/lib/jobs/presentation";
 import { presentJob } from "@/lib/presentation";
 import { ContextHelp } from "@/components/ui/context-help";
@@ -2594,7 +2596,19 @@ function JobsContent() {
     // reordering `displayHits` — titled block first, each half keeping its
     // sorted order — instead of counting a run, so it's used in place of
     // `firstMentionIndex` for every sort mode other than relevance.
+    // Tiered-retrieval result (per-hit `tier` present — see
+    // `runTieredRetrieval`, meilisearch.ts): the federation already ranks
+    // strict-scope hits ahead of mention-only ones under every sort (verified
+    // live, leg 7 A2-A5), so `hits` needs no client-side reordering — only a
+    // seam index, placed by `tieredSeamIndex` from each hit's OWN `tier`
+    // (never from `tier1Total`, an absolute count over the unfiltered pool —
+    // `hits` here has already passed through `hideViewed` filtering above, so
+    // indexing by a carried count lands on the wrong row whenever a filter
+    // removes rows ahead of the seam). `null` means this isn't a tiered
+    // result at all — fall back to the mention-based seam below.
     const { hits: displayHits, seamIndex } = useMemo(() => {
+        const tieredSeam = tieredSeamIndex(hits);
+        if (tieredSeam !== null) return { hits, seamIndex: tieredSeam };
         const q = result?.effectiveQ ?? "";
         if (sortScopedSeam) return partitionByTitleMatch(hits, q);
         return { hits, seamIndex: firstMentionIndex(hits.map((h) => decodeText(h.title)), q) };
@@ -3015,7 +3029,7 @@ function JobsContent() {
         [visibleHits, selectedId, selectJob],
     );
 
-    const total = result?.total ?? 0;
+    const total = result ? resolveHeadlineTotal(result) : 0;
     const hasMore =
         result?.configured === true && hits.length > 0 && hits.length < total && hits.length < MAX_REACHABLE;
     // Honest display count for THIS search's result total (result-count

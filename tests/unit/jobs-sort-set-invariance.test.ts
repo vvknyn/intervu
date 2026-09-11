@@ -157,36 +157,66 @@ describe("searchMeili role-title lane defines membership for every sort (set inv
         assert.deepEqual(salary.hits.map((h) => h.id), ["c", "a", "b"]);
     });
 
-    it("non-lane query (no seniority phrase): plain-search path stays sort-invariant too", async () => {
+    it("bare role query (no seniority phrase, no lane): tiered federated retrieval stays sort-invariant too", async () => {
+        // "software engineer" has no seniority/role-pair phrase — never a
+        // lane query (shouldRunRoleTitleLane is false) — but it IS a bare
+        // role query (isBareRoleQuery), so it now runs through
+        // `runTieredRetrieval`'s single federated /multi-search rather than
+        // plain `runSearch`. The invariant this suite pins (same total, same
+        // doc set, every sort just a permutation) has to hold for THIS path
+        // too — sort must never re-select the federated pool, same as the
+        // lane pool above.
         const q = "software engineer";
         await primeNonCompanyIntent(q);
 
-        const page = [
+        const pool = [
             job({ id: "x", title: "Software Engineer", posted_at: "2026-01-05T00:00:00Z", salary_max: 150_000 }),
             job({ id: "y", title: "Software Engineer", posted_at: "2026-01-10T00:00:00Z", salary_max: 90_000 }),
             job({ id: "z", title: "Software Engineer", posted_at: "2026-01-01T00:00:00Z", salary_max: 200_000 }),
         ];
-        // Full page (>= RELAX_MIN_HITS) so the thin-result relax pass doesn't
-        // fire and the sort-integrity guard sees an already-sorted page (no
-        // retry) for newest/salary_desc.
-        mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
-            const body = JSON.parse(String(init.body)) as { sort?: string[] };
-            let hits = page;
-            if (body.sort?.[0]?.startsWith("posted_ts")) {
-                hits = [...page].sort((a, b) => (b.posted_at ?? "").localeCompare(a.posted_at ?? ""));
-            } else if (body.sort?.[0]?.startsWith("salary_max")) {
-                hits = [...page].sort((a, b) => (b.salary_max ?? 0) - (a.salary_max ?? 0));
+        mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body)) as {
+                queries?: { sort?: string[] }[];
+                sort?: string[];
+            };
+            // The federated request carries the requested sort on each
+            // per-query body (queries[0].sort); the parallel tier1Total
+            // count pass (a plain /indexes/jobs/search POST) carries it
+            // directly on `body.sort`. Either way, the federated union
+            // total (estimatedTotalHits) must stay the pool size regardless
+            // of which sort was requested — that's the invariant.
+            const sort = body.queries?.[0]?.sort ?? body.sort;
+            let hits = pool;
+            if (sort?.[0]?.startsWith("posted_ts")) {
+                hits = [...pool].sort((a, b) => (b.posted_at ?? "").localeCompare(a.posted_at ?? ""));
+            } else if (sort?.[0]?.startsWith("salary_max")) {
+                hits = [...pool].sort((a, b) => (b.salary_max ?? 0) - (a.salary_max ?? 0));
             }
-            return jsonResponse(200, { hits, totalHits: 25 });
+            if (String(url).endsWith("/multi-search")) {
+                return jsonResponse(200, { hits, estimatedTotalHits: pool.length });
+            }
+            return jsonResponse(200, { estimatedTotalHits: pool.length });
         });
 
         const relevance = await searchMeili({ q, sort: "relevance" });
         const newest = await searchMeili({ q, sort: "newest" });
         const salary = await searchMeili({ q, sort: "salary_desc" });
 
-        assert.equal(relevance.total, 25);
-        assert.equal(newest.total, relevance.total, "no seniority phrase — lane never fires, so this was never the bug, but must stay invariant");
+        assert.equal(relevance.total, 3, "federated union total, not a client-side re-derivation");
+        assert.equal(newest.total, relevance.total, "no seniority phrase — lane never fires, but the tiered path must stay invariant too");
         assert.equal(salary.total, relevance.total);
+        assert.deepEqual(
+            new Set(newest.hits.map((h) => h.id)),
+            new Set(relevance.hits.map((h) => h.id)),
+            "newest is a permutation of the same doc set as relevance",
+        );
+        assert.deepEqual(
+            new Set(salary.hits.map((h) => h.id)),
+            new Set(relevance.hits.map((h) => h.id)),
+            "salary_desc is a permutation of the same doc set as relevance",
+        );
+        assert.deepEqual(newest.hits.map((h) => h.id), ["y", "x", "z"], "newest-first order within the pool");
+        assert.deepEqual(salary.hits.map((h) => h.id), ["z", "x", "y"], "salary-descending order within the pool");
     });
 });
 

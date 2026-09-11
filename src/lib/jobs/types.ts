@@ -130,6 +130,17 @@ export interface PublicJob {
    * fabricated one.
    */
   report_count?: number | null;
+  /**
+   * Per-hit provenance from a federated tiered-retrieval pass
+   * (`runTieredRetrieval`, meilisearch.ts): 1 = strict-scope query
+   * (title/company/tags), 2 = whole-document query. Derived from that hit's
+   * own `_federation.queriesPosition` (0 → 1, 1 → 2) before `_federation` is
+   * stripped off the wire shape — the seam between tiers is placed from this
+   * field, never from a carried count, so it survives client-side filtering
+   * (e.g. "hide viewed") without drifting onto the wrong row. Undefined under
+   * every non-federated search mechanism.
+   */
+  tier?: 1 | 2;
 }
 
 /**
@@ -430,4 +441,14 @@ export interface JobSearchResult {
    *  `runWithIntent` retry). `domains` are the probed employer domains the
    *  scoped pass pinned to; `scopedTotal` is always 0 (the trigger). */
   companyIntent?: { domains: string[]; scopedTotal: number; fallback: boolean };
+  /**
+   * Strict-scope-only count for a tiered-retrieval result (see
+   * `runTieredRetrieval` in meilisearch.ts): how many of `total`'s
+   * whole-document pool matched under the tight title/company/tags scope.
+   * This is the seam a client uses to rank/label those hits ahead of the
+   * mention-only remainder — a server-computed replacement for the old
+   * client-side re-derivation (`firstMentionIndex`/`partitionByTitleMatch`)
+   * that reshuffled under an explicit sort. Absent on every other path.
+   */
+  tier1Total?: number;
 }

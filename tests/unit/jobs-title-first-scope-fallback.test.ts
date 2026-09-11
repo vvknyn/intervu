@@ -5,15 +5,24 @@
  * "product" matched the description ("…product information…"). Best match's
  * relevance ranking hid this; a date sort has nothing to hide behind it.
  *
- * Fix: `buildSearchBody`'s new `titleFirstScoped` branch scopes a bare role
- * query to title/company/tags under EVERY sort (see jobs-search-body.test.ts
- * for the pure-function coverage) — company/tech-skill/role-title-lane
- * queries are untouched. These tests pin the RUNTIME half: the empty-pool
- * fallback in `runSearch` that keeps a genuinely thin query from going
- * empty. It's the same two-tier strict/expand retrieval
- * (`shouldRelaxSearch`/`mergeExpandedIntoStrict`) `techSkillScoped` already
- * relies on — `titleFirstScoped` participates by being gated on
- * `!wholeDocument`, so no separate fallback mechanism was added.
+ * Fix: `buildSearchBody`'s `titleFirstScoped` branch (now behind the
+ * `isBareRoleQuery` predicate — see jobs-search-body.test.ts for the pure-
+ * function coverage) scopes a bare role query to title/company/tags under
+ * EVERY sort — company/tech-skill/role-title-lane queries are untouched.
+ *
+ * Sep 10 2026 (this PR): root-caused as a SECOND, separate defect — the
+ * title-scoped pass was the ONLY pass for a bare role query, so genuine
+ * whole-document matches (title says "Engineer II", description says
+ * "software engineer") were dropped from the pool entirely, not merely
+ * ranked behind. The single-pass "expand only when title-scoped comes back
+ * EMPTY" fallback these tests used to pin is gone: a bare role query now
+ * always issues tier 1 (strict title/company/tags, weight 100) and tier 2
+ * (whole-document, weight 1) TOGETHER as one federated `/multi-search`, so
+ * the deduplicated union is always the pool regardless of how many tier-1
+ * hits exist — never gated on a zero-hit miss. These tests pin the RUNTIME
+ * half of that: the exact federated request shape, and that the strict pass
+ * (`queries[0]`) keeps the title/company/tags scoping this defect fix
+ * depends on.
  */
 import assert from "node:assert/strict";
 import { before, beforeEach, describe, it, mock } from "node:test";
@@ -88,46 +97,75 @@ async function primeNonCompanyIntent(q: string) {
     mock.reset();
 }
 
-describe("title-first scope empty-pool fallback (runSearch)", () => {
-    it("a zero-hit title-scoped pass falls back to exactly one whole-document re-issue", async () => {
+describe("bare-role-query tiered retrieval (runTieredRetrieval)", () => {
+    it("issues one federated /multi-search (strict + whole-document) plus one parallel strict count pass — never a sequential re-issue", async () => {
         const q = "registered nurse";
         await primeNonCompanyIntent(q);
 
-        const bodies: { attributesToSearchOn?: string[] }[] = [];
-        let calls = 0;
-        mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
-            calls++;
-            const body = JSON.parse(String(init.body)) as { attributesToSearchOn?: string[] };
-            bodies.push(body);
-            return calls === 1
-                ? jsonResponse(200, { hits: [], totalHits: 0 })
-                : jsonResponse(200, { hits: [job({ id: "a", title: "Registered Nurse" })], totalHits: 1 });
+        const multiSearchBodies: { queries: { attributesToSearchOn?: string[]; federationOptions?: { weight: number } }[] }[] = [];
+        const countBodies: { attributesToSearchOn?: string[] }[] = [];
+        let multiSearchCalls = 0;
+        let countCalls = 0;
+        mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body));
+            if (String(url).endsWith("/multi-search")) {
+                multiSearchCalls++;
+                multiSearchBodies.push(body);
+                return jsonResponse(200, {
+                    hits: [job({ id: "a", title: "Registered Nurse" })],
+                    estimatedTotalHits: 1,
+                });
+            }
+            countCalls++;
+            countBodies.push(body);
+            return jsonResponse(200, { estimatedTotalHits: 1 });
         });
 
         const result = await searchMeili({ q });
 
-        assert.equal(calls, 2, "one title-scoped pass + one whole-document re-issue");
-        assert.deepEqual(bodies[0].attributesToSearchOn, ["title", "company", "tags"], "first call is title-scoped");
-        assert.ok(!("attributesToSearchOn" in bodies[1]), `second call must be whole-document: ${JSON.stringify(bodies[1])}`);
+        assert.equal(multiSearchCalls, 1, "exactly one federated request — no zero-hit re-issue mechanism on this path");
+        assert.equal(countCalls, 1, "exactly one parallel strict count pass for tier1Total");
+        assert.deepEqual(
+            multiSearchBodies[0].queries[0].attributesToSearchOn,
+            ["title", "company", "tags"],
+            "tier 1 (queries[0]) stays title/company/tags-scoped",
+        );
+        assert.equal(multiSearchBodies[0].queries[0].federationOptions?.weight, 100);
+        assert.ok(
+            !("attributesToSearchOn" in multiSearchBodies[0].queries[1]),
+            `tier 2 (queries[1]) must be whole-document: ${JSON.stringify(multiSearchBodies[0].queries[1])}`,
+        );
+        assert.equal(multiSearchBodies[0].queries[1].federationOptions?.weight, 1);
+        assert.deepEqual(countBodies[0].attributesToSearchOn, ["title", "company", "tags"], "tier1Total counts the strict scope only");
         assert.equal(result.hits.length, 1);
+        assert.equal(result.tier1Total, 1);
     });
 
-    it("a non-empty title-scoped result makes exactly one call — no fallback fires", async () => {
+    it("a non-empty strict tier still issues the same federated pair — the whole-document tier is never conditional on tier-1 hit count", async () => {
         const q = "product manager";
         await primeNonCompanyIntent(q);
 
-        let calls = 0;
-        const bodies: { attributesToSearchOn?: string[] }[] = [];
-        mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
-            calls++;
-            bodies.push(JSON.parse(String(init.body)));
-            return jsonResponse(200, { hits: [job({ id: "a", title: "Product Manager" })], totalHits: 1 });
+        let multiSearchCalls = 0;
+        let countCalls = 0;
+        const multiSearchBodies: { queries: { attributesToSearchOn?: string[] }[] }[] = [];
+        mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+            if (String(url).endsWith("/multi-search")) {
+                multiSearchCalls++;
+                multiSearchBodies.push(JSON.parse(String(init.body)));
+                return jsonResponse(200, {
+                    hits: [job({ id: "a", title: "Product Manager" })],
+                    estimatedTotalHits: 1,
+                });
+            }
+            countCalls++;
+            return jsonResponse(200, { estimatedTotalHits: 1 });
         });
 
         const result = await searchMeili({ q });
 
-        assert.equal(calls, 1, "non-empty title-scoped pass — no whole-document fallback");
-        assert.deepEqual(bodies[0].attributesToSearchOn, ["title", "company", "tags"]);
+        assert.equal(multiSearchCalls, 1, "one federated request regardless of tier-1 hit count");
+        assert.equal(countCalls, 1);
+        assert.deepEqual(multiSearchBodies[0].queries[0].attributesToSearchOn, ["title", "company", "tags"]);
         assert.equal(result.hits.length, 1);
     });
 });
