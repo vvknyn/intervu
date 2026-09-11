@@ -153,15 +153,21 @@ describe("jobs filter toolbar chrome", () => {
     });
 
     it("facetBarShouldRenderChip hides inactive standing facets and shows applied ones", () => {
-        assert.equal(facetBarShouldRenderChip("postedBucket", pristine, true), false);
+        assert.equal(facetBarShouldRenderChip("postedBucket", pristine, true), true);
         assert.equal(facetBarShouldRenderChip("salaryMin", pristine, false), false);
         assert.equal(facetBarShouldRenderChip("work_type", pristine, true), false);
         assert.equal(facetBarShouldRenderChip("experience_level", pristine, true), false);
-        assert.equal(hasStandingFacetSelection(pristine, true), false);
+        assert.equal(hasStandingFacetSelection(pristine, true), true);
 
-        const withPosted: FilterState = { ...pristine, postedBucket: "7d", postedExplicit: true };
-        assert.equal(facetBarShouldRenderChip("postedBucket", withPosted, true), true);
-        assert.equal(hasStandingFacetSelection(withPosted, true), true);
+        const explicitAny: FilterState = { ...pristine, postedBucket: undefined, postedExplicit: true };
+        assert.equal(facetBarShouldRenderChip("postedBucket", explicitAny, true), false);
+        assert.equal(facetBarShouldRenderChip("postedBucket", pristine, false), false);
+
+        const withPosted7d: FilterState = { ...pristine, postedBucket: "7d", postedExplicit: true };
+        assert.equal(facetBarShouldRenderChip("postedBucket", withPosted7d, true), true);
+
+        const withPosted30dExplicit: FilterState = { ...pristine, postedBucket: "30d", postedExplicit: true };
+        assert.equal(facetBarShouldRenderChip("postedBucket", withPosted30dExplicit, true), true);
 
         const withSalary: FilterState = { ...pristine, salaryMin: 100_000 };
         assert.equal(facetBarShouldRenderChip("salaryMin", withSalary, true), true);
@@ -173,11 +179,19 @@ describe("jobs filter toolbar chrome", () => {
         assert.equal(facetBarShouldRenderChip("experience_level", withExperience, true), true);
     });
 
-    it("FacetBar returns null when no standing facet is applied", () => {
+    it("FacetBar posted chip visibility uses appliedPostedBucket, not activeFilterEntries", () => {
+        const src = readFileSync(FACET_BAR, "utf8");
+        const fn = src.slice(src.indexOf("export function facetBarShouldRenderChip"), src.indexOf("/** True when at least one"));
+        assert.match(fn, /appliedPostedBucket\(state\)/);
+        assert.doesNotMatch(fn, /activeFilterEntries/);
+    });
+
+    it("FacetBar returns null when no standing facet is applied (except quiet 30d posted default)", () => {
         const src = readFileSync(FACET_BAR, "utf8");
         assert.match(src, /hasStandingFacetSelection\(state, postedDateSupported\)\) return null/);
         assert.match(src, /facetBarShouldRenderChip\("postedBucket"/);
         assert.match(src, /facetBarShouldRenderChip\("salaryMin"/);
+        assert.equal(hasStandingFacetSelection({ ...pristine, postedBucket: undefined, postedExplicit: true }, true), false);
     });
 
     it("Filters toggle is active only when expanded, not when filter count is nonzero", () => {

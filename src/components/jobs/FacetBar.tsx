@@ -8,7 +8,6 @@ import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { cn } from "@/lib/utils";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import {
-    activeFilterEntries,
     appliedPostedBucket,
     facetValueLabel,
     POSTED_BUCKET_PRESETS,
@@ -71,9 +70,11 @@ export function facetBarRepresents(postedDateSupported: boolean): ReadonlySet<st
 export type StandingFacetChipKey = "postedBucket" | "salaryMin" | FacetKey;
 
 /**
- * Whether a standing FacetBar chip should render. Inactive discovery chips
- * stay hidden so the toolbar reads discover → applied → actions; only an
- * applied value earns a chip the searcher can change in place.
+ * Whether a standing FacetBar chip should render. Posted follows
+ * `appliedPostedBucket` so the quiet fresh-visit 30d default still shows
+ * as Posted · Past month. Other standing chips stay hidden until the
+ * searcher applies them. Leftover/Clear still use `activeFilterEntries`,
+ * which omits quiet 30d.
  */
 export function facetBarShouldRenderChip(
     key: StandingFacetChipKey,
@@ -82,7 +83,7 @@ export function facetBarShouldRenderChip(
 ): boolean {
     if (key === "postedBucket") {
         if (!postedDateSupported) return false;
-        return activeFilterEntries(state).some((e) => e.key === "postedBucket");
+        return appliedPostedBucket(state) != null;
     }
     if (key === "salaryMin") return state.salaryMin > 0;
     return (state.facets[key] ?? []).length > 0;
@@ -178,9 +179,6 @@ export function FacetBar({
         );
     };
 
-    // Never the raw bucket: the fresh-visit 30d is a default nobody chose and
-    // nothing filtered on, so the chip must read "Posted" and "Any date" must
-    // be the checked option until the searcher picks a window.
     const posted = appliedPostedBucket(state);
 
     if (!hasStandingFacetSelection(state, postedDateSupported)) return null;
