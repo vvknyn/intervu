@@ -107,7 +107,7 @@ import {
 } from "@/lib/jobs/location-default-preference";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
-import { chipVariants, ChipDismiss } from "@/components/ui/chip";
+import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
@@ -4730,7 +4730,7 @@ function JobsContent() {
                     `fieldDirectoryMenu`. */}
                 {!headerDockActive && (
                 <section
-                    className="rounded-none bg-card p-2 sm:p-2.5 transition-colors"
+                    className="rounded-none border border-border bg-card p-2 sm:p-2.5 transition-colors"
                 >
                     {/* The live count, moved here off the TopBar. Same /trends
                         destination it always had — it is a way into the report,
@@ -4982,14 +4982,13 @@ function JobsContent() {
                             className={cn(
                                 chipVariants({ active: filtersOpen || activeCount > 0 }),
                                 toolbarControlHeight,
-                                "box-border shrink-0 px-3.5 rounded-none font-semibold text-foreground inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
-                                activeCount > 0 && "has-active",
+                                "box-border shrink-0 px-3.5 rounded-none font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
                             )}
                         >
                             <span className="lg:hidden">Filters</span>
                             <span className="hidden lg:inline">All filters</span>
                             {activeCount > 0 && (
-                                <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-none border border-brand bg-muted px-1 text-xs font-semibold text-brand">
+                                <span className={cn("ml-0.5", filterCountBadgeClass)}>
                                     {activeCount}
                                 </span>
                             )}
@@ -5003,28 +5002,36 @@ function JobsContent() {
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
                             <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
                         )}
-                        {!headerDockActive && unnamedEntries.map((entry) => (
-                            <span
-                                key={entry.key}
-                                data-testid="active-filter-chip"
-                                className={cn(chipVariants({ active: false }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
-                            >
-                                {chipLabelForEntry(entry)}
-                                <ChipDismiss
-                                    label={`Clear ${chipLabelForEntry(entry)}`}
-                                    onClick={() => applyFilterState(entry.clear(filterState))}
-                                />
-                            </span>
-                        ))}
-                        {!headerDockActive && clearFiltersEl}
-                        {!headerDockActive && savedSearchMountEl}
+                        {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
+                        {showToolbarFilters && !headerDockActive && savedSearchMountEl}
                         {!headerDockActive && sortEl}
                         {!headerDockActive && tourReplayEl}
                         {!headerDockActive && asOfEl}
                     </div>
+                    )}
+                    {!headerDockActive && unnamedEntries.length > 0 && (
+                        <div
+                            data-testid="active-filter-row"
+                            className="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain border-t border-border pt-2"
+                        >
+                            {!headerDockActive && unnamedEntries.map((entry) => (
+                                <span
+                                    key={entry.key}
+                                    data-testid="active-filter-chip"
+                                    className={cn(chipVariants({ active: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
+                                >
+                                    {chipLabelForEntry(entry)}
+                                    <ChipDismiss
+                                        label={`Clear ${chipLabelForEntry(entry)}`}
+                                        onClick={() => applyFilterState(entry.clear(filterState))}
+                                    />
+                                </span>
+                            ))}
+                            {clearFiltersEl}
+                        </div>
                     )}
 
                     {facetsMountSite === "inline" && !headerDockActive ? (

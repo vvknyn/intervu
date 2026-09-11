@@ -356,9 +356,12 @@ describe("jobs page chrome guards", () => {
         const sortIdx = dockedRow.indexOf("topbar-docked-sort");
         assert.ok(fieldIdx > -1 && filtersIdx > fieldIdx && facetsIdx > filtersIdx, "Browse by field mounts before Filters, then facets");
         assert.ok(chipIdx > facetsIdx, "Leftover filter chips mount after facet dropdowns");
-        assert.ok(clearIdx > chipIdx && saveIdx > clearIdx, "Clear filters and save search mount after chips");
+        assert.ok(clearIdx > chipIdx, "Clear filters mounts at the trailing end of the chip cluster");
+        assert.ok(saveIdx > clearIdx, "Save search stays after Clear, on the far-right side of the spacer");
         assert.doesNotMatch(topbar, /topbar-docked-status/, "live corpus count deferred from docked toolbar");
         assert.ok(sortIdx > saveIdx, "Sort segments mount after save search");
+        const spacerIdx = dockedRow.indexOf('min-w-0 flex-1');
+        assert.ok(spacerIdx > clearIdx && saveIdx > spacerIdx, "Clear stays with the filter cluster; Save search is after the flex spacer");
     });
 
     it("auto-starts the jobs tour only after a result card exists", () => {
