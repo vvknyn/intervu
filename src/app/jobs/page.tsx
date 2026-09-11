@@ -4760,7 +4760,12 @@ function JobsContent() {
                             // one handler here covers both without changing
                             // `SearchAutocomplete`'s own props.
                             onFocus={() => setMobileSearchFocused(true)}
-                            className="flex flex-col rounded-none border border-border border-t-2 border-t-brand bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
+                            className="flex flex-col rounded-none border border-border bg-card focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1">
+                            {/* Brand top blade — a real 2px bar, not border-t-2.
+                                Tailwind's `border-x`/`border` shorthands reset
+                                border-top-width and collapsed the 2px edge to 1px. */}
+                            <div aria-hidden className="h-0.5 shrink-0 bg-brand" />
+                            <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-y-0 sm:divide-x">
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
                                     ref={searchAutocompleteRef}
@@ -4850,6 +4855,7 @@ function JobsContent() {
                                         <X size={20} aria-hidden />
                                     </button>
                                 )}
+                            </div>
                             </div>
                         </div>
                         <div className={cn(

@@ -59,6 +59,14 @@ describe("jobs filter strip chrome guards", () => {
         assert.match(src, /divide-x divide-border/);
     });
 
+    it("mobile search well uses a 2px brand top blade, not a border-t fight", () => {
+        const src = readFileSync(PAGE, "utf8");
+        const at = src.indexOf("data-search-line");
+        const well = src.slice(at, at + 2500);
+        assert.match(well, /h-0\.5 shrink-0 bg-brand/);
+        assert.doesNotMatch(well, /border-t-2 border-t-brand/);
+    });
+
     it("changed sources do not mention JobDetailHandoff", () => {
         for (const file of [CHIP, FACET_BAR, FILTER_CHIPS, PAGE, TOPBAR]) {
             const src = readFileSync(file, "utf8");
