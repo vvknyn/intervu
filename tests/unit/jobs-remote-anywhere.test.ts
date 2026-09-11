@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { resolveLocationFacet, type CompanyProbe, type LocationVocabulary } from "../../src/lib/jobs/query-understanding";
 import { buildFilter, LIVE_VACANCY_FILTER, REMOTE_ANYWHERE_CLAUSE } from "../../src/lib/jobs/meilisearch";
 import { buildGazetteerIndex, type GazetteerData } from "../../src/lib/geo/gazetteer";
+import { resolveLocationDefault, placesForCountry } from "../../src/lib/geo/ip-default";
+import type { CountryLookup } from "../../src/lib/geo/ip-country";
 import type { CorpusValueChecker } from "../../src/lib/geo/corpus-values";
 import type { PlaceFilter } from "../../src/lib/jobs/types";
 
@@ -124,6 +126,71 @@ test("(e) a global work_type facet excludes remote-anywhere docs from a widened 
   // by construction; renderPlaceClause/buildFilter need no explicit
   // work_type guard to make that true.
   assert.ok(filter.includes('(work_type = "hybrid")'), `expected a top-level work_type clause: ${JSON.stringify(filter)}`);
+});
+
+/**
+ * Round 2 of #479 set `remoteAnywhere` only inside `parsePlaceTokens`,
+ * missing the other two builders of a country `PlaceClause`:
+ * `resolveLocationDefault` (geo/ip-default.ts, every IP-geolocated search)
+ * and `placesForCountry` (geo/ip-default.ts, the cached cold-visit /jobs
+ * front door). Round 3 gives all three exactly one factory,
+ * `placeClause` (geo/resolve-place.ts) — (g)-(i) below cover the two
+ * builders round 2 missed, through their REAL callers, not by asserting on
+ * the shared factory directly (a factory that's right in isolation and
+ * wrong at one of its call sites is exactly what round 2 shipped).
+ */
+const PASSTHROUGH_CORPUS_CHECKER: CorpusValueChecker = async (groups) => groups;
+
+/** Shared by (g)/(h): resolveLocationDefault's country clause must widen to
+ *  admit remote-anywhere jobs exactly like a typed country facet does. */
+async function assertIpDefaultWidensRemoteAnywhere(iso2: string) {
+  const lookup: CountryLookup = async () => iso2;
+  const result = await resolveLocationDefault("1.2.3.4", GAZETTEER, PASSTHROUGH_CORPUS_CHECKER, lookup);
+  assert.ok(result, `expected resolveLocationDefault to resolve ${iso2}`);
+  assert.equal(result!.places[0].remoteAnywhere, true, `resolveLocationDefault(${iso2}) must set remoteAnywhere`);
+  const filter = buildFilter({ places: result!.places });
+  const placeFilterClause = filter.find((f) => f.includes("location_country"));
+  assert.ok(
+    placeFilterClause?.includes(`OR (${REMOTE_ANYWHERE_CLAUSE})`),
+    `expected the IP-default clause widened for ${iso2}: ${placeFilterClause}`,
+  );
+}
+
+test("(g) resolveLocationDefault('CA') funnels through the shared factory — round 2's other bypassed builder", async () => {
+  await assertIpDefaultWidensRemoteAnywhere("CA");
+});
+
+test("(h) the widening is class-wide for the IP default too, same as (b) is for typed search — Germany, not just Canada", async () => {
+  await assertIpDefaultWidensRemoteAnywhere("DE");
+});
+
+test("(i) placesForCountry — flagged for a real country, undefined (unchanged) for one the gazetteer doesn't recognize", () => {
+  const flagged = placesForCountry("CA", GAZETTEER);
+  assert.ok(flagged?.length, "expected placesForCountry('CA') to produce a clause");
+  assert.equal(flagged![0].remoteAnywhere, true, "placesForCountry — the third bypassed builder — must set remoteAnywhere");
+  assert.equal(placesForCountry("ZZ", GAZETTEER), undefined, "an ISO2 the gazetteer doesn't recognize must still fail open");
+});
+
+test("(j) guard: all three country-clause builders render the IDENTICAL place clause — a fourth builder that diverges fails this", async () => {
+  const vocabPassthrough: LocationVocabulary = {
+    gazetteer: GAZETTEER,
+    corpusChecker: PASSTHROUGH_CORPUS_CHECKER,
+    companyProbe: NEVER_CORROBORATES,
+  };
+
+  const typed = await resolveLocationFacet({ facets: { location_country: ["Canada"] } }, vocabPassthrough);
+  const typedClause = buildFilter(typed).find((f) => f.includes("location_country"));
+
+  const ipDefault = await resolveLocationDefault("1.2.3.4", GAZETTEER, PASSTHROUGH_CORPUS_CHECKER, async () => "CA");
+  const ipDefaultClause = buildFilter({ places: ipDefault!.places }).find((f) => f.includes("location_country"));
+
+  const coldVisit = placesForCountry("CA", GAZETTEER);
+  const coldVisitClause = buildFilter({ places: coldVisit }).find((f) => f.includes("location_country"));
+
+  assert.ok(
+    typedClause === ipDefaultClause && ipDefaultClause === coldVisitClause,
+    `the three country-clause builders diverged: typed=${typedClause} ipDefault=${ipDefaultClause} coldVisit=${coldVisitClause}`,
+  );
 });
 
 test("(f) the count route runs the same query-understanding step, in the same relative order, as /jobs — regression guard", () => {

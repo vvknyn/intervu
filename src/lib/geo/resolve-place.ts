@@ -39,7 +39,7 @@
  * free-text search words — an explicitly-typed location is intentional
  * input, not a coincidental substring (see query-understanding.ts).
  */
-import type { PlaceFilter } from "../jobs/types";
+import type { PlaceClause, PlaceFilter } from "../jobs/types";
 import type { Gazetteer, GazetteerCity, GazetteerCountry } from "./gazetteer";
 import { haversineKm } from "./distance";
 import { COMMON_WORDS } from "./common-words";
@@ -182,6 +182,31 @@ function resolveCountry(normalized: string, gazetteer: Gazetteer): PlaceResoluti
 export function countryPlaceCandidates(iso2: string, gazetteer: Gazetteer): PlaceCandidate[] | null {
   const country = gazetteer.countriesByIso2.get(iso2.toUpperCase());
   return country ? countryCandidates(country, gazetteer) : null;
+}
+
+/**
+ * The ONE builder of a country `PlaceClause` — do not hand-write `{ any }`
+ * for a country. Ruling (Vivek, Sep 2026): a remote job with no geographic
+ * restriction must be listed under ANY country filter. Data fact
+ * (live-verified against the Meili `jobs` index): that set is exactly
+ * `work_type = "remote" AND location_country IS NULL` (52,512 docs
+ * all-dates; `IS EMPTY` and `NOT EXISTS` both measured 0).
+ *
+ * A `PlaceResolution.entity.type === "country"` gets `remoteAnywhere: true`
+ * stamped on unconditionally; every other entity type (city/admin1/region)
+ * is asking for a specific place, not "remote with no restriction," so it
+ * never gets this. Every country `PlaceClause` in the product funnels
+ * through here: `parsePlaceTokens` (query-understanding.ts, a typed/picked
+ * country facet), `resolveLocationDefault` (ip-default.ts, the IP-geolocated
+ * default), and `placesForCountry` (ip-default.ts, the cached cold-visit
+ * /jobs front door) all call this instead of building `{ any }` by hand —
+ * that three-way duplication (round 2 of PR #479) is exactly how two of
+ * those builders shipped without the flag.
+ */
+export function placeClause(entityType: PlaceEntityType, any: PlaceFilter[], scopedToCountry?: PlaceFilter[]): PlaceClause {
+  const clause: PlaceClause = scopedToCountry && scopedToCountry.length > 0 ? { any, scopedToCountry } : { any };
+  if (entityType === "country") clause.remoteAnywhere = true;
+  return clause;
 }
 
 /** A region/continent phrase ("North America", "EMEA", ...) resolves to ONE

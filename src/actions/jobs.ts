@@ -30,7 +30,7 @@ import { validate, markJobAppliedSchema } from "@/lib/validation";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { createMmdbCountryLookup } from "@/lib/geo/ip-country";
 import { loadGazetteer } from "@/lib/geo/gazetteer";
-import { countryPlaceCandidates } from "@/lib/geo/resolve-place";
+import { placesForCountry } from "@/lib/geo/ip-default";
 import { allowSearchRequest } from "@/lib/shield/rate-limit";
 import { ANONYMOUS_DEPTH_GATE_MESSAGE, resolveDepthCap } from "@/lib/shield/depth-cap";
 import { getServerUser } from "@/lib/auth/server-user";
@@ -318,20 +318,6 @@ export async function getRelatedJobsAction(
 const DEFAULT_BROWSE_LIMIT = 20;
 
 /**
- * Resolve a country ISO2 to the same `places` clause shape
- * `resolveLocationDefault` (lib/geo/ip-default.ts) would produce for it —
- * built straight from the bundled gazetteer, no corpus-value validation
- * (that step is a live Meilisearch facet-search call; skipping it is what
- * keeps this cheap enough to run outside the cache below on every request).
- * A country genuinely absent from the corpus just yields zero hits, same as
- * any other search with an obscure filter — not a failure.
- */
-function placesForCountry(iso2: string): PlaceClause[] | undefined {
-  const candidates = countryPlaceCandidates(iso2, loadGazetteer());
-  return candidates?.length ? [{ any: candidates }] : undefined;
-}
-
-/**
  * The fixed "default browse" shape (2026-08-07 front-door reversal, product
  * decision: a zero-query visitor must see real jobs on first paint) — empty
  * query, the app's standing 30d posted-window default (`DEFAULT_URL_STATE`,
@@ -390,7 +376,7 @@ export async function getDefaultBrowseAction(
   const searchId = randomUUID();
   const ip = suppressLocationDefault ? null : await getClientIp();
   const iso2 = ip ? await countryLookup(ip) : null;
-  const places = iso2 ? placesForCountry(iso2) : undefined;
+  const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
   try {
     const result = await getCachedDefaultBrowse(places);
     return { ...result, searchId, ...(places ? { defaultedLocation: iso2! } : {}) };
@@ -427,7 +413,7 @@ export async function getDefaultBrowseAction(
  */
 const getCachedBoardCountNew = unstable_cache(
   async (iso2: string | null, bucketedCursorIso: string): Promise<number> => {
-    const places = iso2 ? placesForCountry(iso2) : undefined;
+    const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
     const result = await runSearch(
       { postedSinceMs: Date.parse(bucketedCursorIso), places, limit: 1, withFacets: false },
       {},

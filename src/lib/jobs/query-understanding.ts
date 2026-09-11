@@ -15,7 +15,7 @@
 import type { JobSearchParams, PlaceClause, PlaceFilter } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
-import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution, type LocationField } from "../geo/resolve-place";
+import { scanPlacePhrases, rebuildAfterRejection, placeClause, type PlaceResolution, type LocationField } from "../geo/resolve-place";
 import { MAX_REGION_CLAUSE_TERMS, regionLabel } from "../geo/regions";
 import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
@@ -210,14 +210,7 @@ export async function parsePlaceTokens(
     const any = results[i * 2];
     if (any.length === 0) return; // nothing this resolution proposed exists in the corpus at all
     const scope = results[i * 2 + 1];
-    const clause: PlaceClause = scope.length > 0 ? { any, scopedToCountry: scope } : { any };
-    // See `PlaceClause.remoteAnywhere`'s doc — a remote-anywhere job must
-    // surface under every COUNTRY filter, never a city/state/region one.
-    // This is the single site every typed or picked country resolution
-    // converges on (subdivision expansion's own chokepoint, resolve-
-    // place.ts's `countryCandidates`), so marking it here covers both.
-    if (r.entity.type === "country") clause.remoteAnywhere = true;
-    places.push(clause);
+    places.push(placeClause(r.entity.type, any, scope.length > 0 ? scope : undefined));
   });
   return { residualQ, places };
 }

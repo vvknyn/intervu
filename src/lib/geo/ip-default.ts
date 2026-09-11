@@ -11,7 +11,7 @@
  */
 import type { JobSearchParams, PlaceClause } from "../jobs/types";
 import type { Gazetteer } from "./gazetteer";
-import { countryPlaceCandidates } from "./resolve-place";
+import { countryPlaceCandidates, placeClause } from "./resolve-place";
 import type { CorpusValueChecker } from "./corpus-values";
 import type { CountryLookup } from "./ip-country";
 
@@ -62,7 +62,23 @@ export async function resolveLocationDefault(
   const [any] = await corpusChecker([candidates]);
   if (any.length === 0) return null;
   // A country-level default IS the country — nothing left to further scope.
-  return { places: [{ any }], countryCode: iso2 };
+  return { places: [placeClause("country", any)], countryCode: iso2 };
+}
+
+/**
+ * Resolve a country ISO2 to the same `places` clause shape
+ * `resolveLocationDefault` above would produce for it — built straight from
+ * the bundled gazetteer, no corpus-value validation (that step is a live
+ * Meilisearch facet-search call; skipping it is what keeps this cheap enough
+ * to run on every request, outside any caller's own response cache). A
+ * country genuinely absent from the corpus just yields zero hits, same as
+ * any other search with an obscure filter — not a failure. Used by the
+ * cached cold-visit /jobs front door (`getDefaultBrowseAction`,
+ * `getCachedBoardCountNew` in actions/jobs.ts).
+ */
+export function placesForCountry(iso2: string, gazetteer: Gazetteer): PlaceClause[] | undefined {
+  const candidates = countryPlaceCandidates(iso2, gazetteer);
+  return candidates?.length ? [placeClause("country", candidates)] : undefined;
 }
 
 export interface LocationDefaultApplication {
