@@ -4760,7 +4760,7 @@ function JobsContent() {
                             // one handler here covers both without changing
                             // `SearchAutocomplete`'s own props.
                             onFocus={() => setMobileSearchFocused(true)}
-                            className="flex flex-col rounded-none border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
+                            className="flex flex-col rounded-none border border-border border-t-2 border-t-brand bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
                                     ref={searchAutocompleteRef}
@@ -4956,7 +4956,7 @@ function JobsContent() {
                     data-testid="jobs-toolbar"
                     className={cn(
                         showJobsToolbarRow &&
-                            "mt-3 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5",
+                            "mt-3 border-y border-border bg-background py-2 lg:px-0.5 lg:py-1.5",
                     )}
                 >
                     {showJobsToolbarRow && (
@@ -5003,11 +5003,19 @@ function JobsContent() {
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
                             <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
                         )}
+                        {!headerDockActive && unnamedEntries.length > 0 && (
+                            <div className="w-px shrink-0 self-stretch bg-border" aria-hidden />
+                        )}
+                        <div
+                            role="group"
+                            aria-label="Active filters"
+                            className={cn("contents", unnamedEntries.length === 0 && "hidden")}
+                        >
                         {!headerDockActive && unnamedEntries.map((entry) => (
                             <span
                                 key={entry.key}
                                 data-testid="active-filter-chip"
-                                className={cn(chipVariants({ active: false }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
+                                className={cn(chipVariants({ active: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
                             >
                                 {chipLabelForEntry(entry)}
                                 <ChipDismiss
@@ -5016,6 +5024,7 @@ function JobsContent() {
                                 />
                             </span>
                         ))}
+                        </div>
                         {!headerDockActive && clearFiltersEl}
                         {!headerDockActive && savedSearchMountEl}
                         </>

@@ -79,14 +79,16 @@ function FacetChip({
     testId: string;
     children: React.ReactNode;
 }) {
+    const active = activeValue != null;
     return (
         <Popover>
             <PopoverTrigger
                 data-testid={testId}
                 className={cn(
-                    chipVariants({ active: activeValue != null }),
+                    chipVariants({ active }),
                     toolbarControlHeight,
-                    "inline-flex box-border items-center justify-center leading-none rounded-none px-3 lg:px-2",
+                    "inline-flex box-border items-center justify-center self-stretch leading-none rounded-none border-y-0 border-r-0 px-3 lg:px-2",
+                    !active && "border-l-0",
                 )}
             >
                 {activeValue ? `${label} · ${activeValue}` : label}
@@ -152,7 +154,7 @@ export function FacetBar({
     const posted = appliedPostedBucket(state);
 
     return (
-        <div data-testid="facet-bar" className="hidden flex-wrap items-center gap-2 lg:flex">
+        <div data-testid="facet-bar" className="hidden items-stretch divide-x divide-border border border-border bg-background lg:flex">
             {postedDateSupported && (
                 <FacetChip
                     label="Posted"

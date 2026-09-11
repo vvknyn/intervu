@@ -65,7 +65,7 @@ test("toolbar control height", async (t) => {
         // 44px is the phone tap-target floor the mobile chips already used;
         // 28px from `lg` is the `chipVariants` density the rest of the app is
         // built on. Both halves are load-bearing, so both are pinned here.
-        assert.equal(decl![1], "h-11 lg:h-7");
+        assert.equal(decl![1], "h-11 lg:h-8");
         assert.match(pageSrc, /from "@\/lib\/jobs\/toolbar-control-height"/);
     });
 

@@ -132,7 +132,7 @@ export function TopBar() {
                             }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="hidden h-8 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-none border-0 border-b border-border-strong bg-muted text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="hidden h-8 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-none border-0 border-b border-border-strong bg-muted text-left transition-colors focus-within:border-brand hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
                                 <MagnifyingGlass className="shrink-0 self-center text-foreground" />
@@ -296,7 +296,7 @@ export function TopBar() {
                 yet) still renders the row for the "Filters" button alone. */}
             {docked && (
                 <div data-region="band" className="hidden bg-background lg:block">
-                    <div className="shell-row box-border flex h-10 flex-nowrap items-center gap-4 overflow-x-auto border-t border-border">
+                    <div className="shell-row box-border flex h-10 flex-nowrap items-center gap-2 overflow-x-auto border-t border-border">
                         <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
                         <button
                             type="button"
@@ -318,20 +318,25 @@ export function TopBar() {
                             )}
                         </button>
                         <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
-                        {docked.chips.map((chip) => (
-                            <span
-                                key={chip.key}
-                                data-testid="topbar-docked-chip"
-                                className={cn(
-                                    chipVariants({ active: false }),
-                                    toolbarControlHeight,
-                                    "box-border items-center gap-2 px-3 lg:px-3",
-                                )}
-                            >
-                                {chip.label}
-                                <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
-                            </span>
-                        ))}
+                        {docked.chips.length > 0 && (
+                            <>
+                                <div className="w-px shrink-0 self-stretch bg-border" aria-hidden />
+                                {docked.chips.map((chip) => (
+                                    <span
+                                        key={chip.key}
+                                        data-testid="topbar-docked-chip"
+                                        className={cn(
+                                            chipVariants({ active: true }),
+                                            toolbarControlHeight,
+                                            "box-border items-center gap-2 px-3 lg:px-3",
+                                        )}
+                                    >
+                                        {chip.label}
+                                        <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
+                                    </span>
+                                ))}
+                            </>
+                        )}
                         <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />
                         <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-2" />
                         <div className="min-w-0 flex-1" aria-hidden />

@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils"
 /**
  * Carbon field chip — sharp 0px geometry, 1px hairline border, no fill even
  * when selected (a chip is never the one filled control in its region).
+ * Active state uses a squared brand left blade plus brand border/text — never
+ * a filled `bg-brand` inversion.
  */
 export const chipVariants = cva(
   // A chip carries a label, never code, so it takes the sans — with tabular
@@ -15,7 +17,7 @@ export const chipVariants = cva(
   {
     variants: {
       active: {
-        true: "border-brand text-brand bg-background",
+        true: "border-brand border-l-[3px] text-brand bg-background",
         false: "",
       },
     },
