@@ -16,9 +16,11 @@ export interface SearchAlertCaptureInput {
   submitted: boolean;
   interactions: number;
   hasResults: boolean;
+  authGateVisible?: boolean;
 }
 
 export function shouldShowSearchAlertCapture(input: SearchAlertCaptureInput): boolean {
+  if (input.authGateVisible) return false;
   if (input.signedIn) return false;
   if (input.dismissed || input.submitted) return false;
   if (!input.hasResults) return true;

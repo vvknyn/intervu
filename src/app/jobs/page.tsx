@@ -4055,6 +4055,7 @@ function JobsContent() {
             submitted: searchAlertSubmitted,
             interactions: searchInteractions,
             hasResults: false,
+            authGateVisible: showGuestEngageNudge || showGuestSaveBanner,
         });
     const hasResultsPanel =
         resultsPanel !== "empty" &&
@@ -4071,6 +4072,7 @@ function JobsContent() {
             submitted: searchAlertSubmitted,
             interactions: searchInteractions,
             hasResults: true,
+            authGateVisible: showGuestEngageNudge || showGuestSaveBanner,
         });
 
     const handleDismissSearchAlert = useCallback(() => {
@@ -4970,6 +4972,16 @@ function JobsContent() {
                                 postedDateSupported={postedDateSupported}
                             />
                         )}
+                        {!showLandingMarketing && !headerDockActive && fieldDirectoryMenu}
+                        {!headerDockActive && facetBarEl}
+                        {showToolbarFilters && (
+                        <>
+                        {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
+                            <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
+                        )}
+                        {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
+                        </>
+                        )}
                         {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
                         <button
                             type="button"
@@ -4993,16 +5005,6 @@ function JobsContent() {
                             )}
                             {filtersOpen ? <CaretUp size={16} weight="bold" aria-hidden /> : <CaretDown size={16} weight="bold" aria-hidden />}
                         </button>
-                        )}
-                        {!showLandingMarketing && !headerDockActive && fieldDirectoryMenu}
-                        {!headerDockActive && facetBarEl}
-                        {showToolbarFilters && (
-                        <>
-                        {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
-                            <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
-                        )}
-                        {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
-                        </>
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
                         {!headerDockActive && (

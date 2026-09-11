@@ -348,20 +348,21 @@ describe("jobs page chrome guards", () => {
             topbar.indexOf('data-testid="topbar-docked-extras"'),
         );
         const fieldIdx = dockedRow.indexOf("topbar-docked-field-directory");
-        const filtersIdx = dockedRow.indexOf("topbar-docked-filters-toggle");
         const facetsIdx = dockedRow.indexOf("topbar-docked-facets");
+        const filtersIdx = dockedRow.indexOf("topbar-docked-filters-toggle");
         const clearIdx = dockedRow.indexOf("topbar-docked-clear-filters");
         const saveIdx = dockedRow.indexOf("topbar-docked-save-search");
         const chipIdx = dockedRow.indexOf("topbar-docked-chip");
         const sortIdx = dockedRow.indexOf("topbar-docked-sort");
-        assert.ok(fieldIdx > -1 && filtersIdx > fieldIdx && facetsIdx > filtersIdx, "Browse by field mounts before Filters, then facets");
+        const spacerIdx = dockedRow.indexOf('min-w-0 flex-1');
+        assert.ok(fieldIdx > -1 && facetsIdx > fieldIdx, "Browse by field mounts before facets");
+        assert.ok(filtersIdx > facetsIdx, "Filters toggle trails applied facets/chips, not between field and facets");
         assert.ok(chipIdx > facetsIdx, "Leftover filter chips mount after facet dropdowns");
         assert.ok(clearIdx > chipIdx, "Clear filters mounts at the trailing end of the chip cluster");
-        assert.ok(saveIdx > clearIdx, "Save search stays after Clear, on the far-right side of the spacer");
+        assert.ok(filtersIdx > clearIdx && spacerIdx > filtersIdx, "Filters toggle is last in the left cluster before the spacer");
+        assert.ok(saveIdx > spacerIdx, "Save search is after the flex spacer");
         assert.doesNotMatch(topbar, /topbar-docked-status/, "live corpus count deferred from docked toolbar");
         assert.ok(sortIdx > saveIdx, "Sort segments mount after save search");
-        const spacerIdx = dockedRow.indexOf('min-w-0 flex-1');
-        assert.ok(spacerIdx > clearIdx && saveIdx > spacerIdx, "Clear stays with the filter cluster; Save search is after the flex spacer");
     });
 
     it("auto-starts the jobs tour only after a result card exists", () => {
