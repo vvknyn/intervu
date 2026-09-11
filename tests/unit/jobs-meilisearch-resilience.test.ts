@@ -9,6 +9,8 @@ import {
     buildSearchBody,
     withLiveVacancyFilter,
     LIVE_VACANCY_FILTER,
+    buildLastUpdatedQuery,
+    quoteShortTokens,
 } from "../../src/lib/jobs/meilisearch";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "../../src/lib/jobs/types";
 
@@ -162,4 +164,45 @@ test("fetchFacetSearch: every request body carries the composed liveness filter,
         },
         { facetName: "work_type", facetQuery: "", filter: LIVE_VACANCY_FILTER },
     ]);
+});
+
+// Freshness-line truthfulness (intervu #484): `buildLastUpdatedQuery` gives
+// `fetchJobsLastUpdated` the SAME `filter`/`q` the results search sends for
+// `p`, so the "updated X ago" stamp is MAX(updated_at) over the population
+// actually on screen — never a corpus-wide number computed independently of
+// the filters. Each case below is a distinct narrowing shape the reviewer
+// required coverage for, including the pristine 30d default that the
+// enumeration-based `isNarrowedResultSet` gate missed.
+
+test("buildLastUpdatedQuery: pristine default (untouched 30d window) scopes the filter to it", () => {
+    const { filter, q } = buildLastUpdatedQuery({ postedBucket: "30d" });
+    assert.equal(q, "");
+    assert.equal(filter[0], LIVE_VACANCY_FILTER);
+    assert.ok(
+        filter.some((clause) => /^posted_ts >= \d+$/.test(clause)),
+        `expected a posted_ts floor clause, got ${JSON.stringify(filter)}`,
+    );
+});
+
+test("buildLastUpdatedQuery: explicit unfiltered corpus (no posted window) carries no date clause", () => {
+    const { filter, q } = buildLastUpdatedQuery({});
+    assert.equal(q, "");
+    assert.deepEqual(filter, [LIVE_VACANCY_FILTER]);
+});
+
+test("buildLastUpdatedQuery: employer drawer (companyDomain scope) — the founder's exact repro", () => {
+    const { filter } = buildLastUpdatedQuery({ companyDomain: "acme.com" });
+    assert.ok(filter.includes('company_domain = "acme.com"'), `expected a company_domain clause, got ${JSON.stringify(filter)}`);
+});
+
+test("buildLastUpdatedQuery: a text query is sent as the SAME quoted q the results search uses", () => {
+    const { q } = buildLastUpdatedQuery({ q: "registered nurse" });
+    assert.equal(q, quoteShortTokens("registered nurse"));
+    assert.notEqual(q, "", "a real query must not collapse to match-all");
+});
+
+test("buildLastUpdatedQuery: a facet with no text (country) scopes the filter, leaves q empty", () => {
+    const { filter, q } = buildLastUpdatedQuery({ facets: { location_country: ["US"] } });
+    assert.equal(q, "");
+    assert.ok(filter.includes('(location_country = "US")'), `expected a location_country clause, got ${JSON.stringify(filter)}`);
 });

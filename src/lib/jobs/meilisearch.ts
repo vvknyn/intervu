@@ -1680,8 +1680,28 @@ export async function meiliMultiSearch(
   return body.results ?? [];
 }
 
-/** Read-path: the `updated_at` of the most recently updated doc, for the "last synced" stamp. */
-export async function fetchJobsLastUpdated(): Promise<string | null> {
+/**
+ * Pure: the `q`/`filter` `fetchJobsLastUpdated` sends for `p` — the exact
+ * same `buildFilter(p)` clauses and `quoteShortTokens(p.q)` text the results
+ * search itself uses, so the two queries agree on which rows match. Split
+ * out so each narrowing shape (default 30d window, no window, a single
+ * employer, a text query, a facet) is assertable without a network call.
+ */
+export function buildLastUpdatedQuery(p: JobSearchParams): { q: string; filter: string[] } {
+  return { q: quoteShortTokens(p.q ?? ""), filter: buildFilter(p) };
+}
+
+/**
+ * Read-path: MAX(`updated_at`) over the rows `p` would match (see
+ * `buildLastUpdatedQuery`), so the "last synced" stamp describes the
+ * population actually on screen rather than always the whole corpus. `p`
+ * omitted (or `{}`) means "no narrowing" — the true corpus-wide stamp, still
+ * scoped to live vacancies like every other search (`LIVE_VACANCY_FILTER` in
+ * `buildFilter`). One query: limit 1, sorted `updated_at:desc`. A failed or
+ * unavailable probe returns `null` — the caller (`searchResultLine`,
+ * presentation.ts) renders no clause rather than guessing.
+ */
+export async function fetchJobsLastUpdated(p: JobSearchParams = {}): Promise<string | null> {
   const h = host();
   if (!h) return null;
   try {
@@ -1689,7 +1709,13 @@ export async function fetchJobsLastUpdated(): Promise<string | null> {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
-      body: JSON.stringify({ limit: 1, sort: ["updated_at:desc"], attributesToRetrieve: ["updated_at"] }),
+      body: JSON.stringify({
+        ...buildLastUpdatedQuery(p),
+        matchingStrategy: "all",
+        limit: 1,
+        sort: ["updated_at:desc"],
+        attributesToRetrieve: ["updated_at"],
+      }),
     });
     if (!res.ok) return null;
     const body = (await res.json()) as { hits?: { updated_at?: string }[] };

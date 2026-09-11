@@ -1459,30 +1459,6 @@ const POSTED_WINDOW_PHRASE: Record<PostedBucket, string> = {
 };
 
 /**
- * Whether the set on screen is narrower than the whole corpus — a text
- * query, any active facet chip (`activeFilterEntries`, FilterPanel.tsx), or a
- * curated-board/single-employer scope. The last of those (`hasCorpusScope`)
- * is exactly the field `resolveEmptySearchState` (result-state.ts) already
- * carries for the same "is this browse narrowed" question; `companyDomain`
- * scope in particular renders no chip of its own (see `activeFilterEntries`'s
- * comment on it) so it can't be read off `activeFilterCount` alone.
- *
- * Feeds `searchResultLine`'s "updated X ago" clause: that clause is
- * MAX(updated_at) over the WHOLE Meilisearch index (`fetchJobsLastUpdated`,
- * meilisearch.ts), true of the corpus and not of any narrower slice drawn
- * from it. A single employer's 7 listings can each be 3 months stale while
- * the corpus synced 40 minutes ago — the index just wrote to a different
- * document.
- */
-export function isNarrowedResultSet(input: {
-    hasQuery: boolean;
-    activeFilterCount: number;
-    hasCorpusScope: boolean;
-}): boolean {
-    return input.hasQuery || input.activeFilterCount > 0 || input.hasCorpusScope;
-}
-
-/**
  * The single grey line under the pinned search box.
  *
  * Says the posted-date window out loud. A fresh visit already filters to the
@@ -1491,18 +1467,24 @@ export function isNarrowedResultSet(input: {
  * number on screen is NOT the size of the corpus. Naming the window converts a
  * hidden filter into a stated fact; without it the count is quietly wrong.
  *
+ * `lastUpdated` is expected to already be MAX(updated_at) over the SAME
+ * filtered population `count` describes — the caller (`getJobsFreshnessAction`,
+ * fed the exact same `buildJobSearchPayload` output as the results search)
+ * is what makes that true, not this function. A single employer's 7 listings
+ * can each be 3 months stale while the whole corpus synced 40 minutes ago —
+ * this function has no way to tell the two apart, so it trusts its input.
+ *
  * Pure: the caller threads its own clock, so this is safe to call from a
  * render body and can be asserted on without a fake timer.
  */
 export function searchResultLine(input: {
     count: CorpusCount;
     postedBucket: PostedBucket | undefined;
-    /** Corpus sync stamp. Absent when the freshness probe hasn't answered. */
+    /** Stamp for the population `count` describes. Absent when the
+     *  freshness probe hasn't answered (or has none to give — see
+     *  `fetchJobsLastUpdated`, meilisearch.ts). */
     lastUpdated: string | null | undefined;
     nowMs: number;
-    /** See `isNarrowedResultSet`. `true` suppresses the "updated X ago"
-     *  clause below — the stamp doesn't describe this narrower set. */
-    narrowed: boolean;
 }): string {
     const noun = input.count.value === 1 ? "role" : "roles";
     const window = input.postedBucket ? ` ${POSTED_WINDOW_PHRASE[input.postedBucket]}` : "";
@@ -1511,10 +1493,8 @@ export function searchResultLine(input: {
     // the clause is omitted too, not shown stale — stop confessing
     // staleness inline; a real outage/maintenance window is the degraded
     // banner's job (result-state.ts's `degradedResultsNote`), not this
-    // line's (Deliverable 2, 2026-08-01). Narrowed sets omit it for a
-    // different reason: not staleness, but a wrong denominator — the stamp
-    // is a fact about the corpus, not about the filtered set on screen.
-    const updated = !input.narrowed && input.lastUpdated && !isStale(input.lastUpdated, input.nowMs, RESULT_LINE_FRESH_MS)
+    // line's (Deliverable 2, 2026-08-01).
+    const updated = input.lastUpdated && !isStale(input.lastUpdated, input.nowMs, RESULT_LINE_FRESH_MS)
         ? ` · updated ${formatRelativeAge(input.lastUpdated, input.nowMs)}`
         : "";
     return `${formatCorpusCount(input.count)} ${noun}${window}${updated}`;
