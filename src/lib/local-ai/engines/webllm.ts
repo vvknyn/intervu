@@ -9,6 +9,13 @@ import type { LocalAiEngine, ModelParseOutput } from "./types";
 
 const WEBLLM_CDN = "https://esm.run/@mlc-ai/web-llm@0.2.79";
 
+/** Strongest practical everyday WebGPU model in the 0.2.79 catalog (~2.3GB VRAM). */
+export const WEBLLM_MODEL_ID = "Llama-3.2-3B-Instruct-q4f16_1-MLC";
+
+export function getWebllmDisplayLabel(): string {
+    return "On-device · Llama-3.2-3B-Instruct";
+}
+
 const PARSE_PROMPT = (text: string) => `Extract resume as JSON. Fields: profile, experience, competencies, education, generatedSummary.
 
 """
@@ -61,7 +68,7 @@ export const webllmEngine: LocalAiEngine = {
         const mod = (await import(/* webpackIgnore: true */ WEBLLM_CDN)) as {
             CreateMLCEngine: (model: string, opts?: { initProgressCallback?: (p: { progress: number }) => void }) => Promise<typeof engine>;
         };
-        engine = await mod.CreateMLCEngine("Llama-3.2-1B-Instruct-q4f16_1-MLC", {
+        engine = await mod.CreateMLCEngine(WEBLLM_MODEL_ID, {
             initProgressCallback: () => {},
         });
     },
@@ -80,8 +87,12 @@ export const webllmEngine: LocalAiEngine = {
         if (!engine) await this.init();
         const response = await engine!.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
-            temperature: 0.2,
+            temperature: 0.3,
         });
         return response.choices[0]?.message?.content ?? null;
+    },
+
+    getDisplayLabel() {
+        return getWebllmDisplayLabel();
     },
 };

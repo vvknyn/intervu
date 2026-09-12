@@ -31,7 +31,7 @@ import { sentinelMessage } from "@/lib/llm/sentinels";
 interface ResumeImportModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onImport: (data: ResumeData, source: 'pdf' | 'docx' | 'text', confidence: number) => void;
+    onImport: (data: ResumeData, source: 'pdf' | 'docx' | 'text', confidence: number, sourceLabel: string) => void;
     /**
      * Label for the final review-step's confirm button. This modal is
      * shared between the resume-builder (where "Apply to Resume" means
@@ -252,7 +252,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             return;
         }
         const overall = reviewConfidence?.overall ?? parseResult.confidence.overall;
-        onImport(editedData, contentType, overall);
+        const sourceLabel =
+            inputMethod === "file" && selectedFile
+                ? selectedFile.name
+                : "Pasted text";
+        onImport(editedData, contentType, overall, sourceLabel);
         handleClose();
     };
 
@@ -296,7 +300,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 </div>
                 <p className="text-xs text-muted-foreground">
                     Your résumé stays on this device. Click Enable to download an on-device model
-                    {probedEngine ? ` (${probedEngine})` : ""} or use local rules if the download fails.
+                    {probedEngine ? ` (${probedEngine})` : " (e.g. Llama 3.2 3B on WebGPU)"} or use local rules if the download fails.
                     No cloud LLM is called on this path.
                 </p>
             </div>

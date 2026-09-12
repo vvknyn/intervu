@@ -50,6 +50,8 @@ async function initFirstAvailableEngine(): Promise<LocalAiEngine | null> {
 }
 
 export function getEngineLabel(id: LocalAiEngineId): string {
+    if (id === "heuristic") return ENGINE_LABELS.heuristic;
+    if (activeEngine?.id === id) return activeEngine.getDisplayLabel();
     return ENGINE_LABELS[id];
 }
 
@@ -58,7 +60,8 @@ export function getActiveEngineId(): LocalAiEngineId {
 }
 
 export function getActiveEngineLabel(): string {
-    return getEngineLabel(getActiveEngineId());
+    if (activeEngine) return activeEngine.getDisplayLabel();
+    return ENGINE_LABELS.heuristic;
 }
 
 /** Probe ladder without downloading — returns first engine that reports available. */

@@ -230,9 +230,15 @@ describe("jobs filter toolbar chrome", () => {
         assert.doesNotMatch(rankBlock, /chipVariants/);
         assert.match(rankBlock, /text-xs font-semibold text-foreground/);
 
-        const replaceBlock = page.slice(page.indexOf('data-testid="jobs-replace-resume"'), page.indexOf('data-testid="jobs-replace-resume"') + 350);
-        assert.doesNotMatch(replaceBlock, /chipVariants/);
-        assert.match(replaceBlock, /text-xs font-semibold text-foreground/);
+        const asOfBlock = page.slice(page.indexOf('data-testid="resume-as-of"'), page.indexOf('data-testid="resume-as-of"') + 550);
+        assert.doesNotMatch(asOfBlock, /chipVariants/);
+        assert.match(asOfBlock, /Scoring with/);
+        assert.match(asOfBlock, /data-testid="jobs-replace-resume"/);
+        assert.match(asOfBlock, /text-xs font-semibold text-foreground/);
+        assert.match(asOfBlock, /Replace/);
+        assert.doesNotMatch(page, /update to rescore/);
+        assert.doesNotMatch(page, /scored against your résumé of/);
+        assert.doesNotMatch(page, /data-testid="jobs-sort-replace-resume"/);
 
         const saveTrigger = saved.slice(saved.indexOf('data-testid="save-search-trigger"'), saved.indexOf('data-testid="save-search-trigger"') + 450);
         assert.doesNotMatch(saveTrigger, /chipVariants/);

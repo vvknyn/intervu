@@ -2,8 +2,8 @@ export type LocalAiEngineId = "nano" | "webllm" | "transformers" | "heuristic";
 
 export const ENGINE_LABELS: Record<LocalAiEngineId, string> = {
     nano: "On-device · Nano",
-    webllm: "On-device · WebLLM",
-    transformers: "On-device · Transformers WASM",
+    webllm: "On-device · Llama-3.2-3B-Instruct",
+    transformers: "On-device · Qwen1.5-0.5B-Chat (WASM)",
     heuristic: "On-device · local rules",
 };
 
@@ -20,4 +20,6 @@ export interface LocalAiEngine {
     parseResumeText(text: string): Promise<ModelParseOutput>;
     /** Free-text generation for light rewrite/tailor. Null/throw → caller degrades. */
     generate(prompt: string): Promise<string | null>;
+    /** Human-readable label reflecting the actually loaded model. */
+    getDisplayLabel(): string;
 }

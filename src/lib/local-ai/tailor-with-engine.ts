@@ -7,7 +7,7 @@ import { readLocalAiConsent } from "./consent";
 import {
     generateWithActiveEngine,
     getActiveEngineId,
-    getEngineLabel,
+    getActiveEngineLabel,
     initLocalAiLadder,
 } from "./ladder";
 import { locationText } from "@/lib/jobs/presentation";
@@ -25,6 +25,13 @@ type ModelTailorOutput = {
     bullets?: Array<{ experienceId?: string; text?: string }>;
 };
 
+export const TAILOR_VOICE_RULES = `Voice rules (still truthful — no invented employers, titles, dates, or metrics):
+- Sound like a strong human résumé: concrete, varied rhythm, not keyword-stuffed
+- Avoid buzzword stacks, "Results-driven…", repeating the job title in every bullet, "Responsible for X. Responsible for Y."
+- Prefer verbs from the original bullet; weave JD language only where it already fits the meaning
+- Summary: 2–4 natural sentences (or one tight paragraph), not a skill list
+- Bullets: keep original structure and length band; do not homogenize every line`;
+
 function tryParseModelJson(text: string): ModelTailorOutput | null {
     const trimmed = text.trim();
     const start = trimmed.indexOf("{");
@@ -37,7 +44,7 @@ function tryParseModelJson(text: string): ModelTailorOutput | null {
     }
 }
 
-function buildModelPrompt(resume: ResumeData, job: TailorJobInput): string {
+export function buildModelPrompt(resume: ResumeData, job: TailorJobInput): string {
     const snippets = resume.experience
         .filter((e) => e.description?.trim())
         .slice(0, 4)
@@ -52,6 +59,8 @@ function buildModelPrompt(resume: ResumeData, job: TailorJobInput): string {
     const locationLine = job.location?.trim() ? `location: ${job.location.trim()}\n` : "";
 
     return `Tailor this résumé for the job. Keep truthfulness: do NOT invent employers, titles, dates, or numeric metrics. Mirror JD language where already implied by the original text.
+
+${TAILOR_VOICE_RULES}
 
 JOB:
 title: ${job.title}
@@ -102,7 +111,6 @@ function applyModelTailor(
 
         if (introducesNewNumbers(hit, text)) continue;
         if (text.toLowerCase().includes(exp.company.toLowerCase()) === false && /\b(at|for)\s+[A-Z]/.test(text)) {
-            // Reject if model appears to swap employer context
             const origCompany = exp.company.toLowerCase();
             const mentioned = resume.experience.some(
                 (e) => e.id !== expId && text.toLowerCase().includes(e.company.toLowerCase()),
@@ -133,7 +141,7 @@ function applyModelTailor(
 
     return {
         engineId,
-        engineLabel: getEngineLabel(engineId),
+        engineLabel: getActiveEngineLabel(),
         usedDescription: Boolean(job.description?.trim()),
         summaryBefore,
         summaryAfter: parsed.summary.trim(),

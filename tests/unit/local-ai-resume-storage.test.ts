@@ -61,6 +61,38 @@ describe("local-ai resume storage", () => {
         assert.ok(fakeLocalStorage.getItem(LOCAL_AI_RESUME_KEY));
     });
 
+    it("persists sourceLabel when provided", () => {
+        const data = sampleResume();
+        writeLocalAiResume(data, "2026-09-12T12:00:00.000Z", "resume.pdf");
+
+        const stored = readLocalAiResume();
+        assert.ok(stored);
+        assert.equal(stored.sourceLabel, "resume.pdf");
+    });
+
+    it("preserves existing sourceLabel when omitted on write", () => {
+        const data = sampleResume();
+        writeLocalAiResume(data, "2026-09-12T12:00:00.000Z", "resume.pdf");
+        writeLocalAiResume(data, "2026-09-12T13:00:00.000Z");
+
+        const stored = readLocalAiResume();
+        assert.ok(stored);
+        assert.equal(stored.sourceLabel, "resume.pdf");
+        assert.equal(stored.updatedAt, "2026-09-12T13:00:00.000Z");
+    });
+
+    it("reads legacy payloads without sourceLabel", () => {
+        const data = sampleResume();
+        fakeLocalStorage.setItem(
+            LOCAL_AI_RESUME_KEY,
+            JSON.stringify({ data, updatedAt: "2026-09-12T12:00:00.000Z" }),
+        );
+
+        const stored = readLocalAiResume();
+        assert.ok(stored);
+        assert.equal(stored.sourceLabel, undefined);
+    });
+
     it("returns null when nothing is stored", () => {
         assert.equal(readLocalAiResume(), null);
     });

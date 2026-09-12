@@ -78,4 +78,8 @@ export const nanoEngine: LocalAiEngine = {
         if (!session) await this.init();
         return session!.prompt(prompt);
     },
+
+    getDisplayLabel() {
+        return "On-device · Nano";
+    },
 };

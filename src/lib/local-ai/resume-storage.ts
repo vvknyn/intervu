@@ -10,6 +10,7 @@ export const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 interface StoredLocalAiResume {
     data: ResumeData;
     updatedAt: string;
+    sourceLabel?: string;
 }
 
 function getStorage(): Storage | null {
@@ -17,7 +18,11 @@ function getStorage(): Storage | null {
     return globalThis.localStorage;
 }
 
-export function readLocalAiResume(): { data: ResumeData; updatedAt: string } | null {
+export function readLocalAiResume(): {
+    data: ResumeData;
+    updatedAt: string;
+    sourceLabel?: string;
+} | null {
     const storage = getStorage();
     if (!storage) return null;
     try {
@@ -25,17 +30,34 @@ export function readLocalAiResume(): { data: ResumeData; updatedAt: string } | n
         if (!raw) return null;
         const parsed = JSON.parse(raw) as StoredLocalAiResume;
         if (!parsed?.data || typeof parsed.updatedAt !== "string") return null;
-        return { data: parsed.data, updatedAt: parsed.updatedAt };
+        return {
+            data: parsed.data,
+            updatedAt: parsed.updatedAt,
+            sourceLabel: typeof parsed.sourceLabel === "string" ? parsed.sourceLabel : undefined,
+        };
     } catch {
         return null;
     }
 }
 
-export function writeLocalAiResume(data: ResumeData, updatedAt: string = new Date().toISOString()): void {
+export function writeLocalAiResume(
+    data: ResumeData,
+    updatedAt: string = new Date().toISOString(),
+    sourceLabel?: string,
+): void {
     const storage = getStorage();
     if (!storage) return;
     try {
-        const payload: StoredLocalAiResume = { data, updatedAt };
+        const existing = readLocalAiResume();
+        const label =
+            sourceLabel !== undefined
+                ? sourceLabel
+                : existing?.sourceLabel;
+        const payload: StoredLocalAiResume = {
+            data,
+            updatedAt,
+            ...(label !== undefined ? { sourceLabel: label } : {}),
+        };
         storage.setItem(LOCAL_AI_RESUME_KEY, JSON.stringify(payload));
     } catch {
         // Private browsing / quota — in-memory state still works this session.

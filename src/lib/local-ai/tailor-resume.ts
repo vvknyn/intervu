@@ -144,9 +144,17 @@ function replaceBulletLine(description: string, index: number, newLine: string, 
     return rebuilt.join("\n");
 }
 
-function capitalize(s: string): string {
-    if (!s) return s;
-    return s.charAt(0).toUpperCase() + s.slice(1);
+function titleAlreadyInSummary(summary: string, title: string): boolean {
+    const summaryLower = summary.toLowerCase();
+    const titleLower = title.toLowerCase().trim();
+    if (!titleLower) return true;
+    if (summaryLower.includes(titleLower)) return true;
+    const titleTokens = tokenize(title).filter((t) => t.length >= 4);
+    return titleTokens.some((t) => summaryLower.includes(t));
+}
+
+function termAlreadyPresent(text: string, term: string): boolean {
+    return text.toLowerCase().includes(term.toLowerCase());
 }
 
 function composeBaseSummary(resume: ResumeData): string {
@@ -159,58 +167,78 @@ function composeBaseSummary(resume: ResumeData): string {
     return [prof, yoePhrase].filter(Boolean).join(" — ") + skillPhrase + ".";
 }
 
-function resumeLocationAlignsWithJob(resumeLocation: string, jobLocation: string): boolean {
-    const resumeLower = resumeLocation.toLowerCase();
-    const jobLower = jobLocation.toLowerCase();
-    if (jobLower.includes(resumeLower) || resumeLower.includes(jobLower)) return true;
-    const resumeParts = resumeLower.split(/[,;|·•/]/).map((p) => p.trim()).filter(Boolean);
-    return resumeParts.some((part) => part.length >= 3 && jobLower.includes(part));
-}
-
 function rewriteSummary(
     base: string,
     job: TailorJobInput,
     overlapTerms: string[],
-    resumeLocation: string,
 ): string {
-    const terms = overlapTerms.slice(0, 4);
-    const termClause =
-        terms.length > 0
-            ? ` Skilled in ${terms.join(", ")}.`
-            : "";
-    const jobLoc = (job.location ?? "").trim();
-    const locationClause =
-        jobLoc && resumeLocation.trim() && resumeLocationAlignsWithJob(resumeLocation, jobLoc)
-            ? ` Based in ${resumeLocation.trim()}.`
-            : "";
-    const trimmed = base.replace(/\.$/, "").trim();
-    return `${trimmed}. Targeting ${job.title} roles.${locationClause}${termClause}`.replace(/\.\./g, ".");
+    let result = base.trim();
+    if (!result.endsWith(".")) result += ".";
+
+    const title = job.title.trim();
+    if (title && !titleAlreadyInSummary(result, title)) {
+        const clause = `Recent focus includes ${title.toLowerCase()} work.`;
+        result = `${result.replace(/\.$/, "")}. ${clause}`;
+    }
+
+    const freshTerms = overlapTerms.filter((t) => !termAlreadyPresent(result, t)).slice(0, 2);
+    if (freshTerms.length > 0) {
+        const woven =
+            freshTerms.length === 1
+                ? `Hands-on with ${freshTerms[0]}.`
+                : `Hands-on with ${freshTerms[0]} and ${freshTerms[1]}.`;
+        result = `${result.replace(/\.$/, "")}. ${woven}`;
+    }
+
+    return result.replace(/\.\s+\./g, ".").replace(/\.\./g, ".");
+}
+
+function substituteJdSynonym(bullet: string, jdKeywords: string[]): string {
+    const bulletTokens = new Set(tokenize(bullet));
+    const related = relatedJdTermsForBullet(bulletTokens, jdKeywords);
+    if (related.length === 0) return bullet;
+
+    const jdTerm = related[0];
+    const cluster = [jdTerm, ...(RELATED[jdTerm] ?? [])];
+
+    for (const candidate of cluster) {
+        if (candidate === jdTerm) continue;
+        const re = new RegExp(`\\b${candidate}\\b`, "i");
+        if (re.test(bullet) && !termAlreadyPresent(bullet, jdTerm)) {
+            return bullet.replace(re, (match) =>
+                match.charAt(0) === match.charAt(0).toUpperCase() ? capitalize(jdTerm) : jdTerm,
+            );
+        }
+    }
+
+    for (const [key, synonyms] of Object.entries(RELATED)) {
+        if (!cluster.includes(key) && key !== jdTerm) continue;
+        for (const syn of synonyms) {
+            const re = new RegExp(`\\b${syn}\\b`, "i");
+            if (re.test(bullet) && syn !== jdTerm && !termAlreadyPresent(bullet, jdTerm)) {
+                return bullet.replace(re, (match) =>
+                    match.charAt(0) === match.charAt(0).toUpperCase() ? capitalize(jdTerm) : jdTerm,
+                );
+            }
+        }
+    }
+
+    return bullet;
+}
+
+function capitalize(s: string): string {
+    if (!s) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function rewriteBullet(
     bullet: string,
-    jobTitle: string,
+    _jobTitle: string,
     jdKeywords: string[],
-    overlapTerms: string[],
+    _overlapTerms: string[],
 ): string {
-    const bulletTokens = new Set(tokenize(bullet));
-    const related = relatedJdTermsForBullet(bulletTokens, jdKeywords);
-    const leadTerms = related.length > 0 ? related : overlapTerms.slice(0, 2);
-
-    if (leadTerms.length > 0) {
-        const lead = leadTerms.slice(0, 2).join(" and ");
-        const rest = bullet.replace(/^[•\-\s]+/, "").trim();
-        const lowerRest = rest.charAt(0).toLowerCase() + rest.slice(1);
-        if (/^(led|managed|drove|owned|built|developed|created|designed|implemented|spearheaded)\b/i.test(rest)) {
-            return capitalize(`${rest.replace(/^(led|managed|drove|owned|built|developed|created|designed|implemented|spearheaded)\s+/i, `Led ${lead} and `)}`);
-        }
-        return capitalize(`Led ${lead} — ${lowerRest}`);
-    }
-
-    if (/^(led|managed|developed|built|designed|created|implemented|drove|owned)\b/i.test(bullet.trim())) {
-        return bullet.trim();
-    }
-    return capitalize(`${bullet.trim()} — aligned with ${jobTitle} responsibilities`);
+    const cleaned = bullet.replace(/^[•\-\s]+/, "").trim();
+    return substituteJdSynonym(cleaned, jdKeywords);
 }
 
 function selectExperiences(experience: ResumeExperience[], max = 4): ResumeExperience[] {
@@ -221,6 +249,17 @@ function cloneResume(resume: ResumeData): ResumeData {
     return JSON.parse(JSON.stringify(resume)) as ResumeData;
 }
 
+/** Detect legacy robotic heuristic patterns — useful in tests. */
+export function looksRoboticTailor(text: string): boolean {
+    return (
+        /Targeting .+ roles/i.test(text) ||
+        /Skilled in /i.test(text) ||
+        /^Led .+ — /m.test(text) ||
+        /aligned with .+ responsibilities/i.test(text) ||
+        /Results-driven/i.test(text)
+    );
+}
+
 export function heuristicTailorResume(resume: ResumeData, job: TailorJobInput): TailorDraft {
     const tailored = cloneResume(resume);
     const jdKeywords = extractJdKeywords(job);
@@ -228,7 +267,7 @@ export function heuristicTailorResume(resume: ResumeData, job: TailorJobInput): 
     const overlapTerms = jdKeywordsWithResumeOverlap(jdKeywords, resumeTokens);
 
     const summaryBefore = composeBaseSummary(resume);
-    const summaryAfter = rewriteSummary(summaryBefore, job, overlapTerms, resume.profile.location ?? "");
+    const summaryAfter = rewriteSummary(summaryBefore, job, overlapTerms);
     tailored.generatedSummary = summaryAfter;
 
     const bullets: TailorBulletDiff[] = [];

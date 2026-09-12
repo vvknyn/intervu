@@ -4,7 +4,9 @@ import {
     extractDigitRuns,
     heuristicTailorResume,
     introducesNewNumbers,
+    looksRoboticTailor,
 } from "../../src/lib/local-ai/tailor-resume";
+import { buildModelPrompt, TAILOR_VOICE_RULES } from "../../src/lib/local-ai/tailor-with-engine";
 import type { ResumeData } from "../../src/types/resume";
 
 function mkResume(
@@ -129,6 +131,59 @@ describe("heuristicTailorResume", () => {
         });
         assert.equal(draft.usedDescription, false);
         assert.equal(draft.engineId, "heuristic");
+    });
+
+    it("heuristic output avoids robotic templates", () => {
+        const draft = heuristicTailorResume(PM_RESUME, {
+            title: "Product Manager",
+            company: "Stripe",
+            tags: ["roadmap", "product", "agile"],
+            description:
+                "Own the product roadmap and drive cross-functional planning. Lead agile delivery with engineering partners.",
+            occupation: "Product Manager",
+        });
+
+        assert.doesNotMatch(draft.summaryAfter, /Targeting .+ roles/i);
+        assert.doesNotMatch(draft.summaryAfter, /Skilled in /i);
+        assert.equal(looksRoboticTailor(draft.summaryAfter), false);
+
+        for (const b of draft.bullets) {
+            assert.doesNotMatch(b.after, /^Led .+ — /);
+            assert.doesNotMatch(b.after, /aligned with .+ responsibilities/i);
+            assert.equal(looksRoboticTailor(b.after), false);
+        }
+    });
+
+    it("companies, dates, and numbers stay unchanged in heuristic tailor", () => {
+        const draft = heuristicTailorResume(PM_RESUME, {
+            title: "Product Manager",
+            tags: ["roadmap"],
+            description: "Drive roadmap planning.",
+        });
+
+        for (const exp of draft.tailored.experience) {
+            const orig = PM_RESUME.experience.find((e) => e.id === exp.id);
+            assert.ok(orig);
+            assert.equal(exp.company, orig!.company);
+            assert.equal(exp.role, orig!.role);
+            assert.equal(exp.dates, orig!.dates);
+        }
+
+        for (const b of draft.bullets) {
+            assert.equal(introducesNewNumbers(b.before, b.after), false);
+        }
+    });
+});
+
+describe("buildModelPrompt voice rules", () => {
+    it("includes voice constraints and forbids Results-driven", () => {
+        const prompt = buildModelPrompt(PM_RESUME, {
+            title: "Product Manager",
+            tags: ["roadmap"],
+        });
+        assert.match(prompt, /Results-driven/);
+        assert.match(prompt, /not keyword-stuffed/i);
+        assert.equal(prompt.includes(TAILOR_VOICE_RULES), true);
     });
 });
 

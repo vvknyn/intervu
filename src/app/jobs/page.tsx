@@ -1772,11 +1772,10 @@ function JobsContent() {
     // vs the now-removed "explore") and the in-flight Explore call's state
     // (`exploringRaw`/`exploreFailed`) are gone — MCP handoff, 2026-08-02.
     const [resume, setResume] = useState<ResumeData | null>(null);
-    // The stored `resume_last_updated` behind the match-score toolbar's
-    // "scored against your résumé of {date}" line (see `fetchResumeData`,
-    // actions/resume.ts) — kept alongside `resume` itself, set at the same
-    // two call sites, so the two can never point at different résumés.
+    // Timestamp for match-score chips (see `fetchResumeData`, actions/resume.ts)
+    // — kept alongside `resume` itself, set at the same call sites.
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
+    const [resumeSourceLabel, setResumeSourceLabel] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
 
     // R&D local mode: hydrate browser-stored résumé for signed-out guests.
@@ -1787,6 +1786,7 @@ function JobsContent() {
         if (stored && resumeIsUsable(stored.data)) {
             setResume(stored.data);
             setResumeUpdatedAt(stored.updatedAt);
+            setResumeSourceLabel(stored.sourceLabel ?? null);
         }
     }, [localAiEnabled, user, resume]);
 
@@ -3869,6 +3869,7 @@ function JobsContent() {
             if (stored && resumeIsUsable(stored.data)) {
                 setResume(stored.data);
                 setResumeUpdatedAt(stored.updatedAt);
+                setResumeSourceLabel(stored.sourceLabel ?? null);
                 return stored.data;
             }
             return null;
@@ -4045,31 +4046,30 @@ function JobsContent() {
         setImportOpen(true);
     };
 
-    // Every OTHER résumé-upload entry point (the fit-rank fallback above, the
-    // résumé-moment card, the "update to rescore" link) goes through this
-    // name — it is just `beginResumeUpload` under a stable identifier so
-    // those call sites don't need to change.
+    // Every OTHER résumé-upload entry point (fit-rank fallback, résumé-moment
+    // card, toolbar Replace) goes through this name — it is just
+    // `beginResumeUpload` under a stable identifier.
     const handleUploadClick = () => {
         beginResumeUpload();
     };
 
-    const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
+    const handleImport = (
+        data: ResumeData,
+        source: "pdf" | "docx" | "text",
+        confidence: number,
+        sourceLabel: string,
+    ) => {
         setResume(data);
         const updatedAt = new Date().toISOString();
-        // Saved in the same beat, just below — the on-screen "as of" date is
-        // this moment, not whatever `saveResumeData`'s fire-and-forget write
-        // eventually timestamps server-side.
         setResumeUpdatedAt(updatedAt);
+        setResumeSourceLabel(sourceLabel);
         setImportOpen(false);
         if (user) {
-            // Persist to the profile so returning users skip the upload step (best-effort).
-            // The capture rides the SAME promise, not a synchronous fire — a failed
-            // save must not report a success that didn't happen.
             void saveResumeData(data, source, confidence)
                 .then(() => captureEvent("resume_uploaded", {}))
                 .catch(() => {});
         } else if (readLocalAiEnabled()) {
-            writeLocalAiResume(data, updatedAt);
+            writeLocalAiResume(data, updatedAt, sourceLabel);
         }
         // `handleUploadClick` queued this because no usable résumé was on
         // hand yet — finish what they asked for now that one exists.
@@ -4523,26 +4523,10 @@ function JobsContent() {
         </button>
     ) : null;
 
-    const replaceResumeEl = showResumeReplace ? (
-        <button
-            type="button"
-            data-testid="jobs-replace-resume"
-            title="Replace your résumé and rescore matches"
-            onClick={() => handleUploadClick()}
-            className={cn(
-                toolbarControlHeight,
-                "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand",
-            )}
-        >
-            Replace résumé
-        </button>
-    ) : null;
-
     const savedSearchMountEl =
-        rankByFitEl || replaceResumeEl || savedSearchControl ? (
+        rankByFitEl || savedSearchControl ? (
             <>
                 {rankByFitEl}
-                {replaceResumeEl}
                 {savedSearchControl}
             </>
         ) : null;
@@ -4697,38 +4681,29 @@ function JobsContent() {
                         <span className="text-xs text-muted-foreground">add résumé</span>
                     </DropdownMenuItem>
                 )}
-                {showResumeReplace && (
-                    <DropdownMenuItem
-                        data-testid="jobs-sort-replace-resume"
-                        onSelect={() => handleUploadClick()}
-                        className="flex items-center justify-between gap-3 text-sm"
-                    >
-                        <span>Replace résumé</span>
-                    </DropdownMenuItem>
-                )}
             </DropdownMenuContent>
         </DropdownMenu>
     ) : null;
 
-    // "scored against your résumé of {date} · update to rescore" — the
-    // match-score receipt's one-time-parse honesty statement (design's
-    // `.asof`, right-aligned in the toolbar). Gated on `hasUsableResume`
-    // (same bar every other résumé-driven control here uses) rather than
-    // `fitActive`: chips render on every card whenever a résumé is loaded,
-    // not only while sorted by fit, so this line's gate matches the chips',
-    // not the sort control's. `handleUploadClick` is the SAME "open the
-    // importer" entry point "Add résumé"/"My résumé" already use — updating
-    // is the one act that re-runs the AI parse, so it's the only place this
-    // date can move.
+    const displayResumeLabel = (label: string | null, r: ResumeData | null): string =>
+        label?.trim() || r?.profile?.name?.trim() || "Pasted text";
+
+    // "Scoring with {filename} · Replace" — one toolbar résumé control.
     const asOfEl =
-        hasUsableResume && resumeAsOfDate ? (
+        hasUsableResume ? (
             <span
                 data-testid="resume-as-of"
                 className="mono-data inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
             >
-                scored against your résumé of {resumeAsOfDate} ·{" "}
-                <button type="button" onClick={() => handleUploadClick()} className="text-brand hover:underline">
-                    update to rescore
+                Scoring with {displayResumeLabel(resumeSourceLabel, resume)} ·{" "}
+                <button
+                    type="button"
+                    data-testid="jobs-replace-resume"
+                    title="Replace your résumé and rescore matches"
+                    onClick={() => handleUploadClick()}
+                    className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                >
+                    Replace
                 </button>
             </span>
         ) : null;
