@@ -8,6 +8,7 @@ import {
     buildExploreBroadenQuery,
     mergeFacets,
 } from '../../src/lib/jobs/resume-match';
+import { parseQuotedOrPhrases } from '../../src/lib/jobs/fit-phrases';
 import { scoreJobAgainstResume } from '../../src/lib/match/score';
 import type { PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
@@ -86,7 +87,8 @@ describe('buildMatchQuery', () => {
         const out = buildMatchQuery(
             mk({ profession: '', yearsOfExperience: 5 }, [{ category: 'Tech', skills: ['Go', 'Kafka', 'AWS'] }]),
         );
-        assert.equal(out.q, 'Go Kafka AWS');
+        assert.equal(out.q, '"Go" OR "Kafka" OR "AWS"');
+        assert.deepEqual(out.phrases, ['Go', 'Kafka', 'AWS']);
     });
     it('prefers role titles over skills when a résumé has both', () => {
         const out = buildMatchQuery(
@@ -169,10 +171,61 @@ describe('buildMatchQuery', () => {
                 ],
             ),
         );
+        assert.ok(out.phrases.length <= 4, `expected ≤4 phrases, got ${out.phrases.length}`);
         assert.ok(
             countCappedTitlePhrases(out.q) <= 4,
             `expected ≤4 capped title phrases, got ${countCappedTitlePhrases(out.q)}: ${out.q}`,
         );
+    });
+
+    it('emits quoted-OR q for multi-title Rank queries instead of space-joining', () => {
+        const out = buildMatchQuery(
+            mk(
+                { profession: 'Customer Success Operations Manager', yearsOfExperience: 12 },
+                [],
+                [
+                    {
+                        id: '1',
+                        role: 'Client-facing Product Manager',
+                        company: 'Co',
+                        dates: '2021',
+                        description: '',
+                    },
+                    { id: '2', role: 'Technology Lead', company: 'Co', dates: '2019', description: '' },
+                    { id: '3', role: 'Team Lead', company: 'Co', dates: '2018', description: '' },
+                    { id: '4', role: 'Senior Software Engineer', company: 'Co', dates: '2013', description: '' },
+                ],
+            ),
+        );
+        assert.match(out.q, / OR /, 'multi-title q must use OR');
+        assert.notEqual(out.q, out.phrases.join(' '), 'must not space-join titles');
+        const parsed = parseQuotedOrPhrases(out.q);
+        assert.ok(parsed, 'q must be parseable as quoted-OR');
+        for (const phrase of out.phrases) {
+            assert.ok(parsed!.some((p) => p.toLowerCase() === phrase.toLowerCase()), `q must include phrase: ${phrase}`);
+        }
+    });
+
+    it('well-formed OR query does not require one hit to contain engineer and PM tokens', () => {
+        const out = buildMatchQuery(
+            mk(
+                { profession: 'Product Manager', yearsOfExperience: 8 },
+                [],
+                [
+                    { id: '1', role: 'Product Manager', company: 'Co', dates: '2021', description: '' },
+                    { id: '2', role: 'Software Engineer', company: 'Co', dates: '2019', description: '' },
+                ],
+            ),
+        );
+        const parsed = parseQuotedOrPhrases(out.q);
+        assert.ok(parsed, 'multi-phrase Rank q must be quoted-OR');
+        assert.ok(parsed!.some((p) => /product manager/i.test(p)));
+        assert.ok(parsed!.some((p) => /software engineer/i.test(p)));
+        // Each phrase is retrieved independently — PM-only titles need not also say Engineer.
+        for (const phrase of parsed!) {
+            assert.ok(phrase.length > 0);
+            assert.ok(!phrase.includes(' OR '), `phrase must be atomic, got: ${phrase}`);
+        }
     });
 });
 

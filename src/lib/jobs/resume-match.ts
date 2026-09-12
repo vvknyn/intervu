@@ -20,10 +20,13 @@ import { dutyDerivedRoleTitles } from "@/lib/match/duty-signals";
 import type { ResumeData } from "@/types/resume";
 import type { FacetKey } from "./types";
 import { splitRoleTitles, suggestAdjacentRolesLocal } from "./adjacent-roles";
+import { formatQuotedOrQuery } from "./fit-phrases";
 
 export interface DerivedQuery {
     q: string;
     facets: Partial<Record<FacetKey, string[]>>;
+    /** Capped role/skill phrases before quoted-OR serialization into `q`. */
+    phrases: string[];
 }
 
 /** `experience_level` facet values are exactly entry | mid | senior | unknown. */
@@ -113,7 +116,7 @@ export function buildMatchQuery(resume: ResumeData): DerivedQuery {
         terms = capExploreTerms(skills, 4);
     }
 
-    const q = terms.join(" ");
+    const q = formatQuotedOrQuery(terms);
     const facets: Partial<Record<FacetKey, string[]>> = {};
     const seniority = seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0);
     if (seniority === "senior") {
@@ -125,7 +128,7 @@ export function buildMatchQuery(resume: ResumeData): DerivedQuery {
     } else if (seniority === "entry") {
         facets.experience_level = ["entry"];
     }
-    return { q, facets };
+    return { q, facets, phrases: terms };
 }
 
 /** Flatten competencies into a de-duped (case-insensitive), trimmed skill list, capped at `n`. */
@@ -151,12 +154,12 @@ export function topSkills(resume: ResumeData, n = 8): string[] {
  * walks the résumé's own competency order), so keeping a short prefix keeps
  * the query's most meaningful terms.
  *
- * Meilisearch treats a space-joined query as an OR across every term, so
- * joining all 6-8 suggested titles (or a longer skills list) widens the
- * match instead of narrowing it — measured failure: 15 joined terms surfaced
- * a 100k-hit relevance mush instead of a tight adjacency signal. Deduping
- * case-insensitively here also stops a repeated term from silently eating
- * one of the 4 slots.
+ * Cap exists so Rank emits a short phrase list; retrieval ORs those phrases
+ * via the fit-phrase multi-search lane (`fit-phrases.ts` / `searchMeili`),
+ * never by space-joining into one AND query. Space-joining 6–8 titles
+ * previously produced AND-of-all-tokens mush under `matchingStrategy: "all"`.
+ * Deduping case-insensitively here also stops a repeated term from silently
+ * eating one of the 4 slots.
  */
 export function capExploreTerms(terms: string[], max = 4): string[] {
     const out: string[] = [];
@@ -175,7 +178,8 @@ export function capExploreTerms(terms: string[], max = 4): string[] {
  * Used when the AI adjacency call fails or returns nothing.
  */
 export function buildExploreBroadenQuery(resume: ResumeData): DerivedQuery {
-    return { q: capExploreTerms(topSkills(resume, 6)).join(" "), facets: {} };
+    const terms = capExploreTerms(topSkills(resume, 6));
+    return { q: terms.join(" "), facets: {}, phrases: terms };
 }
 
 /** Union résumé-derived facets with already-applied ones — commutative, non-mutating. */

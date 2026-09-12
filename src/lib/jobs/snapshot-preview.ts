@@ -12,6 +12,7 @@
  */
 import { getBoardDomains } from "@/lib/boards/allowlists";
 import type { BoardId } from "@/lib/boards/types";
+import { resolveFitPhrases } from "./fit-phrases";
 import { derivePostedTs } from "./meilisearch";
 import { compareJobsBySort, resolveEffectiveSort } from "./sort";
 import { hasSubspaceApiKey, iterateSnapshot } from "./subspaceJobs";
@@ -79,7 +80,12 @@ function passBase(j: PublicJob, p: JobSearchParams): boolean {
     // occur on this backend — and this is a degraded dev-only preview, not
     // the prod search path.
     const hay = `${j.title} ${j.company ?? ""} ${j.location ?? ""} ${(j.tags ?? []).join(" ")}`.toLowerCase();
-    if (!hay.includes(p.q.toLowerCase())) return false;
+    const fitPhrases = resolveFitPhrases(p);
+    if (fitPhrases) {
+      if (!fitPhrases.some((phrase) => hay.includes(phrase.toLowerCase()))) return false;
+    } else if (!hay.includes(p.q.toLowerCase())) {
+      return false;
+    }
   }
   if (p.salaryMin && p.salaryMin > 0) {
     const s = j.salary_max ?? j.salary_min ?? null;

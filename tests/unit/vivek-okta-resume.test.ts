@@ -6,6 +6,7 @@ import {
     LOCAL_PARSE_ACCEPT_MIN,
     scoreLocalParseConfidence,
 } from "../../src/lib/local-ai/parse-confidence";
+import { parseQuotedOrPhrases } from "../../src/lib/jobs/fit-phrases";
 import { buildMatchQuery } from "../../src/lib/jobs/resume-match";
 import { dutyDerivedRoleTitles } from "../../src/lib/match/duty-signals";
 import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
@@ -68,9 +69,21 @@ describe("Vivek Okta résumé fixture", () => {
         );
 
         assert.match(q, /product manager/i, `q must include Product Manager, got: ${q}`);
+        const parsed = parseQuotedOrPhrases(q);
+        if (parsed) {
+            assert.ok(
+                parsed.some((p) => /product manager/i.test(p)),
+                `Product Manager must be one quoted-OR phrase, got: ${parsed.join(", ")}`,
+            );
+            assert.match(q, / OR /, "multi-phrase Okta q must use quoted OR, not AND-soup");
+        }
         // Duty families (product + engineering from backlog/API bullets) may fill
         // all 4 capped slots before the thin CS-Ops adjacency fallback runs.
         assert.ok(q.length > 0, "q must be non-empty");
+        if (countCappedTitlePhrases(q) >= 2) {
+            assert.ok(parsed, "≥2 title phrases must serialize as quoted-OR");
+            assert.notEqual(q, q.replace(/ OR /g, " "), "must not be a space-joined AND query");
+        }
         assert.notEqual(
             q.trim(),
             "Customer Success Operations Manager | Technical Account Management",
