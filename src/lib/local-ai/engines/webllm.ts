@@ -75,4 +75,13 @@ export const webllmEngine: LocalAiEngine = {
         const content = response.choices[0]?.message?.content ?? "";
         return tryParseJson(content);
     },
+
+    async generate(prompt: string) {
+        if (!engine) await this.init();
+        const response = await engine!.chat.completions.create({
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.2,
+        });
+        return response.choices[0]?.message?.content ?? null;
+    },
 };

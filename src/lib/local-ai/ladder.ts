@@ -119,6 +119,23 @@ export async function parseWithActiveEngine(text: string): Promise<ModelParseOut
     }
 }
 
+/** Free-text generation via active model; null if no model or generation failed. */
+export async function generateWithActiveEngine(prompt: string): Promise<string | null> {
+    if (!activeEngine) return null;
+    try {
+        return await activeEngine.generate(prompt);
+    } catch (e) {
+        console.warn("[local-ai] model generate failed", e);
+        return null;
+    }
+}
+
+/** Wrap instruction + source text into one generate call. */
+export async function rewriteWithActiveEngine(text: string, instruction: string): Promise<string | null> {
+    const prompt = `${instruction.trim()}\n\n---\n\n${text.trim()}`;
+    return generateWithActiveEngine(prompt);
+}
+
 export function resetLocalAiLadderForTests(): void {
     activeEngine = null;
     initPromise = null;

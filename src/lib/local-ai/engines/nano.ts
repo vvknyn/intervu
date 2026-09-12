@@ -73,4 +73,9 @@ export const nanoEngine: LocalAiEngine = {
         const out = await session!.prompt(PARSE_PROMPT(text));
         return tryParseJson(out);
     },
+
+    async generate(prompt: string) {
+        if (!session) await this.init();
+        return session!.prompt(prompt);
+    },
 };

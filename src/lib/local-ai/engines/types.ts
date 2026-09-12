@@ -18,4 +18,6 @@ export interface LocalAiEngine {
     init(): Promise<void>;
     /** Attempt to structure résumé text; null → caller falls back. */
     parseResumeText(text: string): Promise<ModelParseOutput>;
+    /** Free-text generation for light rewrite/tailor. Null/throw → caller degrades. */
+    generate(prompt: string): Promise<string | null>;
 }

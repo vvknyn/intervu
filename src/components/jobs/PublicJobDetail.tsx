@@ -29,6 +29,8 @@ import { scoreJobAgainstResume } from "@/lib/match/score";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
+import { readLocalAiEnabled } from "@/lib/local-ai/flag";
+import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -93,8 +95,20 @@ export function PublicJobDetail({
     const [resumeAsOfDate, setResumeAsOfDate] = useState<string | null>(null);
     useEffect(() => {
         if (!user) {
-            setResume(null);
-            setResumeAsOfDate(null);
+            if (readLocalAiEnabled()) {
+                const stored = readLocalAiResume();
+                if (stored && resumeIsUsable(stored.data)) {
+                    setResume(stored.data);
+                    const ms = Date.parse(stored.updatedAt);
+                    setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
+                } else {
+                    setResume(null);
+                    setResumeAsOfDate(null);
+                }
+            } else {
+                setResume(null);
+                setResumeAsOfDate(null);
+            }
             return;
         }
         let cancelled = false;
@@ -327,6 +341,11 @@ export function PublicJobDetail({
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
                     matchAsOfDate={resumeAsOfDate}
+                    resume={resume}
+                    onAcceptLocalTailor={(data) => {
+                        setResume(data);
+                        if (readLocalAiEnabled()) writeLocalAiResume(data);
+                    }}
                 />
             ) : (
                 <JobDetail
@@ -348,6 +367,11 @@ export function PublicJobDetail({
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
                     matchAsOfDate={resumeAsOfDate}
+                    resume={resume}
+                    onAcceptLocalTailor={(data) => {
+                        setResume(data);
+                        if (readLocalAiEnabled()) writeLocalAiResume(data);
+                    }}
                 />
             )}
             {/* Document layout already has its own sticky-rail Apply card at

@@ -39,6 +39,8 @@ import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { resolveDescriptionSectionState, DESCRIPTION_SLOW_HINT_MS } from "@/lib/jobs/description-section-state";
+import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
+import type { ResumeData } from "@/types/resume";
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -393,6 +395,8 @@ export function JobDetail({
     matchAsOfDate = null,
     descriptionPending,
     onRetryDescription,
+    resume = null,
+    onAcceptLocalTailor,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -457,6 +461,9 @@ export function JobDetail({
      *  the pending note's "try again" button. Omitted → the note renders
      *  without a button (see the markup below). */
     onRetryDescription?: () => void;
+    /** Local-AI guest/signed-in résumé for on-device tailor — optional. */
+    resume?: ResumeData | null;
+    onAcceptLocalTailor?: (data: ResumeData) => void;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -880,6 +887,11 @@ export function JobDetail({
                                 className="ml-auto"
                             />
                         )}
+                        <LocalCustomizePanel
+                            job={job}
+                            resume={resume}
+                            onAccept={onAcceptLocalTailor}
+                        />
                     </div>
                 </div>
             </div>

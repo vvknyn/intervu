@@ -59,4 +59,14 @@ export const transformersWasmEngine: LocalAiEngine = {
             Array.isArray(result) ? result[0]?.generated_text : result.generated_text;
         return tryParseJson(generated ?? "");
     },
+
+    async generate(prompt: string) {
+        if (!pipeline) await this.init();
+        const result = await pipeline!(prompt.slice(0, 3000).replace(/\s+/g, " "), {
+            max_new_tokens: 320,
+        });
+        const generated =
+            Array.isArray(result) ? result[0]?.generated_text : result.generated_text;
+        return generated ?? null;
+    },
 };

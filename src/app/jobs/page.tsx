@@ -4338,6 +4338,11 @@ function JobsContent() {
                     className="border-0 bg-transparent"
                     descriptionPending={detailDescriptionPending}
                     onRetryDescription={retryDescription}
+                    resume={resume}
+                    onAcceptLocalTailor={(data) => {
+                        setResume(data);
+                        if (localAiEnabled) writeLocalAiResume(data);
+                    }}
                 />
                 {!collapseDescription && (
                 <JobDetailActionBar
