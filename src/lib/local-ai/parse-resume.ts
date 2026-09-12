@@ -17,6 +17,19 @@ export interface LocalParseResult {
     engineLabel: string;
 }
 
+function isNonEmptyString(value: unknown): value is string {
+    return typeof value === "string" && value.trim().length > 0;
+}
+
+const PROFILE_STRING_KEYS = [
+    "name",
+    "profession",
+    "location",
+    "email",
+    "phone",
+    "linkedin",
+] as const;
+
 function modelOutputToRaw(parsed: Record<string, unknown>): RawParsedResumeInput {
     const profile = (parsed.profile as RawParsedResumeInput["profile"]) ?? {};
     return {
@@ -26,6 +39,97 @@ function modelOutputToRaw(parsed: Record<string, unknown>): RawParsedResumeInput
         education: parsed.education as RawParsedResumeInput["education"],
         generatedSummary: (parsed.generatedSummary as string) ?? "",
     };
+}
+
+function hasMeaningfulExperience(experience: unknown): boolean {
+    return (
+        Array.isArray(experience) &&
+        experience.some(
+            (entry) =>
+                isNonEmptyString((entry as { company?: string }).company) ||
+                isNonEmptyString((entry as { role?: string }).role),
+        )
+    );
+}
+
+function hasMeaningfulCompetencies(competencies: unknown): boolean {
+    return (
+        Array.isArray(competencies) &&
+        competencies.some((entry) => {
+            const skills = (entry as { skills?: unknown }).skills;
+            return Array.isArray(skills) && skills.some((skill) => isNonEmptyString(skill));
+        })
+    );
+}
+
+function hasMeaningfulEducation(education: unknown): boolean {
+    return (
+        Array.isArray(education) &&
+        education.some(
+            (entry) =>
+                isNonEmptyString((entry as { degree?: string }).degree) ||
+                isNonEmptyString((entry as { institution?: string }).institution),
+        )
+    );
+}
+
+/**
+ * Merge model output into heuristic draft without letting empty WASM fields
+ * clobber good rule-based extractions.
+ */
+export function mergeModelIntoHeuristic(
+    heuristic: RawParsedResumeInput,
+    modelOut: Record<string, unknown> | null,
+): { raw: RawParsedResumeInput; usedHeuristic: boolean } {
+    if (!modelOut || typeof modelOut !== "object") {
+        return { raw: heuristic, usedHeuristic: true };
+    }
+
+    const fromModel = modelOutputToRaw(modelOut);
+    let modelContributed = false;
+
+    const mergedProfile = { ...(heuristic.profile ?? {}) };
+    for (const key of PROFILE_STRING_KEYS) {
+        const value = fromModel.profile?.[key];
+        if (isNonEmptyString(value)) {
+            mergedProfile[key] = value;
+            modelContributed = true;
+        }
+    }
+    if (
+        typeof fromModel.profile?.yearsOfExperience === "number" &&
+        fromModel.profile.yearsOfExperience > 0
+    ) {
+        mergedProfile.yearsOfExperience = fromModel.profile.yearsOfExperience;
+        modelContributed = true;
+    }
+
+    const raw: RawParsedResumeInput = {
+        profile: mergedProfile,
+        experience: heuristic.experience,
+        competencies: heuristic.competencies,
+        education: heuristic.education,
+        generatedSummary: heuristic.generatedSummary,
+    };
+
+    if (hasMeaningfulExperience(fromModel.experience)) {
+        raw.experience = fromModel.experience;
+        modelContributed = true;
+    }
+    if (hasMeaningfulCompetencies(fromModel.competencies)) {
+        raw.competencies = fromModel.competencies;
+        modelContributed = true;
+    }
+    if (hasMeaningfulEducation(fromModel.education)) {
+        raw.education = fromModel.education;
+        modelContributed = true;
+    }
+    if (isNonEmptyString(fromModel.generatedSummary)) {
+        raw.generatedSummary = fromModel.generatedSummary;
+        modelContributed = true;
+    }
+
+    return { raw, usedHeuristic: !modelContributed };
 }
 
 function heuristicConfidence(hasExperience: boolean, hasSkills: boolean, hasEmail: boolean): number {
@@ -56,29 +160,10 @@ export async function parseResumeLocally(content: string): Promise<LocalParseRes
         generatedSummary: heuristicDraft.generatedSummary,
     };
 
-    let usedHeuristic = true;
     const modelOut = await parseWithActiveEngine(content);
-    if (modelOut && typeof modelOut === "object") {
-        const fromModel = modelOutputToRaw(modelOut);
-        // Merge: prefer model where it filled a field, keep heuristic gaps filled.
-        raw = {
-            profile: { ...raw.profile, ...fromModel.profile },
-            experience:
-                Array.isArray(fromModel.experience) && fromModel.experience.length > 0
-                    ? fromModel.experience
-                    : raw.experience,
-            competencies:
-                Array.isArray(fromModel.competencies) && fromModel.competencies.length > 0
-                    ? fromModel.competencies
-                    : raw.competencies,
-            education:
-                Array.isArray(fromModel.education) && fromModel.education.length > 0
-                    ? fromModel.education
-                    : raw.education,
-            generatedSummary: fromModel.generatedSummary || raw.generatedSummary,
-        };
-        usedHeuristic = false;
-    }
+    const merged = mergeModelIntoHeuristic(raw, modelOut);
+    raw = merged.raw;
+    const usedHeuristic = merged.usedHeuristic;
 
     const engine = getActiveEngineId();
     const effectiveEngine: LocalAiEngineId =

@@ -12,8 +12,42 @@ import { ENGINE_LABELS } from "./engines/types";
 
 const LADDER: LocalAiEngine[] = [nanoEngine, webllmEngine, transformersWasmEngine];
 
+/** Max wait before falling back to heuristic; init continues in background. */
+const INIT_TIMEOUT_MS = 10_000;
+
 let activeEngine: LocalAiEngine | null = null;
-let initPromise: Promise<LocalAiEngine> | null = null;
+let initPromise: Promise<LocalAiEngine | null> | null = null;
+let initStartedAt: number | null = null;
+let initTimedOut = false;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("local-ai init timeout")), ms);
+        promise.then(
+            (value) => {
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                clearTimeout(timer);
+                reject(error);
+            },
+        );
+    });
+}
+
+async function initFirstAvailableEngine(): Promise<LocalAiEngine | null> {
+    for (const engine of LADDER) {
+        try {
+            if (!(await engine.isAvailable())) continue;
+            await engine.init();
+            return engine;
+        } catch (e) {
+            console.warn(`[local-ai] ${engine.id} init failed`, e);
+        }
+    }
+    return null;
+}
 
 export function getEngineLabel(id: LocalAiEngineId): string {
     return ENGINE_LABELS[id];
@@ -41,25 +75,36 @@ export async function probeBestEngine(): Promise<LocalAiEngineId> {
  */
 export async function initLocalAiLadder(): Promise<LocalAiEngineId> {
     if (activeEngine) return activeEngine.id;
-    if (initPromise) return (await initPromise).id;
 
-    initPromise = (async () => {
-        for (const engine of LADDER) {
-            try {
-                if (!(await engine.isAvailable())) continue;
-                await engine.init();
-                activeEngine = engine;
+    if (!initPromise) {
+        initStartedAt = Date.now();
+        initTimedOut = false;
+        initPromise = initFirstAvailableEngine()
+            .then((engine) => {
+                if (engine) activeEngine = engine;
                 return engine;
-            } catch (e) {
-                console.warn(`[local-ai] ${engine.id} init failed`, e);
-            }
-        }
-        // No model — heuristic only (no download required).
-        return null as unknown as LocalAiEngine;
-    })();
+            })
+            .finally(() => {
+                initPromise = null;
+                initStartedAt = null;
+            });
+    }
 
-    await initPromise;
-    initPromise = null;
+    if (!initTimedOut) {
+        const elapsed = initStartedAt ? Date.now() - initStartedAt : 0;
+        const remaining = Math.max(0, INIT_TIMEOUT_MS - elapsed);
+        if (remaining > 0) {
+            try {
+                await withTimeout(initPromise, remaining);
+            } catch (e) {
+                initTimedOut = true;
+                console.warn("[local-ai] init timed out, proceeding with heuristic", e);
+            }
+        } else {
+            initTimedOut = true;
+        }
+    }
+
     return getActiveEngineId();
 }
 
@@ -77,4 +122,6 @@ export async function parseWithActiveEngine(text: string): Promise<ModelParseOut
 export function resetLocalAiLadderForTests(): void {
     activeEngine = null;
     initPromise = null;
+    initStartedAt = null;
+    initTimedOut = false;
 }
