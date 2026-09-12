@@ -64,6 +64,11 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [],
   },
+  // Next 16 defaults to Turbopack for `next dev` / `next build`. A webpack-only
+  // config (the onnx fallbacks below) is treated as a misconfiguration unless
+  // Turbopack is acknowledged. Empty object: we don't need custom Turbopack
+  // rules; webpack fallbacks still apply when someone builds with `--webpack`.
+  turbopack: {},
   webpack(config, { isServer }) {
     // Transformers.js + onnxruntime-web reference Node builtins in browser builds.
     if (!isServer) {
