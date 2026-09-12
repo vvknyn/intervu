@@ -330,7 +330,12 @@ export function JobDetailActionBar({
                 </Button>
             )}
             {resume != null && (
-                <LocalCustomizePanel job={job} resume={resume} onAccept={onAcceptLocalTailor} />
+                <LocalCustomizePanel
+                    job={job}
+                    resume={resume}
+                    onAccept={onAcceptLocalTailor}
+                    compactTrigger
+                />
             )}
             {/* Same 40px icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}

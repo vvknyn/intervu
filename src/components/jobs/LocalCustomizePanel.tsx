@@ -31,9 +31,11 @@ export interface LocalCustomizePanelProps {
     job: PublicJob;
     resume: ResumeData | null;
     onAccept?: (data: ResumeData) => void;
+    /** Short label for tight bars (mobile document action bar). */
+    compactTrigger?: boolean;
 }
 
-export function LocalCustomizePanel({ job, resume, onAccept }: LocalCustomizePanelProps) {
+export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: LocalCustomizePanelProps) {
     const [draft, setDraft] = useState<TailorDraft | null>(null);
     const [loading, setLoading] = useState(false);
     const [sheetOpen, setSheetOpen] = useState(false);
@@ -155,6 +157,7 @@ export function LocalCustomizePanel({ job, resume, onAccept }: LocalCustomizePan
             <button
                 type="button"
                 data-testid="local-customize-open"
+                aria-label="Customize for this job"
                 disabled={loading && sheetOpen}
                 onClick={handleOpen}
                 className={cn(
@@ -162,7 +165,7 @@ export function LocalCustomizePanel({ job, resume, onAccept }: LocalCustomizePan
                     loading && sheetOpen && "opacity-60",
                 )}
             >
-                Customize for this job
+                {compactTrigger ? "Customize" : "Customize for this job"}
             </button>
 
             <Sheet open={sheetOpen} onOpenChange={handleSheetOpenChange}>
