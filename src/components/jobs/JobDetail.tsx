@@ -291,6 +291,8 @@ export function JobDetailActionBar({
     goingAfter,
     signedIn = true,
     className,
+    resume,
+    onAcceptLocalTailor,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
@@ -312,6 +314,9 @@ export function JobDetailActionBar({
      *  `MobileTabBar` (`bottom-12` instead of the Sheet caller's `bottom-0`,
      *  since that Sheet paints over the tab bar and this document doesn't). */
     className?: string;
+    /** Local-AI résumé for on-device tailor — only passed by JobDetailDocument. */
+    resume?: ResumeData | null;
+    onAcceptLocalTailor?: (data: ResumeData) => void;
 }) {
     return (
         <div
@@ -323,6 +328,9 @@ export function JobDetailActionBar({
                     <ArrowSquareOut weight="bold" />
                     Apply on Company Site
                 </Button>
+            )}
+            {resume != null && (
+                <LocalCustomizePanel job={job} resume={resume} onAccept={onAcceptLocalTailor} />
             )}
             {/* Same 40px icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}

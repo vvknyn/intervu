@@ -602,6 +602,8 @@ export function JobDetailDocument({
                     onGoAfter={onGoAfter}
                     pursuit={pursuit}
                     goingAfter={goingAfter}
+                    resume={resume}
+                    onAcceptLocalTailor={onAcceptLocalTailor}
                     className="bottom-12 lg:hidden"
                 />
             )}
