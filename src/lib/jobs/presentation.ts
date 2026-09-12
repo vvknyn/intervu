@@ -1467,13 +1467,22 @@ const POSTED_WINDOW_PHRASE: Record<PostedBucket, string> = {
  * number on screen is NOT the size of the corpus. Naming the window converts a
  * hidden filter into a stated fact; without it the count is quietly wrong.
  *
+ * `lastUpdated` is expected to already be MAX(updated_at) over the SAME
+ * filtered population `count` describes — the caller (`getJobsFreshnessAction`,
+ * fed the exact same `buildJobSearchPayload` output as the results search)
+ * is what makes that true, not this function. A single employer's 7 listings
+ * can each be 3 months stale while the whole corpus synced 40 minutes ago —
+ * this function has no way to tell the two apart, so it trusts its input.
+ *
  * Pure: the caller threads its own clock, so this is safe to call from a
  * render body and can be asserted on without a fake timer.
  */
 export function searchResultLine(input: {
     count: CorpusCount;
     postedBucket: PostedBucket | undefined;
-    /** Corpus sync stamp. Absent when the freshness probe hasn't answered. */
+    /** Stamp for the population `count` describes. Absent when the
+     *  freshness probe hasn't answered (or has none to give — see
+     *  `fetchJobsLastUpdated`, meilisearch.ts). */
     lastUpdated: string | null | undefined;
     nowMs: number;
 }): string {

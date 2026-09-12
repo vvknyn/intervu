@@ -244,9 +244,10 @@ export async function searchJobs(
   };
 }
 
-/** The corpus's last-updated timestamp, for the "last synced" trust stamp. Meilisearch-only for now. */
-export async function getJobsLastUpdated(): Promise<string | null> {
-  if (activeBackend() === "meilisearch") return fetchJobsLastUpdated();
+/** The last-updated timestamp of the rows `p` matches, for the "last synced"
+ *  trust stamp — `p` omitted means the whole corpus. Meilisearch-only for now. */
+export async function getJobsLastUpdated(p: JobSearchParams = {}): Promise<string | null> {
+  if (activeBackend() === "meilisearch") return fetchJobsLastUpdated(p);
   return null;
 }
 

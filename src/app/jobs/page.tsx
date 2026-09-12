@@ -1590,24 +1590,15 @@ function JobsContent() {
     // `totalCount` into the show/hide + number decision.
     const [beyondWindowCount, setBeyondWindowCount] = useState<CorpusCount | null>(null);
 
-    // Corpus freshness stamp ("updated 3h ago"). Fetched once on mount.
-    // `undefined` = not resolved yet (render nothing); `null` = resolved but
-    // the backend has no known sync time (render "freshness unknown" — never
-    // a fabricated time).
+    // Freshness stamp ("updated 3h ago") for the population the CURRENT
+    // search matches — refetched alongside every search below (same
+    // fire-and-forget + generation-guard idiom as `ghostHiddenCount`/
+    // `beyondWindowCount`), scoped by the exact same `buildJobSearchPayload`
+    // the results search used, so it's never a corpus-wide number presented
+    // against a filtered denominator. `undefined` = not resolved yet for
+    // this search (render nothing); `null` = resolved but no known sync
+    // time for this population (render nothing — never a fabricated time).
     const [lastUpdated, setLastUpdated] = useState<string | null | undefined>(undefined);
-    useEffect(() => {
-        let cancelled = false;
-        getJobsFreshnessAction()
-            .then((iso) => {
-                if (!cancelled) setLastUpdated(iso);
-            })
-            .catch(() => {
-                if (!cancelled) setLastUpdated(null);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, []);
 
     // Can the corpus answer an age-bucket question? Optimistic default: the
     // sync writes `posted_ts` at full population (verified Jul 2026), and the
@@ -2017,11 +2008,14 @@ function JobsContent() {
      * `hits`/`loading` are in scope) for the separate render-fallback
      * decision.
      */
+    // Curated-board/single-employer scope, read by `resolveEmptySearchState`
+    // below.
+    const hasCorpusScope = Boolean(filterState.board || filterState.companyDomain);
     const emptySearchState = resolveEmptySearchState({
         hasQuery: Boolean(query.trim()),
         fitActive,
         activeFilterCount: activeEntries.length,
-        hasCorpusScope: Boolean(filterState.board || filterState.companyDomain),
+        hasCorpusScope,
     });
     // `!searchParams.get("job")` — the RAW url param, not `selectedId` (whose
     // default-browse auto-selection of `hits[0]` is not a deliberate pick —
@@ -2369,6 +2363,26 @@ function JobsContent() {
                 } else {
                     setBeyondWindowCount(null);
                 }
+                // Freshness probe: same fire-and-forget/generation-guard
+                // shape as the ghost-hidden-count and beyond-window probes
+                // above, scoped by the SAME payload the results search just
+                // used — so the "updated X ago" clause is MAX(updated_at)
+                // over exactly this search's population, not the corpus
+                // (see `searchResultLine`, lib/jobs/presentation.ts). Reset
+                // to `undefined` before the probe resolves so a PRIOR
+                // generation's stamp (a different filtered population) never
+                // lingers under this generation's count.
+                setLastUpdated(undefined);
+                getJobsFreshnessAction(
+                    buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
+                )
+                    .then((iso) => {
+                        if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
+                        setLastUpdated(iso);
+                    })
+                    .catch(() => {
+                        if (!cancelled && paginationRef.current!.isCurrentGeneration(generation)) setLastUpdated(null);
+                    });
             } catch (e) {
                 if (!cancelled) {
                     console.error("[jobs-search] action transport error:", e);
@@ -4138,7 +4152,12 @@ function JobsContent() {
     // sentence carries that state instead.
     const resultCountLine =
         result?.configured && !loading && !result.widened
-            ? searchResultLine({ count: totalCount, postedBucket: appliedPosted, lastUpdated, nowMs })
+            ? searchResultLine({
+                  count: totalCount,
+                  postedBucket: appliedPosted,
+                  lastUpdated,
+                  nowMs,
+              })
             : null;
 
     // "N more beyond 30 days — show all" affordance (2026-08-12) — gated on

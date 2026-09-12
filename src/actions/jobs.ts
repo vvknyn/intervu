@@ -478,9 +478,14 @@ export async function recordJobOpenedAction(
   after(() => recordJobOpen(entry));
 }
 
-/** The corpus's last-updated timestamp, for the "last synced" trust stamp. */
-export async function getJobsFreshnessAction(): Promise<string | null> {
-  return getJobsLastUpdated();
+/**
+ * The last-updated timestamp of the rows `params` matches, for the "last
+ * synced" trust stamp — pass the SAME params the results search used
+ * (`buildJobSearchPayload`'s output) so the stamp describes the population
+ * on screen; omit for the true corpus-wide stamp.
+ */
+export async function getJobsFreshnessAction(params: JobSearchParams = {}): Promise<string | null> {
+  return getJobsLastUpdated(params);
 }
 
 /**

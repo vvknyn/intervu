@@ -106,3 +106,79 @@ test("pure — same inputs, same string", () => {
     };
     assert.equal(searchResultLine(args), searchResultLine(args));
 });
+
+// --- Freshness-line truthfulness (intervu #484): `searchResultLine` no
+// longer decides whether the clause is safe to show by re-deriving
+// "narrowed" from chip counts (`isNarrowedResultSet`, deleted — it read the
+// filter-CHIP count, which deliberately hides the untouched 30-day default,
+// so a pristine /jobs visit — a real backend filter per
+// `jobs-posted-default-honesty.test.ts` — still showed the corpus stamp
+// beside filtered cards). The correctness burden moved to the CALLER
+// (jobs/page.tsx): `lastUpdated` is now trusted to already be MAX(updated_at)
+// over the exact same population `count` describes — computed via
+// `buildLastUpdatedQuery` (meilisearch.ts) from the SAME
+// `buildJobSearchPayload` the results search used. So at this layer, a
+// present/fresh `lastUpdated` always renders, for every narrowing shape:
+// there is no enumeration to fall out of sync with a new filter. ---
+
+test("a text-query result set's own stamp renders — the caller already scoped it to this query", () => {
+    const line = searchResultLine({
+        count: { kind: "exact", value: 23 },
+        postedBucket: "30d",
+        lastUpdated: TWO_HOURS_AGO,
+        nowMs: NOW,
+    });
+    assert.equal(line, "23 roles from the last 30 days · updated 2h ago");
+});
+
+test("an employer/company drawer's own stamp renders — the founder's exact repro, now scoped correctly upstream", () => {
+    const line = searchResultLine({
+        count: { kind: "exact", value: 7 },
+        postedBucket: undefined,
+        lastUpdated: "2026-07-26T11:20:00Z", // 40 minutes before NOW
+        nowMs: NOW,
+    });
+    assert.equal(line, "7 roles · updated 40 min ago");
+});
+
+test("a country-filtered set's own stamp renders, singular count still correct", () => {
+    const line = searchResultLine({
+        count: { kind: "exact", value: 1 },
+        postedBucket: "30d",
+        lastUpdated: TWO_HOURS_AGO,
+        nowMs: NOW,
+    });
+    assert.equal(line, "1 role from the last 30 days · updated 2h ago");
+});
+
+test("the pristine default (untouched 30d window, no query, no facets, no scope) shows its own stamp — the state the enumeration gate used to miss", () => {
+    const line = searchResultLine({
+        count: { kind: "exact", value: 5_820 },
+        postedBucket: "30d",
+        lastUpdated: TWO_HOURS_AGO,
+        nowMs: NOW,
+    });
+    assert.equal(line, "5,820 roles from the last 30 days · updated 2h ago");
+});
+
+test("an unfiltered whole-corpus set (explicit Any-date) keeps the clause and copy exactly as before", () => {
+    const line = searchResultLine({
+        count: { kind: "exact", value: 412 },
+        postedBucket: undefined,
+        lastUpdated: TWO_HOURS_AGO,
+        nowMs: NOW,
+    });
+    assert.equal(line, "412 roles · updated 2h ago");
+});
+
+test("a stamp the caller couldn't resolve (null) omits the clause, string stays well-formed — no dangling separator", () => {
+    const line = searchResultLine({
+        count: { kind: "exact", value: 7 },
+        postedBucket: undefined,
+        lastUpdated: null,
+        nowMs: NOW,
+    });
+    assert.equal(line, "7 roles");
+    assert.doesNotMatch(line, /·\s*$/);
+    assert.doesNotMatch(line, /\s{2,}/);
+});
