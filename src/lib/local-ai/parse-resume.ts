@@ -8,6 +8,7 @@
 import { normalizeParsedResume, type RawParsedResumeInput } from "@/lib/resume/normalize-parsed-resume";
 import { structureResumeText } from "@/lib/resume/structure-resume-text";
 import type { ParsedResumeResult } from "@/types/resume";
+import { scoreLocalParseConfidence } from "./parse-confidence";
 import { getActiveEngineId, getEngineLabel, initLocalAiLadder, parseWithActiveEngine } from "./ladder";
 import type { LocalAiEngineId } from "./engines/types";
 
@@ -132,14 +133,6 @@ export function mergeModelIntoHeuristic(
     return { raw, usedHeuristic: !modelContributed };
 }
 
-function heuristicConfidence(hasExperience: boolean, hasSkills: boolean, hasEmail: boolean): number {
-    let score = 55;
-    if (hasEmail) score += 10;
-    if (hasExperience) score += 15;
-    if (hasSkills) score += 10;
-    return Math.min(score, 75);
-}
-
 /**
  * Parse résumé text entirely on-device. Call only when local-ai flag is ON.
  * Requires ladder init (after consent) for model paths; rules always work.
@@ -169,24 +162,11 @@ export async function parseResumeLocally(content: string): Promise<LocalParseRes
     const effectiveEngine: LocalAiEngineId =
         usedHeuristic || engine === "heuristic" ? "heuristic" : engine;
 
-    const confBase = usedHeuristic
-        ? heuristicConfidence(
-              (raw.experience?.length ?? 0) > 0,
-              (raw.competencies?.length ?? 0) > 0,
-              Boolean(raw.profile?.email),
-          )
-        : 78;
+    const confidence = scoreLocalParseConfidence(raw);
 
     const data = normalizeParsedResume(raw, {
         localRules: usedHeuristic,
-        confidence: {
-            overall: confBase,
-            profile: confBase,
-            experience: (raw.experience?.length ?? 0) > 0 ? confBase + 5 : confBase - 10,
-            competencies: (raw.competencies?.length ?? 0) > 0 ? confBase : confBase - 15,
-            education: (raw.education?.length ?? 0) > 0 ? confBase : confBase - 10,
-            summary: raw.generatedSummary ? confBase + 5 : confBase - 10,
-        },
+        confidence,
     });
 
     return {

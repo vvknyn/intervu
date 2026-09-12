@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -19,6 +19,11 @@ import { parseResumeWithAI, extractPDFText, extractDocxText } from "@/actions/re
 import { readLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
+import {
+    canAcceptLocalParse,
+    LOCAL_PARSE_ACCEPT_MIN,
+    scoreLocalParseConfidence,
+} from "@/lib/local-ai/parse-confidence";
 import { getEngineLabel, initLocalAiLadder, probeBestEngine } from "@/lib/local-ai/ladder";
 import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Sparkle, Warning, Cpu } from "@phosphor-icons/react";
 import { sentinelMessage } from "@/lib/llm/sentinels";
@@ -230,11 +235,25 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         }
     };
 
-    const handleConfirm = () => {
-        if (editedData && parseResult) {
-            onImport(editedData, contentType, parseResult.confidence.overall);
-            handleClose();
+    const reviewConfidence = useMemo(() => {
+        if (!editedData) return null;
+        if (localAiEnabled) {
+            return scoreLocalParseConfidence(editedData);
         }
+        return parseResult?.confidence ?? null;
+    }, [editedData, localAiEnabled, parseResult?.confidence]);
+
+    const localParseBlocked =
+        localAiEnabled && reviewConfidence !== null && !canAcceptLocalParse(reviewConfidence);
+
+    const handleConfirm = () => {
+        if (!editedData || !parseResult) return;
+        if (localAiEnabled && reviewConfidence && !canAcceptLocalParse(reviewConfidence)) {
+            return;
+        }
+        const overall = reviewConfidence?.overall ?? parseResult.confidence.overall;
+        onImport(editedData, contentType, overall);
+        handleClose();
     };
 
     // Edit handlers for the review step
@@ -415,14 +434,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     );
 
     const renderReviewStep = () => {
-        if (!parseResult || !editedData) return null;
+        if (!parseResult || !editedData || !reviewConfidence) return null;
 
         return (
             <div className="space-y-6 -mx-6">
                 {/* Confidence Overview */}
                 <div className="px-6 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <ConfidenceIndicator score={parseResult.confidence.overall} size="lg" />
+                        <ConfidenceIndicator score={reviewConfidence.overall} size="lg" />
                     </div>
                     <div className="text-right">
                         {engineLabel && (
@@ -441,6 +460,19 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     </div>
                 )}
 
+                {localParseBlocked && (
+                    <div className="px-6">
+                        <div className="p-3 rounded-none bg-muted border border-warn text-warn text-sm flex items-start gap-2">
+                            <Warning size={16} weight="bold" className="shrink-0 mt-0.5" />
+                            <span>
+                                Confidence is {reviewConfidence.overall}% — needs to be above{" "}
+                                {LOCAL_PARSE_ACCEPT_MIN - 1}. Add name, title, experience, and skills
+                                (plus email or education), or go back and paste cleaner text.
+                            </span>
+                        </div>
+                    </div>
+                )}
+
                 <ScrollArea className="h-[400px]">
                     <div className="px-6 space-y-6">
                         {/* Profile Section */}
@@ -448,7 +480,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold flex items-center gap-2">
                                     Profile
-                                    <ConfidenceBadge score={parseResult.confidence.profile} section="Profile" />
+                                    <ConfidenceBadge score={reviewConfidence.profile} section="Profile" />
                                 </h4>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
@@ -517,7 +549,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold flex items-center gap-2">
                                     Experience ({editedData.experience.length})
-                                    <ConfidenceBadge score={parseResult.confidence.experience} section="Experience" />
+                                    <ConfidenceBadge score={reviewConfidence.experience} section="Experience" />
                                 </h4>
                             </div>
                             <div className="space-y-4">
@@ -559,7 +591,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold flex items-center gap-2">
                                     Skills
-                                    <ConfidenceBadge score={parseResult.confidence.competencies} section="Skills" />
+                                    <ConfidenceBadge score={reviewConfidence.competencies} section="Skills" />
                                 </h4>
                             </div>
                             <div className="space-y-3">
@@ -582,7 +614,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold flex items-center gap-2">
                                     Education ({editedData.education.length})
-                                    <ConfidenceBadge score={parseResult.confidence.education} section="Education" />
+                                    <ConfidenceBadge score={reviewConfidence.education} section="Education" />
                                 </h4>
                             </div>
                             <div className="space-y-3">
@@ -618,7 +650,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold flex items-center gap-2">
                                     Summary
-                                    <ConfidenceBadge score={parseResult.confidence.summary} section="Summary" />
+                                    <ConfidenceBadge score={reviewConfidence.summary} section="Summary" />
                                 </h4>
                             </div>
                             <Textarea
@@ -687,7 +719,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                 <ArrowLeft size={16} className="mr-2" />
                                 Back
                             </Button>
-                            <Button onClick={handleConfirm}>
+                            <Button onClick={handleConfirm} disabled={localParseBlocked}>
                                 <Check size={16} className="mr-2" />
                                 {confirmLabel}
                             </Button>

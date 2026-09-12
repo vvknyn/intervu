@@ -112,12 +112,12 @@ export function normalizeParsedResume(
     };
 
     const confidence: ResumeConfidenceScores = {
-        overall: Number(options.confidence?.overall) || 70,
-        profile: Number(options.confidence?.profile) || 70,
-        experience: Number(options.confidence?.experience) || 70,
-        competencies: Number(options.confidence?.competencies) || 70,
-        education: Number(options.confidence?.education) || 70,
-        summary: Number(options.confidence?.summary) || 70,
+        overall: options.confidence?.overall ?? 70,
+        profile: options.confidence?.profile ?? 70,
+        experience: options.confidence?.experience ?? 70,
+        competencies: options.confidence?.competencies ?? 70,
+        education: options.confidence?.education ?? 70,
+        summary: options.confidence?.summary ?? 70,
     };
 
     const uncertainFields: UncertainField[] = Array.isArray(options.uncertainFields)
