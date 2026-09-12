@@ -93,10 +93,13 @@ const resume: ResumeData = {
 
 const noop = () => {};
 
-describe("Customize sheet contract", () => {
-    it("opens a bottom Sheet with its own scroll and sticky footer, not an inline expand", () => {
+describe("Customize dialog contract", () => {
+    it("opens a Dialog portaled above the pane with scroll body and sticky footer", () => {
         const src = readFileSync(PANEL, "utf8");
-        assert.match(src, /side="bottom"/);
+        assert.match(src, /<Dialog/);
+        assert.doesNotMatch(src, /side="bottom"/);
+        assert.match(src, /DialogContent/);
+        assert.match(src, /z-\[70\]/);
         assert.match(src, /overflow-y-auto/);
         assert.match(src, /min-h-0 flex-1/);
         assert.match(src, /confirmToast/);
@@ -111,7 +114,32 @@ describe("Customize sheet contract", () => {
         );
     });
 
-    it("JobDetail action row keeps the compact trigger; document mobile bar gets it too", () => {
+    it("trigger is an outline Button, not a ghost text link", () => {
+        const src = readFileSync(PANEL, "utf8");
+        assert.match(src, /variant="outline"/);
+        assert.match(src, /data-testid="local-customize-open"/);
+        assert.match(src, /<Button/);
+    });
+
+    it("JobDetail action row is nowrap with Apply · Customize · Bookmark order", () => {
+        const detail = readFileSync(DETAIL, "utf8");
+        const actionRow = detail.match(/\/\* Action row \*\/[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
+        assert.match(actionRow, /flex flex-nowrap items-center gap-2/);
+        const applyIdx = actionRow.indexOf("Apply");
+        const customizeIdx = actionRow.indexOf("<LocalCustomizePanel");
+        const bookmarkIdx = actionRow.indexOf("<RowBookmarkButton");
+        assert.ok(applyIdx >= 0 && customizeIdx > applyIdx, "Customize follows Apply");
+        assert.ok(bookmarkIdx > customizeIdx, "Bookmark follows Customize");
+    });
+
+    it("accordion sections: summary expanded by default, experience blocks collapsed", () => {
+        const src = readFileSync(PANEL, "utf8");
+        assert.match(src, /defaultValue=\{\["summary"\]\}/);
+        assert.match(src, /local-customize-section-summary/);
+        assert.match(src, /local-customize-section-\$\{/);
+    });
+
+    it("JobDetail action row keeps the trigger; document mobile bar gets compact variant", () => {
         const detail = readFileSync(DETAIL, "utf8");
         const doc = readFileSync(DOCUMENT, "utf8");
         const page = readFileSync(join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx"), "utf8");
@@ -154,7 +182,8 @@ describe("Customize sheet contract", () => {
             }),
         );
         assert.match(html, /data-testid="local-customize-open"/);
-        assert.match(html, /Customize for this job/);
+        assert.match(html, /Customize/);
+        assert.match(html, / for this job/);
         assert.doesNotMatch(html, /data-testid="local-customize-panel"/);
         assert.doesNotMatch(html, /basis-full/);
         assert.doesNotMatch(html, /Tailoring on-device/);
@@ -172,8 +201,8 @@ describe("Customize sheet contract", () => {
             }),
         );
         assert.match(html, /data-testid="local-customize-open"/);
-        assert.match(html, />Customize</);
-        assert.doesNotMatch(html, /Customize for this job</);
+        assert.match(html, />Customize<\/button>/);
+        assert.doesNotMatch(html, /hidden sm:inline.*for this job/);
         assert.doesNotMatch(html, /data-testid="local-customize-panel"/);
     });
 });

@@ -867,7 +867,7 @@ export function JobDetail({
 
                 {/* Action row */}
                 <div className="border-t border-border px-4 py-3 sm:px-6 sm:py-3">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-nowrap items-center gap-2">
                         {/* House attention system (docs/design/ATTENTION.md,
                             channel 2): exactly one inverted-ink block per
                             view. Apply is the primary action this pane
@@ -881,6 +881,11 @@ export function JobDetail({
                                 Apply
                             </Button>
                         )}
+                        <LocalCustomizePanel
+                            job={job}
+                            resume={resume}
+                            onAccept={onAcceptLocalTailor}
+                        />
                         {/* Bookmark: 40px icon-only ghost control (rulebook — icon
                             carries the state, no label chrome competing with Apply's
                             one inverted-ink block above). Klein-filled glyph + link to
@@ -900,11 +905,6 @@ export function JobDetail({
                                 className="ml-auto"
                             />
                         )}
-                        <LocalCustomizePanel
-                            job={job}
-                            resume={resume}
-                            onAccept={onAcceptLocalTailor}
-                        />
                     </div>
                 </div>
             </div>

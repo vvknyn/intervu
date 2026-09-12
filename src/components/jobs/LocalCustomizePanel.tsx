@@ -4,12 +4,17 @@ import { useState, useCallback } from "react";
 import { Copy, DownloadSimple, Check } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
-    Sheet,
-    SheetClose,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet";
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 import { readLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
@@ -38,7 +43,7 @@ export interface LocalCustomizePanelProps {
 export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: LocalCustomizePanelProps) {
     const [draft, setDraft] = useState<TailorDraft | null>(null);
     const [loading, setLoading] = useState(false);
-    const [sheetOpen, setSheetOpen] = useState(false);
+    const [dialogOpen, setDialogOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const [consentNeeded, setConsentNeeded] = useState(false);
     const [generatingWithModel, setGeneratingWithModel] = useState(false);
@@ -66,7 +71,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
 
     const visible = readLocalAiEnabled() && !!resume && resumeIsUsable(resume);
 
-    const resetSheetState = useCallback(() => {
+    const resetDialogState = useCallback(() => {
         setDraft(null);
         setLoading(false);
         setConsentNeeded(false);
@@ -92,14 +97,14 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
     );
 
     const handleOpen = useCallback(() => {
-        setSheetOpen(true);
-        resetSheetState();
+        setDialogOpen(true);
+        resetDialogState();
         if (readLocalAiConsent()) {
             void runGenerate(true);
         } else {
             setConsentNeeded(true);
         }
-    }, [resetSheetState, runGenerate]);
+    }, [resetDialogState, runGenerate]);
 
     const handleEnableAi = useCallback(async () => {
         grantLocalAiConsent();
@@ -111,12 +116,12 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
         void runGenerate(false);
     }, [runGenerate]);
 
-    const handleSheetOpenChange = useCallback(
+    const handleDialogOpenChange = useCallback(
         (open: boolean) => {
-            setSheetOpen(open);
-            if (!open) resetSheetState();
+            setDialogOpen(open);
+            if (!open) resetDialogState();
         },
-        [resetSheetState],
+        [resetDialogState],
     );
 
     const handleAccept = useCallback(async () => {
@@ -132,9 +137,9 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
             writeLocalAiResume(draft.tailored);
         }
         toast.success("Résumé updated for Rank on this device.");
-        setSheetOpen(false);
-        resetSheetState();
-    }, [draft, onAccept, resetSheetState]);
+        setDialogOpen(false);
+        resetDialogState();
+    }, [draft, onAccept, resetDialogState]);
 
     if (!visible || !resume) {
         return null;
@@ -154,46 +159,36 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
 
     return (
         <>
-            <button
+            <Button
                 type="button"
+                variant="outline"
                 data-testid="local-customize-open"
                 aria-label="Customize for this job"
-                disabled={loading && sheetOpen}
+                disabled={loading && dialogOpen}
                 onClick={handleOpen}
                 className={cn(
-                    "shrink-0 text-xs font-semibold text-foreground transition-colors hover:text-brand",
-                    loading && sheetOpen && "opacity-60",
+                    "h-10 shrink-0 rounded-none text-xs font-semibold sm:h-9",
+                    compactTrigger && "px-3",
+                    loading && dialogOpen && "opacity-60",
                 )}
             >
-                {compactTrigger ? "Customize" : "Customize for this job"}
-            </button>
+                Customize
+                {!compactTrigger && <span className="hidden sm:inline"> for this job</span>}
+            </Button>
 
-            <Sheet open={sheetOpen} onOpenChange={handleSheetOpenChange}>
-                <SheetContent
-                    side="bottom"
-                    hideCloseButton
-                    className="mx-auto max-h-[85dvh] w-full max-w-[720px] overflow-hidden border-border p-0"
-                >
-                    <div className="flex max-h-[85dvh] min-h-0 flex-col">
-                        <div className="shrink-0 border-b border-border">
-                            <div className="flex justify-center pb-1 pt-2.5">
-                                <span className="h-1 w-9 rounded-none bg-[#d0d6de]" aria-hidden="true" />
-                            </div>
-                            <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
-                                <SheetHeader className="min-w-0 flex-1 space-y-0.5 text-left">
-                                    <SheetTitle className="text-base font-semibold leading-snug text-foreground">
-                                        {job.title}
-                                        {companyBrand ? ` · ${companyBrand}` : ""}
-                                    </SheetTitle>
-                                    {engineLabel && (
-                                        <p className="text-xs text-muted-foreground">{engineLabel}</p>
-                                    )}
-                                </SheetHeader>
-                                <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-muted-foreground transition-opacity hover:opacity-80">
-                                    <span aria-hidden="true">×</span>
-                                    <span className="sr-only">Close</span>
-                                </SheetClose>
-                            </div>
+            <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
+                <DialogContent className="z-[70] flex max-h-[85dvh] w-full max-w-[720px] flex-col overflow-hidden p-0 sm:max-w-xl">
+                    <div className="flex min-h-0 max-h-[85dvh] flex-col">
+                        <div className="shrink-0 border-b border-border px-5 py-4 pr-12">
+                            <DialogHeader className="space-y-0.5 text-left">
+                                <DialogTitle className="text-base font-semibold leading-snug text-foreground">
+                                    {job.title}
+                                    {companyBrand ? ` · ${companyBrand}` : ""}
+                                </DialogTitle>
+                                {engineLabel && (
+                                    <p className="text-xs text-muted-foreground">{engineLabel}</p>
+                                )}
+                            </DialogHeader>
                         </div>
 
                         <div
@@ -237,40 +232,55 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                             )}
 
                             {draft && (
-                                <div className="space-y-5">
+                                <div className="space-y-4">
                                     {!draft.usedDescription && (
                                         <p className="text-sm text-muted-foreground">
                                             Tailored from title and tags (posting description not on this hit).
                                         </p>
                                     )}
 
-                                    <div>
-                                        <div className="text-sm font-semibold text-foreground">Summary</div>
-                                        <p className="mt-2 text-sm leading-relaxed text-foreground">
-                                            <span className="font-medium text-muted-foreground">After: </span>
-                                            {draft.summaryAfter}
-                                        </p>
-                                        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                                            <span className="font-medium">Before: </span>
-                                            <span className="line-through">{draft.summaryBefore}</span>
-                                        </p>
-                                    </div>
+                                    <Accordion type="multiple" defaultValue={["summary"]}>
+                                        <AccordionItem
+                                            value="summary"
+                                            data-testid="local-customize-section-summary"
+                                        >
+                                            <AccordionTrigger className="text-sm font-semibold">
+                                                Summary
+                                            </AccordionTrigger>
+                                            <AccordionContent>
+                                                <p className="text-sm leading-relaxed text-foreground">
+                                                    <span className="font-medium text-muted-foreground">After: </span>
+                                                    {draft.summaryAfter}
+                                                </p>
+                                                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                                                    <span className="font-medium">Before: </span>
+                                                    {draft.summaryBefore}
+                                                </p>
+                                            </AccordionContent>
+                                        </AccordionItem>
 
-                                    {draft.bullets.map((b: TailorDraft["bullets"][number]) => (
-                                        <div key={b.experienceId}>
-                                            <div className="text-sm font-semibold text-foreground">
-                                                {b.role} · {b.company}
-                                            </div>
-                                            <p className="mt-2 text-sm leading-relaxed text-foreground">
-                                                <span className="font-medium text-muted-foreground">After: </span>
-                                                {b.after}
-                                            </p>
-                                            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                                                <span className="font-medium">Before: </span>
-                                                <span className="line-through">{b.before}</span>
-                                            </p>
-                                        </div>
-                                    ))}
+                                        {draft.bullets.map((b: TailorDraft["bullets"][number]) => (
+                                            <AccordionItem
+                                                key={b.experienceId}
+                                                value={b.experienceId}
+                                                data-testid={`local-customize-section-${b.experienceId}`}
+                                            >
+                                                <AccordionTrigger className="text-sm font-semibold">
+                                                    {b.role} · {b.company}
+                                                </AccordionTrigger>
+                                                <AccordionContent>
+                                                    <p className="text-sm leading-relaxed text-foreground">
+                                                        <span className="font-medium text-muted-foreground">After: </span>
+                                                        {b.after}
+                                                    </p>
+                                                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                                                        <span className="font-medium">Before: </span>
+                                                        {b.before}
+                                                    </p>
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        ))}
+                                    </Accordion>
                                 </div>
                             )}
                         </div>
@@ -282,7 +292,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                 size="sm"
                                 data-testid="local-customize-close"
                                 className="h-9 rounded-none text-xs"
-                                onClick={() => handleSheetOpenChange(false)}
+                                onClick={() => handleDialogOpenChange(false)}
                             >
                                 Close
                             </Button>
@@ -320,8 +330,8 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                             )}
                         </div>
                     </div>
-                </SheetContent>
-            </Sheet>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
