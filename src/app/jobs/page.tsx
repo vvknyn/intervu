@@ -175,7 +175,17 @@ import {
 } from "@/lib/jobs/result-state";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
-import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
+import {
+    fetchAgentPreferencesAction,
+    saveAgentPreferencesAction,
+    type AgentPreferences,
+} from "@/actions/agent-preferences";
+import { PrefsOnboardingStrip } from "@/components/jobs/PrefsOnboardingStrip";
+import { personalizedFitFromResume, prefsOnlyJobsState } from "@/lib/jobs/apply-personalized-fit";
+import {
+    draftSearchPreferencesFromResume,
+    isAutoPersonalizeUrl,
+} from "@/lib/jobs/prefs-to-url-state";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
@@ -218,8 +228,7 @@ import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { BoardId } from "@/lib/boards/types";
-import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
-import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
+import type { SearchPreferences } from "@/lib/agent/preferences";
 import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
@@ -1790,6 +1799,36 @@ function JobsContent() {
         }
     }, [localAiEnabled, user, resume]);
 
+    // Server retrieval rails (`profiles/<uid>.agent_preferences`).
+    const [agentPrefs, setAgentPrefs] = useState<AgentPreferences | null>(null);
+    const agentPrefsLoadedRef = useRef(false);
+    const landingUrlRef = useRef(initialUrlState);
+    const autoPersonalizeDoneRef = useRef(false);
+    const [prefsOnboardingDismissed, setPrefsOnboardingDismissed] = useState(true);
+
+    useEffect(() => {
+        try {
+            setPrefsOnboardingDismissed(sessionStorage.getItem("intervu.jobs.prefs-onboarding.dismissed") === "1");
+        } catch {
+            /* private mode */
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!user) {
+            setAgentPrefs(null);
+            agentPrefsLoadedRef.current = false;
+            return;
+        }
+        agentPrefsLoadedRef.current = false;
+        void fetchAgentPreferencesAction().then((res) => {
+            agentPrefsLoadedRef.current = true;
+            setAgentPrefs(
+                res.data ?? { configured: false, search: {}, answers: { custom: {} } },
+            );
+        });
+    }, [user?.uid]);
+
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
     // fetch of the résumé itself; Task 4 removed that). The card's other gate
     // condition, `resumeIsUsable(resume)`, uses this same local `resume`
@@ -1849,12 +1888,20 @@ function JobsContent() {
         user,
     });
 
+    const prevUserRef = useRef<User | null>(null);
     useEffect(() => {
         const current = getCurrentUser();
         if (current) setUser(current);
         const unsub = onAuthChange((u) => setUser(u));
         return () => unsub();
     }, []);
+
+    useEffect(() => {
+        if (!prevUserRef.current && user) {
+            autoPersonalizeDoneRef.current = false;
+        }
+        prevUserRef.current = user;
+    }, [user]);
 
     // Refetch rule: only the search-affecting subset should trigger a fetch.
     // `jobId` is deliberately omitted here, so opening/closing a job (a `job`-
@@ -3494,6 +3541,7 @@ function JobsContent() {
             filterCount: activeCount,
             filtersExpanded: filtersOpen,
             onOpenFilters: () => setFiltersOpen((v) => !v),
+            filtersLabel: fitActive ? "Narrow" : undefined,
             // Live corpus count in the docked toolbar is deferred (2026-08-24) —
             // the row was cluttered; `/trends` still owns the full count story.
         });
@@ -3505,7 +3553,7 @@ function JobsContent() {
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, activeCount, filtersOpen, setDocked]);
+    }, [headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, activeCount, filtersOpen, fitActive, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
@@ -3888,20 +3936,119 @@ function JobsContent() {
     // as `sort=fit` + a dismissible chip instead of a whole-page mode — see
     // `resolveUrlSort` above for why the backend sort stays relevance, not a
     // literal "fit" value.
-    const applyFit = (r: ResumeData) => {
-        const { q, facets: derived } = buildMatchQuery(r);
-        const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
-        const derivedWithLocation = userPickedLocation
-            ? derived
-            : { ...derived, ...deriveResumeLocationFacets(r.profile?.location) };
-        const merged = mergeFacets(facets, derivedWithLocation);
+    const applyFit = (r: ResumeData, prefs?: SearchPreferences) => {
+        const { q, facets: merged, sort } = personalizedFitFromResume(r, prefs, facets);
         setFacets(merged);
         setQueryDraft(q);
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit" }), "replace");
+        setFiltersOpen(false);
+        applyUrlState(buildUrlState({ q, facets: merged, sort }), "replace");
     };
+
+    const applyPrefsRails = useCallback(
+        (prefs: SearchPreferences) => {
+            const partial = prefsOnlyJobsState(prefs);
+            const nextFacets = { ...facets, ...partial.facets };
+            const nextQ = partial.q ?? query;
+            if (partial.salaryMin !== undefined && partial.salaryMin > 0) setSalaryMin(partial.salaryMin);
+            if (partial.postedBucket !== undefined) {
+                setPostedBucket(partial.postedBucket);
+                setPostedExplicit(partial.postedExplicit ?? false);
+            }
+            setFacets(nextFacets);
+            if (nextQ !== query) {
+                setQuery(nextQ);
+                setQueryDraft(nextQ);
+            }
+            applyUrlState(
+                buildUrlState({
+                    q: nextQ,
+                    facets: nextFacets,
+                    salaryMin: partial.salaryMin ?? salaryMin,
+                    postedBucket: partial.postedBucket ?? postedBucket,
+                    postedExplicit: partial.postedExplicit ?? postedExplicit,
+                }),
+                "replace",
+            );
+        },
+        [facets, query, salaryMin, postedBucket, postedExplicit, buildUrlState, applyUrlState],
+    );
+
+    // Cold `/jobs` or `?sort=fit` only: merge prefs rails + Rank without clobbering deliberate URLs.
+    useEffect(() => {
+        if (autoPersonalizeDoneRef.current) return;
+        if (!isAutoPersonalizeUrl(landingUrlRef.current)) return;
+        if (fitActive) {
+            autoPersonalizeDoneRef.current = true;
+            return;
+        }
+        if (user && !agentPrefsLoadedRef.current) return;
+
+        const prefs = agentPrefs?.search;
+        const configured = agentPrefs?.configured ?? false;
+        const hasLocalSignal = localAiEnabled && !user;
+        const hasSignedInSignal = Boolean(user && (configured || agentPrefsLoadedRef.current));
+        if (!hasLocalSignal && !hasSignedInSignal && !user) return;
+
+        void (async () => {
+            const r = await resolveUsableResume();
+            if (r && resumeIsUsable(r)) {
+                autoPersonalizeDoneRef.current = true;
+                applyFit(r, prefs);
+                return;
+            }
+            if (configured && prefs && Object.keys(prefs).length > 0) {
+                autoPersonalizeDoneRef.current = true;
+                applyPrefsRails(prefs);
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot landing personalize
+    }, [user, agentPrefs, localAiEnabled, fitActive, applyFit, applyPrefsRails]);
+
+    const dismissPrefsOnboarding = () => {
+        setPrefsOnboardingDismissed(true);
+        try {
+            sessionStorage.setItem("intervu.jobs.prefs-onboarding.dismissed", "1");
+        } catch {
+            /* private mode */
+        }
+    };
+
+    const savePrefsOnboarding = async (search: SearchPreferences) => {
+        if (user) {
+            const res = await saveAgentPreferencesAction({ search });
+            if (!res.data) return;
+            setAgentPrefs(res.data);
+            dismissPrefsOnboarding();
+            const r = resume && resumeIsUsable(resume) ? resume : await resolveUsableResume();
+            if (r && resumeIsUsable(r)) applyFit(r, res.data.search);
+            else applyPrefsRails(res.data.search);
+            return;
+        }
+        dismissPrefsOnboarding();
+        const r = resume && resumeIsUsable(resume) ? resume : await resolveUsableResume();
+        if (r && resumeIsUsable(r)) applyFit(r, search);
+    };
+
+    const agentPrefsReady = !user || agentPrefs !== null;
+    const showPrefsOnboarding =
+        !prefsOnboardingDismissed &&
+        !fitActive &&
+        hasUsableResume &&
+        ((user && agentPrefsReady && agentPrefs && !agentPrefs.configured) ||
+            (localAiEnabled && !user));
+
+    const prefsOnboardingDraft = useMemo(
+        () =>
+            draftSearchPreferencesFromResume({
+                location: resume?.profile?.location,
+                yearsOfExperience: resume?.profile?.yearsOfExperience,
+                profession: resume?.profile?.profession,
+            }),
+        [resume],
+    );
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
     // core `resolve` callback `handleRankByFit` (below) passes to its own
@@ -5000,6 +5147,14 @@ function JobsContent() {
                 </section>
                 )}
 
+                {showPrefsOnboarding && (
+                    <PrefsOnboardingStrip
+                        draft={prefsOnboardingDraft}
+                        onSave={savePrefsOnboarding}
+                        onDismiss={dismissPrefsOnboarding}
+                    />
+                )}
+
                 {headerDockActive && facetsMountSite === "inline" && (
                     <div
                         id="filters-panel"
@@ -5040,8 +5195,8 @@ function JobsContent() {
                                 "box-border shrink-0 px-3.5 rounded-none font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
                             )}
                         >
-                            <span className="lg:hidden">Filters</span>
-                            <span className="hidden lg:inline">All filters</span>
+                            <span className="lg:hidden">{fitActive ? "Narrow" : "Filters"}</span>
+                            <span className="hidden lg:inline">{fitActive ? "Narrow" : "All filters"}</span>
                             {activeCount > 0 && (
                                 <span className={cn("ml-0.5", filterCountBadgeClass)}>
                                     {activeCount}

@@ -107,4 +107,24 @@ describe("mergeAgentPreferences", () => {
         assert.ok(out.updated_at);
         assert.ok(new Date(out.updated_at!).getTime() >= before);
     });
+
+    it("new optional search fields round-trip on merge", () => {
+        const out = mergeAgentPreferences(existing, {
+            search: { workMode: "hybrid", openToAdjacentRoles: true },
+        });
+        assert.equal(out.search.workMode, "hybrid");
+        assert.equal(out.search.openToAdjacentRoles, true);
+        assert.equal(out.search.query, "backend engineer");
+    });
+});
+
+describe("shapeAgentPreferences new fields", () => {
+    it("carries workMode and openToAdjacentRoles through shaping", () => {
+        const out = shapeAgentPreferences({
+            search: { workMode: "remote", openToAdjacentRoles: true },
+            answers: { custom: {} },
+        });
+        assert.equal(out.search.workMode, "remote");
+        assert.equal(out.search.openToAdjacentRoles, true);
+    });
 });

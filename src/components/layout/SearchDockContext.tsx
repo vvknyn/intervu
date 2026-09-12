@@ -35,6 +35,8 @@ export type DockedSearch = {
     filtersExpanded: boolean;
     /** Toggles the page's own filter panel/sheet. */
     onOpenFilters: () => void;
+    /** Override for the filters button label (e.g. "Narrow" when Rank is active). */
+    filtersLabel?: string;
     /**
      * One short piece of standing context for this search, shown beside the
      * filter controls. Deliberately `label` + optional `href` and nothing

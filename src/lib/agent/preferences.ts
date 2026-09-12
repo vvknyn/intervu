@@ -17,16 +17,22 @@
  * Plain module (not "use server"): imports the Admin SDK directly, so it
  * must only ever be imported from server code.
  */
+import type { WorkType } from "@/lib/agent/facets";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 export interface SearchPreferences {
     query?: string;
     location?: string;
+    /** @deprecated Prefer `workMode`. Kept for MCP backward compat: `true` → remote. */
     remoteOnly?: boolean;
+    /** Closed vocab: remote | hybrid | onsite. Wins over `remoteOnly` when set. */
+    workMode?: WorkType;
     experienceLevel?: string;
     employmentType?: string;
     salaryMin?: number;
     postedWithinDays?: number;
+    /** When true, Rank retrieval widens OR titles with adjacent-role suggestions. */
+    openToAdjacentRoles?: boolean;
 }
 
 export interface AnswerPreferences {

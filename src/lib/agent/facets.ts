@@ -6,6 +6,7 @@
  * `pursuits/resume-version.ts`), which Turbopack otherwise drags into the
  * client bundle whole.
  */
+import type { PostedBucket } from "@/lib/jobs/types";
 
 /**
  * Real, user-selectable `experience_level` facet values (Task 12), extended
@@ -43,3 +44,9 @@ export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
  */
 export const POSTED_WITHIN_DAYS_OPTIONS = [7, 30, 90] as const;
 export type PostedWithinDays = (typeof POSTED_WITHIN_DAYS_OPTIONS)[number];
+
+/** Agent `postedWithinDays` (7/30/90) → board `PostedBucket`. 90 narrows to 30d (no 90d bucket). */
+export function postedWithinDaysToBucket(days: PostedWithinDays): PostedBucket {
+    if (days === 7) return "7d";
+    return "30d";
+}

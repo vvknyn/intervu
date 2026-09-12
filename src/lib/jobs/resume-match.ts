@@ -74,7 +74,13 @@ function cleanRoleTitle(title: string): string {
  * `resumeIsUsable` is defined in terms of this function's output (see
  * resume-usable.ts) precisely so the two can't drift apart again.
  */
-export function buildMatchQuery(resume: ResumeData): DerivedQuery {
+export interface BuildMatchQueryOptions {
+    /** Widen OR title phrases with adjacent-role suggestions (higher cap). */
+    openToAdjacentRoles?: boolean;
+}
+
+export function buildMatchQuery(resume: ResumeData, options?: BuildMatchQueryOptions): DerivedQuery {
+    const phraseCap = options?.openToAdjacentRoles ? 6 : 4;
     const profession = (resume?.profile?.profession ?? "").trim();
     const professionParts = profession ? splitRoleTitles(profession) : [];
     const expTitles = experienceRoleTitles(resume);
@@ -100,20 +106,21 @@ export function buildMatchQuery(resume: ResumeData): DerivedQuery {
         candidates.push(profession);
     }
 
-    let terms = capExploreTerms(candidates, 4);
+    let terms = capExploreTerms(candidates, phraseCap);
 
-    // 4. Thin adjacency fallback only when still under the cap.
-    if (terms.length < 4) {
+    // 4. Adjacency: always when `openToAdjacentRoles`, else thin fallback under the cap.
+    const shouldAddAdjacent = options?.openToAdjacentRoles || terms.length < phraseCap;
+    if (shouldAddAdjacent) {
         const allTitlesForAdjacent = [...professionParts, ...expTitles];
         if (allTitlesForAdjacent.length > 0) {
             const combined = [...terms, ...suggestAdjacentRolesLocal(allTitlesForAdjacent, skills, 8)];
-            terms = capExploreTerms(combined, 4);
+            terms = capExploreTerms(combined, phraseCap);
         }
     }
 
     // 5. Skills only when nothing else produced a query.
     if (terms.length === 0) {
-        terms = capExploreTerms(skills, 4);
+        terms = capExploreTerms(skills, phraseCap);
     }
 
     const q = formatQuotedOrQuery(terms);

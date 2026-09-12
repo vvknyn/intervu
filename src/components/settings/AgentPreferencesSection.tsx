@@ -7,7 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/lib/toast";
 import { AGENT } from "@/lib/agent/config";
-import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS, type ExperienceLevel, type EmploymentType, type PostedWithinDays } from "@/lib/agent/facets";
+import {
+    EXPERIENCE_LEVELS,
+    EMPLOYMENT_TYPES,
+    POSTED_WITHIN_DAYS_OPTIONS,
+    WORK_TYPES,
+    type ExperienceLevel,
+    type EmploymentType,
+    type PostedWithinDays,
+    type WorkType,
+} from "@/lib/agent/facets";
 import { facetValueLabel } from "@/components/jobs/FilterPanel";
 import type { User } from "@/lib/firebase/client-auth";
 import {
@@ -80,6 +89,8 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
     const [query, setQuery] = useState("");
     const [location, setLocation] = useState("");
     const [remoteOnly, setRemoteOnly] = useState(false);
+    const [workMode, setWorkMode] = useState<WorkType | undefined>(undefined);
+    const [openToAdjacentRoles, setOpenToAdjacentRoles] = useState(false);
     const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel | undefined>(undefined);
     const [employmentType, setEmploymentType] = useState<EmploymentType | undefined>(undefined);
     const [salaryMin, setSalaryMin] = useState("");
@@ -103,6 +114,8 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
         setQuery(prefs.search.query ?? "");
         setLocation(prefs.search.location ?? "");
         setRemoteOnly(prefs.search.remoteOnly ?? false);
+        setWorkMode(prefs.search.workMode as WorkType | undefined);
+        setOpenToAdjacentRoles(prefs.search.openToAdjacentRoles ?? false);
         setExperienceLevel(prefs.search.experienceLevel as ExperienceLevel | undefined);
         setEmploymentType(prefs.search.employmentType as EmploymentType | undefined);
         setSalaryMin(prefs.search.salaryMin !== undefined ? String(prefs.search.salaryMin) : "");
@@ -165,6 +178,8 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                     query,
                     location,
                     remoteOnly,
+                    ...(workMode ? { workMode, remoteOnly: workMode === "remote" ? true : remoteOnly } : {}),
+                    ...(openToAdjacentRoles ? { openToAdjacentRoles: true } : {}),
                     // Optional enum/number fields are included only when set:
                     // an explicit `undefined` value (rather than an absent
                     // key) would both defeat mergeAgentPreferences' "absent
@@ -326,8 +341,28 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                             </div>
                         </div>
 
+                        <div className="space-y-2">
+                            <Label>Work mode</Label>
+                            <Select
+                                value={workMode ?? ANY}
+                                onValueChange={(v) => {
+                                    const next = v === ANY ? undefined : (v as WorkType);
+                                    setWorkMode(next);
+                                    if (next === "remote") setRemoteOnly(true);
+                                    else if (next) setRemoteOnly(false);
+                                }}
+                            >
+                                <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                                <SelectContent className="bg-popover">
+                                    <SelectItem value={ANY}>Any</SelectItem>
+                                    {WORK_TYPES.map((mode) => (
+                                        <SelectItem key={mode} value={mode}>{facetValueLabel("work_type", mode)}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="flex items-center justify-between gap-4">
-                            <p className="text-sm">Remote only</p>
+                            <p className="text-sm">Remote only (legacy)</p>
                             <button
                                 type="button"
                                 onClick={() => setRemoteOnly((v) => !v)}
@@ -336,6 +371,18 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                 aria-checked={remoteOnly}
                             >
                                 <span className={`inline-block h-4 w-4 rounded-none bg-white transition-transform ${remoteOnly ? "translate-x-6" : "translate-x-1"}`} />
+                            </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                            <p className="text-sm">Include adjacent roles in Rank</p>
+                            <button
+                                type="button"
+                                onClick={() => setOpenToAdjacentRoles((v) => !v)}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-none transition-colors ${openToAdjacentRoles ? "bg-brand" : "bg-muted"}`}
+                                role="switch"
+                                aria-checked={openToAdjacentRoles}
+                            >
+                                <span className={`inline-block h-4 w-4 rounded-none bg-white transition-transform ${openToAdjacentRoles ? "translate-x-6" : "translate-x-1"}`} />
                             </button>
                         </div>
                     </div>

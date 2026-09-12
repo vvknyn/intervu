@@ -223,6 +223,14 @@ describe("jobs filter toolbar chrome", () => {
         assert.doesNotMatch(topbar, /chipVariants\(\{ active: docked\.filtersExpanded \|\| docked\.filterCount/);
     });
 
+    it("filters toggle reads Narrow when Rank (fitActive) is active", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const topbar = readFileSync(TOPBAR, "utf8");
+        assert.match(page, /fitActive \? "Narrow" : "Filters"/);
+        assert.match(page, /filtersLabel: fitActive \? "Narrow"/);
+        assert.match(topbar, /docked\.filtersLabel/);
+    });
+
     it("Rank by fit and compact Save search use quiet text, not chipVariants", () => {
         const page = readFileSync(PAGE, "utf8");
         const saved = readFileSync(SAVED_SEARCHES, "utf8");

@@ -309,7 +309,7 @@ export function TopBar() {
                                 "box-border shrink-0 items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold lg:px-3",
                             )}
                         >
-                            Filters
+                            {docked.filtersLabel ?? "Filters"}
                             {docked.filterCount > 0 && (
                                 <span className={cn("ml-0.5", filterCountBadgeClass)}>
                                     {docked.filterCount}
