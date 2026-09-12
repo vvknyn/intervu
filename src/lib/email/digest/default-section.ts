@@ -60,7 +60,10 @@ export const DEFAULT_SECTION_NAME = "New roles this week";
  */
 export function defaultDigestSearchState(preferences: SearchPreferences | undefined): JobsUrlState {
   const salaryMin = preferences?.salaryMin;
-  const workTypes = preferences?.remoteOnly ? parseWorkTypeTokens("remote").workTypes : [];
+  const workTypes =
+    preferences?.workMode === "remote" || preferences?.remoteOnly
+      ? parseWorkTypeTokens("remote").workTypes
+      : [];
 
   return {
     ...DEFAULT_URL_STATE,

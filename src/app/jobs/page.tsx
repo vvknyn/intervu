@@ -3937,14 +3937,29 @@ function JobsContent() {
     // `resolveUrlSort` above for why the backend sort stays relevance, not a
     // literal "fit" value.
     const applyFit = (r: ResumeData, prefs?: SearchPreferences) => {
-        const { q, facets: merged, sort } = personalizedFitFromResume(r, prefs, facets);
-        setFacets(merged);
-        setQueryDraft(q);
-        setQuery(q);
+        const result = personalizedFitFromResume(r, prefs, facets);
+        setFacets(result.facets);
+        setQueryDraft(result.q);
+        setQuery(result.q);
         setSortOverride(null);
         setFitActive(true);
         setFiltersOpen(false);
-        applyUrlState(buildUrlState({ q, facets: merged, sort }), "replace");
+        if (result.salaryMin !== undefined && result.salaryMin > 0) setSalaryMin(result.salaryMin);
+        if (result.postedBucket !== undefined) {
+            setPostedBucket(result.postedBucket);
+            setPostedExplicit(result.postedExplicit ?? false);
+        }
+        applyUrlState(
+            buildUrlState({
+                q: result.q,
+                facets: result.facets,
+                sort: result.sort,
+                salaryMin: result.salaryMin ?? salaryMin,
+                postedBucket: result.postedBucket ?? postedBucket,
+                postedExplicit: result.postedExplicit ?? postedExplicit,
+            }),
+            "replace",
+        );
     };
 
     const applyPrefsRails = useCallback(
@@ -3976,14 +3991,15 @@ function JobsContent() {
         [facets, query, salaryMin, postedBucket, postedExplicit, buildUrlState, applyUrlState],
     );
 
+    const applyFitRef = useRef(applyFit);
+    applyFitRef.current = applyFit;
+    const applyPrefsRailsRef = useRef(applyPrefsRails);
+    applyPrefsRailsRef.current = applyPrefsRails;
+
     // Cold `/jobs` or `?sort=fit` only: merge prefs rails + Rank without clobbering deliberate URLs.
     useEffect(() => {
         if (autoPersonalizeDoneRef.current) return;
         if (!isAutoPersonalizeUrl(landingUrlRef.current)) return;
-        if (fitActive) {
-            autoPersonalizeDoneRef.current = true;
-            return;
-        }
         if (user && !agentPrefsLoadedRef.current) return;
 
         const prefs = agentPrefs?.search;
@@ -3992,20 +4008,20 @@ function JobsContent() {
         const hasSignedInSignal = Boolean(user && (configured || agentPrefsLoadedRef.current));
         if (!hasLocalSignal && !hasSignedInSignal && !user) return;
 
+        autoPersonalizeDoneRef.current = true;
+
         void (async () => {
             const r = await resolveUsableResume();
             if (r && resumeIsUsable(r)) {
-                autoPersonalizeDoneRef.current = true;
-                applyFit(r, prefs);
+                applyFitRef.current(r, prefs);
                 return;
             }
             if (configured && prefs && Object.keys(prefs).length > 0) {
-                autoPersonalizeDoneRef.current = true;
-                applyPrefsRails(prefs);
+                applyPrefsRailsRef.current(prefs);
             }
         })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot landing personalize
-    }, [user, agentPrefs, localAiEnabled, fitActive, applyFit, applyPrefsRails]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot landing personalize; apply* via refs
+    }, [user, agentPrefs, localAiEnabled]);
 
     const dismissPrefsOnboarding = () => {
         setPrefsOnboardingDismissed(true);
@@ -4035,10 +4051,8 @@ function JobsContent() {
     const agentPrefsReady = !user || agentPrefs !== null;
     const showPrefsOnboarding =
         !prefsOnboardingDismissed &&
-        !fitActive &&
-        hasUsableResume &&
         ((user && agentPrefsReady && agentPrefs && !agentPrefs.configured) ||
-            (localAiEnabled && !user));
+            (localAiEnabled && !user && hasUsableResume));
 
     const prefsOnboardingDraft = useMemo(
         () =>

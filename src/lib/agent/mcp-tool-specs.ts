@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AGENT } from "@/lib/agent/config";
 import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS } from "@/lib/agent/tools";
+import { WORK_TYPES } from "@/lib/agent/facets";
 import { JOB_SORT_MODES, YEARS_EXPERIENCE_BUCKETS, PANEL_FACET_KEYS } from "@/lib/jobs/types";
 import { PURSUIT_STAGES } from "@/lib/pursuits/types";
 import { CHANGE_HISTORY_LIMIT } from "@/lib/companies/exhaust";
@@ -110,10 +111,12 @@ const searchPreferencesPatchInput = z.object({
     query: prefString(),
     location: prefString(),
     remoteOnly: z.boolean().optional(),
+    workMode: z.enum(WORK_TYPES).optional(),
     experienceLevel: z.enum(EXPERIENCE_LEVELS).optional(),
     employmentType: z.enum(EMPLOYMENT_TYPES).optional(),
     salaryMin: z.number().int().min(0).optional(),
     postedWithinDays: postedWithinDaysSchema.optional(),
+    openToAdjacentRoles: z.boolean().optional(),
 });
 
 /** `set_preferences`'s `answers` patch — every field optional; `custom` is

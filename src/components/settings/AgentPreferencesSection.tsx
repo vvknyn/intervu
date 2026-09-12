@@ -179,7 +179,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                     location,
                     remoteOnly,
                     ...(workMode ? { workMode, remoteOnly: workMode === "remote" ? true : remoteOnly } : {}),
-                    ...(openToAdjacentRoles ? { openToAdjacentRoles: true } : {}),
+                    openToAdjacentRoles,
                     // Optional enum/number fields are included only when set:
                     // an explicit `undefined` value (rather than an absent
                     // key) would both defeat mergeAgentPreferences' "absent

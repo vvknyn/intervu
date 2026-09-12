@@ -286,6 +286,24 @@ describe('mcp route: set_preferences wire schema', () => {
     assert.equal(res.success, true);
   });
 
+  it('accepts workMode and openToAdjacentRoles on the search patch', () => {
+    const res = setPreferencesInput.safeParse({
+      search: { workMode: 'hybrid', openToAdjacentRoles: true },
+    });
+    assert.equal(res.success, true);
+    if (res.success) {
+      assert.equal(res.data.search?.workMode, 'hybrid');
+      assert.equal(res.data.search?.openToAdjacentRoles, true);
+    }
+  });
+
+  it('accepts openToAdjacentRoles: false so merge can clear the flag', () => {
+    assert.equal(
+      setPreferencesInput.safeParse({ search: { openToAdjacentRoles: false } }).success,
+      true,
+    );
+  });
+
   it('accepts a well-formed answers-only patch, including custom', () => {
     const res = setPreferencesInput.safeParse({
       answers: { workAuthorization: 'US citizen', custom: { visa: 'no sponsorship needed' } },

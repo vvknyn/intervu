@@ -13,7 +13,7 @@ import {
     mergePrefsWithRankPhrases,
     searchPreferencesToJobsUrlState,
 } from "@/lib/jobs/prefs-to-url-state";
-import type { FacetKey } from "@/lib/jobs/types";
+import type { FacetKey, PostedBucket } from "@/lib/jobs/types";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
 import type { ResumeData } from "@/types/resume";
 
@@ -21,6 +21,9 @@ export interface PersonalizedFitResult {
     q: string;
     facets: Partial<Record<FacetKey, string[]>>;
     sort: "fit";
+    salaryMin?: number;
+    postedBucket?: PostedBucket;
+    postedExplicit?: boolean;
 }
 
 /** Rank query + prefs rails + résumé location fallback (mirrors page `applyFit`). */
@@ -46,6 +49,15 @@ export function personalizedFitFromResume(
         q: fromPrefsAndRank.q ?? "",
         facets: merged,
         sort: "fit",
+        ...(fromPrefsAndRank.salaryMin !== undefined && fromPrefsAndRank.salaryMin > 0
+            ? { salaryMin: fromPrefsAndRank.salaryMin }
+            : {}),
+        ...(fromPrefsAndRank.postedBucket !== undefined
+            ? {
+                  postedBucket: fromPrefsAndRank.postedBucket,
+                  postedExplicit: fromPrefsAndRank.postedExplicit,
+              }
+            : {}),
     };
 }
 
