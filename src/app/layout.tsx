@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Libre_Franklin, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
@@ -22,6 +23,7 @@ import {
 } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
+import { LocalAiParamSync } from "@/components/providers/LocalAiParamSync";
 
 /**
  * Three faces, each named for the ROLE it plays rather than the vendor that
@@ -175,6 +177,9 @@ export default function RootLayout({
         />
         <AuthKitProvider>
         <PostHogProvider>
+          <Suspense fallback={null}>
+            <LocalAiParamSync />
+          </Suspense>
           <ThemeProvider>
             <IconDefaultsProvider>
             <TourProvider>

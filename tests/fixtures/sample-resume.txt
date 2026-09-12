@@ -1,0 +1,29 @@
+Jane Doe
+Senior Software Engineer
+jane.doe@example.com | (555) 010-2345 | linkedin.com/in/janedoe
+
+SUMMARY
+Experienced software engineer with 8+ years building scalable web platforms.
+Passionate about developer experience and reliable systems.
+
+EXPERIENCE
+Acme Corp
+Senior Software Engineer
+Jan 2020 - Present
+• Led migration to microservices architecture
+• Mentored team of 5 engineers
+• Reduced API latency by 40%
+
+Beta Systems
+Software Engineer
+Mar 2016 - Dec 2019
+• Built React frontends and Node.js APIs
+• Implemented CI/CD pipelines
+
+SKILLS
+JavaScript, TypeScript, React, Node.js, AWS, PostgreSQL, Docker, Kubernetes
+
+EDUCATION
+Bachelor of Science in Computer Science
+Massachusetts Institute of Technology
+2016

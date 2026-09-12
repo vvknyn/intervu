@@ -8,12 +8,23 @@ import {
     buildExploreBroadenQuery,
     mergeFacets,
 } from '../../src/lib/jobs/resume-match';
+import { parseQuotedOrPhrases } from '../../src/lib/jobs/fit-phrases';
+import { scoreJobAgainstResume } from '../../src/lib/match/score';
+import type { PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
+
+/** Count title phrases after capExploreTerms (each ends in a common role suffix). */
+function countCappedTitlePhrases(q: string): number {
+    const suffix =
+        /\b(Manager|Engineer|Lead|Owner|Developer|Analyst|Architect|Designer|Executive|Representative|Specialist|Scientist)\b/g;
+    return [...q.matchAll(suffix)].length;
+}
 
 // Minimal ResumeData factory — the match builders only read profile + competencies.
 function mk(
     profile: Partial<ResumeData['profile']>,
     competencies: ResumeData['competencies'] = [],
+    experience: ResumeData['experience'] = [],
 ): ResumeData {
     return {
         profile: {
@@ -26,7 +37,7 @@ function mk(
             linkedin: '',
             ...profile,
         },
-        experience: [],
+        experience,
         competencies,
         education: [],
         generatedSummary: '',
@@ -54,11 +65,17 @@ describe('seniorityFromYears', () => {
 });
 
 describe('buildMatchQuery', () => {
-    it('uses profession as the query, trimmed', () => {
+    it('uses profession and engineer adjacents when there is no experience (role-ish, not skills)', () => {
         const out = buildMatchQuery(mk({ profession: '  Senior Backend Engineer  ', yearsOfExperience: 8 }));
-        assert.equal(out.q, 'Senior Backend Engineer');
+        assert.ok(out.q.length > 0);
+        assert.match(out.q, /backend engineer|software engineer|senior backend engineer/i);
+        assert.doesNotMatch(out.q, /\bgo\b|\bkafka\b/i);
     });
-    it('derives the experience_level facet from years', () => {
+    it('widens seniority to mid+senior so adjacent mid-level roles stay visible', () => {
+        const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 8 }));
+        assert.deepEqual(out.facets.experience_level, ['mid', 'senior']);
+    });
+    it('derives mid-only experience_level for mid seniority', () => {
         const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 4 }));
         assert.deepEqual(out.facets.experience_level, ['mid']);
     });
@@ -70,17 +87,145 @@ describe('buildMatchQuery', () => {
         const out = buildMatchQuery(
             mk({ profession: '', yearsOfExperience: 5 }, [{ category: 'Tech', skills: ['Go', 'Kafka', 'AWS'] }]),
         );
-        assert.equal(out.q, 'Go Kafka AWS');
+        assert.equal(out.q, '"Go" OR "Kafka" OR "AWS"');
+        assert.deepEqual(out.phrases, ['Go', 'Kafka', 'AWS']);
     });
-    it('prefers profession over skills when a résumé has both', () => {
+    it('prefers role titles over skills when a résumé has both', () => {
         const out = buildMatchQuery(
             mk({ profession: 'Backend Engineer', yearsOfExperience: 5 }, [{ category: 'Tech', skills: ['Go', 'Kafka'] }]),
         );
-        assert.equal(out.q, 'Backend Engineer');
+        assert.match(out.q, /backend engineer|software engineer/i);
+        assert.doesNotMatch(out.q, /\bgo\b|\bkafka\b/i);
     });
-    it('returns empty q only when neither profession nor any skill is present', () => {
+    it('returns empty q when profession, experience titles, and skills are all absent', () => {
         const out = buildMatchQuery(mk({ profession: '', yearsOfExperience: 5 }));
         assert.equal(out.q, '');
+    });
+    it('clinical coordinator with patient-care duties surfaces Nurse titles from duties, not headline', () => {
+        const resume = mk(
+            { profession: 'Clinical Coordinator', yearsOfExperience: 6 },
+            [],
+            [{
+                id: '1',
+                company: 'Metro Health',
+                role: 'Clinical Coordinator',
+                dates: '2019',
+                description: [
+                    'Coordinated patient care across units.',
+                    'Performed triage and medication reconciliation at bedside.',
+                ].join('\n'),
+            }],
+        );
+        const { q } = buildMatchQuery(resume);
+        assert.match(q, /registered nurse|nurse/i, `expected clinical retrieval title, got: ${q}`);
+
+        const nurseJob = {
+            id: 'rn-1',
+            title: 'Registered Nurse',
+            company: 'Metro Health',
+            location: null,
+            work_type: 'onsite',
+            description: null,
+            employment_type: 'full_time',
+            experience_level: 'mid',
+            salary_min: null,
+            salary_max: null,
+            salary_currency: null,
+            salary_period: null,
+            visa_sponsorship: null,
+            tags: ['patient care'],
+            apply_url: 'https://example.com',
+            source: 'test',
+            posted_at: null,
+            first_seen_at: null,
+            updated_at: null,
+            vacancy_status: 'open',
+            ghost_badge: 'unscored',
+        } as PublicJob;
+        const sweJob = { ...nurseJob, id: 'swe-1', title: 'Software Engineer', tags: ['javascript'] };
+
+        const rnScore = scoreJobAgainstResume(resume, nurseJob)!.total;
+        const sweScore = scoreJobAgainstResume(resume, sweJob)!.total;
+        assert.ok(rnScore > sweScore, `RN (${rnScore}) should beat SWE (${sweScore})`);
+    });
+
+    it('caps emitted role titles to at most 4 phrases', () => {
+        const out = buildMatchQuery(
+            mk(
+                {
+                    profession: 'Customer Success Operations Manager | Technical Account Management',
+                    yearsOfExperience: 12,
+                },
+                [],
+                [
+                    {
+                        id: '1',
+                        role: 'Client-facing Product Manager',
+                        company: 'Co',
+                        dates: '2021',
+                        description: '',
+                    },
+                    { id: '2', role: 'Technology Lead', company: 'Co', dates: '2019', description: '' },
+                    { id: '3', role: 'Team Lead', company: 'Co', dates: '2018', description: '' },
+                    { id: '4', role: 'Senior Software Engineer', company: 'Co', dates: '2013', description: '' },
+                ],
+            ),
+        );
+        assert.ok(out.phrases.length <= 4, `expected ≤4 phrases, got ${out.phrases.length}`);
+        assert.ok(
+            countCappedTitlePhrases(out.q) <= 4,
+            `expected ≤4 capped title phrases, got ${countCappedTitlePhrases(out.q)}: ${out.q}`,
+        );
+    });
+
+    it('emits quoted-OR q for multi-title Rank queries instead of space-joining', () => {
+        const out = buildMatchQuery(
+            mk(
+                { profession: 'Customer Success Operations Manager', yearsOfExperience: 12 },
+                [],
+                [
+                    {
+                        id: '1',
+                        role: 'Client-facing Product Manager',
+                        company: 'Co',
+                        dates: '2021',
+                        description: '',
+                    },
+                    { id: '2', role: 'Technology Lead', company: 'Co', dates: '2019', description: '' },
+                    { id: '3', role: 'Team Lead', company: 'Co', dates: '2018', description: '' },
+                    { id: '4', role: 'Senior Software Engineer', company: 'Co', dates: '2013', description: '' },
+                ],
+            ),
+        );
+        assert.match(out.q, / OR /, 'multi-title q must use OR');
+        assert.notEqual(out.q, out.phrases.join(' '), 'must not space-join titles');
+        const parsed = parseQuotedOrPhrases(out.q);
+        assert.ok(parsed, 'q must be parseable as quoted-OR');
+        for (const phrase of out.phrases) {
+            assert.ok(parsed!.some((p) => p.toLowerCase() === phrase.toLowerCase()), `q must include phrase: ${phrase}`);
+        }
+    });
+
+    it('well-formed OR query does not require one hit to contain engineer and PM tokens', () => {
+        const out = buildMatchQuery(
+            mk(
+                { profession: 'Product Manager', yearsOfExperience: 8 },
+                [],
+                [
+                    { id: '1', role: 'Product Manager', company: 'Co', dates: '2021', description: '' },
+                    { id: '2', role: 'Software Engineer', company: 'Co', dates: '2019', description: '' },
+                ],
+            ),
+        );
+        const parsed = parseQuotedOrPhrases(out.q);
+        assert.ok(parsed, 'multi-phrase Rank q must be quoted-OR');
+        assert.ok(parsed!.some((p) => /product manager/i.test(p)));
+        assert.ok(parsed!.some((p) => /software engineer/i.test(p)));
+        // Each phrase is retrieved independently — PM-only titles need not also say Engineer.
+        for (const phrase of parsed!) {
+            assert.ok(phrase.length > 0);
+            assert.ok(!phrase.includes(' OR '), `phrase must be atomic, got: ${phrase}`);
+        }
     });
 });
 

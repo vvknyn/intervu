@@ -33,19 +33,24 @@
  *
  * `relevance` replaces both `skills` and `occupation` with one token-overlap
  * component whose denominator is the JOB's own vocabulary (title + tags +
- * occupation, rank words stripped), not the résumé's. That fixes both bugs
+ * occupation + hydrated description when present, rank words stripped), not
+ * the résumé's. The résumé side compares skills, profession, role titles, and
+ * responsibility text (experience bullets + summary). That fixes both bugs
  * at once: coverage is always "how much of what this role asks for is in
  * your résumé" — a longer résumé can only help (more terms to match against
  * the same fixed job vocabulary) — and it's now REQUIRED, so a pair with no
  * topical overlap returns `null` (no chip) rather than falling back to a
  * seniority-only 100. `seniority` stays as an optional modifier on top.
  */
+import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
+import { resumeCountriesFromLocation } from "@/lib/jobs/resume-location";
 import { topSkills } from "@/lib/jobs/resume-match";
+import { RANK_WORDS, resumeDutyTokens } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
-export type MatchComponentKey = "relevance" | "seniority";
+export type MatchComponentKey = "relevance" | "seniority" | "location";
 
 export interface MatchComponent {
     key: MatchComponentKey;
@@ -72,6 +77,7 @@ export interface MatchScore {
 export const MATCH_WEIGHTS: Readonly<Record<MatchComponentKey, number>> = {
     relevance: 0.75,
     seniority: 0.25,
+    location: 0.10,
 };
 
 /** Chip renders with a brand-color outline at/above this total; below it, the default muted border. */
@@ -100,21 +106,9 @@ export const SENIORITY_LADDER: ReadonlyArray<{ maxYears: number; label: string }
  */
 const JOB_EXPERIENCE_LEVEL_ORDER = ["entry", "mid", "senior"] as const;
 
-/**
- * Rank/level words stripped out of both vocabularies before `relevance` is
- * scored. Without this, "Senior Backend Engineer" vs. a résumé that also
- * says "senior" somewhere would count the level word itself as topical
- * overlap — the exact thing `seniority` already scores, separately and more
- * precisely (years vs. `experience_level`, not a shared adjective). Matched
- * on token identity post-tokenize, never substring, so real content that
- * happens to contain one of these as a fragment (e.g. "leadership") is
- * untouched.
- */
-const RANK_WORDS: ReadonlySet<string> = new Set([
-    "senior", "sr", "junior", "jr", "staff", "principal", "lead", "chief",
-    "associate", "entry", "entry-level", "intern", "internship", "trainee",
-    "apprentice", "i", "ii", "iii", "iv", "v",
-]);
+/** SERP hits usually omit description; cap keeps detail/hydrated jobs cheap. */
+const JOB_DESCRIPTION_SLICE_CHARS = 1500;
+const JOB_DESCRIPTION_MAX_TOKENS = 32;
 
 function normalize(s: string): string {
     return s.trim().toLowerCase();
@@ -133,11 +127,9 @@ function vocabHasToken(vocab: ReadonlySet<string>, token: string): boolean {
 }
 
 /**
- * A job's own topical vocabulary: title + tags + occupation, tokenized and
- * de-ranked. This is `relevance`'s denominator — "how much of what THIS ROLE
- * asks for" — so a job with a short, focused vocabulary is exactly as
- * satisfiable as one with a long one; it never shrinks because the candidate
- * happens to list a lot of unrelated skills.
+ * A job's own topical vocabulary: title + tags + occupation, plus a bounded
+ * slice of `description` when it is already present (detail / hydrated hit).
+ * SERP Meili hits typically omit description — this path is a no-op for them.
  */
 function jobVocabulary(job: PublicJob): Set<string> {
     const tokens = [
@@ -145,20 +137,26 @@ function jobVocabulary(job: PublicJob): Set<string> {
         ...(job.tags ?? []).flatMap((tag) => relevanceTokens(tag)),
         ...relevanceTokens(job.occupation ?? ""),
     ];
+    const description = job.description?.trim();
+    if (description) {
+        const slice = description.slice(0, JOB_DESCRIPTION_SLICE_CHARS);
+        tokens.push(...relevanceTokens(slice).slice(0, JOB_DESCRIPTION_MAX_TOKENS));
+    }
     return new Set(tokens);
 }
 
 /**
- * A résumé's own topical vocabulary: every skill, the stated profession, and
- * every past role title — the three places a résumé actually names what
- * someone does. `topSkills(resume, Infinity)` (not the default cap of 8) so
- * a long, real skill list is never truncated out of contention.
+ * A résumé's topical vocabulary: skills, profession, role titles, and
+ * responsibility tokens from experience bullets + generated summary.
+ * `topSkills(resume, Infinity)` (not the default cap of 8) so a long, real
+ * skill list is never truncated out of contention.
  */
 function resumeVocabulary(resume: ResumeData): Set<string> {
     const tokens = [
         ...topSkills(resume, Number.POSITIVE_INFINITY).flatMap((skill) => relevanceTokens(skill)),
         ...relevanceTokens(resume.profile?.profession ?? ""),
         ...(resume.experience ?? []).flatMap((exp) => relevanceTokens(exp.role ?? "")),
+        ...resumeDutyTokens(resume),
     ];
     return new Set(tokens);
 }
@@ -186,6 +184,72 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
         label: "Relevance to this role",
         detail: `${matched.length} of ${jobVocab.size} terms this role names`,
         score,
+    };
+}
+
+function isRemoteWorkType(workType: string | null | undefined): boolean {
+    return /remote/i.test(workType ?? "");
+}
+
+function jobHasKnownLocation(job: PublicJob): boolean {
+    if (job.location?.trim()) return true;
+    if (job.location_city?.trim()) return true;
+    if (job.location_state?.trim()) return true;
+    if (job.location_country) {
+        const raw = Array.isArray(job.location_country) ? job.location_country : [job.location_country];
+        if (raw.some((c) => (c ?? "").trim())) return true;
+    }
+    return false;
+}
+
+function jobCountries(job: PublicJob): string[] {
+    const raw = job.location_country;
+    if (!raw) return [];
+    const values = Array.isArray(raw) ? raw : [raw];
+    const out = new Set<string>();
+    for (const value of values) {
+        const classified = classifyCountryValue((value ?? "").trim());
+        if (classified.kind === "country") out.add(classified.canonical);
+    }
+    return [...out];
+}
+
+/** Résumé place vs job location — optional; absent when either side lacks data. */
+function scoreLocation(resume: ResumeData, job: PublicJob): MatchComponent | null {
+    const resumeLoc = (resume.profile?.location ?? "").trim();
+    if (!resumeLoc) return null;
+
+    const remote = isRemoteWorkType(job.work_type);
+    if (!remote && !jobHasKnownLocation(job)) return null;
+
+    if (remote) {
+        return {
+            key: "location",
+            label: "Location",
+            detail: "remote — open to this location",
+            score: 1,
+        };
+    }
+
+    const resumeCountries = resumeCountriesFromLocation(resumeLoc);
+    const jobCountryList = jobCountries(job);
+    if (resumeCountries.length === 0 || jobCountryList.length === 0) return null;
+
+    const sameCountry = resumeCountries.some((rc) => jobCountryList.includes(rc));
+    if (sameCountry) {
+        return {
+            key: "location",
+            label: "Location",
+            detail: "same country",
+            score: 1,
+        };
+    }
+
+    return {
+        key: "location",
+        label: "Location",
+        detail: "different country",
+        score: 0.35,
     };
 }
 
@@ -223,7 +287,8 @@ export function scoreJobAgainstResume(resume: ResumeData, job: PublicJob): Match
     if (!relevance) return null;
 
     const seniority = scoreSeniority(resume, job);
-    const components = seniority ? [relevance, seniority] : [relevance];
+    const location = scoreLocation(resume, job);
+    const components = [relevance, seniority, location].filter((c): c is MatchComponent => c !== null);
 
     const weightSum = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key], 0);
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);

@@ -1,0 +1,55 @@
+/**
+ * R&D feature flag: on-device resume parse instead of cloud LLM.
+ *
+ * Default OFF — production users keep `parseResumeWithAI`. Enable via Settings
+ * toggle or `?localAi=1` on any page (persists to localStorage for the session
+ * and future visits).
+ */
+
+export const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
+
+function getStorage(): Storage | null {
+    if (typeof globalThis.localStorage === "undefined") return null;
+    return globalThis.localStorage;
+}
+
+/** Safe outside the browser (unit tests stub `globalThis.localStorage`). */
+export function isBrowser(): boolean {
+    return getStorage() !== null;
+}
+
+export function readLocalAiEnabled(): boolean {
+    const storage = getStorage();
+    if (!storage) return false;
+    try {
+        return storage.getItem(LOCAL_AI_ENABLED_KEY) === "1";
+    } catch {
+        return false;
+    }
+}
+
+export function writeLocalAiEnabled(enabled: boolean): void {
+    const storage = getStorage();
+    if (!storage) return;
+    try {
+        if (enabled) {
+            storage.setItem(LOCAL_AI_ENABLED_KEY, "1");
+        } else {
+            storage.removeItem(LOCAL_AI_ENABLED_KEY);
+        }
+    } catch {
+        // Private browsing / quota — ignore; flag stays session-only via URL.
+    }
+}
+
+/**
+ * When `?localAi=1` is present, turn the flag ON and persist it.
+ * Returns whether local mode is active after applying the param.
+ */
+export function applyLocalAiSearchParam(param: string | null | undefined): boolean {
+    if (param === "1") {
+        writeLocalAiEnabled(true);
+        return true;
+    }
+    return readLocalAiEnabled();
+}

@@ -23,6 +23,7 @@ import {
 } from "./company-scoped-lanes";
 import { isTechSkillQuery } from "./tech-skills";
 import { decodeText, displayCompanyBrand, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
+import { parseQuotedOrPhrases, resolveFitPhrases, shouldRunFitPhraseLane } from "./fit-phrases";
 import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
@@ -861,6 +862,7 @@ const TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON = ["title", "company", "tags"] as cons
 export function isBareRoleQuery(q: string, companyScoped: boolean): boolean {
   if (companyScoped) return false;
   if (isTechSkillQuery(q)) return false;
+  if (parseQuotedOrPhrases(q) != null) return false;
   return Boolean(q.trim()) && !shouldRunRoleTitleLane(q, companyScoped);
 }
 
@@ -1309,6 +1311,31 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       };
     }
 
+    if (shouldRunFitPhraseLane(searchParams)) {
+      const fitPhrases = resolveFitPhrases(searchParams)!;
+      const { hits: laneHits, facetDistribution } = await fetchFitPhraseLaneHits(h, searchParams, companyScoped);
+      const seen = new Set<string>();
+      const unique: PublicJob[] = [];
+      for (const hit of laneHits) {
+        if (seen.has(hit.id)) continue;
+        seen.add(hit.id);
+        unique.push(hit);
+      }
+      const rerankQ = fitPhrases[0] ?? p.q ?? "";
+      const ranked = isRelevance
+        ? applyRelevanceQualityReranking(unique, rerankQ)
+        : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
+      const offset = p.offset ?? 0;
+      const limit = p.limit ?? 40;
+      return {
+        hits: pageRoleTitleHits(ranked, offset, limit),
+        total: ranked.length,
+        backend: "meilisearch",
+        configured: true,
+        facetDistribution,
+      };
+    }
+
     if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
       const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, searchParams, companyScoped);
       const seen = new Set<string>();
@@ -1411,6 +1438,70 @@ async function fetchCompanyScopedLaneHits(
 
   const batches = await Promise.all(
     lanes.map((laneParams, i) => searchLane(laneParams, i === 0 && !!p.withFacets, false)),
+  );
+  return {
+    hits: batches.flatMap((b) => b.hits),
+    facetDistribution: batches[0]?.facetDistribution,
+  };
+}
+
+function fitPhraseTitleScoped(phrase: string): boolean {
+  return phrase.trim().split(/\s+/).length >= 2;
+}
+
+async function fetchFitPhraseLaneHits(
+  h: string,
+  p: JobSearchParams,
+  companyScoped: boolean,
+): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> {
+  const phrases = resolveFitPhrases(p);
+  if (!phrases || phrases.length === 0) return { hits: [] };
+
+  const searchPhrase = async (
+    phrase: string,
+    withFacets: boolean,
+    legacy: boolean,
+  ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
+    const body = buildSearchBody(
+      {
+        ...p,
+        q: phrase,
+        fitPhrases: undefined,
+        withFacets,
+        limit: 1000,
+        offset: 0,
+        sort: "relevance",
+      },
+      legacy,
+      "all",
+      { companyScoped, titleScoped: fitPhraseTitleScoped(phrase) },
+    );
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok && res.status === 400) {
+      const text = await res.text().catch(() => "");
+      if (/posted_ts/i.test(text) && !legacy) {
+        return searchPhrase(phrase, withFacets, true);
+      }
+      return { hits: [] };
+    }
+    if (!res.ok) return { hits: [] };
+    const json = (await res.json()) as {
+      hits?: PublicJob[];
+      facetDistribution?: Record<string, Record<string, number>>;
+    };
+    return {
+      hits: json.hits ?? [],
+      facetDistribution: json.facetDistribution as FacetDistribution | undefined,
+    };
+  };
+
+  const batches = await Promise.all(
+    phrases.map((phrase, i) => searchPhrase(phrase, i === 0 && !!p.withFacets, false)),
   );
   return {
     hits: batches.flatMap((b) => b.hits),

@@ -89,7 +89,7 @@ test("handleUploadClick is never handed to a handler prop bare — always wrappe
 });
 
 test("handleImport respects the fitIntentRef guard before applying a queued fit continuation", () => {
-    const body = section("const handleImport = (data: ResumeData", "const notConnected =");
+    const body = section("const handleImport = (", "const notConnected =");
     assert.match(body, /queuedAction\?\.kind === "fit"/);
     assert.match(body, /fitIntentRef\.current!\.isCurrent\(queuedAction\.fitToken\)/);
 });

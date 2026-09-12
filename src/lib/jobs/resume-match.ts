@@ -6,20 +6,27 @@
  * pure helpers translate a parsed `ResumeData` into the same `{ q, facets }`
  * shape the search action already takes:
  *
- *   - Match   — the candidate's own role + seniority (free, deterministic).
- *   - Explore — adjacent roles, suggested by AI (see suggestAdjacentRolesAction
- *               in actions/jobs.ts); `buildExploreBroadenQuery` is the
- *               deterministic fallback when AI is unavailable.
+ *   - Rank / `sort=fit` — generalized role-title retrieval via `buildMatchQuery`
+ *     (experience titles + duty-inferred families + headline splits, capped);
+ *     scoring on returned hits remains `scoreJobAgainstResume` in lib/match/score.ts.
+ *   - Explore — adjacent roles; `suggestAdjacentRolesLocal` (adjacent-roles.ts)
+ *               is the deterministic no-LLM helper; `buildExploreBroadenQuery`
+ *               is the skills-only fallback used on /jobs today.
  *
  * Type-only imports keep this module runtime-dependency-free so it loads under
  * `tsx` for unit tests without `@/` path resolution.
  */
+import { dutyDerivedRoleTitles } from "@/lib/match/duty-signals";
 import type { ResumeData } from "@/types/resume";
 import type { FacetKey } from "./types";
+import { splitRoleTitles, suggestAdjacentRolesLocal } from "./adjacent-roles";
+import { formatQuotedOrQuery } from "./fit-phrases";
 
 export interface DerivedQuery {
     q: string;
     facets: Partial<Record<FacetKey, string[]>>;
+    /** Capped role/skill phrases before quoted-OR serialization into `q`. */
+    phrases: string[];
 }
 
 /** `experience_level` facet values are exactly entry | mid | senior | unknown. */
@@ -33,22 +40,95 @@ export function seniorityFromYears(years: number): Seniority | null {
     return "senior";
 }
 
+/** Distinct experience role titles in résumé order (most recent first). */
+function experienceRoleTitles(resume: ResumeData): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const entry of resume?.experience ?? []) {
+        const role = (entry?.role ?? "").trim();
+        if (!role) continue;
+        const key = role.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(role);
+    }
+    return out;
+}
+
+/** Drop common prefixes when the remainder is still a meaningful role phrase. */
+function cleanRoleTitle(title: string): string {
+    const trimmed = title.trim();
+    const shortened = trimmed.replace(/^(client-facing|senior)\s+/i, "").trim();
+    return shortened || trimmed;
+}
+
 /**
- * Match: the candidate's own role title + seniority. Deterministic, free.
- * Falls back to the résumé's own skills (same terms `buildExploreBroadenQuery`
- * uses) when there's no profession to match on — a résumé with skills but no
- * stated title still deserves a non-empty query, not a silent "newest first"
- * that keeps the "Ranked by your résumé" chip lit over an unranked browse.
- * `resumeIsUsable` is defined in terms of this function's own output (see
+ * Match / Rank (`sort=fit`): role-title retrieval beyond the headline profession.
+ * Builds an ordered candidate list (experience → duty-inferred families →
+ * remaining titles / headline splits → thin adjacency fallback → skills),
+ * caps to 4 title phrases, and widens seniority so adjacent mid-level roles
+ * stay visible.
+ *
+ * Falls back to top skills when there is no profession, no experience titles,
+ * and duty/adjacency yield nothing — skills-only résumés still get a non-empty q.
+ * `resumeIsUsable` is defined in terms of this function's output (see
  * resume-usable.ts) precisely so the two can't drift apart again.
  */
 export function buildMatchQuery(resume: ResumeData): DerivedQuery {
     const profession = (resume?.profile?.profession ?? "").trim();
-    const q = profession || capExploreTerms(topSkills(resume, 6)).join(" ");
+    const professionParts = profession ? splitRoleTitles(profession) : [];
+    const expTitles = experienceRoleTitles(resume);
+    const skills = topSkills(resume, 6);
+
+    const candidates: string[] = [];
+
+    // 1. Most recent experience title (cleaned).
+    if (expTitles.length > 0) {
+        candidates.push(cleanRoleTitle(expTitles[0]));
+    }
+
+    // 2. Duty-derived role families — primary adjacent-title source.
+    candidates.push(...dutyDerivedRoleTitles(resume));
+
+    // 3. Remaining experience titles, then headline profession parts.
+    for (let i = 1; i < expTitles.length; i++) {
+        candidates.push(cleanRoleTitle(expTitles[i]));
+    }
+    if (professionParts.length > 0) {
+        candidates.push(...professionParts);
+    } else if (profession) {
+        candidates.push(profession);
+    }
+
+    let terms = capExploreTerms(candidates, 4);
+
+    // 4. Thin adjacency fallback only when still under the cap.
+    if (terms.length < 4) {
+        const allTitlesForAdjacent = [...professionParts, ...expTitles];
+        if (allTitlesForAdjacent.length > 0) {
+            const combined = [...terms, ...suggestAdjacentRolesLocal(allTitlesForAdjacent, skills, 8)];
+            terms = capExploreTerms(combined, 4);
+        }
+    }
+
+    // 5. Skills only when nothing else produced a query.
+    if (terms.length === 0) {
+        terms = capExploreTerms(skills, 4);
+    }
+
+    const q = formatQuotedOrQuery(terms);
     const facets: Partial<Record<FacetKey, string[]>> = {};
     const seniority = seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0);
-    if (seniority) facets.experience_level = [seniority];
-    return { q, facets };
+    if (seniority === "senior") {
+        // Senior candidates often fit adjacent mid-level PM/TAM/CSM postings; senior-only
+        // would hide most of those titles from Rank retrieval.
+        facets.experience_level = ["mid", "senior"];
+    } else if (seniority === "mid") {
+        facets.experience_level = ["mid"];
+    } else if (seniority === "entry") {
+        facets.experience_level = ["entry"];
+    }
+    return { q, facets, phrases: terms };
 }
 
 /** Flatten competencies into a de-duped (case-insensitive), trimmed skill list, capped at `n`. */
@@ -74,12 +154,12 @@ export function topSkills(resume: ResumeData, n = 8): string[] {
  * walks the résumé's own competency order), so keeping a short prefix keeps
  * the query's most meaningful terms.
  *
- * Meilisearch treats a space-joined query as an OR across every term, so
- * joining all 6-8 suggested titles (or a longer skills list) widens the
- * match instead of narrowing it — measured failure: 15 joined terms surfaced
- * a 100k-hit relevance mush instead of a tight adjacency signal. Deduping
- * case-insensitively here also stops a repeated term from silently eating
- * one of the 4 slots.
+ * Cap exists so Rank emits a short phrase list; retrieval ORs those phrases
+ * via the fit-phrase multi-search lane (`fit-phrases.ts` / `searchMeili`),
+ * never by space-joining into one AND query. Space-joining 6–8 titles
+ * previously produced AND-of-all-tokens mush under `matchingStrategy: "all"`.
+ * Deduping case-insensitively here also stops a repeated term from silently
+ * eating one of the 4 slots.
  */
 export function capExploreTerms(terms: string[], max = 4): string[] {
     const out: string[] = [];
@@ -98,7 +178,8 @@ export function capExploreTerms(terms: string[], max = 4): string[] {
  * Used when the AI adjacency call fails or returns nothing.
  */
 export function buildExploreBroadenQuery(resume: ResumeData): DerivedQuery {
-    return { q: capExploreTerms(topSkills(resume, 6)).join(" "), facets: {} };
+    const terms = capExploreTerms(topSkills(resume, 6));
+    return { q: terms.join(" "), facets: {}, phrases: terms };
 }
 
 /** Union résumé-derived facets with already-applied ones — commutative, non-mutating. */

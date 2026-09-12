@@ -355,6 +355,12 @@ export interface JobSearchParams {
   companyDomain?: string;
   /** Restrict to jobs at one of several company domains (employer-intent pin). */
   companyDomains?: string[];
+  /**
+   * Alternate Rank / fit role phrases to retrieve as a union (one Meili query
+   * per phrase). When omitted, `searchMeili` parses a quoted-OR `q`
+   * (`"Title A" OR "Title B"`). Do not AND these together.
+   */
+  fitPhrases?: string[];
 }
 
 /** One parsed place: which location field it lives in, and the corpus's own

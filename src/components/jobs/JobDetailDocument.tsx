@@ -44,6 +44,8 @@ import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { cn } from "@/lib/utils";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
+import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
+import type { ResumeData } from "@/types/resume";
 
 /** The employer rail — live open-role count, opened/closed 90d, and a
  *  postings-sourced about line (`getCompanyRailAction`, one shared query
@@ -234,6 +236,9 @@ export interface JobDetailDocumentProps {
     matchScore?: MatchScore | null;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`). */
     matchAsOfDate?: string | null;
+    /** Local-AI résumé for on-device tailor — optional. */
+    resume?: ResumeData | null;
+    onAcceptLocalTailor?: (data: ResumeData) => void;
 }
 
 /**
@@ -270,6 +275,8 @@ export function JobDetailDocument({
     onReportDialogOpenChange,
     matchScore = null,
     matchAsOfDate = null,
+    resume = null,
+    onAcceptLocalTailor,
 }: JobDetailDocumentProps) {
     const closed = job.vacancy_status === "closed";
     const freshness = classifyPostingFreshness(job, now);
@@ -456,6 +463,11 @@ export function JobDetailDocument({
                     action row, JobCard's row) already uses — one chokepoint,
                     no independent restyle. */}
                 <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
+                <LocalCustomizePanel
+                    job={job}
+                    resume={resume}
+                    onAccept={onAcceptLocalTailor}
+                />
             </div>
             {reportJobEnabled && job.apply_url && (
                 <ReportJobButton
@@ -590,6 +602,8 @@ export function JobDetailDocument({
                     onGoAfter={onGoAfter}
                     pursuit={pursuit}
                     goingAfter={goingAfter}
+                    resume={resume}
+                    onAcceptLocalTailor={onAcceptLocalTailor}
                     className="bottom-12 lg:hidden"
                 />
             )}

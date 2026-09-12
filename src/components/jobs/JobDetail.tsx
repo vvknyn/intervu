@@ -39,6 +39,8 @@ import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { resolveDescriptionSectionState, DESCRIPTION_SLOW_HINT_MS } from "@/lib/jobs/description-section-state";
+import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
+import type { ResumeData } from "@/types/resume";
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -289,6 +291,8 @@ export function JobDetailActionBar({
     goingAfter,
     signedIn = true,
     className,
+    resume,
+    onAcceptLocalTailor,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
@@ -310,6 +314,9 @@ export function JobDetailActionBar({
      *  `MobileTabBar` (`bottom-12` instead of the Sheet caller's `bottom-0`,
      *  since that Sheet paints over the tab bar and this document doesn't). */
     className?: string;
+    /** Local-AI résumé for on-device tailor — only passed by JobDetailDocument. */
+    resume?: ResumeData | null;
+    onAcceptLocalTailor?: (data: ResumeData) => void;
 }) {
     return (
         <div
@@ -321,6 +328,14 @@ export function JobDetailActionBar({
                     <ArrowSquareOut weight="bold" />
                     Apply on Company Site
                 </Button>
+            )}
+            {resume != null && (
+                <LocalCustomizePanel
+                    job={job}
+                    resume={resume}
+                    onAccept={onAcceptLocalTailor}
+                    compactTrigger
+                />
             )}
             {/* Same 40px icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}
@@ -393,6 +408,8 @@ export function JobDetail({
     matchAsOfDate = null,
     descriptionPending,
     onRetryDescription,
+    resume = null,
+    onAcceptLocalTailor,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -457,6 +474,9 @@ export function JobDetail({
      *  the pending note's "try again" button. Omitted → the note renders
      *  without a button (see the markup below). */
     onRetryDescription?: () => void;
+    /** Local-AI guest/signed-in résumé for on-device tailor — optional. */
+    resume?: ResumeData | null;
+    onAcceptLocalTailor?: (data: ResumeData) => void;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -847,7 +867,7 @@ export function JobDetail({
 
                 {/* Action row */}
                 <div className="border-t border-border px-4 py-3 sm:px-6 sm:py-3">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-nowrap items-center gap-2">
                         {/* House attention system (docs/design/ATTENTION.md,
                             channel 2): exactly one inverted-ink block per
                             view. Apply is the primary action this pane
@@ -861,6 +881,11 @@ export function JobDetail({
                                 Apply
                             </Button>
                         )}
+                        <LocalCustomizePanel
+                            job={job}
+                            resume={resume}
+                            onAccept={onAcceptLocalTailor}
+                        />
                         {/* Bookmark: 40px icon-only ghost control (rulebook — icon
                             carries the state, no label chrome competing with Apply's
                             one inverted-ink block above). Klein-filled glyph + link to

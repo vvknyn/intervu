@@ -18,6 +18,7 @@ import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
 import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesSection";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
+import { LocalAiSettingsSection } from "@/components/settings/LocalAiSettingsSection";
 import { cn } from "@/lib/utils";
 
 type AccountTab = "resume" | "prefs" | "account";
@@ -178,9 +179,16 @@ export function SettingsContainer() {
                 )}
 
                 {tab === "prefs" && (
-                    <SettingsCard>
-                        <AgentPreferencesSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} embedded />
-                    </SettingsCard>
+                    <>
+                        <SettingsCard>
+                            <h2 className="mb-1 text-sm font-semibold">R&amp;D</h2>
+                            <p className="mb-4 text-xs text-muted-foreground">Experimental features — off by default.</p>
+                            <LocalAiSettingsSection />
+                        </SettingsCard>
+                        <SettingsCard>
+                            <AgentPreferencesSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} embedded />
+                        </SettingsCard>
+                    </>
                 )}
 
                 {tab === "account" && (

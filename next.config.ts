@@ -49,6 +49,8 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // @xenova/transformers pulls onnxruntime-web — keep it out of the server bundle.
+  serverExternalPackages: ["@xenova/transformers", "onnxruntime-web"],
   // Contabo/Docker: emit .next/standalone for a slim runtime image (see Dockerfile).
   output: "standalone",
   // `next dev` allows localhost by default but treats 127.0.0.1 as a
@@ -61,6 +63,24 @@ const nextConfig: NextConfig = {
   // and explicit so adding one is a deliberate, reviewable change.
   images: {
     remotePatterns: [],
+  },
+  // Next 16 defaults to Turbopack for `next dev` / `next build`. A webpack-only
+  // config (the onnx fallbacks below) is treated as a misconfiguration unless
+  // Turbopack is acknowledged. Empty object: we don't need custom Turbopack
+  // rules; webpack fallbacks still apply when someone builds with `--webpack`.
+  turbopack: {},
+  webpack(config, { isServer }) {
+    // Transformers.js + onnxruntime-web reference Node builtins in browser builds.
+    if (!isServer) {
+      config.resolve = config.resolve ?? {};
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+    }
+    return config;
   },
   async headers() {
     return [

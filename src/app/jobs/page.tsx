@@ -144,11 +144,13 @@ import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { rowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
+import { applyLocalAiSearchParam, readLocalAiEnabled } from "@/lib/local-ai/flag";
+import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
-import { needsResumeEntry } from "@/lib/jobs/resume-entry";
+import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import {
@@ -216,6 +218,7 @@ import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { BoardId } from "@/lib/boards/types";
+import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
 import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
 import { toast } from "@/lib/toast";
@@ -1219,6 +1222,13 @@ function JobsContent() {
     // fully reconstruct the screen, not just the selected job.
     const initialUrlState = useMemo(() => parseJobsUrl(searchParams), []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // R&D: `?localAi=1` enables on-device résumé parse for the session.
+    const [localAiEnabled, setLocalAiEnabled] = useState(false);
+    useEffect(() => {
+        if (searchParams.get("localAi") === "1") applyLocalAiSearchParam("1");
+        setLocalAiEnabled(readLocalAiEnabled());
+    }, [searchParams]);
+
     // Review fix (2026-07-19) — ONE "now" for this entire render pass,
     // seeded once via useState's lazy initializer (the documented-sanctioned
     // way to do one-time impure work during render — see React's "components
@@ -1762,12 +1772,23 @@ function JobsContent() {
     // vs the now-removed "explore") and the in-flight Explore call's state
     // (`exploringRaw`/`exploreFailed`) are gone — MCP handoff, 2026-08-02.
     const [resume, setResume] = useState<ResumeData | null>(null);
-    // The stored `resume_last_updated` behind the match-score toolbar's
-    // "scored against your résumé of {date}" line (see `fetchResumeData`,
-    // actions/resume.ts) — kept alongside `resume` itself, set at the same
-    // two call sites, so the two can never point at different résumés.
+    // Timestamp for match-score chips (see `fetchResumeData`, actions/resume.ts)
+    // — kept alongside `resume` itself, set at the same call sites.
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
+    const [resumeSourceLabel, setResumeSourceLabel] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
+
+    // R&D local mode: hydrate browser-stored résumé for signed-out guests.
+    useEffect(() => {
+        if (!localAiEnabled || user) return;
+        if (resume && resumeIsUsable(resume)) return;
+        const stored = readLocalAiResume();
+        if (stored && resumeIsUsable(stored.data)) {
+            setResume(stored.data);
+            setResumeUpdatedAt(stored.updatedAt);
+            setResumeSourceLabel(stored.sourceLabel ?? null);
+        }
+    }, [localAiEnabled, user, resume]);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
     // fetch of the résumé itself; Task 4 removed that). The card's other gate
@@ -1910,6 +1931,7 @@ function JobsContent() {
     // than `hasUsableResume` (local-only): the latter told a returning
     // signed-in user with a résumé already on the server to "add" one.
     const showResumeEntry = needsResumeEntry({ signedIn: !!user, resumeOnFile, fitActive });
+    const showResumeReplace = needsResumeReplace({ resumeOnFile });
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -3842,6 +3864,16 @@ function JobsContent() {
     // `resumeIsUsable`'s bar exactly.
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
+        if (!user && readLocalAiEnabled()) {
+            const stored = readLocalAiResume();
+            if (stored && resumeIsUsable(stored.data)) {
+                setResume(stored.data);
+                setResumeUpdatedAt(stored.updatedAt);
+                setResumeSourceLabel(stored.sourceLabel ?? null);
+                return stored.data;
+            }
+            return null;
+        }
         const { data, updatedAt } = await fetchResumeData();
         if (data && resumeIsUsable(data)) {
             setResume(data);
@@ -3858,7 +3890,11 @@ function JobsContent() {
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
         const { q, facets: derived } = buildMatchQuery(r);
-        const merged = mergeFacets(facets, derived);
+        const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
+        const derivedWithLocation = userPickedLocation
+            ? derived
+            : { ...derived, ...deriveResumeLocationFacets(r.profile?.location) };
+        const merged = mergeFacets(facets, derivedWithLocation);
         setFacets(merged);
         setQueryDraft(q);
         setQuery(q);
@@ -4002,7 +4038,7 @@ function JobsContent() {
     const beginResumeUpload = () => {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
-        if (!user) {
+        if (!user && !readLocalAiEnabled()) {
             setAuthGateReason("generic");
             gate({ kind: "upload", payload: true });
             return;
@@ -4010,27 +4046,31 @@ function JobsContent() {
         setImportOpen(true);
     };
 
-    // Every OTHER résumé-upload entry point (the fit-rank fallback above, the
-    // résumé-moment card, the "update to rescore" link) goes through this
-    // name — it is just `beginResumeUpload` under a stable identifier so
-    // those call sites don't need to change.
+    // Every OTHER résumé-upload entry point (fit-rank fallback, résumé-moment
+    // card, toolbar Replace) goes through this name — it is just
+    // `beginResumeUpload` under a stable identifier.
     const handleUploadClick = () => {
         beginResumeUpload();
     };
 
-    const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
+    const handleImport = (
+        data: ResumeData,
+        source: "pdf" | "docx" | "text",
+        confidence: number,
+        sourceLabel: string,
+    ) => {
         setResume(data);
-        // Saved in the same beat, just below — the on-screen "as of" date is
-        // this moment, not whatever `saveResumeData`'s fire-and-forget write
-        // eventually timestamps server-side.
-        setResumeUpdatedAt(new Date().toISOString());
+        const updatedAt = new Date().toISOString();
+        setResumeUpdatedAt(updatedAt);
+        setResumeSourceLabel(sourceLabel);
         setImportOpen(false);
-        // Persist to the profile so returning users skip the upload step (best-effort).
-        // The capture rides the SAME promise, not a synchronous fire — a failed
-        // save must not report a success that didn't happen.
-        void saveResumeData(data, source, confidence)
-            .then(() => captureEvent("resume_uploaded", {}))
-            .catch(() => {});
+        if (user) {
+            void saveResumeData(data, source, confidence)
+                .then(() => captureEvent("resume_uploaded", {}))
+                .catch(() => {});
+        } else if (readLocalAiEnabled()) {
+            writeLocalAiResume(data, updatedAt, sourceLabel);
+        }
         // `handleUploadClick` queued this because no usable résumé was on
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
@@ -4303,6 +4343,11 @@ function JobsContent() {
                     className="border-0 bg-transparent"
                     descriptionPending={detailDescriptionPending}
                     onRetryDescription={retryDescription}
+                    resume={resume}
+                    onAcceptLocalTailor={(data) => {
+                        setResume(data);
+                        if (localAiEnabled) writeLocalAiResume(data);
+                    }}
                 />
                 {!collapseDescription && (
                 <JobDetailActionBar
@@ -4640,25 +4685,25 @@ function JobsContent() {
         </DropdownMenu>
     ) : null;
 
-    // "scored against your résumé of {date} · update to rescore" — the
-    // match-score receipt's one-time-parse honesty statement (design's
-    // `.asof`, right-aligned in the toolbar). Gated on `hasUsableResume`
-    // (same bar every other résumé-driven control here uses) rather than
-    // `fitActive`: chips render on every card whenever a résumé is loaded,
-    // not only while sorted by fit, so this line's gate matches the chips',
-    // not the sort control's. `handleUploadClick` is the SAME "open the
-    // importer" entry point "Add résumé"/"My résumé" already use — updating
-    // is the one act that re-runs the AI parse, so it's the only place this
-    // date can move.
+    const displayResumeLabel = (label: string | null, r: ResumeData | null): string =>
+        label?.trim() || r?.profile?.name?.trim() || "Pasted text";
+
+    // "Scoring with {filename} · Replace" — one toolbar résumé control.
     const asOfEl =
-        hasUsableResume && resumeAsOfDate ? (
+        hasUsableResume ? (
             <span
                 data-testid="resume-as-of"
-                className="mono-data hidden shrink-0 items-center gap-1 text-xs text-muted-foreground lg:inline-flex"
+                className="mono-data inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
             >
-                scored against your résumé of {resumeAsOfDate} ·{" "}
-                <button type="button" onClick={handleUploadClick} className="text-brand hover:underline">
-                    update to rescore
+                Scoring with {displayResumeLabel(resumeSourceLabel, resume)} ·{" "}
+                <button
+                    type="button"
+                    data-testid="jobs-replace-resume"
+                    title="Replace your résumé and rescore matches"
+                    onClick={() => handleUploadClick()}
+                    className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                >
+                    Replace
                 </button>
             </span>
         ) : null;
@@ -5111,7 +5156,10 @@ function JobsContent() {
                 {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
                 {headerDockActive && dockedExtrasMount &&
                     createPortal(
-                        tourReplayEl,
+                        <>
+                            {tourReplayEl}
+                            {asOfEl}
+                        </>,
                         dockedExtrasMount,
                     )}
 
@@ -5171,6 +5219,25 @@ function JobsContent() {
                         <div className="flex min-h-0 flex-1 flex-col">
                             <>
                                 <BoardVisitBanner />
+
+                                {localAiEnabled && !user && (
+                                    <div
+                                        data-testid="local-ai-guest-banner"
+                                        className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
+                                    >
+                                        <span>R&D local mode — résumé stays in this browser until you sign in.</span>
+                                        {showResumeReplace && (
+                                            <button
+                                                type="button"
+                                                data-testid="local-ai-replace-resume"
+                                                onClick={() => handleUploadClick()}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                Replace résumé
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Post-first-save upsell — appears once the anonymous visitor
                                     has made their first save (Go after or saved search). Calm
