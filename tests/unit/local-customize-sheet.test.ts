@@ -124,6 +124,23 @@ describe("Customize dialog contract", () => {
         assert.doesNotMatch(src, /variant="default"/, "Review packet stays outline — Apply keeps the inverted block");
     });
 
+    it("compact action bar uses Packet label when review-ready; aria-label stays Review packet", () => {
+        const src = readFileSync(PANEL, "utf8");
+        assert.match(src, /compactTrigger\s*\?\s*"Packet"/);
+        assert.match(src, /triggerAriaLabel = showReviewPacket \? "Review packet"/);
+        assert.match(src, /shrink-0/);
+        assert.doesNotMatch(src, /local-customize-pdf[\s\S]*hidden sm:/);
+    });
+
+    it("packet dialog uses mobile bottom-sheet layout with scroll body", () => {
+        const src = readFileSync(PANEL, "utf8");
+        assert.match(src, /bottom-0 left-0 max-h-\[95dvh\]/);
+        assert.match(src, /translate-x-0 translate-y-0/);
+        assert.match(src, /sm:top-\[50%\]/);
+        assert.match(src, /sm:max-h-\[85dvh\]/);
+        assert.match(src, /overscroll-contain/);
+    });
+
     it("JobDetail action row is nowrap with Apply · Customize · Bookmark order", () => {
         const detail = readFileSync(DETAIL, "utf8");
         const actionRow = detail.match(/\/\* Action row \*\/[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
@@ -154,6 +171,13 @@ describe("Customize dialog contract", () => {
         assert.match(detail, /compactTrigger/);
         assert.match(doc, /resume=\{resume\}/);
         assert.match(doc, /onAcceptLocalTailor=\{onAcceptLocalTailor\}/);
+        assert.match(doc, /lg:hidden/);
+        const actionBarStart = detail.indexOf("export function JobDetailActionBar");
+        const actionBarBlock = detail.slice(actionBarStart, actionBarStart + 3500);
+        assert.match(actionBarBlock, /compactTrigger/);
+        assert.match(actionBarBlock, /aria-label="Apply on Company Site"/);
+        assert.match(actionBarBlock, />\s*Apply\s*</);
+        assert.doesNotMatch(actionBarBlock, />\s*Apply on Company Site\s*</);
         const pageBar = page.match(/<JobDetailActionBar[\s\S]*?\/>/)?.[0] ?? "";
         const publicBar = publicDetail.match(/<JobDetailActionBar[\s\S]*?\/>/)?.[0] ?? "";
         assert.ok(pageBar, "SERP must still mount JobDetailActionBar");
@@ -205,6 +229,9 @@ describe("Customize dialog contract", () => {
         );
         assert.match(html, /data-testid="local-customize-open"/);
         assert.match(html, />Customize<\/button>/);
+        assert.match(html, /aria-label="Apply on Company Site"/);
+        assert.match(html, />Apply<\/button>/);
+        assert.doesNotMatch(html, />Apply on Company Site</);
         assert.doesNotMatch(html, /hidden sm:inline.*for this job/);
         assert.doesNotMatch(html, /data-testid="local-customize-panel"/);
     });

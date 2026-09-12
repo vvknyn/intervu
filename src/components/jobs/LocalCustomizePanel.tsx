@@ -178,7 +178,11 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
 
     const companyBrand = displayCompanyBrand(job.company, job.company_domain, job.title);
 
-    const triggerLabel = showReviewPacket ? "Review packet" : "Customize";
+    const triggerLabel = showReviewPacket
+        ? compactTrigger
+            ? "Packet"
+            : "Review packet"
+        : "Customize";
     const triggerAriaLabel = showReviewPacket ? "Review packet" : "Customize for this job";
 
     const engineLabel = draft
@@ -201,7 +205,8 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                 disabled={loading && dialogOpen}
                 onClick={handleOpen}
                 className={cn(
-                    "h-10 shrink-0 rounded-none text-xs font-semibold sm:h-9",
+                    "h-10 rounded-none text-xs font-semibold sm:h-9",
+                    "shrink-0",
                     compactTrigger && "px-3",
                     loading && dialogOpen && "opacity-60",
                     showReviewPacket && "border-brand text-foreground",
@@ -214,8 +219,14 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-                <DialogContent className="z-[70] flex max-h-[85dvh] w-full max-w-[720px] flex-col overflow-hidden p-0 sm:max-w-xl">
-                    <div className="flex min-h-0 max-h-[85dvh] flex-col">
+                <DialogContent
+                    className={cn(
+                        "z-[70] flex w-full max-w-none flex-col overflow-hidden p-0",
+                        "top-auto right-0 bottom-0 left-0 max-h-[95dvh] translate-x-0 translate-y-0",
+                        "sm:top-[50%] sm:right-auto sm:bottom-auto sm:left-[50%] sm:max-h-[85dvh] sm:max-w-xl sm:translate-x-[-50%] sm:translate-y-[-50%]",
+                    )}
+                >
+                    <div className="flex min-h-0 max-h-[95dvh] flex-col sm:max-h-[85dvh]">
                         <div className="shrink-0 border-b border-border px-5 py-4 pr-12">
                             <DialogHeader className="space-y-0.5 text-left">
                                 <DialogTitle className="text-base font-semibold leading-snug text-foreground">

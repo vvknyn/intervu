@@ -39,7 +39,7 @@ On a first visit, signed-in users with unconfigured job-search prefs (or guests 
 
 ## Silent packet (high-fit job detail)
 
-On job detail, when local AI is on and fit **≥ 75**, a tailored résumé draft pre-warms on-device (~1.2s debounce). The Customize button becomes **Review packet** when ready or warming; low-fit jobs keep **Customize** and never start background tailor. Drafts live in `localStorage` only — see [silent-packet.md](./silent-packet.md).
+On job detail, when local AI is on and fit **≥ 75**, a tailored résumé draft pre-warms on-device (~1.2s debounce). The Customize button becomes **Review packet** when ready or warming; low-fit jobs keep **Customize** and never start background tailor. Drafts live in `localStorage` only — see [silent-packet.md](./silent-packet.md). On mobile (~390px), the document action bar uses the compact **Packet** label; prefs onboarding uses a full-width bottom sheet — details in [silent-packet.md § Mobile](./silent-packet.md#mobile-390px).
 
 ## Implementation map
 

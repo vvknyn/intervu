@@ -324,9 +324,13 @@ export function JobDetailActionBar({
             className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-card px-4", className)}
         >
             {job.apply_url && (
-                <Button className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
+                <Button
+                    aria-label="Apply on Company Site"
+                    className="h-10 min-w-0 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors"
+                    onClick={onOpenPosting}
+                >
                     <ArrowSquareOut weight="bold" />
-                    Apply on Company Site
+                    Apply
                 </Button>
             )}
             {resume != null && (

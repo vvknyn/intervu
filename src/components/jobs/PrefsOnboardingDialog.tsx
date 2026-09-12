@@ -14,6 +14,7 @@ import {
 import { EXPERIENCE_LEVELS, WORK_TYPES, type ExperienceLevel, type WorkType } from "@/lib/agent/facets";
 import { facetValueLabel } from "@/components/jobs/FilterPanel";
 import type { SearchPreferences } from "@/lib/agent/preferences";
+import { cn } from "@/lib/utils";
 
 interface PrefsOnboardingDialogProps {
     open: boolean;
@@ -72,9 +73,13 @@ export function PrefsOnboardingDialog({ open, draft, onSave, onDismiss }: PrefsO
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
                 data-testid="prefs-onboarding-dialog"
-                className="z-[70] flex max-h-[85dvh] w-full max-w-[720px] flex-col overflow-hidden p-0 sm:max-w-xl"
+                className={cn(
+                    "z-[70] flex w-full max-w-none flex-col overflow-hidden p-0",
+                    "top-auto right-0 bottom-0 left-0 max-h-[95dvh] translate-x-0 translate-y-0",
+                    "sm:top-[50%] sm:right-auto sm:bottom-auto sm:left-[50%] sm:max-h-[85dvh] sm:max-w-xl sm:translate-x-[-50%] sm:translate-y-[-50%]",
+                )}
             >
-                <div className="flex min-h-0 max-h-[85dvh] flex-col">
+                <div className="flex min-h-0 max-h-[95dvh] flex-col sm:max-h-[85dvh]">
                     <div className="shrink-0 border-b border-border px-5 py-4 pr-12">
                         <DialogHeader className="space-y-1 text-left">
                             <DialogTitle className="text-base font-semibold leading-snug text-foreground">
@@ -86,13 +91,13 @@ export function PrefsOnboardingDialog({ open, draft, onSave, onDismiss }: PrefsO
                         </DialogHeader>
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
                         <div className="flex flex-wrap items-center gap-2 text-sm">
                             <Input
                                 value={location}
                                 onChange={(e) => setLocation(e.target.value)}
                                 placeholder="Location"
-                                className="h-9 max-w-[180px] rounded-none text-xs"
+                                className="h-9 w-full rounded-none text-xs sm:max-w-[180px]"
                             />
                             {WORK_TYPES.map((mode) => (
                                 <button
@@ -122,17 +127,17 @@ export function PrefsOnboardingDialog({ open, draft, onSave, onDismiss }: PrefsO
                                 value={salaryMin}
                                 onChange={(e) => setSalaryMin(e.target.value)}
                                 placeholder="Min salary"
-                                className="h-9 max-w-[120px] rounded-none text-xs"
+                                className="h-9 w-full rounded-none text-xs sm:max-w-[120px]"
                             />
                         </div>
                     </div>
 
-                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                    <div className="flex shrink-0 flex-col gap-2 border-t border-border px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                         <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-9 rounded-none text-xs"
+                            className="h-9 w-full rounded-none text-xs sm:w-auto"
                             onClick={() => void onDismiss()}
                         >
                             Skip
@@ -140,7 +145,7 @@ export function PrefsOnboardingDialog({ open, draft, onSave, onDismiss }: PrefsO
                         <Button
                             type="button"
                             size="sm"
-                            className="h-9 rounded-none text-xs"
+                            className="h-9 w-full rounded-none text-xs sm:w-auto"
                             onClick={() => void handleSave()}
                             disabled={saving}
                         >
