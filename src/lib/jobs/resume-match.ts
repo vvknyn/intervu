@@ -7,8 +7,8 @@
  * shape the search action already takes:
  *
  *   - Rank / `sort=fit` — generalized role-title retrieval via `buildMatchQuery`
- *     (experience titles + adjacent roles + headline splits, capped); scoring on
- *     returned hits remains `scoreJobAgainstResume` in lib/match/score.ts.
+ *     (experience titles + duty-inferred families + headline splits, capped);
+ *     scoring on returned hits remains `scoreJobAgainstResume` in lib/match/score.ts.
  *   - Explore — adjacent roles; `suggestAdjacentRolesLocal` (adjacent-roles.ts)
  *               is the deterministic no-LLM helper; `buildExploreBroadenQuery`
  *               is the skills-only fallback used on /jobs today.
@@ -16,6 +16,7 @@
  * Type-only imports keep this module runtime-dependency-free so it loads under
  * `tsx` for unit tests without `@/` path resolution.
  */
+import { dutyDerivedRoleTitles } from "@/lib/match/duty-signals";
 import type { ResumeData } from "@/types/resume";
 import type { FacetKey } from "./types";
 import { splitRoleTitles, suggestAdjacentRolesLocal } from "./adjacent-roles";
@@ -60,12 +61,13 @@ function cleanRoleTitle(title: string): string {
 
 /**
  * Match / Rank (`sort=fit`): role-title retrieval beyond the headline profession.
- * Builds an ordered candidate list (experience → adjacent → headline splits →
- * skills), caps to 4 title phrases, and widens seniority so adjacent mid-level
- * PM/TAM/CSM roles stay visible.
+ * Builds an ordered candidate list (experience → duty-inferred families →
+ * remaining titles / headline splits → thin adjacency fallback → skills),
+ * caps to 4 title phrases, and widens seniority so adjacent mid-level roles
+ * stay visible.
  *
  * Falls back to top skills when there is no profession, no experience titles,
- * and adjacency yields nothing — skills-only résumés still get a non-empty q.
+ * and duty/adjacency yield nothing — skills-only résumés still get a non-empty q.
  * `resumeIsUsable` is defined in terms of this function's output (see
  * resume-usable.ts) precisely so the two can't drift apart again.
  */
@@ -77,22 +79,18 @@ export function buildMatchQuery(resume: ResumeData): DerivedQuery {
 
     const candidates: string[] = [];
 
-    // 1. Most recent experience title, then adjacent roles (high-signal for fit).
+    // 1. Most recent experience title (cleaned).
     if (expTitles.length > 0) {
         candidates.push(cleanRoleTitle(expTitles[0]));
     }
 
-    const allTitlesForAdjacent = [...professionParts, ...expTitles];
-    if (allTitlesForAdjacent.length > 0) {
-        candidates.push(...suggestAdjacentRolesLocal(allTitlesForAdjacent, skills, 8));
-    }
+    // 2. Duty-derived role families — primary adjacent-title source.
+    candidates.push(...dutyDerivedRoleTitles(resume));
 
-    // Remaining experience titles (recent-first, after adjacency so PM/TAM/CSM fit).
+    // 3. Remaining experience titles, then headline profession parts.
     for (let i = 1; i < expTitles.length; i++) {
         candidates.push(cleanRoleTitle(expTitles[i]));
     }
-
-    // 3. Headline profession parts — never the raw pipe-joined blob when splits exist.
     if (professionParts.length > 0) {
         candidates.push(...professionParts);
     } else if (profession) {
@@ -100,6 +98,17 @@ export function buildMatchQuery(resume: ResumeData): DerivedQuery {
     }
 
     let terms = capExploreTerms(candidates, 4);
+
+    // 4. Thin adjacency fallback only when still under the cap.
+    if (terms.length < 4) {
+        const allTitlesForAdjacent = [...professionParts, ...expTitles];
+        if (allTitlesForAdjacent.length > 0) {
+            const combined = [...terms, ...suggestAdjacentRolesLocal(allTitlesForAdjacent, skills, 8)];
+            terms = capExploreTerms(combined, 4);
+        }
+    }
+
+    // 5. Skills only when nothing else produced a query.
     if (terms.length === 0) {
         terms = capExploreTerms(skills, 4);
     }

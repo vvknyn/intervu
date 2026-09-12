@@ -7,6 +7,7 @@ import {
     scoreLocalParseConfidence,
 } from "../../src/lib/local-ai/parse-confidence";
 import { buildMatchQuery } from "../../src/lib/jobs/resume-match";
+import { dutyDerivedRoleTitles } from "../../src/lib/match/duty-signals";
 import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
 import type { ResumeData } from "../../src/types/resume";
 
@@ -58,11 +59,18 @@ describe("Vivek Okta résumé fixture", () => {
         const structured = structureResumeText(loadOktaFixture()) as ResumeData;
         const { q, facets } = buildMatchQuery(structured);
 
-        assert.match(q, /product manager/i, `q must include Product Manager, got: ${q}`);
+        // Product Manager comes from duty/title signals (backlog, product requirements,
+        // client-facing PM role) — not from requiring the CS-Ops adjacency map key.
+        const dutyTitles = dutyDerivedRoleTitles(structured);
         assert.ok(
-            /technical account manager|customer success manager|implementation manager/i.test(q),
-            `q should include TAM/CSM-class role, got: ${q}`,
+            dutyTitles.some((t) => /product manager/i.test(t)),
+            `dutyDerivedRoleTitles should include Product Manager, got: ${dutyTitles.join(", ")}`,
         );
+
+        assert.match(q, /product manager/i, `q must include Product Manager, got: ${q}`);
+        // Duty families (product + engineering from backlog/API bullets) may fill
+        // all 4 capped slots before the thin CS-Ops adjacency fallback runs.
+        assert.ok(q.length > 0, "q must be non-empty");
         assert.notEqual(
             q.trim(),
             "Customer Success Operations Manager | Technical Account Management",

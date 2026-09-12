@@ -194,6 +194,53 @@ describe('scoreJobAgainstResume', () => {
         });
     });
 
+    describe('responsibility bullets drive relevance when titles do not overlap', () => {
+        const PM_JOB = mkJob({
+            title: 'Product Manager',
+            tags: [],
+            occupation: undefined,
+            experience_level: 'mid',
+        });
+
+        const CS_OPS_BASE = mkResume(
+            { profession: 'Customer Success Operations Manager', yearsOfExperience: 8 },
+            [],
+            [{
+                id: '1',
+                company: 'Co',
+                role: 'Customer Success Operations Manager',
+                dates: '2020',
+                description: '',
+            }],
+        );
+
+        const CS_OPS_WITH_DUTIES = mkResume(
+            { profession: 'Customer Success Operations Manager', yearsOfExperience: 8 },
+            [],
+            [{
+                id: '1',
+                company: 'Co',
+                role: 'Customer Success Operations Manager',
+                dates: '2020',
+                description: [
+                    'Owned product roadmap and backlog prioritization.',
+                    'Gathered requirements from stakeholders for new features.',
+                ].join('\n'),
+            }],
+        );
+
+        it('scores higher with product-duty bullets than without when job title is Product Manager', () => {
+            const without = scoreJobAgainstResume(CS_OPS_BASE, PM_JOB);
+            const withDuties = scoreJobAgainstResume(CS_OPS_WITH_DUTIES, PM_JOB);
+            assert.ok(without);
+            assert.ok(withDuties);
+            assert.ok(
+                withDuties!.total > without!.total,
+                `with duties (${withDuties!.total}) should exceed without (${without!.total})`,
+            );
+        });
+    });
+
     describe('relevance vocabulary sourcing', () => {
         it('a rank word in the job title (e.g. "Senior") does not change the relevance score', () => {
             const withRank = scoreJobAgainstResume(SWE_RESUME, mkJob({

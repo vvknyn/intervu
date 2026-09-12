@@ -8,6 +8,8 @@ import {
     buildExploreBroadenQuery,
     mergeFacets,
 } from '../../src/lib/jobs/resume-match';
+import { scoreJobAgainstResume } from '../../src/lib/match/score';
+import type { PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
 
 /** Count title phrases after capExploreTerms (each ends in a common role suffix). */
@@ -97,6 +99,54 @@ describe('buildMatchQuery', () => {
         const out = buildMatchQuery(mk({ profession: '', yearsOfExperience: 5 }));
         assert.equal(out.q, '');
     });
+    it('clinical coordinator with patient-care duties surfaces Nurse titles from duties, not headline', () => {
+        const resume = mk(
+            { profession: 'Clinical Coordinator', yearsOfExperience: 6 },
+            [],
+            [{
+                id: '1',
+                company: 'Metro Health',
+                role: 'Clinical Coordinator',
+                dates: '2019',
+                description: [
+                    'Coordinated patient care across units.',
+                    'Performed triage and medication reconciliation at bedside.',
+                ].join('\n'),
+            }],
+        );
+        const { q } = buildMatchQuery(resume);
+        assert.match(q, /registered nurse|nurse/i, `expected clinical retrieval title, got: ${q}`);
+
+        const nurseJob = {
+            id: 'rn-1',
+            title: 'Registered Nurse',
+            company: 'Metro Health',
+            location: null,
+            work_type: 'onsite',
+            description: null,
+            employment_type: 'full_time',
+            experience_level: 'mid',
+            salary_min: null,
+            salary_max: null,
+            salary_currency: null,
+            salary_period: null,
+            visa_sponsorship: null,
+            tags: ['patient care'],
+            apply_url: 'https://example.com',
+            source: 'test',
+            posted_at: null,
+            first_seen_at: null,
+            updated_at: null,
+            vacancy_status: 'open',
+            ghost_badge: 'unscored',
+        } as PublicJob;
+        const sweJob = { ...nurseJob, id: 'swe-1', title: 'Software Engineer', tags: ['javascript'] };
+
+        const rnScore = scoreJobAgainstResume(resume, nurseJob)!.total;
+        const sweScore = scoreJobAgainstResume(resume, sweJob)!.total;
+        assert.ok(rnScore > sweScore, `RN (${rnScore}) should beat SWE (${sweScore})`);
+    });
+
     it('caps emitted role titles to at most 4 phrases', () => {
         const out = buildMatchQuery(
             mk(
