@@ -180,12 +180,17 @@ import {
     saveAgentPreferencesAction,
     type AgentPreferences,
 } from "@/actions/agent-preferences";
-import { PrefsOnboardingStrip } from "@/components/jobs/PrefsOnboardingStrip";
+import { PrefsOnboardingDialog } from "@/components/jobs/PrefsOnboardingDialog";
 import { personalizedFitFromResume, prefsOnlyJobsState } from "@/lib/jobs/apply-personalized-fit";
 import {
     draftSearchPreferencesFromResume,
     isAutoPersonalizeUrl,
 } from "@/lib/jobs/prefs-to-url-state";
+import {
+    readPrefsOnboardingCompleted,
+    shouldShowPrefsOnboarding,
+    writePrefsOnboardingCompleted,
+} from "@/lib/jobs/prefs-onboarding";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
@@ -1804,14 +1809,10 @@ function JobsContent() {
     const agentPrefsLoadedRef = useRef(false);
     const landingUrlRef = useRef(initialUrlState);
     const autoPersonalizeDoneRef = useRef(false);
-    const [prefsOnboardingDismissed, setPrefsOnboardingDismissed] = useState(true);
+    const [prefsOnboardingCompleted, setPrefsOnboardingCompleted] = useState(true);
 
     useEffect(() => {
-        try {
-            setPrefsOnboardingDismissed(sessionStorage.getItem("intervu.jobs.prefs-onboarding.dismissed") === "1");
-        } catch {
-            /* private mode */
-        }
+        setPrefsOnboardingCompleted(readPrefsOnboardingCompleted());
     }, []);
 
     useEffect(() => {
@@ -4023,13 +4024,17 @@ function JobsContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot landing personalize; apply* via refs
     }, [user, agentPrefs, localAiEnabled]);
 
-    const dismissPrefsOnboarding = () => {
-        setPrefsOnboardingDismissed(true);
-        try {
-            sessionStorage.setItem("intervu.jobs.prefs-onboarding.dismissed", "1");
-        } catch {
-            /* private mode */
+    const markPrefsOnboardingComplete = () => {
+        setPrefsOnboardingCompleted(true);
+        writePrefsOnboardingCompleted();
+    };
+
+    const skipPrefsOnboarding = async () => {
+        if (user) {
+            const res = await saveAgentPreferencesAction({});
+            if (res.data) setAgentPrefs(res.data);
         }
+        markPrefsOnboardingComplete();
     };
 
     const savePrefsOnboarding = async (search: SearchPreferences) => {
@@ -4037,22 +4042,26 @@ function JobsContent() {
             const res = await saveAgentPreferencesAction({ search });
             if (!res.data) return;
             setAgentPrefs(res.data);
-            dismissPrefsOnboarding();
+            markPrefsOnboardingComplete();
             const r = resume && resumeIsUsable(resume) ? resume : await resolveUsableResume();
             if (r && resumeIsUsable(r)) applyFit(r, res.data.search);
             else applyPrefsRails(res.data.search);
             return;
         }
-        dismissPrefsOnboarding();
+        markPrefsOnboardingComplete();
         const r = resume && resumeIsUsable(resume) ? resume : await resolveUsableResume();
         if (r && resumeIsUsable(r)) applyFit(r, search);
     };
 
     const agentPrefsReady = !user || agentPrefs !== null;
-    const showPrefsOnboarding =
-        !prefsOnboardingDismissed &&
-        ((user && agentPrefsReady && agentPrefs && !agentPrefs.configured) ||
-            (localAiEnabled && !user && hasUsableResume));
+    const showPrefsOnboarding = shouldShowPrefsOnboarding({
+        localCompleted: prefsOnboardingCompleted,
+        signedIn: Boolean(user),
+        agentPrefsReady,
+        configured: agentPrefs?.configured ?? false,
+        localAiEnabled,
+        hasUsableResume,
+    });
 
     const prefsOnboardingDraft = useMemo(
         () =>
@@ -5161,14 +5170,6 @@ function JobsContent() {
                 </section>
                 )}
 
-                {showPrefsOnboarding && (
-                    <PrefsOnboardingStrip
-                        draft={prefsOnboardingDraft}
-                        onSave={savePrefsOnboarding}
-                        onDismiss={dismissPrefsOnboarding}
-                    />
-                )}
-
                 {headerDockActive && facetsMountSite === "inline" && (
                     <div
                         id="filters-panel"
@@ -6109,6 +6110,13 @@ function JobsContent() {
                 record={applyReturnPrompt}
                 onMarkApplied={markApplyReturnApplied}
                 onDismiss={dismissApplyReturn}
+            />
+
+            <PrefsOnboardingDialog
+                open={showPrefsOnboarding}
+                draft={prefsOnboardingDraft}
+                onSave={savePrefsOnboarding}
+                onDismiss={skipPrefsOnboarding}
             />
         </div>
     );

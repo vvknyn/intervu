@@ -25,6 +25,10 @@ No extra env vars are required for local résumé parse (`?localAi=1`) — parsi
 
 Signed-in users with saved prefs get the same behavior on a cold `/jobs` visit without `localAi=1`, as long as they have a usable résumé on file and/or configured search prefs.
 
+## Prefs onboarding (one-shot dialog)
+
+On a first visit, signed-in users with unconfigured job-search prefs (or guests on `?localAi=1` with a usable on-device résumé) see a **one-shot Dialog** — not a sticky strip — prefilled from the résumé (location, work mode, seniority, min salary). **Save & rank** writes prefs and applies Rank/rails; **Skip** (or closing the dialog) marks onboarding complete and never shows it again on `/jobs` for that browser/account. Later edits belong in **Settings → Job search** (`/settings?tab=prefs`).
+
 ## Before / after
 
 | | Before (cold `/jobs`) | After (personalized login) |

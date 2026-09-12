@@ -94,7 +94,7 @@ describe("mergeAgentPreferences", () => {
         assert.deepEqual(out.answers.custom, { clearance: "none", salary_history: "not disclosed" });
     });
 
-    it("an empty patch still returns configured:true and a fresh updated_at", () => {
+    it("an empty patch still returns configured:true and a fresh updated_at (Skip on /jobs prefs onboarding relies on this)", () => {
         const out = mergeAgentPreferences(existing, {});
         assert.equal(out.configured, true);
         assert.notEqual(out.updated_at, existing.updated_at);
