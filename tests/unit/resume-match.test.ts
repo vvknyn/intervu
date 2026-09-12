@@ -10,10 +10,18 @@ import {
 } from '../../src/lib/jobs/resume-match';
 import type { ResumeData } from '../../src/types/resume';
 
+/** Count title phrases after capExploreTerms (each ends in a common role suffix). */
+function countCappedTitlePhrases(q: string): number {
+    const suffix =
+        /\b(Manager|Engineer|Lead|Owner|Developer|Analyst|Architect|Designer|Executive|Representative|Specialist|Scientist)\b/g;
+    return [...q.matchAll(suffix)].length;
+}
+
 // Minimal ResumeData factory — the match builders only read profile + competencies.
 function mk(
     profile: Partial<ResumeData['profile']>,
     competencies: ResumeData['competencies'] = [],
+    experience: ResumeData['experience'] = [],
 ): ResumeData {
     return {
         profile: {
@@ -26,7 +34,7 @@ function mk(
             linkedin: '',
             ...profile,
         },
-        experience: [],
+        experience,
         competencies,
         education: [],
         generatedSummary: '',
@@ -54,11 +62,17 @@ describe('seniorityFromYears', () => {
 });
 
 describe('buildMatchQuery', () => {
-    it('uses profession as the query, trimmed', () => {
+    it('uses profession and engineer adjacents when there is no experience (role-ish, not skills)', () => {
         const out = buildMatchQuery(mk({ profession: '  Senior Backend Engineer  ', yearsOfExperience: 8 }));
-        assert.equal(out.q, 'Senior Backend Engineer');
+        assert.ok(out.q.length > 0);
+        assert.match(out.q, /backend engineer|software engineer|senior backend engineer/i);
+        assert.doesNotMatch(out.q, /\bgo\b|\bkafka\b/i);
     });
-    it('derives the experience_level facet from years', () => {
+    it('widens seniority to mid+senior so adjacent mid-level roles stay visible', () => {
+        const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 8 }));
+        assert.deepEqual(out.facets.experience_level, ['mid', 'senior']);
+    });
+    it('derives mid-only experience_level for mid seniority', () => {
         const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 4 }));
         assert.deepEqual(out.facets.experience_level, ['mid']);
     });
@@ -72,15 +86,43 @@ describe('buildMatchQuery', () => {
         );
         assert.equal(out.q, 'Go Kafka AWS');
     });
-    it('prefers profession over skills when a résumé has both', () => {
+    it('prefers role titles over skills when a résumé has both', () => {
         const out = buildMatchQuery(
             mk({ profession: 'Backend Engineer', yearsOfExperience: 5 }, [{ category: 'Tech', skills: ['Go', 'Kafka'] }]),
         );
-        assert.equal(out.q, 'Backend Engineer');
+        assert.match(out.q, /backend engineer|software engineer/i);
+        assert.doesNotMatch(out.q, /\bgo\b|\bkafka\b/i);
     });
-    it('returns empty q only when neither profession nor any skill is present', () => {
+    it('returns empty q when profession, experience titles, and skills are all absent', () => {
         const out = buildMatchQuery(mk({ profession: '', yearsOfExperience: 5 }));
         assert.equal(out.q, '');
+    });
+    it('caps emitted role titles to at most 4 phrases', () => {
+        const out = buildMatchQuery(
+            mk(
+                {
+                    profession: 'Customer Success Operations Manager | Technical Account Management',
+                    yearsOfExperience: 12,
+                },
+                [],
+                [
+                    {
+                        id: '1',
+                        role: 'Client-facing Product Manager',
+                        company: 'Co',
+                        dates: '2021',
+                        description: '',
+                    },
+                    { id: '2', role: 'Technology Lead', company: 'Co', dates: '2019', description: '' },
+                    { id: '3', role: 'Team Lead', company: 'Co', dates: '2018', description: '' },
+                    { id: '4', role: 'Senior Software Engineer', company: 'Co', dates: '2013', description: '' },
+                ],
+            ),
+        );
+        assert.ok(
+            countCappedTitlePhrases(out.q) <= 4,
+            `expected ≤4 capped title phrases, got ${countCappedTitlePhrases(out.q)}: ${out.q}`,
+        );
     });
 });
 

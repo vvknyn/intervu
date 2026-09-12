@@ -6,9 +6,17 @@ import {
     LOCAL_PARSE_ACCEPT_MIN,
     scoreLocalParseConfidence,
 } from "../../src/lib/local-ai/parse-confidence";
+import { buildMatchQuery } from "../../src/lib/jobs/resume-match";
 import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
+import type { ResumeData } from "../../src/types/resume";
 
 const FIXTURE_PATH = path.join(process.cwd(), "tests/fixtures/vivek-okta-resume.txt");
+
+function countCappedTitlePhrases(q: string): number {
+    const suffix =
+        /\b(Manager|Engineer|Lead|Owner|Developer|Analyst|Architect|Designer|Executive|Representative|Specialist|Scientist)\b/g;
+    return [...q.matchAll(suffix)].length;
+}
 
 /** Normalize ASCII apostrophe to curly U+2019 when copy/paste loses Unicode. */
 function loadOktaFixture(): string {
@@ -44,6 +52,27 @@ describe("Vivek Okta résumé fixture", () => {
             score.overall >= LOCAL_PARSE_ACCEPT_MIN,
             `expected overall ≥ ${LOCAL_PARSE_ACCEPT_MIN}, got ${score.overall}`,
         );
+    });
+
+    it("buildMatchQuery surfaces PM and TAM/CSM-class roles, not the raw headline blob", () => {
+        const structured = structureResumeText(loadOktaFixture()) as ResumeData;
+        const { q, facets } = buildMatchQuery(structured);
+
+        assert.match(q, /product manager/i, `q must include Product Manager, got: ${q}`);
+        assert.ok(
+            /technical account manager|customer success manager|implementation manager/i.test(q),
+            `q should include TAM/CSM-class role, got: ${q}`,
+        );
+        assert.notEqual(
+            q.trim(),
+            "Customer Success Operations Manager | Technical Account Management",
+            "must not use only the raw pipe-joined headline",
+        );
+        assert.ok(
+            countCappedTitlePhrases(q) <= 4,
+            `expected ≤4 capped title phrases, got ${countCappedTitlePhrases(q)}: ${q}`,
+        );
+        assert.deepEqual(facets.experience_level, ["mid", "senior"]);
     });
 
     it("parses PROFESSIONAL EXPERIENCE with Title | Company and Month ’YY — Present", () => {
