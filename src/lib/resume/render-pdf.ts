@@ -8,9 +8,9 @@
  *   - `layoutResumeDocument` (pure): `ParsedResumeDocument` -> a paginated
  *     list of draw commands. Takes a `TextMeasurer` as a parameter rather
  *     than reaching for a live jsPDF instance itself, so pagination/
- *     alignment decisions (header centering, date right-alignment, never
- *     splitting a bullet across a page break) are unit-testable with a
- *     deterministic fake measurer — no PDF library, no snapshot-testing
+ *     alignment decisions (header centering, date right-alignment, per-line
+ *     page breaks for multi-line bullets/paragraphs) are unit-testable with
+ *     a deterministic fake measurer — no PDF library, no snapshot-testing
  *     rendered bytes.
  *   - `renderResumePdf` (thin I/O): builds a real jsPDF instance (confirmed
  *     to work under plain Node — no canvas/browser dependency for
@@ -19,19 +19,15 @@
  *     result executing the matching jsPDF draw calls. No layout decisions
  *     live here.
  *
- * Justified body text draws word-by-word via pure numeric positioning
- * (`emitJustifiableSegments`), not jsPDF's native `align:"justify"` mode —
- * tried and reverted (fix round 2, 2026-08-09): native justify uses the
- * PDF word-spacing operator, which keeps real space CHARACTERS in the
- * content stream but was empirically confirmed to make some text-
- * extraction tooling read the page's content BLOCKS out of original
- * document order (own visual rendering was fine; the extracted text
- * transcript wasn't). The per-word approach's own tradeoff (a boundary
- * gap that's numerically correct but occasionally under-detected as
- * whitespace by such tooling) is the smaller, better-understood risk —
- * pixel-verified correct at 300dpi for both fixture shapes, every gap on
- * a line uniform, real PDF-byte positions confirmed via direct content-
- * stream inspection.
+ * Body text (summary paragraphs, bullets, competency lines) is left-aligned
+ * with natural word spacing — ragged wrap, never stretched to fill the line
+ * width. An earlier version justified every non-last wrapped line to match
+ * a 2026-08-09 reference PDF; that produced unreadable uneven word gaps and
+ * was reverted. Per-word positioning (not jsPDF's native `align:"justify"`)
+ * is still used for mixed-weight competency lines (bold label + normal
+ * words) so label-to-word gaps stay uniform at the natural space width.
+ *
+ * Verify layout fixes: `npx tsx --test tests/unit/resume-render-pdf.test.ts`
  *
  * One renderer, three call sites: the pursuit-variant download
  * (`lib/pursuits/download-resume.ts`), the base résumé's PDF button
@@ -104,6 +100,10 @@ export const DEFAULT_PAGE_METRICS: PageMetrics = {
   marginBottom: 40,
 };
 
+/** Extra clearance below a text baseline / dot center so descenders never
+ *  clip into the bottom margin. Used by layout bounds checks and tests. */
+export const DESCENT_PAD = 3;
+
 const NAME_SIZE = 19;
 const CONTACT_SIZE = 8.5;
 const HEADING_SIZE = 10;
@@ -120,9 +120,9 @@ const SECTION_GAP_BEFORE = 14;
 const GAP_AFTER_HEADING_RULE = 8;
 const GAP_BETWEEN_BLOCKS = 5;
 const GAP_ENTRY_TITLE_TO_BULLETS = 2;
-/** Multiplier on the natural space width for a RAGGED (non-justified,
- *  bare-minimum-gap) multi-segment line — see `emitJustifiableSegments`'s
- *  doc for why this is the one gap on the page with no built-in stretch. */
+/** Multiplier on the natural space width for a RAGGED multi-segment line —
+ *  gives mixed-weight competency lines a little headroom so label-to-word
+ *  gaps read unambiguously as word boundaries. */
 const RAGGED_GAP_PADDING = 1.15;
 
 function lh(size: number): number {
@@ -144,17 +144,59 @@ class PageCursor {
     this.maxY = metrics.pageHeight - metrics.marginBottom;
   }
 
+  /** Vertical space remaining on the current page. */
+  remaining(): number {
+    return this.maxY - this.y;
+  }
+
+  /** Full drawable height between top and bottom margins. */
+  pageContentHeight(): number {
+    return this.maxY - this.metrics.marginTop;
+  }
+
+  newPage(): void {
+    this.current = { texts: [], rules: [], dots: [] };
+    this.pages.push(this.current);
+    this.y = this.metrics.marginTop;
+  }
+
   /** Ensures `height`pt of vertical space remains on the CURRENT page,
-   *  starting a fresh page first if it doesn't — the single chokepoint that
-   *  guarantees an atomic unit (one bullet, one entry title line, one
-   *  paragraph line) never splits across a page break: every caller measures
-   *  its whole unit's height and reserves it here BEFORE emitting any of
-   *  that unit's draw commands. */
+   *  starting a fresh page first if it doesn't — used for atomic multi-line
+   *  blocks (section headings, entry title groups) that should not split. */
   reserve(height: number): void {
-    if (this.y + height > this.maxY && this.y > this.metrics.marginTop) {
-      this.current = { texts: [], rules: [], dots: [] };
-      this.pages.push(this.current);
-      this.y = this.metrics.marginTop;
+    if (this.y + height > this.maxY && !this.isAtPageTop()) {
+      this.newPage();
+    }
+  }
+
+  /** True when the cursor sits at the top margin of the current page
+   *  (no content placed yet on this page). */
+  isAtPageTop(): boolean {
+    return this.y <= this.metrics.marginTop;
+  }
+
+  /** Reserve one line of `size`pt text, breaking to a new page when the
+   *  drawn baseline (or a dot centered on it) would cross the bottom
+   *  margin clearance. Per-line reservation lets long bullets and
+   *  paragraphs continue on the next page instead of clipping. */
+  reserveLine(size: number): void {
+    const drawY = this.y + lh(size) * 0.8;
+    if (drawY > this.maxY - DESCENT_PAD && !this.isAtPageTop()) {
+      this.newPage();
+    }
+  }
+
+  baselineY(size: number): number {
+    return this.y + lh(size) * 0.8;
+  }
+
+  /** Guard: no draw command may land past the bottom margin. */
+  assertDrawY(y: number): void {
+    if (process.env.NODE_ENV === "production") return;
+    const minY = this.metrics.marginTop;
+    const maxDrawY = this.maxY - DESCENT_PAD;
+    if (y < minY || y > maxDrawY) {
+      throw new Error(`draw y=${y} outside [${minY}, ${maxDrawY}]`);
     }
   }
 
@@ -168,16 +210,21 @@ class PageCursor {
   // passed to jsPDF.text") — caught once by actually rendering real bytes,
   // not just the pure layout tests.
   text(t: Omit<DrawText, "x" | "align"> & { x?: number; align?: DrawText["align"] }): void {
+    this.assertDrawY(t.y);
     this.current.texts.push({ ...t, x: t.x ?? this.metrics.marginX, align: t.align ?? "left" });
   }
   rule(): void {
     this.current.rules.push({ y: this.y });
   }
   dot(centerY: number, r: number): void {
+    this.assertDrawY(centerY);
     this.current.dots.push({ x: this.metrics.marginX + r, y: centerY, r });
   }
   advance(n: number): void {
     this.y += n;
+  }
+  advanceLine(size: number): void {
+    this.y += lh(size);
   }
   get marginX() {
     return this.metrics.marginX;
@@ -188,6 +235,37 @@ class PageCursor {
   get pageCenterX() {
     return this.metrics.pageWidth / 2;
   }
+}
+
+/** True when `lineCount` lines of `size`pt can draw on the current page
+ *  without their last baseline exceeding the descent clearance. */
+function canFitLinesAt(cursor: PageCursor, lineCount: number, size: number): boolean {
+  const lineHeight = lh(size);
+  const lastDrawY = cursor.y + lineHeight * (lineCount - 1) + lineHeight * 0.8;
+  return lastDrawY <= cursor.maxY - DESCENT_PAD;
+}
+
+/** If a multi-line unit has 2+ lines and fewer than ~2 lines remain on the
+ *  current page, move the whole unit to the next page — unless the unit is
+ *  taller than one page, in which case per-line splitting handles it. */
+function maybeMoveMultilineUnit(cursor: PageCursor, lineCount: number, size: number): void {
+  if (lineCount < 2) return;
+  const lineHeight = lh(size);
+  const unitHeight = lineCount * lineHeight;
+  if (canFitLinesAt(cursor, 2, size)) return;
+  if (unitHeight > cursor.pageContentHeight()) return;
+  if (!cursor.isAtPageTop()) cursor.newPage();
+}
+
+/** Keep an experience entry title with at least its first bullet line when
+ *  the pair fits on one page; otherwise fall back to per-line splitting. */
+function maybeMoveEntryWithFirstBullet(cursor: PageCursor, hasBullets: boolean): void {
+  if (!hasBullets) return;
+  const groupHeight = lh(HEADING_SIZE) + GAP_ENTRY_TITLE_TO_BULLETS + lh(BODY_SIZE);
+  const lastDrawY = cursor.y + lh(HEADING_SIZE) + GAP_ENTRY_TITLE_TO_BULLETS + lh(BODY_SIZE) * 0.8;
+  if (lastDrawY <= cursor.maxY - DESCENT_PAD) return;
+  if (groupHeight > cursor.pageContentHeight()) return;
+  if (!cursor.isAtPageTop()) cursor.newPage();
 }
 
 /** Wraps `body` to `maxWidth`, with a BOLD `prefix` (e.g. "Category: ")
@@ -205,42 +283,22 @@ interface WordSegment {
 }
 
 /**
- * Draws one line as a sequence of word-ish segments at `x`, word-spaced to
- * fill `maxWidth` when `justify` is true and there's more than one segment
- * — the standard "ragged last line" typographic rule means only the FINAL
- * line of a paragraph/bullet/competency-continuation ever passes
- * `justify: false` (visually confirmed against the founder's reference
- * PDF: its summary paragraph, competency lists, and bullets are all
- * justified except each one's own last line).
+ * Draws one line as a sequence of word-ish segments at `x` with natural
+ * (ragged) word spacing. When `justify` is true the line is stretched to
+ * fill `maxWidth` — retained for callers that need it, but body text never
+ * passes `justify: true` (stretched gaps were unreadable on summary text).
  *
  * A "segment" is usually one word, but a competency line's bold category
- * label is ALSO one segment (its own run, own weight) participating in the
- * SAME gap computation as the ordinary words after it — treating the
- * label-to-first-word gap as a separate, always-natural-width step (an
- * earlier version of this fix did exactly that) made a justified line's
- * OWN label boundary visibly tighter than its own stretched word gaps,
- * since every other gap on that line was stretched to fill the width and
- * the label gap alone wasn't. One gap computation across every segment on
- * the line is what keeps it visually uniform.
+ * label is ALSO one segment (its own run, own weight) with the same natural
+ * gap computation as ordinary words after it.
  *
  * Every segment draws as its own `DrawText` command, positioned by pure
  * numeric accumulation (segment width + a computed gap) — never by
  * embedding a leading or trailing space CHARACTER in a drawn string.
- * Verified empirically (fix round 2, 2026-08-09): jsPDF silently drops
- * boundary whitespace from an independently-positioned `text()` call for
- * width/advance purposes even though `getTextWidth()` reports it correctly
- * — this is DEFECT #6's root cause (a bold label's trailing space collided
- * into the next run). Pixel-verified at 300dpi against the founder's
- * reference for both fixture shapes and multiple label lengths.
  */
 function emitJustifiableSegments(cursor: PageCursor, segments: WordSegment[], x: number, y: number, maxWidth: number, size: number, justify: boolean, measure: TextMeasurer): void {
   if (segments.length === 0) return;
   const homogeneous = segments.every((s) => s.bold === segments[0].bold);
-  // Ragged, single-weight (the common case: an ordinary paragraph/bullet's
-  // last line, or any line with no bold label at all) draws as ONE string,
-  // trusting jsPDF's own native word-spacing rather than reconstructing it
-  // — simplest and safest for the case that doesn't need per-segment
-  // positioning at all.
   if (!justify && homogeneous) {
     cursor.text({ text: segments.map((s) => s.text).join(" "), x, y, size, bold: segments[0].bold });
     return;
@@ -252,14 +310,6 @@ function emitJustifiableSegments(cursor: PageCursor, segments: WordSegment[], x:
   const widths = segments.map((s) => measure.widthOf(s.text, size, s.bold));
   const spaceWidth = measure.widthOf(" ", size, false);
   if (!justify) {
-    // Ragged but mixed-weight (a label + its continuation on a single-line
-    // block's own last line) — natural gaps, but still one command per
-    // segment since the weight change forces separate runs. A bare
-    // single-space-width gap is the tightest one this module ever draws
-    // (a justified line's own gaps are always wider, stretched to fill the
-    // line) — RAGGED_GAP_PADDING gives it a little headroom so it reads
-    // unambiguously as a word boundary, pixel-verified indistinguishable
-    // from normal spacing at this font size.
     let wx = x;
     segments.forEach((seg, i) => {
       cursor.text({ text: seg.text, x: wx, y, size, bold: seg.bold });
@@ -276,20 +326,29 @@ function emitJustifiableSegments(cursor: PageCursor, segments: WordSegment[], x:
   });
 }
 
-/** Plain (single-weight) line -> word segments — the common case every
- *  paragraph/bullet line uses; `emitJustifiableSegments` doesn't care
- *  whether a segment list came from one weight or several. */
 function emitJustifiableLine(cursor: PageCursor, text: string, x: number, y: number, maxWidth: number, size: number, bold: boolean, justify: boolean, measure: TextMeasurer): void {
   const words = text.split(/\s+/).filter(Boolean);
   emitJustifiableSegments(cursor, words.map((w) => ({ text: w, bold })), x, y, maxWidth, size, justify, measure);
 }
 
 function emitParagraphLines(cursor: PageCursor, lines: string[], size: number, bold: boolean, width: number, measure: TextMeasurer, x?: number): void {
-  cursor.reserve(lines.length * lh(size));
+  maybeMoveMultilineUnit(cursor, lines.length, size);
+  lines.forEach((line) => {
+    cursor.reserveLine(size);
+    const y = cursor.baselineY(size);
+    emitJustifiableLine(cursor, line, x ?? cursor.marginX, y, width, size, bold, false, measure);
+    cursor.advanceLine(size);
+  });
+}
+
+function emitBulletLines(cursor: PageCursor, lines: string[], textWidth: number, measure: TextMeasurer): void {
+  maybeMoveMultilineUnit(cursor, lines.length, BODY_SIZE);
   lines.forEach((line, idx) => {
-    const isLast = idx === lines.length - 1;
-    emitJustifiableLine(cursor, line, x ?? cursor.marginX, cursor.y + lh(size) * 0.8, width, size, bold, !isLast, measure);
-    cursor.advance(lh(size));
+    cursor.reserveLine(BODY_SIZE);
+    const y = cursor.baselineY(BODY_SIZE);
+    if (idx === 0) cursor.dot(y - BODY_SIZE * 0.32, BULLET_DOT_RADIUS);
+    emitJustifiableLine(cursor, line, cursor.marginX + BULLET_INDENT, y, textWidth, BODY_SIZE, false, false, measure);
+    cursor.advanceLine(BODY_SIZE);
   });
 }
 
@@ -305,52 +364,44 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
 
   if (block.kind === "competency") {
     const prefix = `${block.category}: `;
-    const label = block.category + ":"; // no trailing space — the label is ONE segment in the same justify computation as the words after it, never a separately-positioned prefix (see emitJustifiableSegments' doc — DEFECT #6 + the label-gap-looked-tighter-than-its-own-line's-word-gaps follow-up)
+    const label = block.category + ":";
     const lines = wrapWithPrefix(prefix, block.items, width, BODY_SIZE, measure);
-    cursor.reserve(lines.length * lh(BODY_SIZE));
+    maybeMoveMultilineUnit(cursor, lines.length, BODY_SIZE);
     lines.forEach((line, idx) => {
-      const y = cursor.y + lh(BODY_SIZE) * 0.8;
-      const isLast = idx === lines.length - 1;
+      cursor.reserveLine(BODY_SIZE);
+      const y = cursor.baselineY(BODY_SIZE);
       if (idx === 0 && line.startsWith(prefix)) {
         const contentWords = line.slice(prefix.length).split(/\s+/).filter(Boolean);
         const segments: WordSegment[] = [{ text: label, bold: true }, ...contentWords.map((w) => ({ text: w, bold: false }))];
-        emitJustifiableSegments(cursor, segments, cursor.marginX, y, width, BODY_SIZE, !isLast, measure);
+        emitJustifiableSegments(cursor, segments, cursor.marginX, y, width, BODY_SIZE, false, measure);
       } else {
-        emitJustifiableLine(cursor, line, cursor.marginX, y, width, BODY_SIZE, false, !isLast, measure);
+        emitJustifiableLine(cursor, line, cursor.marginX, y, width, BODY_SIZE, false, false, measure);
       }
-      cursor.advance(lh(BODY_SIZE));
+      cursor.advanceLine(BODY_SIZE);
     });
     cursor.advance(GAP_BETWEEN_BLOCKS);
     return;
   }
 
   if (block.kind === "bullets") {
+    const textWidth = width - BULLET_INDENT;
     for (const item of block.items) {
-      const lines = measure.wrap(item, width - BULLET_INDENT, BODY_SIZE);
-      cursor.reserve(lines.length * lh(BODY_SIZE));
-      lines.forEach((line, idx) => {
-        const y = cursor.y + lh(BODY_SIZE) * 0.8;
-        // Drawn as a filled circle, never a text glyph — see DrawDot's doc
-        // comment for why ("●"/"•" mojibake through jsPDF's core fonts).
-        if (idx === 0) cursor.dot(y - BODY_SIZE * 0.32, BULLET_DOT_RADIUS);
-        const isLast = idx === lines.length - 1;
-        emitJustifiableLine(cursor, line, cursor.marginX + BULLET_INDENT, y, width - BULLET_INDENT, BODY_SIZE, false, !isLast, measure);
-        cursor.advance(lh(BODY_SIZE));
-      });
+      emitBulletLines(cursor, measure.wrap(item, textWidth, BODY_SIZE), textWidth, measure);
     }
     cursor.advance(GAP_BETWEEN_BLOCKS);
     return;
   }
 
   // entry: title/company left, date right, same line — then its bullets.
-  const titleHeight = lh(HEADING_SIZE);
-  cursor.reserve(titleHeight);
-  const y = cursor.y + titleHeight * 0.8;
+  maybeMoveEntryWithFirstBullet(cursor, block.bullets.length > 0);
+  cursor.reserveLine(HEADING_SIZE);
+  const y = cursor.baselineY(HEADING_SIZE);
   cursor.text({ text: block.title, y, size: HEADING_SIZE, bold: true });
   if (block.dateRight) {
     cursor.text({ text: block.dateRight, x: cursor.pageRight, y, align: "right", size: BODY_SIZE, bold: false });
   }
-  cursor.advance(titleHeight + GAP_ENTRY_TITLE_TO_BULLETS);
+  cursor.advanceLine(HEADING_SIZE);
+  cursor.advance(GAP_ENTRY_TITLE_TO_BULLETS);
   emitBlock(cursor, { kind: "bullets", items: block.bullets }, measure);
 }
 
@@ -380,9 +431,6 @@ export function layoutResumeDocument(
       cursor.reserve(SECTION_GAP_BEFORE + lh(HEADING_SIZE) + RULE_GAP_BELOW_TEXT + GAP_AFTER_HEADING_RULE);
       cursor.advance(SECTION_GAP_BEFORE);
       cursor.text({ text: section.heading, y: cursor.y + lh(HEADING_SIZE) * 0.8, size: HEADING_SIZE, bold: true });
-      // Advance past the FULL text line box (not partway through it) before
-      // placing the rule, plus a small explicit gap — the rule must sit
-      // below the text's descent, never through the glyphs.
       cursor.advance(lh(HEADING_SIZE) + RULE_GAP_BELOW_TEXT);
       cursor.rule();
       cursor.advance(GAP_AFTER_HEADING_RULE);

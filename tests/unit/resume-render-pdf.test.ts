@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { parseResumeContent, resumeDataToParsedDocument, type ParsedResumeDocument } from "@/lib/resume/parse-resume-content";
-import { layoutResumeDocument, deriveResumePdfFilename, DEFAULT_PAGE_METRICS, type TextMeasurer } from "@/lib/resume/render-pdf";
+import { layoutResumeDocument, deriveResumePdfFilename, DEFAULT_PAGE_METRICS, DESCENT_PAD, type TextMeasurer } from "@/lib/resume/render-pdf";
 import type { ResumeData } from "@/types/resume";
 
 /** Mirrors render-pdf.ts's internal BODY_SIZE — not exported (an internal
@@ -222,8 +222,8 @@ describe("layoutResumeDocument — date right-alignment", () => {
   });
 });
 
-describe("layoutResumeDocument — long-content pagination, never splits a bullet", () => {
-  it("a bullet list long enough to overflow one page spills onto additional pages, and every bullet's dot + text land entirely on ONE page", () => {
+describe("layoutResumeDocument — long-content pagination", () => {
+  it("a bullet list long enough to overflow one page spills onto additional pages; each bullet's dot stays on the same page as its first line (continuation lines may continue on the next page)", () => {
     const manyBullets = Array.from({ length: 80 }, (_, i) => `Bullet number ${i} describing an accomplishment in enough detail to wrap across a couple of lines when rendered.`);
     const doc: ParsedResumeDocument = {
       name: "Long Resume",
@@ -234,12 +234,9 @@ describe("layoutResumeDocument — long-content pagination, never splits a bulle
     assert.ok(layout.pages.length > 1, "80 wrapping bullets must overflow a single US-Letter page");
 
     // Each bullet is one DrawDot (see DrawDot's doc — never a "●" text
-    // glyph) paired with one-or-more DrawText word commands on the SAME
-    // page, at a y computed from that same dot. Every dot on a page must
-    // have at least one word at the matching y on the SAME page — that
-    // pairing is what "never split a bullet" means structurally: both are
-    // emitted from the SAME reserve() call, so a page break can never
-    // separate a dot from its own text.
+    // glyph) paired with its first line on the SAME page. Multi-line
+    // bullets may continue on the next page, but the dot always stays with
+    // line 1 — never orphaned on a prior page without its text.
     let totalDots = 0;
     for (const page of layout.pages) {
       totalDots += page.dots.length;
@@ -449,7 +446,7 @@ describe("render-pdf — fix round: bullet glyph, rule position, competency spac
     }
   });
 
-  it("a justified competency line's label-to-first-word gap matches its OTHER word-to-word gaps (uniform spacing across the whole line, not a tighter natural gap at the label boundary alone)", () => {
+  it("a ragged competency line's label-to-first-word gap matches its OTHER word-to-word gaps (uniform natural spacing across the whole line)", () => {
     const doc: ParsedResumeDocument = {
       name: null,
       contactLine: null,
@@ -470,93 +467,91 @@ describe("render-pdf — fix round: bullet glyph, rule position, competency spac
     const labelCmd = layout.pages[0].texts.find((t) => t.text === "Data:")!;
     assert.ok(labelCmd, "expected the category label draw command");
     const texts = layout.pages[0].texts.filter((t) => t.y === labelCmd.y).sort((a, b) => a.x - b.x);
-    assert.ok(texts.length >= 3, "expected the label plus multiple words on the first (justified) line");
+    assert.ok(texts.length >= 3, "expected the label plus multiple words on the first ragged line");
+    const naturalGap = fakeMeasurer.widthOf(" ", BODY_SIZE_FOR_TESTS, false) * 1.15;
     const gaps: number[] = [];
     for (let i = 0; i < texts.length - 1; i++) {
       const endX = texts[i].x + fakeMeasurer.widthOf(texts[i].text, BODY_SIZE_FOR_TESTS, texts[i].bold);
       gaps.push(texts[i + 1].x - endX);
     }
     const [firstGap, ...restGaps] = gaps;
+    assert.ok(Math.abs(firstGap - naturalGap) < 0.5, `label gap should be natural; got ${firstGap}, expected ~${naturalGap}`);
     for (const g of restGaps) {
-      assert.ok(Math.abs(g - firstGap) < 0.5, `expected all gaps on a justified line to be uniform; label gap=${firstGap}, other gap=${g}`);
+      assert.ok(Math.abs(g - firstGap) < 0.5, `expected all gaps on a ragged line to be uniform natural gaps; label gap=${firstGap}, other gap=${g}`);
     }
   });
 });
 
-describe("render-pdf — fix round 2: justification (per-word numeric positioning)", () => {
-  // Reverted from jsPDF's native `align: "justify"` (see render-pdf.ts's
-  // module doc): native justify's real embedded space characters were
-  // confirmed correct at the PDF-byte level, but some text-extraction
-  // tooling read the page's justified blocks out of original document
-  // order even though the rendered page itself was fine — a worse,
-  // harder-to-reason-about failure mode than this per-word approach's own
-  // tradeoff (pixel-verified correct; occasionally under-detected as
-  // whitespace by such tooling). Every wrapped line except a block's own
-  // last is stretched to fill the content width, word by word.
+describe("render-pdf — ragged body text (left-aligned, natural word spacing)", () => {
   const LONG_PARAGRAPH = { kind: "paragraph" as const, text: Array.from({ length: 40 }, (_, i) => `word${i}`).join(" ") };
+  const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
+  const naturalSpace = fakeMeasurer.widthOf(" ", BODY_SIZE_FOR_TESTS, false);
 
-  it("every non-last wrapped line of a paragraph is stretched to reach the right content edge (justified)", () => {
-    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [LONG_PARAGRAPH] }] };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
+  function wordLines(layout: ReturnType<typeof layoutResumeDocument>) {
     const byLine = new Map<number, typeof layout.pages[0]["texts"]>();
     for (const t of layout.pages.flatMap((p) => p.texts)) {
       if (!byLine.has(t.y)) byLine.set(t.y, []);
       byLine.get(t.y)!.push(t);
     }
-    const lines = [...byLine.values()].filter((l) => l.some((t) => t.text.startsWith("word")));
+    return [...byLine.values()].filter((l) => l.some((t) => t.text.startsWith("word")));
+  }
+
+  it("non-last wrapped paragraph lines draw as a single text command (native word spacing), not per-word stretched justify", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [LONG_PARAGRAPH] }] };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const lines = wordLines(layout);
     assert.ok(lines.length >= 2, "the fixture must wrap to multiple lines");
-    const lastLine = lines[lines.length - 1];
-    const nonLastLines = lines.slice(0, -1);
-    for (const line of nonLastLines) {
-      const last = line.reduce((a, b) => (a.x > b.x ? a : b));
-      const endX = last.x + fakeMeasurer.widthOf(last.text, BODY_SIZE_FOR_TESTS, false);
-      assert.ok(Math.abs(endX - rightEdge) < 3, `non-last line must reach the right edge (justified); got endX=${endX}, rightEdge=${rightEdge}`);
+    for (const line of lines.slice(0, -1)) {
+      assert.equal(line.length, 1, "ragged paragraph lines must be one draw command, not per-word stretched positioning");
+      const cmd = line[0];
+      const naturalEndX = cmd.x + fakeMeasurer.widthOf(cmd.text, BODY_SIZE_FOR_TESTS, false);
+      assert.ok(Math.abs(naturalEndX - rightEdge) >= 3 || naturalEndX <= rightEdge - 3, "line end must follow natural width, not forced justify to the right edge");
     }
-    const lastWord = lastLine.reduce((a, b) => (a.x > b.x ? a : b));
-    const lastEndX = lastWord.x + fakeMeasurer.widthOf(lastWord.text, BODY_SIZE_FOR_TESTS, false);
-    assert.ok(lastEndX < rightEdge - 5, "the LAST line must stay ragged (never stretched to the right edge)");
   });
 
-  it("a bullet's non-last wrapped lines are ALSO justified, matching the reference PDF's own bullet treatment; its own last line stays ragged", () => {
+  it("paragraph lines are not stretched to the right edge within justify tolerance (≤3pt)", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [LONG_PARAGRAPH] }] };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const lines = wordLines(layout);
+    assert.ok(lines.length >= 2);
+    let sawClearlyRagged = false;
+    for (const line of lines.slice(0, -1)) {
+      const cmd = line[0];
+      const endX = cmd.x + fakeMeasurer.widthOf(cmd.text, BODY_SIZE_FOR_TESTS, false);
+      if (Math.abs(endX - rightEdge) > 3) sawClearlyRagged = true;
+    }
+    assert.ok(sawClearlyRagged || lines.slice(0, -1).every((l) => l.length === 1), "at least one non-last line must not be justify-snapped to the right edge, or all are single-command ragged");
+  });
+
+  it("a bullet's non-last wrapped lines are also ragged, not stretched to the right edge", () => {
     const longBullet = "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28";
     const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items: [longBullet] }] }] };
     const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
-    const byLine = new Map<number, typeof layout.pages[0]["texts"]>();
-    for (const t of layout.pages[0].texts) {
-      if (!byLine.has(t.y)) byLine.set(t.y, []);
-      byLine.get(t.y)!.push(t);
-    }
-    const lines = [...byLine.values()].filter((l) => l.some((t) => t.text.startsWith("word")));
+    const lines = wordLines(layout);
     assert.ok(lines.length >= 2, "the fixture bullet must wrap to multiple lines");
     const first = lines[0].reduce((a, b) => (a.x > b.x ? a : b));
     const firstEndX = first.x + fakeMeasurer.widthOf(first.text, BODY_SIZE_FOR_TESTS, false);
-    assert.ok(Math.abs(firstEndX - rightEdge) < 3, "a bullet's non-last line must be justified to the right edge, matching the reference PDF");
+    assert.ok(firstEndX < rightEdge - 5, "a bullet's non-last line must stay ragged, not justified to the right edge");
   });
 
-  it("a competency block's continuation lines are ALSO justified except the block's own last line", () => {
+  it("a competency block's label line uses uniform natural word gaps, not stretched justify gaps", () => {
     const doc: ParsedResumeDocument = {
       name: null,
       contactLine: null,
       sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Data", items: "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty" }] }],
     };
     const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
     const labelCmd = layout.pages[0].texts.find((t) => t.text === "Data:")!;
     assert.ok(labelCmd);
-    const byLine = new Map<number, typeof layout.pages[0]["texts"]>();
-    for (const t of layout.pages[0].texts) {
-      if (t.y < labelCmd.y) continue; // drop the section heading above the competency block
-      if (!byLine.has(t.y)) byLine.set(t.y, []);
-      byLine.get(t.y)!.push(t);
+    const firstLine = layout.pages[0].texts.filter((t) => t.y === labelCmd.y).sort((a, b) => a.x - b.x);
+    assert.ok(firstLine.length >= 3);
+    const naturalGap = naturalSpace * 1.15;
+    for (let i = 0; i < firstLine.length - 1; i++) {
+      const endX = firstLine[i].x + fakeMeasurer.widthOf(firstLine[i].text, BODY_SIZE_FOR_TESTS, firstLine[i].bold);
+      const gap = firstLine[i + 1].x - endX;
+      assert.ok(Math.abs(gap - naturalGap) < 0.5, `competency gap should be natural (~${naturalGap}), got ${gap}`);
+      assert.ok(gap < naturalGap * 2, "justify would produce gaps much wider than natural");
     }
-    const lines = [...byLine.values()].sort((a, b) => a[0].y - b[0].y);
-    assert.ok(lines.length >= 2, "the fixture competency must wrap to multiple lines");
-    const firstLine = lines[0];
-    const first = firstLine.reduce((a, b) => (a.x > b.x ? a : b));
-    const firstEndX = first.x + fakeMeasurer.widthOf(first.text, BODY_SIZE_FOR_TESTS, first.bold);
-    assert.ok(Math.abs(firstEndX - rightEdge) < 3, "the label line (not the block's last) must be justified to the right edge");
   });
 
   it("a single-word line (nothing to distribute) never crashes and stays at its natural width", () => {
@@ -564,5 +559,97 @@ describe("render-pdf — fix round 2: justification (per-word numeric positionin
     const layout = layoutResumeDocument(doc, fakeMeasurer);
     const cmd = layout.pages[0].texts.find((t) => t.text === "Solo");
     assert.ok(cmd);
+  });
+});
+
+describe("render-pdf — pagination bounds and content preservation", () => {
+  const maxDrawY = DEFAULT_PAGE_METRICS.pageHeight - DEFAULT_PAGE_METRICS.marginBottom - DESCENT_PAD;
+  const minDrawY = DEFAULT_PAGE_METRICS.marginTop;
+
+  function assertAllDrawCommandsInBounds(layout: ReturnType<typeof layoutResumeDocument>) {
+    for (const page of layout.pages) {
+      for (const t of page.texts) {
+        assert.ok(t.y >= minDrawY, `text y=${t.y} above top margin`);
+        assert.ok(t.y <= maxDrawY, `text y=${t.y} past bottom margin (max=${maxDrawY})`);
+      }
+      for (const d of page.dots) {
+        assert.ok(d.y >= minDrawY, `dot y=${d.y} above top margin`);
+        assert.ok(d.y <= maxDrawY, `dot y=${d.y} past bottom margin (max=${maxDrawY})`);
+      }
+    }
+  }
+
+  it("content filling past one US-Letter page keeps every draw command within margins and preserves all bullet words", () => {
+    const manyBullets = Array.from({ length: 80 }, (_, i) => `Bullet number ${i} describing an accomplishment in enough detail to wrap across a couple of lines when rendered.`);
+    const doc: ParsedResumeDocument = {
+      name: "Long Resume",
+      contactLine: null,
+      sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items: manyBullets }] }],
+    };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    assert.ok(layout.pages.length > 1);
+    assertAllDrawCommandsInBounds(layout);
+
+    const drawnWords = new Set(layout.pages.flatMap((p) => p.texts).flatMap((t) => t.text.split(/\s+/)));
+    for (let i = 0; i < 80; i++) {
+      assert.ok(drawnWords.has(`Bullet`), `bullet ${i} content must appear in draw commands`);
+      assert.ok(drawnWords.has(`${i}`), `bullet ${i} number must appear in draw commands`);
+    }
+  });
+
+  it("short one-line bullets packed to the page bottom stay within DESCENT_PAD — reserveLine uses drawn baseline, not line-box height", () => {
+    const items = Array.from({ length: 65 }, (_, i) => `Item ${i}.`);
+    const doc: ParsedResumeDocument = {
+      name: null,
+      contactLine: null,
+      sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items }] }],
+    };
+    let layout: ReturnType<typeof layoutResumeDocument>;
+    assert.doesNotThrow(() => {
+      layout = layoutResumeDocument(doc, fakeMeasurer);
+    });
+    assertAllDrawCommandsInBounds(layout!);
+
+    const page1MaxDraw = Math.max(
+      0,
+      ...layout!.pages[0].texts.map((t) => t.y),
+      ...layout!.pages[0].dots.map((d) => d.y),
+    );
+    assert.ok(
+      page1MaxDraw >= maxDrawY - 15,
+      `fixture should pack page 1 near the bottom (max draw y=${page1MaxDraw}, limit=${maxDrawY})`,
+    );
+    assert.ok(page1MaxDraw <= maxDrawY, "page 1 must respect DESCENT_PAD clearance");
+  });
+
+  it("a multi-line bullet either moves entirely to the next page or splits at line boundaries — no line draws past maxY", () => {
+    const longBullet = Array.from({ length: 30 }, (_, i) => `token${i}`).join(" ");
+    const doc: ParsedResumeDocument = {
+      name: null,
+      contactLine: null,
+      sections: [
+        {
+          heading: "EXPERIENCE",
+          blocks: [
+            {
+              kind: "bullets",
+              items: [
+                ...Array.from({ length: 55 }, (_, i) => `Short filler bullet number ${i} with a few words.`),
+                longBullet,
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    assert.ok(layout.pages.length >= 2);
+    assertAllDrawCommandsInBounds(layout);
+
+    const tokenTexts = layout.pages.flatMap((p) => p.texts).filter((t) => t.text.startsWith("token"));
+    assert.ok(tokenTexts.length >= 2, "long bullet must wrap to multiple draw lines");
+    for (const t of tokenTexts) {
+      assert.ok(t.y <= maxDrawY, `continuation line y=${t.y} must not exceed bottom margin`);
+    }
   });
 });
