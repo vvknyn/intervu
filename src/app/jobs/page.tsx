@@ -144,6 +144,7 @@ import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { rowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
+import { applyLocalAiSearchParam } from "@/lib/local-ai/flag";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
@@ -1218,6 +1219,11 @@ function JobsContent() {
     // navigation (Back/Forward), a typed address bar, or an external link all
     // fully reconstruct the screen, not just the selected job.
     const initialUrlState = useMemo(() => parseJobsUrl(searchParams), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // R&D: `?localAi=1` enables on-device résumé parse for the session.
+    useEffect(() => {
+        if (searchParams.get("localAi") === "1") applyLocalAiSearchParam("1");
+    }, [searchParams]);
 
     // Review fix (2026-07-19) — ONE "now" for this entire render pass,
     // seeded once via useState's lazy initializer (the documented-sanctioned

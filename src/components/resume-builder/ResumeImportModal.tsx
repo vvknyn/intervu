@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -16,7 +16,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConfidenceIndicator, ConfidenceBadge, WarningBanner } from "./ConfidenceIndicator";
 import { ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ParsedResumeResult } from "@/types/resume";
 import { parseResumeWithAI, extractPDFText, extractDocxText } from "@/actions/resume";
-import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, X, Sparkle, Warning, PencilSimple } from "@phosphor-icons/react";
+import { readLocalAiEnabled } from "@/lib/local-ai/flag";
+import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
+import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
+import { getEngineLabel, initLocalAiLadder, probeBestEngine } from "@/lib/local-ai/ladder";
+import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Sparkle, Warning, Cpu } from "@phosphor-icons/react";
 import { sentinelMessage } from "@/lib/llm/sentinels";
 
 interface ResumeImportModalProps {
@@ -60,6 +64,20 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const [contentType, setContentType] = useState<'pdf' | 'docx' | 'text'>('text');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const [localAiEnabled, setLocalAiEnabled] = useState(false);
+    const [localAiConsent, setLocalAiConsent] = useState(false);
+    const [engineLabel, setEngineLabel] = useState<string | null>(null);
+    const [probedEngine, setProbedEngine] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setLocalAiEnabled(readLocalAiEnabled());
+        setLocalAiConsent(readLocalAiConsent());
+        if (readLocalAiEnabled()) {
+            void probeBestEngine().then((id) => setProbedEngine(getEngineLabel(id)));
+        }
+    }, [isOpen]);
+
     const resetState = () => {
         setStep('input');
         setPastedText("");
@@ -68,6 +86,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setParseResult(null);
         setEditedData(null);
         setIsProcessing(false);
+        setEngineLabel(null);
     };
 
     const handleClose = () => {
@@ -156,10 +175,26 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         throw new Error("Unsupported file type");
     };
 
+    const runParse = async (textContent: string) => {
+        if (localAiEnabled) {
+            const local = await parseResumeLocally(textContent);
+            setEngineLabel(local.engineLabel);
+            setParseResult(local.data);
+            setEditedData(local.data.parsed);
+        } else {
+            const result = await parseResumeWithAI(textContent, contentType);
+            if (result.error) throw new Error(result.error);
+            if (!result.data) throw new Error("Failed to parse resume");
+            setEngineLabel(null);
+            setParseResult(result.data);
+            setEditedData(result.data.parsed);
+        }
+        setStep('review');
+    };
+
     const handleParse = async () => {
         setIsProcessing(true);
         setError(null);
-        setStep('parsing');
 
         try {
             let textContent: string;
@@ -173,20 +208,21 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 throw new Error("No content provided");
             }
 
-            const result = await parseResumeWithAI(textContent, contentType);
-
-            if (result.error) {
-                throw new Error(result.error);
+            // Local mode: consent-first — no model download until Enable.
+            if (localAiEnabled && !localAiConsent) {
+                setStep('parsing');
+                grantLocalAiConsent();
+                setLocalAiConsent(true);
+                await initLocalAiLadder();
+            } else if (localAiEnabled) {
+                setStep('parsing');
+                await initLocalAiLadder();
+            } else {
+                setStep('parsing');
             }
 
-            if (result.data) {
-                setParseResult(result.data);
-                setEditedData(result.data.parsed);
-                setStep('review');
-            }
+            await runParse(textContent);
         } catch (e: any) {
-            // Cost/auth-gate errors arrive prefixed ("AUTH_REQUIRED: …") —
-            // strip the sentinel so the user sees the human-readable part.
             setError(sentinelMessage(e) || "Failed to parse resume");
             setStep('input');
         } finally {
@@ -231,8 +267,27 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setEditedData({ ...editedData, education: newEdu });
     };
 
+    const renderLocalAiConsent = () => {
+        if (!localAiEnabled || localAiConsent) return null;
+        return (
+            <div className="p-4 border border-border bg-muted space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                    <Cpu size={18} weight="duotone" className="text-brand" />
+                    On-device parse (R&amp;D)
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    Your résumé stays on this device. Click Enable to download an on-device model
+                    {probedEngine ? ` (${probedEngine})` : ""} or use local rules if the download fails.
+                    No cloud LLM is called on this path.
+                </p>
+            </div>
+        );
+    };
+
     const renderInputStep = () => (
         <div className="space-y-6">
+            {renderLocalAiConsent()}
+
             {/* Method Toggle - Segmented Control Style */}
             <div className="flex border-b border-border">
                 <button
@@ -339,12 +394,18 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const renderParsingStep = () => (
         <div className="py-12 text-center space-y-4">
             <div className="w-16 h-16 rounded-none bg-muted flex items-center justify-center mx-auto animate-pulse">
-                <Sparkle size={24} weight="fill" className="text-brand" />
+                {localAiEnabled ? (
+                    <Cpu size={24} weight="fill" className="text-brand" />
+                ) : (
+                    <Sparkle size={24} weight="fill" className="text-brand" />
+                )}
             </div>
             <div>
                 <p className="text-foreground">Parsing your resume...</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                    AI is extracting structured information
+                    {localAiEnabled
+                        ? "Structuring on this device — no cloud LLM"
+                        : "AI is extracting structured information"}
                 </p>
             </div>
             <div className="w-48 h-1 bg-secondary rounded-none mx-auto overflow-hidden">
@@ -363,9 +424,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     <div className="flex items-center gap-3">
                         <ConfidenceIndicator score={parseResult.confidence.overall} size="lg" />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                        Review and edit before saving
-                    </p>
+                    <div className="text-right">
+                        {engineLabel && (
+                            <p className="text-xs text-brand font-medium">{engineLabel}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                            Review and edit before saving
+                        </p>
+                    </div>
                 </div>
 
                 {/* Warnings */}
@@ -575,6 +641,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         return true;
     };
 
+    const parseButtonLabel = () => {
+        if (localAiEnabled && !localAiConsent) return "Enable on-device parse";
+        if (localAiEnabled) return "Parse on device";
+        return "Parse with AI";
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
             <DialogContent className="sm:max-w-[600px] bg-white dark:bg-muted max-h-[90dvh] overflow-hidden flex flex-col">
@@ -594,8 +666,8 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     <DialogDescription>
                         {description ? description : (
                             <>
-                                {step === 'input' && "Upload a file or paste your resume text"}
-                                {step === 'parsing' && "AI is analyzing your resume..."}
+                                {step === 'input' && (localAiEnabled ? "Upload or paste — parsed on this device (R&D)" : "Upload a file or paste your resume text")}
+                                {step === 'parsing' && (localAiEnabled ? "On-device parser is analyzing your résumé..." : "AI is analyzing your resume...")}
                                 {step === 'review' && "Review and edit the extracted information"}
                             </>
                         )}
@@ -633,8 +705,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     </>
                                 ) : (
                                     <>
-                                        <Sparkle size={16} weight="fill" className="mr-2" />
-                                        Parse with AI
+                                        {localAiEnabled ? (
+                                            <Cpu size={16} weight="fill" className="mr-2" />
+                                        ) : (
+                                            <Sparkle size={16} weight="fill" className="mr-2" />
+                                        )}
+                                        {parseButtonLabel()}
                                         <ArrowRight size={16} className="ml-2" />
                                     </>
                                 )}

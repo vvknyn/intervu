@@ -7,9 +7,9 @@
  * shape the search action already takes:
  *
  *   - Match   — the candidate's own role + seniority (free, deterministic).
- *   - Explore — adjacent roles, suggested by AI (see suggestAdjacentRolesAction
- *               in actions/jobs.ts); `buildExploreBroadenQuery` is the
- *               deterministic fallback when AI is unavailable.
+ *   - Explore — adjacent roles; `suggestAdjacentRolesLocal` (adjacent-roles.ts)
+ *               is the deterministic no-LLM helper; `buildExploreBroadenQuery`
+ *               is the skills-only fallback used on /jobs today.
  *
  * Type-only imports keep this module runtime-dependency-free so it loads under
  * `tsx` for unit tests without `@/` path resolution.
