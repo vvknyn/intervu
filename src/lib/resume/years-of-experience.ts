@@ -56,6 +56,16 @@ function parseDateToken(token: string): Date | null {
         if (month !== undefined) return new Date(Number(monthYear[2]), month, 1);
     }
 
+    const monthYearShort = t.match(/^([A-Za-z]{3,9})\.?\s+[''\u2019]?(\d{2})$/);
+    if (monthYearShort) {
+        const month = MONTHS[monthYearShort[1].toLowerCase()];
+        if (month !== undefined) {
+            const yy = Number(monthYearShort[2]);
+            const year = yy <= 29 ? 2000 + yy : 1900 + yy;
+            return new Date(year, month, 1);
+        }
+    }
+
     const numeric = t.match(/^(\d{1,2})[\/\-](\d{4})$/);
     if (numeric) {
         const month = Number(numeric[1]) - 1;

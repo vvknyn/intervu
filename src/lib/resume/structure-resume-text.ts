@@ -24,7 +24,10 @@ const LINKEDIN_RE = /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+/i;
 const MONTH =
     "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
 
-const DATE_TOKEN = `(?:${MONTH}\\.?\\s+\\d{4}|\\d{1,2}\\/\\d{4}|\\d{4})`;
+/** U+0027 straight apostrophe or U+2019 curly apostrophe before 2-digit year (e.g. September '21). */
+const APOSTROPHE_YEAR = "(?:['\u2019]\\d{2})";
+
+const DATE_TOKEN = `(?:${MONTH}\\.?\\s+(?:\\d{4}|${APOSTROPHE_YEAR})|\\d{1,2}\\/\\d{4}|\\d{4})`;
 
 /** Requires a range separator — bare graduation years like "2016" do not match. */
 const DATE_RANGE_RE = new RegExp(
@@ -107,9 +110,14 @@ function resolveSection(header: string): string {
 
 function normalizeLines(text: string): string[] {
     return text
+        .replace(/\f/g, "\n")
         .replace(/\r\n/g, "\n")
         .split("\n")
-        .map((l) => l.trim())
+        .map((l) => {
+            const trimmed = l.trim();
+            if (!trimmed) return "";
+            return trimmed.replace(/\s{3,}/g, " | ");
+        })
         .filter(Boolean);
 }
 
@@ -151,9 +159,31 @@ function looksLikeCompany(text: string): boolean {
     return false;
 }
 
+const BULLET_VERB_RE =
+    /^(?:served|led|owned|coordinated|delivered|acted|translated|deployed|overhauled|architected|drove|built|managed|developed|created|implemented|designed|established|improved|increased|reduced|streamlined|facilitated|diagnos)/i;
+
+function looksLikeDescriptionLine(line: string): boolean {
+    if (/^\s{2,}/.test(line)) return true;
+    if (BULLET_RE.test(line)) return true;
+    if (BULLET_VERB_RE.test(line.trim())) return true;
+    return false;
+}
+
+function looksLikeNextLineCompany(line: string): boolean {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.length > 80) return false;
+    if (DATE_RANGE_RE.test(trimmed)) return false;
+    if (isSectionHeader(trimmed)) return false;
+    if (looksLikeDescriptionLine(line)) return false;
+    if (/[.!?]$/.test(trimmed) && trimmed.split(/\s+/).length > 6) return false;
+    return true;
+}
+
 function isSectionHeader(line: string): string | null {
     const key = normalizeSectionKey(line);
     if (ALL_SECTION_HEADERS.has(key)) return key;
+    // Fuzzy header heuristics only on short lines — prose like "12+ years of experience" must not flip sections.
+    if (line.length > 80) return null;
     if (isExperienceHeader(key)) return key;
     if (key.includes("skill") || key.includes("competen") || SKILLS_HEADERS.has(key)) return key;
     if (EDUCATION_HEADERS.has(key) || /\b(education|academic)\b/.test(key)) return key;
@@ -192,7 +222,8 @@ function parseRoleCompanyFromLine(line: string, dates: string): { role: string; 
         return assignRoleCompany(commaParts[0], commaParts[1]);
     }
 
-    if (looksLikeTitle(leftover)) return { role: leftover, company: "" };
+    const cleanedLeftover = leftover.replace(/\s*\|\s*$/g, "").trim();
+    if (looksLikeTitle(cleanedLeftover)) return { role: cleanedLeftover, company: "" };
     if (looksLikeCompany(leftover)) return { role: "", company: leftover };
     return { role: leftover, company: "" };
 }
@@ -252,6 +283,14 @@ function parseExperienceBlock(lines: string[]): Omit<ResumeExperience, "id">[] {
         if (dateMatch) {
             const dates = dateMatch[0];
             let { role, company } = parseRoleCompanyFromLine(line, dates);
+
+            if (role && !company && i + 1 < lines.length && looksLikeNextLineCompany(lines[i + 1])) {
+                company = lines[i + 1].trim();
+                const { descLines, nextIndex } = collectDescriptionLines(lines, i + 2);
+                pushExperienceEntry(entries, company, role, dates, descLines);
+                i = nextIndex;
+                continue;
+            }
 
             if (!role && i > 0 && !DATE_RANGE_RE.test(lines[i - 1]) && !BULLET_RE.test(lines[i - 1])) {
                 const prev = lines[i - 1];
@@ -415,9 +454,6 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         ...exp,
         id: `exp-${idx + 1}`,
     }));
-    const computedYoE = computeYearsOfExperience(tempExperience, new Date());
-    const yearsOfExperience = computedYoE !== null ? computedYoE : 0;
-
     const summaryLines = sections.summary ?? [];
     let generatedSummary = summaryLines.join("\n\n").trim();
     if (!generatedSummary) {
@@ -426,6 +462,13 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         const bodyEnd = headerEnd > 0 ? headerEnd : Math.min(lines.length, 6);
         generatedSummary = lines.slice(bodyStart + (profession ? 1 : 0), bodyEnd).join(" ").trim();
         if (generatedSummary.length > 500) generatedSummary = generatedSummary.slice(0, 500);
+    }
+
+    const computedYoE = computeYearsOfExperience(tempExperience, new Date());
+    let yearsOfExperience = computedYoE !== null ? computedYoE : 0;
+    if (computedYoE === null) {
+        const summaryYoE = generatedSummary.match(/(\d+)\+\s*years/i);
+        if (summaryYoE) yearsOfExperience = Number(summaryYoE[1]);
     }
 
     return {
