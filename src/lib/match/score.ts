@@ -42,13 +42,15 @@
  * topical overlap returns `null` (no chip) rather than falling back to a
  * seniority-only 100. `seniority` stays as an optional modifier on top.
  */
-import { RANK_WORDS, resumeDutyTokens } from "@/lib/match/duty-signals";
+import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
+import { resumeCountriesFromLocation } from "@/lib/jobs/resume-location";
 import { topSkills } from "@/lib/jobs/resume-match";
+import { RANK_WORDS, resumeDutyTokens } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
-export type MatchComponentKey = "relevance" | "seniority";
+export type MatchComponentKey = "relevance" | "seniority" | "location";
 
 export interface MatchComponent {
     key: MatchComponentKey;
@@ -75,6 +77,7 @@ export interface MatchScore {
 export const MATCH_WEIGHTS: Readonly<Record<MatchComponentKey, number>> = {
     relevance: 0.75,
     seniority: 0.25,
+    location: 0.10,
 };
 
 /** Chip renders with a brand-color outline at/above this total; below it, the default muted border. */
@@ -184,6 +187,72 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
     };
 }
 
+function isRemoteWorkType(workType: string | null | undefined): boolean {
+    return /remote/i.test(workType ?? "");
+}
+
+function jobHasKnownLocation(job: PublicJob): boolean {
+    if (job.location?.trim()) return true;
+    if (job.location_city?.trim()) return true;
+    if (job.location_state?.trim()) return true;
+    if (job.location_country) {
+        const raw = Array.isArray(job.location_country) ? job.location_country : [job.location_country];
+        if (raw.some((c) => (c ?? "").trim())) return true;
+    }
+    return false;
+}
+
+function jobCountries(job: PublicJob): string[] {
+    const raw = job.location_country;
+    if (!raw) return [];
+    const values = Array.isArray(raw) ? raw : [raw];
+    const out = new Set<string>();
+    for (const value of values) {
+        const classified = classifyCountryValue((value ?? "").trim());
+        if (classified.kind === "country") out.add(classified.canonical);
+    }
+    return [...out];
+}
+
+/** Résumé place vs job location — optional; absent when either side lacks data. */
+function scoreLocation(resume: ResumeData, job: PublicJob): MatchComponent | null {
+    const resumeLoc = (resume.profile?.location ?? "").trim();
+    if (!resumeLoc) return null;
+
+    const remote = isRemoteWorkType(job.work_type);
+    if (!remote && !jobHasKnownLocation(job)) return null;
+
+    if (remote) {
+        return {
+            key: "location",
+            label: "Location",
+            detail: "remote — open to this location",
+            score: 1,
+        };
+    }
+
+    const resumeCountries = resumeCountriesFromLocation(resumeLoc);
+    const jobCountryList = jobCountries(job);
+    if (resumeCountries.length === 0 || jobCountryList.length === 0) return null;
+
+    const sameCountry = resumeCountries.some((rc) => jobCountryList.includes(rc));
+    if (sameCountry) {
+        return {
+            key: "location",
+            label: "Location",
+            detail: "same country",
+            score: 1,
+        };
+    }
+
+    return {
+        key: "location",
+        label: "Location",
+        detail: "different country",
+        score: 0.35,
+    };
+}
+
 /** Years-derived seniority vs a job's `experience_level`. */
 function scoreSeniority(resume: ResumeData, job: PublicJob): MatchComponent | null {
     const years = resume.profile?.yearsOfExperience;
@@ -218,7 +287,8 @@ export function scoreJobAgainstResume(resume: ResumeData, job: PublicJob): Match
     if (!relevance) return null;
 
     const seniority = scoreSeniority(resume, job);
-    const components = seniority ? [relevance, seniority] : [relevance];
+    const location = scoreLocation(resume, job);
+    const components = [relevance, seniority, location].filter((c): c is MatchComponent => c !== null);
 
     const weightSum = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key], 0);
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);

@@ -10,6 +10,7 @@ import {
     getEngineLabel,
     initLocalAiLadder,
 } from "./ladder";
+import { locationText } from "@/lib/jobs/presentation";
 import {
     heuristicTailorResume,
     introducesNewNumbers,
@@ -48,12 +49,14 @@ function buildModelPrompt(resume: ResumeData, job: TailorJobInput): string {
 
     const desc = (job.description ?? "").slice(0, 800);
 
+    const locationLine = job.location?.trim() ? `location: ${job.location.trim()}\n` : "";
+
     return `Tailor this résumé for the job. Keep truthfulness: do NOT invent employers, titles, dates, or numeric metrics. Mirror JD language where already implied by the original text.
 
 JOB:
 title: ${job.title}
 company: ${job.company ?? ""}
-tags: ${(job.tags ?? []).join(", ")}
+${locationLine}tags: ${(job.tags ?? []).join(", ")}
 occupation: ${job.occupation ?? ""}
 description: ${desc}
 
@@ -182,13 +185,22 @@ export function jobToTailorInput(job: {
     tags?: string[] | null;
     description?: string | null;
     occupation?: string | null;
+    location?: string | null;
+    location_city?: string | null;
+    location_state?: string | null;
+    location_country?: string | string[] | null;
+    work_type?: string | null;
 }): TailorJobInput {
+    const place = locationText(job as Parameters<typeof locationText>[0]);
+    const location =
+        place && place !== "Location not listed" ? place : (job.location?.trim() || null);
     return {
         title: job.title,
         company: job.company,
         tags: job.tags,
         description: job.description,
         occupation: job.occupation,
+        location,
     };
 }
 

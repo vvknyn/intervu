@@ -375,6 +375,61 @@ function extractContact(lines: string[]): Partial<ResumeProfile> {
     return { email, phone, linkedin };
 }
 
+const KNOWN_PLACE_WORDS = new Set([
+    "ontario", "quebec", "alberta", "manitoba", "saskatchewan", "british columbia",
+    "california", "texas", "new york", "florida", "washington", "colorado", "georgia",
+    "massachusetts", "illinois", "pennsylvania", "virginia", "arizona", "ohio",
+    "canada", "united states", "usa", "uk", "united kingdom", "england", "scotland",
+    "india", "australia", "germany", "france", "ireland", "singapore",
+]);
+
+function looksLikePlaceSegment(segment: string): boolean {
+    const s = segment.trim();
+    if (!s || s.length < 3 || s.length > 80) return false;
+    if (EMAIL_RE.test(s) || PHONE_RE.test(s) || LINKEDIN_RE.test(s)) return false;
+    if (/^https?:\/\//i.test(s)) return false;
+    if (/^\+?\d[\d\s().-]{6,}$/.test(s)) return false;
+    if (looksLikeName(s) || looksLikeTitle(s)) return false;
+    if (s.includes(",")) return true;
+    const lower = s.toLowerCase();
+    for (const word of KNOWN_PLACE_WORDS) {
+        if (lower.includes(word)) return true;
+    }
+    return false;
+}
+
+/** Parse a place from header contact lines (city/region/country), not email/phone/linkedin. */
+function extractLocation(lines: string[]): string {
+    const headerLines = lines.slice(0, 8);
+    const joined = headerLines.join(" ");
+    const remainder = joined
+        .replace(EMAIL_RE, " ")
+        .replace(PHONE_RE, " ")
+        .replace(LINKEDIN_RE, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const segments = remainder.split(/[·|•]/).map((s) => s.trim()).filter(Boolean);
+    for (const seg of segments) {
+        if (looksLikePlaceSegment(seg)) return seg.replace(/^[\s·|•]+|[\s·|•]+$/g, "").trim();
+    }
+
+    for (const line of headerLines) {
+        if (looksLikeName(line) || looksLikeTitle(line)) continue;
+        if (isSectionHeader(line)) continue;
+        const cleaned = line
+            .replace(EMAIL_RE, "")
+            .replace(PHONE_RE, "")
+            .replace(LINKEDIN_RE, "")
+            .trim();
+        if (looksLikePlaceSegment(cleaned)) {
+            return cleaned.replace(/^[\s·|•]+|[\s·|•]+$/g, "").trim();
+        }
+    }
+
+    return "";
+}
+
 function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
     const skills: string[] = [];
     for (const line of lines) {
@@ -411,6 +466,7 @@ function parseEducationBlock(lines: string[]): Omit<ResumeEducation, "id">[] {
 export function structureResumeText(text: string): StructuredResumeDraft {
     const lines = normalizeLines(text);
     const contact = extractContact(lines);
+    const location = extractLocation(lines);
 
     let name = "";
     let profession = "";
@@ -476,7 +532,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
             name,
             profession,
             yearsOfExperience,
-            location: "",
+            location,
             email: contact.email ?? "",
             phone: contact.phone ?? "",
             linkedin: contact.linkedin ?? "",

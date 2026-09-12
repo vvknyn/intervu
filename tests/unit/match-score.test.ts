@@ -339,4 +339,45 @@ describe('scoreJobAgainstResume', () => {
         const b = scoreJobAgainstResume(SWE_RESUME, J1_FULL_MATCH);
         assert.deepEqual(a, b);
     });
+
+    describe('location component', () => {
+        const ONTARIO_RESUME = mkResume(
+            { profession: 'Software Engineer', yearsOfExperience: 5, location: 'Richmond Hill, Ontario' },
+            [{ category: 'Skills', skills: ['JavaScript', 'React', 'Node.js'] }],
+        );
+
+        it('empty résumé location → no location component (existing totals unchanged)', () => {
+            const result = scoreJobAgainstResume(SWE_RESUME, J1_FULL_MATCH);
+            assert.ok(result);
+            assert.equal(result!.total, 100);
+            assert.equal(result!.components.some((c) => c.key === 'location'), false);
+        });
+
+        it('Ontario résumé + remote job includes location bonus', () => {
+            const result = scoreJobAgainstResume(ONTARIO_RESUME, J1_FULL_MATCH);
+            assert.ok(result);
+            const location = result!.components.find((c) => c.key === 'location');
+            assert.ok(location);
+            assert.equal(location!.score, 1);
+            assert.match(location!.detail, /remote/i);
+        });
+
+        it('Ontario résumé + US-only onsite without Canada does not score a full location match', () => {
+            const usOnsite = mkJob({
+                title: 'Software Engineer',
+                tags: ['javascript', 'react', 'node.js'],
+                occupation: 'Software Engineer',
+                experience_level: 'mid',
+                work_type: 'onsite',
+                location: 'San Francisco, CA',
+                location_country: 'United States',
+            });
+            const result = scoreJobAgainstResume(ONTARIO_RESUME, usOnsite);
+            assert.ok(result);
+            const location = result!.components.find((c) => c.key === 'location');
+            assert.ok(location);
+            assert.equal(location!.score, 0.35);
+            assert.match(location!.detail, /different country/i);
+        });
+    });
 });

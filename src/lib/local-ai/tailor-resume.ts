@@ -13,6 +13,7 @@ export type TailorJobInput = {
     tags?: string[] | null;
     description?: string | null;
     occupation?: string | null;
+    location?: string | null;
 };
 
 export type TailorBulletDiff = {
@@ -158,18 +159,32 @@ function composeBaseSummary(resume: ResumeData): string {
     return [prof, yoePhrase].filter(Boolean).join(" — ") + skillPhrase + ".";
 }
 
+function resumeLocationAlignsWithJob(resumeLocation: string, jobLocation: string): boolean {
+    const resumeLower = resumeLocation.toLowerCase();
+    const jobLower = jobLocation.toLowerCase();
+    if (jobLower.includes(resumeLower) || resumeLower.includes(jobLower)) return true;
+    const resumeParts = resumeLower.split(/[,;|·•/]/).map((p) => p.trim()).filter(Boolean);
+    return resumeParts.some((part) => part.length >= 3 && jobLower.includes(part));
+}
+
 function rewriteSummary(
     base: string,
-    jobTitle: string,
+    job: TailorJobInput,
     overlapTerms: string[],
+    resumeLocation: string,
 ): string {
     const terms = overlapTerms.slice(0, 4);
     const termClause =
         terms.length > 0
             ? ` Skilled in ${terms.join(", ")}.`
             : "";
+    const jobLoc = (job.location ?? "").trim();
+    const locationClause =
+        jobLoc && resumeLocation.trim() && resumeLocationAlignsWithJob(resumeLocation, jobLoc)
+            ? ` Based in ${resumeLocation.trim()}.`
+            : "";
     const trimmed = base.replace(/\.$/, "").trim();
-    return `${trimmed}. Targeting ${jobTitle} roles.${termClause}`.replace(/\.\./g, ".");
+    return `${trimmed}. Targeting ${job.title} roles.${locationClause}${termClause}`.replace(/\.\./g, ".");
 }
 
 function rewriteBullet(
@@ -213,7 +228,7 @@ export function heuristicTailorResume(resume: ResumeData, job: TailorJobInput): 
     const overlapTerms = jdKeywordsWithResumeOverlap(jdKeywords, resumeTokens);
 
     const summaryBefore = composeBaseSummary(resume);
-    const summaryAfter = rewriteSummary(summaryBefore, job.title, overlapTerms);
+    const summaryAfter = rewriteSummary(summaryBefore, job, overlapTerms, resume.profile.location ?? "");
     tailored.generatedSummary = summaryAfter;
 
     const bullets: TailorBulletDiff[] = [];

@@ -17,10 +17,10 @@ import { cn } from "@/lib/utils";
 import { MATCH_CHIP_BRAND_THRESHOLD, type MatchScore } from "@/lib/match/score";
 import { captureEvent } from "@/lib/analytics/events";
 
-/** The receipt's one static disclosure row — not a scored component (score.ts
- *  never touches location/salary), so it isn't a `MatchComponent`; it's the
- *  UI's honesty statement that these fields exist and were not weighed. */
-const NOT_COUNTED_DETAIL = "location, salary — your call to weigh";
+/** The receipt's one static disclosure row — salary is not a scored
+ *  component (location is, when the résumé has a place). Honesty statement
+ *  that pay was not weighed. */
+const NOT_COUNTED_DETAIL = "salary — your call to weigh";
 
 export interface MatchChipProps {
     score: MatchScore;

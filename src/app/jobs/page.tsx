@@ -218,6 +218,7 @@ import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { BoardId } from "@/lib/boards/types";
+import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
 import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
 import { toast } from "@/lib/toast";
@@ -3888,7 +3889,11 @@ function JobsContent() {
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
         const { q, facets: derived } = buildMatchQuery(r);
-        const merged = mergeFacets(facets, derived);
+        const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
+        const derivedWithLocation = userPickedLocation
+            ? derived
+            : { ...derived, ...deriveResumeLocationFacets(r.profile?.location) };
+        const merged = mergeFacets(facets, derivedWithLocation);
         setFacets(merged);
         setQueryDraft(q);
         setQuery(q);

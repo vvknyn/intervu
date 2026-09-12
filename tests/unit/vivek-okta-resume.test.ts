@@ -49,6 +49,11 @@ describe("Vivek Okta résumé fixture", () => {
 
         assert.ok((out.profile.yearsOfExperience ?? 0) >= 10, "expected YoE ≥ 10 from Feb 2013 start");
 
+        const loc = out.profile.location ?? "";
+        assert.ok(loc.length > 0, "expected non-empty profile.location from header contact line");
+        assert.match(loc, /ontario/i, `expected Ontario in location, got: ${loc}`);
+        assert.match(loc, /richmond hill/i, `expected Richmond Hill in location, got: ${loc}`);
+
         const score = scoreLocalParseConfidence(out);
         assert.ok(
             score.overall >= LOCAL_PARSE_ACCEPT_MIN,
