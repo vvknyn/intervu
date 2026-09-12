@@ -119,6 +119,9 @@ describe("Customize dialog contract", () => {
         assert.match(src, /variant="outline"/);
         assert.match(src, /data-testid="local-customize-open"/);
         assert.match(src, /<Button/);
+        assert.match(src, /Review packet/);
+        assert.match(src, /useSilentPacket/);
+        assert.doesNotMatch(src, /variant="default"/, "Review packet stays outline — Apply keeps the inverted block");
     });
 
     it("JobDetail action row is nowrap with Apply · Customize · Bookmark order", () => {

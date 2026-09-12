@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Copy, DownloadSimple, Check } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ import { readLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { useSilentPacket } from "@/lib/local-ai/use-silent-packet";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { resumeDataToMarkdown } from "@/lib/resume/to-markdown";
@@ -47,6 +48,8 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
     const [copied, setCopied] = useState(false);
     const [consentNeeded, setConsentNeeded] = useState(false);
     const [generatingWithModel, setGeneratingWithModel] = useState(false);
+
+    const { status: packetStatus, cachedDraft, showReviewPacket } = useSilentPacket(job, resume);
 
     const handleCopy = useCallback(async () => {
         if (!draft) return;
@@ -96,15 +99,43 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
         [job, resume],
     );
 
+    useEffect(() => {
+        if (!dialogOpen || !cachedDraft || draft) return;
+        if (loading || packetStatus === "warming" || packetStatus === "ready") {
+            setDraft(cachedDraft);
+            setLoading(false);
+            setConsentNeeded(false);
+            setGeneratingWithModel(readLocalAiConsent());
+        }
+    }, [dialogOpen, cachedDraft, draft, loading, packetStatus]);
+
     const handleOpen = useCallback(() => {
         setDialogOpen(true);
+        setCopied(false);
+
+        if (cachedDraft) {
+            setDraft(cachedDraft);
+            setLoading(false);
+            setConsentNeeded(false);
+            setGeneratingWithModel(readLocalAiConsent());
+            return;
+        }
+
+        if (packetStatus === "warming") {
+            setDraft(null);
+            setLoading(true);
+            setConsentNeeded(false);
+            setGeneratingWithModel(readLocalAiConsent());
+            return;
+        }
+
         resetDialogState();
         if (readLocalAiConsent()) {
             void runGenerate(true);
         } else {
             setConsentNeeded(true);
         }
-    }, [resetDialogState, runGenerate]);
+    }, [cachedDraft, packetStatus, resetDialogState, runGenerate]);
 
     const handleEnableAi = useCallback(async () => {
         grantLocalAiConsent();
@@ -147,6 +178,9 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
 
     const companyBrand = displayCompanyBrand(job.company, job.company_domain, job.title);
 
+    const triggerLabel = showReviewPacket ? "Review packet" : "Customize";
+    const triggerAriaLabel = showReviewPacket ? "Review packet" : "Customize for this job";
+
     const engineLabel = draft
         ? draft.engineLabel
         : loading
@@ -163,17 +197,20 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                 type="button"
                 variant="outline"
                 data-testid="local-customize-open"
-                aria-label="Customize for this job"
+                aria-label={triggerAriaLabel}
                 disabled={loading && dialogOpen}
                 onClick={handleOpen}
                 className={cn(
                     "h-10 shrink-0 rounded-none text-xs font-semibold sm:h-9",
                     compactTrigger && "px-3",
                     loading && dialogOpen && "opacity-60",
+                    showReviewPacket && "border-brand text-foreground",
                 )}
             >
-                Customize
-                {!compactTrigger && <span className="hidden sm:inline"> for this job</span>}
+                {triggerLabel}
+                {!showReviewPacket && !compactTrigger && (
+                    <span className="hidden sm:inline"> for this job</span>
+                )}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>

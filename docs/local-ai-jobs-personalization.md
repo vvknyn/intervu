@@ -37,8 +37,13 @@ On a first visit, signed-in users with unconfigured job-search prefs (or guests 
 | Filters | User opens filters and Rank manually | Prefs applied as Meili rails automatically |
 | Chrome | “All filters” expanded by habit | **Narrow** — filters collapsed, escape hatch |
 
+## Silent packet (high-fit job detail)
+
+On job detail, when local AI is on and fit **≥ 75**, a tailored résumé draft pre-warms on-device (~1.2s debounce). The Customize button becomes **Review packet** when ready or warming; low-fit jobs keep **Customize** and never start background tailor. Drafts live in `localStorage` only — see [silent-packet.md](./silent-packet.md).
+
 ## Implementation map
 
 - Prefs → URL: `searchPreferencesToJobsUrlState`, `mergePrefsWithRankPhrases` in `src/lib/jobs/prefs-to-url-state.ts`
 - Rank merge: `personalizedFitFromResume` in `src/lib/jobs/apply-personalized-fit.ts`
 - Auto-apply gate: `isAutoPersonalizeUrl` — pristine `/jobs` or `?sort=fit` only; deliberate `?q=` / facet URLs are not clobbered
+- Silent packet: `shouldPrewarmSilentPacket`, `useSilentPacket` in `src/lib/local-ai/`
