@@ -42,6 +42,22 @@ export function useSilentPacket(job: PublicJob, resume: ResumeData | null): UseS
         return silentPacketCacheKey(job.id, resumeFingerprint(resume));
     }, [job.id, resume]);
 
+    /** Tailor-relevant job fields only — parent re-renders with a new `job`
+     *  object must not reset the 1.2s debounce (or we'd never fire). */
+    const tailorJobKey = useMemo(
+        () =>
+            JSON.stringify({
+                id: job.id,
+                title: job.title,
+                company: job.company,
+                tags: job.tags,
+                description: job.description,
+                occupation: job.occupation,
+                location: job.location,
+            }),
+        [job.id, job.title, job.company, job.tags, job.description, job.occupation, job.location],
+    );
+
     const loadFromCache = useCallback(
         (key: string): TailorDraft | null => {
             const draft = readSilentPacketCache(key);
@@ -122,7 +138,9 @@ export function useSilentPacket(job: PublicJob, resume: ResumeData | null): UseS
             prewarm.cancel();
             prewarmRef.current = null;
         };
-    }, [job, resume, cacheKey, fitTotal, loadFromCache]);
+        // `job` is captured when tailorJobKey changes (title/tags/description),
+        // not on every parent identity churn.
+    }, [resume, cacheKey, tailorJobKey, fitTotal, loadFromCache]);
 
     const showReviewPacket = status === "ready" || status === "warming";
 
