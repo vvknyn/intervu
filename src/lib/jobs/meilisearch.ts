@@ -864,63 +864,55 @@ export function isBareRoleQuery(q: string, companyScoped: boolean): boolean {
   return Boolean(q.trim()) && !shouldRunRoleTitleLane(q, companyScoped);
 }
 
+/**
+ * Sole source of truth for `attributesToSearchOn` given a resolved scope
+ * classification (`companyScoped`/`titleScoped`, both already decided by the
+ * caller — this function never derives them itself). `buildSearchBody` below
+ * and `buildLastUpdatedQuery` (the freshness-stamp builder, further down this
+ * file) both call THIS function with the SAME inputs, so the results query
+ * and the "updated X ago" stamp query cannot independently decide this field
+ * and drift apart — the exact defect a reviewer found in intervu #484 (the
+ * stamp builder had no attribute-scope logic at all, so any non-empty text
+ * query could match on `description` alone while the real results were
+ * scoped to title/company).
+ *
+ * Priority, matching what `searchMeili` already does: an explicit
+ * `companyScoped`/`titleScoped` override wins first (`company-scoped-lanes.ts`
+ * and `role-title-lane.ts`'s own sub-queries pass these); otherwise a
+ * standalone tech/programming-language token (e.g. "Rust", "Swift") scopes to
+ * title/tags/description to avoid non-tech false positives ("Rust Medical
+ * Center"); otherwise every other non-empty bare-role query scopes to
+ * `TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON` so a description mention can't
+ * surface an unrelated title; otherwise (empty query, or `wholeDocument`'s
+ * expand pass) no restriction — whole-document.
+ */
+export function resolveAttributesToSearchOn(
+  p: JobSearchParams,
+  opts?: Pick<BuildSearchBodyOpts, "companyScoped" | "titleScoped" | "wholeDocument">,
+): string[] | undefined {
+  if (opts?.companyScoped) return ["company"];
+  if (opts?.titleScoped) return ["title"];
+  if (!opts?.wholeDocument && isTechSkillQuery(p.q ?? "")) return ["title", "tags", "description"];
+  if (!opts?.wholeDocument && isBareRoleQuery(p.q ?? "", !!opts?.companyScoped)) {
+    return [...TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON];
+  }
+  return undefined;
+}
+
 export function buildSearchBody(
   p: JobSearchParams,
   legacy: boolean,
   matchingStrategy: MatchingStrategy = "all",
   opts?: BuildSearchBodyOpts,
 ): MeiliSearchBody {
-  const techSkillScoped =
-    !opts?.companyScoped && !opts?.wholeDocument && isTechSkillQuery(p.q ?? "");
-  // Every other non-empty query, once the lanes above have had first refusal:
-  // scope retrieval to title-like fields so a description mention can't
-  // surface an unrelated title under matchingStrategy "all" (see the const
-  // above). Gated on `!wholeDocument` like `techSkillScoped` — the empty-pool
-  // relax pass in `runSearch` (`shouldRelaxSearch`/`mergeExpandedIntoStrict`)
-  // re-issues with `wholeDocument: true`, which must defeat this scope too,
-  // the same two-tier retrieval that already backs `techSkillScoped`.
-  // Excludes anything the role-title lane already owns
-  // (`shouldRunRoleTitleLane`) — those seniority+role pair queries reach
-  // `buildSearchBody` as `opts.titleScoped`, never through this branch, but a
-  // seniority-anchored query handed to this function directly (bypassing the
-  // lane) must still fall through to whole-document rather than double-scope.
-  const titleFirstScoped =
-    !opts?.wholeDocument &&
-    !techSkillScoped &&
-    isBareRoleQuery(p.q ?? "", !!opts?.companyScoped);
+  const attributesToSearchOn = resolveAttributesToSearchOn(p, opts);
   return {
     // `quoteShortTokens` only rewrites the text handed to Meilisearch — every
-    // classifier below (`techSkillScoped`, `buildFilter`, …) still reads the
-    // raw `p.q`/`p` so quoting can never change what the query is CLASSIFIED
-    // as, only how its short tokens are matched.
+    // classifier above (`resolveAttributesToSearchOn`, `buildFilter`, …)
+    // still reads the raw `p.q`/`p` so quoting can never change what the
+    // query is CLASSIFIED as, only how its short tokens are matched.
     q: quoteShortTokens(p.q ?? ""),
-    // Whole-document retrieval is the expand pass (`wholeDocument`) or an empty
-    // browse — explicit sorts only change ORDER BY (`buildMeiliSort`), not
-    // which attributes may match. Applied identically under EVERY sort,
-    // including relevance, so an explicit sort only ever permutes this same
-    // pool (see `jobs-sort-set-invariance.test.ts`) — never selects a
-    // different one. Scoped exceptions below, each narrower than the last and
-    // therefore always winning when more than one applies:
-    //  - `companyScoped`: the query text names an employer — see the
-    //    "FOREMAN - SEAL & STRIPE" note in company-intent.ts. Restricts to
-    //    `company` alone.
-    //  - `titleScoped`: the role-title lane's own pair queries (see
-    //    `fetchRoleTitleLaneHits`) — restricted to `title` alone.
-    //  - `techSkillScoped`: standalone tech/programming language tokens
-    //    (e.g. "Rust", "Swift", "Python") scope to title/tags/description
-    //    to prevent non-tech company false positives (e.g. "Rust Medical Center").
-    //  - `titleFirstScoped`: every other non-empty query — scope to
-    //    `TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON` (title/company/tags) so a
-    //    description mention can't surface an unrelated title.
-    ...(opts?.companyScoped
-      ? { attributesToSearchOn: ["company"] }
-      : opts?.titleScoped
-        ? { attributesToSearchOn: ["title"] }
-        : techSkillScoped
-          ? { attributesToSearchOn: ["title", "tags", "description"] }
-          : titleFirstScoped
-            ? { attributesToSearchOn: [...TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON] }
-            : {}),
+    ...(attributesToSearchOn ? { attributesToSearchOn } : {}),
     // Requiring every word is the honest default; `searchMeili` runs one
     // whole-document expand pass (`wholeDocument`) only after a strict/scoped
     // pass returns zero — never word-dropping (`matchingStrategy: "last"`).
@@ -1681,14 +1673,32 @@ export async function meiliMultiSearch(
 }
 
 /**
- * Pure: the `q`/`filter` `fetchJobsLastUpdated` sends for `p` — the exact
- * same `buildFilter(p)` clauses and `quoteShortTokens(p.q)` text the results
- * search itself uses, so the two queries agree on which rows match. Split
- * out so each narrowing shape (default 30d window, no window, a single
- * employer, a text query, a facet) is assertable without a network call.
+ * Pure: the `q`/`filter`/`attributesToSearchOn` `fetchJobsLastUpdated` sends
+ * for `p` — the exact same `buildFilter(p)` clauses, `quoteShortTokens(p.q)`
+ * text, AND `resolveAttributesToSearchOn` scope the results search itself
+ * uses, so the two queries agree on which rows match. `opts.companyScoped`
+ * is REQUIRED, not defaulted — it's the one piece of that classification
+ * that needs an async Meilisearch probe to resolve (`resolveCompanyIntent`),
+ * so this pure function takes it as an already-resolved input rather than
+ * guessing `false` when the caller forgot to await it (a wrong guess would
+ * silently reintroduce the bug this fixes). `titleScoped` — the role-title
+ * lane's membership — IS derivable synchronously from `p.q`/`companyScoped`
+ * alone (`shouldRunRoleTitleLane`), so it's computed here rather than pushed
+ * onto every caller. Split out so each narrowing shape (default 30d window,
+ * no window, a single employer, a text query, a facet) is assertable without
+ * a network call.
  */
-export function buildLastUpdatedQuery(p: JobSearchParams): { q: string; filter: string[] } {
-  return { q: quoteShortTokens(p.q ?? ""), filter: buildFilter(p) };
+export function buildLastUpdatedQuery(
+  p: JobSearchParams,
+  opts: { companyScoped: boolean },
+): { q: string; filter: string[]; attributesToSearchOn?: string[] } {
+  const titleScoped = shouldRunRoleTitleLane(p.q ?? "", opts.companyScoped);
+  const attributesToSearchOn = resolveAttributesToSearchOn(p, { companyScoped: opts.companyScoped, titleScoped });
+  return {
+    q: quoteShortTokens(p.q ?? ""),
+    filter: buildFilter(p),
+    ...(attributesToSearchOn ? { attributesToSearchOn } : {}),
+  };
 }
 
 /**
@@ -1697,20 +1707,27 @@ export function buildLastUpdatedQuery(p: JobSearchParams): { q: string; filter: 
  * population actually on screen rather than always the whole corpus. `p`
  * omitted (or `{}`) means "no narrowing" — the true corpus-wide stamp, still
  * scoped to live vacancies like every other search (`LIVE_VACANCY_FILTER` in
- * `buildFilter`). One query: limit 1, sorted `updated_at:desc`. A failed or
- * unavailable probe returns `null` — the caller (`searchResultLine`,
- * presentation.ts) renders no clause rather than guessing.
+ * `buildFilter`). Resolves `companyScoped` via the SAME cached
+ * `resolveCompanyIntentResult` `searchMeili` calls for the real results
+ * search — not a second heuristic — before building the query, so the two
+ * requests' `attributesToSearchOn` cannot diverge (intervu #484 review fix).
+ * One extra Meilisearch round trip only on a cache miss (10-minute TTL,
+ * keyed by query text); one search round trip: limit 1, sorted
+ * `updated_at:desc`. A failed or unavailable probe returns `null` — the
+ * caller (`searchResultLine`, presentation.ts) renders no clause rather than
+ * guessing.
  */
 export async function fetchJobsLastUpdated(p: JobSearchParams = {}): Promise<string | null> {
   const h = host();
   if (!h) return null;
   try {
+    const { companyScoped } = await resolveCompanyIntentResult(p.id ? undefined : p.q);
     const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
       body: JSON.stringify({
-        ...buildLastUpdatedQuery(p),
+        ...buildLastUpdatedQuery(p, { companyScoped }),
         matchingStrategy: "all",
         limit: 1,
         sort: ["updated_at:desc"],

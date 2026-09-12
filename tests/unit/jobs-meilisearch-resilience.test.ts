@@ -12,7 +12,9 @@ import {
     buildLastUpdatedQuery,
     quoteShortTokens,
 } from "../../src/lib/jobs/meilisearch";
+import { shouldRunRoleTitleLane } from "../../src/lib/jobs/role-title-lane";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "../../src/lib/jobs/types";
+import type { JobSearchParams } from "../../src/lib/jobs/types";
 
 const SERP_FILTERS_SRC = readFileSync(
     fileURLToPath(new URL("../../src/components/jobs/SerpFilters.tsx", import.meta.url)),
@@ -175,7 +177,7 @@ test("fetchFacetSearch: every request body carries the composed liveness filter,
 // enumeration-based `isNarrowedResultSet` gate missed.
 
 test("buildLastUpdatedQuery: pristine default (untouched 30d window) scopes the filter to it", () => {
-    const { filter, q } = buildLastUpdatedQuery({ postedBucket: "30d" });
+    const { filter, q } = buildLastUpdatedQuery({ postedBucket: "30d" }, { companyScoped: false });
     assert.equal(q, "");
     assert.equal(filter[0], LIVE_VACANCY_FILTER);
     assert.ok(
@@ -185,24 +187,59 @@ test("buildLastUpdatedQuery: pristine default (untouched 30d window) scopes the 
 });
 
 test("buildLastUpdatedQuery: explicit unfiltered corpus (no posted window) carries no date clause", () => {
-    const { filter, q } = buildLastUpdatedQuery({});
+    const { filter, q } = buildLastUpdatedQuery({}, { companyScoped: false });
     assert.equal(q, "");
     assert.deepEqual(filter, [LIVE_VACANCY_FILTER]);
 });
 
 test("buildLastUpdatedQuery: employer drawer (companyDomain scope) — the founder's exact repro", () => {
-    const { filter } = buildLastUpdatedQuery({ companyDomain: "acme.com" });
+    const { filter } = buildLastUpdatedQuery({ companyDomain: "acme.com" }, { companyScoped: false });
     assert.ok(filter.includes('company_domain = "acme.com"'), `expected a company_domain clause, got ${JSON.stringify(filter)}`);
 });
 
 test("buildLastUpdatedQuery: a text query is sent as the SAME quoted q the results search uses", () => {
-    const { q } = buildLastUpdatedQuery({ q: "registered nurse" });
+    const { q } = buildLastUpdatedQuery({ q: "registered nurse" }, { companyScoped: false });
     assert.equal(q, quoteShortTokens("registered nurse"));
     assert.notEqual(q, "", "a real query must not collapse to match-all");
 });
 
 test("buildLastUpdatedQuery: a facet with no text (country) scopes the filter, leaves q empty", () => {
-    const { filter, q } = buildLastUpdatedQuery({ facets: { location_country: ["US"] } });
+    const { filter, q } = buildLastUpdatedQuery({ facets: { location_country: ["US"] } }, { companyScoped: false });
     assert.equal(q, "");
     assert.ok(filter.includes('(location_country = "US")'), `expected a location_country clause, got ${JSON.stringify(filter)}`);
+});
+
+// Review fix (intervu #484, second pass): the 5 cases above only ever pass
+// `companyScoped: false` with queries that never trigger a title/company/
+// tech scope, so they can't catch `attributesToSearchOn` drift — the
+// reviewer's actual finding. This table asserts, for a spread of scope
+// shapes INCLUDING two the reviewer didn't test (title-scoped text, and
+// text combined with a facet filter), that `buildLastUpdatedQuery`'s
+// `attributesToSearchOn` is IDENTICAL to what `buildSearchBody` sends for
+// the real results search — not merely "close" or "similarly shaped". Both
+// sides call the same `resolveAttributesToSearchOn`, so this also proves
+// that shared function is the only place either query gets this field from.
+const ATTRIBUTES_TO_SEARCH_ON_CASES: { name: string; p: JobSearchParams; companyScoped: boolean }[] = [
+    { name: "empty text (pristine default)", p: { postedBucket: "30d" }, companyScoped: false },
+    { name: "plain text (bare role query)", p: { q: "registered nurse" }, companyScoped: false },
+    { name: "company-scoped text", p: { q: "Acme Corp" }, companyScoped: true },
+    { name: "title-scoped text (role-title lane)", p: { q: "director of brand and product" }, companyScoped: false },
+    {
+        name: "text + filters",
+        p: { q: "registered nurse", facets: { location_country: ["US"] } },
+        companyScoped: false,
+    },
+];
+
+test("buildLastUpdatedQuery: attributesToSearchOn matches buildSearchBody's for every scope shape (intervu #484 review fix)", () => {
+    for (const { name, p, companyScoped } of ATTRIBUTES_TO_SEARCH_ON_CASES) {
+        const titleScoped = shouldRunRoleTitleLane(p.q ?? "", companyScoped);
+        const resultsBody = buildSearchBody(p, false, "all", { companyScoped, titleScoped });
+        const stampQuery = buildLastUpdatedQuery(p, { companyScoped });
+        assert.deepEqual(
+            stampQuery.attributesToSearchOn,
+            resultsBody.attributesToSearchOn,
+            `${name}: stamp scope ${JSON.stringify(stampQuery.attributesToSearchOn)} != results scope ${JSON.stringify(resultsBody.attributesToSearchOn)}`,
+        );
+    }
 });
