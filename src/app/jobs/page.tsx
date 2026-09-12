@@ -4030,11 +4030,11 @@ function JobsContent() {
     };
 
     const skipPrefsOnboarding = async () => {
+        markPrefsOnboardingComplete();
         if (user) {
             const res = await saveAgentPreferencesAction({});
             if (res.data) setAgentPrefs(res.data);
         }
-        markPrefsOnboardingComplete();
     };
 
     const savePrefsOnboarding = async (search: SearchPreferences) => {

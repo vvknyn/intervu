@@ -134,6 +134,7 @@ describe("prefs onboarding completion storage", () => {
 });
 
 describe("mergeAgentPreferences empty patch (Skip on /jobs)", () => {
+    // Skip closes immediately via localStorage; server write runs after dismiss.
     it("sets configured:true so signed-in Skip can dismiss onboarding permanently", () => {
         const out = mergeAgentPreferences(unconfiguredExisting, {});
         assert.equal(out.configured, true);

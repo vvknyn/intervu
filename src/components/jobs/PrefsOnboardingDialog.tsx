@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { chipVariants } from "@/components/ui/chip";
@@ -35,6 +35,14 @@ export function PrefsOnboardingDialog({ open, draft, onSave, onDismiss }: PrefsO
     );
     const [salaryMin, setSalaryMin] = useState(draft.salaryMin !== undefined ? String(draft.salaryMin) : "");
     const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (!open) return;
+        setLocation(draft.location ?? "");
+        setWorkMode(draft.workMode);
+        setExperienceLevel(draft.experienceLevel as ExperienceLevel | undefined);
+        setSalaryMin(draft.salaryMin !== undefined ? String(draft.salaryMin) : "");
+    }, [open, draft]);
 
     const toggleWorkMode = (mode: WorkType) => {
         setWorkMode((current) => (current === mode ? undefined : mode));
