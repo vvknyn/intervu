@@ -230,6 +230,10 @@ describe("jobs filter toolbar chrome", () => {
         assert.doesNotMatch(rankBlock, /chipVariants/);
         assert.match(rankBlock, /text-xs font-semibold text-foreground/);
 
+        const replaceBlock = page.slice(page.indexOf('data-testid="jobs-replace-resume"'), page.indexOf('data-testid="jobs-replace-resume"') + 350);
+        assert.doesNotMatch(replaceBlock, /chipVariants/);
+        assert.match(replaceBlock, /text-xs font-semibold text-foreground/);
+
         const saveTrigger = saved.slice(saved.indexOf('data-testid="save-search-trigger"'), saved.indexOf('data-testid="save-search-trigger"') + 450);
         assert.doesNotMatch(saveTrigger, /chipVariants/);
         assert.match(saveTrigger, /toolbarControlHeight/);

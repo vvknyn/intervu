@@ -150,7 +150,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
-import { needsResumeEntry } from "@/lib/jobs/resume-entry";
+import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import {
@@ -1930,6 +1930,7 @@ function JobsContent() {
     // than `hasUsableResume` (local-only): the latter told a returning
     // signed-in user with a résumé already on the server to "add" one.
     const showResumeEntry = needsResumeEntry({ signedIn: !!user, resumeOnFile, fitActive });
+    const showResumeReplace = needsResumeReplace({ resumeOnFile });
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -4512,10 +4513,26 @@ function JobsContent() {
         </button>
     ) : null;
 
+    const replaceResumeEl = showResumeReplace ? (
+        <button
+            type="button"
+            data-testid="jobs-replace-resume"
+            title="Replace your résumé and rescore matches"
+            onClick={() => handleUploadClick()}
+            className={cn(
+                toolbarControlHeight,
+                "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand",
+            )}
+        >
+            Replace résumé
+        </button>
+    ) : null;
+
     const savedSearchMountEl =
-        rankByFitEl || savedSearchControl ? (
+        rankByFitEl || replaceResumeEl || savedSearchControl ? (
             <>
                 {rankByFitEl}
+                {replaceResumeEl}
                 {savedSearchControl}
             </>
         ) : null;
@@ -4670,6 +4687,15 @@ function JobsContent() {
                         <span className="text-xs text-muted-foreground">add résumé</span>
                     </DropdownMenuItem>
                 )}
+                {showResumeReplace && (
+                    <DropdownMenuItem
+                        data-testid="jobs-sort-replace-resume"
+                        onSelect={() => handleUploadClick()}
+                        className="flex items-center justify-between gap-3 text-sm"
+                    >
+                        <span>Replace résumé</span>
+                    </DropdownMenuItem>
+                )}
             </DropdownMenuContent>
         </DropdownMenu>
     ) : null;
@@ -4688,10 +4714,10 @@ function JobsContent() {
         hasUsableResume && resumeAsOfDate ? (
             <span
                 data-testid="resume-as-of"
-                className="mono-data hidden shrink-0 items-center gap-1 text-xs text-muted-foreground lg:inline-flex"
+                className="mono-data inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
             >
                 scored against your résumé of {resumeAsOfDate} ·{" "}
-                <button type="button" onClick={handleUploadClick} className="text-brand hover:underline">
+                <button type="button" onClick={() => handleUploadClick()} className="text-brand hover:underline">
                     update to rescore
                 </button>
             </span>
@@ -5145,7 +5171,10 @@ function JobsContent() {
                 {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
                 {headerDockActive && dockedExtrasMount &&
                     createPortal(
-                        tourReplayEl,
+                        <>
+                            {tourReplayEl}
+                            {asOfEl}
+                        </>,
                         dockedExtrasMount,
                     )}
 
@@ -5209,9 +5238,19 @@ function JobsContent() {
                                 {localAiEnabled && !user && (
                                     <div
                                         data-testid="local-ai-guest-banner"
-                                        className="mb-3 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
+                                        className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
-                                        R&D local mode — résumé stays in this browser until you sign in.
+                                        <span>R&D local mode — résumé stays in this browser until you sign in.</span>
+                                        {showResumeReplace && (
+                                            <button
+                                                type="button"
+                                                data-testid="local-ai-replace-resume"
+                                                onClick={() => handleUploadClick()}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                Replace résumé
+                                            </button>
+                                        )}
                                     </div>
                                 )}
 

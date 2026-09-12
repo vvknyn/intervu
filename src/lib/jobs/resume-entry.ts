@@ -26,3 +26,16 @@ export function needsResumeEntry({
     if (!signedIn) return true;
     return resumeOnFile === false;
 }
+
+/**
+ * Whether /jobs should show a "replace your résumé" entry point — the
+ * inverse of the "add" invite: once `resumeOnFile` is confirmed true,
+ * visitors need a way to re-open the importer without DevTools.
+ */
+export function needsResumeReplace({
+    resumeOnFile,
+}: {
+    resumeOnFile: boolean | null;
+}): boolean {
+    return resumeOnFile === true;
+}
