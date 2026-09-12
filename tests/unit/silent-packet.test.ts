@@ -210,6 +210,21 @@ describe("silent packet draft readiness", () => {
     it("rejects empty drafts", () => {
         assert.equal(isSilentPacketDraftReady(null), false);
     });
+
+    it("accepts a bullet-only change even when summary after is empty", () => {
+        const draft = noopDraftFromHeuristic();
+        draft.summaryAfter = "";
+        draft.bullets = [
+            {
+                experienceId: "exp-1",
+                company: "Acme",
+                role: "PM",
+                before: "Led planning",
+                after: "Led product planning for a regulated portfolio",
+            },
+        ];
+        assert.equal(isSilentPacketDraftReady(draft), true);
+    });
 });
 
 describe("shouldShowReviewPacket", () => {

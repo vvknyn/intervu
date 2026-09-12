@@ -68,9 +68,8 @@ export function hasMeaningfulDiff(draft: TailorDraft | null | undefined): boolea
     );
 }
 
-/** A cached draft is "ready" when it has tailored content with a meaningful diff. */
+/** A cached draft is "ready" when summary or any bullet actually changed. */
 export function isSilentPacketDraftReady(draft: TailorDraft | null | undefined): boolean {
-    if (!draft?.summaryAfter?.trim()) return false;
     return hasMeaningfulDiff(draft);
 }
 
