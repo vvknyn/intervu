@@ -144,7 +144,8 @@ import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { rowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
-import { applyLocalAiSearchParam } from "@/lib/local-ai/flag";
+import { applyLocalAiSearchParam, readLocalAiEnabled } from "@/lib/local-ai/flag";
+import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
@@ -1221,8 +1222,10 @@ function JobsContent() {
     const initialUrlState = useMemo(() => parseJobsUrl(searchParams), []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // R&D: `?localAi=1` enables on-device résumé parse for the session.
+    const [localAiEnabled, setLocalAiEnabled] = useState(false);
     useEffect(() => {
         if (searchParams.get("localAi") === "1") applyLocalAiSearchParam("1");
+        setLocalAiEnabled(readLocalAiEnabled());
     }, [searchParams]);
 
     // Review fix (2026-07-19) — ONE "now" for this entire render pass,
@@ -1774,6 +1777,17 @@ function JobsContent() {
     // two call sites, so the two can never point at different résumés.
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
+
+    // R&D local mode: hydrate browser-stored résumé for signed-out guests.
+    useEffect(() => {
+        if (!localAiEnabled || user) return;
+        if (resume && resumeIsUsable(resume)) return;
+        const stored = readLocalAiResume();
+        if (stored && resumeIsUsable(stored.data)) {
+            setResume(stored.data);
+            setResumeUpdatedAt(stored.updatedAt);
+        }
+    }, [localAiEnabled, user, resume]);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
     // fetch of the résumé itself; Task 4 removed that). The card's other gate
@@ -3848,6 +3862,15 @@ function JobsContent() {
     // `resumeIsUsable`'s bar exactly.
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
+        if (!user && readLocalAiEnabled()) {
+            const stored = readLocalAiResume();
+            if (stored && resumeIsUsable(stored.data)) {
+                setResume(stored.data);
+                setResumeUpdatedAt(stored.updatedAt);
+                return stored.data;
+            }
+            return null;
+        }
         const { data, updatedAt } = await fetchResumeData();
         if (data && resumeIsUsable(data)) {
             setResume(data);
@@ -4008,7 +4031,7 @@ function JobsContent() {
     const beginResumeUpload = () => {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
-        if (!user) {
+        if (!user && !readLocalAiEnabled()) {
             setAuthGateReason("generic");
             gate({ kind: "upload", payload: true });
             return;
@@ -4026,17 +4049,22 @@ function JobsContent() {
 
     const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
         setResume(data);
+        const updatedAt = new Date().toISOString();
         // Saved in the same beat, just below — the on-screen "as of" date is
         // this moment, not whatever `saveResumeData`'s fire-and-forget write
         // eventually timestamps server-side.
-        setResumeUpdatedAt(new Date().toISOString());
+        setResumeUpdatedAt(updatedAt);
         setImportOpen(false);
-        // Persist to the profile so returning users skip the upload step (best-effort).
-        // The capture rides the SAME promise, not a synchronous fire — a failed
-        // save must not report a success that didn't happen.
-        void saveResumeData(data, source, confidence)
-            .then(() => captureEvent("resume_uploaded", {}))
-            .catch(() => {});
+        if (user) {
+            // Persist to the profile so returning users skip the upload step (best-effort).
+            // The capture rides the SAME promise, not a synchronous fire — a failed
+            // save must not report a success that didn't happen.
+            void saveResumeData(data, source, confidence)
+                .then(() => captureEvent("resume_uploaded", {}))
+                .catch(() => {});
+        } else if (readLocalAiEnabled()) {
+            writeLocalAiResume(data, updatedAt);
+        }
         // `handleUploadClick` queued this because no usable résumé was on
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
@@ -5177,6 +5205,15 @@ function JobsContent() {
                         <div className="flex min-h-0 flex-1 flex-col">
                             <>
                                 <BoardVisitBanner />
+
+                                {localAiEnabled && !user && (
+                                    <div
+                                        data-testid="local-ai-guest-banner"
+                                        className="mb-3 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
+                                    >
+                                        R&D local mode — résumé stays in this browser until you sign in.
+                                    </div>
+                                )}
 
                                 {/* Post-first-save upsell — appears once the anonymous visitor
                                     has made their first save (Go after or saved search). Calm

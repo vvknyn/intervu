@@ -129,28 +129,32 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
         setMessage(null)
 
         startTransition(async () => {
-            const formData = new FormData()
-            formData.append('email', email)
-            formData.append('username', username)
-            formData.append('password', password)
-            formData.append('turnstileToken', turnstileToken ?? '')
-            const result = await signUp(null, formData)
-            if ("error" in result) {
-                setMessage(result.error)
-                return
+            try {
+                const formData = new FormData()
+                formData.append('email', email)
+                formData.append('username', username)
+                formData.append('password', password)
+                formData.append('turnstileToken', turnstileToken ?? '')
+                const result = await signUp(null, formData)
+                if ("error" in result) {
+                    setMessage(result.error)
+                    return
+                }
+                // `signUp` already authenticates the fresh account and saves the
+                // session server-side — no second client-side sign-in round trip.
+                //
+                // Username/password path only — AuthKit (Google/passkey/magic-auth)
+                // emits via /auth/callback cookie + PostHogProvider after identify;
+                // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
+                // so an abandoned Google redirect + password signup cannot double-fire.
+                clearSignupSignalCookieFromDocument()
+                captureEvent('signup_completed', { method: 'username' })
+                router.refresh()
+                await syncGuestFollowsToServer()
+                if (onSuccess) onSuccess()
+            } catch (err) {
+                setMessage(err instanceof Error ? err.message : "Failed to create account")
             }
-            // `signUp` already authenticates the fresh account and saves the
-            // session server-side — no second client-side sign-in round trip.
-            //
-            // Username/password path only — AuthKit (Google/passkey/magic-auth)
-            // emits via /auth/callback cookie + PostHogProvider after identify;
-            // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
-            // so an abandoned Google redirect + password signup cannot double-fire.
-            clearSignupSignalCookieFromDocument()
-            captureEvent('signup_completed', { method: 'username' })
-            router.refresh()
-            await syncGuestFollowsToServer()
-            if (onSuccess) onSuccess()
         })
     }
 
