@@ -9,7 +9,8 @@ import {
     getOrRunSilentPacketPrewarm,
     isSilentPacketDraftReady,
     resumeFingerprint,
-    shouldPrewarmSilentPacket,
+    shouldShowReviewPacket,
+    shouldSilentPrewarmRun,
     silentPacketCacheKey,
 } from "./silent-packet";
 import { jobToTailorInput, tailorResumeForJob } from "./tailor-with-engine";
@@ -91,7 +92,15 @@ export function useSilentPacket(job: PublicJob, resume: ResumeData | null): UseS
 
         if (!resume || !cacheKey) return;
         if (!readLocalAiEnabled() || !resumeIsUsable(resume)) return;
-        if (!shouldPrewarmSilentPacket({ localAiEnabled: true, resumeUsable: true, fitTotal })) {
+        const consent = readLocalAiConsent();
+        if (
+            !shouldSilentPrewarmRun({
+                consent,
+                localAiEnabled: true,
+                resumeUsable: true,
+                fitTotal,
+            })
+        ) {
             return;
         }
         if (loadFromCache(cacheKey)) {
@@ -109,9 +118,8 @@ export function useSilentPacket(job: PublicJob, resume: ResumeData | null): UseS
             const runGeneration = prewarm.captureRunGeneration();
             setStatus("warming");
 
-            const allowModel = readLocalAiConsent();
             void getOrRunSilentPacketPrewarm(cacheKey, () =>
-                tailorResumeForJob(resume, jobToTailorInput(job), { allowModel }),
+                tailorResumeForJob(resume, jobToTailorInput(job), { allowModel: true }),
             )
                 .then((draft) => {
                     if (!prewarm.shouldApplyRun(runGeneration)) return;
@@ -142,7 +150,7 @@ export function useSilentPacket(job: PublicJob, resume: ResumeData | null): UseS
         // not on every parent identity churn.
     }, [resume, cacheKey, tailorJobKey, fitTotal, loadFromCache]);
 
-    const showReviewPacket = status === "ready" || status === "warming";
+    const showReviewPacket = shouldShowReviewPacket({ status, draft: cachedDraft });
 
     return { status, cachedDraft, showReviewPacket };
 }

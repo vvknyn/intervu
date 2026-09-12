@@ -29,5 +29,23 @@ export function shouldShowPrefsOnboarding(input: ShouldShowPrefsOnboardingInput)
     if (input.signedIn) {
         return input.agentPrefsReady && !input.configured;
     }
-    return input.localAiEnabled && input.hasUsableResume;
+    return input.localAiEnabled;
+}
+
+export interface ShouldShowResumeNudgeInput {
+    localAiEnabled: boolean;
+    hasUsableResume: boolean;
+}
+
+/** Quiet toolbar nudge when local AI is on but no usable résumé is on file. */
+export function shouldShowResumeNudge(input: ShouldShowResumeNudgeInput): boolean {
+    return input.localAiEnabled && !input.hasUsableResume;
+}
+
+export interface CanSavePrefsOnboardingInput {
+    hasUsableResume: boolean;
+}
+
+export function canSavePrefsOnboarding(input: CanSavePrefsOnboardingInput): boolean {
+    return input.hasUsableResume;
 }

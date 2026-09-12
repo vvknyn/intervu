@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { mergeAgentPreferences, type AgentPreferences } from "@/lib/agent/preferences";
 import {
     PREFS_ONBOARDING_COMPLETED_KEY,
+    canSavePrefsOnboarding,
     shouldShowPrefsOnboarding,
+    shouldShowResumeNudge,
 } from "@/lib/jobs/prefs-onboarding";
 
 const unconfiguredExisting: AgentPreferences = {
@@ -72,7 +74,18 @@ describe("shouldShowPrefsOnboarding", () => {
         );
     });
 
-    it("shows for guests with local AI and a usable résumé when not yet completed", () => {
+    it("shows for guests with local AI when not yet completed, even without a résumé", () => {
+        assert.equal(
+            shouldShowPrefsOnboarding({
+                localCompleted: false,
+                signedIn: false,
+                agentPrefsReady: true,
+                configured: false,
+                localAiEnabled: true,
+                hasUsableResume: false,
+            }),
+            true,
+        );
         assert.equal(
             shouldShowPrefsOnboarding({
                 localCompleted: false,
@@ -83,6 +96,20 @@ describe("shouldShowPrefsOnboarding", () => {
                 hasUsableResume: true,
             }),
             true,
+        );
+    });
+
+    it("hides for guests without local AI", () => {
+        assert.equal(
+            shouldShowPrefsOnboarding({
+                localCompleted: false,
+                signedIn: false,
+                agentPrefsReady: true,
+                configured: false,
+                localAiEnabled: false,
+                hasUsableResume: true,
+            }),
+            false,
         );
     });
 
@@ -129,6 +156,24 @@ describe("shouldShowPrefsOnboarding", () => {
     });
 });
 
+describe("canSavePrefsOnboarding", () => {
+    it("requires a usable résumé before Save & rank", () => {
+        assert.equal(canSavePrefsOnboarding({ hasUsableResume: false }), false);
+        assert.equal(canSavePrefsOnboarding({ hasUsableResume: true }), true);
+    });
+});
+
+describe("shouldShowResumeNudge", () => {
+    it("shows when local AI is on and no usable résumé", () => {
+        assert.equal(shouldShowResumeNudge({ localAiEnabled: true, hasUsableResume: false }), true);
+    });
+
+    it("hides when a usable résumé exists or local AI is off", () => {
+        assert.equal(shouldShowResumeNudge({ localAiEnabled: true, hasUsableResume: true }), false);
+        assert.equal(shouldShowResumeNudge({ localAiEnabled: false, hasUsableResume: false }), false);
+    });
+});
+
 describe("prefs onboarding completion storage", () => {
     it("uses a stable localStorage key", () => {
         assert.equal(PREFS_ONBOARDING_COMPLETED_KEY, "intervu.jobs.prefs-onboarding.completed");
@@ -164,6 +209,28 @@ describe("PrefsOnboardingDialog mobile sheet", () => {
         assert.match(src, /className="h-9 w-full rounded-none text-xs sm:max-w-\[180px\]"/);
         assert.match(src, /className="h-9 w-full rounded-none text-xs sm:max-w-\[120px\]"/);
         assert.match(src, /h-9 w-full rounded-none text-xs sm:w-auto/);
+    });
+
+    it("includes in-sheet résumé upload before prefs rails", () => {
+        const src = readFileSync(PREFS_DIALOG, "utf8");
+        assert.match(src, /data-testid="prefs-onboarding-resume"/);
+        assert.match(src, /data-testid="prefs-onboarding-resume-file"/);
+        assert.match(src, /data-testid="prefs-onboarding-resume-paste"/);
+        assert.match(src, /extractResumeFileText/);
+        assert.match(src, /canSavePrefsOnboarding/);
+        assert.match(src, /data-testid="prefs-onboarding-save"/);
+    });
+});
+
+const JOBS_PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx");
+
+describe("jobs page résumé nudge", () => {
+    it("renders toolbar nudge wired to upload when local AI has no résumé", () => {
+        const src = readFileSync(JOBS_PAGE, "utf8");
+        assert.match(src, /shouldShowResumeNudge/);
+        assert.match(src, /data-testid="jobs-resume-nudge"/);
+        assert.match(src, /Add résumé to unlock ranked jobs/);
+        assert.match(src, /handleUploadClick/);
     });
 });
 

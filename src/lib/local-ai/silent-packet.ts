@@ -53,11 +53,47 @@ export function silentPacketCacheKey(jobId: string, resumeFingerprint: string): 
     return `${jobId}:${resumeFingerprint}`;
 }
 
-/** A cached draft is "ready" when it has usable tailored content. */
+function normalizeWhitespace(text: string): string {
+    return text.trim().replace(/\s+/g, " ");
+}
+
+/** True when summary or any bullet differs after simple whitespace normalization. */
+export function hasMeaningfulDiff(draft: TailorDraft | null | undefined): boolean {
+    if (!draft) return false;
+    const summaryBefore = normalizeWhitespace(draft.summaryBefore ?? "");
+    const summaryAfter = normalizeWhitespace(draft.summaryAfter ?? "");
+    if (summaryBefore !== summaryAfter) return true;
+    return draft.bullets.some(
+        (b) => normalizeWhitespace(b.before ?? "") !== normalizeWhitespace(b.after ?? ""),
+    );
+}
+
+/** A cached draft is "ready" when it has tailored content with a meaningful diff. */
 export function isSilentPacketDraftReady(draft: TailorDraft | null | undefined): boolean {
     if (!draft?.summaryAfter?.trim()) return false;
-    if (draft.bullets.length > 0) return true;
-    return draft.summaryAfter.trim() !== draft.summaryBefore.trim();
+    return hasMeaningfulDiff(draft);
+}
+
+export interface ShouldShowReviewPacketArgs {
+    status: "idle" | "warming" | "ready";
+    draft: TailorDraft | null;
+}
+
+/** Show Review packet / Packet when warming or ready with a meaningful diff. */
+export function shouldShowReviewPacket(args: ShouldShowReviewPacketArgs): boolean {
+    if (args.status === "warming") return true;
+    if (args.status === "ready" && hasMeaningfulDiff(args.draft)) return true;
+    return false;
+}
+
+export interface ShouldSilentPrewarmRunArgs extends ShouldPrewarmSilentPacketArgs {
+    consent: boolean;
+}
+
+/** Background pre-warm runs only with consent — no silent rules-only packets. */
+export function shouldSilentPrewarmRun(args: ShouldSilentPrewarmRunArgs): boolean {
+    if (!args.consent) return false;
+    return shouldPrewarmSilentPacket(args);
 }
 
 function hashStableJson(value: unknown): string {

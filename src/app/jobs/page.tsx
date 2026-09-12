@@ -189,6 +189,7 @@ import {
 import {
     readPrefsOnboardingCompleted,
     shouldShowPrefsOnboarding,
+    shouldShowResumeNudge,
     writePrefsOnboardingCompleted,
 } from "@/lib/jobs/prefs-onboarding";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
@@ -4053,6 +4054,20 @@ function JobsContent() {
         if (r && resumeIsUsable(r)) applyFit(r, search);
     };
 
+    const handlePrefsOnboardingResumeImported = (data: ResumeData) => {
+        setResume(data);
+        const updatedAt = new Date().toISOString();
+        setResumeUpdatedAt(updatedAt);
+        setResumeSourceLabel("Onboarding import");
+        if (user) {
+            void saveResumeData(data, "text", 0)
+                .then(() => captureEvent("resume_uploaded", {}))
+                .catch(() => {});
+        } else if (readLocalAiEnabled()) {
+            writeLocalAiResume(data, updatedAt, "Onboarding import");
+        }
+    };
+
     const agentPrefsReady = !user || agentPrefs !== null;
     const showPrefsOnboarding = shouldShowPrefsOnboarding({
         localCompleted: prefsOnboardingCompleted,
@@ -4062,6 +4077,9 @@ function JobsContent() {
         localAiEnabled,
         hasUsableResume,
     });
+
+    const showResumeNudge =
+        shouldShowResumeNudge({ localAiEnabled, hasUsableResume }) && !showPrefsOnboarding;
 
     const prefsOnboardingDraft = useMemo(
         () =>
@@ -4874,6 +4892,20 @@ function JobsContent() {
                     className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
                 >
                     Replace
+                </button>
+            </span>
+        ) : showResumeNudge ? (
+            <span
+                data-testid="jobs-resume-nudge"
+                className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
+            >
+                Add résumé to unlock ranked jobs{" "}
+                <button
+                    type="button"
+                    onClick={() => handleUploadClick()}
+                    className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                >
+                    Add résumé
                 </button>
             </span>
         ) : null;
@@ -6115,6 +6147,8 @@ function JobsContent() {
             <PrefsOnboardingDialog
                 open={showPrefsOnboarding}
                 draft={prefsOnboardingDraft}
+                hasUsableResume={hasUsableResume}
+                onResumeImported={handlePrefsOnboardingResumeImported}
                 onSave={savePrefsOnboarding}
                 onDismiss={skipPrefsOnboarding}
             />

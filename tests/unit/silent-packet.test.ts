@@ -4,14 +4,17 @@ import {
     SILENT_PACKET_FIT_THRESHOLD,
     createSilentPacketPrewarm,
     getOrRunSilentPacketPrewarm,
+    hasMeaningfulDiff,
     isSilentPacketDraftReady,
     resetSilentPacketPrewarmInflightForTests,
     resumeFingerprint,
     shouldPrewarmSilentPacket,
+    shouldShowReviewPacket,
+    shouldSilentPrewarmRun,
     silentPacketCacheKey,
 } from "../../src/lib/local-ai/silent-packet";
 import { MATCH_CHIP_BRAND_THRESHOLD } from "../../src/lib/match/score";
-import { heuristicTailorResume } from "../../src/lib/local-ai/tailor-resume";
+import { heuristicTailorResume, type TailorDraft } from "../../src/lib/local-ai/tailor-resume";
 import type { ResumeData } from "../../src/types/resume";
 
 function fakeScheduler() {
@@ -60,6 +63,20 @@ function sampleResume(overrides: Partial<{ bullet: string }> = {}): ResumeData {
     };
 }
 
+function noopDraftFromHeuristic(): TailorDraft {
+    const draft = heuristicTailorResume(sampleResume(), {
+        title: "Product Manager",
+        company: "Acme Corp",
+        tags: ["roadmap"],
+        description: "Own the product roadmap.",
+    });
+    return {
+        ...draft,
+        summaryAfter: draft.summaryBefore,
+        bullets: draft.bullets.map((b) => ({ ...b, after: b.before })),
+    };
+}
+
 beforeEach(() => {
     resetSilentPacketPrewarmInflightForTests();
 });
@@ -96,6 +113,27 @@ describe("silent packet gate", () => {
             false,
         );
     });
+
+    it("shouldSilentPrewarmRun requires consent in addition to fit gate", () => {
+        assert.equal(
+            shouldSilentPrewarmRun({
+                consent: true,
+                localAiEnabled: true,
+                resumeUsable: true,
+                fitTotal: 80,
+            }),
+            true,
+        );
+        assert.equal(
+            shouldSilentPrewarmRun({
+                consent: false,
+                localAiEnabled: true,
+                resumeUsable: true,
+                fitTotal: 80,
+            }),
+            false,
+        );
+    });
 });
 
 describe("silent packet fingerprint and cache key", () => {
@@ -119,8 +157,42 @@ describe("silent packet fingerprint and cache key", () => {
     });
 });
 
+describe("hasMeaningfulDiff", () => {
+    it("returns false for identical summary and bullets", () => {
+        const draft = noopDraftFromHeuristic();
+        assert.equal(hasMeaningfulDiff(draft), false);
+    });
+
+    it("returns true when summary changes", () => {
+        const draft = noopDraftFromHeuristic();
+        draft.summaryAfter = `${draft.summaryBefore} Extra clause.`;
+        assert.equal(hasMeaningfulDiff(draft), true);
+    });
+
+    it("returns true when one bullet changes", () => {
+        const draft = noopDraftFromHeuristic();
+        if (draft.bullets.length === 0) {
+            draft.bullets.push({
+                experienceId: "exp-1",
+                company: "Acme",
+                role: "PM",
+                before: "Before text",
+                after: "After text",
+            });
+        } else {
+            draft.bullets[0] = { ...draft.bullets[0], after: "Rewritten bullet." };
+        }
+        assert.equal(hasMeaningfulDiff(draft), true);
+    });
+
+    it("returns false for empty or null drafts", () => {
+        assert.equal(hasMeaningfulDiff(null), false);
+        assert.equal(hasMeaningfulDiff(undefined), false);
+    });
+});
+
 describe("silent packet draft readiness", () => {
-    it("accepts heuristic drafts with bullets", () => {
+    it("accepts heuristic drafts with a meaningful diff", () => {
         const draft = heuristicTailorResume(sampleResume(), {
             title: "Product Manager",
             company: "Acme Corp",
@@ -130,8 +202,33 @@ describe("silent packet draft readiness", () => {
         assert.equal(isSilentPacketDraftReady(draft), true);
     });
 
+    it("rejects heuristic no-op drafts with identical before/after", () => {
+        const draft = noopDraftFromHeuristic();
+        assert.equal(isSilentPacketDraftReady(draft), false);
+    });
+
     it("rejects empty drafts", () => {
         assert.equal(isSilentPacketDraftReady(null), false);
+    });
+});
+
+describe("shouldShowReviewPacket", () => {
+    it("shows while warming even without a draft", () => {
+        assert.equal(shouldShowReviewPacket({ status: "warming", draft: null }), true);
+    });
+
+    it("shows when ready with meaningful diff", () => {
+        const draft = heuristicTailorResume(sampleResume(), {
+            title: "Product Manager",
+            tags: ["roadmap"],
+            description: "Own the roadmap.",
+        });
+        assert.equal(shouldShowReviewPacket({ status: "ready", draft }), true);
+    });
+
+    it("hides when ready without meaningful diff", () => {
+        const draft = noopDraftFromHeuristic();
+        assert.equal(shouldShowReviewPacket({ status: "ready", draft }), false);
     });
 });
 
