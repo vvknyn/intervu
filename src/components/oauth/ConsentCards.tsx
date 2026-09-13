@@ -79,9 +79,10 @@ function HiddenConsentFields({ params }: { params: ConsentParams }) {
 }
 
 /**
- * `params.redirect_uri` has already passed `isAllowedRedirectUri`
- * (`validateConsentRequest`, consent.ts) by the time this renders — https:,
- * or http: on localhost/127.0.0.1 only — so `new URL()` here can't throw.
+ * `params.redirect_uri` has already passed DCR-time `isAllowedRedirectUri`
+ * (oauth.ts) and consent-time registration checks (`validateConsentRequest`,
+ * consent.ts) — https:, http: on localhost/127.0.0.1, or native MCP schemes
+ * (cursor:, vscode:, vscode-insiders:) — so `new URL()` here can't throw.
  * Naming the redirect host (IMPORTANT 6 review fix) matters because
  * `clientName` is attacker-chosen DCR metadata (`registerClient`, oauth.ts,
  * accepts any `client_name`) — a user approving on name alone has no way to

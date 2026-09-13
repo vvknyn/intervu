@@ -184,7 +184,7 @@ describe('agent oauth', () => {
     assert.ok('error' in result);
   });
 
-  it('registerClient rejects http:// redirect URIs except localhost/127.0.0.1', async () => {
+  it('registerClient redirect URI allowlist: https, localhost http, native MCP schemes; rejects other http and custom schemes', async () => {
     const s = memoryStore();
     const evil = await registerClient(s, { client_name: 'Evil', redirect_uris: ['http://evil.com/cb'] });
     assert.ok('error' in evil);
@@ -195,8 +195,36 @@ describe('agent oauth', () => {
     const loopback = await registerClient(s, { client_name: 'Loopback Dev', redirect_uris: ['http://127.0.0.1:3000/cb'] });
     assert.ok('client' in loopback);
 
+    const cursor = await registerClient(s, {
+      client_name: 'Cursor MCP',
+      redirect_uris: ['cursor://anysphere.cursor-mcp/oauth/callback'],
+    });
+    assert.ok('client' in cursor);
+    assert.deepEqual(cursor.client.redirectUris, ['cursor://anysphere.cursor-mcp/oauth/callback']);
+
+    const vscode = await registerClient(s, {
+      client_name: 'VS Code MCP',
+      redirect_uris: ['vscode://publisher.extension/oauth/callback'],
+    });
+    assert.ok('client' in vscode);
+
+    const vscodeInsiders = await registerClient(s, {
+      client_name: 'VS Code Insiders MCP',
+      redirect_uris: ['vscode-insiders://publisher.extension/oauth/callback'],
+    });
+    assert.ok('client' in vscodeInsiders);
+
+    const evilScheme = await registerClient(s, { client_name: 'Evil Scheme', redirect_uris: ['evil://attacker.example/cb'] });
+    assert.ok('error' in evilScheme);
+
     const custom = await registerClient(s, { client_name: 'Custom Scheme', redirect_uris: ['myapp://cb'] });
     assert.ok('error' in custom);
+
+    const bareNative = await registerClient(s, { client_name: 'Bare Native', redirect_uris: ['cursor://'] });
+    assert.ok('error' in bareNative);
+
+    const invalid = await registerClient(s, { client_name: 'Invalid URI', redirect_uris: ['not a url'] });
+    assert.ok('error' in invalid);
 
     const https = await registerClient(s, { client_name: 'HTTPS Anywhere', redirect_uris: ['https://anywhere.example/cb'] });
     assert.ok('client' in https);
