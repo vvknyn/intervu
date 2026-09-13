@@ -54,6 +54,8 @@ export interface JobsUrlState {
      * employers in an allowlist — the coupling this field exists to avoid.
      */
     companyDomain: string | null;
+    /** Explicit home tab: `view=for-you` | `view=search`. Null = implicit default. */
+    homeView: "for-you" | "search" | null;
 }
 
 
@@ -98,6 +100,7 @@ export const DEFAULT_URL_STATE: JobsUrlState = {
     jobId: null,
     board: null,
     companyDomain: null,
+    homeView: null,
 };
 
 /**
@@ -142,6 +145,7 @@ const TIER_FOR_SALARY = Object.fromEntries(
 const POSTED_VALUES: readonly PostedBucket[] = ["1d", "3d", "7d", "30d", "older"];
 const YEARS_EXPERIENCE_VALUES: readonly YearsExperienceBucket[] = ["0-2", "3-5", "6-10", "11+"];
 const SORT_VALUES: readonly UrlSort[] = ["newest", "relevance", "salary", "fit"];
+const HOME_VIEW_VALUES: readonly NonNullable<JobsUrlState["homeView"]>[] = ["for-you", "search"];
 
 export function urlSortToMode(s: UrlSort): JobSortMode | "fit" {
     return s === "salary" ? "salary_desc" : s;
@@ -232,6 +236,10 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
     const board = sp.get("board");
     if (board && isBoardId(board)) s.board = board;
     s.companyDomain = normalizeCompanyDomain(sp.get("company"));
+    const view = sp.get("view");
+    if (view && (HOME_VIEW_VALUES as readonly string[]).includes(view)) {
+        s.homeView = view as NonNullable<JobsUrlState["homeView"]>;
+    }
     return s;
 }
 
@@ -258,6 +266,7 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     if (s.jobId) sp.set("job", s.jobId);
     if (s.board) sp.set("board", s.board);
     if (s.companyDomain) sp.set("company", s.companyDomain);
+    if (s.homeView) sp.set("view", s.homeView);
     const out = sp.toString();
     return out ? `?${out}` : "";
 }

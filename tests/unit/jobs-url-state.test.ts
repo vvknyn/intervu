@@ -32,8 +32,20 @@ test("defaults stay out of the URL", () => {
 });
 
 test("junk params and junk values are dropped", () => {
-    const s = parseJobsUrl(new URLSearchParams("bogus=1&sort=zzz&posted=99d&salary=7&work=remote"));
+    const s = parseJobsUrl(new URLSearchParams("bogus=1&sort=zzz&posted=99d&salary=7&work=remote&view=nope"));
     assert.deepEqual(s, { ...DEFAULT_URL_STATE, facets: { work_type: ["remote"] } });
+});
+
+test("view=for-you and view=search round-trip when explicit", () => {
+    for (const view of ["for-you", "search"] as const) {
+        const s = { ...DEFAULT_URL_STATE, homeView: view };
+        assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
+    }
+});
+
+test("default homeView stays out of the URL", () => {
+    assert.equal(serializeJobsUrl(DEFAULT_URL_STATE), "");
+    assert.equal(parseJobsUrl(new URLSearchParams("")).homeView, null);
 });
 
 // Product decision: fresh visits default to "30d" instead of unset. Encoding
