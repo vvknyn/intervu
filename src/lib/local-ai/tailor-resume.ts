@@ -5,6 +5,7 @@
 
 import type { LocalAiEngineId } from "./engines/types";
 import { ENGINE_LABELS } from "./engines/types";
+import { descriptionToBullets } from "@/lib/resume/merge-bullet-lines";
 import type { ResumeData, ResumeExperience } from "@/types/resume";
 
 export type TailorJobInput = {
@@ -125,10 +126,7 @@ function relatedJdTermsForBullet(bulletTokens: Set<string>, jdKeywords: string[]
 }
 
 function splitDescriptionLines(description: string): string[] {
-    return description
-        .split(/\n|•/)
-        .map((l) => l.replace(/^[\s\-*]+/, "").trim())
-        .filter(Boolean);
+    return descriptionToBullets(description);
 }
 
 function firstMeaningfulBullet(description: string): { line: string; index: number; lines: string[] } | null {

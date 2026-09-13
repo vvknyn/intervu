@@ -122,6 +122,9 @@ const SECTION_GAP_BEFORE = 10;
 const GAP_AFTER_HEADING_RULE = 5;
 const GAP_BETWEEN_BLOCKS = 3;
 const GAP_ENTRY_TITLE_TO_BULLETS = 2;
+/** Minimum entry-title font when shrinking to avoid overlap with right-aligned dates. */
+const MIN_ENTRY_TITLE_SIZE = 8.5;
+const ENTRY_TITLE_DATE_GAP = 8;
 
 /** Map Unicode glyphs to Helvetica WinAnsi-safe ASCII before measure/draw. */
 export function sanitizePdfGlyphs(text: string): string {
@@ -328,6 +331,37 @@ function emitParagraphLines(cursor: PageCursor, lines: string[], size: number, b
   });
 }
 
+/** Entry title left + date right on one baseline; shrink or ellipsize title if needed. */
+function emitEntryTitleLine(
+  cursor: PageCursor,
+  title: string,
+  dateRight: string | null,
+  y: number,
+  measure: TextMeasurer,
+): void {
+  const titleText = normalizeResumeDrawText(title);
+  const dateText = dateRight ? normalizeResumeDrawText(dateRight) : "";
+  const dateWidth = dateText ? measure.widthOf(dateText, BODY_SIZE, false) + ENTRY_TITLE_DATE_GAP : 0;
+  const maxTitleWidth = cursor.contentWidth - dateWidth;
+  let titleSize = HEADING_SIZE;
+  let displayTitle = titleText;
+
+  while (titleSize > MIN_ENTRY_TITLE_SIZE && measure.widthOf(displayTitle, titleSize, true) > maxTitleWidth) {
+    titleSize -= 0.5;
+  }
+  if (measure.widthOf(displayTitle, titleSize, true) > maxTitleWidth) {
+    while (displayTitle.length > 3 && measure.widthOf(`${displayTitle}...`, titleSize, true) > maxTitleWidth) {
+      displayTitle = displayTitle.slice(0, -1);
+    }
+    displayTitle = `${displayTitle}...`;
+  }
+
+  cursor.text({ text: displayTitle, y, size: titleSize, bold: true });
+  if (dateText) {
+    cursor.text({ text: dateText, x: cursor.pageRight, y, align: "right", size: BODY_SIZE, bold: false });
+  }
+}
+
 function emitBulletLines(cursor: PageCursor, lines: string[], textWidth: number, measure: TextMeasurer): void {
   maybeMoveMultilineUnit(cursor, lines.length, BODY_SIZE);
   lines.forEach((line, idx) => {
@@ -379,14 +413,11 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
     return;
   }
 
-  // entry: title/company left, date right, same line — then its bullets.
+  // entry: title/company left, date right, same baseline — then its bullets.
   maybeMoveEntryWithFirstBullet(cursor, block.bullets.length > 0);
   cursor.reserveLine(HEADING_SIZE);
   const y = cursor.baselineY(HEADING_SIZE);
-  cursor.text({ text: normalizeResumeDrawText(block.title), y, size: HEADING_SIZE, bold: true });
-  if (block.dateRight) {
-    cursor.text({ text: normalizeResumeDrawText(block.dateRight), x: cursor.pageRight, y, align: "right", size: BODY_SIZE, bold: false });
-  }
+  emitEntryTitleLine(cursor, block.title, block.dateRight, y, measure);
   cursor.advanceLine(HEADING_SIZE);
   cursor.advance(GAP_ENTRY_TITLE_TO_BULLETS);
   emitBlock(cursor, { kind: "bullets", items: block.bullets }, measure);

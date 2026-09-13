@@ -19,6 +19,7 @@
  * renderer stays agnostic to which of the two adapters produced it.
  */
 import { buildContactLine, isContactOrPlaceLine, sanitizeContactLine, sanitizeLocation } from "@/lib/resume/contact-line";
+import { descriptionToBullets, shouldAppendAsBulletContinuation } from "@/lib/resume/merge-bullet-lines";
 import type { ResumeData } from "@/types/resume";
 
 export type ParsedResumeBlock =
@@ -40,7 +41,7 @@ export interface ParsedResumeDocument {
   sections: ParsedResumeSection[];
 }
 
-const BULLET_RE = /^[-*•−]\s+(.+)$/;
+const BULLET_RE = /^[-*•−●◦▪]\s+(.+)$/;
 const MD_HEADING_RE = /^(#{1,6})\s+(.+)$/;
 const BOLD_ENTRY_RE = /^\*\*(.+?)\*\*\s*(.*)$/;
 /** Unbolded "Title | Company    date-ish tail" — a two-or-more-space gap is
@@ -196,16 +197,49 @@ export function parseResumeContent(content: string): ParsedResumeDocument {
       continue;
     }
 
+    if (openEntry) {
+      const boldEntryInOpen = trimmed.match(BOLD_ENTRY_RE);
+      const looseGapInOpen = !boldEntryInOpen ? trimmed.match(LOOSE_ENTRY_GAP_RE) : null;
+      const looseEntryInOpen = looseGapInOpen && DATE_ISH_RE.test(looseGapInOpen[2]) ? looseGapInOpen : null;
+      if (boldEntryInOpen || looseEntryInOpen) {
+        const [, title, rest] = (boldEntryInOpen ?? looseEntryInOpen)!;
+        const entry: Extract<ParsedResumeBlock, { kind: "entry" }> = {
+          kind: "entry",
+          title: title.replace(/\*\*/g, "").trim(),
+          dateRight: rest.trim() || null,
+          bullets: [],
+        };
+        ensureSection().blocks.push(entry);
+        openEntry = entry;
+        openParagraph = null;
+        continue;
+      }
+
+      const bulletMatch = trimmed.match(BULLET_RE);
+      if (bulletMatch) {
+        openEntry.bullets.push(bulletMatch[1].trim());
+        openParagraph = null;
+        continue;
+      }
+
+      const lastBullet = openEntry.bullets.at(-1);
+      if (lastBullet !== undefined && shouldAppendAsBulletContinuation(trimmed, lastBullet)) {
+        openEntry.bullets[openEntry.bullets.length - 1] = `${lastBullet} ${trimmed}`.replace(/\s+/g, " ").trim();
+        openParagraph = null;
+        continue;
+      }
+
+      openEntry.bullets.push(trimmed);
+      openParagraph = null;
+      continue;
+    }
+
     const bulletMatch = trimmed.match(BULLET_RE);
     if (bulletMatch) {
       const section = ensureSection();
-      if (openEntry) {
-        openEntry.bullets.push(bulletMatch[1].trim());
-      } else {
-        const last = section.blocks.at(-1);
-        if (last && last.kind === "bullets") last.items.push(bulletMatch[1].trim());
-        else section.blocks.push({ kind: "bullets", items: [bulletMatch[1].trim()] });
-      }
+      const last = section.blocks.at(-1);
+      if (last && last.kind === "bullets") last.items.push(bulletMatch[1].trim());
+      else section.blocks.push({ kind: "bullets", items: [bulletMatch[1].trim()] });
       continue;
     }
 
@@ -274,10 +308,7 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
         kind: "entry" as const,
         title: `${e.role} | ${e.company}`,
         dateRight: e.dates || null,
-        bullets: e.description
-          .split("\n")
-          .map((l) => l.replace(BULLET_RE, "$1").trim())
-          .filter(Boolean),
+        bullets: descriptionToBullets(e.description),
       })),
     });
   }
@@ -288,10 +319,7 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
         kind: "entry" as const,
         title: e.company ? `${e.role} | ${e.company}` : e.role,
         dateRight: e.dates || null,
-        bullets: e.description
-          .split("\n")
-          .map((l) => l.replace(BULLET_RE, "$1").trim())
-          .filter(Boolean),
+        bullets: descriptionToBullets(e.description),
       })),
     });
   }

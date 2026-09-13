@@ -15,6 +15,7 @@ import {
     looksLikeRealPlaceSegment,
     sanitizeLocation,
 } from "@/lib/resume/contact-line";
+import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import type { ResumeCompetencyCategory, ResumeEducation, ResumeExperience, ResumeProfile } from "@/types/resume";
 
@@ -275,11 +276,12 @@ function pushExperienceEntry(
     const normalizedCompany = company.trim();
     const normalizedRole = role.trim();
     if (!normalizedCompany && !normalizedRole) return;
+    const merged = mergeResumeBulletLines(descLines);
     entries.push({
         company: normalizedCompany,
         role: normalizedRole,
         dates,
-        description: descLines.map((d) => d.replace(BULLET_RE, "• ")).join("\n"),
+        description: merged.map((d) => `• ${d}`).join("\n"),
     });
 }
 

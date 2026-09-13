@@ -11,6 +11,7 @@ import {
     initLocalAiLadder,
 } from "./ladder";
 import { locationText } from "@/lib/jobs/presentation";
+import { descriptionToBullets } from "@/lib/resume/merge-bullet-lines";
 import {
     heuristicTailorResume,
     introducesNewNumbers,
@@ -49,7 +50,7 @@ export function buildModelPrompt(resume: ResumeData, job: TailorJobInput): strin
         .filter((e) => e.description?.trim())
         .slice(0, 4)
         .map((e) => {
-            const firstBullet = e.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8) ?? "";
+            const firstBullet = descriptionToBullets(e.description).find((l) => l.length >= 8) ?? "";
             return `- id: ${e.id}, role: ${e.role}, company: ${e.company}, bullet: ${firstBullet.slice(0, 200)}`;
         })
         .join("\n");
@@ -106,7 +107,7 @@ function applyModelTailor(
         if (expIdx < 0) continue;
 
         const exp = resume.experience[expIdx];
-        const hit = exp.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8);
+        const hit = descriptionToBullets(exp.description).find((l) => l.length >= 8);
         if (!hit) continue;
 
         if (introducesNewNumbers(hit, text)) continue;
@@ -118,7 +119,7 @@ function applyModelTailor(
             if (mentioned && !text.toLowerCase().includes(origCompany)) continue;
         }
 
-        const lines = exp.description.split(/\n|•/).map((l) => l.replace(/^[\s\-*]+/, "").trim()).filter(Boolean);
+        const lines = descriptionToBullets(exp.description);
         const lineIdx = lines.findIndex((l) => l === hit || l.includes(hit.slice(0, 20)));
         if (lineIdx >= 0) {
             lines[lineIdx] = text;

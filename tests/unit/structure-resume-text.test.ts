@@ -6,6 +6,7 @@ import {
     LOCAL_PARSE_ACCEPT_MIN,
     scoreLocalParseConfidence,
 } from "../../src/lib/local-ai/parse-confidence";
+import { descriptionToBullets } from "../../src/lib/resume/merge-bullet-lines";
 import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
 
 const FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/sample-resume.txt"), "utf8");
@@ -185,6 +186,24 @@ Salesforce`;
         assert.ok(names.includes("Technical"));
         const technical = out.competencies.find((c) => c.category === "Technical");
         assert.ok((technical?.skills.length ?? 0) > 10, "Technical line should not be capped at 30 total");
+    });
+
+    it("merges PDF-extracted soft wrap into one MSA bullet (wrapped-source sample)", () => {
+        const wrapped = [
+            "Vivek Narayanan",
+            "vivek@example.com",
+            "PROFESSIONAL EXPERIENCE",
+            "Client-facing Product Manager | TELUS Health Wellbeing    September '21 — Present",
+            "- Owned the client-facing product roadmap for the Medibank wellbeing platform under a 3-year,",
+            "multi-million-dollar MSA — translating client strategy into scoped, estimated, and",
+            "prioritized SOWs across a $1.7M ARR, 2-account portfolio.",
+        ].join("\n");
+        const out = structureResumeText(wrapped);
+        const telus = out.experience.find((e) => /telus/i.test(e.company));
+        assert.ok(telus);
+        const bullets = descriptionToBullets(telus!.description);
+        assert.equal(bullets.length, 1);
+        assert.ok(bullets[0].includes("translating client strategy"));
     });
 
     it("vivek golden: parses independent projects and education with intact institution", () => {

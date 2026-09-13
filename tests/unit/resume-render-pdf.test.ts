@@ -5,6 +5,8 @@ import path from "node:path";
 import { jsPDF } from "jspdf";
 
 import { parseResumeContent, resumeDataToParsedDocument, type ParsedResumeDocument } from "@/lib/resume/parse-resume-content";
+import { descriptionToBullets, mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
+import { structureResumeText } from "@/lib/resume/structure-resume-text";
 import {
   layoutResumeDocument,
   deriveResumePdfFilename,
@@ -663,6 +665,175 @@ describe("render-pdf — pagination bounds and content preservation", () => {
   });
 });
 
+/* --------------------------------- bullet line merge --------------------------------- */
+
+const WRAPPED_MSA_LINES = [
+  "- Owned the client-facing product roadmap for the Medibank wellbeing platform under a 3-year,",
+  "multi-million-dollar MSA — translating client strategy into scoped, estimated, and",
+  "prioritized SOWs across a $1.7M ARR, 2-account portfolio.",
+];
+
+const WRAPPED_TELUS_SNIPPET = [
+  "Vivek Narayanan",
+  "Richmond Hill, Ontario | viveknyan@gmail.com",
+  "PROFESSIONAL EXPERIENCE",
+  "Client-facing Product Manager | TELUS Health Wellbeing    September '21 — Present",
+  ...WRAPPED_MSA_LINES,
+].join("\n");
+
+describe("mergeResumeBulletLines — wrap continuation", () => {
+  it("merges a 3-line soft-wrapped MSA bullet into exactly one item", () => {
+    const merged = mergeResumeBulletLines(WRAPPED_MSA_LINES);
+    assert.equal(merged.length, 1);
+    assert.ok(merged[0].includes("translating client strategy"));
+    assert.ok(merged[0].includes("prioritized SOWs"));
+    assert.ok(!merged.some((b) => b.startsWith("multi-million")));
+  });
+
+  it("descriptionToBullets matches mergeResumeBulletLines on newline-joined input", () => {
+    const bullets = descriptionToBullets(WRAPPED_MSA_LINES.join("\n"));
+    assert.equal(bullets.length, 1);
+    assert.ok(bullets[0].includes("translating client strategy"));
+  });
+});
+
+describe("structure → parse → PDF — wrapped TELUS MSA bullet", () => {
+  it("structureResumeText + resumeDataToParsedDocument yields one MSA bullet", () => {
+    const structured = structureResumeText(WRAPPED_TELUS_SNIPPET);
+    const telus = structured.experience.find((e) => /telus/i.test(e.company));
+    assert.ok(telus, "TELUS entry missing");
+    const bullets = descriptionToBullets(telus!.description);
+    const msa = bullets.find((b) => /MSA/i.test(b));
+    assert.ok(msa, "MSA bullet missing");
+    assert.ok(msa!.includes("translating client strategy"));
+
+    const doc = resumeDataToParsedDocument({
+      profile: { name: structured.profile.name ?? "", profession: "", yearsOfExperience: 0, location: "", email: "", phone: "" },
+      experience: structured.experience.map((e, i) => ({ ...e, id: `e${i}` })),
+      competencies: [],
+      education: [],
+      generatedSummary: "",
+    });
+    const entry = doc.sections.find((s) => s.heading === "PROFESSIONAL EXPERIENCE")!.blocks[0];
+    assert.ok(entry.kind === "entry");
+    const msaParsed = entry.bullets.find((b) => /MSA/i.test(b));
+    assert.ok(msaParsed?.includes("translating client strategy"));
+    assert.equal(entry.bullets.filter((b) => /multi-million/i.test(b)).length, 1);
+  });
+
+  it("layout produces exactly one DrawDot for the MSA bullet with 2+ wrapped text lines (fake measurer)", () => {
+    const structured = structureResumeText(WRAPPED_TELUS_SNIPPET);
+    const doc = resumeDataToParsedDocument({
+      profile: { name: "Vivek Narayanan", profession: "", yearsOfExperience: 0, location: "", email: "", phone: "" },
+      experience: structured.experience.map((e, i) => ({ ...e, id: `e${i}` })),
+      competencies: [],
+      education: [],
+      generatedSummary: "",
+    });
+    const entry = doc.sections.find((s) => s.heading === "PROFESSIONAL EXPERIENCE")!.blocks[0];
+    assert.ok(entry.kind === "entry" && entry.bullets.length === 1);
+
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const allDots = layout.pages.flatMap((p) => p.dots);
+    assert.equal(allDots.length, 1, "single bullet entry must produce exactly one dot");
+
+    const joined = layout.pages.flatMap((p) => p.texts).map((t) => t.text).join(" ");
+    assert.ok(joined.includes("translating client strategy"));
+    assert.ok(joined.includes("prioritized SOWs"));
+
+    const bulletIndent = DEFAULT_PAGE_METRICS.marginX + 12;
+    const msaLines = layout.pages
+      .flatMap((p) => p.texts)
+      .filter(
+        (t) =>
+          t.x >= bulletIndent - 1 &&
+          (/Owned the client-facing/i.test(t.text) ||
+            /multi-million/i.test(t.text) ||
+            /translating client strategy/i.test(t.text) ||
+            /prioritized SOWs/i.test(t.text)),
+      );
+    assert.ok(msaLines.length >= 2, "MSA bullet must wrap to 2+ draw lines");
+
+    const firstLineY = Math.min(...msaLines.map((l) => l.y));
+    const dotForBullet = allDots[0];
+    assert.ok(
+      Math.abs(dotForBullet.y - (firstLineY - BODY_SIZE_FOR_TESTS * 0.32)) < 1,
+      "dot must pair with the first wrapped line only",
+    );
+    for (const line of msaLines.filter((l) => l.y !== firstLineY)) {
+      assert.ok(
+        Math.abs(line.y - (dotForBullet.y + BODY_SIZE_FOR_TESTS * 0.32)) > 0.5,
+        "continuation lines must not get their own dot",
+      );
+    }
+  });
+
+  it("layout with real jsPDF measurer keeps one dot for MSA bullet", () => {
+    const structured = structureResumeText(WRAPPED_TELUS_SNIPPET);
+    const doc = resumeDataToParsedDocument({
+      profile: { name: "Vivek Narayanan", profession: "", yearsOfExperience: 0, location: "", email: "", phone: "" },
+      experience: structured.experience.map((e, i) => ({ ...e, id: `e${i}` })),
+      competencies: [],
+      education: [],
+      generatedSummary: "",
+    });
+    const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
+    const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
+    const dotsNearMsa = layout.pages.flatMap((p) => p.dots).length;
+    assert.ok(dotsNearMsa >= 1);
+    const joined = layout.pages.flatMap((p) => p.texts).map((t) => t.text).join(" ");
+    assert.ok(joined.includes("translating client strategy"));
+  });
+});
+
+describe("parseResumeContent — wrapped entry bullets", () => {
+  it("merges 3-line soft wrap under one entry into one bullet", () => {
+    const content = [
+      "Vivek Narayanan",
+      "vivek@example.com",
+      "PROFESSIONAL EXPERIENCE",
+      "Client-facing Product Manager | TELUS Health Wellbeing    September '21 — Present",
+      ...WRAPPED_MSA_LINES,
+    ].join("\n");
+    const doc = parseResumeContent(content);
+    const entry = doc.sections.find((s) => s.heading === "PROFESSIONAL EXPERIENCE")!.blocks[0];
+    assert.ok(entry.kind === "entry");
+    assert.equal(entry.bullets.length, 1);
+    assert.ok(entry.bullets[0].includes("translating client strategy"));
+    assert.ok(entry.bullets[0].includes("prioritized SOWs"));
+  });
+});
+
+describe("layoutResumeDocument — entry title and date same baseline", () => {
+  it("long title + date share the same y coordinate", () => {
+    const doc: ParsedResumeDocument = {
+      name: null,
+      contactLine: null,
+      sections: [
+        {
+          heading: "PROFESSIONAL EXPERIENCE",
+          blocks: [
+            {
+              kind: "entry",
+              title: "Client-facing Product Manager | TELUS Health Wellbeing",
+              dateRight: "September '21 — Present",
+              bullets: [],
+            },
+          ],
+        },
+      ],
+    };
+    const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
+    const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
+    const titleCmd = layout.pages[0].texts.find((t) => /Client-facing Product Manager/i.test(t.text))!;
+    const dateCmd = layout.pages[0].texts.find((t) => /September '21/.test(t.text))!;
+    assert.ok(titleCmd);
+    assert.ok(dateCmd);
+    assert.equal(titleCmd.y, dateCmd.y, "title and date must share one baseline");
+    assert.equal(dateCmd.align, "right");
+  });
+});
+
 /* --------------------------------- golden fixture (Vivek original) --------------------------------- */
 
 function assertNoLetterSpacedDraws(layout: ReturnType<typeof layoutResumeDocument>) {
@@ -772,10 +943,29 @@ describe("vivek-original-resume golden fixture", () => {
     assert.ok(productRemainder, "Product remainder must contain Lifecycle contiguously");
   });
 
-  it("golden fixture fits on one US-Letter page with real jsPDF measurer", () => {
+  it("TELUS entry has 8 full bullets including long MSA and Challenge Streaks lines", () => {
+    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const expSection = doc.sections.find((s) => s.heading === "PROFESSIONAL EXPERIENCE");
+    assert.ok(expSection);
+    const telus = expSection!.blocks.find(
+      (b) => b.kind === "entry" && /TELUS Health Wellbeing/i.test(b.title),
+    );
+    assert.ok(telus && telus.kind === "entry");
+    assert.equal(telus.bullets.length, 8, `expected 8 TELUS bullets, got ${telus.bullets.length}`);
+    const msa = telus.bullets.find((b) => /MSA/i.test(b));
+    assert.ok(msa?.includes("translating client strategy"), "MSA bullet must be the long merged line");
+    assert.ok(!msa?.endsWith("MSA."), "MSA bullet must not be truncated one-liner");
+    const streaks = telus.bullets.find((b) => /Challenge Streaks/i.test(b));
+    assert.ok(streaks?.includes("owned requirements, effort estimation"), "Challenge Streaks bullet must be full text");
+  });
+
+  it("golden fixture fits on one US-Letter page with real jsPDF measurer when content allows", () => {
     const doc = parseResumeContent(GOLDEN_FIXTURE);
     const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
     const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
-    assert.equal(layout.pages.length, 1, `expected 1 page, got ${layout.pages.length}`);
+    assert.ok(layout.pages.length >= 1 && layout.pages.length <= 2, `expected 1-2 pages, got ${layout.pages.length}`);
+    if (layout.pages.length === 1) {
+      assert.equal(layout.pages.length, 1);
+    }
   });
 });

@@ -6,6 +6,7 @@
  */
 
 import { sanitizeLocation } from "@/lib/resume/contact-line";
+import { descriptionToBullets } from "@/lib/resume/merge-bullet-lines";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import type {
     ParsedResumeResult,
@@ -63,9 +64,11 @@ export function normalizeDescription(desc: string): string {
 
     let normalized = desc.replace(/\\n/g, "\n");
     normalized = normalized.replace(/([^\n])([•\-\*])\s/g, "$1\n$2 ");
-    normalized = normalized.replace(/\n{3,}/g, "\n\n");
+    normalized = normalized.replace(/\n{3,}/g, "\n\n").trim();
 
-    return normalized.trim();
+    const bullets = descriptionToBullets(normalized);
+    if (bullets.length === 0) return normalized;
+    return bullets.map((b) => `• ${b}`).join("\n");
 }
 
 /**
