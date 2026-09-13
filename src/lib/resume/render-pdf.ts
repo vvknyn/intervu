@@ -92,36 +92,50 @@ export interface PageMetrics {
   marginBottom: number;
 }
 
+/** Extra clearance below a text baseline / dot center so descenders never
+ *  clip into the bottom margin. Used by layout bounds checks and tests. */
+export const DESCENT_PAD = 3;
+
+/** Tuned for CSM golden zip résumé: one US Letter page with real jsPDF metrics. */
+export const RESUME_PDF_TYPOGRAPHY = {
+  nameSize: 16,
+  contactSize: 8.5,
+  headingSize: 9.5,
+  bodySize: 9,
+  lineHeight: 1.15,
+  bulletIndent: 12,
+  bulletDotRadius: 1.5,
+  ruleGapBelowText: 3,
+  sectionGapBefore: 8,
+  gapAfterHeadingRule: 4,
+  gapBetweenBlocks: 3,
+  gapEntryTitleToBullets: 2,
+  marginTop: 28,
+  marginBottom: 28,
+} as const;
+
 /** US Letter, tight margins — matches the reference design (Indigo-Digital-
  *  Product-Manager-resume-2026-08-07.pdf): ~0.55in sides, ~0.5in top/bottom. */
 export const DEFAULT_PAGE_METRICS: PageMetrics = {
   pageWidth: 612,
   pageHeight: 792,
   marginX: 40,
-  marginTop: 30,
-  marginBottom: 30,
+  marginTop: RESUME_PDF_TYPOGRAPHY.marginTop,
+  marginBottom: RESUME_PDF_TYPOGRAPHY.marginBottom,
 };
 
-/** Extra clearance below a text baseline / dot center so descenders never
- *  clip into the bottom margin. Used by layout bounds checks and tests. */
-export const DESCENT_PAD = 3;
-
-const NAME_SIZE = 17;
-const CONTACT_SIZE = 8.5;
-const HEADING_SIZE = 10;
-const BODY_SIZE = 9;
-const LINE_HEIGHT = 1.2;
-const BULLET_INDENT = 12;
-const BULLET_DOT_RADIUS = 1.5;
-/** Gap between a section heading's text baseline (accounting for descenders)
- *  and the rule drawn beneath it — sized so the rule never crosses the
- *  glyphs above it (the "struck through" bug: the rule used to be placed
- *  mid-line-height, cutting through cap-height letters). */
-const RULE_GAP_BELOW_TEXT = 3;
-const SECTION_GAP_BEFORE = 10;
-const GAP_AFTER_HEADING_RULE = 5;
-const GAP_BETWEEN_BLOCKS = 3;
-const GAP_ENTRY_TITLE_TO_BULLETS = 2;
+const NAME_SIZE = RESUME_PDF_TYPOGRAPHY.nameSize;
+const CONTACT_SIZE = RESUME_PDF_TYPOGRAPHY.contactSize;
+const HEADING_SIZE = RESUME_PDF_TYPOGRAPHY.headingSize;
+const BODY_SIZE = RESUME_PDF_TYPOGRAPHY.bodySize;
+const LINE_HEIGHT = RESUME_PDF_TYPOGRAPHY.lineHeight;
+const BULLET_INDENT = RESUME_PDF_TYPOGRAPHY.bulletIndent;
+const BULLET_DOT_RADIUS = RESUME_PDF_TYPOGRAPHY.bulletDotRadius;
+const RULE_GAP_BELOW_TEXT = RESUME_PDF_TYPOGRAPHY.ruleGapBelowText;
+const SECTION_GAP_BEFORE = RESUME_PDF_TYPOGRAPHY.sectionGapBefore;
+const GAP_AFTER_HEADING_RULE = RESUME_PDF_TYPOGRAPHY.gapAfterHeadingRule;
+const GAP_BETWEEN_BLOCKS = RESUME_PDF_TYPOGRAPHY.gapBetweenBlocks;
+const GAP_ENTRY_TITLE_TO_BULLETS = RESUME_PDF_TYPOGRAPHY.gapEntryTitleToBullets;
 /** Minimum entry-title font when shrinking to avoid overlap with right-aligned dates. */
 const MIN_ENTRY_TITLE_SIZE = 8.5;
 const ENTRY_TITLE_DATE_GAP = 8;
@@ -385,10 +399,23 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
   }
 
   if (block.kind === "competency") {
-    const prefix = `${block.category}: `;
-    const label = `${block.category}:`;
+    const cat = block.category.trim();
+    const isGenericCategory = !cat || cat === "Skills" || cat === "Skill";
     const normalizedItems = normalizeResumeDrawText(block.items);
-    const lines = wrapWithPrefix(prefix, normalizedItems, width, BODY_SIZE, measure);
+    const inlineMatch = isGenericCategory ? normalizedItems.match(/^([^:]{2,60}):\s*(.+)$/) : null;
+    const effectiveCategory = isGenericCategory ? (inlineMatch?.[1]?.trim() ?? "") : cat;
+    const effectiveItems = isGenericCategory ? (inlineMatch?.[2]?.trim() ?? normalizedItems) : normalizedItems;
+
+    if (!effectiveCategory) {
+      const lines = measure.wrap(effectiveItems, width, BODY_SIZE);
+      emitParagraphLines(cursor, lines, BODY_SIZE, false, width, measure);
+      cursor.advance(GAP_BETWEEN_BLOCKS);
+      return;
+    }
+
+    const prefix = `${effectiveCategory}: `;
+    const label = `${effectiveCategory}:`;
+    const lines = wrapWithPrefix(prefix, effectiveItems, width, BODY_SIZE, measure);
     maybeMoveMultilineUnit(cursor, lines.length, BODY_SIZE);
     lines.forEach((line, idx) => {
       cursor.reserveLine(BODY_SIZE);

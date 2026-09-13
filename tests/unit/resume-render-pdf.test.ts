@@ -12,12 +12,15 @@ import {
   deriveResumePdfFilename,
   DEFAULT_PAGE_METRICS,
   DESCENT_PAD,
+  RESUME_PDF_TYPOGRAPHY,
   jsPdfMeasurer,
+  renderResumePdf,
   type TextMeasurer,
 } from "@/lib/resume/render-pdf";
 import type { ResumeData } from "@/types/resume";
 
-const GOLDEN_FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-original-resume.txt"), "utf8");
+const PM_FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-pm-resume.txt"), "utf8");
+const CSM_GOLDEN_FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-csm-golden-resume.txt"), "utf8");
 
 /** Mirrors render-pdf.ts's internal BODY_SIZE — not exported (an internal
  *  tuning constant, not public API), so gap-math assertions here recompute
@@ -158,7 +161,7 @@ describe("resumeDataToParsedDocument", () => {
     assert.equal(doc.name, "Ada Lovelace");
     assert.deepEqual(
       doc.sections.map((s) => s.heading),
-      ["PROFESSIONAL SUMMARY", "CORE COMPETENCIES", "PROFESSIONAL EXPERIENCE", "EDUCATION"],
+      ["PROFESSIONAL SUMMARY", "CORE COMPETENCIES", "PROFESSIONAL EXPERIENCE", "EDUCATION & PROFESSIONAL DEVELOPMENT"],
     );
     const exp = doc.sections[2].blocks[0];
     assert.ok(exp.kind === "entry" && exp.title === "Engineer | Acme" && exp.bullets.length === 2);
@@ -609,7 +612,7 @@ describe("render-pdf — pagination bounds and content preservation", () => {
   });
 
   it("short one-line bullets packed to the page bottom stay within DESCENT_PAD — reserveLine uses drawn baseline, not line-box height", () => {
-    const items = Array.from({ length: 65 }, (_, i) => `Item ${i}.`);
+    const items = Array.from({ length: 75 }, (_, i) => `Item ${i}.`);
     const doc: ParsedResumeDocument = {
       name: null,
       contactLine: null,
@@ -842,9 +845,9 @@ function assertNoLetterSpacedDraws(layout: ReturnType<typeof layoutResumeDocumen
   }
 }
 
-describe("vivek-original-resume golden fixture", () => {
+describe("vivek-pm-resume fixture", () => {
   it("contact line includes Richmond Hill and excludes summary fragments", () => {
-    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const doc = parseResumeContent(PM_FIXTURE);
     assert.ok(doc.contactLine?.includes("Richmond Hill"), `contactLine: ${doc.contactLine}`);
     assert.ok(!doc.contactLine?.includes("into prioritized"), `contactLine polluted: ${doc.contactLine}`);
     assert.ok(!doc.contactLine?.includes("shippable roadmaps"), `contactLine polluted: ${doc.contactLine}`);
@@ -852,7 +855,7 @@ describe("vivek-original-resume golden fixture", () => {
   });
 
   it("malicious line-2 summary fragment is not consumed as contactLine", () => {
-    const malicious = GOLDEN_FIXTURE.replace(
+    const malicious = PM_FIXTURE.replace(
       "Richmond Hill, Ontario | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz",
       "into prioritized, shippable roadmaps.",
     );
@@ -868,7 +871,7 @@ describe("vivek-original-resume golden fixture", () => {
   });
 
   it("strips a summary fragment mixed into an otherwise-valid contact row (the founder Download & apply header)", () => {
-    const mixed = GOLDEN_FIXTURE.replace(
+    const mixed = PM_FIXTURE.replace(
       "Richmond Hill, Ontario | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz",
       "into prioritized, shippable roadmaps. | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz",
     );
@@ -901,7 +904,7 @@ describe("vivek-original-resume golden fixture", () => {
   });
 
   it("parses three competency categories (not a single Skills dump)", () => {
-    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const doc = parseResumeContent(PM_FIXTURE);
     const compSection = doc.sections.find((s) => s.heading === "CORE COMPETENCIES");
     assert.ok(compSection);
     const categories = compSection!.blocks.filter((b) => b.kind === "competency");
@@ -913,7 +916,7 @@ describe("vivek-original-resume golden fixture", () => {
   });
 
   it("parses INDEPENDENT PROJECTS and EDUCATION sections", () => {
-    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const doc = parseResumeContent(PM_FIXTURE);
     assert.ok(doc.sections.some((s) => s.heading === "INDEPENDENT PROJECTS"));
     assert.ok(doc.sections.some((s) => s.heading === "EDUCATION & PROFESSIONAL DEVELOPMENT"));
     const projects = doc.sections.find((s) => s.heading === "INDEPENDENT PROJECTS");
@@ -922,7 +925,7 @@ describe("vivek-original-resume golden fixture", () => {
   });
 
   it("layout has no letter-spaced draw strings (fake measurer)", () => {
-    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const doc = parseResumeContent(PM_FIXTURE);
     const layout = layoutResumeDocument(doc, fakeMeasurer);
     assertNoLetterSpacedDraws(layout);
     const productBlock = doc.sections
@@ -935,7 +938,7 @@ describe("vivek-original-resume golden fixture", () => {
   });
 
   it("layout has no letter-spaced draw strings (real jsPDF measurer)", () => {
-    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const doc = parseResumeContent(PM_FIXTURE);
     const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
     const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
     assertNoLetterSpacedDraws(layout);
@@ -944,7 +947,7 @@ describe("vivek-original-resume golden fixture", () => {
   });
 
   it("TELUS entry has 8 full bullets including long MSA and Challenge Streaks lines", () => {
-    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const doc = parseResumeContent(PM_FIXTURE);
     const expSection = doc.sections.find((s) => s.heading === "PROFESSIONAL EXPERIENCE");
     assert.ok(expSection);
     const telus = expSection!.blocks.find(
@@ -959,13 +962,114 @@ describe("vivek-original-resume golden fixture", () => {
     assert.ok(streaks?.includes("owned requirements, effort estimation"), "Challenge Streaks bullet must be full text");
   });
 
-  it("golden fixture fits on one US-Letter page with real jsPDF measurer when content allows", () => {
-    const doc = parseResumeContent(GOLDEN_FIXTURE);
+  it("PM fixture may span 1–2 US-Letter pages with real jsPDF measurer", () => {
+    const doc = parseResumeContent(PM_FIXTURE);
     const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
     const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
     assert.ok(layout.pages.length >= 1 && layout.pages.length <= 2, `expected 1-2 pages, got ${layout.pages.length}`);
-    if (layout.pages.length === 1) {
-      assert.equal(layout.pages.length, 1);
-    }
+  });
+});
+
+function lastDrawBaseline(layout: ReturnType<typeof layoutResumeDocument>): number {
+  const ys = layout.pages.flatMap((p) => [...p.texts.map((t) => t.y), ...p.dots.map((d) => d.y)]);
+  return ys.length > 0 ? Math.max(...ys) : 0;
+}
+
+describe("vivek-csm-golden-resume zip fixture", () => {
+  it("fits exactly one US-Letter page with real jsPDF measurer", () => {
+    const doc = parseResumeContent(CSM_GOLDEN_FIXTURE);
+    const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
+    const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
+    const maxDrawY = DEFAULT_PAGE_METRICS.pageHeight - DEFAULT_PAGE_METRICS.marginBottom - DESCENT_PAD;
+    const lastBaseline = lastDrawBaseline(layout);
+    assert.equal(layout.pages.length, 1, `expected 1 page, got ${layout.pages.length}; last baseline=${lastBaseline}, max=${maxDrawY}`);
+    assert.ok(lastBaseline <= maxDrawY, `last baseline ${lastBaseline} exceeds page limit ${maxDrawY}`);
+  });
+
+  it("contact line includes Richmond Hill location", () => {
+    const doc = parseResumeContent(CSM_GOLDEN_FIXTURE);
+    assert.ok(doc.contactLine?.includes("Richmond Hill"), `contactLine: ${doc.contactLine}`);
+  });
+
+  it("parses three competency categories — never a Skills wrapper block", () => {
+    const doc = parseResumeContent(CSM_GOLDEN_FIXTURE);
+    const compSection = doc.sections.find((s) => s.heading === "CORE COMPETENCIES");
+    assert.ok(compSection);
+    const categories = compSection!.blocks.filter((b) => b.kind === "competency");
+    assert.equal(categories.length, 3);
+    const names = categories.map((c) => (c.kind === "competency" ? c.category : ""));
+    assert.ok(names.some((n) => /customer success/i.test(n)));
+    assert.ok(names.some((n) => /delivery/i.test(n)));
+    assert.ok(names.some((n) => /platform/i.test(n)));
+    assert.ok(!names.includes("Skills"));
+  });
+
+  it("layout draw texts do not start competency lines with Skills:", () => {
+    const doc = parseResumeContent(CSM_GOLDEN_FIXTURE);
+    const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
+    const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
+    const allText = layout.pages.flatMap((p) => p.texts).map((t) => t.text).join("\n");
+    assert.ok(!/^Skills:/m.test(allText) && !/\nSkills:/.test(allText));
+    assert.ok(allText.includes("Customer Success"));
+    assert.ok(allText.includes("University at Buffalo") || allText.includes("Buffalo"));
+  });
+
+  it("keeps empty INDEPENDENT PROJECTS section when header is present", () => {
+    const doc = parseResumeContent(CSM_GOLDEN_FIXTURE);
+    const projects = doc.sections.find((s) => s.heading === "INDEPENDENT PROJECTS");
+    assert.ok(projects, "INDEPENDENT PROJECTS section must exist");
+    assert.equal(projects!.blocks.length, 0);
+  });
+
+  it("education section uses golden heading and intact University at Buffalo", () => {
+    const doc = parseResumeContent(CSM_GOLDEN_FIXTURE);
+    const edu = doc.sections.find((s) => s.heading === "EDUCATION & PROFESSIONAL DEVELOPMENT");
+    assert.ok(edu);
+    const bullets = edu!.blocks.filter((b) => b.kind === "bullets").flatMap((b) => (b.kind === "bullets" ? b.items : []));
+    assert.ok(bullets.some((b) => /University at Buffalo/i.test(b)));
+    assert.ok(bullets.some((b) => /University of Illinois at Urbana-Champaign/i.test(b)));
+    assert.ok(!bullets.some((b) => /University \| Buffalo/i.test(b)));
+    assert.ok(bullets.some((b) => /MITx/i.test(b)));
+  });
+
+  it("layout text has no Hands-on with robotic tailor spam", () => {
+    const doc = parseResumeContent(CSM_GOLDEN_FIXTURE);
+    const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
+    const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
+    const joined = layout.pages.flatMap((p) => p.texts).map((t) => t.text).join(" ");
+    assert.ok(!/Hands-on with/i.test(joined));
+  });
+
+  it("resumeDataToParsedDocument unpacks Skills category blob", () => {
+    const data = blankResumeData({
+      competencies: [{ category: "Skills", skills: ["Product: Roadmap", "Delivery: Agile"] }],
+    });
+    const doc = resumeDataToParsedDocument(data);
+    const comp = doc.sections.find((s) => s.heading === "CORE COMPETENCIES");
+    assert.ok(comp);
+    const names = comp!.blocks.filter((b) => b.kind === "competency").map((b) => (b.kind === "competency" ? b.category : ""));
+    assert.ok(names.includes("Product"));
+    assert.ok(names.includes("Delivery"));
+    assert.ok(!names.includes("Skills"));
+  });
+
+  it("writes sample PDF and extracted text contains golden markers", async () => {
+    const doc = parseResumeContent(CSM_GOLDEN_FIXTURE);
+    const bytes = renderResumePdf(doc);
+    const outPath = path.join(process.cwd(), "test-resume-csm-golden.pdf");
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(outPath, Buffer.from(bytes));
+
+    const { extractText } = await import("unpdf");
+    const result = await extractText(new Uint8Array(bytes));
+    const text = result.text.join("\n");
+    assert.ok(text.includes("Richmond Hill"));
+    assert.ok(/Customer Success/i.test(text));
+    assert.ok(/Delivery/i.test(text));
+    assert.ok(/Platform/i.test(text));
+    assert.ok(/MITx/i.test(text));
+    assert.ok(/University at Buffalo/i.test(text) || /Buffalo/i.test(text));
+    assert.ok(!/Hands-on with/i.test(text));
+    assert.ok(!/^Skills:/m.test(text));
   });
 });

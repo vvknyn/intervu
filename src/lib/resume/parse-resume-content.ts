@@ -20,6 +20,7 @@
  */
 import { buildContactLine, isContactOrPlaceLine, sanitizeContactLine, sanitizeLocation } from "@/lib/resume/contact-line";
 import { descriptionToBullets, shouldAppendAsBulletContinuation } from "@/lib/resume/merge-bullet-lines";
+import { normalizeCompetencyCategories } from "@/lib/resume/structure-resume-text";
 import type { ResumeData } from "@/types/resume";
 
 export type ParsedResumeBlock =
@@ -295,10 +296,11 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
   if (data.generatedSummary.trim()) {
     sections.push({ heading: "PROFESSIONAL SUMMARY", blocks: [{ kind: "paragraph", text: data.generatedSummary.trim() }] });
   }
-  if (data.competencies.length > 0) {
+  const competencies = normalizeCompetencyCategories(data.competencies);
+  if (competencies.length > 0) {
     sections.push({
       heading: "CORE COMPETENCIES",
-      blocks: data.competencies.map((c) => ({ kind: "competency" as const, category: c.category, items: c.skills.join(", ") })),
+      blocks: competencies.map((c) => ({ kind: "competency" as const, category: c.category, items: c.skills.join(", ") })),
     });
   }
   if (data.experience.length > 0) {
@@ -325,8 +327,21 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
   }
   if (data.education.length > 0) {
     sections.push({
-      heading: "EDUCATION",
-      blocks: [{ kind: "bullets", items: data.education.map((e) => `${e.degree} | ${e.institution}${e.year ? ` | ${e.year}` : ""}`) }],
+      heading: "EDUCATION & PROFESSIONAL DEVELOPMENT",
+      blocks: [
+        {
+          kind: "bullets",
+          items: data.education.map((e) => {
+            const degree = e.degree.trim();
+            const institution = e.institution.trim();
+            const year = e.year?.trim() ?? "";
+            if (institution && year) return `${degree} | ${institution} | ${year}`;
+            if (institution) return `${degree} | ${institution}`;
+            if (year) return `${degree} | ${year}`;
+            return degree;
+          }),
+        },
+      ],
     });
   }
 

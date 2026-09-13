@@ -165,27 +165,57 @@ function composeBaseSummary(resume: ResumeData): string {
     return [prof, yoePhrase].filter(Boolean).join(" — ") + skillPhrase + ".";
 }
 
+/** Strip robotic heuristic tails before rewrite or after model output. */
+export function stripRoboticSummaryTails(text: string): string {
+    return text
+        .replace(/\s*Hands-on with [^.?!]+[.?!]/gi, "")
+        .replace(/\s*Recent focus includes [^.?!]+[.?!]/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function isFullHumanSummary(summary: string): boolean {
+    const trimmed = summary.trim();
+    return trimmed.length > 120 || (trimmed.match(/[.!?]/g)?.length ?? 0) >= 2;
+}
+
+function weaveTrustedAdvisorClause(overlapTerms: string[], result: string): string | null {
+    const fresh = overlapTerms.filter((t) => !termAlreadyPresent(result, t) && t.length >= 4).slice(0, 2);
+    if (fresh.length === 0) return null;
+    const focus = fresh.join(" and ");
+    if (/account|success|sla|stakeholder|enterprise|customer/i.test(focus)) {
+        return `Bring deep fluency in ${focus} from a current enterprise book of business.`;
+    }
+    return null;
+}
+
 function rewriteSummary(
     base: string,
     job: TailorJobInput,
     overlapTerms: string[],
 ): string {
-    let result = base.trim();
+    let result = stripRoboticSummaryTails(base.trim());
+    if (!result) return composeBaseSummary({ generatedSummary: base } as ResumeData);
     if (!result.endsWith(".")) result += ".";
+
+    if (isFullHumanSummary(result)) {
+        const clause = weaveTrustedAdvisorClause(overlapTerms, result);
+        if (clause && !result.includes(clause)) {
+            result = `${result.replace(/\.$/, "")}. ${clause}`;
+        }
+        return result.replace(/\.\s+\./g, ".").replace(/\.\./g, ".");
+    }
 
     const title = job.title.trim();
     if (title && !titleAlreadyInSummary(result, title)) {
-        const clause = `Recent focus includes ${title.toLowerCase()} work.`;
-        result = `${result.replace(/\.$/, "")}. ${clause}`;
-    }
-
-    const freshTerms = overlapTerms.filter((t) => !termAlreadyPresent(result, t)).slice(0, 2);
-    if (freshTerms.length > 0) {
-        const woven =
-            freshTerms.length === 1
-                ? `Hands-on with ${freshTerms[0]}.`
-                : `Hands-on with ${freshTerms[0]} and ${freshTerms[1]}.`;
-        result = `${result.replace(/\.$/, "")}. ${woven}`;
+        const titleTokens = tokenize(title).filter((t) => t.length >= 4);
+        const hasOverlap = titleTokens.some((t) => overlapTerms.includes(t));
+        if (hasOverlap) {
+            const clause = weaveTrustedAdvisorClause(overlapTerms, result);
+            if (clause) {
+                result = `${result.replace(/\.$/, "")}. ${clause}`;
+            }
+        }
     }
 
     return result.replace(/\.\s+\./g, ".").replace(/\.\./g, ".");
@@ -249,7 +279,10 @@ function cloneResume(resume: ResumeData): ResumeData {
 
 /** Detect legacy robotic heuristic patterns — useful in tests. */
 export function looksRoboticTailor(text: string): boolean {
+    const handsOnCount = (text.match(/Hands-on with/gi) ?? []).length;
     return (
+        handsOnCount >= 1 ||
+        /Recent focus includes/i.test(text) ||
         /Targeting .+ roles/i.test(text) ||
         /Skilled in /i.test(text) ||
         /^Led .+ — /m.test(text) ||

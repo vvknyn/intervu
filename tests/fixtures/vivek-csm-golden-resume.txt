@@ -1,0 +1,38 @@
+Vivek Narayanan
+Richmond Hill, Ontario | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar
+
+PROFESSIONAL SUMMARY
+Senior Customer Success and Technical Account Manager with 12 years of experience driving adoption, retention, and revenue growth for enterprise SaaS accounts ($1.7M+ ARR). Proven record of building trusted-advisor relationships with C-level executives, managing complex implementations, and leading incident response to preserve contract value. Expert in SLA governance, MSA/SOW negotiation, and enterprise workflow automation — with deep fluency in procurement-adjacent platforms (ServiceNow, JIRA, Confluence). Passionate about customer advocacy, cross-functional alignment, and delivering measurable business impact.
+
+CORE COMPETENCIES
+Customer Success & Account Management: Technical Account Management, Enterprise Portfolio Ownership ($1.7M+ ARR), QBRs & Executive Stakeholder Management, SLA Governance & MSA/SOW Negotiation, Customer Adoption & Retention Strategy, Implementation & Onboarding
+Delivery & Process Excellence: Incident Command & RCA/PIR, Cross-Functional Team Leadership, Agile/Scrum Methodologies, Requirements Analysis & Scoping, Workflow Automation & Process Optimization, Regulatory Compliance (APRA CPS 234)
+Platforms & Tools: ServiceNow, JIRA, Confluence, New Relic, Postman, PowerBI, SQL, Python, REST APIs, Firebase
+
+PROFESSIONAL EXPERIENCE
+Client-facing Product Manager | TELUS Health Wellbeing    September 2021 — Present
+- Served as named Technical Account Manager and sole owner of a $1.7M portfolio across 2 enterprise accounts, including Medibank, over a 3-year multi-million MSA, driving 100% retention and expansion opportunities through SOW negotiation, SLA governance, and quarterly business reviews with C-level stakeholders — increasing product adoption year-over-year.
+- Led incident command for a critical P2 SLA breach, directing a cross-team emergency response that reduced API latency by 85% (from 20–29s to <3s) and averted a P1 escalation — protecting $550–700K AUD in service credits and reinforcing customer confidence through proactive executive communications.
+- Owned the post-incident response for an LB4 service outage, coordinating engineering triage and client communication to restore availability and contain impact, then led the post-incident review that identified root cause and hardened the system against recurrence.
+- Managed delivery of 4+ concurrent SOWs (~800 hours of engineering effort) by coordinating cross-functional teams from engineering, QA, and product, while maintaining regular syncs with client business and IT stakeholders — headlining a complex API migration that deprecated 15+ legacy endpoints with zero business disruption.
+- Architected and delivered an automated data deletion and inactivity reporting pipeline (Project Zorro) processing 500+ records per cycle to ensure compliance with APRA CPS 234, reducing manual effort by 90% and eliminating regulatory risk.
+- Overhauled API observability in New Relic — endpoint-level, SLA-color-coded monitoring that sustained 99.95% uptime and a <20-minute time-to-first-response across AU/CA/SG/NA.
+
+Technology Lead | Tracxn Technologies    July 2019 — February 2020
+- Led a 5-person engineering team to overhaul API workflows for a startup data platform, slashing feature release timelines and improving data pipeline performance.
+- Drove the product-to-engineering workflow by translating product requirements into a prioritized backlog and managing all dev tasks to successful completion.
+
+Team Lead | Zophop Technologies    May 2018 — May 2019
+- Acted as primary client-facing lead for a major transportation client (BMTC), collaborating with their operations team to identify data-accuracy pain points. Re-engineered vehicle-tracking logic to boost dashboard metric accuracy by 20%, directly improving client operational decision-making.
+- Increased GPS device availability by 35% by engineering a new field-operations dashboard; led cross-functional analysis with third-party vendors and field teams to diagnose and solve device downtime.
+
+Senior Software Engineer | Optym    February 2013 — April 2018
+- Served as solutions consultant for enterprise LTL clients, facilitating data-scoping workshops with client planning teams to identify operational inefficiencies. Delivered 4–5% cost savings through route optimization, translating complex data into actionable insights and building consensus across client organizations.
+- Accelerated product adoption by 80% by identifying data consistency issues during client discovery and deploying a custom ETL solution to standardize inputs, eliminating data-ingestion issues for new clients.
+
+INDEPENDENT PROJECTS
+
+EDUCATION & PROFESSIONAL DEVELOPMENT
+- MITx Micromasters Program in Statistics and Data Science | Massachusetts Institute of Technology
+- M.B.A., General Business Administration | University of Illinois at Urbana-Champaign
+- M.S., Computer Science | University at Buffalo

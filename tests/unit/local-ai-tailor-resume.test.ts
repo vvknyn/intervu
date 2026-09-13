@@ -80,6 +80,7 @@ describe("heuristicTailorResume", () => {
         });
 
         assert.match(draft.summaryAfter.toLowerCase(), /product manager/);
+        assert.ok(!/Hands-on with/i.test(draft.summaryAfter));
         assert.equal(draft.engineId, "heuristic");
         assert.equal(draft.usedDescription, true);
 
@@ -176,14 +177,58 @@ describe("heuristicTailorResume", () => {
 });
 
 describe("buildModelPrompt voice rules", () => {
-    it("includes voice constraints and forbids Results-driven", () => {
+    it("includes voice constraints and forbids Results-driven and Hands-on stubs", () => {
         const prompt = buildModelPrompt(PM_RESUME, {
             title: "Product Manager",
             tags: ["roadmap"],
         });
         assert.match(prompt, /Results-driven/);
+        assert.match(prompt, /Hands-on with/i);
         assert.match(prompt, /not keyword-stuffed/i);
         assert.equal(prompt.includes(TAILOR_VOICE_RULES), true);
+    });
+});
+
+describe("looksRoboticTailor", () => {
+    it("flags Hands-on with stubs", () => {
+        assert.equal(looksRoboticTailor("Hands-on with education and technology."), true);
+        assert.equal(looksRoboticTailor("Recent focus includes product manager work."), true);
+    });
+});
+
+describe("CSM heuristic tailor voice", () => {
+    it("does not append Hands-on with for leftover JD tokens", () => {
+        const csmResume = mkResume(
+            {
+                profession: "Customer Success Manager",
+                yearsOfExperience: 12,
+            },
+            [
+                {
+                    id: "exp-csm",
+                    company: "TELUS Health",
+                    role: "Technical Account Manager",
+                    dates: "2021 - Present",
+                    description:
+                        "Served as named Technical Account Manager for a $1.7M portfolio across enterprise accounts.",
+                },
+            ],
+            [{ category: "Customer Success", skills: ["SLA governance", "QBRs"] }],
+        );
+        csmResume.generatedSummary =
+            "Senior Customer Success and Technical Account Manager with 12 years driving adoption, retention, and revenue growth for enterprise SaaS accounts ($1.7M+ ARR). Proven record of building trusted-advisor relationships with C-level executives.";
+
+        const draft = heuristicTailorResume(csmResume, {
+            title: "Customer Success Manager",
+            company: "Velai",
+            tags: ["education", "learning", "account"],
+            description:
+                "Drive customer education programs and learning paths. Own strategic account relationships.",
+            occupation: "Customer Success",
+        });
+
+        assert.ok(!/Hands-on with/i.test(draft.summaryAfter));
+        assert.equal(looksRoboticTailor(draft.summaryAfter), false);
     });
 });
 

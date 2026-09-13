@@ -192,6 +192,7 @@ function looksLikeNextLineCompany(line: string): boolean {
 }
 
 function isSectionHeader(line: string): string | null {
+    if (/^skills?:\s+\S/i.test(line.trim())) return null;
     const key = normalizeSectionKey(line);
     if (ALL_SECTION_HEADERS.has(key)) return key;
     // Fuzzy header heuristics only on short lines — prose like "12+ years of experience" must not flip sections.
@@ -420,13 +421,74 @@ function extractLocation(lines: string[]): string {
 }
 
 const SKILL_CATEGORY_RE = /^([^:]{2,60}):\s*(.+)$/;
+const SKILLS_WRAPPER_RE = /^Skills?:\s*(.+)$/i;
+const DEGREE_LIKE_RE =
+    /\b(b\.?s\.?|m\.?s\.?|mba|ph\.?d\.?|bachelor|master|micromasters?|certificate|diploma)\b/i;
+
+/** Place-like tail tokens when a pipe-delimited education line has 3+ parts. */
+const PLACE_TAIL_RE =
+    /^(buffalo|urbana-champaign|cambridge|stanford|mit|berkeley|ann arbor|new york|boston)$/i;
+
+function stripSkillsWrapper(line: string): string {
+    const m = line.match(SKILLS_WRAPPER_RE);
+    return m ? m[1].trim() : line;
+}
+
+function unpackCategoryColonItems(items: string[]): ResumeCompetencyCategory[] {
+    const categories: ResumeCompetencyCategory[] = [];
+    for (const item of items) {
+        const match = item.match(SKILL_CATEGORY_RE);
+        if (match) {
+            const skills = match[2]
+                .split(",")
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0);
+            if (skills.length > 0) {
+                categories.push({ category: match[1].trim(), skills });
+            }
+        } else if (item.trim()) {
+            categories.push({ category: "", skills: [item.trim()] });
+        }
+    }
+    return categories;
+}
+
+/** Normalize stored `{ category: "Skills", skills: ["Product: …"] }` blobs. */
+export function normalizeCompetencyCategories(categories: ResumeCompetencyCategory[]): ResumeCompetencyCategory[] {
+    const result: ResumeCompetencyCategory[] = [];
+    for (const cat of categories) {
+        const name = cat.category.trim();
+        if (name === "Skills" || name === "Skill") {
+            result.push(...unpackCategoryColonItems(cat.skills));
+            continue;
+        }
+        const unpackedSkills: string[] = [];
+        for (const skill of cat.skills) {
+            const stripped = stripSkillsWrapper(skill.trim());
+            const inner = stripped.match(SKILL_CATEGORY_RE);
+            if (inner && !name) {
+                const skills = inner[2]
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0);
+                if (skills.length > 0) result.push({ category: inner[1].trim(), skills });
+            } else {
+                unpackedSkills.push(stripped);
+            }
+        }
+        if (unpackedSkills.length > 0) {
+            result.push({ category: name, skills: unpackedSkills });
+        }
+    }
+    return result;
+}
 
 function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
     const categories: ResumeCompetencyCategory[] = [];
     const fallbackSkills: string[] = [];
 
-    for (const line of lines) {
-        const cleaned = line.replace(BULLET_RE, "").trim();
+    for (const rawLine of lines) {
+        let cleaned = stripSkillsWrapper(rawLine.replace(BULLET_RE, "").trim());
         if (!cleaned) continue;
         const categoryMatch = cleaned.match(SKILL_CATEGORY_RE);
         if (categoryMatch) {
@@ -447,7 +509,39 @@ function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
 
     if (categories.length > 0) return categories;
     if (fallbackSkills.length === 0) return [];
-    return [{ category: "Skills", skills: [...new Set(fallbackSkills)] }];
+    const unpacked = unpackCategoryColonItems([...new Set(fallbackSkills)]);
+    if (unpacked.some((c) => c.category)) return unpacked;
+    return [{ category: "", skills: [...new Set(fallbackSkills)] }];
+}
+
+function joinPipeInstitution(parts: string[]): { degree: string; institution: string } {
+    const trimmed = parts.map((p) => p.trim()).filter(Boolean);
+    if (trimmed.length === 0) return { degree: "", institution: "" };
+    if (trimmed.length === 1) return { degree: trimmed[0], institution: "" };
+    if (trimmed.length === 2) {
+        return { degree: trimmed[0], institution: trimmed[1] };
+    }
+    const last = trimmed[trimmed.length - 1];
+    const secondLast = trimmed[trimmed.length - 2];
+    if (PLACE_TAIL_RE.test(last) || /\bat\b/i.test(secondLast)) {
+        const institution = `${secondLast} at ${last}`.replace(/\s+at\s+at\s+/i, " at ");
+        return { degree: trimmed.slice(0, -2).join(" | "), institution };
+    }
+    return { degree: trimmed[0], institution: trimmed.slice(1).join(" | ") };
+}
+
+function splitDegreeAtInstitution(withoutYear: string): { degree: string; institution: string } | null {
+    const atRe = /\s+at\s+/gi;
+    let match: RegExpExecArray | null;
+    while ((match = atRe.exec(withoutYear)) !== null) {
+        const left = withoutYear.slice(0, match.index).trim();
+        const right = withoutYear.slice(match.index + match[0].length).trim();
+        if (/\bUniversity\s*$/i.test(left)) continue;
+        if (!DEGREE_LIKE_RE.test(left)) continue;
+        if (!right) continue;
+        return { degree: left, institution: right };
+    }
+    return null;
 }
 
 function parseEducationBlock(lines: string[]): Omit<ResumeEducation, "id">[] {
@@ -460,14 +554,15 @@ function parseEducationBlock(lines: string[]): Omit<ResumeEducation, "id">[] {
         const withoutYear = year ? line.replace(year, "").replace(/[,|\-–—]\s*$/, "").trim() : line;
 
         const pipeSplit = withoutYear.split(/\s*\|\s*/);
-        if (pipeSplit.length === 2) {
-            entries.push({ degree: pipeSplit[0].trim(), institution: pipeSplit[1].trim(), year });
+        if (pipeSplit.length >= 2) {
+            const { degree, institution } = joinPipeInstitution(pipeSplit);
+            entries.push({ degree, institution, year });
             continue;
         }
 
-        const atSplit = withoutYear.split(/\s+at\s+/i);
-        if (atSplit.length === 2) {
-            entries.push({ degree: atSplit[0].trim(), institution: atSplit[1].trim(), year });
+        const atSplit = splitDegreeAtInstitution(withoutYear);
+        if (atSplit) {
+            entries.push({ degree: atSplit.degree, institution: atSplit.institution, year });
         } else {
             entries.push({ degree: withoutYear, institution: "", year });
         }
@@ -557,7 +652,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         },
         experience,
         projects,
-        competencies: parseSkillsBlock(sections.skills ?? []),
+        competencies: normalizeCompetencyCategories(parseSkillsBlock(sections.skills ?? [])),
         education: parseEducationBlock(sections.education ?? []),
         generatedSummary,
     };

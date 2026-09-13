@@ -7,10 +7,14 @@ import {
     scoreLocalParseConfidence,
 } from "../../src/lib/local-ai/parse-confidence";
 import { descriptionToBullets } from "../../src/lib/resume/merge-bullet-lines";
-import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
+import {
+    normalizeCompetencyCategories,
+    structureResumeText,
+} from "../../src/lib/resume/structure-resume-text";
 
 const FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/sample-resume.txt"), "utf8");
-const VIVEK_GOLDEN = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-original-resume.txt"), "utf8");
+const VIVEK_PM = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-pm-resume.txt"), "utf8");
+const VIVEK_CSM = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-csm-golden-resume.txt"), "utf8");
 
 describe("structureResumeText", () => {
     it("extracts name, profession, email, skills, experience from fixture", () => {
@@ -159,16 +163,16 @@ Salesforce`;
         assert.ok(score.overall >= LOCAL_PARSE_ACCEPT_MIN, `expected ≥ ${LOCAL_PARSE_ACCEPT_MIN}, got ${score.overall}`);
     });
 
-    it("vivek golden: location is Richmond Hill, Ontario — not summary prose", () => {
-        const out = structureResumeText(VIVEK_GOLDEN);
+    it("vivek PM: location is Richmond Hill, Ontario — not summary prose", () => {
+        const out = structureResumeText(VIVEK_PM);
         assert.match(out.profile.location ?? "", /richmond hill/i);
         assert.match(out.profile.location ?? "", /ontario/i);
         assert.ok(!/into prioritized/i.test(out.profile.location ?? ""));
         assert.ok(!/shippable roadmaps/i.test(out.profile.location ?? ""));
     });
 
-    it("vivek golden: rejects summary fragment as location when line 2 is malicious", () => {
-        const malicious = VIVEK_GOLDEN.replace(
+    it("vivek PM: rejects summary fragment as location when line 2 is malicious", () => {
+        const malicious = VIVEK_PM.replace(
             "Richmond Hill, Ontario | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz",
             "into prioritized, shippable roadmaps.",
         );
@@ -177,8 +181,8 @@ Salesforce`;
         assert.ok(!/shippable roadmaps/i.test(out.profile.location ?? ""));
     });
 
-    it("vivek golden: parses three competency categories", () => {
-        const out = structureResumeText(VIVEK_GOLDEN);
+    it("vivek PM: parses three competency categories", () => {
+        const out = structureResumeText(VIVEK_PM);
         assert.equal(out.competencies.length, 3);
         const names = out.competencies.map((c) => c.category);
         assert.ok(names.includes("Product"));
@@ -206,11 +210,45 @@ Salesforce`;
         assert.ok(bullets[0].includes("translating client strategy"));
     });
 
-    it("vivek golden: parses independent projects and education with intact institution", () => {
-        const out = structureResumeText(VIVEK_GOLDEN);
+    it("vivek PM: parses independent projects and education with intact institution", () => {
+        const out = structureResumeText(VIVEK_PM);
         assert.ok(out.projects.length >= 2, `expected ≥2 projects, got ${out.projects.length}`);
         assert.ok(out.education.some((e) => /university of illinois urbana-champaign/i.test(e.institution)));
         assert.ok(out.education.some((e) => /university at buffalo/i.test(e.institution)));
         assert.ok(out.profile.website?.includes("vivekn.xyz"));
+    });
+
+    it("CSM golden: parses three competency categories without Skills wrapper", () => {
+        const out = structureResumeText(VIVEK_CSM);
+        assert.equal(out.competencies.length, 3);
+        const names = out.competencies.map((c) => c.category);
+        assert.ok(names.some((n) => /customer success/i.test(n)));
+        assert.ok(names.some((n) => /delivery/i.test(n)));
+        assert.ok(names.some((n) => /platform/i.test(n)));
+        assert.ok(!names.includes("Skills"));
+    });
+
+    it("CSM golden: education keeps University at Buffalo and Illinois intact", () => {
+        const out = structureResumeText(VIVEK_CSM);
+        assert.ok(out.education.some((e) => /university at buffalo/i.test(e.institution)));
+        assert.ok(out.education.some((e) => /university of illinois at urbana-champaign/i.test(e.institution)));
+        assert.ok(!out.education.some((e) => /university \| buffalo/i.test(`${e.degree} | ${e.institution}`)));
+    });
+
+    it("Skills: wrapper line unpacks to real categories", () => {
+        const out = structureResumeText(`Jane Doe\njane@example.com\nSKILLS\nSkills: Product: Roadmap, Discovery\nDelivery: Agile`);
+        assert.ok(!out.competencies.some((c) => c.category === "Skills"));
+        assert.ok(out.competencies.some((c) => c.category === "Product"));
+        assert.ok(out.competencies.some((c) => c.category === "Delivery"));
+    });
+
+    it("normalizeCompetencyCategories unpacks stored Skills blob", () => {
+        const unpacked = normalizeCompetencyCategories([
+            { category: "Skills", skills: ["Product: Roadmap", "Delivery: Agile"] },
+        ]);
+        assert.deepEqual(
+            unpacked.map((c) => c.category).sort(),
+            ["Delivery", "Product"],
+        );
     });
 });

@@ -15,6 +15,7 @@ import { descriptionToBullets } from "@/lib/resume/merge-bullet-lines";
 import {
     heuristicTailorResume,
     introducesNewNumbers,
+    stripRoboticSummaryTails,
     type TailorDraft,
     type TailorJobInput,
 } from "./tailor-resume";
@@ -27,10 +28,11 @@ type ModelTailorOutput = {
 };
 
 export const TAILOR_VOICE_RULES = `Voice rules (still truthful — no invented employers, titles, dates, or metrics):
-- Sound like a strong human résumé: concrete, varied rhythm, not keyword-stuffed
+- Sound like a strong human résumé: concrete, varied rhythm, not keyword-stuffed — trusted-advisor voice with complete sentences
+- NEVER use "Hands-on with …" stubs, "Recent focus includes …", telegram fragments, or keyword stuffing
 - Avoid buzzword stacks, "Results-driven…", repeating the job title in every bullet, "Responsible for X. Responsible for Y."
 - Prefer verbs from the original bullet; weave JD language only where it already fits the meaning
-- Summary: 2–4 natural sentences (or one tight paragraph), not a skill list
+- Summary: 2–4 natural sentences (or one tight paragraph), not a skill list; use metrics only if already in the source
 - Bullets: keep original structure and length band; do not homogenize every line`;
 
 function tryParseModelJson(text: string): ModelTailorOutput | null {
@@ -93,7 +95,7 @@ function applyModelTailor(
         resume.generatedSummary?.trim() ||
         `${resume.profile.profession} — ${resume.profile.yearsOfExperience}+ years`;
 
-    tailored.generatedSummary = parsed.summary.trim();
+    tailored.generatedSummary = stripRoboticSummaryTails(parsed.summary.trim());
 
     const bullets: TailorDraft["bullets"] = [];
     const modelBullets = parsed.bullets ?? [];
