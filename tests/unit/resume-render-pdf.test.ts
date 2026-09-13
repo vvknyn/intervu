@@ -111,7 +111,7 @@ describe("parseResumeContent", () => {
   });
 
   it("markdown ATX headings (## Section) are recognized the same as a bare ALL-CAPS line", () => {
-    const doc = parseResumeContent("Name\nContact\n## Education\n- BSc CS | MIT");
+    const doc = parseResumeContent("Name\njane@example.com\n## Education\n- BSc CS | MIT");
     assert.equal(doc.sections[0].heading, "EDUCATION");
   });
 });
@@ -142,7 +142,7 @@ describe("resumeDataToParsedDocument", () => {
     assert.equal(doc.name, "Ada Lovelace");
     assert.deepEqual(
       doc.sections.map((s) => s.heading),
-      ["PROFESSIONAL SUMMARY", "CORE COMPETENCIES", "PROFESSIONAL EXPERIENCE", "EDUCATION"],
+      ["PROFESSIONAL SUMMARY", "CORE COMPETENCIES", "PROFESSIONAL EXPERIENCE", "EDUCATION & PROFESSIONAL DEVELOPMENT"],
     );
     const exp = doc.sections[2].blocks[0];
     assert.ok(exp.kind === "entry" && exp.title === "Engineer | Acme" && exp.bullets.length === 2);
@@ -331,13 +331,13 @@ describe("parseResumeContent — markdown heading levels (class case: name/H1, s
   });
 
   it("H2 is a section header, uppercased, same as the ALL-CAPS plain-text convention", () => {
-    const doc = parseResumeContent("Name\ncontact\n## Professional Summary\nBody.");
+    const doc = parseResumeContent("Name\njane@example.com\n## Professional Summary\nBody.");
     assert.deepEqual(doc.sections.map((s) => s.heading), ["PROFESSIONAL SUMMARY"]);
   });
 
   it("H3 is an EXPERIENCE ENTRY, never a section — the exact bug: '### Title | Company | Dates' used to become a ruled ALL-CAPS section", () => {
     const doc = parseResumeContent(
-      "Name\ncontact\n## PROFESSIONAL EXPERIENCE\n### Client-facing Product Manager | TELUS Health Wellbeing | September '21 — Present\n- Did the thing.",
+      "Name\njane@example.com\n## PROFESSIONAL EXPERIENCE\n### Client-facing Product Manager | TELUS Health Wellbeing | September '21 — Present\n- Did the thing.",
     );
     assert.equal(doc.sections.length, 1, "the H3 line must NOT open a second section");
     const entry = doc.sections[0].blocks[0];
@@ -348,20 +348,20 @@ describe("parseResumeContent — markdown heading levels (class case: name/H1, s
   });
 
   it("H4 is ALSO an entry (not just H3) — the level rule is >= 3, not a single hardcoded level", () => {
-    const doc = parseResumeContent("Name\ncontact\n## EXPERIENCE\n#### Engineer | Acme | 2020 — 2022\n- Shipped things.");
+    const doc = parseResumeContent("Name\njane@example.com\n## EXPERIENCE\n#### Engineer | Acme | 2020 — 2022\n- Shipped things.");
     const entry = doc.sections[0].blocks[0];
     assert.equal(entry.kind, "entry");
     assert.ok(entry.kind === "entry" && entry.dateRight === "2020 — 2022");
   });
 
   it("an entry heading with NO date-ish trailing segment keeps the whole text as the title, dateRight null — degrades gracefully, never crashes", () => {
-    const doc = parseResumeContent("Name\ncontact\n## EXPERIENCE\n### Volunteer Work\n- Helped out.");
+    const doc = parseResumeContent("Name\njane@example.com\n## EXPERIENCE\n### Volunteer Work\n- Helped out.");
     const entry = doc.sections[0].blocks[0];
     assert.ok(entry.kind === "entry" && entry.title === "Volunteer Work" && entry.dateRight === null);
   });
 
   it("splits on the LAST separator, not the first — 'Title | Company | Dates' keeps 'Title | Company' intact as one title", () => {
-    const doc = parseResumeContent("Name\ncontact\n## EXPERIENCE\n### Senior Engineer | Acme Corp | 2020 — Present\n- Bullet.");
+    const doc = parseResumeContent("Name\njane@example.com\n## EXPERIENCE\n### Senior Engineer | Acme Corp | 2020 — Present\n- Bullet.");
     const entry = doc.sections[0].blocks[0];
     assert.ok(entry.kind === "entry" && entry.title === "Senior Engineer | Acme Corp");
   });
@@ -381,7 +381,7 @@ describe("parseResumeContent — plain-text shape produces the SAME structure (c
   });
 
   it("class case: an apostrophe'd 2-digit year range with no 'Present' ('July '19 — February '20', the founder's own reference resume's convention for a past role) still resolves as a dated entry", () => {
-    const doc = parseResumeContent("Name\ncontact\nEXPERIENCE\nTechnology Lead | Tracxn Technologies    July '19 — February '20\n- Led a team.");
+    const doc = parseResumeContent("Name\njane@example.com\nEXPERIENCE\nTechnology Lead | Tracxn Technologies    July '19 — February '20\n- Led a team.");
     const entry = doc.sections[0].blocks[0];
     assert.equal(entry.kind, "entry");
     assert.ok(entry.kind === "entry" && entry.dateRight === "July '19 — February '20");

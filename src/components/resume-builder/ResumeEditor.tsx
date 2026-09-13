@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
 import { exportToDocx } from "@/lib/export-docx";
 import { downloadBlob } from "@/lib/export-utils";
-import { resumeDataToParsedDocument, parseResumeContent } from "@/lib/resume/parse-resume-content";
-import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
+import { parseResumeContent } from "@/lib/resume/parse-resume-content";
+import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import {
     deleteResumeVersionAction,
     fetchResumeVersionsAction,
@@ -221,20 +222,20 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
     };
 
     const handleDownloadPdf = () => {
-        try {
-            const parsed = resumeDataToParsedDocument(data);
-            const filename = deriveResumePdfFilename({
-                company: null,
-                role: null,
-                fallbackLabel: data.profile?.name || "resume",
-                dateIso: new Date().toISOString(),
-            });
-            const pdfBytes = renderResumePdf(parsed);
-            downloadBlob(pdfBytes, `${filename}.pdf`, "application/pdf");
-            toast.success("PDF generated");
-        } catch {
-            toast.error("Failed to generate PDF");
-        }
+        void (async () => {
+            try {
+                const filename = deriveResumePdfFilename({
+                    company: null,
+                    role: null,
+                    fallbackLabel: data.profile?.name || "resume",
+                    dateIso: new Date().toISOString(),
+                });
+                await exportZipResumePdfFromData(data, `${filename}.pdf`);
+                toast.success("PDF generated");
+            } catch {
+                toast.error("Failed to generate PDF");
+            }
+        })();
     };
 
     const handleDownloadDocx = async () => {

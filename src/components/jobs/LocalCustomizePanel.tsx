@@ -21,10 +21,9 @@ import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
-import { resumeDataToMarkdown } from "@/lib/resume/to-markdown";
-import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
-import { deriveResumePdfFilename, renderResumePdf } from "@/lib/resume/render-pdf";
-import { downloadBlob } from "@/lib/export-utils";
+import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
+import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
+import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { displayCompanyBrand } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -50,7 +49,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
 
     const handleCopy = useCallback(async () => {
         if (!draft) return;
-        const md = resumeDataToMarkdown(draft.tailored);
+        const md = resumeDataToZipMarkdown(draft.tailored);
         await navigator.clipboard.writeText(md);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -58,15 +57,19 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
 
     const handlePdf = useCallback(() => {
         if (!draft) return;
-        const parsed = resumeDataToParsedDocument(draft.tailored);
         const filename = deriveResumePdfFilename({
             company: null,
             role: draft.tailored.profile.profession || null,
             fallbackLabel: draft.tailored.profile.name || "resume",
             dateIso: new Date().toISOString(),
         });
-        const pdfBytes = renderResumePdf(parsed);
-        downloadBlob(pdfBytes, `${filename}.pdf`, "application/pdf");
+        void (async () => {
+            try {
+                await exportZipResumePdfFromData(draft.tailored, `${filename}.pdf`);
+            } catch {
+                toast.error("Failed to generate PDF");
+            }
+        })();
     }, [draft]);
 
     const visible = readLocalAiEnabled() && !!resume && resumeIsUsable(resume);
