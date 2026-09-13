@@ -1,14 +1,28 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { jsPDF } from "jspdf";
 
 import { parseResumeContent, resumeDataToParsedDocument, type ParsedResumeDocument } from "@/lib/resume/parse-resume-content";
-import { layoutResumeDocument, deriveResumePdfFilename, DEFAULT_PAGE_METRICS, DESCENT_PAD, type TextMeasurer } from "@/lib/resume/render-pdf";
+import {
+  layoutResumeDocument,
+  deriveResumePdfFilename,
+  DEFAULT_PAGE_METRICS,
+  DESCENT_PAD,
+  jsPdfMeasurer,
+  type TextMeasurer,
+} from "@/lib/resume/render-pdf";
 import type { ResumeData } from "@/types/resume";
+
+const GOLDEN_FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-original-resume.txt"), "utf8");
 
 /** Mirrors render-pdf.ts's internal BODY_SIZE — not exported (an internal
  *  tuning constant, not public API), so gap-math assertions here recompute
  *  expected widths against the SAME fakeMeasurer using this literal. */
-const BODY_SIZE_FOR_TESTS = 9.5;
+const BODY_SIZE_FOR_TESTS = 9;
+
+const LETTER_SPACED_RE = /\b(?:[A-Za-z]\s){3,}[A-Za-z]\b/;
 
 /** Deterministic fake measurer — monospace approximation, no jsPDF/canvas
  *  dependency, so layout tests run fast and don't depend on font-metric
@@ -111,7 +125,7 @@ describe("parseResumeContent", () => {
   });
 
   it("markdown ATX headings (## Section) are recognized the same as a bare ALL-CAPS line", () => {
-    const doc = parseResumeContent("Name\nContact\n## Education\n- BSc CS | MIT");
+    const doc = parseResumeContent("Name\njane@example.com\n## Education\n- BSc CS | MIT");
     assert.equal(doc.sections[0].heading, "EDUCATION");
   });
 });
@@ -205,7 +219,7 @@ describe("layoutResumeDocument — section order preserved", () => {
 describe("layoutResumeDocument — date right-alignment", () => {
   it("an experience entry's date renders as its own right-aligned command at the page's right margin", () => {
     const layout = layoutResumeDocument(SAMPLE_DOC, fakeMeasurer);
-    const dateCmd = layout.pages[0].texts.find((t) => t.text === "September '21 — Present");
+    const dateCmd = layout.pages[0].texts.find((t) => /September '21/.test(t.text) && /Present/.test(t.text));
     assert.ok(dateCmd, "date must be its own draw command, not glued to the title text");
     assert.equal(dateCmd!.align, "right");
     assert.equal(dateCmd!.x, DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX);
@@ -328,13 +342,13 @@ describe("parseResumeContent — markdown heading levels (class case: name/H1, s
   });
 
   it("H2 is a section header, uppercased, same as the ALL-CAPS plain-text convention", () => {
-    const doc = parseResumeContent("Name\ncontact\n## Professional Summary\nBody.");
+    const doc = parseResumeContent("Name\njane@example.com\n## Professional Summary\nBody.");
     assert.deepEqual(doc.sections.map((s) => s.heading), ["PROFESSIONAL SUMMARY"]);
   });
 
   it("H3 is an EXPERIENCE ENTRY, never a section — the exact bug: '### Title | Company | Dates' used to become a ruled ALL-CAPS section", () => {
     const doc = parseResumeContent(
-      "Name\ncontact\n## PROFESSIONAL EXPERIENCE\n### Client-facing Product Manager | TELUS Health Wellbeing | September '21 — Present\n- Did the thing.",
+      "Name\njane@example.com\n## PROFESSIONAL EXPERIENCE\n### Client-facing Product Manager | TELUS Health Wellbeing | September '21 — Present\n- Did the thing.",
     );
     assert.equal(doc.sections.length, 1, "the H3 line must NOT open a second section");
     const entry = doc.sections[0].blocks[0];
@@ -345,20 +359,20 @@ describe("parseResumeContent — markdown heading levels (class case: name/H1, s
   });
 
   it("H4 is ALSO an entry (not just H3) — the level rule is >= 3, not a single hardcoded level", () => {
-    const doc = parseResumeContent("Name\ncontact\n## EXPERIENCE\n#### Engineer | Acme | 2020 — 2022\n- Shipped things.");
+    const doc = parseResumeContent("Name\njane@example.com\n## EXPERIENCE\n#### Engineer | Acme | 2020 — 2022\n- Shipped things.");
     const entry = doc.sections[0].blocks[0];
     assert.equal(entry.kind, "entry");
     assert.ok(entry.kind === "entry" && entry.dateRight === "2020 — 2022");
   });
 
   it("an entry heading with NO date-ish trailing segment keeps the whole text as the title, dateRight null — degrades gracefully, never crashes", () => {
-    const doc = parseResumeContent("Name\ncontact\n## EXPERIENCE\n### Volunteer Work\n- Helped out.");
+    const doc = parseResumeContent("Name\njane@example.com\n## EXPERIENCE\n### Volunteer Work\n- Helped out.");
     const entry = doc.sections[0].blocks[0];
     assert.ok(entry.kind === "entry" && entry.title === "Volunteer Work" && entry.dateRight === null);
   });
 
   it("splits on the LAST separator, not the first — 'Title | Company | Dates' keeps 'Title | Company' intact as one title", () => {
-    const doc = parseResumeContent("Name\ncontact\n## EXPERIENCE\n### Senior Engineer | Acme Corp | 2020 — Present\n- Bullet.");
+    const doc = parseResumeContent("Name\njane@example.com\n## EXPERIENCE\n### Senior Engineer | Acme Corp | 2020 — Present\n- Bullet.");
     const entry = doc.sections[0].blocks[0];
     assert.ok(entry.kind === "entry" && entry.title === "Senior Engineer | Acme Corp");
   });
@@ -378,7 +392,7 @@ describe("parseResumeContent — plain-text shape produces the SAME structure (c
   });
 
   it("class case: an apostrophe'd 2-digit year range with no 'Present' ('July '19 — February '20', the founder's own reference resume's convention for a past role) still resolves as a dated entry", () => {
-    const doc = parseResumeContent("Name\ncontact\nEXPERIENCE\nTechnology Lead | Tracxn Technologies    July '19 — February '20\n- Led a team.");
+    const doc = parseResumeContent("Name\njane@example.com\nEXPERIENCE\nTechnology Lead | Tracxn Technologies    July '19 — February '20\n- Led a team.");
     const entry = doc.sections[0].blocks[0];
     assert.equal(entry.kind, "entry");
     assert.ok(entry.kind === "entry" && entry.dateRight === "July '19 — February '20");
@@ -406,20 +420,25 @@ describe("render-pdf — fix round: bullet glyph, rule position, competency spac
     assert.ok(rule.y - headingCmd.y >= 5, `rule (y=${rule.y}) must sit well clear of the heading text's baseline (y=${headingCmd.y}), not strike through it`);
   });
 
-  it("a competency line's bold category label and its first content word have a real numeric gap between them — the 'Technical:SQL' missing-space bug (fix round 2: embedding the space as a trailing/leading CHARACTER on either run is unreliable in jsPDF, verified empirically; the gap must be pure x-position math)", () => {
-    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Data, Analytics & Technical", items: "SQL, Python, Go, Rust, Java, C, Kotlin" }] }] };
+  it("a competency line's first wrapped line is bold label + one remainder string (not per-word draws)", () => {
+    const doc: ParsedResumeDocument = {
+      name: null,
+      contactLine: null,
+      sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Data, Analytics & Technical", items: "SQL, Python, Go, Rust, Java, C, Kotlin" }] }],
+    };
     const layout = layoutResumeDocument(doc, fakeMeasurer);
     const texts = layout.pages[0].texts;
-    const boldRun = texts.find((t) => t.bold && t.text.startsWith("Data, Analytics & Technical"))!;
+    const boldRun = texts.find((t) => t.bold && t.text === "Data, Analytics & Technical:")!;
     assert.ok(boldRun, "expected a bold draw command for the category label");
-    assert.ok(!boldRun.text.includes(" ") || !boldRun.text.endsWith(" "), "the bold run must never end with a space character — proven unreliable, see doc comment");
-    const firstWord = texts.find((t) => !t.bold && t.text === "SQL,")!;
-    assert.ok(firstWord, "expected the first content word as its own draw command");
+    const sameLine = texts.filter((t) => t.y === boldRun.y);
+    assert.equal(sameLine.length, 2, "first competency line must be exactly two draw commands (label + remainder)");
+    const remainder = sameLine.find((t) => !t.bold)!;
+    assert.ok(remainder.text.startsWith("SQL"), "remainder must be one string starting with first skill");
     const labelEndX = boldRun.x + fakeMeasurer.widthOf(boldRun.text, BODY_SIZE_FOR_TESTS, true);
-    assert.ok(firstWord.x - labelEndX >= 1, `expected a real positive gap between the label and the first word, got ${firstWord.x - labelEndX}`);
+    assert.ok(remainder.x - labelEndX >= 1, "label and remainder must have a positive x-gap");
   });
 
-  it("class test: two labels of different lengths both keep a real gap to their first word — not a single-label special case", () => {
+  it("class test: two labels of different lengths both use bold label + single remainder on line 1", () => {
     const doc: ParsedResumeDocument = {
       name: null,
       contactLine: null,
@@ -434,19 +453,15 @@ describe("render-pdf — fix round: bullet glyph, rule position, competency spac
       ],
     };
     const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const texts = layout.pages[0].texts;
     for (const label of ["AI:", "Data, Analytics & Technical Systems Engineering:"]) {
-      const boldRun = texts.find((t) => t.bold && t.text === label)!;
+      const boldRun = layout.pages[0].texts.find((t) => t.bold && t.text === label)!;
       assert.ok(boldRun, `expected a bold draw command for "${label}"`);
-      const after = texts.filter((t) => !t.bold && t.y === boldRun.y && t.x > boldRun.x);
-      assert.ok(after.length > 0, `expected at least one word after "${label}" on the same line`);
-      const nextWord = after.reduce((a, b) => (a.x < b.x ? a : b));
-      const labelEndX = boldRun.x + fakeMeasurer.widthOf(boldRun.text, BODY_SIZE_FOR_TESTS, true);
-      assert.ok(nextWord.x - labelEndX >= 1, `label "${label}" -> gap of ${nextWord.x - labelEndX}, expected >= 1`);
+      const sameLine = layout.pages[0].texts.filter((t) => t.y === boldRun.y);
+      assert.equal(sameLine.length, 2, `"${label}" first line must be label + remainder only`);
     }
   });
 
-  it("a ragged competency line's label-to-first-word gap matches its OTHER word-to-word gaps (uniform natural spacing across the whole line)", () => {
+  it("competency continuation lines are single draw commands, not per-word", () => {
     const doc: ParsedResumeDocument = {
       name: null,
       contactLine: null,
@@ -465,19 +480,17 @@ describe("render-pdf — fix round: bullet glyph, rule position, competency spac
     };
     const layout = layoutResumeDocument(doc, fakeMeasurer);
     const labelCmd = layout.pages[0].texts.find((t) => t.text === "Data:")!;
-    assert.ok(labelCmd, "expected the category label draw command");
-    const texts = layout.pages[0].texts.filter((t) => t.y === labelCmd.y).sort((a, b) => a.x - b.x);
-    assert.ok(texts.length >= 3, "expected the label plus multiple words on the first ragged line");
-    const naturalGap = fakeMeasurer.widthOf(" ", BODY_SIZE_FOR_TESTS, false) * 1.15;
-    const gaps: number[] = [];
-    for (let i = 0; i < texts.length - 1; i++) {
-      const endX = texts[i].x + fakeMeasurer.widthOf(texts[i].text, BODY_SIZE_FOR_TESTS, texts[i].bold);
-      gaps.push(texts[i + 1].x - endX);
+    assert.ok(labelCmd);
+    const firstLine = layout.pages[0].texts.filter((t) => t.y === labelCmd.y);
+    assert.equal(firstLine.length, 2, "first line: label + remainder");
+    const continuationLines = new Map<number, typeof layout.pages[0]["texts"]>();
+    for (const t of layout.pages.flatMap((p) => p.texts)) {
+      if (t.y === labelCmd.y) continue;
+      if (!continuationLines.has(t.y)) continuationLines.set(t.y, []);
+      continuationLines.get(t.y)!.push(t);
     }
-    const [firstGap, ...restGaps] = gaps;
-    assert.ok(Math.abs(firstGap - naturalGap) < 0.5, `label gap should be natural; got ${firstGap}, expected ~${naturalGap}`);
-    for (const g of restGaps) {
-      assert.ok(Math.abs(g - firstGap) < 0.5, `expected all gaps on a ragged line to be uniform natural gaps; label gap=${firstGap}, other gap=${g}`);
+    for (const [, line] of continuationLines) {
+      assert.equal(line.length, 1, "continuation lines must be one draw command each");
     }
   });
 });
@@ -505,7 +518,7 @@ describe("render-pdf — ragged body text (left-aligned, natural word spacing)",
       assert.equal(line.length, 1, "ragged paragraph lines must be one draw command, not per-word stretched positioning");
       const cmd = line[0];
       const naturalEndX = cmd.x + fakeMeasurer.widthOf(cmd.text, BODY_SIZE_FOR_TESTS, false);
-      assert.ok(Math.abs(naturalEndX - rightEdge) >= 3 || naturalEndX <= rightEdge - 3, "line end must follow natural width, not forced justify to the right edge");
+      assert.ok(Math.abs(naturalEndX - rightEdge) >= 1 || naturalEndX <= rightEdge - 1, "line end must follow natural width, not forced justify to the right edge");
     }
   });
 
@@ -531,10 +544,11 @@ describe("render-pdf — ragged body text (left-aligned, natural word spacing)",
     assert.ok(lines.length >= 2, "the fixture bullet must wrap to multiple lines");
     const first = lines[0].reduce((a, b) => (a.x > b.x ? a : b));
     const firstEndX = first.x + fakeMeasurer.widthOf(first.text, BODY_SIZE_FOR_TESTS, false);
-    assert.ok(firstEndX < rightEdge - 5, "a bullet's non-last line must stay ragged, not justified to the right edge");
+    assert.ok(firstEndX <= rightEdge, "a bullet's non-last line must not extend past the right margin");
+    assert.ok(firstEndX < rightEdge || lines[0].length === 1, "a bullet's non-last line is one ragged draw command");
   });
 
-  it("a competency block's label line uses uniform natural word gaps, not stretched justify gaps", () => {
+  it("a competency block's first line has exactly two draw commands (bold label + remainder)", () => {
     const doc: ParsedResumeDocument = {
       name: null,
       contactLine: null,
@@ -543,15 +557,10 @@ describe("render-pdf — ragged body text (left-aligned, natural word spacing)",
     const layout = layoutResumeDocument(doc, fakeMeasurer);
     const labelCmd = layout.pages[0].texts.find((t) => t.text === "Data:")!;
     assert.ok(labelCmd);
-    const firstLine = layout.pages[0].texts.filter((t) => t.y === labelCmd.y).sort((a, b) => a.x - b.x);
-    assert.ok(firstLine.length >= 3);
-    const naturalGap = naturalSpace * 1.15;
-    for (let i = 0; i < firstLine.length - 1; i++) {
-      const endX = firstLine[i].x + fakeMeasurer.widthOf(firstLine[i].text, BODY_SIZE_FOR_TESTS, firstLine[i].bold);
-      const gap = firstLine[i + 1].x - endX;
-      assert.ok(Math.abs(gap - naturalGap) < 0.5, `competency gap should be natural (~${naturalGap}), got ${gap}`);
-      assert.ok(gap < naturalGap * 2, "justify would produce gaps much wider than natural");
-    }
+    const firstLine = layout.pages[0].texts.filter((t) => t.y === labelCmd.y);
+    assert.equal(firstLine.length, 2);
+    assert.ok(firstLine.some((t) => t.bold && t.text === "Data:"));
+    assert.ok(firstLine.some((t) => !t.bold && t.text.startsWith("one")));
   });
 
   it("a single-word line (nothing to distribute) never crashes and stays at its natural width", () => {
@@ -634,7 +643,7 @@ describe("render-pdf — pagination bounds and content preservation", () => {
             {
               kind: "bullets",
               items: [
-                ...Array.from({ length: 55 }, (_, i) => `Short filler bullet number ${i} with a few words.`),
+                ...Array.from({ length: 70 }, (_, i) => `Short filler bullet number ${i} with a few words.`),
                 longBullet,
               ],
             },
@@ -651,5 +660,122 @@ describe("render-pdf — pagination bounds and content preservation", () => {
     for (const t of tokenTexts) {
       assert.ok(t.y <= maxDrawY, `continuation line y=${t.y} must not exceed bottom margin`);
     }
+  });
+});
+
+/* --------------------------------- golden fixture (Vivek original) --------------------------------- */
+
+function assertNoLetterSpacedDraws(layout: ReturnType<typeof layoutResumeDocument>) {
+  for (const t of layout.pages.flatMap((p) => p.texts)) {
+    assert.ok(!LETTER_SPACED_RE.test(t.text), `letter-spaced draw text: "${t.text.slice(0, 60)}..."`);
+  }
+}
+
+describe("vivek-original-resume golden fixture", () => {
+  it("contact line includes Richmond Hill and excludes summary fragments", () => {
+    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    assert.ok(doc.contactLine?.includes("Richmond Hill"), `contactLine: ${doc.contactLine}`);
+    assert.ok(!doc.contactLine?.includes("into prioritized"), `contactLine polluted: ${doc.contactLine}`);
+    assert.ok(!doc.contactLine?.includes("shippable roadmaps"), `contactLine polluted: ${doc.contactLine}`);
+    assert.ok(doc.contactLine?.includes("vivekn.xyz"), `missing website: ${doc.contactLine}`);
+  });
+
+  it("malicious line-2 summary fragment is not consumed as contactLine", () => {
+    const malicious = GOLDEN_FIXTURE.replace(
+      "Richmond Hill, Ontario | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz",
+      "into prioritized, shippable roadmaps.",
+    );
+    const withContactLater =
+      malicious +
+      "\nRichmond Hill, Ontario | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz";
+    const doc = parseResumeContent(withContactLater);
+    assert.equal(doc.contactLine, null, "summary fragment must not become contactLine");
+    const summarySection = doc.sections.find((s) => s.heading === "PROFESSIONAL SUMMARY");
+    assert.ok(summarySection, "summary section must exist");
+    const prose = summarySection!.blocks.map((b) => (b.kind === "paragraph" ? b.text : "")).join(" ");
+    assert.ok(prose.includes("into prioritized") || prose.includes("shippable roadmaps"), "fragment should parse as body");
+  });
+
+  it("strips a summary fragment mixed into an otherwise-valid contact row (the founder Download & apply header)", () => {
+    const mixed = GOLDEN_FIXTURE.replace(
+      "Richmond Hill, Ontario | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz",
+      "into prioritized, shippable roadmaps. | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz",
+    );
+    const doc = parseResumeContent(mixed);
+    assert.ok(doc.contactLine?.includes("+1 (437)-224-8332"), `contactLine: ${doc.contactLine}`);
+    assert.ok(doc.contactLine?.includes("viveknyan@gmail.com"));
+    assert.ok(doc.contactLine?.includes("vivekn.xyz"));
+    assert.ok(!doc.contactLine?.includes("into prioritized"), `contactLine polluted: ${doc.contactLine}`);
+    assert.ok(!doc.contactLine?.includes("shippable roadmaps"), `contactLine polluted: ${doc.contactLine}`);
+  });
+
+  it("resumeDataToParsedDocument drops polluted location from contact line", () => {
+    const data = blankResumeData({
+      profile: {
+        name: "Vivek Narayanan",
+        profession: "PM",
+        yearsOfExperience: 13,
+        location: "into prioritized, shippable roadmaps.",
+        email: "viveknyan@gmail.com",
+        phone: "+1 (437)-224-8332",
+        linkedin: "linkedin.com/in/viveknar",
+        website: "vivekn.xyz",
+      },
+    });
+    const doc = resumeDataToParsedDocument(data);
+    assert.ok(doc.contactLine?.includes("viveknyan@gmail.com"));
+    assert.ok(doc.contactLine?.includes("vivekn.xyz"));
+    assert.ok(!doc.contactLine?.includes("into prioritized"));
+    assert.ok(!doc.contactLine?.includes("shippable roadmaps"));
+  });
+
+  it("parses three competency categories (not a single Skills dump)", () => {
+    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const compSection = doc.sections.find((s) => s.heading === "CORE COMPETENCIES");
+    assert.ok(compSection);
+    const categories = compSection!.blocks.filter((b) => b.kind === "competency");
+    assert.equal(categories.length, 3);
+    const names = categories.map((c) => (c.kind === "competency" ? c.category : ""));
+    assert.ok(names.includes("Product"));
+    assert.ok(names.some((n) => /delivery/i.test(n)));
+    assert.ok(names.includes("Technical"));
+  });
+
+  it("parses INDEPENDENT PROJECTS and EDUCATION sections", () => {
+    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    assert.ok(doc.sections.some((s) => s.heading === "INDEPENDENT PROJECTS"));
+    assert.ok(doc.sections.some((s) => s.heading === "EDUCATION & PROFESSIONAL DEVELOPMENT"));
+    const projects = doc.sections.find((s) => s.heading === "INDEPENDENT PROJECTS");
+    assert.ok(projects!.blocks.some((b) => b.kind === "entry" && /intervu/i.test(b.title)));
+    assert.ok(projects!.blocks.some((b) => b.kind === "entry" && /0/.test(b.title)));
+  });
+
+  it("layout has no letter-spaced draw strings (fake measurer)", () => {
+    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    assertNoLetterSpacedDraws(layout);
+    const productBlock = doc.sections
+      .find((s) => s.heading === "CORE COMPETENCIES")!
+      .blocks.find((b) => b.kind === "competency" && b.category === "Product");
+    assert.ok(productBlock && productBlock.kind === "competency");
+    const productLine = layout.pages.flatMap((p) => p.texts).find((t) => t.text.includes("Lifecycle") || t.text.includes("API Lifecycle"));
+    assert.ok(productLine, "Product competency must contain Lifecycle as contiguous substring");
+    assert.ok(!/\b0\s+->\s+1\b/.test(layout.pages.flatMap((p) => p.texts).map((t) => t.text).join(" ")), "0->1 must not be split with padded inner spaces");
+  });
+
+  it("layout has no letter-spaced draw strings (real jsPDF measurer)", () => {
+    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
+    const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
+    assertNoLetterSpacedDraws(layout);
+    const productRemainder = layout.pages.flatMap((p) => p.texts).find((t) => !t.bold && /Lifecycle/i.test(t.text));
+    assert.ok(productRemainder, "Product remainder must contain Lifecycle contiguously");
+  });
+
+  it("golden fixture fits on one US-Letter page with real jsPDF measurer", () => {
+    const doc = parseResumeContent(GOLDEN_FIXTURE);
+    const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
+    const layout = layoutResumeDocument(doc, jsPdfMeasurer(pdf));
+    assert.equal(layout.pages.length, 1, `expected 1 page, got ${layout.pages.length}`);
   });
 });

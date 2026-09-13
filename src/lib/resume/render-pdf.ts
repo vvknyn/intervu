@@ -23,9 +23,10 @@
  * with natural word spacing — ragged wrap, never stretched to fill the line
  * width. An earlier version justified every non-last wrapped line to match
  * a 2026-08-09 reference PDF; that produced unreadable uneven word gaps and
- * was reverted. Per-word positioning (not jsPDF's native `align:"justify"`)
- * is still used for mixed-weight competency lines (bold label + normal
- * words) so label-to-word gaps stay uniform at the natural space width.
+ * was reverted. Mixed-weight competency lines draw as at most two runs per
+ * wrapped line (bold category label + one normal remainder string) — never
+ * per-word positioning, which produced letter-spaced extraction artifacts
+ * around arrows and short tokens like `0→1`.
  *
  * Verify layout fixes: `npx tsx --test tests/unit/resume-render-pdf.test.ts`
  *
@@ -36,6 +37,7 @@
  * exactly a `ParsedResumeDocument` and get back the identical layout.
  */
 import { jsPDF } from "jspdf";
+import { sanitizeContactLine } from "./contact-line";
 import type { ParsedResumeDocument, ParsedResumeBlock } from "./parse-resume-content";
 
 export interface TextMeasurer {
@@ -96,19 +98,19 @@ export const DEFAULT_PAGE_METRICS: PageMetrics = {
   pageWidth: 612,
   pageHeight: 792,
   marginX: 40,
-  marginTop: 36,
-  marginBottom: 40,
+  marginTop: 30,
+  marginBottom: 30,
 };
 
 /** Extra clearance below a text baseline / dot center so descenders never
  *  clip into the bottom margin. Used by layout bounds checks and tests. */
 export const DESCENT_PAD = 3;
 
-const NAME_SIZE = 19;
+const NAME_SIZE = 17;
 const CONTACT_SIZE = 8.5;
 const HEADING_SIZE = 10;
-const BODY_SIZE = 9.5;
-const LINE_HEIGHT = 1.35;
+const BODY_SIZE = 9;
+const LINE_HEIGHT = 1.2;
 const BULLET_INDENT = 12;
 const BULLET_DOT_RADIUS = 1.5;
 /** Gap between a section heading's text baseline (accounting for descenders)
@@ -116,14 +118,34 @@ const BULLET_DOT_RADIUS = 1.5;
  *  glyphs above it (the "struck through" bug: the rule used to be placed
  *  mid-line-height, cutting through cap-height letters). */
 const RULE_GAP_BELOW_TEXT = 3;
-const SECTION_GAP_BEFORE = 14;
-const GAP_AFTER_HEADING_RULE = 8;
-const GAP_BETWEEN_BLOCKS = 5;
+const SECTION_GAP_BEFORE = 10;
+const GAP_AFTER_HEADING_RULE = 5;
+const GAP_BETWEEN_BLOCKS = 3;
 const GAP_ENTRY_TITLE_TO_BULLETS = 2;
-/** Multiplier on the natural space width for a RAGGED multi-segment line —
- *  gives mixed-weight competency lines a little headroom so label-to-word
- *  gaps read unambiguously as word boundaries. */
-const RAGGED_GAP_PADDING = 1.15;
+
+/** Map Unicode glyphs to Helvetica WinAnsi-safe ASCII before measure/draw. */
+export function sanitizePdfGlyphs(text: string): string {
+  return text
+    .replace(/[\u2014\u2013\u2212]/g, "-")
+    .replace(/\u2192/g, "->")
+    .replace(/\u21D2/g, "=>")
+    .replace(/\u2190/g, "<-")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u00A0/g, " ")
+    .replace(/\u2022/g, "-")
+    .replace(/\u00D7/g, "x");
+}
+
+/** Collapse polluted letter-spaced tokens like `L i f e c y c l e` → `Lifecycle`. */
+export function collapseLetterSpacedText(text: string): string {
+  return text.replace(/\b(?:[A-Za-z]\s){3,}[A-Za-z]\b/g, (match) => match.replace(/\s/g, ""));
+}
+
+/** Normalize body text for wrap/measure/draw — safe glyphs, no runaway whitespace. */
+export function normalizeResumeDrawText(text: string): string {
+  return collapseLetterSpacedText(sanitizePdfGlyphs(text)).replace(/\s+/g, " ").trim();
+}
 
 function lh(size: number): number {
   return size * LINE_HEIGHT;
@@ -277,58 +299,23 @@ function wrapWithPrefix(prefix: string, body: string, maxWidth: number, size: nu
   return measure.wrap(`${prefix}${body}`, maxWidth, size);
 }
 
-interface WordSegment {
-  text: string;
-  bold: boolean;
+/** Draw one ragged line as a single text command (never per-word). */
+function emitRaggedLine(cursor: PageCursor, text: string, x: number, y: number, size: number, bold: boolean): void {
+  const normalized = normalizeResumeDrawText(text);
+  if (!normalized) return;
+  cursor.text({ text: normalized, x, y, size, bold });
 }
 
-/**
- * Draws one line as a sequence of word-ish segments at `x` with natural
- * (ragged) word spacing. When `justify` is true the line is stretched to
- * fill `maxWidth` — retained for callers that need it, but body text never
- * passes `justify: true` (stretched gaps were unreadable on summary text).
- *
- * A "segment" is usually one word, but a competency line's bold category
- * label is ALSO one segment (its own run, own weight) with the same natural
- * gap computation as ordinary words after it.
- *
- * Every segment draws as its own `DrawText` command, positioned by pure
- * numeric accumulation (segment width + a computed gap) — never by
- * embedding a leading or trailing space CHARACTER in a drawn string.
- */
-function emitJustifiableSegments(cursor: PageCursor, segments: WordSegment[], x: number, y: number, maxWidth: number, size: number, justify: boolean, measure: TextMeasurer): void {
-  if (segments.length === 0) return;
-  const homogeneous = segments.every((s) => s.bold === segments[0].bold);
-  if (!justify && homogeneous) {
-    cursor.text({ text: segments.map((s) => s.text).join(" "), x, y, size, bold: segments[0].bold });
-    return;
-  }
-  if (segments.length === 1) {
-    cursor.text({ text: segments[0].text, x, y, size, bold: segments[0].bold });
-    return;
-  }
-  const widths = segments.map((s) => measure.widthOf(s.text, size, s.bold));
+/** Bold category label + one normal remainder string on the same baseline. */
+function emitCompetencyFirstLine(cursor: PageCursor, label: string, remainder: string, y: number, size: number, measure: TextMeasurer): void {
+  const normalizedLabel = normalizeResumeDrawText(label);
+  const normalizedRemainder = normalizeResumeDrawText(remainder);
+  if (!normalizedLabel) return;
+  cursor.text({ text: normalizedLabel, x: cursor.marginX, y, size, bold: true });
+  if (!normalizedRemainder) return;
+  const labelWidth = measure.widthOf(normalizedLabel, size, true);
   const spaceWidth = measure.widthOf(" ", size, false);
-  if (!justify) {
-    let wx = x;
-    segments.forEach((seg, i) => {
-      cursor.text({ text: seg.text, x: wx, y, size, bold: seg.bold });
-      wx += widths[i] + spaceWidth * RAGGED_GAP_PADDING;
-    });
-    return;
-  }
-  const naturalWidth = widths.reduce((a, b) => a + b, 0) + spaceWidth * (segments.length - 1);
-  const gapWidth = spaceWidth + Math.max(0, maxWidth - naturalWidth) / (segments.length - 1);
-  let wx = x;
-  segments.forEach((seg, i) => {
-    cursor.text({ text: seg.text, x: wx, y, size, bold: seg.bold });
-    wx += widths[i] + gapWidth;
-  });
-}
-
-function emitJustifiableLine(cursor: PageCursor, text: string, x: number, y: number, maxWidth: number, size: number, bold: boolean, justify: boolean, measure: TextMeasurer): void {
-  const words = text.split(/\s+/).filter(Boolean);
-  emitJustifiableSegments(cursor, words.map((w) => ({ text: w, bold })), x, y, maxWidth, size, justify, measure);
+  cursor.text({ text: normalizedRemainder, x: cursor.marginX + labelWidth + spaceWidth, y, size, bold: false });
 }
 
 function emitParagraphLines(cursor: PageCursor, lines: string[], size: number, bold: boolean, width: number, measure: TextMeasurer, x?: number): void {
@@ -336,7 +323,7 @@ function emitParagraphLines(cursor: PageCursor, lines: string[], size: number, b
   lines.forEach((line) => {
     cursor.reserveLine(size);
     const y = cursor.baselineY(size);
-    emitJustifiableLine(cursor, line, x ?? cursor.marginX, y, width, size, bold, false, measure);
+    emitRaggedLine(cursor, line, x ?? cursor.marginX, y, size, bold);
     cursor.advanceLine(size);
   });
 }
@@ -347,7 +334,7 @@ function emitBulletLines(cursor: PageCursor, lines: string[], textWidth: number,
     cursor.reserveLine(BODY_SIZE);
     const y = cursor.baselineY(BODY_SIZE);
     if (idx === 0) cursor.dot(y - BODY_SIZE * 0.32, BULLET_DOT_RADIUS);
-    emitJustifiableLine(cursor, line, cursor.marginX + BULLET_INDENT, y, textWidth, BODY_SIZE, false, false, measure);
+    emitRaggedLine(cursor, line, cursor.marginX + BULLET_INDENT, y, BODY_SIZE, false);
     cursor.advanceLine(BODY_SIZE);
   });
 }
@@ -356,7 +343,8 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
   const width = cursor.contentWidth;
 
   if (block.kind === "paragraph") {
-    const lines = measure.wrap(block.text, width, BODY_SIZE);
+    const normalized = normalizeResumeDrawText(block.text);
+    const lines = measure.wrap(normalized, width, BODY_SIZE);
     emitParagraphLines(cursor, lines, BODY_SIZE, false, width, measure);
     cursor.advance(GAP_BETWEEN_BLOCKS);
     return;
@@ -364,18 +352,17 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
 
   if (block.kind === "competency") {
     const prefix = `${block.category}: `;
-    const label = block.category + ":";
-    const lines = wrapWithPrefix(prefix, block.items, width, BODY_SIZE, measure);
+    const label = `${block.category}:`;
+    const normalizedItems = normalizeResumeDrawText(block.items);
+    const lines = wrapWithPrefix(prefix, normalizedItems, width, BODY_SIZE, measure);
     maybeMoveMultilineUnit(cursor, lines.length, BODY_SIZE);
     lines.forEach((line, idx) => {
       cursor.reserveLine(BODY_SIZE);
       const y = cursor.baselineY(BODY_SIZE);
       if (idx === 0 && line.startsWith(prefix)) {
-        const contentWords = line.slice(prefix.length).split(/\s+/).filter(Boolean);
-        const segments: WordSegment[] = [{ text: label, bold: true }, ...contentWords.map((w) => ({ text: w, bold: false }))];
-        emitJustifiableSegments(cursor, segments, cursor.marginX, y, width, BODY_SIZE, false, measure);
+        emitCompetencyFirstLine(cursor, label, line.slice(prefix.length), y, BODY_SIZE, measure);
       } else {
-        emitJustifiableLine(cursor, line, cursor.marginX, y, width, BODY_SIZE, false, false, measure);
+        emitRaggedLine(cursor, line, cursor.marginX, y, BODY_SIZE, false);
       }
       cursor.advanceLine(BODY_SIZE);
     });
@@ -386,7 +373,7 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
   if (block.kind === "bullets") {
     const textWidth = width - BULLET_INDENT;
     for (const item of block.items) {
-      emitBulletLines(cursor, measure.wrap(item, textWidth, BODY_SIZE), textWidth, measure);
+      emitBulletLines(cursor, measure.wrap(normalizeResumeDrawText(item), textWidth, BODY_SIZE), textWidth, measure);
     }
     cursor.advance(GAP_BETWEEN_BLOCKS);
     return;
@@ -396,9 +383,9 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
   maybeMoveEntryWithFirstBullet(cursor, block.bullets.length > 0);
   cursor.reserveLine(HEADING_SIZE);
   const y = cursor.baselineY(HEADING_SIZE);
-  cursor.text({ text: block.title, y, size: HEADING_SIZE, bold: true });
+  cursor.text({ text: normalizeResumeDrawText(block.title), y, size: HEADING_SIZE, bold: true });
   if (block.dateRight) {
-    cursor.text({ text: block.dateRight, x: cursor.pageRight, y, align: "right", size: BODY_SIZE, bold: false });
+    cursor.text({ text: normalizeResumeDrawText(block.dateRight), x: cursor.pageRight, y, align: "right", size: BODY_SIZE, bold: false });
   }
   cursor.advanceLine(HEADING_SIZE);
   cursor.advance(GAP_ENTRY_TITLE_TO_BULLETS);
@@ -416,13 +403,14 @@ export function layoutResumeDocument(
 
   if (doc.name) {
     cursor.reserve(lh(NAME_SIZE));
-    cursor.text({ text: doc.name, x: cursor.pageCenterX, y: cursor.y + lh(NAME_SIZE) * 0.8, align: "center", size: NAME_SIZE, bold: true });
+    cursor.text({ text: normalizeResumeDrawText(doc.name), x: cursor.pageCenterX, y: cursor.y + lh(NAME_SIZE) * 0.8, align: "center", size: NAME_SIZE, bold: true });
     cursor.advance(lh(NAME_SIZE));
   }
-  if (doc.contactLine) {
+  const contactLine = sanitizeContactLine(doc.contactLine);
+  if (contactLine) {
     cursor.reserve(lh(CONTACT_SIZE) + 4);
     cursor.advance(4);
-    cursor.text({ text: doc.contactLine, x: cursor.pageCenterX, y: cursor.y + lh(CONTACT_SIZE) * 0.8, align: "center", size: CONTACT_SIZE, bold: false });
+    cursor.text({ text: normalizeResumeDrawText(contactLine), x: cursor.pageCenterX, y: cursor.y + lh(CONTACT_SIZE) * 0.8, align: "center", size: CONTACT_SIZE, bold: false });
     cursor.advance(lh(CONTACT_SIZE));
   }
 
@@ -441,7 +429,8 @@ export function layoutResumeDocument(
   return { pages: cursor.pages, pageWidth: metrics.pageWidth, pageHeight: metrics.pageHeight, marginX: metrics.marginX };
 }
 
-function jsPdfMeasurer(doc: jsPDF): TextMeasurer {
+/** Real jsPDF measurer — exported for unit tests that need accurate pagination. */
+export function jsPdfMeasurer(doc: jsPDF): TextMeasurer {
   return {
     widthOf(text, size, bold) {
       doc.setFont("helvetica", bold ? "bold" : "normal");

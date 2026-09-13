@@ -9,6 +9,7 @@ import {
 import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
 
 const FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/sample-resume.txt"), "utf8");
+const VIVEK_GOLDEN = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-original-resume.txt"), "utf8");
 
 describe("structureResumeText", () => {
     it("extracts name, profession, email, skills, experience from fixture", () => {
@@ -155,5 +156,42 @@ Salesforce`;
         const out = structureResumeText(FIXTURE);
         const score = scoreLocalParseConfidence(out);
         assert.ok(score.overall >= LOCAL_PARSE_ACCEPT_MIN, `expected ≥ ${LOCAL_PARSE_ACCEPT_MIN}, got ${score.overall}`);
+    });
+
+    it("vivek golden: location is Richmond Hill, Ontario — not summary prose", () => {
+        const out = structureResumeText(VIVEK_GOLDEN);
+        assert.match(out.profile.location ?? "", /richmond hill/i);
+        assert.match(out.profile.location ?? "", /ontario/i);
+        assert.ok(!/into prioritized/i.test(out.profile.location ?? ""));
+        assert.ok(!/shippable roadmaps/i.test(out.profile.location ?? ""));
+    });
+
+    it("vivek golden: rejects summary fragment as location when line 2 is malicious", () => {
+        const malicious = VIVEK_GOLDEN.replace(
+            "Richmond Hill, Ontario | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz",
+            "into prioritized, shippable roadmaps.",
+        );
+        const out = structureResumeText(malicious);
+        assert.ok(!/into prioritized/i.test(out.profile.location ?? ""));
+        assert.ok(!/shippable roadmaps/i.test(out.profile.location ?? ""));
+    });
+
+    it("vivek golden: parses three competency categories", () => {
+        const out = structureResumeText(VIVEK_GOLDEN);
+        assert.equal(out.competencies.length, 3);
+        const names = out.competencies.map((c) => c.category);
+        assert.ok(names.includes("Product"));
+        assert.ok(names.some((n) => /delivery/i.test(n)));
+        assert.ok(names.includes("Technical"));
+        const technical = out.competencies.find((c) => c.category === "Technical");
+        assert.ok((technical?.skills.length ?? 0) > 10, "Technical line should not be capped at 30 total");
+    });
+
+    it("vivek golden: parses independent projects and education with intact institution", () => {
+        const out = structureResumeText(VIVEK_GOLDEN);
+        assert.ok(out.projects.length >= 2, `expected ≥2 projects, got ${out.projects.length}`);
+        assert.ok(out.education.some((e) => /university of illinois urbana-champaign/i.test(e.institution)));
+        assert.ok(out.education.some((e) => /university at buffalo/i.test(e.institution)));
+        assert.ok(out.profile.website?.includes("vivekn.xyz"));
     });
 });

@@ -18,6 +18,7 @@
  * touches raw content or `ResumeData` directly, only this shape, so the
  * renderer stays agnostic to which of the two adapters produced it.
  */
+import { buildContactLine, isContactOrPlaceLine, sanitizeContactLine, sanitizeLocation } from "@/lib/resume/contact-line";
 import type { ResumeData } from "@/types/resume";
 
 export type ParsedResumeBlock =
@@ -144,8 +145,11 @@ export function parseResumeContent(content: string): ParsedResumeDocument {
   skipBlank();
   let contactLine: string | null = null;
   if (i < rawLines.length && !BULLET_RE.test(rawLines[i].trim()) && matchHeading(rawLines[i]) === null) {
-    contactLine = rawLines[i].trim();
-    i++;
+    const candidate = rawLines[i].trim();
+    if (isContactOrPlaceLine(candidate)) {
+      contactLine = sanitizeContactLine(candidate);
+      i++;
+    }
   }
 
   const sections: ParsedResumeSection[] = [];
@@ -277,6 +281,20 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
       })),
     });
   }
+  if ((data.projects?.length ?? 0) > 0) {
+    sections.push({
+      heading: "INDEPENDENT PROJECTS",
+      blocks: (data.projects ?? []).map((e) => ({
+        kind: "entry" as const,
+        title: e.company ? `${e.role} | ${e.company}` : e.role,
+        dateRight: e.dates || null,
+        bullets: e.description
+          .split("\n")
+          .map((l) => l.replace(BULLET_RE, "$1").trim())
+          .filter(Boolean),
+      })),
+    });
+  }
   if (data.education.length > 0) {
     sections.push({
       heading: "EDUCATION",
@@ -284,10 +302,16 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
     });
   }
 
-  const contactParts = [data.profile.location, data.profile.phone, data.profile.email, data.profile.linkedin].filter(Boolean);
+  const contactLine = buildContactLine([
+    sanitizeLocation(data.profile.location),
+    data.profile.phone,
+    data.profile.email,
+    data.profile.linkedin,
+    data.profile.website,
+  ]);
   return {
     name: data.profile.name || data.profile.profession || null,
-    contactLine: contactParts.length > 0 ? contactParts.join(" | ") : null,
+    contactLine,
     sections,
   };
 }

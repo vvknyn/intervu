@@ -6,20 +6,26 @@
  * unit-test with fixture résumés.
  */
 
+import {
+    EMAIL_RE,
+    LINKEDIN_RE,
+    PHONE_RE,
+    extractWebsite,
+    isContactOrPlaceLine,
+    looksLikeRealPlaceSegment,
+    sanitizeLocation,
+} from "@/lib/resume/contact-line";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import type { ResumeCompetencyCategory, ResumeEducation, ResumeExperience, ResumeProfile } from "@/types/resume";
 
 export interface StructuredResumeDraft {
     profile: Partial<ResumeProfile>;
     experience: Omit<ResumeExperience, "id">[];
+    projects: Omit<ResumeExperience, "id">[];
     competencies: ResumeCompetencyCategory[];
     education: Omit<ResumeEducation, "id">[];
     generatedSummary: string;
 }
-
-const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
-const PHONE_RE = /(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}\b/;
-const LINKEDIN_RE = /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+/i;
 
 const MONTH =
     "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
@@ -58,13 +64,16 @@ const SUMMARY_HEADERS = new Set(["summary", "professional summary", "profile", "
 
 const SKILLS_HEADERS = new Set(["skills", "technical skills", "core competencies", "competencies"]);
 
-const EDUCATION_HEADERS = new Set(["education", "academic"]);
+const EDUCATION_HEADERS = new Set(["education", "academic", "education & professional development"]);
+
+const PROJECTS_HEADERS = new Set(["independent projects", "projects", "selected projects"]);
 
 const ALL_SECTION_HEADERS = new Set([
     ...EXPERIENCE_HEADERS,
     ...SUMMARY_HEADERS,
     ...SKILLS_HEADERS,
     ...EDUCATION_HEADERS,
+    ...PROJECTS_HEADERS,
 ]);
 
 function normalizeSectionKey(line: string): string {
@@ -102,6 +111,8 @@ function isExperienceHeader(key: string): boolean {
 function resolveSection(header: string): string {
     const key = normalizeSectionKey(header);
     if (key.includes("skill") || key.includes("competen") || SKILLS_HEADERS.has(key)) return "skills";
+    if (PROJECTS_HEADERS.has(key) || /\bindependent projects?\b/.test(key)) return "projects";
+    if (key === "projects" || key === "selected projects") return "projects";
     if (EDUCATION_HEADERS.has(key) || /\b(education|academic)\b/.test(key)) return "education";
     if (SUMMARY_HEADERS.has(key) || key.includes("summary") || key === "about") return "summary";
     if (isExperienceHeader(key)) return "experience";
@@ -372,84 +383,86 @@ function extractContact(lines: string[]): Partial<ResumeProfile> {
     const email = joined.match(EMAIL_RE)?.[0] ?? "";
     const phone = joined.match(PHONE_RE)?.[0] ?? "";
     const linkedin = joined.match(LINKEDIN_RE)?.[0] ?? "";
-    return { email, phone, linkedin };
+    const website = extractWebsite(joined);
+    return { email, phone, linkedin, website };
 }
 
-const KNOWN_PLACE_WORDS = new Set([
-    "ontario", "quebec", "alberta", "manitoba", "saskatchewan", "british columbia",
-    "california", "texas", "new york", "florida", "washington", "colorado", "georgia",
-    "massachusetts", "illinois", "pennsylvania", "virginia", "arizona", "ohio",
-    "canada", "united states", "usa", "uk", "united kingdom", "england", "scotland",
-    "india", "australia", "germany", "france", "ireland", "singapore",
-]);
-
-function looksLikePlaceSegment(segment: string): boolean {
-    const s = segment.trim();
-    if (!s || s.length < 3 || s.length > 80) return false;
-    if (EMAIL_RE.test(s) || PHONE_RE.test(s) || LINKEDIN_RE.test(s)) return false;
-    if (/^https?:\/\//i.test(s)) return false;
-    if (/^\+?\d[\d\s().-]{6,}$/.test(s)) return false;
-    if (looksLikeName(s) || looksLikeTitle(s)) return false;
-    if (s.includes(",")) return true;
-    const lower = s.toLowerCase();
-    for (const word of KNOWN_PLACE_WORDS) {
-        if (lower.includes(word)) return true;
-    }
-    return false;
-}
-
-/** Parse a place from header contact lines (city/region/country), not email/phone/linkedin. */
+/** Parse a place from header contact lines (city/region/country), not summary prose. */
 function extractLocation(lines: string[]): string {
     const headerLines = lines.slice(0, 8);
-    const joined = headerLines.join(" ");
-    const remainder = joined
-        .replace(EMAIL_RE, " ")
-        .replace(PHONE_RE, " ")
-        .replace(LINKEDIN_RE, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-    const segments = remainder.split(/[·|•]/).map((s) => s.trim()).filter(Boolean);
-    for (const seg of segments) {
-        if (looksLikePlaceSegment(seg)) return seg.replace(/^[\s·|•]+|[\s·|•]+$/g, "").trim();
-    }
+    const candidates: string[] = [];
 
     for (const line of headerLines) {
         if (looksLikeName(line) || looksLikeTitle(line)) continue;
         if (isSectionHeader(line)) continue;
+        if (!isContactOrPlaceLine(line)) continue;
+
         const cleaned = line
             .replace(EMAIL_RE, "")
             .replace(PHONE_RE, "")
             .replace(LINKEDIN_RE, "")
+            .replace(/\s+/g, " ")
             .trim();
-        if (looksLikePlaceSegment(cleaned)) {
-            return cleaned.replace(/^[\s·|•]+|[\s·|•]+$/g, "").trim();
+
+        const segments = cleaned.split(/[·|•|]/).map((s) => s.trim()).filter(Boolean);
+        for (const seg of segments) {
+            if (looksLikeRealPlaceSegment(seg)) {
+                candidates.push(seg.replace(/^[\s·|•]+|[\s·|•]+$/g, "").trim());
+            }
         }
     }
 
-    return "";
+    if (candidates.length === 0) return "";
+    // Prefer the longest real place (e.g. "Richmond Hill, Ontario" over a stray fragment).
+    return candidates.sort((a, b) => b.length - a.length)[0];
 }
 
+const SKILL_CATEGORY_RE = /^([^:]{2,60}):\s*(.+)$/;
+
 function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
-    const skills: string[] = [];
+    const categories: ResumeCompetencyCategory[] = [];
+    const fallbackSkills: string[] = [];
+
     for (const line of lines) {
         const cleaned = line.replace(BULLET_RE, "").trim();
         if (!cleaned) continue;
+        const categoryMatch = cleaned.match(SKILL_CATEGORY_RE);
+        if (categoryMatch) {
+            const skills = categoryMatch[2]
+                .split(",")
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0);
+            if (skills.length > 0) {
+                categories.push({ category: categoryMatch[1].trim(), skills });
+            }
+            continue;
+        }
         const parts = cleaned.split(/[,;|•]/).map((s) => s.trim()).filter(Boolean);
         for (const part of parts) {
-            if (part.length > 1 && part.length < 60) skills.push(part);
+            if (part.length > 1) fallbackSkills.push(part);
         }
     }
-    if (skills.length === 0) return [];
-    return [{ category: "Skills", skills: [...new Set(skills)].slice(0, 30) }];
+
+    if (categories.length > 0) return categories;
+    if (fallbackSkills.length === 0) return [];
+    return [{ category: "Skills", skills: [...new Set(fallbackSkills)] }];
 }
 
 function parseEducationBlock(lines: string[]): Omit<ResumeEducation, "id">[] {
     const entries: Omit<ResumeEducation, "id">[] = [];
-    for (const line of lines) {
+    for (const rawLine of lines) {
+        const line = rawLine.replace(BULLET_RE, "").trim();
+        if (!line) continue;
         const yearMatch = line.match(/\b(19|20)\d{2}\b/);
         const year = yearMatch?.[0] ?? "";
         const withoutYear = year ? line.replace(year, "").replace(/[,|\-–—]\s*$/, "").trim() : line;
+
+        const pipeSplit = withoutYear.split(/\s*\|\s*/);
+        if (pipeSplit.length === 2) {
+            entries.push({ degree: pipeSplit[0].trim(), institution: pipeSplit[1].trim(), year });
+            continue;
+        }
+
         const atSplit = withoutYear.split(/\s+at\s+/i);
         if (atSplit.length === 2) {
             entries.push({ degree: atSplit[0].trim(), institution: atSplit[1].trim(), year });
@@ -466,7 +479,7 @@ function parseEducationBlock(lines: string[]): Omit<ResumeEducation, "id">[] {
 export function structureResumeText(text: string): StructuredResumeDraft {
     const lines = normalizeLines(text);
     const contact = extractContact(lines);
-    const location = extractLocation(lines);
+    const location = sanitizeLocation(extractLocation(lines));
 
     let name = "";
     let profession = "";
@@ -502,6 +515,8 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         experience = parseExperienceBlock(collectExperienceFallbackLines(sections));
     }
 
+    const projects = parseExperienceBlock(sections.projects ?? []);
+
     if (!profession && experience.length > 0) {
         profession = experience[0].role || profession;
     }
@@ -536,8 +551,10 @@ export function structureResumeText(text: string): StructuredResumeDraft {
             email: contact.email ?? "",
             phone: contact.phone ?? "",
             linkedin: contact.linkedin ?? "",
+            website: contact.website ?? "",
         },
         experience,
+        projects,
         competencies: parseSkillsBlock(sections.skills ?? []),
         education: parseEducationBlock(sections.education ?? []),
         generatedSummary,

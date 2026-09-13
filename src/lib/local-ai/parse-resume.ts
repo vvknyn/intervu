@@ -29,6 +29,7 @@ const PROFILE_STRING_KEYS = [
     "email",
     "phone",
     "linkedin",
+    "website",
 ] as const;
 
 function modelOutputToRaw(parsed: Record<string, unknown>): RawParsedResumeInput {
@@ -36,6 +37,7 @@ function modelOutputToRaw(parsed: Record<string, unknown>): RawParsedResumeInput
     return {
         profile,
         experience: parsed.experience as RawParsedResumeInput["experience"],
+        projects: parsed.projects as RawParsedResumeInput["projects"],
         competencies: parsed.competencies as RawParsedResumeInput["competencies"],
         education: parsed.education as RawParsedResumeInput["education"],
         generatedSummary: (parsed.generatedSummary as string) ?? "",
@@ -108,6 +110,7 @@ export function mergeModelIntoHeuristic(
     const raw: RawParsedResumeInput = {
         profile: mergedProfile,
         experience: heuristic.experience,
+        projects: heuristic.projects,
         competencies: heuristic.competencies,
         education: heuristic.education,
         generatedSummary: heuristic.generatedSummary,
@@ -115,6 +118,10 @@ export function mergeModelIntoHeuristic(
 
     if (hasMeaningfulExperience(fromModel.experience)) {
         raw.experience = fromModel.experience;
+        modelContributed = true;
+    }
+    if (hasMeaningfulExperience(fromModel.projects)) {
+        raw.projects = fromModel.projects;
         modelContributed = true;
     }
     if (hasMeaningfulCompetencies(fromModel.competencies)) {
@@ -148,6 +155,7 @@ export async function parseResumeLocally(content: string): Promise<LocalParseRes
     let raw: RawParsedResumeInput = {
         profile: heuristicDraft.profile,
         experience: heuristicDraft.experience,
+        projects: heuristicDraft.projects,
         competencies: heuristicDraft.competencies,
         education: heuristicDraft.education,
         generatedSummary: heuristicDraft.generatedSummary,

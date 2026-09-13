@@ -64,6 +64,7 @@ const resumeProfileSchema = z.object({
     email: cappedString(200),
     phone: cappedString(50),
     linkedin: cappedString(300).optional(),
+    website: cappedString(300).optional(),
 });
 
 const resumeExperienceSchema = z.object({
@@ -95,6 +96,7 @@ const resumeEducationSchema = z.object({
 const resumeDataSchema: z.ZodType<ResumeData> = z.object({
     profile: resumeProfileSchema,
     experience: z.array(resumeExperienceSchema).max(LIST_MAX),
+    projects: z.array(resumeExperienceSchema).max(LIST_MAX).optional(),
     competencies: z.array(resumeCompetencyCategorySchema).max(LIST_MAX),
     education: z.array(resumeEducationSchema).max(LIST_MAX),
     generatedSummary: cappedString(TEXT_FIELD_MAX),

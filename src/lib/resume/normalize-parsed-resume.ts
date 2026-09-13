@@ -5,6 +5,7 @@
  * never blindly trusted from a model or heuristic guess.
  */
 
+import { sanitizeLocation } from "@/lib/resume/contact-line";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import type {
     ParsedResumeResult,
@@ -25,8 +26,16 @@ export interface RawParsedResumeInput {
         email?: string;
         phone?: string;
         linkedin?: string;
+        website?: string;
     };
     experience?: Array<{
+        id?: string;
+        company?: string;
+        role?: string;
+        dates?: string;
+        description?: string;
+    }>;
+    projects?: Array<{
         id?: string;
         company?: string;
         role?: string;
@@ -86,12 +95,22 @@ export function normalizeParsedResume(
             name: raw.profile?.name || "",
             profession: raw.profile?.profession || "",
             yearsOfExperience,
-            location: raw.profile?.location || "",
+            location: sanitizeLocation(raw.profile?.location),
             email: raw.profile?.email || "",
             phone: raw.profile?.phone || "",
             linkedin: raw.profile?.linkedin || "",
+            website: raw.profile?.website || "",
         },
         experience,
+        projects: Array.isArray(raw.projects)
+            ? raw.projects.map((exp, idx) => ({
+                  id: exp.id || `proj-${idx + 1}`,
+                  company: exp.company || "",
+                  role: exp.role || "",
+                  dates: exp.dates || "",
+                  description: normalizeDescription(exp.description || ""),
+              }))
+            : undefined,
         competencies: Array.isArray(raw.competencies)
             ? raw.competencies.map((comp) => ({
                   category: comp.category || "Skills",

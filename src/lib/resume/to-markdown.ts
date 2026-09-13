@@ -50,7 +50,13 @@ export function resumeDataToMarkdown(data: ResumeData): string {
                 }
                 break;
             case "projects":
-                break; // ResumeData carries no projects field yet.
+                if (data.projects?.length) {
+                    lines.push("## Independent Projects", "");
+                    for (const p of data.projects) {
+                        lines.push(`### ${p.role}${p.company ? ` — ${p.company}` : ""}`, p.dates, "", p.description, "");
+                    }
+                }
+                break;
         }
     }
 
