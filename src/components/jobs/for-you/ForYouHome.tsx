@@ -165,12 +165,18 @@ export function ForYouHome({
 
     return (
         <div
-            className="flex min-h-0 flex-1 flex-col"
+            className={cn(
+                "flex min-h-[20rem] flex-1 flex-col",
+                // Viewport-bounded column: topbar + shell padding + mobile tab bar clearance.
+                "h-[calc(100dvh-var(--topbar-h)-6.25rem-env(safe-area-inset-bottom,0px))]",
+                "max-h-[calc(100dvh-var(--topbar-h)-6.25rem-env(safe-area-inset-bottom,0px))]",
+                "lg:h-[calc(100dvh-var(--topbar-h)-3.25rem)] lg:max-h-[calc(100dvh-var(--topbar-h)-3.25rem)]",
+            )}
             data-testid="for-you-home"
             onKeyDown={handleKeyDown}
             tabIndex={0}
         >
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
                 {showToggle && (
                     <ForYouToggle value={homeView} onChange={onHomeViewChange} />
                 )}
@@ -181,12 +187,12 @@ export function ForYouHome({
                 )}
             </div>
 
-            <PreferenceChipStrip chips={prefsChips} className="mb-4" />
+            <PreferenceChipStrip chips={prefsChips} className="mb-4 shrink-0" />
 
             {showLoading ? (
                 <div
                     data-testid="for-you-loading"
-                    className="flex flex-1 items-center justify-center border border-border bg-card p-12"
+                    className="flex min-h-0 flex-1 items-center justify-center border border-border bg-card p-12"
                 >
                     <p className="flex items-center gap-2 text-sm text-muted-foreground">
                         <CircleNotch size={18} className="animate-spin" aria-hidden />
@@ -196,7 +202,7 @@ export function ForYouHome({
             ) : visiblePacks.length === 0 ? (
                 <div
                     data-testid="for-you-empty"
-                    className="flex flex-1 flex-col items-center justify-center gap-4 border border-border bg-card p-12 text-center"
+                    className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 border border-border bg-card p-12 text-center"
                 >
                     <p className="text-sm text-muted-foreground">
                         No ranked roles to show right now. Try Search to browse the full list.
@@ -217,17 +223,13 @@ export function ForYouHome({
                     nowMs={nowMs}
                     hydratedJobs={hydratedJobs}
                     onActivePackChange={onActivePackChange}
-                    className="min-h-[420px] flex-1 pb-24 lg:pb-4"
+                    className="min-h-0 flex-1"
                 />
             )}
 
             {visiblePacks.length > 0 && !showLoading && (
-                <div
-                    className={cn(
-                        "fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background p-3 lg:static lg:mt-4 lg:border-t-0 lg:p-0",
-                    )}
-                >
-                    <div className="mx-auto flex max-w-[1600px] gap-2">
+                <div className="mt-4 shrink-0 border-t border-border pt-4">
+                    <div className="flex gap-2">
                         <Button
                             type="button"
                             className="flex-1 lg:flex-none"

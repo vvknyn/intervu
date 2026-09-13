@@ -5249,7 +5249,7 @@ function JobsContent() {
                     )}
 
                 {showForYouHome ? (
-                    <div className={cn("mt-4 flex min-h-0 flex-1 flex-col", cappedContentClass)}>
+                    <div className={cn("mt-4 flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
                         <ForYouHome
                             packs={forYouPacks}
                             matchScores={matchScores}

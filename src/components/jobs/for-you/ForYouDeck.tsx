@@ -57,7 +57,7 @@ export function ForYouDeck({
     };
 
     return (
-        <div className={cn("relative", className)} onWheel={handleWheel}>
+        <div className={cn("relative h-full min-h-0 pb-6", className)} onWheel={handleWheel}>
             {packs.map((pack, index) => {
                 const offset = index - activeIndex;
                 if (offset < 0 || offset > 2) return null;
@@ -67,8 +67,10 @@ export function ForYouDeck({
                     <div
                         key={pack.id}
                         className={cn(
-                            "transition-transform motion-reduce:transition-none",
-                            isActive ? "relative z-20" : "absolute inset-x-0 top-0 z-10 pointer-events-none",
+                            "h-full min-h-0 transition-transform motion-reduce:transition-none",
+                            isActive
+                                ? "relative z-20"
+                                : "absolute inset-x-0 top-0 z-10 h-full pointer-events-none",
                         )}
                         style={
                             isActive
