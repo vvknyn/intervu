@@ -9,10 +9,9 @@ import { fetchResumeSummaryAction, uploadBaseResumeAction, deleteBaseResumeActio
 import { saveResumeData } from "@/actions/resume";
 import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract-file-text";
 import { downloadBlob } from "@/lib/export-utils";
-import { exportZipResumePdf } from "@/lib/resume/export-zip-pdf";
+import { exportZipResumePdf, exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { parseResumeContent } from "@/lib/resume/parse-resume-content";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
-import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { captureEvent } from "@/lib/analytics/events";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
@@ -41,9 +40,11 @@ async function downloadBaseResumePdf(summary: Extract<ResumeSummary, { source: "
         fallbackLabel: name || "resume",
         dateIso: summary.updatedAt ?? new Date().toISOString(),
     });
-    const markdown =
-        summary.source === "resume_text" ? summary.resume_text : resumeDataToZipMarkdown(summary.resume_data);
-    await exportZipResumePdf(markdown, `${filename}.pdf`);
+    if (summary.source === "resume_data") {
+        await exportZipResumePdfFromData(summary.resume_data, `${filename}.pdf`);
+        return;
+    }
+    await exportZipResumePdf(summary.resume_text, `${filename}.pdf`);
 }
 
 function defaultResumeData(userEmail?: string, userName?: string): ResumeData {

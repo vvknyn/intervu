@@ -1,10 +1,12 @@
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import { downloadBlob } from "@/lib/export-utils";
-import { parseResumeContent } from "@/lib/resume/parse-resume-content";
+import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
 import { renderResumePdf, DEFAULT_PAGE_METRICS } from "@/lib/resume/render-pdf";
+import { RESUME_ZIP_CSS } from "@/lib/resume/resume-zip.css";
+import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
-import { zipMarkdownToHtml } from "@/lib/resume/zip-html";
+import { parsedResumeToZipHtml, resumeDataToZipHtml } from "@/lib/resume/zip-html";
 import type { ResumeData } from "@/types/resume";
 
 const CANVAS_SCALE = 2.5;
@@ -15,8 +17,9 @@ export function zipResumeMarkdownFromData(data: ResumeData): string {
     return resumeDataToZipMarkdown(data);
 }
 
+/** HTML for PDF — built from ResumeData, never parseResumeContent. */
 export function zipResumeHtmlFromData(data: ResumeData): string {
-    return zipMarkdownToHtml(resumeDataToZipMarkdown(data));
+    return resumeDataToZipHtml(data);
 }
 
 function waitForPaint(): Promise<void> {
@@ -27,34 +30,39 @@ function waitForPaint(): Promise<void> {
     });
 }
 
-async function mountHtmlInIframe(html: string): Promise<{ iframe: HTMLIFrameElement; page: HTMLElement }> {
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.style.position = "fixed";
-    iframe.style.left = "-10000px";
-    iframe.style.top = "0";
-    iframe.style.width = "8.5in";
-    iframe.style.height = "11in";
-    iframe.style.border = "0";
-    iframe.style.visibility = "hidden";
-    document.body.appendChild(iframe);
+/**
+ * Same-document offscreen host. html2canvas cannot reliably capture nodes
+ * inside a hidden iframe (parent-window canvas + iframe document throws),
+ * which is what pushed Customize into the jsPDF fallback.
+ */
+async function mountHtmlOffscreen(html: string): Promise<{ host: HTMLElement; page: HTMLElement }> {
+    const parsed = new DOMParser().parseFromString(html, "text/html");
+    const sourcePage = parsed.querySelector(".resume-page");
+    if (!sourcePage) throw new Error("resume page element missing");
 
-    const doc = iframe.contentDocument;
-    if (!doc) throw new Error("iframe document unavailable");
-    doc.open();
-    doc.write(html);
-    doc.close();
+    const host = document.createElement("div");
+    host.setAttribute("data-resume-zip-export", "true");
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText = [
+        "position:fixed",
+        "left:-10000px",
+        "top:0",
+        "width:8.5in",
+        "background:#ffffff",
+        "pointer-events:none",
+        "z-index:-1",
+    ].join(";");
+
+    const style = document.createElement("style");
+    style.textContent = RESUME_ZIP_CSS;
+    host.appendChild(style);
+    const page = document.importNode(sourcePage, true) as HTMLElement;
+    host.appendChild(page);
+    document.body.appendChild(host);
 
     await waitForPaint();
     await new Promise((r) => setTimeout(r, 50));
-
-    const page = doc.querySelector(".resume-page");
-    if (!(page instanceof HTMLElement)) {
-        document.body.removeChild(iframe);
-        throw new Error("resume page element missing");
-    }
-
-    return { iframe, page };
+    return { host, page };
 }
 
 function canvasToLetterPdf(canvas: HTMLCanvasElement): ArrayBuffer {
@@ -90,7 +98,7 @@ function canvasToLetterPdf(canvas: HTMLCanvasElement): ArrayBuffer {
 }
 
 async function renderZipHtmlToPdfBytes(html: string): Promise<ArrayBuffer> {
-    const { iframe, page } = await mountHtmlInIframe(html);
+    const { host, page } = await mountHtmlOffscreen(html);
     try {
         const canvas = await html2canvas(page, {
             scale: CANVAS_SCALE,
@@ -99,33 +107,56 @@ async function renderZipHtmlToPdfBytes(html: string): Promise<ArrayBuffer> {
             backgroundColor: "#ffffff",
             width: page.scrollWidth,
             height: page.scrollHeight,
-            windowWidth: page.scrollWidth,
-            windowHeight: page.scrollHeight,
+            windowWidth: Math.max(page.scrollWidth, 816),
+            windowHeight: Math.max(page.scrollHeight, 1056),
         });
+        if (!canvas.width || !canvas.height) {
+            throw new Error("html2canvas produced an empty canvas");
+        }
         return canvasToLetterPdf(canvas);
     } finally {
-        document.body.removeChild(iframe);
+        host.remove();
+    }
+}
+
+function fallbackPdfFromData(data: ResumeData): ArrayBuffer {
+    return renderResumePdf(resumeDataToParsedDocument(data));
+}
+
+/**
+ * Primary Customize / Download path: ResumeData → structured HTML → canvas → Letter PDF.
+ * Fallback is jsPDF of `resumeDataToParsedDocument` — never parseResumeContent.
+ */
+export async function exportZipResumePdfFromData(data: ResumeData, filename: string): Promise<void> {
+    const html = resumeDataToZipHtml(data);
+    const outName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+    try {
+        const bytes = await renderZipHtmlToPdfBytes(html);
+        downloadBlob(bytes, outName, "application/pdf");
+    } catch (err) {
+        console.error("[resume-pdf] HTML export failed; falling back to jsPDF layout from ResumeData (not markdown parse)", err);
+        downloadBlob(fallbackPdfFromData(data), outName, "application/pdf");
     }
 }
 
 /**
- * Client-side zip résumé PDF: markdown → HTML/CSS → html2canvas → jsPDF (US Letter).
- * Falls back to jsPDF draw commands if the HTML path throws. Never uploads content.
+ * Free-text / pursuit snapshot path: structure the text into ResumeData first,
+ * then the same FromData exporter. Does not call parseResumeContent.
  */
 export async function exportZipResumePdf(markdown: string, filename: string): Promise<void> {
-    const html = zipMarkdownToHtml(markdown);
-    try {
-        const bytes = await renderZipHtmlToPdfBytes(html);
-        downloadBlob(bytes, filename.endsWith(".pdf") ? filename : `${filename}.pdf`, "application/pdf");
-    } catch (err) {
-        console.warn("HTML résumé PDF export failed, falling back to jsPDF:", err);
-        const parsed = parseResumeContent(markdown);
-        const fallback = renderResumePdf(parsed);
-        downloadBlob(fallback, filename.endsWith(".pdf") ? filename : `${filename}.pdf`, "application/pdf");
-    }
+    await exportZipResumePdfFromData(resumeDataFromPlainText(markdown), filename);
 }
 
 /** Node/Playwright helper — same HTML document the browser exporter uses. */
+export function buildZipResumePdfHtmlFromData(data: ResumeData): string {
+    return resumeDataToZipHtml(data);
+}
+
+/** @deprecated inspect/debug — PDF download must not use this. */
 export function buildZipResumePdfHtmlFromMarkdown(markdown: string): string {
-    return zipMarkdownToHtml(markdown);
+    return resumeDataToZipHtml(resumeDataFromPlainText(markdown));
+}
+
+export function zipResumeBodyHtmlFromData(data: ResumeData): string {
+    return parsedResumeToZipHtml(resumeDataToParsedDocument(data));
 }

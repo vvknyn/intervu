@@ -22,7 +22,7 @@ import { writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
-import { exportZipResumePdf } from "@/lib/resume/export-zip-pdf";
+import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { displayCompanyBrand } from "@/lib/jobs/presentation";
@@ -57,7 +57,6 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
 
     const handlePdf = useCallback(() => {
         if (!draft) return;
-        const md = resumeDataToZipMarkdown(draft.tailored);
         const filename = deriveResumePdfFilename({
             company: null,
             role: draft.tailored.profile.profession || null,
@@ -66,7 +65,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
         });
         void (async () => {
             try {
-                await exportZipResumePdf(md, `${filename}.pdf`);
+                await exportZipResumePdfFromData(draft.tailored, `${filename}.pdf`);
             } catch {
                 toast.error("Failed to generate PDF");
             }

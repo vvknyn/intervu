@@ -3,34 +3,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseResumeContent } from "@/lib/resume/parse-resume-content";
-import { structureResumeText } from "@/lib/resume/structure-resume-text";
+import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
-import type { ResumeData } from "@/types/resume";
 
 const CSM_GOLDEN = readFileSync(
     path.join(process.cwd(), "tests/fixtures/vivek-csm-golden-resume.txt"),
     "utf8",
 );
 
-function goldenResumeData(): ResumeData {
-    const draft = structureResumeText(CSM_GOLDEN);
-    return {
-        profile: {
-            name: draft.profile.name ?? "",
-            profession: draft.profile.profession ?? "",
-            yearsOfExperience: draft.profile.yearsOfExperience ?? 0,
-            location: draft.profile.location ?? "",
-            email: draft.profile.email ?? "",
-            phone: draft.profile.phone ?? "",
-            linkedin: draft.profile.linkedin,
-            website: draft.profile.website,
-        },
-        experience: draft.experience.map((e, i) => ({ ...e, id: `exp-${i}` })),
-        projects: draft.projects.map((e, i) => ({ ...e, id: `proj-${i}` })),
-        competencies: draft.competencies,
-        education: draft.education.map((e, i) => ({ ...e, id: `edu-${i}` })),
-        generatedSummary: draft.generatedSummary,
-    };
+function goldenResumeData() {
+    return resumeDataFromPlainText(CSM_GOLDEN);
 }
 
 describe("resumeDataToZipMarkdown", () => {

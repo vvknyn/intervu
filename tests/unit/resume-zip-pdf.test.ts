@@ -2,43 +2,25 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { structureResumeText } from "@/lib/resume/structure-resume-text";
+import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
-import { zipMarkdownToHtml } from "@/lib/resume/zip-html";
+import { resumeDataToZipHtml } from "@/lib/resume/zip-html";
 import { zipResumeHtmlFromData } from "@/lib/resume/export-zip-pdf";
-import type { ResumeData } from "@/types/resume";
+import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
+import { layoutResumeDocument, jsPdfMeasurer, DEFAULT_PAGE_METRICS } from "@/lib/resume/render-pdf";
+import { jsPDF } from "jspdf";
 
 const CSM_GOLDEN = readFileSync(
     path.join(process.cwd(), "tests/fixtures/vivek-csm-golden-resume.txt"),
     "utf8",
 );
-
-function goldenResumeData(): ResumeData {
-    const draft = structureResumeText(CSM_GOLDEN);
-    return {
-        profile: {
-            name: draft.profile.name ?? "",
-            profession: draft.profile.profession ?? "",
-            yearsOfExperience: draft.profile.yearsOfExperience ?? 0,
-            location: draft.profile.location ?? "",
-            email: draft.profile.email ?? "",
-            phone: draft.profile.phone ?? "",
-            linkedin: draft.profile.linkedin,
-            website: draft.profile.website,
-        },
-        experience: draft.experience.map((e, i) => ({ ...e, id: `exp-${i}` })),
-        projects: draft.projects.map((e, i) => ({ ...e, id: `proj-${i}` })),
-        competencies: draft.competencies,
-        education: draft.education.map((e, i) => ({ ...e, id: `edu-${i}` })),
-        generatedSummary: draft.generatedSummary,
-    };
-}
+const PM_FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-pm-resume.txt"), "utf8");
 
 describe("resume zip PDF pipeline (no browser)", () => {
-    it("builds markdown and HTML from golden ResumeData", () => {
-        const data = goldenResumeData();
+    it("builds HTML from ResumeData — not parseResumeContent(zip markdown)", () => {
+        const data = resumeDataFromPlainText(CSM_GOLDEN);
         const md = resumeDataToZipMarkdown(data);
-        const html = zipMarkdownToHtml(md);
+        const html = resumeDataToZipHtml(data);
         const fromHelper = zipResumeHtmlFromData(data);
 
         assert.match(md, /^# Vivek Narayanan/m);
@@ -46,11 +28,31 @@ describe("resume zip PDF pipeline (no browser)", () => {
         assert.match(html, /resume-page/);
         assert.equal(fromHelper, html);
         assert.ok(!/Hands-on with/i.test(md));
+        assert.match(html, /Richmond Hill, Ontario/);
+    });
+
+    it("jsPDF fallback from ResumeData keeps three competency lines (PM fixture)", () => {
+        const data = resumeDataFromPlainText(PM_FIXTURE);
+        const parsed = resumeDataToParsedDocument(data);
+        const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
+        const layout = layoutResumeDocument(parsed, jsPdfMeasurer(pdf));
+        const texts = layout.pages.flatMap((p) => p.texts).map((t) => t.text);
+        const joined = texts.join("\n");
+
+        const competencyLabels = texts.filter((t) =>
+            /^(Product|Delivery & Execution|Technical):/.test(t),
+        );
+        assert.ok(competencyLabels.length >= 3, `labels: ${competencyLabels.join(" | ")}`);
+        assert.ok(!texts.some((t) => t === ":" || t.startsWith(": ")));
+        assert.doesNotMatch(joined, /\*\*:/);
+        assert.match(joined, /Richmond Hill/);
+        assert.doesNotMatch(joined, /University \| Buffalo/);
+        assert.match(joined, /INDEPENDENT PROJECTS/);
     });
 });
 
 describe("resume zip PDF pipeline (Playwright)", () => {
-    it("golden fixture prints to one Letter page when Playwright is available", async (t) => {
+    it("golden CSM fixture prints to one Letter page from ResumeData HTML", async (t) => {
         let chromium: typeof import("playwright").chromium;
         try {
             ({ chromium } = await import("playwright"));
@@ -60,7 +62,7 @@ describe("resume zip PDF pipeline (Playwright)", () => {
             return;
         }
 
-        const data = goldenResumeData();
+        const data = resumeDataFromPlainText(CSM_GOLDEN);
         const html = zipResumeHtmlFromData(data);
         const browser = await chromium.launch({ headless: true });
         try {
@@ -83,8 +85,10 @@ describe("resume zip PDF pipeline (Playwright)", () => {
             assert.ok(/Delivery/i.test(joined));
             assert.ok(/Platform/i.test(joined));
             assert.ok(/MITx/i.test(joined));
-            assert.ok(/Buffalo/i.test(joined));
+            assert.ok(/University at Buffalo/i.test(joined) || /Buffalo/i.test(joined));
+            assert.ok(!/University \| Buffalo/i.test(joined));
             assert.ok(!/Hands-on with/i.test(joined));
+            assert.ok(!/\*\*:/.test(joined));
         } finally {
             await browser.close();
         }

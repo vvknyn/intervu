@@ -4,13 +4,17 @@
 
 ```
 ResumeData (after tailor)
-  → resumeDataToZipMarkdown   (inspectable zip-shaped markdown)
-  → parseResumeContent        (same parser as free-text variants)
-  → zipMarkdownToHtml         (self-contained HTML + RESUME_ZIP_CSS)
+  → resumeDataToZipMarkdown     (inspectable only — Copy / /tmp/*.md)
+  → resumeDataToParsedDocument  (structured, no markdown re-parse)
+  → resumeDataToZipHtml         (self-contained HTML + RESUME_ZIP_CSS)
   → PDF
 ```
 
-**Browser download (one-click):** `exportZipResumePdf` mounts the HTML in a hidden iframe, rasterizes with `html2canvas` (scale ≥ 2.5), and writes US Letter via jsPDF. Client-side only — résumé content never leaves the device.
+**Do not** send zip markdown through `parseResumeContent` for Download. That path explodes `**Category:** a, b, c` into orphan `: skill` / `**:` lines.
+
+**Browser download (one-click):** `exportZipResumePdfFromData` mounts the HTML in a same-document offscreen host (not an iframe — html2canvas cannot capture iframe nodes), rasterizes with `html2canvas` (scale ≥ 2.5), and writes US Letter via jsPDF. Client-side only — résumé content never leaves the device.
+
+**Fallback:** `renderResumePdf(resumeDataToParsedDocument(data))`. Still structured data — never `parseResumeContent(markdown)`.
 
 **Visual gold / sample PDF:** Playwright Chromium `page.setContent(html)` + `page.pdf({ format: 'Letter', printBackground: true, margin: 0 })` — Chrome/Skia, same engine family as the zip reference.
 

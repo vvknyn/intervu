@@ -17,7 +17,7 @@ import {
 } from "@/lib/resume/contact-line";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
-import type { ResumeCompetencyCategory, ResumeEducation, ResumeExperience, ResumeProfile } from "@/types/resume";
+import type { ResumeCompetencyCategory, ResumeData, ResumeEducation, ResumeExperience, ResumeProfile } from "@/types/resume";
 
 export interface StructuredResumeDraft {
     profile: Partial<ResumeProfile>;
@@ -568,6 +568,32 @@ function parseEducationBlock(lines: string[]): Omit<ResumeEducation, "id">[] {
         }
     }
     return entries.slice(0, 6);
+}
+
+/** Assign stable ids so a structured draft can enter the ResumeData → HTML PDF path. */
+export function structuredDraftToResumeData(draft: StructuredResumeDraft): ResumeData {
+    return {
+        profile: {
+            name: draft.profile.name ?? "",
+            profession: draft.profile.profession ?? "",
+            yearsOfExperience: draft.profile.yearsOfExperience ?? 0,
+            location: draft.profile.location ?? "",
+            email: draft.profile.email ?? "",
+            phone: draft.profile.phone ?? "",
+            linkedin: draft.profile.linkedin,
+            website: draft.profile.website,
+        },
+        experience: draft.experience.map((e, i) => ({ ...e, id: `exp-${i}` })),
+        projects: draft.projects.map((e, i) => ({ ...e, id: `proj-${i}` })),
+        competencies: draft.competencies,
+        education: draft.education.map((e, i) => ({ ...e, id: `edu-${i}` })),
+        generatedSummary: draft.generatedSummary,
+    };
+}
+
+/** Plain text → ResumeData without going through parseResumeContent. */
+export function resumeDataFromPlainText(text: string): ResumeData {
+    return structuredDraftToResumeData(structureResumeText(text));
 }
 
 /**

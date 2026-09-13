@@ -139,12 +139,13 @@ describe("Customize dialog contract", () => {
         assert.match(src, /local-customize-section-\$\{/);
     });
 
-    it("copy and PDF use zip markdown and HTML export path", () => {
+    it("copy uses zip markdown; PDF exports from ResumeData", () => {
         const src = readFileSync(PANEL, "utf8");
         assert.match(src, /resumeDataToZipMarkdown/);
-        assert.match(src, /exportZipResumePdf/);
+        assert.match(src, /exportZipResumePdfFromData/);
         assert.doesNotMatch(src, /resumeDataToMarkdown/);
         assert.doesNotMatch(src, /renderResumePdf/);
+        assert.doesNotMatch(src, /exportZipResumePdf\(/);
         assert.match(src, /data-testid="local-customize-pdf"/);
     });
 

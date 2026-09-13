@@ -7,41 +7,19 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
 import { extractText, getDocumentProxy } from "unpdf";
-import { structureResumeText } from "../src/lib/resume/structure-resume-text";
+import { resumeDataFromPlainText } from "../src/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "../src/lib/resume/to-zip-markdown";
-import { zipMarkdownToHtml } from "../src/lib/resume/zip-html";
-import type { ResumeData } from "../src/types/resume";
+import { resumeDataToZipHtml } from "../src/lib/resume/zip-html";
 
 const FIXTURE = readFileSync(
     path.join(process.cwd(), "tests/fixtures/vivek-csm-golden-resume.txt"),
     "utf8",
 );
 
-function goldenResumeData(): ResumeData {
-    const draft = structureResumeText(FIXTURE);
-    return {
-        profile: {
-            name: draft.profile.name ?? "",
-            profession: draft.profile.profession ?? "",
-            yearsOfExperience: draft.profile.yearsOfExperience ?? 0,
-            location: draft.profile.location ?? "",
-            email: draft.profile.email ?? "",
-            phone: draft.profile.phone ?? "",
-            linkedin: draft.profile.linkedin,
-            website: draft.profile.website,
-        },
-        experience: draft.experience.map((e, i) => ({ ...e, id: `exp-${i}` })),
-        projects: draft.projects.map((e, i) => ({ ...e, id: `proj-${i}` })),
-        competencies: draft.competencies,
-        education: draft.education.map((e, i) => ({ ...e, id: `edu-${i}` })),
-        generatedSummary: draft.generatedSummary,
-    };
-}
-
 async function main() {
-    const data = goldenResumeData();
+    const data = resumeDataFromPlainText(FIXTURE);
     const md = resumeDataToZipMarkdown(data);
-    const html = zipMarkdownToHtml(md);
+    const html = resumeDataToZipHtml(data);
 
     const tmpMd = "/tmp/resume-csm-golden.md";
     writeFileSync(tmpMd, md, "utf8");
@@ -105,6 +83,14 @@ async function main() {
     }
     if (/^Skills:/m.test(joined)) {
         console.error("Found Skills: dump wrapper in extracted text");
+        process.exitCode = 1;
+    }
+    if (/\*\*:/.test(joined) || /^:\s/m.test(joined)) {
+        console.error("Found mangled competency markers (**: or orphan :)");
+        process.exitCode = 1;
+    }
+    if (/University \| Buffalo/i.test(joined)) {
+        console.error("Education split University | Buffalo");
         process.exitCode = 1;
     }
 

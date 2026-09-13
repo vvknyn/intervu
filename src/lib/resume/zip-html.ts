@@ -1,5 +1,11 @@
 import { RESUME_ZIP_CSS } from "@/lib/resume/resume-zip.css";
-import { parseResumeContent, type ParsedResumeBlock, type ParsedResumeDocument } from "@/lib/resume/parse-resume-content";
+import {
+    parseResumeContent,
+    resumeDataToParsedDocument,
+    type ParsedResumeBlock,
+    type ParsedResumeDocument,
+} from "@/lib/resume/parse-resume-content";
+import type { ResumeData } from "@/types/resume";
 
 function escapeHtml(text: string): string {
     return text
@@ -76,7 +82,18 @@ ${bodyHtml}
 </html>`;
 }
 
-/** Markdown (zip shape) → full HTML document string. */
+/**
+ * Structured ResumeData → full HTML document.
+ * This is the PDF download path — never re-parse zip markdown.
+ */
+export function resumeDataToZipHtml(data: ResumeData): string {
+    return buildZipResumeDocument(parsedResumeToZipHtml(resumeDataToParsedDocument(data)));
+}
+
+/**
+ * Inspect/debug only: zip markdown → HTML via parseResumeContent.
+ * Download & apply must use `resumeDataToZipHtml` instead.
+ */
 export function zipMarkdownToHtml(markdown: string): string {
     const doc = parseResumeContent(markdown);
     return buildZipResumeDocument(parsedResumeToZipHtml(doc));
