@@ -28,7 +28,10 @@ function isValidCodeVerifier(verifier: string): boolean {
     return CODE_VERIFIER_RE.test(verifier);
 }
 
-/** https: allowed for any host; http: allowed only for localhost/127.0.0.1 (loopback dev). */
+/** Known MCP/editor native callback schemes (explicit allowlist — no arbitrary custom schemes). */
+const ALLOWED_NATIVE_REDIRECT_SCHEMES = new Set(["cursor:", "vscode:", "vscode-insiders:"]);
+
+/** https: allowed for any host; http: allowed only for localhost/127.0.0.1 (loopback dev); native MCP schemes from allowlist. */
 function isAllowedRedirectUri(uri: string): boolean {
     let parsed: URL;
     try {
@@ -39,6 +42,9 @@ function isAllowedRedirectUri(uri: string): boolean {
     if (parsed.protocol === "https:") return true;
     if (parsed.protocol === "http:") {
         return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    }
+    if (ALLOWED_NATIVE_REDIRECT_SCHEMES.has(parsed.protocol)) {
+        return Boolean(parsed.hostname || parsed.pathname.replace(/^\//, ""));
     }
     return false;
 }
@@ -55,7 +61,10 @@ export async function registerClient(
         return { error: `redirect_uris entries must not exceed ${AGENT.MAX_REDIRECT_URI_LENGTH} chars` };
     }
     if (!input.redirect_uris.every(isAllowedRedirectUri)) {
-        return { error: "redirect_uris must be https:, or http: on localhost/127.0.0.1 only" };
+        return {
+            error:
+                "redirect_uris must be https:, http: on localhost/127.0.0.1, or a native MCP scheme (cursor:, vscode:, vscode-insiders:)",
+        };
     }
     const id = randomBytes(16).toString("hex");
     const doc = {
