@@ -331,8 +331,7 @@ function emitCompetencyFirstLine(cursor: PageCursor, label: string, remainder: s
   cursor.text({ text: normalizedLabel, x: cursor.marginX, y, size, bold: true });
   if (!normalizedRemainder) return;
   const labelWidth = measure.widthOf(normalizedLabel, size, true);
-  const spaceWidth = measure.widthOf(" ", size, false);
-  cursor.text({ text: normalizedRemainder, x: cursor.marginX + labelWidth + spaceWidth, y, size, bold: false });
+  cursor.text({ text: ` ${normalizedRemainder}`, x: cursor.marginX + labelWidth, y, size, bold: false });
 }
 
 function emitParagraphLines(cursor: PageCursor, lines: string[], size: number, bold: boolean, width: number, measure: TextMeasurer, x?: number): void {

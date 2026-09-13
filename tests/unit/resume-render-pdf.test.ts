@@ -438,9 +438,34 @@ describe("render-pdf — fix round: bullet glyph, rule position, competency spac
     const sameLine = texts.filter((t) => t.y === boldRun.y);
     assert.equal(sameLine.length, 2, "first competency line must be exactly two draw commands (label + remainder)");
     const remainder = sameLine.find((t) => !t.bold)!;
-    assert.ok(remainder.text.startsWith("SQL"), "remainder must be one string starting with first skill");
-    const labelEndX = boldRun.x + fakeMeasurer.widthOf(boldRun.text, BODY_SIZE_FOR_TESTS, true);
-    assert.ok(remainder.x - labelEndX >= 1, "label and remainder must have a positive x-gap");
+    assert.ok(remainder.text.startsWith(" SQL"), "remainder must include leading space before first skill");
+    assert.equal(remainder.x, boldRun.x + fakeMeasurer.widthOf(boldRun.text, BODY_SIZE_FOR_TESTS, true));
+    const joined = sameLine.map((t) => t.text).join("");
+    assert.match(joined, /:\s+SQL/, "joined label + remainder must contain colon-space before first skill");
+  });
+
+  it("competency first line extracted text includes colon-space before first skill token", () => {
+    const doc: ParsedResumeDocument = {
+      name: null,
+      contactLine: null,
+      sections: [
+        {
+          heading: "SKILLS",
+          blocks: [
+            { kind: "competency", category: "Platforms & Tools", items: "ServiceNow, JIRA" },
+            { kind: "competency", category: "Data, Analytics & Technical", items: "SQL, Python" },
+          ],
+        },
+      ],
+    };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    for (const label of ["Platforms & Tools:", "Data, Analytics & Technical:"]) {
+      const boldRun = layout.pages[0].texts.find((t) => t.bold && t.text === label)!;
+      assert.ok(boldRun, `expected bold label "${label}"`);
+      const sameLine = layout.pages[0].texts.filter((t) => t.y === boldRun.y);
+      const joined = sameLine.map((t) => t.text).join("");
+      assert.match(joined, /:\s+\S/, `joined competency line must have space after colon, got ${JSON.stringify(joined)}`);
+    }
   });
 
   it("class test: two labels of different lengths both use bold label + single remainder on line 1", () => {
@@ -565,7 +590,7 @@ describe("render-pdf — ragged body text (left-aligned, natural word spacing)",
     const firstLine = layout.pages[0].texts.filter((t) => t.y === labelCmd.y);
     assert.equal(firstLine.length, 2);
     assert.ok(firstLine.some((t) => t.bold && t.text === "Data:"));
-    assert.ok(firstLine.some((t) => !t.bold && t.text.startsWith("one")));
+    assert.ok(firstLine.some((t) => !t.bold && t.text.startsWith(" one")));
   });
 
   it("a single-word line (nothing to distribute) never crashes and stays at its natural width", () => {
@@ -1071,5 +1096,7 @@ describe("vivek-csm-golden-resume zip fixture", () => {
     assert.ok(/University at Buffalo/i.test(text) || /Buffalo/i.test(text));
     assert.ok(!/Hands-on with/i.test(text));
     assert.ok(!/^Skills:/m.test(text));
+    assert.match(text, /Platforms & Tools:\s+ServiceNow/);
+    assert.match(text, /Customer Success[^\n]*:\s+Technical/);
   });
 });
