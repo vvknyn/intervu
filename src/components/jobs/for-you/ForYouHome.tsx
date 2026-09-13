@@ -227,7 +227,7 @@ export function ForYouHome({
                         "fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background p-3 lg:static lg:mt-4 lg:border-t-0 lg:p-0",
                     )}
                 >
-                    <div className="mx-auto flex max-w-[1600px] gap-2 lg:justify-end">
+                    <div className="mx-auto flex max-w-[1600px] gap-2">
                         <Button
                             type="button"
                             className="flex-1 lg:flex-none"

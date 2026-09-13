@@ -87,7 +87,7 @@ export function ForYouPack({
             )}
         >
             <div className="flex min-w-0 flex-1 flex-col border-b border-border p-4 lg:border-b-0 lg:border-r lg:p-6">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-semibold text-muted-foreground">
                     {company}
                 </p>
                 <h2 className="text-title mt-2 font-semibold text-foreground">{displayJob.title}</h2>
@@ -112,13 +112,18 @@ export function ForYouPack({
                 {matchScore && (
                     <div className="mt-6 flex items-center gap-3">
                         <FitScoreMark score={matchScore} />
-                        <span className="text-xs font-semibold text-muted-foreground">Fit</span>
+                        <div>
+                            <p className="text-xs font-semibold text-foreground">Fit</p>
+                            <p className="text-xs text-muted-foreground">
+                                Inferred from your résumé against this listing.
+                            </p>
+                        </div>
                     </div>
                 )}
 
                 <div className="mt-6">
                     <h3 className="text-xs font-semibold text-foreground">What we inferred</h3>
-                    <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
+                    <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
                         {reasons.bullets.map((bullet) => (
                             <li key={bullet}>{bullet}</li>
                         ))}
