@@ -182,7 +182,9 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
         ? compactTrigger
             ? "Packet"
             : "Review packet"
-        : "Customize";
+        : compactTrigger
+          ? "Customize"
+          : "Customize for this job";
     const triggerAriaLabel = showReviewPacket ? "Review packet" : "Customize for this job";
 
     const engineLabel = draft
@@ -213,9 +215,6 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                 )}
             >
                 {triggerLabel}
-                {!showReviewPacket && !compactTrigger && (
-                    <span className="hidden sm:inline"> for this job</span>
-                )}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>

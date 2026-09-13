@@ -233,8 +233,8 @@ describe("Customize dialog contract", () => {
             }),
         );
         assert.match(html, /data-testid="local-customize-open"/);
-        assert.match(html, /Customize/);
-        assert.match(html, / for this job/);
+        assert.match(html, />Customize for this job<\/button>/);
+        assert.doesNotMatch(html, /Customize\s{2,}for this job/);
         assert.doesNotMatch(html, /data-testid="local-customize-panel"/);
         assert.doesNotMatch(html, /basis-full/);
         assert.doesNotMatch(html, /Tailoring on-device/);
