@@ -18,7 +18,7 @@ import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { CompanyTechStackBand } from "@/components/company/CompanyTechStackBand";
 import { CompanyVerdictBand } from "@/components/company/CompanyVerdictBand";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { chipVariants } from "@/components/ui/chip";
+import { chipVariants } from "@/components/ui/chip-variants";
 import { cn } from "@/lib/utils";
 import type { CompanyChangeEvent } from "@/lib/companies/types";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";

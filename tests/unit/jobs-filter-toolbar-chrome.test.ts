@@ -9,7 +9,7 @@ import {
 } from "../../src/components/jobs/FacetBar";
 import { PRISTINE_FILTER_STATE, type FilterState } from "../../src/components/jobs/FilterPanel";
 
-const CHIP = join(__dirname, "..", "..", "src", "components", "ui", "chip.tsx");
+const CHIP = join(__dirname, "..", "..", "src", "components", "ui", "chip-variants.ts");
 const FILTER_CHIPS_ROW = join(__dirname, "..", "..", "src", "components", "jobs", "FilterChipsRow.tsx");
 const FACET_BAR = join(__dirname, "..", "..", "src", "components", "jobs", "FacetBar.tsx");
 const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx");
