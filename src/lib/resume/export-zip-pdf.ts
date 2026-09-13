@@ -6,7 +6,7 @@ import { renderResumePdf, DEFAULT_PAGE_METRICS } from "@/lib/resume/render-pdf";
 import { RESUME_ZIP_CSS } from "@/lib/resume/resume-zip.css";
 import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
-import { parsedResumeToZipHtml, resumeDataToZipHtml } from "@/lib/resume/zip-html";
+import { buildZipResumeDocument, parsedResumeToZipHtml, resumeDataToZipHtml } from "@/lib/resume/zip-html";
 import type { ResumeData } from "@/types/resume";
 
 const CANVAS_SCALE = 2.5;
@@ -119,23 +119,21 @@ async function renderZipHtmlToPdfBytes(html: string): Promise<ArrayBuffer> {
     }
 }
 
-function fallbackPdfFromData(data: ResumeData): ArrayBuffer {
-    return renderResumePdf(resumeDataToParsedDocument(data));
-}
-
 /**
- * Primary Customize / Download path: ResumeData → structured HTML → canvas → Letter PDF.
- * Fallback is jsPDF of `resumeDataToParsedDocument` — never parseResumeContent.
+ * Primary Customize / Download path:
+ * ResumeData → resumeDataToParsedDocument → parsedResumeToZipHtml → canvas → Letter PDF.
+ * Fallback is `renderResumePdf(parsed)` from the same structured doc — never parseResumeContent(md).
  */
 export async function exportZipResumePdfFromData(data: ResumeData, filename: string): Promise<void> {
-    const html = resumeDataToZipHtml(data);
+    const parsed = resumeDataToParsedDocument(data);
+    const html = buildZipResumeDocument(parsedResumeToZipHtml(parsed));
     const outName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
     try {
         const bytes = await renderZipHtmlToPdfBytes(html);
         downloadBlob(bytes, outName, "application/pdf");
     } catch (err) {
         console.error("[resume-pdf] HTML export failed; falling back to jsPDF layout from ResumeData (not markdown parse)", err);
-        downloadBlob(fallbackPdfFromData(data), outName, "application/pdf");
+        downloadBlob(renderResumePdf(parsed), outName, "application/pdf");
     }
 }
 

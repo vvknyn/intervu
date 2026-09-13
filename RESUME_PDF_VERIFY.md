@@ -4,26 +4,25 @@
 
 ```
 ResumeData (after tailor)
-  → resumeDataToZipMarkdown     (inspectable only — Copy / /tmp/*.md)
-  → resumeDataToParsedDocument  (structured, no markdown re-parse)
-  → resumeDataToZipHtml         (self-contained HTML + RESUME_ZIP_CSS)
+  → resumeDataToZipMarkdown              (inspectable only — Copy / /tmp/*.md)
+  → resumeDataToParsedDocument           (structured, no markdown re-parse)
+  → parsedResumeToZipHtml                (self-contained HTML + RESUME_ZIP_CSS)
   → PDF
 ```
 
 **Do not** send zip markdown through `parseResumeContent` for Download. That path explodes `**Category:** a, b, c` into orphan `: skill` / `**:` lines.
 
-**Browser download (one-click):** `exportZipResumePdfFromData` mounts the HTML in a same-document offscreen host (not an iframe — html2canvas cannot capture iframe nodes), rasterizes with `html2canvas` (scale ≥ 2.5), and writes US Letter via jsPDF. Client-side only — résumé content never leaves the device.
+**Browser download (one-click):** `exportZipResumePdfFromData(data)` builds HTML from `resumeDataToParsedDocument` → `parsedResumeToZipHtml`, mounts it in a same-document offscreen host (not an iframe), rasterizes with `html2canvas` (scale ≥ 2.5), and writes US Letter via jsPDF. Client-side only.
 
-**Fallback:** `renderResumePdf(resumeDataToParsedDocument(data))`. Still structured data — never `parseResumeContent(markdown)`.
+**Fallback:** `renderResumePdf(parsed)` using the **same** structured document. Never `parseResumeContent(markdown)`.
 
-**Visual gold / sample PDF:** Playwright Chromium `page.setContent(html)` + `page.pdf({ format: 'Letter', printBackground: true, margin: 0 })` — Chrome/Skia, same engine family as the zip reference.
-
-**Fallback:** If the HTML path throws, `exportZipResumePdf` falls back to `renderResumePdf(parseResumeContent(markdown))` (jsPDF draw commands). The legacy renderer remains in `src/lib/resume/render-pdf.ts`.
+**Visual gold:** Playwright Chromium `page.pdf({ format: 'Letter' })` — Chrome/Skia.
 
 ## Generate golden sample + inspect markdown
 
 ```bash
-npx tsx scripts/export-resume-zip-pdf.ts
+npx tsx scripts/verify-resume-from-data.ts
+# same gold path: npx tsx scripts/export-resume-zip-pdf.ts
 ```
 
 Writes:
@@ -78,7 +77,6 @@ Fixture: `tests/fixtures/vivek-csm-golden-resume.txt`
 
 ## Entry points using the HTML path
 
-- `LocalCustomizePanel` — Copy + Download PDF (`resumeDataToZipMarkdown` → `exportZipResumePdf`)
-- `YourResumeSection` — base résumé Download PDF
-- `ResumeEditor` — Download PDF
-- `downloadResumeVersion` — pursuit variant downloads
+- `LocalCustomizePanel` — Copy uses zip markdown; Download uses `exportZipResumePdfFromData(draft.tailored)`
+- `YourResumeSection` / `ResumeEditor` — `exportZipResumePdfFromData` when `ResumeData` is on hand
+- `downloadResumeVersion` — free-text snapshots go through `resumeDataFromPlainText` then the same FromData exporter

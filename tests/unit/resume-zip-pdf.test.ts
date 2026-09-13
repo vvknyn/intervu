@@ -16,6 +16,19 @@ const CSM_GOLDEN = readFileSync(
 );
 const PM_FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-pm-resume.txt"), "utf8");
 
+describe("export-zip-pdf source contract", () => {
+    it("FromData builds HTML from resumeDataToParsedDocument, never parseResumeContent(md)", () => {
+        const src = readFileSync(path.join(process.cwd(), "src/lib/resume/export-zip-pdf.ts"), "utf8");
+        const start = src.indexOf("export async function exportZipResumePdfFromData");
+        const next = src.indexOf("export async function exportZipResumePdf(", start + 1);
+        const fromData = src.slice(start, next);
+        assert.match(fromData, /resumeDataToParsedDocument\(data\)/);
+        assert.match(fromData, /parsedResumeToZipHtml\(parsed\)/);
+        assert.match(fromData, /renderResumePdf\(parsed\)/);
+        assert.doesNotMatch(fromData, /parseResumeContent\(/);
+    });
+});
+
 describe("resume zip PDF pipeline (no browser)", () => {
     it("builds HTML from ResumeData — not parseResumeContent(zip markdown)", () => {
         const data = resumeDataFromPlainText(CSM_GOLDEN);
