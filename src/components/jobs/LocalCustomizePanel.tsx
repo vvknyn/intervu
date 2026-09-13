@@ -19,7 +19,7 @@ import { readLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { writeLocalAiResume } from "@/lib/local-ai/resume-storage";
-import { hasMeaningfulDiff } from "@/lib/local-ai/silent-packet";
+import { hasMeaningfulDiff, startPacketDownloadAndApply } from "@/lib/local-ai/silent-packet";
 import { useSilentPacket } from "@/lib/local-ai/use-silent-packet";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
@@ -32,7 +32,6 @@ import { displayCompanyBrand } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
-import { toast, confirmToast } from "@/lib/toast";
 
 export interface LocalCustomizePanelProps {
     job: PublicJob;
@@ -156,22 +155,22 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
         [resetDialogState],
     );
 
-    const handleAccept = useCallback(async () => {
+    const handleDownloadAndApply = useCallback(() => {
         if (!draft) return;
-        const ok = await confirmToast({
-            title: "Use this draft for Rank?",
-            description: "This replaces the on-device résumé used to rank jobs on this device.",
-            confirmLabel: "Accept for Rank",
+        startPacketDownloadAndApply({
+            applyUrl: job.apply_url,
+            openWindow: (url, target, features) => window.open(url, target, features),
+            downloadPdf: handlePdf,
+            acceptQuietly: () => {
+                onAccept?.(draft.tailored);
+                if (readLocalAiEnabled()) {
+                    writeLocalAiResume(draft.tailored);
+                }
+            },
         });
-        if (!ok) return;
-        onAccept?.(draft.tailored);
-        if (readLocalAiEnabled()) {
-            writeLocalAiResume(draft.tailored);
-        }
-        toast.success("Résumé updated for Rank on this device.");
         setDialogOpen(false);
         resetDialogState();
-    }, [draft, onAccept, resetDialogState]);
+    }, [draft, job.apply_url, handlePdf, onAccept, resetDialogState]);
 
     if (!visible || !resume) {
         return null;
@@ -239,7 +238,8 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                 )}
                                 {draft && hasMeaningfulDiff(draft) && (
                                     <p className="text-xs text-muted-foreground">
-                                        Tailored on-device for this job. Download to apply, or accept to use for Rank.
+                                        Tailored on-device for this job. Download the PDF and we&apos;ll open the
+                                        application page.
                                     </p>
                                 )}
                             </DialogHeader>
@@ -363,23 +363,13 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                     </button>
                                     <Button
                                         type="button"
-                                        data-testid="local-customize-accept"
-                                        variant="outline"
+                                        data-testid="local-customize-download-apply"
                                         size="sm"
-                                        className="ml-auto h-9 rounded-none text-xs"
-                                        onClick={() => void handleAccept()}
-                                    >
-                                        Accept for Rank
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        data-testid="local-customize-pdf"
-                                        size="sm"
-                                        className="h-9 rounded-none text-xs"
-                                        onClick={handlePdf}
+                                        className="ml-auto h-9 w-full rounded-none text-xs sm:w-auto"
+                                        onClick={handleDownloadAndApply}
                                     >
                                         <DownloadSimple size={14} className="mr-1" />
-                                        Download PDF
+                                        {job.apply_url?.trim() ? "Download & apply" : "Download PDF"}
                                     </Button>
                                 </>
                             )}

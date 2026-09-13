@@ -47,9 +47,9 @@ Multiple `LocalCustomizePanel` mounts (JobDetail action row, action bar, documen
 
 When a meaningful draft is showing:
 
-- Helper under title: *Tailored on-device for this job. Download to apply, or accept to use for Rank.*
-- **Download PDF** — primary footer button (real apply path).
-- **Accept for Rank** — secondary; writes the on-device résumé used for Rank (`writeLocalAiResume` + `onAccept`).
+- Helper under title: *Tailored on-device for this job. Download the PDF and we'll open the application page.*
+- **Download & apply** — primary footer button when `apply_url` is set: opens the careers/application page in a new tab, downloads the tailored PDF, and quietly writes the draft to the on-device Rank résumé (no confirm modal).
+- **Download PDF** — same primary button when there is no `apply_url`; still downloads the PDF and writes Rank silently.
 - **Copy** — quiet text control.
 
 ## Try it
@@ -59,7 +59,7 @@ When a meaningful draft is showing:
 3. Open a job detail where the match chip shows **≥ 75** (brand outline).
 4. Wait ~1–2s — the button should read **Review packet** (brand-outline, not inverted Apply).
 5. Click **Review packet** — the dialog opens with the draft immediately (no reset/regenerate when cached).
-6. Tap **Download PDF** to apply, or **Accept for Rank** to update Rank on this device.
+6. Tap **Download & apply** — opens the application page, saves the PDF, and updates Rank on this device (no confirm).
 7. Open a low-fit job (< 75) — CTA stays **Customize**; no background tailor.
 
 ## Onboarding and résumé nudge
@@ -73,7 +73,7 @@ Same Next.js app at phone width (iPhone 13 viewport in `tests/e2e/mobile.spec.ts
 
 - **Document action bar** (`JobDetailDocument` → `JobDetailActionBar`, `lg:hidden`): Apply reads **Apply** (full label in `aria-label`); Customize / packet uses the **compact** trigger. When a silent packet is ready or warming, the visible label is **Packet** (`aria-label` stays **Review packet**).
 - **SERP sheet action row** (`JobDetail`): full **Review packet** / **Customize for this job** labels — not compact.
-- **Packet dialog**: below `sm`, full-width bottom sheet (`max-h-[95dvh]`), scrollable draft body, sticky footer — Copy, **Download PDF** (primary), and **Accept for Rank** stay reachable (PDF is never `hidden sm:`).
+- **Packet dialog**: below `sm`, full-width bottom sheet (`max-h-[95dvh]`), scrollable draft body, sticky footer — Copy and **Download & apply** (primary, full width on small screens) stay reachable (never `hidden sm:`).
 - **Prefs onboarding** (`PrefsOnboardingDialog`): same bottom-sheet treatment; résumé upload and inputs are full width on small screens.
 
 Pre-warm runs on every viewport where `LocalCustomizePanel` mounts — no `lg:` / hover gate.
@@ -82,7 +82,7 @@ Pre-warm runs on every viewport where `LocalCustomizePanel` mounts — no `lg:` 
 
 1. Dev server on `/jobs?localAi=1`, open a high-fit job at ~390px width.
 2. Document page (`/jobs/[slug]`): sticky bar shows **Apply** + **Packet** (after ~1–2s) + bookmark.
-3. Open **Packet** — dialog fills the bottom of the screen; scroll the draft; tap **Download PDF**.
+3. Open **Packet** — dialog fills the bottom of the screen; scroll the draft; tap **Download & apply**.
 4. Cold visit `/jobs` — prefs onboarding sheet pins to the bottom with résumé upload first.
 
 ## Code map

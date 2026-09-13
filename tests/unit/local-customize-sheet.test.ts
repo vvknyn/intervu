@@ -102,16 +102,17 @@ describe("Customize dialog contract", () => {
         assert.match(src, /z-\[70\]/);
         assert.match(src, /overflow-y-auto/);
         assert.match(src, /min-h-0 flex-1/);
-        assert.match(src, /confirmToast/);
+        assert.doesNotMatch(src, /confirmToast/);
+        assert.match(src, /startPacketDownloadAndApply/);
         assert.match(src, /Enable on-device AI/);
         assert.match(src, /Use a rules draft/);
-        assert.match(src, /Use this draft for Rank\?/);
-        assert.match(src, /Accept for Rank/);
+        assert.doesNotMatch(src, /Accept for Rank/);
         assert.match(
             src,
-            /Tailored on-device for this job\. Download to apply, or accept to use for Rank\./,
+            /Tailored on-device for this job\. Download the PDF and we/,
         );
-        assert.match(src, /Résumé updated for Rank on this device/);
+        assert.doesNotMatch(src, /Use this draft for Rank\?/);
+        assert.doesNotMatch(src, /Résumé updated for Rank on this device/);
         assert.doesNotMatch(src, /basis-full/);
         assert.doesNotMatch(
             src,
@@ -130,19 +131,21 @@ describe("Customize dialog contract", () => {
         assert.doesNotMatch(
             src,
             /data-testid="local-customize-open"[\s\S]*variant="default"/,
-            "Review packet trigger stays outline — Download PDF is the primary action inside the dialog",
+            "Review packet trigger stays outline — Download & apply is the primary action inside the dialog",
         );
     });
 
-    it("footer uses Download PDF as primary Button and Accept for Rank as secondary", () => {
+    it("footer uses Download & apply as primary Button when apply_url is set", () => {
         const src = readFileSync(PANEL, "utf8");
-        assert.match(src, /data-testid="local-customize-pdf"[\s\S]*Download PDF/);
-        assert.match(src, /data-testid="local-customize-accept"[\s\S]*Accept for Rank/);
-        const pdfIdx = src.indexOf('data-testid="local-customize-pdf"');
-        const acceptIdx = src.indexOf('data-testid="local-customize-accept"');
-        assert.ok(pdfIdx > acceptIdx, "Download PDF follows Accept for Rank in footer markup");
-        const pdfBlock = src.slice(pdfIdx, pdfIdx + 400);
-        assert.doesNotMatch(pdfBlock, /variant="outline"/, "Download PDF is the brand primary");
+        assert.match(src, /data-testid="local-customize-download-apply"/);
+        assert.match(src, /Download & apply/);
+        assert.match(src, /Download PDF/);
+        assert.doesNotMatch(src, /data-testid="local-customize-accept"/);
+        assert.doesNotMatch(src, /data-testid="local-customize-pdf"/);
+        const primaryIdx = src.indexOf('data-testid="local-customize-download-apply"');
+        const primaryBlock = src.slice(primaryIdx, primaryIdx + 500);
+        assert.doesNotMatch(primaryBlock, /variant="outline"/, "Download & apply is the brand primary");
+        assert.match(src, /job\.apply_url\?\.trim\(\) \? "Download & apply" : "Download PDF"/);
     });
 
     it("compact action bar uses Packet label when review-ready; aria-label stays Review packet", () => {
@@ -150,7 +153,7 @@ describe("Customize dialog contract", () => {
         assert.match(src, /compactTrigger\s*\?\s*"Packet"/);
         assert.match(src, /triggerAriaLabel = showReviewPacket \? "Review packet"/);
         assert.match(src, /shrink-0/);
-        assert.doesNotMatch(src, /local-customize-pdf[\s\S]*hidden sm:/);
+        assert.doesNotMatch(src, /local-customize-download-apply[\s\S]*hidden sm:/);
     });
 
     it("packet dialog uses mobile bottom-sheet layout with scroll body", () => {

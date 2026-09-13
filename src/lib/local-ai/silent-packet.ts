@@ -196,3 +196,20 @@ export function getOrRunSilentPacketPrewarm(
 export function resetSilentPacketPrewarmInflightForTests(): void {
     prewarmInflight.clear();
 }
+
+export function startPacketDownloadAndApply(args: {
+    applyUrl: string | null | undefined;
+    openWindow: (url: string, target: string, features: string) => unknown;
+    downloadPdf: () => void;
+    acceptQuietly: () => void;
+}): { openedApply: boolean } {
+    let openedApply = false;
+    const url = args.applyUrl?.trim();
+    if (url) {
+        args.openWindow(url, "_blank", "noopener,noreferrer");
+        openedApply = true;
+    }
+    args.downloadPdf();
+    args.acceptQuietly();
+    return { openedApply };
+}

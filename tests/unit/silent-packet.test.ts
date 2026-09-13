@@ -12,6 +12,7 @@ import {
     shouldShowReviewPacket,
     shouldSilentPrewarmRun,
     silentPacketCacheKey,
+    startPacketDownloadAndApply,
 } from "../../src/lib/local-ai/silent-packet";
 import { MATCH_CHIP_BRAND_THRESHOLD } from "../../src/lib/match/score";
 import { heuristicTailorResume, type TailorDraft } from "../../src/lib/local-ai/tailor-resume";
@@ -285,6 +286,49 @@ describe("silent packet prewarm scheduler", () => {
         fire();
 
         assert.equal(applied, false);
+    });
+});
+
+describe("startPacketDownloadAndApply", () => {
+    it("opens apply URL first, then download, then accept", () => {
+        const order: string[] = [];
+        const result = startPacketDownloadAndApply({
+            applyUrl: "https://example.com/apply",
+            openWindow: (url, target, features) => {
+                order.push("open");
+                assert.equal(url, "https://example.com/apply");
+                assert.equal(target, "_blank");
+                assert.equal(features, "noopener,noreferrer");
+            },
+            downloadPdf: () => order.push("download"),
+            acceptQuietly: () => order.push("accept"),
+        });
+        assert.deepEqual(order, ["open", "download", "accept"]);
+        assert.equal(result.openedApply, true);
+    });
+
+    it("skips open when no apply URL but still download and accept", () => {
+        const order: string[] = [];
+        const result = startPacketDownloadAndApply({
+            applyUrl: null,
+            openWindow: () => order.push("open"),
+            downloadPdf: () => order.push("download"),
+            acceptQuietly: () => order.push("accept"),
+        });
+        assert.deepEqual(order, ["download", "accept"]);
+        assert.equal(result.openedApply, false);
+    });
+
+    it("trims whitespace-only apply URLs", () => {
+        const order: string[] = [];
+        const result = startPacketDownloadAndApply({
+            applyUrl: "  ",
+            openWindow: () => order.push("open"),
+            downloadPdf: () => order.push("download"),
+            acceptQuietly: () => order.push("accept"),
+        });
+        assert.deepEqual(order, ["download", "accept"]);
+        assert.equal(result.openedApply, false);
     });
 });
 
