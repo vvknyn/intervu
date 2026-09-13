@@ -393,7 +393,7 @@ export function layoutResumeDocument(
   return { pages: cursor.pages, pageWidth: metrics.pageWidth, pageHeight: metrics.pageHeight, marginX: metrics.marginX };
 }
 
-function jsPdfMeasurer(doc: jsPDF): TextMeasurer {
+export function jsPdfMeasurer(doc: jsPDF): TextMeasurer {
   return {
     widthOf(text, size, bold) {
       doc.setFont("helvetica", bold ? "bold" : "normal");

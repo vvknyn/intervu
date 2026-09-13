@@ -1,0 +1,47 @@
+Vivek Narayanan
+Richmond Hill, Ontario | +1 (437)-224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | vivekn.xyz
+
+PROFESSIONAL SUMMARY
+Client-facing Product Manager with 13+ years across engineering, delivery, and product management of enterprise SaaS. Currently own the roadmap, requirements, and releases for a $1.7M ARR regulated-industry portfolio at TELUS Health — shipping retention features and zero-defect API migrations for 950,000+ users — while shipping independent products end-to-end: a live interview-prep & job-search app (intervu.cc) and a company-intelligence platform with shipped APIs and a working signal-to-action loop. Engineering-credible (M.S. Computer Science) and commercially grounded (M.B.A.); translates client problems into prioritized, shippable roadmaps.
+
+CORE COMPETENCIES
+Product: Product Roadmap & Vision, Requirements Analysis & Scoping, Backlog Grooming & Prioritization, API Lifecycle Management, 0→1 Product Discovery, B2B API Packaging
+Delivery & Execution: Agile/Scrum, SOW Scoping & Effort Estimation, Release Coordination (SIT/UAT/Production), Multi-Region Launches, SLA Governance, Incident Command & RCA/PIR, Observability & Alerting (New Relic)
+Technical: RESTful APIs, SQL, Python, Next.js, Postgres, Meilisearch, Large-scale Data Pipelines, Multi-Provider LLM Integration (Claude, OpenAI, Gemini), LLM Agents & AI-Assisted Development (Claude Code, Cursor), n8n Workflow Automation, JIRA, Confluence
+
+PROFESSIONAL EXPERIENCE
+Client-facing Product Manager | TELUS Health Wellbeing    September '21 — Present
+- Medibank account: roadmap, requirements, and releases for a $1.7M ARR portfolio.
+- Owned the client-facing product roadmap for the Medibank wellbeing platform under a 3-year, multi-million-dollar MSA — translating client strategy into scoped, estimated, and prioritized SOWs across a $1.7M ARR, 2-account portfolio.
+- Shipped the Challenge Streaks retention feature end-to-end as a 320-hour SOW — owned requirements, effort estimation, and release coordination across product and engineering to extend the platform's retention mechanics.
+- Drove the SPARK loyalty API migration through its full lifecycle — sunset 15+ legacy endpoints with zero regression in live earning, redemption, and challenge mechanics.
+- Delivered a zero-defect API transition for 950K+ users, owning scope, backlog, and release coordination across 6 production regions.
+- Managed 4+ concurrent SOWs (~800 hours of engineering effort) from scoping through SIT, UAT, and production release.
+- Directed incident command on a P2 SLA breach affecting the Challenge API — emergency DB read-replica provisioning and composite indexing cut latency from 20–29s to <3s, protecting a $550–700K AUD subscription.
+- Rebuilt API observability in New Relic around endpoint-level, SLA-color-coded monitoring — sustaining 99.95% uptime and <20-minute time-to-first-response across AU/CA/SG/NA.
+
+Technology Lead | Tracxn Technologies    July '19 — February '20
+- Drove the product-to-engineering workflow for a startup data platform — translated product requirements into a prioritized backlog and managed all dev tasks to completion.
+- Led a 5-person engineering team to overhaul API workflows, slashing feature release timelines and improving data pipeline performance.
+
+Team Lead | Zophop Technologies    May '18 — May '19
+- Primary client-facing lead for BMTC (Bengaluru's public transit agency) — re-engineered vehicle-tracking logic to lift transportation-dashboard metric accuracy by 20%.
+- Scoped and shipped a field-operations dashboard that raised GPS device availability by 35%, leading cross-functional diagnosis with third-party vendors and field teams.
+
+Senior Software Engineer | Optym    February '13 — April '18
+- Key solutions consultant for LTTL logistics clients — led data-scoping workshops with client planning teams and transformed operational datasets to uncover 4–5% operational savings through route optimization.
+- Accelerated product adoption by 80% by catching data-consistency issues during client discovery and shipping a custom ETL solution that standardized inputs for new-client onboarding.
+
+INDEPENDENT PROJECTS
+intervu.cc — Interview-Prep & Job-Search Platform (live)    2026 — Present
+- Built and operate a live consumer web app: resume-anchored interview preparation plus a job-search portal with typeahead search, faceted filters, and full mobile parity over a search-indexed corpus of job postings.
+- Owned the full stack solo — Next.js frontend, Postgres, Meilisearch search infrastructure, background sync workers, auth/TLS hardening, and production incident response.
+
+Company-Intelligence Platform (private) — solo 0→1 product build    February 2026 — Present
+- Conceived and built an end-to-end product that assesses whether companies are real, operating, and healthy from public signals (web, ATS job boards, registries, filings, DNS/HTTP forensics); designed the core loop backwards from the user's workflow — prioritized queue → account read/call brief → change radar → watchlist.
+- Built and operate the pipeline solo — 14+ ATS sources, 30+ enrichment adapters, a multi-million-row corpus, automated discovery → scrape → enrich → score → publish — and shipped REST APIs (enrichment, lookalike, change events, job snapshot/delta) with API-key auth and usage logging for Clay/n8n-style integration.
+- Made explicit product decisions on AI: multi-provider LLMs used only for structured extraction/fallbacks and fail-closed attribution checks, while trust-critical scoring stays deterministic and facts-only.
+
+EDUCATION & PROFESSIONAL DEVELOPMENT
+- M.B.A., General Business Administration | University of Illinois Urbana-Champaign
+- M.S., Computer Science | University at Buffalo

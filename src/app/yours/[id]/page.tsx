@@ -60,7 +60,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
+                                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
                                 >
                                     Download
                                 </Button>
@@ -68,7 +68,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                                     (R4/R5) — PDF is the default per the user report. */}
                                 <button
                                     type="button"
-                                    onClick={() => downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
+                                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
                                     className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                                 >
                                     .md
@@ -159,7 +159,7 @@ export default function PursuitDetailPage() {
         const variantKey = searchParams.get("variant");
         const version = pursuit.resume_versions?.find((v) => v.saved_at === variantKey);
         if (version) {
-            downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position });
+            void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position });
         } else {
             toast.error("Couldn't find that resume version — it may have been re-filed since this link was created.");
         }

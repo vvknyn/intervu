@@ -1,6 +1,6 @@
 import type { ResumeVersionSnapshot } from "./types";
-import { parseResumeContent } from "@/lib/resume/parse-resume-content";
-import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { exportZipResumePdf } from "@/lib/resume/export-zip-pdf";
+import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 
 export type ResumeDownloadFormat = "pdf" | "md";
 
@@ -19,17 +19,16 @@ function triggerDownload(blob: Blob, filename: string): void {
  * Client-side download of a resume-version snapshot. PDF is the default,
  * user-facing format (R4/R5, 2026-08-09 user report: "gets downloaded as a
  * .md file and not a pdf") — the original .md stays available as a
- * secondary, portable format via `format: "md"`. Renders through
- * `renderResumePdf` (lib/resume/render-pdf.ts) — the SAME renderer
- * YourResumeSection's base-résumé "Download .pdf" button and the R5a
- * MCP-chat download link (yours/[id]/page.tsx's `?download=pdf` handler)
- * both use, so every entry point produces byte-identical layout.
+ * secondary, portable format via `format: "md"`. Renders through the zip
+ * text → structured ResumeData → HTML/CSS → PDF path
+ * (`exportZipResumePdf` → `exportZipResumePdfFromData`). Fallback is
+ * `renderResumePdf(resumeDataToParsedDocument(data))`, never parseResumeContent.
  */
-export function downloadResumeVersion(
+export async function downloadResumeVersion(
     version: ResumeVersionSnapshot,
     pursuit?: { company_name: string; position: string },
     format: ResumeDownloadFormat = "pdf",
-): void {
+): Promise<void> {
     const filename = deriveResumePdfFilename({
         company: pursuit?.company_name,
         role: pursuit?.position,
@@ -40,6 +39,5 @@ export function downloadResumeVersion(
         triggerDownload(new Blob([version.content], { type: "text/markdown" }), `${filename}.md`);
         return;
     }
-    const pdfBytes = renderResumePdf(parseResumeContent(version.content));
-    triggerDownload(new Blob([pdfBytes], { type: "application/pdf" }), `${filename}.pdf`);
+    await exportZipResumePdf(version.content, `${filename}.pdf`);
 }

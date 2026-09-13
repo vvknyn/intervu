@@ -18,6 +18,9 @@
  * touches raw content or `ResumeData` directly, only this shape, so the
  * renderer stays agnostic to which of the two adapters produced it.
  */
+import { buildContactLine, isContactOrPlaceLine, sanitizeContactLine, sanitizeLocation } from "@/lib/resume/contact-line";
+import { descriptionToBullets, shouldAppendAsBulletContinuation } from "@/lib/resume/merge-bullet-lines";
+import { normalizeCompetencyCategories } from "@/lib/resume/structure-resume-text";
 import type { ResumeData } from "@/types/resume";
 
 export type ParsedResumeBlock =
@@ -39,7 +42,7 @@ export interface ParsedResumeDocument {
   sections: ParsedResumeSection[];
 }
 
-const BULLET_RE = /^[-*•−]\s+(.+)$/;
+const BULLET_RE = /^[-*•−●◦▪]\s+(.+)$/;
 const MD_HEADING_RE = /^(#{1,6})\s+(.+)$/;
 const BOLD_ENTRY_RE = /^\*\*(.+?)\*\*\s*(.*)$/;
 /** Unbolded "Title | Company    date-ish tail" — a two-or-more-space gap is
@@ -144,8 +147,11 @@ export function parseResumeContent(content: string): ParsedResumeDocument {
   skipBlank();
   let contactLine: string | null = null;
   if (i < rawLines.length && !BULLET_RE.test(rawLines[i].trim()) && matchHeading(rawLines[i]) === null) {
-    contactLine = rawLines[i].trim();
-    i++;
+    const candidate = rawLines[i].trim();
+    if (isContactOrPlaceLine(candidate)) {
+      contactLine = sanitizeContactLine(candidate);
+      i++;
+    }
   }
 
   const sections: ParsedResumeSection[] = [];
@@ -192,16 +198,61 @@ export function parseResumeContent(content: string): ParsedResumeDocument {
       continue;
     }
 
+    if (openEntry) {
+      const boldEntryInOpen = trimmed.match(BOLD_ENTRY_RE);
+      const looseGapInOpen = !boldEntryInOpen ? trimmed.match(LOOSE_ENTRY_GAP_RE) : null;
+      const looseEntryInOpen = looseGapInOpen && DATE_ISH_RE.test(looseGapInOpen[2]) ? looseGapInOpen : null;
+      if (boldEntryInOpen || looseEntryInOpen) {
+        const [, title, rest] = (boldEntryInOpen ?? looseEntryInOpen)!;
+        const entry: Extract<ParsedResumeBlock, { kind: "entry" }> = {
+          kind: "entry",
+          title: title.replace(/\*\*/g, "").trim(),
+          dateRight: rest.trim() || null,
+          bullets: [],
+        };
+        ensureSection().blocks.push(entry);
+        openEntry = entry;
+        openParagraph = null;
+        continue;
+      }
+
+      if (
+        openEntry.bullets.length === 0 &&
+        !openEntry.dateRight &&
+        trimmed.length <= 80 &&
+        DATE_ISH_RE.test(trimmed) &&
+        !COMPETENCY_RE.test(trimmed)
+      ) {
+        openEntry.dateRight = trimmed;
+        openParagraph = null;
+        continue;
+      }
+
+      const bulletMatch = trimmed.match(BULLET_RE);
+      if (bulletMatch) {
+        openEntry.bullets.push(bulletMatch[1].trim());
+        openParagraph = null;
+        continue;
+      }
+
+      const lastBullet = openEntry.bullets.at(-1);
+      if (lastBullet !== undefined && shouldAppendAsBulletContinuation(trimmed, lastBullet)) {
+        openEntry.bullets[openEntry.bullets.length - 1] = `${lastBullet} ${trimmed}`.replace(/\s+/g, " ").trim();
+        openParagraph = null;
+        continue;
+      }
+
+      openEntry.bullets.push(trimmed);
+      openParagraph = null;
+      continue;
+    }
+
     const bulletMatch = trimmed.match(BULLET_RE);
     if (bulletMatch) {
       const section = ensureSection();
-      if (openEntry) {
-        openEntry.bullets.push(bulletMatch[1].trim());
-      } else {
-        const last = section.blocks.at(-1);
-        if (last && last.kind === "bullets") last.items.push(bulletMatch[1].trim());
-        else section.blocks.push({ kind: "bullets", items: [bulletMatch[1].trim()] });
-      }
+      const last = section.blocks.at(-1);
+      if (last && last.kind === "bullets") last.items.push(bulletMatch[1].trim());
+      else section.blocks.push({ kind: "bullets", items: [bulletMatch[1].trim()] });
       continue;
     }
 
@@ -257,10 +308,11 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
   if (data.generatedSummary.trim()) {
     sections.push({ heading: "PROFESSIONAL SUMMARY", blocks: [{ kind: "paragraph", text: data.generatedSummary.trim() }] });
   }
-  if (data.competencies.length > 0) {
+  const competencies = normalizeCompetencyCategories(data.competencies);
+  if (competencies.length > 0) {
     sections.push({
       heading: "CORE COMPETENCIES",
-      blocks: data.competencies.map((c) => ({ kind: "competency" as const, category: c.category, items: c.skills.join(", ") })),
+      blocks: competencies.map((c) => ({ kind: "competency" as const, category: c.category, items: c.skills.join(", ") })),
     });
   }
   if (data.experience.length > 0) {
@@ -270,24 +322,51 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
         kind: "entry" as const,
         title: `${e.role} | ${e.company}`,
         dateRight: e.dates || null,
-        bullets: e.description
-          .split("\n")
-          .map((l) => l.replace(BULLET_RE, "$1").trim())
-          .filter(Boolean),
+        bullets: descriptionToBullets(e.description),
+      })),
+    });
+  }
+  if ((data.projects?.length ?? 0) > 0) {
+    sections.push({
+      heading: "INDEPENDENT PROJECTS",
+      blocks: (data.projects ?? []).map((e) => ({
+        kind: "entry" as const,
+        title: e.company ? `${e.role} | ${e.company}` : e.role,
+        dateRight: e.dates || null,
+        bullets: descriptionToBullets(e.description),
       })),
     });
   }
   if (data.education.length > 0) {
     sections.push({
-      heading: "EDUCATION",
-      blocks: [{ kind: "bullets", items: data.education.map((e) => `${e.degree} | ${e.institution}${e.year ? ` | ${e.year}` : ""}`) }],
+      heading: "EDUCATION & PROFESSIONAL DEVELOPMENT",
+      blocks: [
+        {
+          kind: "bullets",
+          items: data.education.map((e) => {
+            const degree = e.degree.trim();
+            const institution = e.institution.trim();
+            const year = e.year?.trim() ?? "";
+            if (institution && year) return `${degree} | ${institution} | ${year}`;
+            if (institution) return `${degree} | ${institution}`;
+            if (year) return `${degree} | ${year}`;
+            return degree;
+          }),
+        },
+      ],
     });
   }
 
-  const contactParts = [data.profile.location, data.profile.phone, data.profile.email, data.profile.linkedin].filter(Boolean);
+  const contactLine = buildContactLine([
+    sanitizeLocation(data.profile.location),
+    data.profile.phone,
+    data.profile.email,
+    data.profile.linkedin,
+    data.profile.website,
+  ]);
   return {
     name: data.profile.name || data.profile.profession || null,
-    contactLine: contactParts.length > 0 ? contactParts.join(" | ") : null,
+    contactLine,
     sections,
   };
 }

@@ -6,6 +6,7 @@ export interface ResumeProfile {
     email: string;
     phone: string;
     linkedin?: string;
+    website?: string;
 }
 
 export type ResumeSection = 'summary' | 'skills' | 'experience' | 'education' | 'projects';
@@ -96,6 +97,7 @@ export interface ResumeEducation {
 export interface ResumeData {
     profile: ResumeProfile;
     experience: ResumeExperience[];
+    projects?: ResumeExperience[];
     competencies: ResumeCompetencyCategory[];
     education: ResumeEducation[];
     generatedSummary: string;
