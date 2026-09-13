@@ -8,9 +8,11 @@ import type { User } from "@/lib/firebase/client-auth";
 import { fetchResumeSummaryAction, uploadBaseResumeAction, deleteBaseResumeAction, type ResumeSummary } from "@/actions/resume-summary";
 import { saveResumeData } from "@/actions/resume";
 import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract-file-text";
-import { parseResumeContent, resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
-import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { downloadBlob } from "@/lib/export-utils";
+import { exportZipResumePdf } from "@/lib/resume/export-zip-pdf";
+import { parseResumeContent } from "@/lib/resume/parse-resume-content";
+import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { captureEvent } from "@/lib/analytics/events";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
@@ -31,8 +33,7 @@ function formatDate(iso: string | null): string | null {
     return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
-function downloadBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume_text" | "resume_data" }>) {
-    const parsed = summary.source === "resume_text" ? parseResumeContent(summary.resume_text) : resumeDataToParsedDocument(summary.resume_data);
+async function downloadBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume_text" | "resume_data" }>) {
     const name = summary.source === "resume_data" ? summary.resume_data.profile?.name : null;
     const filename = deriveResumePdfFilename({
         company: null,
@@ -40,7 +41,9 @@ function downloadBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume
         fallbackLabel: name || "resume",
         dateIso: summary.updatedAt ?? new Date().toISOString(),
     });
-    downloadBlob(renderResumePdf(parsed), `${filename}.pdf`, "application/pdf");
+    const markdown =
+        summary.source === "resume_text" ? summary.resume_text : resumeDataToZipMarkdown(summary.resume_data);
+    await exportZipResumePdf(markdown, `${filename}.pdf`);
 }
 
 function defaultResumeData(userEmail?: string, userName?: string): ResumeData {
@@ -389,7 +392,7 @@ function ResumeSummaryBody({
                 <LiveResumePreview data={resumeData} />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => downloadBaseResumePdf(summary)} className="w-full text-xs rounded-none sm:w-auto">
+                <Button variant="outline" size="sm" onClick={() => void downloadBaseResumePdf(summary)} className="w-full text-xs rounded-none sm:w-auto">
                     Download .pdf
                 </Button>
                 <Button

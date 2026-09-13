@@ -1056,7 +1056,7 @@ describe("vivek-csm-golden-resume zip fixture", () => {
   it("writes sample PDF and extracted text contains golden markers", async () => {
     const doc = parseResumeContent(CSM_GOLDEN_FIXTURE);
     const bytes = renderResumePdf(doc);
-    const outPath = path.join(process.cwd(), "test-resume-csm-golden.pdf");
+    const outPath = path.join("/tmp", "test-resume-csm-golden-jspdf.pdf");
     const { writeFileSync } = await import("node:fs");
     writeFileSync(outPath, Buffer.from(bytes));
 

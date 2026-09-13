@@ -216,6 +216,18 @@ export function parseResumeContent(content: string): ParsedResumeDocument {
         continue;
       }
 
+      if (
+        openEntry.bullets.length === 0 &&
+        !openEntry.dateRight &&
+        trimmed.length <= 80 &&
+        DATE_ISH_RE.test(trimmed) &&
+        !COMPETENCY_RE.test(trimmed)
+      ) {
+        openEntry.dateRight = trimmed;
+        openParagraph = null;
+        continue;
+      }
+
       const bulletMatch = trimmed.match(BULLET_RE);
       if (bulletMatch) {
         openEntry.bullets.push(bulletMatch[1].trim());

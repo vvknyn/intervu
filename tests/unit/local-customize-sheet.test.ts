@@ -139,6 +139,15 @@ describe("Customize dialog contract", () => {
         assert.match(src, /local-customize-section-\$\{/);
     });
 
+    it("copy and PDF use zip markdown and HTML export path", () => {
+        const src = readFileSync(PANEL, "utf8");
+        assert.match(src, /resumeDataToZipMarkdown/);
+        assert.match(src, /exportZipResumePdf/);
+        assert.doesNotMatch(src, /resumeDataToMarkdown/);
+        assert.doesNotMatch(src, /renderResumePdf/);
+        assert.match(src, /data-testid="local-customize-pdf"/);
+    });
+
     it("JobDetail action row keeps the trigger; document mobile bar gets compact variant", () => {
         const detail = readFileSync(DETAIL, "utf8");
         const doc = readFileSync(DOCUMENT, "utf8");

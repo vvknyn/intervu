@@ -256,7 +256,7 @@ function PursuitDetailBody({
                     <Button
                         variant="outline"
                         disabled={!latestResume}
-                        onClick={() => latestResume && downloadResumeVersion(latestResume, pursuit)}
+                        onClick={() => latestResume && void downloadResumeVersion(latestResume, pursuit)}
                     >
                         Download resume
                     </Button>
