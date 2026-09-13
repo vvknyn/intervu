@@ -5,17 +5,16 @@ import Link from "next/link";
 import { fetchResumeData } from "@/actions/resume";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
-import { MatchChip } from "@/components/jobs/MatchChip";
+import { CompanyJobRowButton } from "@/components/company/CompanyJobRow";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate, titleCaseDisplay } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, locationText, prettyEnum, shortDate } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
-import { companyRowMetaSegments } from "@/lib/presentation";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { toast } from "@/lib/toast";
 import type { ResumeData } from "@/types/resume";
@@ -32,11 +31,10 @@ const ROLES_PREVIEW = 10;
  * through the same display helpers the row itself renders with
  * (`locationText`/`prettyEnum`), so a match is always on text the visitor can
  * actually see next to the input, not a raw field they can't. Deliberately
- * excludes salary — the row's meta line (`companyRowMetaSegments`) folds it
- * in for the caption, but the spec names only these three fields as
- * searchable. Reads the RAW `locationText`, not the meta line's cleaned-up
- * segment — a stripped postal code or clamped breadcrumb must never make an
- * otherwise-matching role searchable-but-invisible.
+ * excludes salary — the row's meta line folds it in for the caption, but the
+ * spec names only these three fields as searchable. Reads the RAW `locationText`,
+ * not the meta line's cleaned-up segment — a stripped postal code or clamped
+ * breadcrumb must never make an otherwise-matching role searchable-but-invisible.
  */
 export function jobMatchesQuery(job: PublicJob, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -190,24 +188,24 @@ export function CompanyRoleSearch({
 
   return (
     <section data-testid="company-role-search">
-      <h2 className="mb-4 flex items-baseline justify-between font-display text-lg font-semibold">
+      <h2 className="mb-2 flex items-baseline justify-between text-sm font-semibold">
         Open roles
         {jobs.length > 0 && (
-          <span className="text-sm font-normal text-muted-foreground" aria-live="polite">
+          <span className="text-xs font-normal text-muted-foreground" aria-live="polite">
             {roleCountLabel(displayed.length, matched.length, hasQuery, openCountLabel)}
           </span>
         )}
       </h2>
 
       {jobs.length > 0 && (
-        <div className="mb-4">
+        <div className="mb-3">
           <label htmlFor="company-role-search" className="sr-only">
             Search {companyName}&apos;s open roles by title, location, or level
           </label>
           <div className="relative">
             <MagnifyingGlass
               size={16}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
               aria-hidden
             />
             <Input
@@ -219,7 +217,7 @@ export function CompanyRoleSearch({
                 if (e.key === "Escape") setQuery("");
               }}
               placeholder={`Search ${companyName}'s open roles…`}
-              className="h-10 pl-9"
+              className="h-8 pl-9 text-sm"
             />
           </div>
           {searchesPartialWindow && hasQuery && (
@@ -236,7 +234,7 @@ export function CompanyRoleSearch({
 
       {displayed.length === 0 ? (
         hasQuery ? (
-          <div className="border border-border bg-card px-5 py-8 text-center">
+          <div className="border border-border bg-card px-4 py-4 text-center">
             <p className="text-sm text-muted-foreground">
               No open roles match &ldquo;{trimmedQuery}&rdquo;.
             </p>
@@ -249,7 +247,7 @@ export function CompanyRoleSearch({
           // sentence with nothing to do next is strictly worse than turning
           // the visitor into a follower, since that's the one action this
           // page can actually offer them right now.
-          <div className="border border-border bg-card px-5 py-8 text-center">
+          <div className="border border-border bg-card px-4 py-4 text-center">
             <p className="text-sm text-muted-foreground">
               No open roles right now. Follow {companyName} — we&apos;ll email you when they post.
             </p>
@@ -260,69 +258,27 @@ export function CompanyRoleSearch({
         )
       ) : (
         <ul className="divide-y divide-border border-t border-border">
-          {displayed.map((job) => {
-            const meta = companyRowMetaSegments(job);
-            // Exception-only status: the routine "clear, currently checked"
-            // state renders no line at all (see `rowExceptionMeta`'s doc) —
-            // only stale-clear/caution/likely_ghost verdicts show up here.
-            const exception = rowExceptionMeta(job, now);
-            const matchScore = matchScores?.get(job.id) ?? null;
-            return (
-              <li key={job.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedJob(job)}
-                  className="w-full text-left flex items-center gap-4 px-3 py-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="text-base font-semibold text-foreground group-hover:text-brand transition-colors">
-                        {titleCaseDisplay(decodeText(job.title))}
-                      </div>
-                      {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />}
-                    </div>
-                    {meta.length > 0 && (
-                      // Pay leads this line same as everywhere else it's
-                      // sourced from `companyRowMetaSegments`, but a role row
-                      // reads as one plain secondary caption here — never
-                      // bolded, per the rulebook's "pay NOT bold" rule.
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        {meta.map((segment, i) => (
-                          <span key={i}>
-                            {i > 0 && <span className="mx-1" aria-hidden>·</span>}
-                            {segment.text}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {exception && (
-                      <div className="mt-1.5 text-xs text-muted-foreground">{exception.label}</div>
-                    )}
-                  </div>
-                  <span className="shrink-0 text-sm text-brand" aria-hidden>
-                    View role
-                  </span>
-                </button>
-              </li>
-            );
-          })}
+          {displayed.map((job) => (
+            <li key={job.id}>
+              <CompanyJobRowButton
+                job={job}
+                now={now}
+                matchScore={matchScores?.get(job.id) ?? null}
+                matchAsOfDate={resumeAsOfDate}
+                onClick={() => setSelectedJob(job)}
+              />
+            </li>
+          ))}
         </ul>
       )}
 
       {displayed.length > 0 && (
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-border bg-card p-6">
-          <div>
-            <h3 className="font-display text-base font-semibold text-foreground">
-              Explore all open roles at {companyName}
-            </h3>
-            <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-              Screened for postings that aren&apos;t really hiring, plus freshness and verified salary transparency.
-            </p>
-          </div>
-          <Button asChild variant="brand" size="lg" className="shrink-0">
-            <Link href={jobsSearchUrl}>
-              View all {openCountLabel} jobs
-            </Link>
+        <div className="mt-3 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Screened for postings that aren&apos;t really hiring, plus freshness and verified salary transparency.
+          </p>
+          <Button asChild variant="brand" size="sm" className="shrink-0">
+            <Link href={jobsSearchUrl}>View all {openCountLabel} jobs</Link>
           </Button>
         </div>
       )}

@@ -28,7 +28,7 @@ export function CompanyVerdictBand({
   const asOfLabel = eventDate(asOf);
 
   return (
-    <section data-testid="company-verdict-band" className="border border-border bg-card px-6 py-6 sm:px-8">
+    <section data-testid="company-verdict-band" className="border border-border bg-card px-4 py-3">
       <h2 className="text-xs font-semibold text-muted-foreground">
         Are they actually hiring?
       </h2>
@@ -38,15 +38,15 @@ export function CompanyVerdictBand({
         </p>
       )}
       {hasNumbers && (
-        <div className="mt-4 grid grid-cols-2 gap-0 border border-border sm:grid-cols-3">
+        <div className="mt-3 grid grid-cols-2 gap-0 border border-border sm:grid-cols-3">
           {data.score != null && (
-            <div className="border-b border-r border-border px-4 py-3 last:border-r-0 sm:border-b-0">
+            <div className="border-b border-r border-border px-3 py-2 last:border-r-0 sm:border-b-0">
               <div className="font-display text-lg font-semibold tabular-nums text-foreground">{data.score}</div>
               <div className="mt-0.5 text-xs text-muted-foreground">health score</div>
             </div>
           )}
           {data.repostRate != null && (
-            <div className="border-b border-r border-border px-4 py-3 last:border-r-0 sm:border-b-0">
+            <div className="border-b border-r border-border px-3 py-2 last:border-r-0 sm:border-b-0">
               <div className="font-display text-lg font-semibold tabular-nums text-foreground">
                 {Math.round(data.repostRate * 100)}%
               </div>
@@ -54,7 +54,7 @@ export function CompanyVerdictBand({
             </div>
           )}
           {data.operatingStatus && (
-            <div className="px-4 py-3">
+            <div className="px-3 py-2">
               <div className="font-display text-base font-semibold text-foreground">
                 {eventTypeLabel(data.operatingStatus)}
               </div>

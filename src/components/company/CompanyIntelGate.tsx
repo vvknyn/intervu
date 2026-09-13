@@ -89,7 +89,7 @@ function CompanyIntelGateInner({
       </div>
       {!unlocked && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background px-6 py-10 text-center">
-          <div className="flex w-full max-w-sm flex-col items-center gap-4 border border-border bg-card px-6 py-6">
+          <div className="flex w-full max-w-sm flex-col items-center gap-4 border border-border bg-card px-4 py-4">
             <p className="text-sm font-semibold text-foreground">Follow this company to see its hiring history</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               {description ?? `Recent hiring changes, funding, tech stack, and news for ${displayName} — visible once you follow.`}

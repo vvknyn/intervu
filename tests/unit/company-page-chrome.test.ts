@@ -116,10 +116,9 @@ describe("company page: the wait is shown, and shaped like the page", () => {
     });
 
     it("the logo placeholder is the size the real logo will be", () => {
-        // CompanyLogo `lg` is h-14 w-14; the same pinning is already documented
-        // on its `md` size against the job-card skeleton.
-        const logoSize = read("src/components/jobs/CompanyLogo.tsx").match(/lg:\s*"(h-\d+ w-\d+)/);
-        assert.ok(logoSize, "could not read CompanyLogo's lg size");
+        // CompanyLogo `md` is h-12 w-12 — same slot as JobCardSkeleton.
+        const logoSize = read("src/components/jobs/CompanyLogo.tsx").match(/md:\s*"(h-\d+ w-\d+)/);
+        assert.ok(logoSize, "could not read CompanyLogo's md size");
         assert.match(
             CO_LOADING,
             new RegExp(`skeleton-bar ${logoSize[1]}\\b`),

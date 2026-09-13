@@ -78,7 +78,7 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
 
   if (!profile) {
     return (
-      <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
         <p className="text-sm text-muted-foreground">Company data isn&apos;t available right now.</p>
       </div>
     );
@@ -87,13 +87,13 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
   const jobsSearchUrl = `/?q=${encodeURIComponent(profile.name)}`;
 
   return (
-    <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
       <CompanyHeader name={profile.name} totalOpenRoles={profile.totalOpenRoles} />
 
       {profile.roles.length === 0 ? (
         <>
           <p
-            className="mt-8 border-t border-border pt-6 text-sm text-muted-foreground"
+            className="mt-4 border-t border-border pt-4 text-sm text-muted-foreground"
             data-testid="company-empty-state"
           >
             We haven&apos;t verified enough about this company yet.

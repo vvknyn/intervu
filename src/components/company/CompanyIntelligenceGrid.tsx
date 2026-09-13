@@ -55,7 +55,7 @@ export function CompanyIntelligenceGrid({
   const hasTechCard = Boolean(techStack);
 
   return (
-    <section aria-label="Company details" className={cn("space-y-5", className)}>
+    <section aria-label="Company details" className={cn("space-y-4", className)}>
       <h2 className="text-xs font-semibold text-muted-foreground">
         Company details
       </h2>
@@ -67,10 +67,10 @@ export function CompanyIntelligenceGrid({
         // count: 1 card fills the row instead of sitting alone in empty
         // slots, more cards split the row evenly, and this can't regress as
         // fields come and go.
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
           {/* CARD 1: Capital & Stage — sourced from the company's own job listings */}
           {funding && (
-            <div className="flex flex-col justify-between border border-border bg-card p-6 sm:p-7 transition-colors hover:border-border-strong">
+            <div className="flex flex-col justify-between border border-border bg-card p-4 transition-colors hover:border-border-strong">
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
@@ -84,9 +84,9 @@ export function CompanyIntelligenceGrid({
                   )}
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-3">
                   {funding.totalRaisedText ? (
-                    <div className="font-display text-lg sm:text-2xl font-semibold text-foreground">
+                    <div className="font-display text-lg font-semibold text-foreground">
                       {funding.totalRaisedText}
                     </div>
                   ) : (
@@ -122,15 +122,15 @@ export function CompanyIntelligenceGrid({
 
           {/* CARD 2: Visa sponsorship — share of this company's own open roles flagged as sponsoring */}
           {visa && (
-            <div className="flex flex-col justify-between border border-border bg-card p-6 sm:p-7 transition-colors hover:border-border-strong">
+            <div className="flex flex-col justify-between border border-border bg-card p-4 transition-colors hover:border-border-strong">
               <div>
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                   <GlobeHemisphereWest className="h-4 w-4 text-brand" weight="bold" size={16} />
                   Visa & Immigration
                 </span>
 
-                <div className="mt-4">
-                  <div className="font-display text-lg sm:text-2xl font-semibold text-foreground">
+                <div className="mt-3">
+                  <div className="font-display text-lg font-semibold text-foreground">
                     {visa.sponsoredRolesRatioPct}% Roles Sponsored
                   </div>
                   <div className="mt-1.5 text-xs text-muted-foreground">
@@ -147,14 +147,14 @@ export function CompanyIntelligenceGrid({
 
           {/* CARD: Tech stack — extracted from active job listings */}
           {hasTechCard && techStack && (techStack.languages.length > 0 || techStack.infrastructure.length > 0) && (
-            <div className="flex flex-col justify-between border border-border bg-card p-6 sm:p-7 transition-colors hover:border-border-strong">
+            <div className="flex flex-col justify-between border border-border bg-card p-4 transition-colors hover:border-border-strong">
               <div>
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                   <Code className="h-4 w-4 text-brand" weight="bold" size={16} />
                   Tech stack
                 </span>
 
-                <p className="mt-4 text-xs text-foreground">
+                <p className="mt-3 text-xs text-foreground">
                   {[...techStack.languages.slice(0, 5), ...techStack.infrastructure.slice(0, 3)].join(" · ")}
                 </p>
               </div>
@@ -169,8 +169,8 @@ export function CompanyIntelligenceGrid({
 
       {/* COMPANY NEWS FEED — real articles from the Subspace news API */}
       {news.length > 0 && (
-        <div className="mt-6 border border-border bg-card p-6 sm:p-7">
-          <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+        <div className="mt-4 border border-border bg-card p-4">
+          <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
             <Newspaper className="h-4 w-4 text-brand" weight="bold" size={16} />
             {companyName} in the News
           </h3>

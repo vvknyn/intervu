@@ -77,14 +77,14 @@ describe("/co/[slug]: roles list renders before secondary (intel/hiring-activity
   });
 });
 
-describe("/co/[slug]: hero fact row is icon-led facts, not a joined mono string", () => {
-  it("renders the domain as a real link plus the hiring-geos and remote-share facts via buildCompanyFacts", () => {
+describe("/co/[slug]: hero fact row uses compact chips, not a joined mono string", () => {
+  it("renders the domain as a real link plus hiring-geos and remote-share via buildCompanyFacts + chipVariants", () => {
     const source = readFileSync(CO_PAGE, "utf8");
     assert.match(source, /buildCompanyFacts\(/, "hero must read the structured facts, not the retired joined-line helper");
     assert.match(source, /href=\{`https:\/\/\$\{facts\.domain\}`\}/, "domain must render as a real external link");
-    assert.match(source, /ArrowSquareOut/);
-    assert.match(source, /GlobeHemisphereWest/);
-    assert.match(source, /House/);
+    assert.match(source, /chipVariants\(\{ active: false \}\)/, "header meta must use the shared chip primitive");
+    assert.match(source, /facts\.hiringGeos/);
+    assert.match(source, /facts\.remoteShare/);
   });
 
   it("carries no font-mono utility — the fact row is prose, not a tabular/aligned surface", () => {

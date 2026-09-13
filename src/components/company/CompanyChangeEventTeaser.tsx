@@ -19,7 +19,7 @@ export function CompanyChangeEventTeaser({ event }: { event: CompanyChangeEvent 
   return (
     <div
       data-testid="company-change-event-teaser"
-      className="border border-border bg-card px-5 py-3.5"
+      className="border border-border bg-card px-4 py-3"
     >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         {label && (

@@ -5,9 +5,9 @@ export function CompanyHeader({ name, totalOpenRoles }: { name: string; totalOpe
   const noun = totalOpenRoles === 1 ? "live role" : "live roles";
   return (
     <header data-testid="company-header">
-      <h1 className="font-display text-3xl font-semibold text-foreground">{name}</h1>
-      <p className="mt-1.5 text-base text-foreground">
-        {totalOpenRoles.toLocaleString()} {noun} tracked from the company's own postings
+      <h1 className="font-display text-xl font-semibold text-foreground sm:text-2xl">{name}</h1>
+      <p className="mt-1 text-sm text-foreground">
+        {totalOpenRoles.toLocaleString()} {noun} tracked from the company&apos;s own postings
       </p>
     </header>
   );

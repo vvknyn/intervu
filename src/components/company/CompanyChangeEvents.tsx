@@ -154,8 +154,8 @@ export function CompanyChangeEvents({
   if (events.length === 0) return null;
 
   return (
-    <section data-testid="company-change-events" className="mb-8">
-      <h2 className="mb-1 font-display text-lg font-semibold">Recent changes</h2>
+    <section data-testid="company-change-events" className="mb-4">
+      <h2 className="mb-1 text-base font-semibold">Recent changes</h2>
       <p className="mb-4 text-xs text-muted-foreground">
         Observed shifts in {companyName}&apos;s hiring, from postings we track over time.
       </p>
@@ -171,7 +171,7 @@ export function CompanyChangeEvents({
             // folded in — the list is server-rendered and never reordered.
             <li
               key={`${event.event_type}-${event.occurred_at}-${idx}`}
-              className="flex items-start gap-3.5 border border-border bg-card px-5 py-4"
+              className="flex items-start gap-3 border border-border bg-card px-4 py-3"
             >
               <Icon size={18} weight="bold" className={cn("mt-0.5 shrink-0", icon)} aria-hidden />
               <div className="min-w-0 flex-1">

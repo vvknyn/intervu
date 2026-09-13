@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Instant loading state for a company page.
@@ -13,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
  * moment the link is followed.
  *
  * It is a SKELETON, not a spinner, and it mirrors `page.tsx`'s geometry
- * block for block — same breadcrumb bar, same `main` gutters, same 56px logo
+ * block for block — same breadcrumb bar, same `main` gutters, same 48px logo
  * square, same header split. That is the point: the wait should read as "this
  * page is arriving, and it looks like this", and the swap to real content
  * shouldn't move anything. The same reasoning is already recorded on
@@ -32,59 +31,60 @@ export default function Loading() {
 
             {/* Real link, not a placeholder: it is the one control a waiting
                 visitor might actually want, and it costs no data to render. */}
-            <div className="border-b border-border bg-card px-4 py-3 sm:px-8 xl:px-10">
-                <nav className="mx-auto max-w-6xl xl:max-w-7xl text-xs text-muted-foreground">
+            <div className="border-b border-border px-4 sm:px-8 xl:px-10">
+                <nav className="mx-auto flex h-10 max-w-6xl items-center text-sm text-muted-foreground xl:max-w-7xl">
                     <Link href="/jobs" className="text-brand hover:underline">
                         Find jobs
                     </Link>
-                    {" / "}
-                    <Skeleton className="inline-block h-4 w-28 align-middle" />
+                    <span className="mx-1.5" aria-hidden>/</span>
+                    <span className="skeleton-bar inline-block h-4 w-28 align-middle" />
                 </nav>
             </div>
 
             <div
                 aria-hidden="true"
-                className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10"
+                className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-4 pb-8 sm:px-8 sm:pb-10 xl:px-10"
             >
-                {/* Identity header — logo, name, one-liner, stage chip, and the
+                {/* Identity header — logo, name, one-liner, fact chips, and the
                     Follow control's slot on the right. */}
-                <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex min-w-0 gap-5">
-                        <Skeleton className="h-14 w-14 shrink-0" />
-                        <div className="min-w-0 flex-1 space-y-3 pt-1">
-                            {/* page.tsx's <h1> is text-3xl (32/40). */}
-                            <Skeleton className="h-10 w-[220px] max-w-full" />
-                            <Skeleton className="h-5 w-[420px] max-w-full" />
-                            <div className="flex gap-2 pt-1">
-                                <Skeleton className="h-6 w-24" />
-                                <Skeleton className="h-6 w-20" />
+                <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 gap-3">
+                        <div className="skeleton-bar h-12 w-12 shrink-0" />
+                        <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+                            {/* page.tsx's <h1> is text-xl sm:text-2xl. */}
+                            <div className="skeleton-bar h-7 w-[220px] max-w-full sm:h-8" />
+                            <div className="skeleton-bar h-4 w-[420px] max-w-full" />
+                            <div className="flex flex-wrap gap-2 pt-0.5">
+                                <div className="skeleton-bar h-7 w-24" />
+                                <div className="skeleton-bar h-7 w-20" />
                             </div>
                         </div>
                     </div>
-                    <Skeleton className="h-10 w-[200px] shrink-0 self-start" />
+                    <div className="skeleton-bar h-10 w-[200px] shrink-0 self-start" />
                 </header>
 
                 {/* Open roles — the reason someone opened this page, so the
                     skeleton gives them the most room here too. */}
-                <div className="space-y-2.5">
-                    <Skeleton className="mb-4 h-4 w-40" />
-                    {[0, 1, 2, 3].map((row) => (
-                        <div key={row} className="border border-border bg-card px-5 py-4">
-                            <Skeleton className="h-5 w-2/3" />
-                            <div className="mt-2.5 flex gap-2">
-                                <Skeleton className="h-4 w-24" />
-                                <Skeleton className="h-4 w-16" />
+                <div className="space-y-2">
+                    <div className="skeleton-bar mb-2 h-4 w-40" />
+                    <div className="divide-y divide-border border-t border-border">
+                        {[0, 1, 2, 3].map((row) => (
+                            <div key={row} className="px-4 py-3">
+                                <div className="skeleton-bar h-5 w-2/3" />
+                                <div className="mt-2 flex gap-2">
+                                    <div className="skeleton-bar h-4 w-24" />
+                                    <div className="skeleton-bar h-4 w-16" />
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
 
-                {/* Quiet secondary block, matching the real page's `mt-10`. */}
-                <div className="mt-10 space-y-8">
-                    <div className="bg-chip px-5 py-4">
-                        <Skeleton className="h-4 w-28" />
-                        <Skeleton className="mt-3 h-5 w-3/4" />
-                        <Skeleton className="mt-2 h-4 w-1/2" />
+                {/* Quiet secondary block, matching the real page's `mt-4`. */}
+                <div className="mt-4 space-y-4">
+                    <div className="border border-border bg-card px-4 py-3">
+                        <div className="skeleton-bar h-4 w-28" />
+                        <div className="skeleton-bar mt-2 h-4 w-3/4" />
                     </div>
                 </div>
             </div>

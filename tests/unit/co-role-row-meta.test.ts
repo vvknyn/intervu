@@ -12,9 +12,9 @@ import type { PublicJob } from "../../src/lib/jobs/types";
  * `CompanyRoleSearch` (/co) and `CompanyRolesList` (/companies/[slug]).
  * Each used to hand-roll its own location-first `roleMeta()` and print
  * `GHOST_META.clear.label` ("Actively posted") on every routine row; both
- * now read `companyRowMetaSegments` (lib/presentation/job.ts) and
- * `rowExceptionMeta` (lib/jobs/presentation.ts), the same salary-first
- * chokepoint and exception-only rule the SERP row already applies.
+ * now read `buildFactChips` + `MetaLine` (CompanyJobRow, mirroring JobCard)
+ * and `rowExceptionMeta` (lib/jobs/presentation.ts), the same fact grammar
+ * and exception-only rule the SERP row already applies.
  */
 
 const NOW = Date.parse("2026-08-21T12:00:00Z");
@@ -77,12 +77,10 @@ function renderRolesList(roles: PublicJob[]): string {
   );
 }
 
-test("CompanyRoleSearch: the row meta line is salary-first (buildRowMetaLine), not the old location-first roleMeta()", () => {
+test("CompanyRoleSearch: the row meta line renders location and salary via MetaLine (JobCard fact grammar)", () => {
   const html = renderRoleSearch([job({ id: "1" })]);
-  const salaryIdx = html.indexOf("120k");
-  const locationIdx = html.indexOf("Austin");
-  assert.ok(salaryIdx !== -1 && locationIdx !== -1, "both salary and location must render");
-  assert.ok(salaryIdx < locationIdx, "salary must render before location — salary-first, not location-first");
+  assert.match(html, /120k/, "salary must render on the meta line");
+  assert.match(html, /Austin/, "location must render on the meta line");
 });
 
 test("CompanyRoleSearch: a clear+fresh row renders no status line", () => {
@@ -101,12 +99,10 @@ test("CompanyRoleSearch: no per-row logo renders — the hero carries the logo, 
   assert.doesNotMatch(html, /<img/);
 });
 
-test("CompanyRolesList: the row meta line is salary-first (buildRowMetaLine), not the old location-first roleMeta()", () => {
+test("CompanyRolesList: the row meta line renders location and salary via MetaLine (JobCard fact grammar)", () => {
   const html = renderRolesList([job({ id: "1" })]);
-  const salaryIdx = html.indexOf("120k");
-  const locationIdx = html.indexOf("Austin");
-  assert.ok(salaryIdx !== -1 && locationIdx !== -1, "both salary and location must render");
-  assert.ok(salaryIdx < locationIdx, "salary must render before location — salary-first, not location-first");
+  assert.match(html, /120k/, "salary must render on the meta line");
+  assert.match(html, /Austin/, "location must render on the meta line");
 });
 
 test("CompanyRolesList: a clear+fresh row renders no status pill", () => {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
@@ -17,7 +18,8 @@ import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { CompanyTechStackBand } from "@/components/company/CompanyTechStackBand";
 import { CompanyVerdictBand } from "@/components/company/CompanyVerdictBand";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { DotSeparated } from "@/components/ui/dot-separated";
+import { chipVariants } from "@/components/ui/chip";
+import { cn } from "@/lib/utils";
 import type { CompanyChangeEvent } from "@/lib/companies/types";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import { getCompanyPageData } from "@/lib/companies/get-company";
@@ -172,56 +174,61 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       </div>
 
       <CompanyFollowChannelProvider domain={data.domain} displayName={data.name}>
-      <div data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10">
+      <div data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-4 pb-8 sm:px-8 sm:pb-10 xl:px-10">
         {/* Identity header: name, the "is X hiring?" answer folded straight
             into the subtitle line (no separate boxed KPI card), and Follow
             as the page's one primary action — inverted-ink treatment via
             `variant="primary"` (maps to Button's `default` variant). Blue
             (`variant="brand"`, used below for the roles list's "View all"
             button) is for interactive accents, never the primary CTA. */}
-        <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 gap-5">
-            <CompanyLogo domain={data.domain} name={data.name} size="lg" />
+        <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 gap-3">
+            <CompanyLogo domain={data.domain} name={data.name} size="md" />
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-3xl font-semibold">{data.name}</h1>
+              <h1 className="font-display text-xl font-semibold sm:text-2xl">{data.name}</h1>
               {data.oneLiner && (
-                <p className="mt-1.5 text-sm sm:text-base leading-snug text-muted-foreground">
+                <p className="mt-1 text-sm leading-snug text-muted-foreground">
                   {data.oneLiner}
                 </p>
               )}
-              <p className="mt-3 flex items-center gap-2 text-base leading-snug text-foreground">
+              <p className="mt-2 flex items-center gap-2 text-sm leading-snug text-foreground">
                 {hiring.hasOpenRoles && (
                   <span className="h-2 w-2 shrink-0 rounded-none bg-live" aria-hidden />
                 )}
                 {humanizeProjectorHeadline(hiring.headline)}
               </p>
-              {/* Facts row — domain (a real link), HQ, hiring geos, remote
-                  share, plus any header chips (stage, employer size, founding
-                  year, org type) — all plain " · "-joined text, no icons and
-                  no separate pill row (rulebook: facts row has no icons,
-                  tags/pills are excluded). Absence is still silence: a fact
-                  with nothing behind it (`buildCompanyFacts`) just doesn't
-                  contribute a segment. */}
-              <div className="mt-3 text-sm text-muted-foreground">
-                <DotSeparated
-                  items={[
-                    <a
-                      href={`https://${facts.domain}`}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow"
-                      className="text-brand hover:underline"
+              {/* Facts row — compact chips matching the jobs toolbar / SERP
+                  meta language. Domain stays a real external link; missing
+                  facts stay silent (Rule 2). */}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[
+                  <a
+                    key="domain"
+                    href={`https://${facts.domain}`}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="text-brand hover:underline"
+                  >
+                    {facts.domain}
+                  </a>,
+                  profile?.hqCountry,
+                  facts.hiringGeos,
+                  facts.remoteShare,
+                  data.stage,
+                  ...headerChips,
+                ]
+                  .filter((item): item is string | ReactNode => Boolean(item))
+                  .map((item, index) => (
+                    <span
+                      key={typeof item === "string" ? item : `chip-${index}`}
+                      className={cn(
+                        chipVariants({ active: false }),
+                        "h-auto min-h-7 px-2.5 py-1 text-foreground",
+                      )}
                     >
-                      {facts.domain}
-                    </a>,
-                    // HQ renders at the precision the box actually stored —
-                    // country only, never an invented city (contract rule).
-                    profile?.hqCountry,
-                    facts.hiringGeos,
-                    facts.remoteShare,
-                    data.stage,
-                    ...headerChips,
-                  ]}
-                />
+                      {item}
+                    </span>
+                  ))}
               </div>
             </div>
           </div>
@@ -241,7 +248,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             signature band, public per design call DC1). Both drop cleanly
             when the exhaust module has nothing for this domain. */}
         {data.exhaust && (
-          <div className="mb-8 space-y-4">
+          <div className="mb-4 space-y-4">
             <CompanyVerdictBand health={data.exhaust.health} nowMs={data.nowMs} />
             <CompanyCadenceStrip cadence={data.exhaust.cadence} />
           </div>
@@ -250,7 +257,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         {/* Two-column body below the header: roles + gated change/public
             content in the main column, the hiring record and list health in
             a narrower rail — collapses to one stacked column under `lg`. */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
           <div className="min-w-0">
             {/* Open roles are the reason a job seeker landed here, so the
                 roles list is the first thing under the header, not four KPI
@@ -268,7 +275,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
 
             {/* Quiet secondary content — hiring changes, tech stack, and
                 news — never ahead of the roles a visitor came here for. */}
-            <div data-testid="company-secondary" className="mt-10 space-y-8">
+            <div data-testid="company-secondary" className="mt-4 space-y-4">
               <CompanyChangeEventTeaser event={data.changeEvents[0] ?? null} />
 
               <CompanyIntelGate domain={data.domain} slug={data.slug} displayName={data.name}>
@@ -297,7 +304,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {/* Plain-language hiring record — same figures the old
                     "Hiring activity" section drew from, now its own named
                     rail box instead of a shared block with the intel grid. */}
-                <section data-testid="company-hiring-activity" className="border border-border bg-card p-6">
+                <section data-testid="company-hiring-activity" className="border border-border bg-card p-4">
                   <h2 className="text-xs font-semibold text-muted-foreground">
                     The hiring record — last 90 days
                   </h2>
@@ -323,7 +330,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {/* List health — the ghost-flagged share restated as a count
                     instead of a bare, jargon-labelled percentage tile. */}
                 {staleShare && (
-                  <section className="border border-border bg-card p-6">
+                  <section className="border border-border bg-card p-4">
                     <h2 className="text-xs font-semibold text-muted-foreground">
                       List health
                     </h2>
@@ -338,7 +345,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         {/* Band 5 — "On the record": enrichment facts, public per D1. Drops
             below two cells (CompanyFactRow's own rule). */}
         {data.exhaust && (
-          <div className="mt-8">
+          <div className="mt-4">
             <CompanyFactRow exhaust={data.exhaust} />
           </div>
         )}
@@ -348,7 +355,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             CompanyIntelGate above. Signed-in only; signed-out visitors see
             real-count teasers, never blurred content. */}
         {data.exhaust && exhaustGateTeasers.length > 0 && (
-          <div className="mt-8">
+          <div className="mt-4">
             <CompanyExhaustGate slug={data.slug} displayName={data.name} teasers={exhaustGateTeasers}>
               <div className="space-y-4">
                 <CompanyIntegrityBand integrity={data.exhaust.integrity} />

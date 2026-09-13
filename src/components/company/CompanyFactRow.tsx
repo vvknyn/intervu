@@ -93,7 +93,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
   if (cells.length < 2) return null;
 
   return (
-    <section data-testid="company-fact-row" className="border border-border bg-card px-6 py-6 sm:px-8">
+    <section data-testid="company-fact-row" className="border border-border bg-card px-4 py-3">
       <h2 className="text-xs font-semibold text-muted-foreground">On the record</h2>
       <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
         {cells.map((c) => (
