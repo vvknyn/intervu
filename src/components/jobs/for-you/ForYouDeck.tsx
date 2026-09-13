@@ -57,7 +57,7 @@ export function ForYouDeck({
     };
 
     return (
-        <div className={cn("relative h-full min-h-0 pb-6", className)} onWheel={handleWheel}>
+        <div className={cn("relative min-h-0 flex-1 pb-6", className)} onWheel={handleWheel}>
             {packs.map((pack, index) => {
                 const offset = index - activeIndex;
                 if (offset < 0 || offset > 2) return null;

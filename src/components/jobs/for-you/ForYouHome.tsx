@@ -166,7 +166,7 @@ export function ForYouHome({
     return (
         <div
             className={cn(
-                "flex min-h-[20rem] flex-1 flex-col",
+                "flex min-h-[20rem] flex-1 flex-col overflow-hidden",
                 // Viewport-bounded column: topbar + shell padding + mobile tab bar clearance.
                 "h-[calc(100dvh-var(--topbar-h)-6.25rem-env(safe-area-inset-bottom,0px))]",
                 "max-h-[calc(100dvh-var(--topbar-h)-6.25rem-env(safe-area-inset-bottom,0px))]",
