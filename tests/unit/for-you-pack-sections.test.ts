@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import type { DescBlock } from "../../src/lib/jobs/format-description";
 import { splitPackSections } from "../../src/lib/jobs/for-you/pack-sections";
 
 describe("splitPackSections", () => {
@@ -23,7 +24,7 @@ describe("splitPackSections", () => {
             "About the role:\n\nWe build tools.\n\nResponsibilities:\n\nShip features.\n\nRequirements:\n\n5+ years experience.",
         );
         for (const blocks of Object.values(sections)) {
-            assert.ok(blocks.every((b) => b.type !== "heading"));
+            assert.ok(blocks.every((b: DescBlock) => b.type !== "heading"));
         }
     });
 });

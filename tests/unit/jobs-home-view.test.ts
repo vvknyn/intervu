@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { resolveJobsHomeView } from "../../src/lib/jobs/for-you/home-view";
 
 describe("resolveJobsHomeView", () => {
-    const base = {
-        urlView: null as const,
-        resumeOnFile: null as boolean | null,
-        companyDomain: null as string | null,
-        board: null as string | null,
+    const base: Parameters<typeof resolveJobsHomeView>[0] = {
+        urlView: null,
+        resumeOnFile: null,
+        companyDomain: null,
+        board: null,
         q: "",
-        sort: null as const,
+        sort: null,
     };
 
     it("explicit view=search always lands on search", () => {

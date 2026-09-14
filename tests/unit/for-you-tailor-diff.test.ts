@@ -5,7 +5,7 @@ import type { TailorDraft } from "../../src/lib/local-ai/tailor-resume";
 
 function mkDraft(partial: Partial<TailorDraft>): TailorDraft {
     return {
-        engineId: "rules",
+        engineId: "heuristic",
         engineLabel: "Rules",
         usedDescription: false,
         summaryBefore: "Before",
