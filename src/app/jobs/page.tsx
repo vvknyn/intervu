@@ -1887,6 +1887,7 @@ function JobsContent() {
                 // reason `jobId` above is hardcoded rather than threaded in: it
                 // must never appear in `searchKey` or it would trigger a refetch.
                 hideViewed: false,
+                homeView: null,
             }) + (postedDateSupported ? "" : "&nodatesort"),
         // `postedDateSupported` participates because it changes the sort the
         // backend is asked for: when the probe resolves, the date sort becomes
@@ -2007,6 +2008,7 @@ function JobsContent() {
             sort: sortOverride ? modeToUrlSort(sortOverride) : null,
             jobId: null,
             hideViewed: false,
+            homeView: null,
         }),
         [
             query,
