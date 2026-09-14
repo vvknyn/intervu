@@ -4863,6 +4863,17 @@ function JobsContent() {
     );
 
     /**
+     * Single source of truth for whether `mobile-search-cta` (below) will
+     * actually render — the landing scroll area's bottom padding needs the
+     * exact same answer, so it's hoisted rather than re-derived at the
+     * padding site and the render site separately (the class of bug this
+     * fixes: a padding literal that quietly stops matching the chrome it was
+     * sized for).
+     */
+    const showMobileSearchCta =
+        !isLgUp && showSearchHome && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
+
+    /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
      * and result count stay mounted whether the query is empty
      * (`isSerpAsk` — tappable search seeds, chrome preserved) or has
@@ -4889,7 +4900,21 @@ function JobsContent() {
                 className={cn(
                     "shell-row flex min-h-0 flex-col pt-2 sm:pt-3",
                     showSearchHome
-                        ? "min-h-screen pb-20"
+                        ? // Below lg, `mobile-search-cta` and the tab bar are both
+                          // FIXED overlays stacked over this scroll area's bottom
+                          // edge (z-[180] and z-50) — content there needs bottom
+                          // clearance for whichever of them is actually mounted,
+                          // not a flat guess. `--mobile-tabbar-h`/
+                          // `--mobile-search-cta-h` (globals.css) are the same
+                          // numbers those elements render at, so this can never
+                          // under-clear what's really on screen. lg+ has neither
+                          // overlay (both `lg:hidden`), hence the flat `lg:pb-20`.
+                          cn(
+                              "lg:pb-20",
+                              showMobileSearchCta
+                                  ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))]"
+                                  : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))]",
+                          )
                         : "flex-1 overflow-hidden pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-3",
                 )}
             >
@@ -5927,10 +5952,16 @@ function JobsContent() {
                 onContinue={handleLocationSheetContinue}
             />
 
-            {!isLgUp && showSearchHome && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query) && (
+            {showMobileSearchCta && (
                 <div
                     data-testid="mobile-search-cta"
-                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] border-t border-border bg-card px-4 py-2.5 lg:hidden"
+                    // Fixed to `--mobile-search-cta-h` (globals.css) rather
+                    // than letting padding+button height set it implicitly —
+                    // that's the same number the landing scroll area's
+                    // bottom padding (above) clears for, so the two can't
+                    // drift apart the way a padding guess and this bar's
+                    // real height already had.
+                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-card px-4 lg:hidden"
                 >
                     <Button
                         type="button"

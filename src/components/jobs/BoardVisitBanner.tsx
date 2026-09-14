@@ -62,7 +62,19 @@ export function BoardVisitBanner() {
             data-testid="board-visit-banner"
             role="status"
             aria-live="polite"
-            className="fixed bottom-6 right-6 z-50 flex max-w-sm items-center justify-between gap-3 rounded-none bg-card border border-border px-4 py-3 animate-in fade-in slide-in-from-bottom-4 duration-300"
+            // Below lg, two OTHER fixed bars can occupy the viewport's own
+            // bottom edge at the same time as this toast: the tab bar
+            // (always) and, on the landing/ask view, `mobile-search-cta`
+            // stacked above it — together up to `--mobile-tabbar-h +
+            // --mobile-search-cta-h` tall. A flat `bottom-6` sits inside
+            // that band and the toast renders fully hidden underneath them
+            // (z-50 loses to the CTA's z-[180]). This component has no way
+            // to know whether the CTA is showing right now, so it clears
+            // the worst case unconditionally, using the SAME two tokens
+            // those bars size themselves from — never a restated px guess.
+            // lg+ has neither bar (both `lg:hidden`), so `lg:bottom-6`
+            // restores the plain corner-toast position there.
+            className="fixed bottom-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px)+1rem)] right-4 z-50 flex max-w-sm items-center justify-between gap-3 rounded-none bg-card border border-border px-4 py-3 animate-in fade-in slide-in-from-bottom-4 duration-300 lg:bottom-6 lg:right-6"
         >
             <div className="flex items-center gap-2.5">
                 <span className="h-2 w-2 rounded-none bg-brand" aria-hidden />
