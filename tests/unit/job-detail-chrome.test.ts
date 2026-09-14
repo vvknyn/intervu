@@ -2,17 +2,25 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { APPLY_BUTTON_LABEL } from "@/components/jobs/job-detail-facts";
 
 const JOB_DETAIL = join(__dirname, "..", "..", "src", "components", "jobs", "JobDetail.tsx");
 const JOB_PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "[slug]", "page.tsx");
 const JOB_DOCUMENT = join(__dirname, "..", "..", "src", "components", "jobs", "JobDetailDocument.tsx");
 
 describe("JobDetail guest chrome", () => {
-    it("uses Apply labels for guests and signed-in users alike", () => {
+    it("uses one shared Apply label for guests and signed-in users alike", () => {
+        // Was: a bare ">Apply<" on the desktop split pane vs. a separately
+        // hardcoded "Apply on Company Site" elsewhere in this same file — the
+        // exact defect [3] inconsistency this test now guards against. Both
+        // sites must read the one exported APPLY_BUTTON_LABEL constant
+        // instead of re-typing (a different copy of) its text.
         const src = readFileSync(JOB_DETAIL, "utf8");
         assert.doesNotMatch(src, /Sign in to apply/);
-        assert.match(src, />\s*Apply\s*</);
-        assert.match(src, /Apply on Company Site/);
+        assert.doesNotMatch(src, />\s*Apply\s*</, "no surface should hardcode a bare, unlabeled Apply string");
+        assert.doesNotMatch(src, /"Apply on Company Site"/, "no surface should re-type the label literal instead of importing it");
+        assert.match(src, /\{APPLY_BUTTON_LABEL\}/, "every Apply surface must render the shared constant");
+        assert.equal(APPLY_BUTTON_LABEL, "Apply on Company Site");
     });
 
     it("save control is the shared row bookmark, not a labeled Save button", () => {
