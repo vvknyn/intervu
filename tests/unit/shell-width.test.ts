@@ -22,9 +22,17 @@ const TOPBAR = read("src/components/layout/TopBar.tsx");
 const FOOTER = read("src/components/layout/Footer.tsx");
 const JOBS = read("src/app/jobs/page.tsx");
 
-/** The class attribute of the first element carrying `shell-row` in a file. */
+/**
+ * The class string of the first `shell-row` declaration in a file. The
+ * property under test is the STRING that declares `shell-row`, not the
+ * syntax around it — a bare `className="shell-row ..."` attribute and a
+ * `className={cn("shell-row ...", ...)}` call both declare the same class
+ * list, so both must be found. Matching only `className="..."` missed the
+ * `cn(...)` shape entirely (jobs/page.tsx after its shell refactor), which
+ * read as "no element uses shell-row" rather than "found it, it's clean."
+ */
 function shellRowClassIn(src: string, label: string): string {
-    const m = src.match(/className="([^"]*\bshell-row\b[^"]*)"/);
+    const m = src.match(/["`]([^"`]*\bshell-row\b[^"`]*)["`]/);
     assert.ok(m, `${label} has no element using shell-row — it would no longer follow the page's width`);
     return m[1];
 }
@@ -66,6 +74,40 @@ describe("shell width: one owner, declared by the page", () => {
                 `${label}'s shell row hardcodes a gutter; shell-row owns padding so the three rows can't drift`,
             );
         }
+    });
+
+    it("finds the shell-row declaration regardless of the surrounding call syntax", () => {
+        // The bug instance: a bare attribute.
+        assert.equal(
+            shellRowClassIn(`<div className="shell-row flex items-center">`, "bare attribute"),
+            "shell-row flex items-center",
+        );
+        // The regression: shell-row as a cn(...) argument (jobs/page.tsx's shape).
+        assert.equal(
+            shellRowClassIn(`className={cn("shell-row flex min-h-0 flex-col pt-2 sm:pt-3", extra)}`, "cn call"),
+            "shell-row flex min-h-0 flex-col pt-2 sm:pt-3",
+        );
+        // A case OTHER than either of the above: a template-literal call,
+        // which neither the original `className="..."` regex nor a
+        // cn(...)-specific patch would catch.
+        assert.equal(
+            shellRowClassIn("className={cn(`shell-row flex gap-2`, extra)}", "template call"),
+            "shell-row flex gap-2",
+        );
+    });
+
+    it("a max-width smuggled into a cn(...) shell-row is not invisible to the guard", () => {
+        // Non-vacuity proof: extracting a clean string from the cn(...) shape
+        // is not enough — the same probe the real guards run must actually
+        // TRIP on a violation shaped exactly like the code under protection
+        // (jobs/page.tsx's `className={cn("shell-row ...", ...)}`), not only
+        // on the bare-attribute shape the original bug was found in.
+        const probe = /(?:^|\s)(?:sm:|md:|lg:|xl:|2xl:)?max-w-/;
+        const offending = shellRowClassIn(
+            `className={cn("shell-row flex max-w-6xl pt-2", extra)}`,
+            "cn call with a smuggled max-width",
+        );
+        assert.match(offending, probe, "a hardcoded max-w- inside a cn(...) shell-row must still trip the guard");
     });
 
     it("/jobs asks for the full window rather than assuming it", () => {

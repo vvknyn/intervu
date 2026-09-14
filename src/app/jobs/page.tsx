@@ -4762,7 +4762,10 @@ function JobsContent() {
                     type="button"
                     aria-label="Sort"
                     data-testid="jobs-sort-trigger"
-                    className="hidden shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand lg:inline-flex"
+                    className={cn(
+                        toolbarControlHeight,
+                        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand",
+                    )}
                 >
                     {fitResolving && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
                     Sort: {sortLabel}
