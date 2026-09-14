@@ -2,11 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { ForYouPack } from "@/components/jobs/for-you/ForYouPack";
-import {
-    readPackScrollRegion,
-    shouldAdvancePackOnSwipe,
-    shouldAdvancePackOnWheel,
-} from "@/lib/jobs/for-you/deck-wheel";
+import { shouldPackGestureAdvanceDeck } from "@/lib/jobs/for-you/deck-wheel";
 import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -56,7 +52,8 @@ export function ForYouDeck({
         const el = rootRef.current;
         if (!el) return;
         const onWheel = (event: WheelEvent) => {
-            if (!shouldAdvancePackOnWheel(event.target)) return;
+            const direction: 1 | -1 = event.deltaY > 0 ? 1 : -1;
+            if (!shouldPackGestureAdvanceDeck(event.target, el, direction)) return;
             const length = packsLengthRef.current;
             const index = activeIndexRef.current;
             if (wheelLock.current || length <= 1) return;
@@ -64,7 +61,7 @@ export function ForYouDeck({
             if (Math.abs(event.deltaY) < (reduced ? 80 : 40)) return;
             event.preventDefault();
             wheelLock.current = true;
-            if (event.deltaY > 0) {
+            if (direction > 0) {
                 onActiveIndexChangeRef.current(Math.min(index + 1, length - 1));
             } else {
                 onActiveIndexChangeRef.current(Math.max(index - 1, 0));
@@ -95,9 +92,10 @@ export function ForYouDeck({
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const threshold = reduced ? 80 : 40;
         if (Math.abs(dy) < threshold || Math.abs(dy) <= Math.abs(dx)) return;
-        if (!shouldAdvancePackOnSwipe(dy, readPackScrollRegion(start.target))) return;
+        const direction: 1 | -1 = dy < 0 ? 1 : -1;
+        if (!shouldPackGestureAdvanceDeck(start.target, rootRef.current, direction)) return;
         wheelLock.current = true;
-        if (dy < 0) {
+        if (direction > 0) {
             onActiveIndexChange(Math.min(activeIndex + 1, packs.length - 1));
         } else {
             onActiveIndexChange(Math.max(activeIndex - 1, 0));
