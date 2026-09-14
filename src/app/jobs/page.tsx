@@ -5264,6 +5264,8 @@ function JobsContent() {
                             homeView={resolvedHomeView}
                             onHomeViewChange={setJobsHomeView}
                             showToggle={resumeOnFile === true}
+                            onReplaceResume={handleUploadClick}
+                            hasUsableResume={hasUsableResume}
                         />
                     </div>
                 ) : (

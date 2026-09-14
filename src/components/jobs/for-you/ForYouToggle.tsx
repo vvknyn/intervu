@@ -31,7 +31,7 @@ export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) 
                         aria-selected={active}
                         onClick={() => onChange(tab)}
                         className={cn(
-                            "px-4 py-2 text-xs font-semibold transition-colors motion-reduce:transition-none",
+                            "inline-flex min-h-11 items-center px-4 text-xs font-semibold transition-colors motion-reduce:transition-none",
                             active
                                 ? "border-b-2 border-foreground text-foreground"
                                 : "border-b-2 border-transparent text-muted-foreground hover:text-foreground",

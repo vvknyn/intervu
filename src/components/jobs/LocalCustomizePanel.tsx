@@ -180,11 +180,11 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-                <DialogContent className="z-[70] flex max-h-[85dvh] w-full max-w-[720px] flex-col overflow-hidden p-0 sm:max-w-xl">
+                <DialogContent className="z-[70] flex max-h-[85dvh] w-[calc(100%-1rem)] max-w-[720px] flex-col overflow-hidden p-0 sm:max-w-xl">
                     <div className="flex min-h-0 max-h-[85dvh] flex-col">
                         <div className="shrink-0 border-b border-border px-5 py-4 pr-12">
                             <DialogHeader className="space-y-0.5 text-left">
-                                <DialogTitle className="text-base font-semibold leading-snug text-foreground">
+                                <DialogTitle className="break-words text-base font-semibold leading-snug text-foreground">
                                     {job.title}
                                     {companyBrand ? ` · ${companyBrand}` : ""}
                                 </DialogTitle>
@@ -212,7 +212,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                         <Button
                                             type="button"
                                             size="sm"
-                                            className="h-9 rounded-none text-xs"
+                                            className="h-11 min-h-11 rounded-none text-xs"
                                             onClick={() => void handleEnableAi()}
                                         >
                                             Enable on-device AI
@@ -221,7 +221,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            className="h-9 rounded-none text-xs"
+                                            className="h-11 min-h-11 rounded-none text-xs"
                                             onClick={handleRulesDraft}
                                         >
                                             Use a rules draft
@@ -294,37 +294,41 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                 variant="outline"
                                 size="sm"
                                 data-testid="local-customize-close"
-                                className="h-9 rounded-none text-xs"
+                                className="h-11 min-h-11 rounded-none text-xs"
                                 onClick={() => handleDialogOpenChange(false)}
                             >
                                 Close
                             </Button>
                             {draft && (
                                 <>
-                                    <button
+                                    <Button
                                         type="button"
+                                        variant="outline"
+                                        size="sm"
                                         data-testid="local-customize-copy"
                                         onClick={() => void handleCopy()}
-                                        className="inline-flex items-center gap-1 text-xs font-semibold text-foreground hover:text-brand"
+                                        className="h-11 min-h-11 rounded-none text-xs"
                                     >
                                         {copied ? <Check size={14} /> : <Copy size={14} />}
                                         {copied ? "Copied" : "Copy"}
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button
                                         type="button"
+                                        variant="outline"
+                                        size="sm"
                                         data-testid="local-customize-pdf"
                                         onClick={handlePdf}
-                                        className="inline-flex items-center gap-1 text-xs font-semibold text-foreground hover:text-brand"
+                                        className="h-11 min-h-11 rounded-none text-xs"
                                     >
                                         <DownloadSimple size={14} />
                                         Download PDF
-                                    </button>
+                                    </Button>
                                     <Button
                                         type="button"
                                         data-testid="local-customize-accept"
                                         variant="outline"
                                         size="sm"
-                                        className="ml-auto h-9 rounded-none text-xs"
+                                        className="ml-auto h-11 min-h-11 rounded-none text-xs"
                                         onClick={() => void handleAccept()}
                                     >
                                         Accept

@@ -16,17 +16,26 @@ describe("for-you postcard layout", () => {
         assert.match(home, /overflow-hidden/);
         assert.match(home, /data-testid="for-you-download-apply"/);
         assert.doesNotMatch(home, /fixed inset-x-0 bottom-0/);
+        assert.match(home, /h-11 min-h-11[\s\S]*data-testid="for-you-download-apply"/);
+        assert.match(home, /h-11 min-h-11[\s\S]*data-testid="for-you-skip"/);
+        assert.match(home, /data-testid="jobs-replace-resume"/);
+        assert.match(home, /onReplaceResume/);
     });
 
     it("sizes the deck to leftover flex space, not the full home column", () => {
         const deck = source("ForYouDeck.tsx");
         assert.match(deck, /relative min-h-0 flex-1 pb-6/);
+        assert.match(deck, /onTouchStart/);
+        assert.match(deck, /onTouchEnd/);
+        assert.match(deck, /shouldAdvancePackOnSwipe/);
         assert.doesNotMatch(deck, /className=\{cn\("relative h-full/);
     });
 
     it("keeps the pack a bounded postcard with inner JD scroll", () => {
         const pack = source("ForYouPack.tsx");
         assert.match(pack, /h-full max-h-full min-h-0[\s\S]*overflow-hidden/);
+        assert.match(pack, /max-h-\[40%\]/);
+        assert.match(pack, /data-pack-meta-scroll/);
         assert.match(pack, /data-pack-scroll/);
         assert.match(pack, /data-pack-scroll[\s\S]*overflow-y-auto/);
         assert.doesNotMatch(pack, /lg:min-h-\[420px\]/);
