@@ -43,7 +43,7 @@ function mkResume(): ResumeData {
             phone: "",
             linkedin: "",
         },
-        experience: [{ id: "e1", company: "Beta", role: "Software Engineer", startDate: "2020", endDate: "2024", bullets: [] }],
+        experience: [{ id: "e1", company: "Beta", role: "Software Engineer", dates: "2020–2024", description: "" }],
         competencies: [{ category: "Skills", skills: ["JavaScript", "React"] }],
         education: [],
         generatedSummary: "",
