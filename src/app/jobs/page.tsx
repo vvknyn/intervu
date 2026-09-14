@@ -68,6 +68,7 @@ import {
     searchResultLine,
     firstMentionIndex,
     interleaveByCompany,
+    liveCountLine,
     partitionByTitleMatch,
     resolveHeadlineTotal,
     seamSummary,
@@ -101,7 +102,7 @@ import {
     suppressLocationDefault,
     restoreLocationDefault,
     shouldShowLocationDefaultChip,
-    regionDisplayName,
+    locationDefaultScope,
     buildDockedChips,
     DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
@@ -393,18 +394,33 @@ function ToolbarSegment({
  * about the result set, not a selected/verified state. `onClear` is the
  * SAME `suppressLocationDefault` write path the old results-row chip used —
  * REUSED, not a second suppression flag.
+ *
+ * `remoteAnywhere` (`result.remoteAnywhere`, search.ts) names the scope via
+ * `locationDefaultScope` (location-default-preference.ts) instead of a bare
+ * country name — the applied place filter also OR's in every remote role
+ * with no country tag (`REMOTE_ANYWHERE_CLAUSE`), so "near {country}" alone
+ * used to read as a promise the query didn't keep (results included e.g.
+ * Sydney/Dubai remote listings under a "near Canada" chip).
  */
-function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
+function DefaultLocationChip({
+    iso2,
+    remoteAnywhere,
+    onClear,
+}: {
+    iso2: string;
+    remoteAnywhere: boolean | undefined;
+    onClear: () => void;
+}) {
     const flag = countryToFlag(iso2);
-    const name = useMemo(() => regionDisplayName(iso2), [iso2]);
+    const scope = useMemo(() => locationDefaultScope(iso2, remoteAnywhere), [iso2, remoteAnywhere]);
     return (
         <span
             data-testid="default-location-chip"
             className={cn(chipVariants({ active: false }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
         >
             {flag && <span aria-hidden>{flag}</span>}
-            near {name}
-            <ChipDismiss label={`Stop defaulting to ${name}`} onClick={onClear} />
+            near {scope}
+            <ChipDismiss label={`Stop defaulting to ${scope}`} onClick={onClear} />
         </span>
     );
 }
@@ -1982,6 +1998,10 @@ function JobsContent() {
     const dockedDefaultLocationIso2 = shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
         ? result!.defaultedLocation!
         : null;
+    // Same primitive-dependency reasoning as `dockedDefaultLocationIso2`
+    // above (see the dock effect's own React #185 comment) — a boolean, not
+    // `result` itself.
+    const dockedDefaultRemoteAnywhere = dockedDefaultLocationIso2 ? !!result?.remoteAnywhere : false;
 
     // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
     // call to the same `activeFilterEntries` chokepoint, with
@@ -3556,7 +3576,11 @@ function JobsContent() {
             // `buildDockedChips` helper the mobile row's disclosure logic
             // shares, so this row never silently narrows results without a
             // visible, clearable chip the way the pre-dock-refactor bug did.
-            chips: buildDockedChips(dockedDefaultLocationIso2, unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) }))),
+            chips: buildDockedChips(
+                dockedDefaultLocationIso2,
+                dockedDefaultRemoteAnywhere,
+                unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
+            ),
             onClearChip: (key) => {
                 if (key === DEFAULT_LOCATION_CHIP_KEY) {
                     suppressLocationDefault();
@@ -3579,7 +3603,7 @@ function JobsContent() {
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [showForYouHome, headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, activeCount, filtersOpen, setDocked]);
+    }, [showForYouHome, headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersOpen, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
@@ -4237,7 +4261,7 @@ function JobsContent() {
     // gated on `isSerpAsk` — matches this file's other render-prep consts.
     const searchSeeds = resolveSearchSeeds(recentSearches);
 
-    const mobileLocationLabel = locationTriggerLabel(filterState, result?.defaultedLocation);
+    const mobileLocationLabel = locationTriggerLabel(filterState, result?.defaultedLocation, result?.remoteAnywhere);
     // The category chip whose search query matches the current COMMITTED query
     // (case-insensitive) AND whose text also matches the draft (i.e. the user
     // has not yet typed something different in the search box without
@@ -4807,14 +4831,15 @@ function JobsContent() {
      * is gone (2026-08-24) — extracted so neither site can drift from the
      * other's copy or styling.
      */
-    const liveCountEl = liveJobsCount !== null && (
+    const liveCountText = liveCountLine(liveJobsCount);
+    const liveCountEl = liveCountText !== null && (
         <Link
             href="/trends"
             data-testid="search-live-count"
             className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-semibold text-brand transition-colors hover:text-brand"
         >
             <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-live" />
-            {formatCorpusCount(liveJobsCount)} live roles
+            {liveCountText}
         </Link>
     );
 
@@ -5142,7 +5167,11 @@ function JobsContent() {
                         {showToolbarFilters && (
                         <>
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
-                            <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
+                            <DefaultLocationChip
+                                iso2={result!.defaultedLocation!}
+                                remoteAnywhere={result!.remoteAnywhere}
+                                onClear={suppressLocationDefault}
+                            />
                         )}
                         {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>
@@ -5589,7 +5618,10 @@ function JobsContent() {
                                     // default applied."
                                     locationDefault={
                                         shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
-                                            ? { label: `near ${regionDisplayName(result!.defaultedLocation!)}`, onClear: suppressLocationDefault }
+                                            ? {
+                                                  label: `near ${locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere)}`,
+                                                  onClear: suppressLocationDefault,
+                                              }
                                             : undefined
                                     }
                                     ghostRevealCount={ghostRevealCount}
@@ -5859,7 +5891,11 @@ function JobsContent() {
                 state={filterState}
                 distribution={result?.facetDistribution}
                 defaultedIso2={result?.defaultedLocation}
-                detectedLabel={result?.defaultedLocation ? detectedLocationLabel(result.defaultedLocation) : undefined}
+                detectedLabel={
+                    result?.defaultedLocation
+                        ? detectedLocationLabel(result.defaultedLocation, result.remoteAnywhere)
+                        : undefined
+                }
                 locationDefaultSuppressed={locationDefaultSuppressed}
                 onRestoreDetected={restoreLocationDefault}
                 onContinue={handleLocationSheetContinue}

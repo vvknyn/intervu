@@ -87,6 +87,7 @@ export async function searchJobsAction(
     searchId: string;
     meta?: ShieldSearchServeMeta;
     defaultedLocation?: string;
+    remoteAnywhere?: boolean;
     unmatchedPlaceMentions?: string[];
     /** True when the stored description is still a stub AND the live fill
      *  hit its deadline while this request awaited it — the hit's
@@ -372,14 +373,29 @@ const getCachedDefaultBrowse = unstable_cache(
  */
 export async function getDefaultBrowseAction(
   suppressLocationDefault: boolean,
-): Promise<JobSearchResult & { searchId: string; meta?: SearchServeMeta; defaultedLocation?: string }> {
+): Promise<
+  JobSearchResult & {
+    searchId: string;
+    meta?: SearchServeMeta;
+    defaultedLocation?: string;
+    /** See `LocationDefaultApplication.remoteAnywhere` (lib/geo/ip-default.ts)
+     *  — same gate as `defaultedLocation` here too: `placesForCountry` calls
+     *  the same `placeClause(..., { country: true })` `resolveLocationDefault`
+     *  does, so it's read off `places` itself rather than assumed. */
+    remoteAnywhere?: boolean;
+  }
+> {
   const searchId = randomUUID();
   const ip = suppressLocationDefault ? null : await getClientIp();
   const iso2 = ip ? await countryLookup(ip) : null;
   const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
   try {
     const result = await getCachedDefaultBrowse(places);
-    return { ...result, searchId, ...(places ? { defaultedLocation: iso2! } : {}) };
+    return {
+      ...result,
+      searchId,
+      ...(places ? { defaultedLocation: iso2!, remoteAnywhere: places.some((place) => place.remoteAnywhere) } : {}),
+    };
   } catch (e) {
     console.error("[jobs-default-browse] action transport error:", e);
     return {

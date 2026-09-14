@@ -27,20 +27,26 @@
  * "detected".
  */
 import { LOCATION_FACET_FIELDS, isRemoteWorkTypeValue } from "./meilisearch";
-import { regionDisplayName, shouldShowLocationDefaultChip } from "./location-default-preference";
+import { locationDefaultScope, shouldShowLocationDefaultChip } from "./location-default-preference";
 import type { FilterState } from "@/components/jobs/FilterPanel";
 
 export const LOCATION_TRIGGER_PLACEHOLDER = "City, state, or remote";
 
-/** Same "Near {region} (detected)" copy the location sheet's own
+/** Same "Near {region}[ or remote] (detected)" copy the location sheet's own
  *  detected-label uses (LocationPickerSheet via jobs/page.tsx) — the ONE
  *  formatter both surfaces call so the wording can't drift into a third
- *  variant of the same disclosure. */
-export function detectedLocationLabel(iso2: string): string {
-    return `Near ${regionDisplayName(iso2)} (detected)`;
+ *  variant of the same disclosure. `remoteAnywhere` derives the scope from
+ *  the actual applied filter (`locationDefaultScope`, same as the toolbar
+ *  chip) rather than always naming the bare country. */
+export function detectedLocationLabel(iso2: string, remoteAnywhere: boolean | undefined): string {
+    return `Near ${locationDefaultScope(iso2, remoteAnywhere)} (detected)`;
 }
 
-export function locationTriggerLabel(state: FilterState, defaultedLocation?: string | null): string {
+export function locationTriggerLabel(
+    state: FilterState,
+    defaultedLocation?: string | null,
+    remoteAnywhere?: boolean,
+): string {
     const values = (state.facets.location_country ?? []).map((v) => v.trim()).filter(Boolean);
     if (values.length === 1) return values[0]!;
     if (values.length > 1) {
@@ -74,10 +80,14 @@ export function locationTriggerLabel(state: FilterState, defaultedLocation?: str
     // combined with the disclosure (not replaced by it) when the default is
     // also in effect, per the server-truth note above.
     if ((state.facets.work_type ?? []).some(isRemoteWorkTypeValue)) {
-        return defaultInEffect ? `Remote · ${detectedLocationLabel(defaultedLocation!)}` : "Remote";
+        // "Remote" already leads the label, so the country half never adds
+        // its own "or remote" — that would just repeat what "Remote" already
+        // said (`false`, not `remoteAnywhere`: this branch's own explicit
+        // pick, not the geo default's bypass, is what's disclosed here).
+        return defaultInEffect ? `Remote · ${detectedLocationLabel(defaultedLocation!, false)}` : "Remote";
     }
 
-    if (defaultInEffect) return detectedLocationLabel(defaultedLocation!);
+    if (defaultInEffect) return detectedLocationLabel(defaultedLocation!, remoteAnywhere);
 
     return LOCATION_TRIGGER_PLACEHOLDER;
 }
