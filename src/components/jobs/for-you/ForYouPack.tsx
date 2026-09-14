@@ -81,12 +81,13 @@ export function ForYouPack({
 
     return (
         <div
+            data-testid="for-you-pack"
             className={cn(
-                "flex flex-col border border-border bg-card lg:flex-row lg:min-h-[420px]",
+                "flex h-full max-h-full min-h-0 flex-col overflow-hidden border border-border bg-card lg:flex-row",
                 className,
             )}
         >
-            <div className="flex min-w-0 flex-1 flex-col border-b border-border p-4 lg:border-b-0 lg:border-r lg:p-6">
+            <div className="flex max-h-[40%] min-h-0 min-w-0 shrink-0 flex-col overflow-y-auto overscroll-contain border-b border-border p-4 custom-scrollbar lg:max-h-none lg:shrink lg:flex-1 lg:border-b-0 lg:border-r lg:p-6">
                 <p className="text-xs font-semibold text-muted-foreground">
                     {company}
                 </p>
@@ -143,9 +144,9 @@ export function ForYouPack({
                 </div>
             </div>
 
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4 lg:p-6">
-                <h3 className="text-xs font-semibold text-foreground">The position</h3>
-                <div className="mt-2 flex flex-wrap gap-2">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4 lg:p-6">
+                <h3 className="shrink-0 text-xs font-semibold text-foreground">The position</h3>
+                <div className="mt-2 flex shrink-0 flex-wrap gap-2">
                     {factChips.map((chip) => {
                         const Icon = FACT_CHIP_ICON[chip.kind];
                         return (
