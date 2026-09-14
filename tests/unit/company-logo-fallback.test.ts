@@ -1,22 +1,19 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
-import { isPlaceholderFavicon, shouldShowFavicon, MIN_REAL_FAVICON_PX } from "@/lib/companies/logo";
+import { shouldShowFavicon } from "@/lib/companies/logo";
 
 /**
- * Defect [2] (launch-consistency sweep, 2026-09): some `/jobs` rows rendered
- * a blank white square instead of the colored-initial fallback. The stated
- * hypothesis ("URL present but fails to load, no onError path") did NOT
- * hold — `CompanyLogo.tsx` already had an `onError` handler. The real gap:
- * Google's favicons endpoint can respond HTTP 200 with a validly-decodable
- * ~16px generic placeholder glyph when it has no real favicon, so `onError`
- * never fires and the component believed the load succeeded.
- *
- * `shouldShowFavicon` covers every way the favicon attempt can be skipped
- * (absent domain, empty-string domain, or `errored` already set — whether
- * set by a real load failure or by the new placeholder detection below).
- * `isPlaceholderFavicon` is the new signal that classifies a "successful"
- * load as the generic glyph instead of a real logo.
+ * Defect [2] (launch-consistency sweep, 2026-09) originally added a
+ * `naturalWidth < 32px` heuristic to catch Google's placeholder glyph. That
+ * heuristic was itself wrong: verified by curl, a missing favicon is an HTTP
+ * 404 carrying one fixed 16px glyph, but plenty of REAL favicons (cisco.com,
+ * 2,077 live roles) are also genuinely 16px and answer HTTP 200. Chromium
+ * decodes both, so `onLoad`/`naturalWidth` see the same thing either way —
+ * the heuristic hid real company logos behind a letter tile. The only
+ * honest signal is the HTTP status, which `<img>` can't see; that needs a
+ * status-aware proxy, not a client-side size guess, so it's out of scope
+ * here. `shouldShowFavicon` (the one heuristic-free signal) stays as-is.
  */
 
 describe("shouldShowFavicon — every way a logo can fail to render", () => {
@@ -37,33 +34,19 @@ describe("shouldShowFavicon — every way a logo can fail to render", () => {
     });
 });
 
-describe("isPlaceholderFavicon — Google's generic glyph vs. a real logo", () => {
-    it("flags the ~16px generic fallback glyph as a placeholder", () => {
-        assert.equal(isPlaceholderFavicon(16), true);
-    });
-
-    it("does not flag a real, natively-sized favicon as a placeholder", () => {
-        assert.equal(isPlaceholderFavicon(128), false);
-    });
-
-    it("does not flag a favicon exactly at the real-icon floor", () => {
-        assert.equal(isPlaceholderFavicon(MIN_REAL_FAVICON_PX), false);
-    });
-
-    it("flags a favicon just below the real-icon floor", () => {
-        assert.equal(isPlaceholderFavicon(MIN_REAL_FAVICON_PX - 1), true);
-    });
-
-    it("does not flag a zero width — that's an undecoded/broken image, onError's job, not this signal's", () => {
-        assert.equal(isPlaceholderFavicon(0), false);
-    });
-});
-
-describe("CompanyLogo.tsx wiring", () => {
-    it("consumes both pure signals instead of re-inlining its own gating logic", () => {
+describe("CompanyLogo.tsx does not gate a loaded image on its intrinsic size", () => {
+    it("never turns a successful decode (onLoad) into an error state via naturalWidth/naturalHeight", () => {
         const src = readFileSync("src/components/jobs/CompanyLogo.tsx", "utf8");
-        assert.match(src, /shouldShowFavicon\(/, "showImage should be computed via the shared shouldShowFavicon helper");
-        assert.match(src, /onLoad=/, "the <img> needs an onLoad handler to catch a successful-but-placeholder load");
-        assert.match(src, /isPlaceholderFavicon\(/, "onLoad should classify the load via isPlaceholderFavicon");
+        // A no-favicon response (HTTP 404 + Google's fixed 16px glyph) and a
+        // real favicon (e.g. cisco.com, also 16px, HTTP 200) decode to the
+        // same naturalWidth — an onLoad handler that reads naturalWidth or
+        // naturalHeight and calls setErrored cannot distinguish them and
+        // will hide real logos. Only onError (an actual failed decode) may
+        // set the error state.
+        assert.doesNotMatch(
+            src,
+            /onLoad[\s\S]{0,400}?(naturalWidth|naturalHeight)[\s\S]{0,200}?setErrored/,
+            "CompanyLogo must not suppress a successfully loaded favicon based on its intrinsic width/height — real favicons can be as small as 16px",
+        );
     });
 });

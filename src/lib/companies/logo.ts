@@ -11,35 +11,21 @@ export function companyLogoUrl(domain: string): string {
 }
 
 /**
- * Below this intrinsic pixel width, a loaded favicon is Google's generic
- * fallback glyph, not a real one.
- *
- * When `s2/favicons` has no real favicon for a domain it still responds
- * HTTP 200 with a validly-decodable image — a fixed ~16px generic globe
- * icon — regardless of the requested `sz`. `<img onerror>` never fires for
- * this case (the load genuinely succeeded), which is why some `/jobs` rows
- * rendered a blank tile with no visible fallback: the component believed it
- * had a real logo. `naturalWidth` is intrinsic pixel data the browser always
- * exposes once an image decodes — unlike pixel content, it isn't blocked by
- * a no-referrer/cross-origin load — so it's a safe, class-wide signal for
- * "no real icon" that needs no per-domain knowledge. A real favicon Google
- * does have is served at native resolution, always well above this floor for
- * a `sz=128` request.
+ * No-favicon and real-favicon cases can't be told apart from the browser's
+ * `<img>` element: Google answers a missing favicon with HTTP 404 plus one
+ * fixed 16px glyph, but plenty of real favicons (e.g. cisco.com) are also
+ * genuinely 16px and answer HTTP 200 — and Chromium decodes both, so
+ * `onLoad`/`naturalWidth` see the same thing either way. The only honest
+ * signal is the HTTP status, which `<img>` never exposes; the real fix is a
+ * status-aware proxy in front of this URL, not a client-side size guess.
  */
-export const MIN_REAL_FAVICON_PX = 32;
-
-/** Pure: does a loaded favicon's intrinsic width mark it as Google's generic
- *  fallback glyph rather than a real logo? */
-export function isPlaceholderFavicon(naturalWidth: number): boolean {
-  return naturalWidth > 0 && naturalWidth < MIN_REAL_FAVICON_PX;
-}
 
 /**
  * Pure: should `CompanyLogo` attempt the favicon `<img>` at all? `false` for
  * every way a logo can fail to render — no domain, an empty-string domain,
- * or `errored` already set by a prior load failure/placeholder detection —
- * covering the whole class in one place instead of each caller re-deriving
- * "is this domain usable".
+ * or `errored` already set by a prior load failure — covering the whole
+ * class in one place instead of each caller re-deriving "is this domain
+ * usable".
  */
 export function shouldShowFavicon(domain: string | null, errored: boolean): boolean {
   return Boolean(domain) && !errored;
