@@ -34,6 +34,14 @@ const SEARCH_CHROME = [
     'mobile-search-cta',
 ] as const;
 
+// ForYouHome.tsx renders one of these two roots — never both. Absence of
+// SEARCH_CHROME alone can't tell "resolved to for-you" apart from "still
+// pending": neither state shows Search chrome, so a spec that only checks
+// SEARCH_CHROME's absence would pass identically whether the optimistic
+// `lastHomeView` signal actually engaged or the page just sat in "pending".
+const FOR_YOU_HOME = 'for-you-home';
+const FOR_YOU_HOME_PENDING = 'for-you-home-pending';
+
 async function delaySession(page: Page, user: object | null, delayMs = AUTH_DELAY_MS) {
     await page.route('**/api/auth/session', async (route) => {
         await new Promise((r) => setTimeout(r, delayMs));
@@ -61,17 +69,30 @@ test.describe('JOBS-FIRST-PAINT — no layout is painted then replaced', () => {
 
         await page.goto('/jobs');
 
+        // The optimistic root must mount well inside the auth-delay window —
+        // it does not wait for résumé presence to resolve. A page stuck on
+        // the pending placeholder (dead/missing hint) never satisfies this.
+        await expect(page.getByTestId(FOR_YOU_HOME)).toBeVisible({ timeout: AUTH_DELAY_MS - 200 });
+
         // Sample the whole unresolved window. A single check could fall in a gap
         // between the bad paint and its correction; this cannot.
         const deadline = Date.now() + AUTH_DELAY_MS - 100;
         const seen: string[] = [];
+        const pendingSeen: string[] = [];
         while (Date.now() < deadline) {
             for (const id of SEARCH_CHROME) {
                 if (await page.getByTestId(id).isVisible().catch(() => false)) seen.push(id);
             }
+            if (await page.getByTestId(FOR_YOU_HOME_PENDING).isVisible().catch(() => false)) {
+                pendingSeen.push(FOR_YOU_HOME_PENDING);
+            }
             await page.waitForTimeout(40);
         }
         expect(seen, `search chrome painted while résumé presence was unresolved: ${[...new Set(seen)].join(', ')}`).toEqual([]);
+        expect(
+            pendingSeen,
+            'fell back to the pending placeholder instead of resolving optimistically to for-you',
+        ).toEqual([]);
     });
 
     test('TC-PAINT-002: a genuinely signed-out visitor still gets the full Search SERP', async ({ page }) => {
