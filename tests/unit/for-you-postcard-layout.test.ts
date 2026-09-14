@@ -49,7 +49,7 @@ describe("for-you postcard layout", () => {
         assert.match(deck, /relative min-h-0 flex-1 overflow-hidden pb-6/);
         assert.match(deck, /onTouchStart/);
         assert.match(deck, /onTouchEnd/);
-        assert.match(deck, /shouldAdvancePackOnSwipe/);
+        assert.match(deck, /shouldPackGestureAdvanceDeck/);
         assert.match(deck, /absolute inset-x-0 top-0 bottom-6/);
         assert.match(deck, /addEventListener\("wheel"/);
         assert.doesNotMatch(deck, /className=\{cn\("relative h-full/);

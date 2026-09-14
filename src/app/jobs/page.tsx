@@ -221,6 +221,7 @@ import {
 } from "@/lib/jobs/for-you/last-home-view";
 import { ForYouHome, ForYouHomePending } from "@/components/jobs/for-you/ForYouHome";
 import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
+import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
@@ -2754,10 +2755,16 @@ function JobsContent() {
         );
     }, [clusters, fitActive, matchScores]);
 
+    // Not gated on `showForYouHome`: deck progress is owned by `useForYouDeck`
+    // below, which is called unconditionally so it survives the Search <->
+    // For-you toggle. Gating this list to the branch would collapse
+    // `visiblePacks` to empty while browsing Search, and the hook's own
+    // resize-clamp would zero the index before the user ever came back.
     const forYouPacks = useMemo(
-        () => (showForYouHome ? renderedClusters.map((c) => c.primary) : []),
-        [showForYouHome, renderedClusters],
+        () => renderedClusters.map((c) => c.primary),
+        [renderedClusters],
     );
+    const forYouDeck = useForYouDeck(forYouPacks);
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
     // after clustering, positions no longer line up 1:1. Every member of one
@@ -5308,7 +5315,11 @@ function JobsContent() {
                 {showForYouHome ? (
                     <div className={cn("mt-2 flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
                         <ForYouHome
-                            packs={forYouPacks}
+                            visiblePacks={forYouDeck.visiblePacks}
+                            activeIndex={forYouDeck.activeIndex}
+                            onActiveIndexChange={forYouDeck.setActiveIndex}
+                            activeJob={forYouDeck.activeJob}
+                            onSkip={forYouDeck.handleSkip}
                             matchScores={matchScores}
                             resume={resume}
                             nowMs={nowMs}

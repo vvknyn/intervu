@@ -1,17 +1,16 @@
-const PACK_JD_SCROLL = "[data-pack-scroll]";
-const PACK_INNER_SCROLL = "[data-pack-scroll], [data-pack-meta-scroll]";
-
-function closestRegion(target: EventTarget | null, selector: string): Element | null {
-    if (target == null) return null;
-    const el = target as Element;
-    if (typeof el.closest !== "function") return null;
-    return el.closest(selector);
-}
-
-/** Whether a wheel event on `target` should advance the pack deck (false inside JD scroll). */
-export function shouldAdvancePackOnWheel(target: EventTarget | null): boolean {
-    return closestRegion(target, PACK_JD_SCROLL) == null;
-}
+/**
+ * A scroll region inside a pack is detected by the CSS mechanism that makes
+ * it scrollable — Tailwind's `overflow-y-auto` / `overflow-y-scroll`
+ * utilities — not by an attribute a caller has to remember to add to a
+ * list. Two lists (one per gesture) previously answered "is this a
+ * scroller?" independently and had drifted apart (wheel only knew about
+ * `[data-pack-scroll]`, swipe also knew about `[data-pack-meta-scroll]`).
+ * Keying off the utility class that actually makes an element scroll means
+ * a new scroller — meta pane, JD pane, or one nobody has written a rule for
+ * yet — is covered automatically by both gestures, because it cannot
+ * scroll at all without that class.
+ */
+const SCROLLABLE_Y_SELECTOR = ".overflow-y-auto, .overflow-y-scroll";
 
 export type PackScrollMetrics = {
     scrollTop: number;
@@ -19,27 +18,38 @@ export type PackScrollMetrics = {
     scrollHeight: number;
 };
 
-/** Read scroll metrics from the pack JD or meta pane that contains `target`. */
-export function readPackScrollRegion(target: EventTarget | null): PackScrollMetrics | null {
-    const region = closestRegion(target, PACK_INNER_SCROLL) as HTMLElement | null;
-    if (!region) return null;
-    return {
-        scrollTop: region.scrollTop,
-        clientHeight: region.clientHeight,
-        scrollHeight: region.scrollHeight,
-    };
+function closestScrollable(target: EventTarget | null): PackScrollMetrics | null {
+    if (target == null) return null;
+    const el = target as Element;
+    if (typeof el.closest !== "function") return null;
+    return el.closest(SCROLLABLE_Y_SELECTOR) as unknown as PackScrollMetrics | null;
 }
 
 /**
- * Whether a vertical swipe should change packs.
- * Outside inner scrollers: always. Inside: only at the matching edge so JD/meta
- * scroll is not stolen mid-pane (swipe up at bottom → next; swipe down at top → prev).
+ * Pure: does this region still have room to move further in `direction`
+ * (1 = the gesture that reveals later content, i.e. the deck's "next";
+ * -1 = the gesture that reveals earlier content, i.e. the deck's "prev")?
+ * A region with no overflow has no room either way.
  */
-export function shouldAdvancePackOnSwipe(dy: number, region: PackScrollMetrics | null): boolean {
-    if (region == null) return true;
-    const atTop = region.scrollTop <= 1;
-    const atBottom = region.scrollTop + region.clientHeight >= region.scrollHeight - 1;
-    if (dy < 0) return atBottom;
-    if (dy > 0) return atTop;
-    return false;
+export function regionHasScrollRoom(region: PackScrollMetrics, direction: 1 | -1): boolean {
+    if (region.scrollHeight <= region.clientHeight) return false;
+    if (direction > 0) return region.scrollTop + region.clientHeight < region.scrollHeight - 1;
+    return region.scrollTop > 1;
+}
+
+/**
+ * Shared by the deck's wheel and swipe handlers: should a gesture over
+ * `target` advance/retreat the deck, or does it belong to a scrollable
+ * region that can still move further in `direction` first? Edge-aware in
+ * both directions for both gestures — at a scroller's boundary the gesture
+ * falls through to the deck instead of being swallowed by an inner pane
+ * that has nowhere left to go.
+ */
+export function shouldPackGestureAdvanceDeck(
+    target: EventTarget | null,
+    direction: 1 | -1,
+): boolean {
+    const region = closestScrollable(target);
+    if (!region) return true;
+    return !regionHasScrollRoom(region, direction);
 }
