@@ -17,8 +17,13 @@ import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { toast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
 import type { JobsHomeView } from "@/lib/jobs/for-you/home-view";
+
+/** Fills the jobs-page viewport shell. Overflow stays on inner panes
+ *  (deck-wheel + JD `data-pack-scroll`), not a second 100dvh calc that
+ *  overflows the already-below-the-topbar page and traps scrolling. */
+export const FOR_YOU_HOME_FRAME_CLASS =
+    "flex min-h-0 flex-1 flex-col overflow-hidden overscroll-none";
 
 export interface ForYouHomeProps {
     packs: PublicJob[];
@@ -169,13 +174,7 @@ export function ForYouHome({
 
     return (
         <div
-            className={cn(
-                "flex min-h-[20rem] flex-1 flex-col overflow-hidden",
-                // Viewport-bounded column: topbar + shell padding + mobile tab bar clearance.
-                "h-[calc(100dvh-var(--topbar-h)-6.25rem-env(safe-area-inset-bottom,0px))]",
-                "max-h-[calc(100dvh-var(--topbar-h)-6.25rem-env(safe-area-inset-bottom,0px))]",
-                "lg:h-[calc(100dvh-var(--topbar-h)-3.25rem)] lg:max-h-[calc(100dvh-var(--topbar-h)-3.25rem)]",
-            )}
+            className={FOR_YOU_HOME_FRAME_CLASS}
             data-testid="for-you-home"
             onKeyDown={handleKeyDown}
             tabIndex={0}
@@ -292,6 +291,16 @@ export function ForYouHome({
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+/** Neutral first-paint column while résumé presence is still unknown.
+ *  Same frame as For you — never Search chrome. */
+export function ForYouHomePending() {
+    return (
+        <div className={FOR_YOU_HOME_FRAME_CLASS} data-testid="for-you-home-pending">
+            <div className="min-h-0 flex-1 border border-border bg-card" />
         </div>
     );
 }

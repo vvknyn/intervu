@@ -22,6 +22,11 @@
  * don't actually know), so a transient error also resolves to `null`, not
  * `false`.
  *
+ * Auth hydration is the same trap one level up: `uid` is `null` until the
+ * session cookie is asked for, which is "not yet known", not "signed out".
+ * Passing `authReady: false` keeps this hook on `null` so /jobs does not
+ * treat a returning user as résumeless and flash Search chrome.
+ *
  * A separate concern from `usePursuits` (tracked applications) — not bolted
  * onto that hook.
  */
@@ -30,7 +35,10 @@ import { useEffect, useState } from "react";
 import { hasUsableResumeOnFile } from "@/actions/resume";
 
 /** @param uid the signed-in user's id, or null when signed out. */
-export function useResumePresence(uid: string | null): boolean | null {
+export function useResumePresence(
+    uid: string | null,
+    authReady = true,
+): boolean | null {
     const [present, setPresent] = useState<boolean | null>(null);
 
     // Mirrors `usePursuits`' idiom (lib/pursuits/use-pursuits.ts): the read
@@ -41,11 +49,18 @@ export function useResumePresence(uid: string | null): boolean | null {
         let cancelled = false;
         const refresh = () => {
             if (cancelled) return;
+            if (!authReady) {
+                setPresent(null);
+                return;
+            }
             if (!uid) {
                 // No account to check — this is a KNOWN answer, not "not yet known".
                 setPresent(false);
                 return;
             }
+            // Don't keep a stale `false` from the pre-auth uid=null tick while
+            // this uid's round trip is in flight.
+            setPresent(null);
             hasUsableResumeOnFile()
                 .then(({ hasResume }) => {
                     if (!cancelled) setPresent(hasResume);
@@ -59,7 +74,7 @@ export function useResumePresence(uid: string | null): boolean | null {
         return () => {
             cancelled = true;
         };
-    }, [uid]);
+    }, [uid, authReady]);
 
     return present;
 }
