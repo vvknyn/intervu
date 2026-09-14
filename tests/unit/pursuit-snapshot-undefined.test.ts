@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validate, upsertPursuitSchema } from "../../src/lib/validation";
 import { stripUndefinedDeep } from "../../src/lib/pursuits/upsert-core";
+import { buildJobSnapshot } from "../../src/lib/pursuits/types";
+import { normalizePublicJob } from "../../src/lib/jobs/normalize-public-job";
+import type { PublicJob } from "../../src/lib/jobs/types";
 
 /* --------------------------- upsertPursuitSchema --------------------------- */
 
@@ -18,6 +21,30 @@ test("upsertPursuitSchema accepts an undefined description (not-yet-hydrated sna
     assert.equal(parsed.ok, true);
     if (parsed.ok) {
         assert.equal(parsed.data.description, undefined);
+    }
+});
+
+test("normalizePublicJob + buildJobSnapshot: sparse Meili doc passes upsertPursuitSchema with url as apply_url", () => {
+    const raw = {
+        id: "0604fc03-71ee-4925-9f0a-8f871abe92e6",
+        title: "Customer Success Manager",
+        company: "Gorgias",
+        url: "https://jobs.ashbyhq.com/gorgias/def456",
+    } as PublicJob & { url: string };
+    const job = normalizePublicJob(raw);
+    const snapshot = buildJobSnapshot(job);
+    assert.equal(job.apply_url, "https://jobs.ashbyhq.com/gorgias/def456");
+    assert.equal(snapshot.location, null);
+
+    const parsed = validate(upsertPursuitSchema, {
+        job_id: job.id,
+        ...snapshot,
+        stage: "applied",
+    });
+    assert.equal(parsed.ok, true, parsed.ok ? undefined : parsed.error);
+    if (parsed.ok) {
+        assert.equal(parsed.data.apply_url, "https://jobs.ashbyhq.com/gorgias/def456");
+        assert.equal(parsed.data.location, null);
     }
 });
 

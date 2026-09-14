@@ -16,6 +16,7 @@
  */
 
 import type { PublicJob } from "@/lib/jobs/types";
+import { resolvePublicJobApplyUrl, resolvePublicJobLocation } from "@/lib/jobs/normalize-public-job";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 
 /**
@@ -75,13 +76,13 @@ export interface ResumeVersionSnapshot {
 }
 
 /** Lift the fields a pursuit needs to remember out of a live search result. */
-export function buildJobSnapshot(job: PublicJob): JobSnapshot {
+export function buildJobSnapshot(job: PublicJob & { url?: string | null }): JobSnapshot {
     return {
         title: job.title,
-        company: job.company,
-        location: job.location,
+        company: job.company ?? null,
+        location: resolvePublicJobLocation(job),
         description: job.description,
-        apply_url: job.apply_url,
+        apply_url: resolvePublicJobApplyUrl(job),
     };
 }
 

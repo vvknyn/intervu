@@ -18,6 +18,7 @@ import {
     type PursuitStage,
 } from "../../src/lib/pursuits/types";
 import type { PublicJob } from "../../src/lib/jobs/types";
+import { validate, upsertPursuitSchema } from "../../src/lib/validation";
 
 function makePursuit(overrides: Partial<Pursuit> = {}): Pursuit {
     return {
@@ -221,6 +222,36 @@ test("buildJobSnapshot lifts exactly the fields a pursuit needs to remember", ()
         description: null,
         apply_url: "https://acme.test/apply",
     });
+});
+
+test("buildJobSnapshot coerces a sparse Meili hit (url only, no location/apply_url) into a valid pursuit snapshot", () => {
+    const sparse = {
+        id: "250a254a-1a91-4d4b-ae33-2a6b00e2b4a9",
+        title: "Technical Account Manager",
+        company: "Zipline",
+        url: "https://jobs.ashbyhq.com/zipline/abc123",
+    } as PublicJob & { url: string };
+    const snapshot = buildJobSnapshot(sparse);
+    assert.equal(snapshot.apply_url, "https://jobs.ashbyhq.com/zipline/abc123");
+    assert.equal(snapshot.location, null);
+
+    const parsed = validate(upsertPursuitSchema, {
+        job_id: sparse.id,
+        ...snapshot,
+        stage: "applied",
+    });
+    assert.equal(parsed.ok, true, parsed.ok ? undefined : parsed.error);
+});
+
+test("buildJobSnapshot composes location from city/state/country when location is missing", () => {
+    const job = makeJob({
+        location: undefined as unknown as null,
+        location_city: "San Francisco",
+        location_state: "CA",
+        location_country: "US",
+    });
+    const snapshot = buildJobSnapshot(job);
+    assert.equal(snapshot.location, "San Francisco, CA, US");
 });
 
 /* --------------------------------- buildManualPursuitSnapshot --------------------------------- */
