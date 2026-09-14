@@ -213,6 +213,9 @@ import {
     type JobsUrlState,
     type UrlSort,
 } from "@/lib/jobs/url-state";
+import { resolveJobsHomeView, type JobsHomeView } from "@/lib/jobs/for-you/home-view";
+import { ForYouHome } from "@/components/jobs/for-you/ForYouHome";
+import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
@@ -1269,6 +1272,7 @@ function JobsContent() {
     // CTA (`buildCompanyJobsUrl`). Held next to `board` because they are the
     // same concern — see `scope` below.
     const [companyDomain, setCompanyDomain] = useState<string | null>(initialUrlState.companyDomain);
+    const [homeView, setHomeView] = useState<JobsUrlState["homeView"]>(initialUrlState.homeView);
     // Declared here (not down near `clearAll`/the rail JSX, where it used to
     // live) so the search effect below can read ONE `filterState` for this
     // render instead of five separate primitives — review fix, 2026-07-19,
@@ -1398,6 +1402,7 @@ function JobsContent() {
         // `buildUrlState({...})` without an explicit `sort` override.
         sort: fitActive ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
         jobId: searchParams.get("job"),
+        homeView,
         ...overrides,
     });
 
@@ -1933,6 +1938,20 @@ function JobsContent() {
     const showResumeEntry = needsResumeEntry({ signedIn: !!user, resumeOnFile, fitActive });
     const showResumeReplace = needsResumeReplace({ resumeOnFile });
 
+    const resolvedHomeView = useMemo(
+        () =>
+            resolveJobsHomeView({
+                urlView: homeView,
+                resumeOnFile,
+                companyDomain,
+                board,
+                q: query,
+                sort: fitActive ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
+            }),
+        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride],
+    );
+    const showForYouHome = resolvedHomeView === "for-you";
+
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
     // instead of a second `activeFilterEntries(filterState)` per render.
@@ -2055,8 +2074,8 @@ function JobsContent() {
     const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !searchParams.get("job");
     // Single gate for "the header owns this search now" — lg+ always docks,
     // including the pristine default browse; mobile keeps the in-page well.
-    const headerDockActive = isLgUp;
-    const showLandingMarketing = isPristineLanding && !mobileResultsEngaged;
+    const headerDockActive = isLgUp && !showForYouHome;
+    const showLandingMarketing = isPristineLanding && !mobileResultsEngaged && !showForYouHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
@@ -2699,6 +2718,11 @@ function JobsContent() {
         );
     }, [clusters, fitActive, matchScores]);
 
+    const forYouPacks = useMemo(
+        () => (showForYouHome ? renderedClusters.map((c) => c.primary) : []),
+        [showForYouHome, renderedClusters],
+    );
+
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
     // after clustering, positions no longer line up 1:1. Every member of one
     // cluster shares the same title, so — since results already arrive
@@ -2772,6 +2796,7 @@ function JobsContent() {
             setHideViewed(parsed.hideViewed);
             setBoard(parsed.board);
             setCompanyDomain(parsed.companyDomain);
+            setHomeView(parsed.homeView);
             setSortOverride(resolveUrlSort(parsed.sort));
             setFitActive(parsed.sort === "fit");
         }
@@ -2881,6 +2906,9 @@ function JobsContent() {
     // that path's job comes from the existence check above instead, but a
     // "try again" hydrate for it lands here the same way.
     const [hydratedDetail, setHydratedDetail] = useState<{ id: string; job: PublicJob; descriptionPending: boolean } | null>(null);
+    const [forYouHydrated, setForYouHydrated] = useState<
+        Map<string, { job: PublicJob; descriptionPending: boolean }>
+    >(() => new Map());
     const detailHydrationGuardRef = useRef<FitIntentGuard | null>(null);
     if (!detailHydrationGuardRef.current) detailHydrationGuardRef.current = new FitIntentGuard();
     // Set by `retryDescription` to force the hydration effect below to
@@ -2953,6 +2981,46 @@ function JobsContent() {
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selected?.id ?? deadJobFoundJob?.id, selected?.description ?? deadJobFoundJob?.description, retryRequest]);
+
+    const forYouHydrateStartedRef = useRef<Set<string>>(new Set());
+
+    const handleForYouActivePackChange = useCallback((id: string) => {
+        const hit =
+            resultRef.current?.hits.find((h) => h.id === id) ??
+            renderedClusters.flatMap((c) => [c.primary, ...c.variants]).find((h) => h.id === id);
+        if (!hit) return;
+        if (hit.description !== undefined) {
+            setForYouHydrated((prev) => {
+                if (prev.get(id)?.job.description === hit.description) return prev;
+                const next = new Map(prev);
+                next.set(id, { job: hit, descriptionPending: false });
+                return next;
+            });
+            return;
+        }
+        if (forYouHydrateStartedRef.current.has(id)) return;
+        forYouHydrateStartedRef.current.add(id);
+        void (async () => {
+            const check = await detailFetcher.fetch(id, searchJobsActionRaw);
+            if (check.status === "found") {
+                setForYouHydrated((prev) => {
+                    const next = new Map(prev);
+                    next.set(id, { job: check.job, descriptionPending: check.descriptionPending });
+                    return next;
+                });
+                return;
+            }
+            setForYouHydrated((prev) => {
+                const next = new Map(prev);
+                next.set(id, {
+                    job: { ...hit, description: null } as PublicJob,
+                    descriptionPending: check.status === "unknown",
+                });
+                return next;
+            });
+        })();
+    }, [renderedClusters]);
+
     // Clears the cached (timed-out) hydrate and requests a fresh fetch for
     // whichever job is currently in the detail pane — wired to the pending
     // note's "try again" button, for both the SERP-hydrate and direct-open
@@ -3464,6 +3532,10 @@ function JobsContent() {
     // header are never both offering a search at once (see `headerDockActive`
     // above and the hero/toolbar JSX that stand down on it).
     useEffect(() => {
+        if (showForYouHome) {
+            setDocked(null);
+            return;
+        }
         if (!headerDockActive) {
             setDocked(null);
             return;
@@ -3505,7 +3577,7 @@ function JobsContent() {
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, activeCount, filtersOpen, setDocked]);
+    }, [showForYouHome, headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, activeCount, filtersOpen, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
@@ -3934,6 +4006,17 @@ function JobsContent() {
         }
     };
 
+    useEffect(() => {
+        if (resolvedHomeView !== "for-you" || resumeOnFile !== true || fitActive || fitResolving) return;
+        void resolveAndApplyFit();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resolvedHomeView, resumeOnFile, fitActive, fitResolving]);
+
+    const setJobsHomeView = (view: JobsHomeView) => {
+        setHomeView(view);
+        applyUrlState(buildUrlState({ homeView: view }), "replace");
+    };
+
     // Sort menu → "Rank by fit" click. A résumé already on hand applies
     // immediately; otherwise queue the résumé importer (via the existing
     // `handleUploadClick` upload-gate) and apply fit the moment it completes
@@ -4235,7 +4318,9 @@ function JobsContent() {
     // from there being a job to PREVIEW; below xl on pristine landing those
     // diverge (hits present, preview suppressed), at xl+ they converge again
     // via ambient `hits[0]` without writing `?job=`.
-    const detailMountSite = resolveDetailMountSite(isXlUp, detailSheetOpen, Boolean(detailJob));
+    const detailMountSite = showForYouHome
+        ? "none"
+        : resolveDetailMountSite(isXlUp, detailSheetOpen, Boolean(detailJob));
     // The row the pane is currently showing — explicit selection when one
     // exists, else the ambient auto-preview. Drives the list's active ring
     // so the highlighted row and the pane's content can never disagree.
@@ -4793,7 +4878,7 @@ function JobsContent() {
                     outlive the search line have their own homes on the header
                     row and the toolbar; see `status` on the dock payload and
                     `fieldDirectoryMenu`. */}
-                {!headerDockActive && (
+                {!headerDockActive && !showForYouHome && (
                 <section
                     className="rounded-none border border-border bg-card p-2 sm:p-2.5 transition-colors"
                 >
@@ -5000,7 +5085,7 @@ function JobsContent() {
                 </section>
                 )}
 
-                {headerDockActive && facetsMountSite === "inline" && (
+                {headerDockActive && !showForYouHome && facetsMountSite === "inline" && (
                     <div
                         id="filters-panel"
                         data-testid="filters-panel"
@@ -5016,7 +5101,7 @@ function JobsContent() {
                         </div>
                     </div>
                 )}
-                {showJobsToolbarSection && (
+                {showJobsToolbarSection && !showForYouHome && (
                 <section
                     data-testid="jobs-toolbar"
                     className={cn(
@@ -5163,6 +5248,31 @@ function JobsContent() {
                         dockedExtrasMount,
                     )}
 
+                {showForYouHome ? (
+                    <div className={cn("mt-4 flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
+                        <ForYouHome
+                            packs={forYouPacks}
+                            matchScores={matchScores}
+                            resume={resume}
+                            nowMs={nowMs}
+                            fitResolving={fitResolving}
+                            loading={loading}
+                            fitActive={fitActive}
+                            hydratedJobs={forYouHydrated}
+                            onActivePackChange={handleForYouActivePackChange}
+                            onOpenApply={handleOpenPosting}
+                            homeView={resolvedHomeView}
+                            onHomeViewChange={setJobsHomeView}
+                            showToggle={resumeOnFile === true}
+                        />
+                    </div>
+                ) : (
+                <>
+                {resumeOnFile === true && (
+                    <div className={cn("mb-3", cappedContentClass)}>
+                        <ForYouToggle value="search" onChange={setJobsHomeView} />
+                    </div>
+                )}
                 <div className={cn(
                     headerDockActive
                         ? "pt-[var(--jobs-bar-content-gap)] pb-[var(--jobs-bar-content-gap)]"
@@ -5735,6 +5845,8 @@ function JobsContent() {
                         </div>
                     </div>
                 </div>
+                </>
+                )}
             </div>
 
             <LocationPickerSheet
@@ -5749,7 +5861,7 @@ function JobsContent() {
                 onContinue={handleLocationSheetContinue}
             />
 
-            {!isLgUp && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query) && (
+            {!isLgUp && !showForYouHome && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query) && (
                 <div
                     data-testid="mobile-search-cta"
                     className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] border-t border-border bg-card px-4 py-2.5 lg:hidden"
