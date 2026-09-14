@@ -304,7 +304,7 @@ export function TopBar() {
                             aria-controls="filters-panel"
                             data-testid="topbar-docked-filters-toggle"
                             className={cn(
-                                chipVariants({ active: docked.filtersExpanded }),
+                                chipVariants({ active: docked.filtersExpanded, interactive: true }),
                                 toolbarControlHeight,
                                 "box-border shrink-0 items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold lg:px-3",
                             )}
@@ -327,7 +327,7 @@ export function TopBar() {
                                             key={chip.key}
                                             data-testid="topbar-docked-chip"
                                             className={cn(
-                                                chipVariants({ active: true }),
+                                                chipVariants({ active: true, interactive: true }),
                                                 toolbarControlHeight,
                                                 "box-border items-center gap-2 px-3 lg:px-3",
                                             )}

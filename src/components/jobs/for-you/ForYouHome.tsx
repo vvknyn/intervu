@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleNotch } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { PreferenceChipStrip } from "@/components/jobs/for-you/PreferenceChipStrip";
 import { ForYouDeck } from "@/components/jobs/for-you/ForYouDeck";
 import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
@@ -186,9 +187,15 @@ export function ForYouHome({
                 {(!showLoading && visiblePacks.length > 0) || (hasUsableResume && onReplaceResume) ? (
                     <div className="flex items-center gap-3">
                         {!showLoading && visiblePacks.length > 0 && (
-                            <p className="text-xs text-muted-foreground tabular-nums">
-                                {activeIndex + 1} of {visiblePacks.length}
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-xs text-muted-foreground tabular-nums">
+                                    {activeIndex + 1} of {visiblePacks.length}
+                                </p>
+                                <ProgressBar
+                                    progress={((activeIndex + 1) / visiblePacks.length) * 100}
+                                    className="w-16"
+                                />
+                            </div>
                         )}
                         {hasUsableResume && onReplaceResume && (
                             <button
