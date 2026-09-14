@@ -25,6 +25,7 @@ import { isTechSkillQuery } from "./tech-skills";
 import { decodeText, displayCompanyBrand, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
 import { parseQuotedOrPhrases, resolveFitPhrases, shouldRunFitPhraseLane } from "./fit-phrases";
 import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
+import { normalizePublicJobs } from "./normalize-public-job";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
@@ -1016,7 +1017,7 @@ async function searchWithDomainPostFilter(
       hits: PublicJob[];
       facetDistribution?: Record<string, Record<string, number>>;
     };
-    const hits = parsed.hits ?? [];
+    const hits = normalizePublicJobs(parsed.hits ?? []);
     scanned += hits.length;
     matched.push(...filterHitsByDomainFilters(hits, p));
     if (parsed.facetDistribution) facetDistribution = parsed.facetDistribution as FacetDistribution;
@@ -1159,10 +1160,12 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
   // document) regardless of where a client-side filter later moves it in the
   // rendered list — see `PublicJob.tier` (types.ts) for why this beats
   // indexing into `hits` by `tier1Total`.
-  const hits = (body.hits ?? []).map(({ _federation, ...hit }) => ({
-    ...hit,
-    tier: (_federation?.queriesPosition === 0 ? 1 : 2) as 1 | 2,
-  }));
+  const hits = normalizePublicJobs(
+    (body.hits ?? []).map(({ _federation, ...hit }) => ({
+      ...hit,
+      tier: (_federation?.queriesPosition === 0 ? 1 : 2) as 1 | 2,
+    })),
+  );
   return {
     hits,
     total: body.estimatedTotalHits ?? body.hits?.length ?? 0,
@@ -1267,7 +1270,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
           facetDistribution?: Record<string, Record<string, number>>;
         };
         return {
-          hits: body.hits ?? [],
+          hits: normalizePublicJobs(body.hits ?? []),
           total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
           backend: "meilisearch",
           configured: true,
@@ -1431,7 +1434,7 @@ async function fetchCompanyScopedLaneHits(
       facetDistribution?: Record<string, Record<string, number>>;
     };
     return {
-      hits: json.hits ?? [],
+      hits: normalizePublicJobs(json.hits ?? []),
       facetDistribution: json.facetDistribution as FacetDistribution | undefined,
     };
   };
@@ -1495,7 +1498,7 @@ async function fetchFitPhraseLaneHits(
       facetDistribution?: Record<string, Record<string, number>>;
     };
     return {
-      hits: json.hits ?? [],
+      hits: normalizePublicJobs(json.hits ?? []),
       facetDistribution: json.facetDistribution as FacetDistribution | undefined,
     };
   };
@@ -1553,7 +1556,7 @@ async function fetchRoleTitleLaneHits(
       facetDistribution?: Record<string, Record<string, number>>;
     };
     return {
-      hits: json.hits ?? [],
+      hits: normalizePublicJobs(json.hits ?? []),
       facetDistribution: json.facetDistribution as FacetDistribution | undefined,
     };
   };
