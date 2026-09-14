@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchResultLine } from "../../src/lib/jobs/presentation";
+import { searchResultLine, liveCountLine } from "../../src/lib/jobs/presentation";
 
 const NOW = Date.parse("2026-07-26T12:00:00Z");
 const TWO_HOURS_AGO = "2026-07-26T10:00:00Z";
@@ -181,4 +181,22 @@ test("a stamp the caller couldn't resolve (null) omits the clause, string stays 
     assert.equal(line, "7 roles");
     assert.doesNotMatch(line, /·\s*$/);
     assert.doesNotMatch(line, /\s{2,}/);
+});
+
+// Honesty fix (intervu first-screen audit, Defect 1): the masthead's live
+// count (`vacancy_status = "active"`, NO posted-date filter — market-trends.ts)
+// and this file's `searchResultLine` (a 30-day default, `!= "closed"`) used
+// to render with no stated relationship between them ("2,339,946 live roles"
+// beside "111,151 roles from the last 30 days"). `liveCountLine` gives the
+// masthead its own honestly-scoped wording instead of a bare number.
+test("liveCountLine: states its own scope, parallel to searchResultLine's window clause", () => {
+    assert.equal(liveCountLine({ kind: "exact", value: 2_339_946 }), "2,339,946 live roles from any time");
+});
+
+test("liveCountLine: a capped count still renders through formatCorpusCount, never a bare number", () => {
+    assert.equal(liveCountLine({ kind: "floor", value: 100_000 }), "100,000+ live roles from any time");
+});
+
+test("liveCountLine: null (the marketing-stats probe came back empty) omits the line entirely — never a fabricated 0", () => {
+    assert.equal(liveCountLine(null), null);
 });
