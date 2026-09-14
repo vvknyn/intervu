@@ -53,7 +53,7 @@ export function ForYouDeck({
         if (!el) return;
         const onWheel = (event: WheelEvent) => {
             const direction: 1 | -1 = event.deltaY > 0 ? 1 : -1;
-            if (!shouldPackGestureAdvanceDeck(event.target, direction)) return;
+            if (!shouldPackGestureAdvanceDeck(event.target, el, direction)) return;
             const length = packsLengthRef.current;
             const index = activeIndexRef.current;
             if (wheelLock.current || length <= 1) return;
@@ -93,7 +93,7 @@ export function ForYouDeck({
         const threshold = reduced ? 80 : 40;
         if (Math.abs(dy) < threshold || Math.abs(dy) <= Math.abs(dx)) return;
         const direction: 1 | -1 = dy < 0 ? 1 : -1;
-        if (!shouldPackGestureAdvanceDeck(start.target, direction)) return;
+        if (!shouldPackGestureAdvanceDeck(start.target, rootRef.current, direction)) return;
         wheelLock.current = true;
         if (direction > 0) {
             onActiveIndexChange(Math.min(activeIndex + 1, packs.length - 1));
