@@ -12,15 +12,26 @@ export const chipVariants = cva(
   // A chip carries a label, never code, so it takes the sans — with tabular
   // figures, since chips routinely hold counts that sit in a row and should
   // not jitter as the numbers change.
-  "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-none border border-border bg-background px-3 text-sm tabular-nums text-foreground transition-colors motion-reduce:transition-none hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-none border border-border bg-background px-3 text-sm tabular-nums text-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
         true: "border-brand border-l-[3px] border-l-brand bg-brand/[0.06] pl-2.5 text-brand",
         false: "",
       },
+      /**
+       * Hover affordance is opt-IN, not opt-out. Most chips in the app are
+       * plain facts/tags with no click target anywhere in them — those must
+       * default to no hover feedback, or they visually promise a control
+       * that isn't there. Pass `interactive: true` only when the chip itself
+       * is a real control (button/trigger) or embeds one (e.g. ChipDismiss).
+       */
+      interactive: {
+        true: "hover:bg-muted cursor-pointer",
+        false: "",
+      },
     },
-    defaultVariants: { active: false },
+    defaultVariants: { active: false, interactive: false },
   },
 )
 

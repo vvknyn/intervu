@@ -400,7 +400,7 @@ function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => v
     return (
         <span
             data-testid="default-location-chip"
-            className={cn(chipVariants({ active: false }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
+            className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
         >
             {flag && <span aria-hidden>{flag}</span>}
             near {name}
@@ -4538,7 +4538,7 @@ function JobsContent() {
                     type="button"
                     data-testid="field-directory-trigger"
                     className={cn(
-                        chipVariants({ active: activeCategory != null }),
+                        chipVariants({ active: activeCategory != null, interactive: true }),
                         toolbarControlHeight,
                         "inline-flex box-border shrink-0 items-center justify-center gap-1 whitespace-nowrap px-3 text-xs font-semibold leading-none transition-colors lg:px-2",
                     )}
@@ -5122,7 +5122,7 @@ function JobsContent() {
                             aria-controls="filters-panel"
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
-                                chipVariants({ active: filtersOpen }),
+                                chipVariants({ active: filtersOpen, interactive: true }),
                                 toolbarControlHeight,
                                 "box-border shrink-0 px-3.5 rounded-none font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
                             )}
@@ -5167,7 +5167,7 @@ function JobsContent() {
                                 <span
                                     key={entry.key}
                                     data-testid="active-filter-chip"
-                                    className={cn(chipVariants({ active: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
+                                    className={cn(chipVariants({ active: true, interactive: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
                                 >
                                     {chipLabelForEntry(entry)}
                                     <ChipDismiss
