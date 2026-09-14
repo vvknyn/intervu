@@ -5836,7 +5836,7 @@ function JobsContent() {
                                                 Elite matches
                                                 <span className="ml-2 text-xs font-normal text-[color:var(--elite-muted)]">
                                                     {result?.total != null
-                                                        ? `${result.total.toLocaleString()} roles · board allowlist`
+                                                        ? `${formatCorpusCount(totalCount)} roles · board allowlist`
                                                         : "board allowlist"}
                                                 </span>
                                             </h2>

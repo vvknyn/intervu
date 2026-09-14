@@ -5,6 +5,9 @@ import { X } from "@phosphor-icons/react";
 import { countNewSinceAction } from "@/actions/jobs";
 import { hasVisitCursor, readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
 import { resolveVisitBannerState } from "@/lib/jobs/visit-banner";
+import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+
+const NO_COUNT: CorpusCount = { kind: "exact", value: 0 };
 
 /**
  * "Posted since your last visit" board banner — self-contained about its own
@@ -13,7 +16,7 @@ import { resolveVisitBannerState } from "@/lib/jobs/visit-banner";
  * never sees a "since your last visit" claim, however large the count.
  */
 export function BoardVisitBanner() {
-    const [count, setCount] = useState(0);
+    const [count, setCount] = useState<CorpusCount>(NO_COUNT);
     const [state, setState] = useState<"hidden" | "shown">("hidden");
     const [dismissed, setDismissed] = useState(false);
 
@@ -24,7 +27,7 @@ export function BoardVisitBanner() {
             const hadCursor = hasVisitCursor("board");
             const n = hadCursor
                 ? await countNewSinceAction({ scope: "board" }, readVisitCursor("board"))
-                : 0;
+                : NO_COUNT;
             // The ONE write moment: always after the read, regardless of
             // whether a cursor already existed — this plants a cursor for
             // first-time visitors too, which is what makes THEIR next visit
@@ -79,7 +82,7 @@ export function BoardVisitBanner() {
             <div className="flex items-center gap-2.5">
                 <span className="h-2 w-2 rounded-none bg-brand" aria-hidden />
                 <p className="text-xs text-foreground">
-                    <span className="font-semibold text-brand tabular-nums">{count}</span> new role{count === 1 ? "" : "s"} posted since your last visit
+                    <span className="font-semibold text-brand tabular-nums">{formatCorpusCount(count)}</span> new role{count.value === 1 ? "" : "s"} posted since your last visit
                 </p>
             </div>
             <button
