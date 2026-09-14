@@ -13,7 +13,7 @@ import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel } from "@/components/jobs/job-detail-facts";
+import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, APPLY_BUTTON_LABEL } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
@@ -132,6 +132,21 @@ export function MetaLine({ items }: { items: Array<ReactNode | null | false | un
                 </span>
             ))}
         </>
+    );
+}
+
+/**
+ * One "value over label" KPI chip — the employer rail's "Live roles" shape,
+ * pulled out so every KPI in the rail (single stats and paired ones alike,
+ * see `pairedKpiChips`, job-detail-facts.ts) renders through the same
+ * primitive instead of each stat hand-rolling its own value/label markup.
+ */
+export function KpiStat({ value, label, minWidthClassName = "min-w-[100px]" }: { value: string; label: string; minWidthClassName?: string }) {
+    return (
+        <div className={minWidthClassName}>
+            <div className="text-xl font-semibold tabular-nums text-foreground dark:text-white">{value}</div>
+            <div className="mono-data mt-0.5 text-sm text-muted-foreground">{label}</div>
+        </div>
     );
 }
 
@@ -326,7 +341,7 @@ export function JobDetailActionBar({
             {job.apply_url && (
                 <Button className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
                     <ArrowSquareOut weight="bold" />
-                    Apply on Company Site
+                    {APPLY_BUTTON_LABEL}
                 </Button>
             )}
             {resume != null && (
@@ -683,9 +698,8 @@ export function JobDetail({
         liveOpenCount != null ? liveOpenCount.value : typeof job.company_open_count === "number" ? job.company_open_count : null;
     const showOpenCount = resolvedOpenCount != null && !shouldSuppressOpenCount(resolvedOpenCount, job.vacancy_status === "closed");
 
-    const hasCompanyIntel =
-        showOpenCount ||
-        (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
+    const trackRecord = jobTrackRecord(job);
+    const hasCompanyIntel = showOpenCount || trackRecord != null;
 
     return (
         <div
@@ -878,7 +892,7 @@ export function JobDetail({
                         {job.apply_url && (
                             <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-4 rounded-none bg-brand text-brand-foreground hover:bg-brand text-xs font-semibold transition-colors">
                                 <ArrowSquareOut size={16} />
-                                Apply
+                                {APPLY_BUTTON_LABEL}
                             </Button>
                         )}
                         <LocalCustomizePanel
@@ -1109,7 +1123,7 @@ export function JobDetail({
                                             <>
                                                 Use{" "}
                                                 <span className="font-semibold text-foreground">
-                                                    Apply
+                                                    {APPLY_BUTTON_LABEL}
                                                 </span>{" "}
                                                 to read the full details on the employer&apos;s site.
                                             </>
@@ -1151,27 +1165,19 @@ export function JobDetail({
                         )}
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
                             {showOpenCount && (
-                                <div className="min-w-[100px]">
-                                    <div className="text-xl font-semibold text-foreground dark:text-white">
-                                        {liveOpenCount != null
+                                <KpiStat
+                                    value={
+                                        liveOpenCount != null
                                             ? openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })
-                                            : job.company_open_count!.toLocaleString()}
-                                    </div>
-                                    <div className="mono-data mt-0.5 text-sm text-muted-foreground">
-                                        Live roles
-                                    </div>
-                                </div>
+                                            : job.company_open_count!.toLocaleString()
+                                    }
+                                    label="Live roles"
+                                />
                             )}
-                            {typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number" && (
-                                <div className="min-w-[120px]">
-                                    <div className="text-xl font-semibold text-foreground dark:text-white">
-                                        {job.company_opened_90d.toLocaleString()}/{job.company_closed_90d.toLocaleString()}
-                                    </div>
-                                    <div className="mono-data mt-0.5 text-sm text-muted-foreground">
-                                        Opened / closed, 90d
-                                    </div>
-                                </div>
-                            )}
+                            {trackRecord &&
+                                pairedKpiChips(trackRecord).map((chip) => (
+                                    <KpiStat key={chip.label} value={chip.value} label={chip.label} minWidthClassName="min-w-[110px]" />
+                                ))}
                         </div>
                         {cleanedCompany && (
                             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
