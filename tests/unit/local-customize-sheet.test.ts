@@ -121,10 +121,10 @@ describe("Customize dialog contract", () => {
         assert.match(src, /<Button/);
     });
 
-    it("JobDetail action row is nowrap with Apply · Customize · Bookmark order", () => {
+    it("JobDetail action row wraps on narrow viewports with Apply · Customize · Bookmark order", () => {
         const detail = readFileSync(DETAIL, "utf8");
         const actionRow = detail.match(/\/\* Action row \*\/[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
-        assert.match(actionRow, /flex flex-nowrap items-center gap-2/);
+        assert.match(actionRow, /flex flex-wrap items-center gap-2/);
         const applyIdx = actionRow.indexOf("Apply");
         const customizeIdx = actionRow.indexOf("<LocalCustomizePanel");
         const bookmarkIdx = actionRow.indexOf("<RowBookmarkButton");

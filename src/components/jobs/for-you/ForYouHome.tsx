@@ -34,6 +34,8 @@ export interface ForYouHomeProps {
     homeView: JobsHomeView;
     onHomeViewChange: (view: JobsHomeView) => void;
     showToggle: boolean;
+    onReplaceResume?: () => void;
+    hasUsableResume?: boolean;
 }
 
 export function ForYouHome({
@@ -50,6 +52,8 @@ export function ForYouHome({
     homeView,
     onHomeViewChange,
     showToggle,
+    onReplaceResume,
+    hasUsableResume = false,
 }: ForYouHomeProps) {
     const [activeIndex, setActiveIndex] = useState(0);
     const [skippedIds, setSkippedIds] = useState<Set<string>>(() => new Set());
@@ -180,11 +184,25 @@ export function ForYouHome({
                 {showToggle && (
                     <ForYouToggle value={homeView} onChange={onHomeViewChange} />
                 )}
-                {!showLoading && visiblePacks.length > 0 && (
-                    <p className="text-xs text-muted-foreground tabular-nums">
-                        {activeIndex + 1} of {visiblePacks.length}
-                    </p>
-                )}
+                {(!showLoading && visiblePacks.length > 0) || (hasUsableResume && onReplaceResume) ? (
+                    <div className="flex items-center gap-3">
+                        {!showLoading && visiblePacks.length > 0 && (
+                            <p className="text-xs text-muted-foreground tabular-nums">
+                                {activeIndex + 1} of {visiblePacks.length}
+                            </p>
+                        )}
+                        {hasUsableResume && onReplaceResume && (
+                            <button
+                                type="button"
+                                data-testid="jobs-replace-resume"
+                                onClick={onReplaceResume}
+                                className="inline-flex min-h-11 items-center text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                            >
+                                Replace
+                            </button>
+                        )}
+                    </div>
+                ) : null}
             </div>
 
             <PreferenceChipStrip chips={prefsChips} className="mb-4 shrink-0" />
@@ -229,10 +247,25 @@ export function ForYouHome({
 
             {visiblePacks.length > 0 && !showLoading && (
                 <div className="mt-4 shrink-0 border-t border-border pt-4">
+                    {!resume && onReplaceResume && (
+                        <div className="mb-3 space-y-2">
+                            <p className="text-xs text-muted-foreground">
+                                Upload a résumé to download a tailored PDF
+                            </p>
+                            <button
+                                type="button"
+                                data-testid="for-you-upload-resume"
+                                onClick={onReplaceResume}
+                                className="inline-flex min-h-11 items-center text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                            >
+                                Upload résumé
+                            </button>
+                        </div>
+                    )}
                     <div className="flex gap-2">
                         <Button
                             type="button"
-                            className="flex-1 lg:flex-none"
+                            className="h-11 min-h-11 flex-1 lg:flex-none"
                             data-testid="for-you-download-apply"
                             onClick={handleDownloadApply}
                             disabled={applying || !resume}
@@ -249,7 +282,7 @@ export function ForYouHome({
                         <Button
                             type="button"
                             variant="outline"
-                            className="flex-1 lg:flex-none"
+                            className="h-11 min-h-11 flex-1 lg:flex-none"
                             data-testid="for-you-skip"
                             onClick={handleSkip}
                             disabled={applying}

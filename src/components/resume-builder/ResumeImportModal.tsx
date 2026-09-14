@@ -477,7 +477,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     </div>
                 )}
 
-                <ScrollArea className="h-[400px]">
+                <ScrollArea className="min-h-0 flex-1 max-h-[min(50dvh,400px)]">
                     <div className="px-6 space-y-6">
                         {/* Profile Section */}
                         <div className="space-y-3">
@@ -487,7 +487,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <ConfidenceBadge score={reviewConfidence.profile} section="Profile" />
                                 </h4>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div className="space-y-1.5">
                                     <Label className="text-xs">Name</Label>
                                     <Input
@@ -685,7 +685,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[600px] bg-white dark:bg-muted max-h-[90dvh] overflow-hidden flex flex-col">
+            <DialogContent className="flex w-full max-w-[calc(100%-1rem)] flex-col overflow-hidden bg-white max-h-[90dvh] dark:bg-muted sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         {title ? (
@@ -716,24 +716,24 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     {step === 'review' && renderReviewStep()}
                 </div>
 
-                <div className="flex justify-between gap-3 pt-4 border-t">
+                <div className="flex justify-between gap-3 border-t pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {step === 'review' ? (
                         <>
-                            <Button variant="outline" onClick={() => setStep('input')}>
+                            <Button variant="outline" className="h-11 min-h-11" onClick={() => setStep('input')}>
                                 <ArrowLeft size={16} className="mr-2" />
                                 Back
                             </Button>
-                            <Button onClick={handleConfirm} disabled={localParseBlocked}>
+                            <Button className="h-11 min-h-11" onClick={handleConfirm} disabled={localParseBlocked}>
                                 <Check size={16} className="mr-2" />
                                 {confirmLabel}
                             </Button>
                         </>
                     ) : (
                         <>
-                            <Button variant="outline" onClick={handleClose} disabled={isProcessing}>
+                            <Button variant="outline" className="h-11 min-h-11" onClick={handleClose} disabled={isProcessing}>
                                 Cancel
                             </Button>
-                            <Button onClick={handleParse} disabled={!canProceed() || isProcessing}>
+                            <Button className="h-11 min-h-11" onClick={handleParse} disabled={!canProceed() || isProcessing}>
                                 {isProcessing ? (
                                     <>
                                         <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-none animate-spin mr-2" />

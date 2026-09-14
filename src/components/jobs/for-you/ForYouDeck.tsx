@@ -2,7 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import { ForYouPack } from "@/components/jobs/for-you/ForYouPack";
-import { shouldAdvancePackOnWheel } from "@/lib/jobs/for-you/deck-wheel";
+import {
+    readPackScrollRegion,
+    shouldAdvancePackOnSwipe,
+    shouldAdvancePackOnWheel,
+} from "@/lib/jobs/for-you/deck-wheel";
 import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -32,6 +36,7 @@ export function ForYouDeck({
     className,
 }: ForYouDeckProps) {
     const wheelLock = useRef(false);
+    const touchStart = useRef<{ x: number; y: number; target: EventTarget | null } | null>(null);
 
     useEffect(() => {
         const job = packs[activeIndex];
@@ -56,8 +61,43 @@ export function ForYouDeck({
         }, reduced ? 0 : 280);
     };
 
+    const handleTouchStart = (event: React.TouchEvent) => {
+        const touch = event.changedTouches[0];
+        if (!touch) return;
+        touchStart.current = { x: touch.clientX, y: touch.clientY, target: event.target };
+    };
+
+    const handleTouchEnd = (event: React.TouchEvent) => {
+        const start = touchStart.current;
+        touchStart.current = null;
+        if (!start) return;
+        if (wheelLock.current || packs.length <= 1) return;
+        const touch = event.changedTouches[0];
+        if (!touch) return;
+        const dx = touch.clientX - start.x;
+        const dy = touch.clientY - start.y;
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const threshold = reduced ? 80 : 40;
+        if (Math.abs(dy) < threshold || Math.abs(dy) <= Math.abs(dx)) return;
+        if (!shouldAdvancePackOnSwipe(dy, readPackScrollRegion(start.target))) return;
+        wheelLock.current = true;
+        if (dy < 0) {
+            onActiveIndexChange(Math.min(activeIndex + 1, packs.length - 1));
+        } else {
+            onActiveIndexChange(Math.max(activeIndex - 1, 0));
+        }
+        window.setTimeout(() => {
+            wheelLock.current = false;
+        }, reduced ? 0 : 280);
+    };
+
     return (
-        <div className={cn("relative min-h-0 flex-1 pb-6", className)} onWheel={handleWheel}>
+        <div
+            className={cn("relative min-h-0 flex-1 pb-6", className)}
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+        >
             {packs.map((pack, index) => {
                 const offset = index - activeIndex;
                 if (offset < 0 || offset > 2) return null;
@@ -76,7 +116,7 @@ export function ForYouDeck({
                             isActive
                                 ? undefined
                                 : {
-                                      transform: `translateY(${offset * 12}px) scale(${1 - offset * 0.03})`,
+                                      transform: `translateY(${offset * 16}px) scale(${1 - offset * 0.03})`,
                                   }
                         }
                         aria-hidden={!isActive}

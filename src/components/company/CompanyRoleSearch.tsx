@@ -275,18 +275,22 @@ export function CompanyRoleSearch({
                   className="w-full text-left flex items-center gap-4 px-3 py-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="text-base font-semibold text-foreground group-hover:text-brand transition-colors">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="min-w-0 truncate text-base font-semibold text-foreground transition-colors group-hover:text-brand">
                         {titleCaseDisplay(decodeText(job.title))}
                       </div>
-                      {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />}
+                      {matchScore && (
+                        <span className="shrink-0">
+                          <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />
+                        </span>
+                      )}
                     </div>
                     {meta.length > 0 && (
                       // Pay leads this line same as everywhere else it's
                       // sourced from `companyRowMetaSegments`, but a role row
                       // reads as one plain secondary caption here — never
                       // bolded, per the rulebook's "pay NOT bold" rule.
-                      <div className="mt-1 text-sm text-muted-foreground">
+                      <div className="mt-1 truncate text-sm text-muted-foreground">
                         {meta.map((segment, i) => (
                           <span key={i}>
                             {i > 0 && <span className="mx-1" aria-hidden>·</span>}

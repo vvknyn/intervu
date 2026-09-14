@@ -24,7 +24,7 @@ export function PreferenceChipStrip({ chips, className }: PreferenceChipStripPro
             ))}
             <Link
                 href="/settings"
-                className="text-xs font-semibold text-brand transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-xs font-semibold text-brand transition-colors hover:text-foreground"
             >
                 Edit in Settings
             </Link>

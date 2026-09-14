@@ -87,7 +87,10 @@ export function ForYouPack({
                 className,
             )}
         >
-            <div className="flex max-h-[40%] min-h-0 min-w-0 shrink-0 flex-col overflow-y-auto overscroll-contain border-b border-border p-4 custom-scrollbar lg:max-h-none lg:shrink lg:flex-1 lg:border-b-0 lg:border-r lg:p-6">
+            <div
+                data-pack-meta-scroll
+                className="flex max-h-[40%] min-h-0 min-w-0 shrink-0 flex-col overflow-y-auto overscroll-contain border-b border-border p-4 custom-scrollbar lg:max-h-none lg:shrink lg:flex-1 lg:border-b-0 lg:border-r lg:p-6"
+            >
                 <p className="text-xs font-semibold text-muted-foreground">
                     {company}
                 </p>
