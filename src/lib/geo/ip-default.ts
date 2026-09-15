@@ -88,6 +88,14 @@ export interface LocationDefaultApplication {
   params: JobSearchParams;
   /** ISO2, present only when the default actually applied. */
   defaultedLocation?: string;
+  /** Whether the applied default's own place clause also OR's in every
+   *  remote role with no country tag (`PlaceClause.remoteAnywhere`,
+   *  resolve-place.ts) — read off the SAME clause `params.places` now holds,
+   *  never assumed. A country-level default sets it unconditionally today
+   *  (`placeClause(any, { country: true })`), but this derives it rather
+   *  than hardcoding that fact, so a UI label built from it can't go stale
+   *  if that ever changes. Present only alongside `defaultedLocation`. */
+  remoteAnywhere?: boolean;
 }
 
 /**
@@ -110,5 +118,9 @@ export async function applyLocationDefault(
   const { gazetteer, corpusChecker } = await loadContext();
   const ipDefault = await resolveLocationDefault(ip, gazetteer, corpusChecker, countryLookup);
   if (!ipDefault) return { params };
-  return { params: { ...params, places: ipDefault.places }, defaultedLocation: ipDefault.countryCode };
+  return {
+    params: { ...params, places: ipDefault.places },
+    defaultedLocation: ipDefault.countryCode,
+    remoteAnywhere: ipDefault.places.some((place) => place.remoteAnywhere),
+  };
 }

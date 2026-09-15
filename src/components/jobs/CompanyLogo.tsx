@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { companyLogoUrl } from "@/lib/companies/logo";
+import { companyLogoUrl, shouldShowFavicon } from "@/lib/companies/logo";
 import { cn } from "@/lib/utils";
 // The shared chokepoint (lib/jobs/presentation.ts) — this file used to carry
 // its own private copy with a subset of the rules (URI-decode + req-code
@@ -80,7 +80,7 @@ export function CompanyLogo({
     size: "xs" | "sm" | "md" | "lg";
 }) {
     const [errored, setErrored] = useState(false);
-    const showImage = Boolean(domain) && !errored;
+    const showImage = shouldShowFavicon(domain, errored);
 
     const sizeCls = SIZE_CLS[size];
     // The index carries the ATS-stated raw name (intervu owns display-time

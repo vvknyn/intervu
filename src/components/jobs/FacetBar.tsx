@@ -117,7 +117,7 @@ function FacetChip({
             <PopoverTrigger
                 data-testid={testId}
                 className={cn(
-                    chipVariants({ active: activeValue != null }),
+                    chipVariants({ active: activeValue != null, interactive: true }),
                     toolbarControlHeight,
                     "inline-flex box-border items-center justify-center text-xs leading-none rounded-none px-3 lg:px-2",
                 )}

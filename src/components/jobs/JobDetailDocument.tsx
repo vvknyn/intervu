@@ -7,7 +7,7 @@ import { getCompanyRailAction, getRelatedJobsAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { JobDescription, JobDetailActionBar, MetaLine, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobRow } from "@/components/jobs/JobDetail";
+import { JobDescription, JobDetailActionBar, KpiStat, MetaLine, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobRow } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
@@ -17,11 +17,14 @@ import { recordGuestJobView } from "@/lib/auth/guest-engage-nudge";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
+    APPLY_BUTTON_LABEL,
     assessedGhostSignals,
     buildFactChips,
     deriveExposureBadges,
     deriveGhostSignals,
     ghostCheckedText,
+    jobTrackRecord,
+    pairedKpiChips,
 } from "@/components/jobs/job-detail-facts";
 import { shouldSuppressOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { buildCompanyJobsUrl, openCountText } from "@/lib/companies/presentation";
@@ -75,7 +78,7 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
     // itself one of that company's open postings (see
     // `shouldSuppressOpenCount`'s doc comment for the closed-job carve-out).
     const showOpenCount = openCount != null && !shouldSuppressOpenCount(openCount.value, job.vacancy_status === "closed");
-    const hasTrackRecord = typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number";
+    const trackRecord = jobTrackRecord(job);
 
     // Rulebook item g: keep the content, render on page bg with a hairline
     // top divider instead of a bordered/bg panel; name 16/22 600 ink,
@@ -87,28 +90,19 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
                 {companyBrand || "This company"}
             </h2>
             {rail?.aboutLine && <p className="mt-2 max-w-[640px] text-sm leading-relaxed text-muted-foreground">{rail.aboutLine}</p>}
-            {(showOpenCount || hasTrackRecord) && (
+            {(showOpenCount || trackRecord != null) && (
                 <div className="mt-4 flex flex-wrap gap-4">
                     {showOpenCount && openCount && (
-                        <div className="min-w-[90px]">
-                            <div className="text-xl font-semibold tabular-nums text-foreground">
-                                {openCountText({ openCount: openCount.value, openCountIsLowerBound: openCount.isLowerBound })}
-                            </div>
-                            <div className="mono-data mt-0.5 text-sm text-muted-foreground">
-                                Live roles
-                            </div>
-                        </div>
+                        <KpiStat
+                            value={openCountText({ openCount: openCount.value, openCountIsLowerBound: openCount.isLowerBound })}
+                            label="Live roles"
+                            minWidthClassName="min-w-[90px]"
+                        />
                     )}
-                    {typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number" && (
-                        <div className="min-w-[110px]">
-                            <div className="text-xl font-semibold tabular-nums text-foreground">
-                                {job.company_opened_90d.toLocaleString()}/{job.company_closed_90d.toLocaleString()}
-                            </div>
-                            <div className="mono-data mt-0.5 text-sm text-muted-foreground">
-                                Opened / closed, 90d
-                            </div>
-                        </div>
-                    )}
+                    {trackRecord &&
+                        pairedKpiChips(trackRecord).map((chip) => (
+                            <KpiStat key={chip.label} value={chip.value} label={chip.label} minWidthClassName="min-w-[110px]" />
+                        ))}
                 </div>
             )}
             {cleanedCompany && (
@@ -455,7 +449,7 @@ export function JobDetailDocument({
                 {job.apply_url && (
                     <Button onClick={onOpenPosting} className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
                         <ArrowSquareOut size={16} />
-                        Apply on Company Site
+                        {APPLY_BUTTON_LABEL}
                     </Button>
                 )}
                 {/* Rulebook item f: Save outline → the same 40px icon-only
@@ -494,7 +488,7 @@ export function JobDetailDocument({
             ) : (
                 <p className="max-w-[640px] text-base leading-normal text-foreground">
                     No description was captured for this role.{" "}
-                    {job.apply_url ? "Use Apply to read the full details on the employer's site." : "Try the original posting for full details."}
+                    {job.apply_url ? `Use ${APPLY_BUTTON_LABEL} to read the full details on the employer's site.` : "Try the original posting for full details."}
                 </p>
             )}
             {job.tags && job.tags.length > 0 && (

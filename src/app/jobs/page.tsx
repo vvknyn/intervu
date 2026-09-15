@@ -68,6 +68,7 @@ import {
     searchResultLine,
     firstMentionIndex,
     interleaveByCompany,
+    liveCountLine,
     partitionByTitleMatch,
     resolveHeadlineTotal,
     seamSummary,
@@ -101,7 +102,7 @@ import {
     suppressLocationDefault,
     restoreLocationDefault,
     shouldShowLocationDefaultChip,
-    regionDisplayName,
+    locationDefaultScope,
     buildDockedChips,
     DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
@@ -214,8 +215,14 @@ import {
     type UrlSort,
 } from "@/lib/jobs/url-state";
 import { resolveJobsHomeView, type JobsHomeView } from "@/lib/jobs/for-you/home-view";
-import { ForYouHome } from "@/components/jobs/for-you/ForYouHome";
+import {
+    readLastJobsHomeView,
+    subscribeLastJobsHomeView,
+    writeLastJobsHomeView,
+} from "@/lib/jobs/for-you/last-home-view";
+import { ForYouHome, ForYouHomePending } from "@/components/jobs/for-you/ForYouHome";
 import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
+import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
@@ -393,18 +400,33 @@ function ToolbarSegment({
  * about the result set, not a selected/verified state. `onClear` is the
  * SAME `suppressLocationDefault` write path the old results-row chip used —
  * REUSED, not a second suppression flag.
+ *
+ * `remoteAnywhere` (`result.remoteAnywhere`, search.ts) names the scope via
+ * `locationDefaultScope` (location-default-preference.ts) instead of a bare
+ * country name — the applied place filter also OR's in every remote role
+ * with no country tag (`REMOTE_ANYWHERE_CLAUSE`), so "near {country}" alone
+ * used to read as a promise the query didn't keep (results included e.g.
+ * Sydney/Dubai remote listings under a "near Canada" chip).
  */
-function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
+function DefaultLocationChip({
+    iso2,
+    remoteAnywhere,
+    onClear,
+}: {
+    iso2: string;
+    remoteAnywhere: boolean | undefined;
+    onClear: () => void;
+}) {
     const flag = countryToFlag(iso2);
-    const name = useMemo(() => regionDisplayName(iso2), [iso2]);
+    const scope = useMemo(() => locationDefaultScope(iso2, remoteAnywhere), [iso2, remoteAnywhere]);
     return (
         <span
             data-testid="default-location-chip"
-            className={cn(chipVariants({ active: false }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
+            className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
         >
             {flag && <span aria-hidden>{flag}</span>}
-            near {name}
-            <ChipDismiss label={`Stop defaulting to ${name}`} onClick={onClear} />
+            near {scope}
+            <ChipDismiss label={`Stop defaulting to ${scope}`} onClick={onClear} />
         </span>
     );
 }
@@ -1679,6 +1701,10 @@ function JobsContent() {
     if (!paginationRef.current) paginationRef.current = new JobsPaginationGeneration();
 
     const [user, setUser] = useState<User | null>(null);
+    // Session cookie is httpOnly — first paint is "not yet known", not signed
+    // out. Holding this false keeps résumé presence on `null` so /jobs does
+    // not flash Search chrome for a returning user with a résumé on file.
+    const [authReady, setAuthReady] = useState(false);
     // The signed-in email nudge: an account whose only address is a minted
     // <username>@intervu.cc can't receive anything we send. Value lives in
     // localStorage and is read post-mount, so it starts at the SUPPRESSED
@@ -1784,8 +1810,13 @@ function JobsContent() {
     const [importOpen, setImportOpen] = useState(false);
 
     // R&D local mode: hydrate browser-stored résumé for signed-out guests.
-    useEffect(() => {
-        if (!localAiEnabled || user) return;
+    // useLayoutEffect so a usable local résumé is in state before paint and
+    // `resumeOnFile` can resolve For you without a Search-chrome flash.
+    // Reads the flag from storage (not `localAiEnabled` state, which is
+    // itself filled in a post-paint effect).
+    useLayoutEffect(() => {
+        if (user) return;
+        if (!readLocalAiEnabled()) return;
         if (resume && resumeIsUsable(resume)) return;
         const stored = readLocalAiResume();
         if (stored && resumeIsUsable(stored.data)) {
@@ -1793,7 +1824,7 @@ function JobsContent() {
             setResumeUpdatedAt(stored.updatedAt);
             setResumeSourceLabel(stored.sourceLabel ?? null);
         }
-    }, [localAiEnabled, user, resume]);
+    }, [user, resume]);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
     // fetch of the résumé itself; Task 4 removed that). The card's other gate
@@ -1856,8 +1887,14 @@ function JobsContent() {
 
     useEffect(() => {
         const current = getCurrentUser();
-        if (current) setUser(current);
-        const unsub = onAuthChange((u) => setUser(u));
+        if (current) {
+            setUser(current);
+            setAuthReady(true);
+        }
+        const unsub = onAuthChange((u) => {
+            setUser(u);
+            setAuthReady(true);
+        });
         return () => unsub();
     }, []);
 
@@ -1922,14 +1959,25 @@ function JobsContent() {
     // distinct state, not folded into `false`) — called unconditionally,
     // every render, per the Rules of Hooks; combined with `hasUsableResume`
     // below rather than short-circuited into it.
-    const resumeKnownOnServer = useResumePresence(user?.uid ?? null);
+    const resumeKnownOnServer = useResumePresence(user?.uid ?? null, authReady);
 
     // Whether the sort control's résumé-aware "Best match" segment (below)
     // should treat a résumé as on file — `hasUsableResume` (session-local:
     // just uploaded, or already resolved for a fit application) wins
     // outright when true; otherwise this is `resumeKnownOnServer`'s
-    // tri-state answer as-is, `null` included.
-    const resumeOnFile: boolean | null = hasUsableResume || resumeKnownOnServer;
+    // tri-state answer as-is, `null` included. Auth not ready yet is also
+    // unknown — folding it into `false` flashes Search for a returning user.
+    const resumeOnFile: boolean | null = hasUsableResume
+        ? true
+        : authReady
+          ? resumeKnownOnServer
+          : null;
+
+    const lastHomeView = useSyncExternalStore(
+        subscribeLastJobsHomeView,
+        readLastJobsHomeView,
+        () => null,
+    );
 
     // Single gate behind every résumé invite on this page (band ghost word,
     // sort menu's fourth item, résumé-moment card) — see `needsResumeEntry`'s
@@ -1948,10 +1996,13 @@ function JobsContent() {
                 board,
                 q: query,
                 sort: fitActive ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
+                lastHomeView,
             }),
-        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride],
+        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride, lastHomeView],
     );
     const showForYouHome = resolvedHomeView === "for-you";
+    const showSearchHome = resolvedHomeView === "search";
+    const showJobsHomePending = resolvedHomeView === "pending";
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -1982,6 +2033,10 @@ function JobsContent() {
     const dockedDefaultLocationIso2 = shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
         ? result!.defaultedLocation!
         : null;
+    // Same primitive-dependency reasoning as `dockedDefaultLocationIso2`
+    // above (see the dock effect's own React #185 comment) — a boolean, not
+    // `result` itself.
+    const dockedDefaultRemoteAnywhere = dockedDefaultLocationIso2 ? !!result?.remoteAnywhere : false;
 
     // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
     // call to the same `activeFilterEntries` chokepoint, with
@@ -2076,8 +2131,8 @@ function JobsContent() {
     const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !searchParams.get("job");
     // Single gate for "the header owns this search now" — lg+ always docks,
     // including the pristine default browse; mobile keeps the in-page well.
-    const headerDockActive = isLgUp && !showForYouHome;
-    const showLandingMarketing = isPristineLanding && !mobileResultsEngaged && !showForYouHome;
+    const headerDockActive = isLgUp && showSearchHome;
+    const showLandingMarketing = isPristineLanding && !mobileResultsEngaged && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
@@ -2720,10 +2775,16 @@ function JobsContent() {
         );
     }, [clusters, fitActive, matchScores]);
 
+    // Not gated on `showForYouHome`: deck progress is owned by `useForYouDeck`
+    // below, which is called unconditionally so it survives the Search <->
+    // For-you toggle. Gating this list to the branch would collapse
+    // `visiblePacks` to empty while browsing Search, and the hook's own
+    // resize-clamp would zero the index before the user ever came back.
     const forYouPacks = useMemo(
-        () => (showForYouHome ? renderedClusters.map((c) => c.primary) : []),
-        [showForYouHome, renderedClusters],
+        () => renderedClusters.map((c) => c.primary),
+        [renderedClusters],
     );
+    const forYouDeck = useForYouDeck(forYouPacks);
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
     // after clustering, positions no longer line up 1:1. Every member of one
@@ -3534,7 +3595,7 @@ function JobsContent() {
     // header are never both offering a search at once (see `headerDockActive`
     // above and the hero/toolbar JSX that stand down on it).
     useEffect(() => {
-        if (showForYouHome) {
+        if (!showSearchHome) {
             setDocked(null);
             return;
         }
@@ -3556,7 +3617,11 @@ function JobsContent() {
             // `buildDockedChips` helper the mobile row's disclosure logic
             // shares, so this row never silently narrows results without a
             // visible, clearable chip the way the pre-dock-refactor bug did.
-            chips: buildDockedChips(dockedDefaultLocationIso2, unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) }))),
+            chips: buildDockedChips(
+                dockedDefaultLocationIso2,
+                dockedDefaultRemoteAnywhere,
+                unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
+            ),
             onClearChip: (key) => {
                 if (key === DEFAULT_LOCATION_CHIP_KEY) {
                     suppressLocationDefault();
@@ -3579,7 +3644,7 @@ function JobsContent() {
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [showForYouHome, headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, activeCount, filtersOpen, setDocked]);
+    }, [showSearchHome, headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersOpen, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
@@ -4016,8 +4081,15 @@ function JobsContent() {
 
     const setJobsHomeView = (view: JobsHomeView) => {
         setHomeView(view);
+        writeLastJobsHomeView(view);
         applyUrlState(buildUrlState({ homeView: view }), "replace");
     };
+
+    useEffect(() => {
+        if (resolvedHomeView === "for-you" || resolvedHomeView === "search") {
+            writeLastJobsHomeView(resolvedHomeView);
+        }
+    }, [resolvedHomeView]);
 
     // Sort menu → "Rank by fit" click. A résumé already on hand applies
     // immediately; otherwise queue the résumé importer (via the existing
@@ -4237,7 +4309,7 @@ function JobsContent() {
     // gated on `isSerpAsk` — matches this file's other render-prep consts.
     const searchSeeds = resolveSearchSeeds(recentSearches);
 
-    const mobileLocationLabel = locationTriggerLabel(filterState, result?.defaultedLocation);
+    const mobileLocationLabel = locationTriggerLabel(filterState, result?.defaultedLocation, result?.remoteAnywhere);
     // The category chip whose search query matches the current COMMITTED query
     // (case-insensitive) AND whose text also matches the draft (i.e. the user
     // has not yet typed something different in the search box without
@@ -4320,9 +4392,9 @@ function JobsContent() {
     // from there being a job to PREVIEW; below xl on pristine landing those
     // diverge (hits present, preview suppressed), at xl+ they converge again
     // via ambient `hits[0]` without writing `?job=`.
-    const detailMountSite = showForYouHome
-        ? "none"
-        : resolveDetailMountSite(isXlUp, detailSheetOpen, Boolean(detailJob));
+    const detailMountSite = showSearchHome
+        ? resolveDetailMountSite(isXlUp, detailSheetOpen, Boolean(detailJob))
+        : "none";
     // The row the pane is currently showing — explicit selection when one
     // exists, else the ambient auto-preview. Drives the list's active ring
     // so the highlighted row and the pane's content can never disagree.
@@ -4538,7 +4610,7 @@ function JobsContent() {
                     type="button"
                     data-testid="field-directory-trigger"
                     className={cn(
-                        chipVariants({ active: activeCategory != null }),
+                        chipVariants({ active: activeCategory != null, interactive: true }),
                         toolbarControlHeight,
                         "inline-flex box-border shrink-0 items-center justify-center gap-1 whitespace-nowrap px-3 text-xs font-semibold leading-none transition-colors lg:px-2",
                     )}
@@ -4721,7 +4793,10 @@ function JobsContent() {
                     type="button"
                     aria-label="Sort"
                     data-testid="jobs-sort-trigger"
-                    className="hidden shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand lg:inline-flex"
+                    className={cn(
+                        toolbarControlHeight,
+                        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand",
+                    )}
                 >
                     {fitResolving && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
                     Sort: {sortLabel}
@@ -4807,16 +4882,28 @@ function JobsContent() {
      * is gone (2026-08-24) — extracted so neither site can drift from the
      * other's copy or styling.
      */
-    const liveCountEl = liveJobsCount !== null && (
+    const liveCountText = liveCountLine(liveJobsCount);
+    const liveCountEl = liveCountText !== null && (
         <Link
             href="/trends"
             data-testid="search-live-count"
             className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-semibold text-brand transition-colors hover:text-brand"
         >
             <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-live" />
-            {formatCorpusCount(liveJobsCount)} live roles
+            {liveCountText}
         </Link>
     );
+
+    /**
+     * Single source of truth for whether `mobile-search-cta` (below) will
+     * actually render — the landing scroll area's bottom padding needs the
+     * exact same answer, so it's hoisted rather than re-derived at the
+     * padding site and the render site separately (the class of bug this
+     * fixes: a padding literal that quietly stops matching the chrome it was
+     * sized for).
+     */
+    const showMobileSearchCta =
+        !isLgUp && showSearchHome && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -4826,7 +4913,13 @@ function JobsContent() {
      * (`src/app/page.tsx`), not on this route.
      */
     return (
-        <div className="min-h-screen">
+        <div
+            className={cn(
+                showSearchHome
+                    ? "min-h-screen"
+                    : "flex h-[calc(100dvh-var(--topbar-h))] max-h-[calc(100dvh-var(--topbar-h))] flex-col overflow-hidden",
+            )}
+        >
             {/* `data-shell="bleed"` is this page ASKING for the full window;
                 globals.css turns that into `--shell-max: none` for the header
                 and footer too, so all three left edges stay together. Each
@@ -4834,7 +4927,29 @@ function JobsContent() {
                 (`cappedContentClass`) — masthead, search shell and toolbar
                 deliberately don't, so they line up against the same gutter,
                 and the results grid is the one thing that stops widening. */}
-            <div data-shell="bleed" className="shell-row flex min-h-screen flex-col pb-20 pt-2 sm:pt-3">
+            <div
+                data-shell="bleed"
+                className={cn(
+                    "shell-row flex min-h-0 flex-col pt-2 sm:pt-3",
+                    showSearchHome
+                        ? // Below lg, `mobile-search-cta` and the tab bar are both
+                          // FIXED overlays stacked over this scroll area's bottom
+                          // edge (z-[180] and z-50) — content there needs bottom
+                          // clearance for whichever of them is actually mounted,
+                          // not a flat guess. `--mobile-tabbar-h`/
+                          // `--mobile-search-cta-h` (globals.css) are the same
+                          // numbers those elements render at, so this can never
+                          // under-clear what's really on screen. lg+ has neither
+                          // overlay (both `lg:hidden`), hence the flat `lg:pb-20`.
+                          cn(
+                              "lg:pb-20",
+                              showMobileSearchCta
+                                  ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))]"
+                                  : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))]",
+                          )
+                        : "flex-1 overflow-hidden pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-3",
+                )}
+            >
                 {/* Landing masthead — mounts only for a zero-intent pristine
                     visitor (`showLandingMarketing`), at every width, not just
                     mobile: the header's docked search took over the box on
@@ -4880,7 +4995,7 @@ function JobsContent() {
                     outlive the search line have their own homes on the header
                     row and the toolbar; see `status` on the dock payload and
                     `fieldDirectoryMenu`. */}
-                {!headerDockActive && !showForYouHome && (
+                {!headerDockActive && showSearchHome && (
                 <section
                     className="rounded-none border border-border bg-card p-2 sm:p-2.5 transition-colors"
                 >
@@ -5087,7 +5202,7 @@ function JobsContent() {
                 </section>
                 )}
 
-                {headerDockActive && !showForYouHome && facetsMountSite === "inline" && (
+                {headerDockActive && showSearchHome && facetsMountSite === "inline" && (
                     <div
                         id="filters-panel"
                         data-testid="filters-panel"
@@ -5103,7 +5218,7 @@ function JobsContent() {
                         </div>
                     </div>
                 )}
-                {showJobsToolbarSection && !showForYouHome && (
+                {showJobsToolbarSection && showSearchHome && (
                 <section
                     data-testid="jobs-toolbar"
                     className={cn(
@@ -5122,7 +5237,7 @@ function JobsContent() {
                             aria-controls="filters-panel"
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
-                                chipVariants({ active: filtersOpen }),
+                                chipVariants({ active: filtersOpen, interactive: true }),
                                 toolbarControlHeight,
                                 "box-border shrink-0 px-3.5 rounded-none font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
                             )}
@@ -5142,7 +5257,11 @@ function JobsContent() {
                         {showToolbarFilters && (
                         <>
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
-                            <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
+                            <DefaultLocationChip
+                                iso2={result!.defaultedLocation!}
+                                remoteAnywhere={result!.remoteAnywhere}
+                                onClear={suppressLocationDefault}
+                            />
                         )}
                         {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>
@@ -5167,7 +5286,7 @@ function JobsContent() {
                                 <span
                                     key={entry.key}
                                     data-testid="active-filter-chip"
-                                    className={cn(chipVariants({ active: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
+                                    className={cn(chipVariants({ active: true, interactive: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
                                 >
                                     {chipLabelForEntry(entry)}
                                     <ChipDismiss
@@ -5251,9 +5370,13 @@ function JobsContent() {
                     )}
 
                 {showForYouHome ? (
-                    <div className={cn("mt-4 flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
+                    <div className={cn("mt-2 flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
                         <ForYouHome
-                            packs={forYouPacks}
+                            visiblePacks={forYouDeck.visiblePacks}
+                            activeIndex={forYouDeck.activeIndex}
+                            onActiveIndexChange={forYouDeck.setActiveIndex}
+                            activeJob={forYouDeck.activeJob}
+                            onSkip={forYouDeck.handleSkip}
                             matchScores={matchScores}
                             resume={resume}
                             nowMs={nowMs}
@@ -5263,12 +5386,16 @@ function JobsContent() {
                             hydratedJobs={forYouHydrated}
                             onActivePackChange={handleForYouActivePackChange}
                             onOpenApply={handleOpenPosting}
-                            homeView={resolvedHomeView}
+                            homeView="for-you"
                             onHomeViewChange={setJobsHomeView}
                             showToggle={resumeOnFile === true}
                             onReplaceResume={handleUploadClick}
                             hasUsableResume={hasUsableResume}
                         />
+                    </div>
+                ) : showJobsHomePending ? (
+                    <div className={cn("mt-2 flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
+                        <ForYouHomePending />
                     </div>
                 ) : (
                 <>
@@ -5589,7 +5716,10 @@ function JobsContent() {
                                     // default applied."
                                     locationDefault={
                                         shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
-                                            ? { label: `near ${regionDisplayName(result!.defaultedLocation!)}`, onClear: suppressLocationDefault }
+                                            ? {
+                                                  label: `near ${locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere)}`,
+                                                  onClear: suppressLocationDefault,
+                                              }
                                             : undefined
                                     }
                                     ghostRevealCount={ghostRevealCount}
@@ -5706,7 +5836,7 @@ function JobsContent() {
                                                 Elite matches
                                                 <span className="ml-2 text-xs font-normal text-[color:var(--elite-muted)]">
                                                     {result?.total != null
-                                                        ? `${result.total.toLocaleString()} roles · board allowlist`
+                                                        ? `${formatCorpusCount(totalCount)} roles · board allowlist`
                                                         : "board allowlist"}
                                                 </span>
                                             </h2>
@@ -5859,16 +5989,26 @@ function JobsContent() {
                 state={filterState}
                 distribution={result?.facetDistribution}
                 defaultedIso2={result?.defaultedLocation}
-                detectedLabel={result?.defaultedLocation ? detectedLocationLabel(result.defaultedLocation) : undefined}
+                detectedLabel={
+                    result?.defaultedLocation
+                        ? detectedLocationLabel(result.defaultedLocation, result.remoteAnywhere)
+                        : undefined
+                }
                 locationDefaultSuppressed={locationDefaultSuppressed}
                 onRestoreDetected={restoreLocationDefault}
                 onContinue={handleLocationSheetContinue}
             />
 
-            {!isLgUp && !showForYouHome && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query) && (
+            {showMobileSearchCta && (
                 <div
                     data-testid="mobile-search-cta"
-                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] border-t border-border bg-card px-4 py-2.5 lg:hidden"
+                    // Fixed to `--mobile-search-cta-h` (globals.css) rather
+                    // than letting padding+button height set it implicitly —
+                    // that's the same number the landing scroll area's
+                    // bottom padding (above) clears for, so the two can't
+                    // drift apart the way a padding guess and this bar's
+                    // real height already had.
+                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-card px-4 lg:hidden"
                 >
                     <Button
                         type="button"

@@ -99,7 +99,7 @@ function Chip({
             disabled={disabled}
             onClick={onClick}
             className={cn(
-                chipVariants({ active }),
+                chipVariants({ active, interactive: true }),
                 toolbarChipClass,
                 "shrink-0 leading-none gap-1",
                 className,

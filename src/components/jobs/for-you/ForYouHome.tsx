@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleNotch } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { PreferenceChipStrip } from "@/components/jobs/for-you/PreferenceChipStrip";
 import { ForYouDeck } from "@/components/jobs/for-you/ForYouDeck";
 import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
@@ -17,11 +18,20 @@ import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { toast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
 import type { JobsHomeView } from "@/lib/jobs/for-you/home-view";
 
+/** Fills the jobs-page viewport shell. Overflow stays on inner panes
+ *  (deck-wheel + JD `data-pack-scroll`), not a second 100dvh calc that
+ *  overflows the already-below-the-topbar page and traps scrolling. */
+export const FOR_YOU_HOME_FRAME_CLASS =
+    "flex min-h-0 flex-1 flex-col overflow-hidden overscroll-none";
+
 export interface ForYouHomeProps {
-    packs: PublicJob[];
+    visiblePacks: PublicJob[];
+    activeIndex: number;
+    onActiveIndexChange: (index: number) => void;
+    activeJob: PublicJob | null;
+    onSkip: () => void;
     matchScores: Map<string, MatchScore | null> | null;
     resume: ResumeData | null;
     nowMs: number;
@@ -39,7 +49,11 @@ export interface ForYouHomeProps {
 }
 
 export function ForYouHome({
-    packs,
+    visiblePacks,
+    activeIndex,
+    onActiveIndexChange,
+    activeJob,
+    onSkip,
     matchScores,
     resume,
     nowMs,
@@ -55,22 +69,11 @@ export function ForYouHome({
     onReplaceResume,
     hasUsableResume = false,
 }: ForYouHomeProps) {
-    const [activeIndex, setActiveIndex] = useState(0);
-    const [skippedIds, setSkippedIds] = useState<Set<string>>(() => new Set());
     const [prefsChips, setPrefsChips] = useState(() =>
         buildPreferenceChips({ search: {}, resume, fitFacets: {} }),
     );
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
-
-    const visiblePacks = useMemo(
-        () => packs.filter((p) => !skippedIds.has(p.id)),
-        [packs, skippedIds],
-    );
-
-    useEffect(() => {
-        setActiveIndex((i) => (visiblePacks.length === 0 ? 0 : Math.min(i, visiblePacks.length - 1)));
-    }, [visiblePacks.length]);
 
     useEffect(() => {
         void (async () => {
@@ -79,8 +82,6 @@ export function ForYouHome({
             setPrefsChips(buildPreferenceChips({ search, resume, fitFacets: {} }));
         })();
     }, [resume]);
-
-    const activeJob = visiblePacks[activeIndex] ?? null;
 
     const prewarmDraft = useCallback(
         async (job: PublicJob) => {
@@ -146,36 +147,24 @@ export function ForYouHome({
         })();
     }, [activeJob, resume, applying, hydratedJobs, exportPdfForJob, onOpenApply]);
 
-    const handleSkip = useCallback(() => {
-        if (!activeJob) return;
-        setSkippedIds((prev) => new Set(prev).add(activeJob.id));
-        setActiveIndex((i) => Math.min(i + 1, Math.max(visiblePacks.length - 2, 0)));
-    }, [activeJob, visiblePacks.length]);
-
     const handleKeyDown = useCallback(
         (event: React.KeyboardEvent) => {
             if (event.key === "ArrowDown") {
                 event.preventDefault();
-                setActiveIndex((i) => Math.min(i + 1, visiblePacks.length - 1));
+                onActiveIndexChange(Math.min(activeIndex + 1, visiblePacks.length - 1));
             } else if (event.key === "ArrowUp") {
                 event.preventDefault();
-                setActiveIndex((i) => Math.max(i - 1, 0));
+                onActiveIndexChange(Math.max(activeIndex - 1, 0));
             }
         },
-        [visiblePacks.length],
+        [activeIndex, visiblePacks.length, onActiveIndexChange],
     );
 
     const showLoading = fitResolving || loading || !fitActive;
 
     return (
         <div
-            className={cn(
-                "flex min-h-[20rem] flex-1 flex-col overflow-hidden",
-                // Viewport-bounded column: topbar + shell padding + mobile tab bar clearance.
-                "h-[calc(100dvh-var(--topbar-h)-6.25rem-env(safe-area-inset-bottom,0px))]",
-                "max-h-[calc(100dvh-var(--topbar-h)-6.25rem-env(safe-area-inset-bottom,0px))]",
-                "lg:h-[calc(100dvh-var(--topbar-h)-3.25rem)] lg:max-h-[calc(100dvh-var(--topbar-h)-3.25rem)]",
-            )}
+            className={FOR_YOU_HOME_FRAME_CLASS}
             data-testid="for-you-home"
             onKeyDown={handleKeyDown}
             tabIndex={0}
@@ -187,9 +176,15 @@ export function ForYouHome({
                 {(!showLoading && visiblePacks.length > 0) || (hasUsableResume && onReplaceResume) ? (
                     <div className="flex items-center gap-3">
                         {!showLoading && visiblePacks.length > 0 && (
-                            <p className="text-xs text-muted-foreground tabular-nums">
-                                {activeIndex + 1} of {visiblePacks.length}
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-xs text-muted-foreground tabular-nums">
+                                    {activeIndex + 1} of {visiblePacks.length}
+                                </p>
+                                <ProgressBar
+                                    progress={((activeIndex + 1) / visiblePacks.length) * 100}
+                                    className="w-16"
+                                />
+                            </div>
                         )}
                         {hasUsableResume && onReplaceResume && (
                             <button
@@ -235,7 +230,7 @@ export function ForYouHome({
                 <ForYouDeck
                     packs={visiblePacks}
                     activeIndex={activeIndex}
-                    onActiveIndexChange={setActiveIndex}
+                    onActiveIndexChange={onActiveIndexChange}
                     matchScores={matchScores}
                     resume={resume}
                     nowMs={nowMs}
@@ -284,7 +279,7 @@ export function ForYouHome({
                             variant="outline"
                             className="h-11 min-h-11 flex-1 lg:flex-none"
                             data-testid="for-you-skip"
-                            onClick={handleSkip}
+                            onClick={onSkip}
                             disabled={applying}
                         >
                             Skip
@@ -292,6 +287,16 @@ export function ForYouHome({
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+/** Neutral first-paint column while résumé presence is still unknown.
+ *  Same frame as For you — never Search chrome. */
+export function ForYouHomePending() {
+    return (
+        <div className={FOR_YOU_HOME_FRAME_CLASS} data-testid="for-you-home-pending">
+            <div className="min-h-0 flex-1 border border-border bg-card" />
         </div>
     );
 }

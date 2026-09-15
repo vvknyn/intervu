@@ -2,11 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { ForYouPack } from "@/components/jobs/for-you/ForYouPack";
-import {
-    readPackScrollRegion,
-    shouldAdvancePackOnSwipe,
-    shouldAdvancePackOnWheel,
-} from "@/lib/jobs/for-you/deck-wheel";
+import { shouldPackGestureAdvanceDeck } from "@/lib/jobs/for-you/deck-wheel";
+import { resolveDescriptionHydration } from "@/lib/jobs/for-you/description-pane-state";
 import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -35,8 +32,15 @@ export function ForYouDeck({
     onActivePackChange,
     className,
 }: ForYouDeckProps) {
+    const rootRef = useRef<HTMLDivElement>(null);
     const wheelLock = useRef(false);
     const touchStart = useRef<{ x: number; y: number; target: EventTarget | null } | null>(null);
+    const activeIndexRef = useRef(activeIndex);
+    const packsLengthRef = useRef(packs.length);
+    const onActiveIndexChangeRef = useRef(onActiveIndexChange);
+    activeIndexRef.current = activeIndex;
+    packsLengthRef.current = packs.length;
+    onActiveIndexChangeRef.current = onActiveIndexChange;
 
     useEffect(() => {
         const job = packs[activeIndex];
@@ -45,21 +49,31 @@ export function ForYouDeck({
         if (next) onActivePackChange(next.id);
     }, [activeIndex, packs, onActivePackChange]);
 
-    const handleWheel = (event: React.WheelEvent) => {
-        if (!shouldAdvancePackOnWheel(event.target)) return;
-        if (wheelLock.current || packs.length <= 1) return;
-        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        if (Math.abs(event.deltaY) < (reduced ? 80 : 40)) return;
-        wheelLock.current = true;
-        if (event.deltaY > 0) {
-            onActiveIndexChange(Math.min(activeIndex + 1, packs.length - 1));
-        } else {
-            onActiveIndexChange(Math.max(activeIndex - 1, 0));
-        }
-        window.setTimeout(() => {
-            wheelLock.current = false;
-        }, reduced ? 0 : 280);
-    };
+    useEffect(() => {
+        const el = rootRef.current;
+        if (!el) return;
+        const onWheel = (event: WheelEvent) => {
+            const direction: 1 | -1 = event.deltaY > 0 ? 1 : -1;
+            if (!shouldPackGestureAdvanceDeck(event.target, el, direction)) return;
+            const length = packsLengthRef.current;
+            const index = activeIndexRef.current;
+            if (wheelLock.current || length <= 1) return;
+            const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            if (Math.abs(event.deltaY) < (reduced ? 80 : 40)) return;
+            event.preventDefault();
+            wheelLock.current = true;
+            if (direction > 0) {
+                onActiveIndexChangeRef.current(Math.min(index + 1, length - 1));
+            } else {
+                onActiveIndexChangeRef.current(Math.max(index - 1, 0));
+            }
+            window.setTimeout(() => {
+                wheelLock.current = false;
+            }, reduced ? 0 : 280);
+        };
+        el.addEventListener("wheel", onWheel, { passive: false });
+        return () => el.removeEventListener("wheel", onWheel);
+    }, []);
 
     const handleTouchStart = (event: React.TouchEvent) => {
         const touch = event.changedTouches[0];
@@ -79,9 +93,10 @@ export function ForYouDeck({
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const threshold = reduced ? 80 : 40;
         if (Math.abs(dy) < threshold || Math.abs(dy) <= Math.abs(dx)) return;
-        if (!shouldAdvancePackOnSwipe(dy, readPackScrollRegion(start.target))) return;
+        const direction: 1 | -1 = dy < 0 ? 1 : -1;
+        if (!shouldPackGestureAdvanceDeck(start.target, rootRef.current, direction)) return;
         wheelLock.current = true;
-        if (dy < 0) {
+        if (direction > 0) {
             onActiveIndexChange(Math.min(activeIndex + 1, packs.length - 1));
         } else {
             onActiveIndexChange(Math.max(activeIndex - 1, 0));
@@ -93,8 +108,8 @@ export function ForYouDeck({
 
     return (
         <div
-            className={cn("relative min-h-0 flex-1 pb-6", className)}
-            onWheel={handleWheel}
+            ref={rootRef}
+            className={cn("relative min-h-0 flex-1 overflow-hidden pb-6", className)}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
         >
@@ -102,15 +117,15 @@ export function ForYouDeck({
                 const offset = index - activeIndex;
                 if (offset < 0 || offset > 2) return null;
                 const isActive = offset === 0;
-                const hydrated = hydratedJobs.get(pack.id);
+                const hydrated = resolveDescriptionHydration(pack, hydratedJobs.get(pack.id));
                 return (
                     <div
                         key={pack.id}
                         className={cn(
-                            "h-full min-h-0 transition-transform motion-reduce:transition-none",
+                            "absolute inset-x-0 top-0 bottom-6 min-h-0 transition-transform motion-reduce:transition-none",
                             isActive
-                                ? "relative z-20"
-                                : "absolute inset-x-0 top-0 z-10 h-full pointer-events-none",
+                                ? "z-20"
+                                : "z-10 pointer-events-none",
                         )}
                         style={
                             isActive
@@ -123,12 +138,12 @@ export function ForYouDeck({
                     >
                         <ForYouPack
                             job={pack}
-                            hydratedJob={hydrated?.job}
-                            descriptionPending={hydrated?.descriptionPending}
+                            hydratedJob={hydrated.job}
+                            descriptionPending={hydrated.descriptionPending}
                             matchScore={matchScores?.get(pack.id) ?? null}
                             resume={resume}
                             nowMs={nowMs}
-                            className={cn(!isActive && "opacity-90")}
+                            className={cn("h-full", !isActive && "opacity-90")}
                         />
                     </div>
                 );
