@@ -28,7 +28,10 @@ export default defineConfig({
     ['json', { outputFile: 'playwright-report/results.json' }],
   ],
   use: {
-    baseURL: 'http://localhost:3000',
+    // Override lets a spec run against a manually-managed server (e.g. a
+    // prod `next build && next start` on a non-default port) instead of the
+    // `npm run dev` webServer below.
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -40,11 +43,29 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    // Explicit viewport projects for jobs-first-paint.spec.ts only — scoped
+    // with testMatch so they don't run every other spec in the repo a
+    // second and third time.
+    {
+      name: 'desktop-1440',
+      use: { viewport: { width: 1440, height: 900 } },
+      testMatch: /jobs-first-paint\.spec\.ts/,
+    },
+    {
+      name: 'mobile-390',
+      use: { viewport: { width: 390, height: 844 } },
+      testMatch: /jobs-first-paint\.spec\.ts/,
+    },
   ],
-  webServer: {
-    command: 'npm run dev', // Use dev for local testing
-    url: 'http://localhost:3000',
-    reuseExistingServer: true,
-    timeout: 120000,
-  },
+  // When PLAYWRIGHT_BASE_URL points at an externally-managed server, don't
+  // also launch `npm run dev` — running a dev server and a prod build
+  // concurrently in the same worktree corrupts the .next build output.
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command: 'npm run dev', // Use dev for local testing
+        url: 'http://localhost:3000',
+        reuseExistingServer: true,
+        timeout: 120000,
+      },
 });
