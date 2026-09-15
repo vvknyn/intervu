@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { ForYouPack } from "@/components/jobs/for-you/ForYouPack";
 import { shouldPackGestureAdvanceDeck } from "@/lib/jobs/for-you/deck-wheel";
+import { resolveDescriptionHydration } from "@/lib/jobs/for-you/description-pane-state";
 import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -116,7 +117,7 @@ export function ForYouDeck({
                 const offset = index - activeIndex;
                 if (offset < 0 || offset > 2) return null;
                 const isActive = offset === 0;
-                const hydrated = hydratedJobs.get(pack.id);
+                const hydrated = resolveDescriptionHydration(pack, hydratedJobs.get(pack.id));
                 return (
                     <div
                         key={pack.id}
@@ -137,8 +138,8 @@ export function ForYouDeck({
                     >
                         <ForYouPack
                             job={pack}
-                            hydratedJob={hydrated?.job}
-                            descriptionPending={hydrated?.descriptionPending}
+                            hydratedJob={hydrated.job}
+                            descriptionPending={hydrated.descriptionPending}
                             matchScore={matchScores?.get(pack.id) ?? null}
                             resume={resume}
                             nowMs={nowMs}

@@ -35,6 +35,14 @@ export function inferReasons(
     // breakdown by construction (the breakdown shows all components, unfiltered).
     // Bullets below carry only evidence the breakdown does not already state.
 
+    // Chips (like bullets) must carry only résumé∩job evidence — a job-only
+    // fact (e.g. its own work_type) is not something we inferred, it's
+    // already stated verbatim elsewhere on the card (the stated chips row,
+    // "The position"), and presenting it here reads as a match reason even
+    // when the résumé has no overlap with it at all. Do not add a job-only
+    // field as a chip; every push below must be gated on an overlap with
+    // `resume`.
+
     if (resume) {
         const titleTokens = meaningfulTitleTokens(job.title ?? "");
         const resumeTitles = resume.experience.map((e) => e.role).filter(Boolean);
@@ -59,9 +67,6 @@ export function inferReasons(
             }
         }
     }
-
-    const work = job.work_type?.replace(/_/g, " ");
-    if (work && chips.length < MAX_CHIPS) chips.push(work);
 
     if (score) {
         // Only fall back to "limited overlap" when the breakdown itself has nothing

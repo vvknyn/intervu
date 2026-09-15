@@ -94,4 +94,36 @@ describe("inferReasons", () => {
         const result = inferReasons(mkJob({ title: "Chef" }), null, null);
         assert.ok(result.bullets.some((b) => b.toLowerCase().includes("résumé")));
     });
+
+    /**
+     * Defect: chips included the job's OWN `work_type` unconditionally
+     * (job-only fact, already shown twice elsewhere on the card), which
+     * reads as an inferred match reason even when the résumé has no
+     * overlap with it — e.g. a user who wants Remote sees "onsite" listed
+     * as a reason an onsite role matched them. Chips must carry only
+     * résumé∩job overlap evidence.
+     */
+    it("never surfaces a job-only fact (work_type) as a chip when the résumé has no overlap with this job at all", () => {
+        const job = mkJob({
+            title: "Warehouse Associate",
+            work_type: "onsite",
+            tags: ["forklift", "inventory"],
+        });
+        const resume: ResumeData = {
+            ...mkResume(),
+            profile: { ...mkResume().profile, profession: "Software Engineer" },
+        };
+        const result = inferReasons(job, null, resume);
+        assert.ok(
+            !result.chips.some((chip) => chip.toLowerCase().includes("onsite")),
+            `chips must not include the job's own work_type as a fabricated reason, got: ${JSON.stringify(result.chips)}`,
+        );
+    });
+
+    it("still surfaces real résumé∩job overlap as a chip, without ever including the job's own work_type", () => {
+        const job = mkJob({ work_type: "onsite", tags: ["javascript", "react"] });
+        const result = inferReasons(job, null, mkResume());
+        assert.ok(result.chips.some((chip) => chip.toLowerCase() === "javascript" || chip.toLowerCase() === "react"));
+        assert.ok(!result.chips.some((chip) => chip.toLowerCase().includes("onsite")));
+    });
 });
