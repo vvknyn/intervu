@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Request } from '@playwright/test';
 
 /**
  * TEST GROUP: JOBS-FIRST-PAINT — /jobs must never paint a layout it will replace.
@@ -36,20 +36,26 @@ import { test, expect, type Page } from '@playwright/test';
  * TopBar.tsx) OUTSIDE `<main>` (layout.tsx: TopBar at line 202, `<main>` at
  * 209 — siblings, not parent/child), and `headerDockActive` gates it on the
  * exact same résumé-presence race. A separate, narrower walk covers this:
- * only an actual text-entry control (`input`/`textarea`/`select`, or
- * `role="searchbox"|"combobox"`) counts, never the header's own nav links or
- * buttons — those render on every /jobs visit regardless of home view and
- * are legitimate shared chrome, not a competing view.
+ * only an actual TEXT-ENTRY control counts — `textarea`/`select`,
+ * `role="searchbox"|"combobox"`, or an `<input>` with no `type` or a
+ * text-like one (text/search/email/url/tel/number) — never a checkbox,
+ * radio, range, or other non-text input, and never the header's own nav
+ * links or buttons. Those render on every /jobs visit regardless of home
+ * view and are legitimate shared chrome, not a competing view.
  *
  * SAMPLING IS EVENT-TIED, NOT CLOCK-TIED. Every test below samples from
  * `page.goto(..., { waitUntil: 'commit' })` — the earliest checkpoint
- * Playwright offers — through the real `/api/auth/session` round trip that
- * settles `authReady`, the last input `resolveJobsHomeView` depends on for
- * a guest whose résumé state is already synchronous. The loop's exit
- * condition is that request's own `requestfinished` event; there is no
- * `Date.now()` deadline anywhere in this file. Playwright's own per-test
- * timeout is the only outer bound, exactly as it is for every other awaited
- * call here.
+ * Playwright offers — through the real request(s) that settle the page's
+ * unresolved inputs: `/api/auth/session` always (settles `authReady`), plus
+ * TC-PAINT-004's own Server Action round trip when a signed-in user's
+ * résumé presence also depends on the network. The loop's exit condition is
+ * each of those requests' own `requestfinished` event, never `networkidle`
+ * (which hangs well past budget for a signed-in fixture) and never a
+ * `Date.now()` deadline. A request finishing only proves the NETWORK
+ * settled, not that React has painted the result — `pollForSample` below
+ * covers that gap for every "what does the page show right now" assertion,
+ * bounded only by Playwright's own expect timeout, the same outer bound
+ * every `toBeVisible({ timeout })` call here already relies on.
  */
 
 // Real key: `LAST_JOBS_HOME_VIEW_KEY` in src/lib/jobs/for-you/last-home-view.ts.
@@ -147,12 +153,14 @@ async function seedHint(page: Page, value: 'for-you' | 'search') {
 // synchronously before the browser paints) hydrates this into `resume`
 // state for a signed-out guest, which is what lets `resumeOnFile` resolve
 // `true` — and For-you render — without waiting on any network round trip.
-// This is the "or local résumé can answer" path the fix commit (12476231,
-// "stop For you Search flash") names alongside the returning-user case;
-// faking the returning-user case itself would mean faking
-// `hasUsableResumeOnFile` (src/actions/resume.ts), a real `"use server"`
-// Server Action over the RSC Flight wire protocol, not a plain JSON
-// endpoint `page.route` can intercept.
+// This is the "local résumé" path the fix commit (12476231, "stop For you
+// Search flash") names alongside the returning-user case, whose résumé
+// lives only on the server; TC-PAINT-004 below covers that second path by
+// actually intercepting `hasUsableResumeOnFile`'s (src/actions/resume.ts)
+// real Server Action round trip — a POST to the current URL carrying a
+// `Next-Action` header, not a named JSON path, but still a real
+// request/response cycle `page.route` can match structurally and rewrite,
+// same as every other fixture in this file.
 async function seedGuestResume(page: Page) {
     await page.addInitScript(
         ([enabledKey, resumeKey, resume]) => {
@@ -166,6 +174,45 @@ async function seedGuestResume(page: Page) {
         },
         [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, SYNTHETIC_RESUME],
     );
+}
+
+// Fabricated user only (no real account) — same fictitious person as
+// SYNTHETIC_RESUME, now on the "résumé already saved to their account"
+// side of the split this spec covers instead of the "local device" side.
+const FAKE_SERVER_RESUME_USER = {
+    uid: 'e2e-first-paint-server-resume-uid',
+    email: 'sam.rivera.dev@example.com',
+    displayName: 'Sam Rivera',
+};
+
+// Intercepts the real `hasUsableResumeOnFile` Server Action (src/actions/
+// resume.ts:21) — a POST to the current page URL carrying a `Next-Action`
+// header, per Next.js's Server Actions wire protocol — and flips its one
+// boolean field in the real response body. The request/response cycle is
+// real; only the answer is invented, same as `delaySession` inventing the
+// session endpoint's answer. Returns a settle-check tied to the ACTUAL
+// resume-presence response landing (identified by its own `"hasResume"`
+// field), not merely "some Server Action POST finished" — /jobs fires more
+// than one Server Action on mount (e.g. usePursuits), and a settle check
+// keyed on the header alone would race whichever one happens to land first.
+async function forceServerResumePresent(page: Page): Promise<(req: Request) => boolean> {
+    let resumeResponseSettled = false;
+    await page.route(
+        (url) => url.pathname === '/jobs',
+        async (route) => {
+            const req = route.request();
+            if (req.method() !== 'POST' || !req.headers()['next-action']) {
+                await route.continue();
+                return;
+            }
+            const response = await route.fetch();
+            const original = await response.text();
+            const body = original.replace('"hasResume":false', '"hasResume":true');
+            if (original.includes('"hasResume"')) resumeResponseSettled = true;
+            await route.fulfill({ response, body });
+        },
+    );
+    return () => resumeResponseSettled;
 }
 
 // Runs entirely inside the page (page.evaluate serializes this closure — no
@@ -185,8 +232,12 @@ function sampleMainForCompetingView({ forYouId, shellId }: { forYouId: string; s
 
     const INTERACTIVE_TAGS = new Set(['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'H1', 'H2', 'H3']);
     const INTERACTIVE_ROLES = new Set(['button', 'link', 'searchbox', 'combobox', 'listbox', 'tab']);
-    const TEXT_ENTRY_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
     const TEXT_ENTRY_ROLES = new Set(['searchbox', 'combobox']);
+    // Deliberately narrower than "is this an <input>": a checkbox, radio,
+    // range, color, file, or submit/button/reset/hidden/image input is not
+    // a text-entry control a visitor could type into, so it must not count
+    // as a competing header surface.
+    const TEXT_ENTRY_INPUT_TYPES = new Set(['text', 'search', 'email', 'url', 'tel', 'number']);
 
     function isCompetingSurface(el: Element): boolean {
         if (!isVisibleBox(el)) return false;
@@ -194,6 +245,16 @@ function sampleMainForCompetingView({ forYouId, shellId }: { forYouId: string; s
         if (INTERACTIVE_TAGS.has(el.tagName)) return true;
         const role = el.getAttribute('role');
         return !!role && INTERACTIVE_ROLES.has(role);
+    }
+
+    function isTextEntryControl(el: Element): boolean {
+        if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
+        if (el.tagName === 'INPUT') {
+            const type = el.getAttribute('type');
+            return type === null || TEXT_ENTRY_INPUT_TYPES.has(type.toLowerCase());
+        }
+        const role = el.getAttribute('role');
+        return !!role && TEXT_ENTRY_ROLES.has(role);
     }
 
     function describe(el: Element): CompetingSurface {
@@ -207,12 +268,10 @@ function sampleMainForCompetingView({ forYouId, shellId }: { forYouId: string; s
     // regardless of home view and must stay allowed; only a real text-entry
     // control counts as a competing surface out here.
     let headerHit: Element | null = null;
-    const textEntryEls = document.body.querySelectorAll('input, textarea, select, [role="searchbox"], [role="combobox"]');
-    for (const el of Array.from(textEntryEls)) {
+    const candidateEls = document.body.querySelectorAll('input, textarea, select, [role="searchbox"], [role="combobox"]');
+    for (const el of Array.from(candidateEls)) {
         if (main && (main === el || main.contains(el))) continue;
-        const role = el.getAttribute('role');
-        const isTextEntry = TEXT_ENTRY_TAGS.has(el.tagName) || (!!role && TEXT_ENTRY_ROLES.has(role));
-        if (isTextEntry && isVisibleBox(el)) { headerHit = el; break; }
+        if (isTextEntryControl(el) && isVisibleBox(el)) { headerHit = el; break; }
     }
     const headerTextEntry = headerHit ? describe(headerHit) : null;
 
@@ -279,36 +338,64 @@ async function competingSurfaceSelfTest(page: Page) {
 
 // Single navigation+sampling chokepoint shared by every test below (single
 // source of truth for "no absolute deadlines"): delays `/api/auth/session`
-// exactly as before, but now navigates at `commit` and samples continuously
-// until that request's own `requestfinished` event fires — never a clock —
-// then takes one more sample, waits for real network idle, and samples the
-// settled state.
-async function gotoAndSampleUntilSettled(page: Page, user: object | null = null): Promise<{ samples: PageSample[]; settled: PageSample }> {
+// exactly as before, navigates at `commit`, and samples continuously until
+// EVERY one of the page's unresolved network inputs has its own
+// `requestfinished` event — `/api/auth/session` always, plus whatever
+// `extraSettleChecks` a fixture needs (TC-PAINT-004 adds its Server Action
+// round trip) — then takes one more sample right after the last one lands.
+// Never `networkidle`: a signed-in fixture never actually goes idle within
+// budget, so this file has no networkidle wait at all — see `pollForSample`
+// for how the "what does the page show right now" assertions cover that gap
+// instead.
+async function gotoAndSampleUntilSettled(
+    page: Page,
+    { user = null, extraSettleChecks = [] }: { user?: object | null; extraSettleChecks?: Array<(req: Request) => boolean> } = {},
+): Promise<{ samples: PageSample[] }> {
     await delaySession(page, user, AUTH_DELAY_MS);
-    let sessionSettled = false;
+    const settleChecks: Array<(req: Request) => boolean> = [
+        (req) => req.url().includes('/api/auth/session'),
+        ...extraSettleChecks,
+    ];
+    const settledFlags = settleChecks.map(() => false);
     page.on('requestfinished', (req) => {
-        if (req.url().includes('/api/auth/session')) sessionSettled = true;
+        settleChecks.forEach((check, i) => {
+            if (!settledFlags[i] && check(req)) settledFlags[i] = true;
+        });
     });
 
     await page.goto('/jobs', { waitUntil: 'commit' });
 
     const samples: PageSample[] = [];
-    while (!sessionSettled) {
+    while (settledFlags.some((settled) => !settled)) {
         samples.push(await sampleMain(page));
         await page.waitForTimeout(20);
     }
-    samples.push(await sampleMain(page)); // one more right after the request lands
-    await page.waitForLoadState('networkidle');
-    const settled = await sampleMain(page); // "no flip" — past every unresolved input
+    samples.push(await sampleMain(page)); // one more right after the last input landed
 
-    return { samples, settled };
+    return { samples };
+}
+
+// Polls the live DOM until `predicate` holds, returning the sample that
+// satisfied it. The settle checks above only prove a REQUEST finished, not
+// that React has painted its result — under CPU throttling (this file's own
+// throttled proof run) rendering can lag well behind network completion, so
+// a single sample taken right after settling can read a stale DOM. Bounded
+// only by Playwright's own expect timeout, never `Date.now()` — the same
+// idiom as every `toBeVisible({ timeout })` call in this file.
+async function pollForSample(page: Page, predicate: (s: PageSample) => boolean): Promise<PageSample> {
+    let last!: PageSample;
+    await expect.poll(async () => {
+        last = await sampleMain(page);
+        return predicate(last);
+    }).toBe(true);
+    return last;
 }
 
 test.describe('JOBS-FIRST-PAINT — no layout is painted then replaced', () => {
     test('TC-PAINT-001: a guest with a résumé cached locally never sees a competing Search/header view before For-you settles', async ({ page }) => {
         await seedGuestResume(page);
 
-        const { samples, settled } = await gotoAndSampleUntilSettled(page);
+        const { samples } = await gotoAndSampleUntilSettled(page);
 
         // Run after sampling: <main> may not exist at `commit`.
         const selfTest = await competingSurfaceSelfTest(page);
@@ -338,8 +425,10 @@ test.describe('JOBS-FIRST-PAINT — no layout is painted then replaced', () => {
         // pass by having nothing to flash from.
         expect(samples.some((s) => s.forYouLaidOut), 'For-you root never laid out at all during the sampled window').toBe(true);
 
-        // No flip: still For-you, still no competing surface, after the
-        // presence-settling request finished AND the network went idle.
+        // No flip: poll until the page is actually showing the settled
+        // state — a single sample taken right after the network settles can
+        // read a stale DOM under load (see pollForSample's doc comment).
+        const settled = await pollForSample(page, (s) => s.forYouLaidOut && !s.competing && !s.headerTextEntry);
         expect(settled.competing).toBeNull();
         expect(settled.headerTextEntry).toBeNull();
         expect(settled.forYouLaidOut, 'flipped away from For-you once presence fully settled').toBe(true);
@@ -350,14 +439,18 @@ test.describe('JOBS-FIRST-PAINT — no layout is painted then replaced', () => {
         // competing view while UNKNOWN must not suppress it once the answer
         // is a real "no".
         await seedHint(page, 'search');
-        const { settled } = await gotoAndSampleUntilSettled(page);
+        await gotoAndSampleUntilSettled(page);
 
         await expect(page.getByTestId('search-live-count')).toBeVisible({ timeout: 15_000 });
 
         // Self-validation, positive control: proving the SAME detector finds
         // a competing surface on a page that is genuinely, legitimately
         // showing Search keeps TC-PAINT-001's absence claim honest — if this
-        // fails, that silence means nothing.
+        // fails, that silence means nothing. Polled AFTER the toBeVisible
+        // above, never from a snapshot taken before Search was confirmed
+        // visible — under CPU throttling React can still be painting when
+        // the network settles (see pollForSample's doc comment).
+        const settled = await pollForSample(page, (s) => s.competing !== null);
         expect(
             settled.competing,
             'structural detector found no interactive/heading element in <main> on a real Search view — TC-PAINT-001 would pass vacuously',
@@ -377,5 +470,62 @@ test.describe('JOBS-FIRST-PAINT — no layout is painted then replaced', () => {
             samples.some((s) => s.forYouLaidOut),
             `For-you root laid out for a visitor with no résumé and no hint: ${JSON.stringify(samples.filter((s) => s.forYouLaidOut))}`,
         ).toBe(false);
+    });
+
+    test('TC-PAINT-004: a returning signed-in visitor whose résumé lives only on the server never sees a competing Search/header view before presence settles', async ({ page }) => {
+        // The case a mutant reverting the `authReady` handling (page.tsx
+        // ~1962-1974 — `useResumePresence(uid)` without `authReady`,
+        // `resumeOnFile = hasUsableResume || resumeKnownOnServer`) escapes:
+        // no local résumé (`hasUsableResume` is false), so the ONLY path to
+        // `resumeOnFile === true` is the real server round trip, gated on
+        // `authReady`. `seedHint('for-you')` makes the fixed code render
+        // For-you optimistically from the start; the mutant instead reads a
+        // premature uid=null tick as a known "no résumé" and paints Search
+        // before the real answer lands.
+        await seedHint(page, 'for-you');
+        const resumeActionSettled = await forceServerResumePresent(page);
+
+        const { samples } = await gotoAndSampleUntilSettled(page, {
+            user: FAKE_SERVER_RESUME_USER,
+            extraSettleChecks: [resumeActionSettled],
+        });
+
+        // /jobs fires more than one Server Action on mount (e.g.
+        // usePursuits); our route only needs to have seen the résumé one
+        // settle, but another matching in-flight `route.fetch()` can still
+        // be pending here and would otherwise abort loudly when the test's
+        // browser context closes. Nothing below needs the route anymore.
+        await page.unrouteAll({ behavior: 'ignoreErrors' });
+
+        // Run after sampling: <main> may not exist at `commit`.
+        const selfTest = await competingSurfaceSelfTest(page);
+        expect(
+            selfTest.detected,
+            `structural in-main detector failed to see its own injected probe — it is blind, so the absence claim below would be meaningless: ${JSON.stringify(selfTest)}`,
+        ).toBe(true);
+        expect(
+            selfTest.headerDetected,
+            `structural header detector failed to see its own injected probe — it is blind, so the absence claim below would be meaningless: ${JSON.stringify(selfTest)}`,
+        ).toBe(true);
+
+        const mainSightings = samples.filter((s) => s.competing).map((s) => s.competing);
+        expect(
+            mainSightings,
+            `a competing view painted inside <main> for a returning signed-in user before server résumé presence settled: ${JSON.stringify(mainSightings)}`,
+        ).toEqual([]);
+        const headerSightings = samples.filter((s) => s.headerTextEntry).map((s) => s.headerTextEntry);
+        expect(
+            headerSightings,
+            `a text-entry control painted in the header before server résumé presence settled: ${JSON.stringify(headerSightings)}`,
+        ).toEqual([]);
+
+        expect(samples.some((s) => s.forYouLaidOut), 'For-you root never laid out at all during the sampled window').toBe(true);
+
+        // No flip: poll until the page is actually showing the settled
+        // state, same reasoning as TC-PAINT-001.
+        const settled = await pollForSample(page, (s) => s.forYouLaidOut && !s.competing && !s.headerTextEntry);
+        expect(settled.competing).toBeNull();
+        expect(settled.headerTextEntry).toBeNull();
+        expect(settled.forYouLaidOut, 'flipped away from For-you once server résumé presence fully settled').toBe(true);
     });
 });
