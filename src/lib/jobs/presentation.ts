@@ -1501,6 +1501,33 @@ export function searchResultLine(input: {
 }
 
 /**
+ * The masthead's live-count line (the "N live roles" link above the search
+ * box, page.tsx's `liveCountEl`) — reads `null` when the marketing stats
+ * probe came back empty (`getMarketingStatsAction`), so the caller can omit
+ * the whole line rather than render a stale or fabricated number.
+ *
+ * Honesty fix (intervu first-screen audit): this count
+ * (`getCachedMarketTrends().liveJobs`, market-trends.ts) is
+ * `vacancy_status = "active"` with NO posted-date filter at all, while the
+ * result line just below it
+ * (`searchResultLine`) defaults to the last 30 days — so the same masthead
+ * used to show "2,339,946 live roles" beside "111,151 roles from the last 30
+ * days" with nothing explaining the ~21x gap. The two counts are NOT a clean
+ * subset/superset pair (this one's `active`-only; the result line's
+ * `!= "closed"` also includes the `unknown` status — see `LIVE_VACANCY_FILTER`
+ *'s own comment, meilisearch.ts), so the fix does not claim one literally
+ * contains the other. What IS literally true of every count this function
+ * renders: it applies no date window. Naming that ("from any time") gives the
+ * masthead its own stated scope, parallel to the result line's "from the last
+ * 30 days" — deliberately not "all-time", which already names a DIFFERENT
+ * metric (`totalTracked`, market-trends.ts) and would collide with it.
+ */
+export function liveCountLine(count: CorpusCount | null): string | null {
+    if (count === null) return null;
+    return `${formatCorpusCount(count)} live roles from any time`;
+}
+
+/**
  * True iff every token of `q` appears as a token in `title` — a startsWith
  * tolerance on each pair lets "manager" match "managers" (title token
  * startsWith query token) without pulling in unrelated titles. Both sides

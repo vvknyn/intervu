@@ -116,6 +116,13 @@
 
 :root {
   --mobile-tabbar-h: 56px;
+  /* `mobile-search-cta` (app/jobs/page.tsx) sets its own height from this —
+     border-t (1px) + h-11 button (44px) + 10px top/bottom clearance from
+     centering inside it. The landing scroll area's bottom padding reads the
+     same token (never a restated px number) so the two can't drift apart:
+     that drift — a flat `pb-20` guess that predated this bar's real height —
+     is exactly what left the bar covering the last inch of content. */
+  --mobile-search-cta-h: 65px;
   /* The sticky header's height. TopBar SETS its own height from this, so the
      token can't drift from the bar it describes, and anything that has to
      clear the header — a scroll target's `scroll-margin-top`, an

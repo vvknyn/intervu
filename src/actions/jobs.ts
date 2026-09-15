@@ -12,6 +12,7 @@ import {
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
+import { resolveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
@@ -87,6 +88,7 @@ export async function searchJobsAction(
     searchId: string;
     meta?: ShieldSearchServeMeta;
     defaultedLocation?: string;
+    remoteAnywhere?: boolean;
     unmatchedPlaceMentions?: string[];
     /** True when the stored description is still a stub AND the live fill
      *  hit its deadline while this request awaited it — the hit's
@@ -372,14 +374,29 @@ const getCachedDefaultBrowse = unstable_cache(
  */
 export async function getDefaultBrowseAction(
   suppressLocationDefault: boolean,
-): Promise<JobSearchResult & { searchId: string; meta?: SearchServeMeta; defaultedLocation?: string }> {
+): Promise<
+  JobSearchResult & {
+    searchId: string;
+    meta?: SearchServeMeta;
+    defaultedLocation?: string;
+    /** See `LocationDefaultApplication.remoteAnywhere` (lib/geo/ip-default.ts)
+     *  — same gate as `defaultedLocation` here too: `placesForCountry` calls
+     *  the same `placeClause(..., { country: true })` `resolveLocationDefault`
+     *  does, so it's read off `places` itself rather than assumed. */
+    remoteAnywhere?: boolean;
+  }
+> {
   const searchId = randomUUID();
   const ip = suppressLocationDefault ? null : await getClientIp();
   const iso2 = ip ? await countryLookup(ip) : null;
   const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
   try {
     const result = await getCachedDefaultBrowse(places);
-    return { ...result, searchId, ...(places ? { defaultedLocation: iso2! } : {}) };
+    return {
+      ...result,
+      searchId,
+      ...(places ? { defaultedLocation: iso2!, remoteAnywhere: places.some((place) => place.remoteAnywhere) } : {}),
+    };
   } catch (e) {
     console.error("[jobs-default-browse] action transport error:", e);
     return {
@@ -412,27 +429,32 @@ export async function getDefaultBrowseAction(
  * limit both scopes open with.
  */
 const getCachedBoardCountNew = unstable_cache(
-  async (iso2: string | null, bucketedCursorIso: string): Promise<number> => {
+  async (iso2: string | null, bucketedCursorIso: string): Promise<CorpusCount> => {
     const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
     const result = await runSearch(
       { postedSinceMs: Date.parse(bucketedCursorIso), places, limit: 1, withFacets: false },
       {},
     );
-    return result.total;
+    return resolveCorpusCount(result);
   },
   ["jobs-count-new-board"],
   { revalidate: 900 },
 );
 
+/** Denial/transport-error result: an honest exact zero, not a floor — the
+ *  caller renders nothing for it either way, but it must never be mistaken
+ *  for "the corpus saturated at zero." */
+const COUNT_NEW_UNAVAILABLE: CorpusCount = { kind: "exact", value: 0 };
+
 export async function countNewSinceAction(
   input: { scope: "board" } | { scope: "saved"; params: JobsUrlState },
   cursorIso: string,
-): Promise<number> {
+): Promise<CorpusCount> {
   // Same per-IP chokepoint as searchJobsAction/getRelatedJobsAction — a
   // count is an accelerant for a banner, never a primary result, so denial
   // is 0 (renders nothing) rather than an error the caller must special-case.
   const ip = await getClientIp();
-  if (!allowSearchRequest(ip)) return 0;
+  if (!allowSearchRequest(ip)) return COUNT_NEW_UNAVAILABLE;
 
   const bucketedCursor = bucketCursorToUtcDay(cursorIso);
 
@@ -442,14 +464,18 @@ export async function countNewSinceAction(
       return await getCachedBoardCountNew(iso2, bucketedCursor);
     } catch (e) {
       console.error("[jobs-count-new] board scope transport error:", e);
-      return 0;
+      return COUNT_NEW_UNAVAILABLE;
     }
   }
 
   // Saved scope: the saved search's own filters (via the shared
   // `jobSearchParamsFromUrlState` mapping — also used by the digest's
   // per-saved-search fetch, lib/email/digest/collect.ts) plus the same
-  // posted_ts cursor clause board scope uses above.
+  // posted_ts cursor clause board scope uses above. Resolved through the
+  // same `resolveCorpusCount` chokepoint jobs/page.tsx uses — `total` alone
+  // saturates at Meilisearch's 100k cap exactly like any other search count
+  // (see corpus-count.ts), so a bare `result.total` here would eventually
+  // print a "new roles" banner claiming precisely 100,000 forever.
   const result = await runSearch(
     {
       ...jobSearchParamsFromUrlState(input.params, Date.parse(bucketedCursor)),
@@ -458,7 +484,7 @@ export async function countNewSinceAction(
     },
     { clientIp: ip, countryLookup },
   );
-  return result.total;
+  return resolveCorpusCount(result);
 }
 
 /**

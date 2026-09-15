@@ -21,7 +21,53 @@ const CHANGED = [CHIP, FILTER_CHIPS_ROW, FACET_BAR, PAGE, TOPBAR, SAVED_SEARCHES
 
 const pristine: FilterState = { ...PRISTINE_FILTER_STATE };
 
+/**
+ * Every `chipVariants({...})` call's `active:` value, verbatim — regardless
+ * of key order or how many other keys (e.g. `interactive: true`) share the
+ * object literal. Assertions below match on the VALUE, not the literal
+ * object text, so an unrelated key added to the call can't break them.
+ */
+function chipVariantsActiveValues(src: string): string[] {
+    const values: string[] = [];
+    const callRe = /chipVariants\(\{([^{}]*)\}\)/g;
+    let call: RegExpExecArray | null;
+    while ((call = callRe.exec(src))) {
+        const props = call[1];
+        let depth = 0;
+        let start = 0;
+        const parts: string[] = [];
+        for (let i = 0; i < props.length; i++) {
+            const ch = props[i];
+            if (ch === "(" || ch === "[") depth++;
+            else if (ch === ")" || ch === "]") depth--;
+            else if (ch === "," && depth === 0) {
+                parts.push(props.slice(start, i));
+                start = i + 1;
+            }
+        }
+        parts.push(props.slice(start));
+        for (const part of parts) {
+            const m = part.match(/^\s*active\s*:\s*(.*?)\s*$/);
+            if (m) values.push(m[1]);
+        }
+    }
+    return values;
+}
+
 describe("jobs filter toolbar chrome", () => {
+    it("chipVariantsActiveValues reads `active` by key, not position or exclusivity", () => {
+        assert.deepEqual(
+            chipVariantsActiveValues("chipVariants({ interactive: true, active: x })"),
+            ["x"],
+            "active listed after another key must still be found",
+        );
+        assert.deepEqual(
+            chipVariantsActiveValues("chipVariants({ active: a || b, interactive: true })"),
+            ["a || b"],
+            "a compound active expression must not be cut off at its own || or at the next key",
+        );
+    });
+
     it("chip active variant uses a 3px brand blade, tinted fill, squared geometry", () => {
         const src = readFileSync(CHIP, "utf8");
         assert.match(src, /border-l-\[3px\]/);
@@ -146,7 +192,10 @@ describe("jobs filter toolbar chrome", () => {
         const src = readFileSync(TOPBAR, "utf8");
         assert.match(src, /data-testid="topbar-docked-active-filters"/);
         assert.match(src, /jobs-instrument-rule/);
-        assert.match(src, /chipVariants\(\{ active: true \}\)/);
+        assert.ok(
+            chipVariantsActiveValues(src).includes("true"),
+            "a docked active-filter chip should render chipVariants({ active: true, ...}) — an already-applied filter is unconditionally active",
+        );
         assert.match(src, /filterCountBadgeClass/);
         assert.match(src, /bg-muted lg:block/);
     });
@@ -217,10 +266,24 @@ describe("jobs filter toolbar chrome", () => {
     it("Filters toggle is active only when expanded, not when filter count is nonzero", () => {
         const page = readFileSync(PAGE, "utf8");
         const topbar = readFileSync(TOPBAR, "utf8");
-        assert.match(page, /chipVariants\(\{ active: filtersOpen \}\)/);
-        assert.doesNotMatch(page, /chipVariants\(\{ active: filtersOpen \|\| activeCount/);
-        assert.match(topbar, /chipVariants\(\{ active: docked\.filtersExpanded \}\)/);
-        assert.doesNotMatch(topbar, /chipVariants\(\{ active: docked\.filtersExpanded \|\| docked\.filterCount/);
+        const pageActive = chipVariantsActiveValues(page);
+        const topbarActive = chipVariantsActiveValues(topbar);
+
+        assert.ok(
+            pageActive.includes("filtersOpen"),
+            "the undocked Filters toggle should key off filtersOpen alone",
+        );
+        assert.ok(
+            topbarActive.includes("docked.filtersExpanded"),
+            "the docked Filters toggle should key off docked.filtersExpanded alone",
+        );
+        for (const value of [...pageActive, ...topbarActive]) {
+            assert.doesNotMatch(
+                value,
+                /activeCount|filterCount/,
+                `chipVariants active value "${value}" folds a filter count into the toggle's active state`,
+            );
+        }
     });
 
     it("Rank by fit and compact Save search use quiet text, not chipVariants", () => {

@@ -5,11 +5,14 @@ import { CircleNotch } from "@phosphor-icons/react";
 import { JobDescription } from "@/components/jobs/JobDetail";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
+import { Badge } from "@/components/ui/badge";
 import { chipVariants } from "@/components/ui/chip";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { displayCompanyBrand, locationText, prettyEnum } from "@/lib/jobs/presentation";
 import { inferReasons } from "@/lib/jobs/for-you/infer-reasons";
+import { descriptionPaneState } from "@/lib/jobs/for-you/description-pane-state";
 import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
 import { MATCH_CHIP_BRAND_THRESHOLD, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -26,17 +29,49 @@ export interface ForYouPackProps {
     className?: string;
 }
 
-function FitScoreMark({ score }: { score: MatchScore }) {
-    const strong = score.total >= MATCH_CHIP_BRAND_THRESHOLD;
+/**
+ * ONE micro-label treatment for every section heading in this pack (kicker
+ * above the title, "Fit score" / "What we inferred" / "The position" /
+ * description subheads) — a single quiet-caps class instead of each spot
+ * picking its own size/weight, reused verbatim from the house convention
+ * (BoardComparisonTable.tsx, careers hub page).
+ */
+const SECTION_LABEL = "text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
+
+/** Employer-stated fact — quiet/neutral, same chip primitive everywhere. */
+const STATED_CHIP_CLASS = cn(chipVariants({ active: false }), "h-7 px-2.5 text-xs");
+
+/**
+ * Product-derived/inferred chip — reuses the chip primitive's own "active"
+ * treatment (brand blade + tinted fill) so a computed inference is visually
+ * distinct from an employer-stated fact, not just a different text color.
+ */
+const DERIVED_CHIP_CLASS = cn(chipVariants({ active: true }), "h-7 px-2.5 text-xs");
+
+function FitBreakdown({ score, strong }: { score: MatchScore; strong: boolean }) {
     return (
-        <div
-            className={cn(
-                "flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold tabular-nums",
-                strong ? "border-brand text-brand" : "border-border text-foreground",
-            )}
-            aria-label={`Fit score ${score.total}`}
-        >
-            {score.total}
+        <div>
+            <p className={SECTION_LABEL}>Fit score</p>
+            <div className="mt-1 flex items-baseline gap-1">
+                <span
+                    className={cn(
+                        "text-title-sm font-semibold tabular-nums",
+                        strong ? "text-brand" : "text-foreground",
+                    )}
+                >
+                    {score.total}
+                </span>
+                <span className="text-sm text-muted-foreground">/ 100</span>
+            </div>
+            <div className="mt-3 space-y-3">
+                {score.components.map((component) => (
+                    <div key={component.key}>
+                        <p className="text-sm font-medium text-foreground">{component.label}</p>
+                        <ProgressBar progress={component.score * 100} className="mt-1" />
+                        <p className="mt-1 text-xs text-muted-foreground">{component.detail}</p>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -78,6 +113,8 @@ export function ForYouPack({
     const loc = locationText(displayJob);
     const workType = prettyEnum(displayJob.work_type);
     const employment = prettyEnum(displayJob.employment_type);
+    const strongFit = matchScore != null && matchScore.total >= MATCH_CHIP_BRAND_THRESHOLD;
+    const paneState = descriptionPaneState(descriptionPending, sections);
 
     return (
         <div
@@ -91,72 +128,62 @@ export function ForYouPack({
                 data-pack-meta-scroll
                 className="flex max-h-[40%] min-h-0 min-w-0 shrink-0 flex-col overflow-y-auto overscroll-contain border-b border-border p-4 custom-scrollbar lg:max-h-none lg:shrink lg:flex-1 lg:border-b-0 lg:border-r lg:p-6"
             >
-                <p className="text-xs font-semibold text-muted-foreground">
-                    {company}
-                </p>
-                <h2 className="text-title mt-2 font-semibold text-foreground">{displayJob.title}</h2>
-                <div className="mt-3 flex flex-wrap gap-2">
-                    {loc && (
-                        <span className={cn(chipVariants({ active: false }), "h-7 px-2.5 text-xs")}>
-                            {loc}
-                        </span>
+                {/*
+                    Fit score total repeated here as a compact glance badge (Badge is
+                    text-only, no container) so a 390px viewport — where the meta pane
+                    is height-capped and the full Fit breakdown below can require a
+                    scroll — still shows the number without it. The full breakdown
+                    with per-component detail remains the single place that explains it.
+                */}
+                <div className="flex items-center justify-between gap-2">
+                    <p className={SECTION_LABEL}>{company}</p>
+                    {matchScore && (
+                        <Badge variant={strongFit ? "brand" : "default"}>Fit {matchScore.total}</Badge>
                     )}
-                    {workType && (
-                        <span className={cn(chipVariants({ active: false }), "h-7 px-2.5 text-xs")}>
-                            {workType}
-                        </span>
-                    )}
-                    {employment && (
-                        <span className={cn(chipVariants({ active: false }), "h-7 px-2.5 text-xs")}>
-                            {employment}
-                        </span>
-                    )}
+                </div>
+                <h2 className="text-title mt-1 font-semibold text-foreground">{displayJob.title}</h2>
+                <div className="mt-2 flex flex-wrap gap-2">
+                    {loc && <span className={STATED_CHIP_CLASS}>{loc}</span>}
+                    {workType && <span className={STATED_CHIP_CLASS}>{workType}</span>}
+                    {employment && <span className={STATED_CHIP_CLASS}>{employment}</span>}
                 </div>
 
                 {matchScore && (
-                    <div className="mt-6 flex items-center gap-3">
-                        <FitScoreMark score={matchScore} />
-                        <div>
-                            <p className="text-xs font-semibold text-foreground">Fit</p>
-                            <p className="text-xs text-muted-foreground">
-                                Inferred from your résumé against this listing.
-                            </p>
-                        </div>
+                    <div className="mt-6">
+                        <FitBreakdown score={matchScore} strong={strongFit} />
                     </div>
                 )}
 
-                <div className="mt-6">
-                    <h3 className="text-xs font-semibold text-foreground">What we inferred</h3>
-                    <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
-                        {reasons.bullets.map((bullet) => (
-                            <li key={bullet}>{bullet}</li>
-                        ))}
-                    </ul>
-                    {reasons.chips.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            {reasons.chips.map((chip) => (
-                                <span
-                                    key={chip}
-                                    className={cn(chipVariants({ active: false }), "h-7 px-2.5 text-xs text-brand")}
-                                >
-                                    {chip}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                {(reasons.bullets.length > 0 || reasons.chips.length > 0) && (
+                    <div className="mt-6">
+                        <h3 className={SECTION_LABEL}>What we inferred</h3>
+                        {reasons.bullets.length > 0 && (
+                            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-foreground">
+                                {reasons.bullets.map((bullet) => (
+                                    <li key={bullet}>{bullet}</li>
+                                ))}
+                            </ul>
+                        )}
+                        {reasons.chips.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {reasons.chips.map((chip) => (
+                                    <span key={chip} className={DERIVED_CHIP_CLASS}>
+                                        {chip}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4 lg:p-6">
-                <h3 className="shrink-0 text-xs font-semibold text-foreground">The position</h3>
+                <h3 className={cn(SECTION_LABEL, "shrink-0")}>The position</h3>
                 <div className="mt-2 flex shrink-0 flex-wrap gap-2">
                     {factChips.map((chip) => {
                         const Icon = FACT_CHIP_ICON[chip.kind];
                         return (
-                            <span
-                                key={chip.kind}
-                                className={cn(chipVariants({ active: false }), "h-7 gap-1.5 px-2.5 text-xs")}
-                            >
+                            <span key={chip.kind} className={cn(STATED_CHIP_CLASS, "gap-1.5")}>
                                 {Icon && <Icon size={14} weight="bold" className="shrink-0" aria-hidden />}
                                 {chip.label}
                             </span>
@@ -168,30 +195,30 @@ export function ForYouPack({
                     data-pack-scroll
                     className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar"
                 >
-                    {descriptionPending && displayJob.description === undefined ? (
+                    {paneState === "loading" ? (
                         <p className="flex items-center gap-2 text-sm text-muted-foreground">
                             <CircleNotch size={16} className="animate-spin" aria-hidden />
                             Loading description…
                         </p>
-                    ) : sections.about.length + sections.responsibilities.length + sections.requirements.length === 0 ? (
+                    ) : paneState === "empty" ? (
                         <p className="text-sm text-muted-foreground">No description available for this role.</p>
                     ) : (
                         <div className="space-y-6">
                             {sections.about.length > 0 && (
                                 <section>
-                                    <h4 className="mb-2 text-xs font-semibold text-foreground">About</h4>
+                                    <h4 className={cn(SECTION_LABEL, "mb-2")}>About</h4>
                                     <JobDescription blocks={sections.about} headingLevel={4} />
                                 </section>
                             )}
                             {sections.responsibilities.length > 0 && (
                                 <section>
-                                    <h4 className="mb-2 text-xs font-semibold text-foreground">Responsibilities</h4>
+                                    <h4 className={cn(SECTION_LABEL, "mb-2")}>Responsibilities</h4>
                                     <JobDescription blocks={sections.responsibilities} headingLevel={4} />
                                 </section>
                             )}
                             {sections.requirements.length > 0 && (
                                 <section>
-                                    <h4 className="mb-2 text-xs font-semibold text-foreground">Requirements</h4>
+                                    <h4 className={cn(SECTION_LABEL, "mb-2")}>Requirements</h4>
                                     <JobDescription blocks={sections.requirements} headingLevel={4} />
                                 </section>
                             )}

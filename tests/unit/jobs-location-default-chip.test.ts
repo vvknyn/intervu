@@ -49,7 +49,7 @@ test("buildDockedChips: prepends the default-location chip when an iso2 is given
   // "US" resolves a flag via countryToFlag's "us" alias for United States —
   // a realistic geo-lookup return, unlike most bare ISO2 codes (see the
   // country-flag.ts passthrough-removal note).
-  const chips = buildDockedChips("US", [{ key: "work_type", label: "Remote" }]);
+  const chips = buildDockedChips("US", false, [{ key: "work_type", label: "Remote" }]);
   assert.equal(chips.length, 2);
   assert.equal(chips[0].key, DEFAULT_LOCATION_CHIP_KEY);
   assert.match(chips[0].label, /near /);
@@ -59,7 +59,7 @@ test("buildDockedChips: prepends the default-location chip when an iso2 is given
 
 test("buildDockedChips: null iso2 returns entryChips unchanged (same reference)", () => {
   const entryChips = [{ key: "work_type", label: "Remote" }];
-  assert.equal(buildDockedChips(null, entryChips), entryChips);
+  assert.equal(buildDockedChips(null, false, entryChips), entryChips);
 });
 
 test("buildDockedChips: an iso2 countryToFlag can't map still yields a clean \"near ...\" label, no leading whitespace", () => {
@@ -67,8 +67,27 @@ test("buildDockedChips: an iso2 countryToFlag can't map still yields a clean \"n
   // and is explicitly excluded by countryToFlag's US-state-collision guard
   // (California vs Canada) — it never resolves a flag, so the label must not
   // carry the incidental leading space the mobile chip's JSX would.
-  const chips = buildDockedChips("CA", []);
+  const chips = buildDockedChips("CA", false, []);
   assert.equal(chips.length, 1);
   assert.equal(chips[0].key, DEFAULT_LOCATION_CHIP_KEY);
   assert.match(chips[0].label, /^near /);
+});
+
+// Honesty fix (intervu first-screen audit, Defect 2): a country-level geo
+// default also admits remote-anywhere jobs into the result set
+// (`PlaceClause.remoteAnywhere`, see jobs-remote-anywhere.test.ts) — the
+// chip's wording must say so rather than implying every result is
+// physically "near" the detected country. This is the class case the two
+// tests above don't cover: `remoteAnywhere: false` (or omitted) renders the
+// bare country name, `true` appends "or remote" — the SAME `defaultedIso2`
+// input, so the branch is provably driven by the flag, not the country.
+test("buildDockedChips: remoteAnywhere=true appends \"or remote\" to the chip label; false/undefined does not", () => {
+  const withRemote = buildDockedChips("CA", true, []);
+  assert.equal(withRemote[0].label, "near Canada or remote");
+
+  const withoutRemote = buildDockedChips("CA", false, []);
+  assert.equal(withoutRemote[0].label, "near Canada");
+
+  const undefinedRemote = buildDockedChips("CA", undefined, []);
+  assert.equal(undefinedRemote[0].label, "near Canada", "undefined must behave like false, not throw or say 'or remote'");
 });

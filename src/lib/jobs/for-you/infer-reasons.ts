@@ -29,18 +29,19 @@ export function inferReasons(
     const bullets: string[] = [];
     const chips: string[] = [];
 
-    if (score) {
-        for (const component of score.components) {
-            if (bullets.length >= MAX_BULLETS) break;
-            if (component.key === "relevance" && component.score >= 0.35) {
-                bullets.push(component.detail);
-            } else if (component.key === "seniority" && component.score >= 0.5) {
-                bullets.push(component.detail);
-            } else if (component.key === "location" && component.score >= 0.5) {
-                bullets.push(component.detail);
-            }
-        }
-    }
+    // When a matchScore exists, ForYouPack renders every score.components[].detail
+    // verbatim in the Fit breakdown. Bullets must never restate that text — do not
+    // re-add a component-detail-sourced bullet here; it would always duplicate the
+    // breakdown by construction (the breakdown shows all components, unfiltered).
+    // Bullets below carry only evidence the breakdown does not already state.
+
+    // Chips (like bullets) must carry only résumé∩job evidence — a job-only
+    // fact (e.g. its own work_type) is not something we inferred, it's
+    // already stated verbatim elsewhere on the card (the stated chips row,
+    // "The position"), and presenting it here reads as a match reason even
+    // when the résumé has no overlap with it at all. Do not add a job-only
+    // field as a chip; every push below must be gated on an overlap with
+    // `resume`.
 
     if (resume) {
         const titleTokens = meaningfulTitleTokens(job.title ?? "");
@@ -67,11 +68,20 @@ export function inferReasons(
         }
     }
 
-    const work = job.work_type?.replace(/_/g, " ");
-    if (work && chips.length < MAX_CHIPS) chips.push(work);
-
-    if (bullets.length === 0 && score) {
-        bullets.push("Limited overlap we could compare — review the role details below.");
+    if (score) {
+        // Only fall back to "limited overlap" when the breakdown itself has nothing
+        // strong to show either — otherwise this bullet would contradict a decent
+        // score sitting right above it. No detail text is repeated here (see note
+        // above); this only asks whether qualifying evidence exists.
+        const hasQualifyingComponent = score.components.some(
+            (component) =>
+                (component.key === "relevance" && component.score >= 0.35) ||
+                (component.key === "seniority" && component.score >= 0.5) ||
+                (component.key === "location" && component.score >= 0.5),
+        );
+        if (bullets.length === 0 && !hasQualifyingComponent) {
+            bullets.push("Limited overlap we could compare — review the role details below.");
+        }
     } else if (bullets.length === 0) {
         bullets.push("Add or refresh your résumé to see more specific match reasons.");
     }

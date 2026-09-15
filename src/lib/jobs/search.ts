@@ -119,7 +119,17 @@ export async function searchJobs(
   // constructs and passes one; every other caller (MCP, the OG route)
   // simply omits it and the IP-default step below no-ops.
   opts?: { clientIp?: string; countryLookup?: CountryLookup },
-): Promise<JobSearchResult & { meta?: SearchServeMeta; defaultedLocation?: string; unmatchedPlaceMentions?: string[] }> {
+): Promise<
+  JobSearchResult & {
+    meta?: SearchServeMeta;
+    defaultedLocation?: string;
+    /** See `LocationDefaultApplication.remoteAnywhere` (ip-default.ts) — same
+     *  gate/lifecycle as `defaultedLocation`, so it always travels with it
+     *  through every return point below. */
+    remoteAnywhere?: boolean;
+    unmatchedPlaceMentions?: string[];
+  }
+> {
   // Vocabulary is only relevant when there's something to resolve — query
   // text, or a location facet (`resolveLocationFacet`): the typed
   // `location_country` box, or a city/state value picked from the typeahead.
@@ -152,7 +162,7 @@ export async function searchJobs(
   // the same kind of REQUEST-scoped fact — it describes what got dropped from
   // THIS query's typed location text — so it's threaded through the exact
   // same return points, for the exact same reasons, below.
-  const { params: p, defaultedLocation } = await applyLocationDefault(
+  const { params: p, defaultedLocation, remoteAnywhere } = await applyLocationDefault(
     understood,
     opts?.clientIp,
     opts?.countryLookup,
@@ -176,7 +186,7 @@ export async function searchJobs(
       return {
         ...result,
         meta: { degraded: false, servedFrom: "live" },
-        ...(defaultedLocation && { defaultedLocation }),
+        ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
         ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
       };
     }
@@ -184,7 +194,7 @@ export async function searchJobs(
       return {
         ...(await searchSnapshotPreview(p)),
         effectiveQ: p.q ?? "",
-        ...(defaultedLocation && { defaultedLocation }),
+        ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
         ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
       };
     }
@@ -210,7 +220,7 @@ export async function searchJobs(
           // the comment on `defaultedLocation`'s computation above for why
           // it must not be stamped there. Same reasoning for
           // `unmatchedPlaceMentions`.
-          ...(degraded.servedKey === "exact" && defaultedLocation && { defaultedLocation }),
+          ...(degraded.servedKey === "exact" && defaultedLocation && { defaultedLocation, remoteAnywhere }),
           ...(degraded.servedKey === "exact" &&
             p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
         };
@@ -226,7 +236,7 @@ export async function searchJobs(
       configured: true,
       unavailable: true,
       note: SEARCH_UNAVAILABLE_MESSAGE,
-      ...(defaultedLocation && { defaultedLocation }),
+      ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
       ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
     };
   }

@@ -9,6 +9,7 @@ import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
+import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {
     deleteSavedSearch,
     hrefFromJobsUrlState,
@@ -55,7 +56,7 @@ export function SavedSearchesPanel({
 }) {
     const [naming, setNaming] = useState(false);
     const [nameDraft, setNameDraft] = useState("");
-    const [newCounts, setNewCounts] = useState<Record<string, number>>({});
+    const [newCounts, setNewCounts] = useState<Record<string, CorpusCount>>({});
     const [saving, setSaving] = useState(false);
     const [removingId, setRemovingId] = useState<string | null>(null);
 
@@ -126,7 +127,7 @@ export function SavedSearchesPanel({
                 ),
             );
             if (cancelled) return;
-            const next: Record<string, number> = {};
+            const next: Record<string, CorpusCount> = {};
             saved.forEach((s, i) => {
                 next[s.id] = counts[i];
             });
@@ -239,12 +240,12 @@ export function SavedSearchesPanel({
                             >
                                 {s.name}
                             </button>
-                            {(newCounts[s.id] ?? 0) >= 1 && (
+                            {(newCounts[s.id]?.value ?? 0) >= 1 && (
                                 <span
                                     data-testid="saved-search-new-count"
                                     className="text-xs font-semibold text-brand"
                                 >
-                                    +{newCounts[s.id]}
+                                    +{formatCorpusCount(newCounts[s.id])}
                                 </span>
                             )}
                             <button
