@@ -999,3 +999,11 @@ select {
   size: letter;
   margin: 0.5in;
 }
+
+/* When any modal dialog or sheet is open (body is scroll-locked by Radix),
+   hide page-level floating overlays like mobile-search-cta and apply-return-prompt,
+   ensuring they never overlap modal forms or intercept touch events. */
+body[data-scroll-locked] [data-testid="mobile-search-cta"],
+body[data-scroll-locked] [data-testid="apply-return-prompt"] {
+  display: none !important;
+}
