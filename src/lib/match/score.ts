@@ -222,17 +222,45 @@ function scoreLocation(resume: ResumeData, job: PublicJob): MatchComponent | nul
     const remote = isRemoteWorkType(job.work_type);
     if (!remote && !jobHasKnownLocation(job)) return null;
 
+    const resumeCountries = resumeCountriesFromLocation(resumeLoc);
+    const jobCountryList = jobCountries(job);
+
     if (remote) {
+        if (jobCountryList.length > 0) {
+            if (resumeCountries.length > 0) {
+                const sameCountry = resumeCountries.some((rc) => jobCountryList.includes(rc));
+                if (sameCountry) {
+                    return {
+                        key: "location",
+                        label: "Location",
+                        detail: "remote — same country",
+                        score: 1,
+                    };
+                }
+                const jobCountryStr = jobCountryList.join(", ");
+                return {
+                    key: "location",
+                    label: "Location",
+                    detail: `remote — based in ${jobCountryStr}`,
+                    score: 0.65,
+                };
+            }
+            return {
+                key: "location",
+                label: "Location",
+                detail: "remote — open to this location",
+                score: 1,
+            };
+        }
+
         return {
             key: "location",
             label: "Location",
-            detail: "remote — open to this location",
+            detail: "remote — open to any location",
             score: 1,
         };
     }
 
-    const resumeCountries = resumeCountriesFromLocation(resumeLoc);
-    const jobCountryList = jobCountries(job);
     if (resumeCountries.length === 0 || jobCountryList.length === 0) return null;
 
     const sameCountry = resumeCountries.some((rc) => jobCountryList.includes(rc));

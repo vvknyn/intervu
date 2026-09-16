@@ -97,13 +97,11 @@ async function seedForYouEntry(page: Page) {
 }
 
 /** The active card's identity, read straight off the DOM rather than any
- *  internal index: company + title text of the FIRST `for-you-pack` node.
- *  `ForYouDeck` renders the active card plus up to two upcoming preview
- *  cards in ascending `packs` order (offset 0, 1, 2), so `.first()` /
- *  `.nth(1)` are the active card and the card one Skip away, respectively. */
-function packIdentity(page: Page, nth: number) {
-    const pack = page.getByTestId("for-you-pack").nth(nth);
-    return pack.locator("h2").innerText();
+ *  internal index: the title text of the (single) rendered `for-you-pack`
+ *  node. The deck renders only the active card — no stacked preview cards
+ *  behind it — so there is exactly one `for-you-pack` node at a time. */
+function packIdentity(page: Page) {
+    return page.getByTestId("for-you-pack").locator("h2").innerText();
 }
 
 async function waitForDeckReady(page: Page) {
@@ -115,27 +113,23 @@ async function waitForDeckReady(page: Page) {
 }
 
 test.describe("FOR-YOU-DECK — Skip advances exactly one card and survives a view toggle", () => {
-    test("TC-DECK-001: repeated Skip clicks each advance the active job by exactly one card", async ({ page }) => {
+    test("TC-DECK-001: repeated Skip clicks each advance the active job to a new, unseen card", async ({ page }) => {
         await seedForYouEntry(page);
         await page.goto("/jobs");
         await waitForDeckReady(page);
 
-        const skip = page.getByTestId("for-you-skip");
-        const seen: string[] = [await packIdentity(page, 0)];
+        const seen: string[] = [await packIdentity(page)];
 
         for (let i = 0; i < 4; i++) {
-            const packCount = await page.getByTestId("for-you-pack").count();
-            if (packCount < 2) break; // ran out of preview cards to prove "next" against
-            const expectedNext = await packIdentity(page, 1);
+            const skip = page.getByTestId("for-you-skip");
+            if ((await skip.count()) === 0) break; // ran out of roles — deck emptied
+            const previous = seen[seen.length - 1];
             await skip.click();
-            await expect(page.getByTestId("for-you-pack").first()).toHaveText(
-                new RegExp(expectedNext.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
-                { timeout: 10_000 },
-            );
-            const actual = await packIdentity(page, 0);
-            expect(actual, `Skip #${i + 1} must land on the card that was next, not stay put or jump`).toBe(
-                expectedNext,
-            );
+            if ((await page.getByTestId("for-you-pack").count()) === 0) break; // Skip emptied the deck
+            await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(previous, {
+                timeout: 10_000,
+            });
+            const actual = await packIdentity(page);
             expect(seen, `Skip #${i + 1} landed on an already-seen job — deck is not advancing`).not.toContain(
                 actual,
             );
@@ -156,15 +150,98 @@ test.describe("FOR-YOU-DECK — Skip advances exactly one card and survives a vi
         // there's real progress to lose).
         await skip.click();
         await expect(page.getByTestId("for-you-pack").first()).toBeVisible();
-        const beforeToggle = await packIdentity(page, 0);
+        const beforeToggle = await packIdentity(page);
 
         await page.getByRole("tab", { name: "Search" }).click();
         await expect(page.getByTestId("for-you-home")).toHaveCount(0);
 
         await page.getByRole("tab", { name: "For you" }).click();
         await waitForDeckReady(page);
-        const afterToggle = await packIdentity(page, 0);
+        const afterToggle = await packIdentity(page);
 
         expect(afterToggle, "toggling views must not reset or advance the active job").toBe(beforeToggle);
+    });
+
+    test("TC-DECK-003: wheel scrolling over the card scrolls content but never changes active job", async ({ page }) => {
+        await seedForYouEntry(page);
+        await page.goto("/jobs");
+        await waitForDeckReady(page);
+
+        const initialJob = await packIdentity(page);
+        const card = page.getByTestId("for-you-pack");
+
+        // Dispatch aggressive wheel events down and back up
+        await card.hover();
+        await page.mouse.wheel(0, 500);
+        await page.waitForTimeout(350);
+        await page.mouse.wheel(0, 1000);
+        await page.waitForTimeout(350);
+        await page.mouse.wheel(0, -1500);
+        await page.waitForTimeout(350);
+
+        const currentJob = await packIdentity(page);
+        expect(currentJob, "wheel scrolling must never advance or change the active job").toBe(initialJob);
+    });
+
+    test("TC-DECK-004: Next and Previous buttons navigate between jobs", async ({ page }) => {
+        await seedForYouEntry(page);
+        await page.goto("/jobs");
+        await waitForDeckReady(page);
+
+        const nextBtn = page.getByTestId("for-you-next");
+        const prevBtn = page.getByTestId("for-you-previous");
+
+        await expect(prevBtn).toBeDisabled();
+        const firstJob = await packIdentity(page);
+
+        await nextBtn.click();
+        await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(firstJob, { timeout: 5000 });
+        const secondJob = await packIdentity(page);
+        expect(secondJob).not.toBe(firstJob);
+        await expect(prevBtn).toBeEnabled();
+
+        await prevBtn.click();
+        await expect(page.getByTestId("for-you-pack").locator("h2")).toHaveText(firstJob, { timeout: 5000 });
+        const returnedJob = await packIdentity(page);
+        expect(returnedJob).toBe(firstJob);
+        await expect(prevBtn).toBeDisabled();
+    });
+
+    test("TC-DECK-005: keyboard shortcuts navigate between jobs", async ({ page }) => {
+        await seedForYouEntry(page);
+        await page.goto("/jobs");
+        await waitForDeckReady(page);
+
+        const firstJob = await packIdentity(page);
+
+        // Press ArrowRight to advance
+        await page.keyboard.press("ArrowRight");
+        await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(firstJob, { timeout: 5000 });
+        const secondJob = await packIdentity(page);
+        expect(secondJob).not.toBe(firstJob);
+
+        // Press ArrowLeft to return
+        await page.keyboard.press("ArrowLeft");
+        await expect(page.getByTestId("for-you-pack").locator("h2")).toHaveText(firstJob, { timeout: 5000 });
+        const returnedJob = await packIdentity(page);
+        expect(returnedJob).toBe(firstJob);
+    });
+
+    test("TC-DECK-006: first-run instruction banner shows and dismisses on Got it", async ({ page }) => {
+        await seedForYouEntry(page);
+        await page.goto("/jobs");
+        await waitForDeckReady(page);
+
+        const hint = page.getByText("Getting around");
+        await expect(hint).toBeVisible();
+
+        const gotIt = page.getByRole("button", { name: "Got it" });
+        await gotIt.click();
+        await expect(hint).toHaveCount(0);
+
+        // Reload page and confirm hint stays dismissed
+        await page.reload();
+        await waitForDeckReady(page);
+        await expect(page.getByText("Getting around")).toHaveCount(0);
     });
 });
