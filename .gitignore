@@ -75,3 +75,8 @@ openclaw/node_modules/
 .claude/
 
 .screenshots/
+
+# Scratch & local temp
+/tmp/
+/intervu-main-rd/
+audit-*.json
