@@ -299,7 +299,7 @@ export function PublicJobDetail({
     // it through the report gate so a signed-out report reopens this exact
     // dialog once the user is back, same as Apply.
     const requireReportAuth = () => {
-        setAuthGateReason("generic");
+        setAuthGateReason("report");
         gate({ kind: "report", payload: job });
     };
 

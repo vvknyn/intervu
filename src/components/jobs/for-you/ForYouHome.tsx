@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CircleNotch } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, CircleNotch } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Kbd } from "@/components/ui/kbd";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { PreferenceChipStrip } from "@/components/jobs/for-you/PreferenceChipStrip";
 import { ForYouDeck } from "@/components/jobs/for-you/ForYouDeck";
 import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
@@ -14,17 +17,25 @@ import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { resolveDeckShortcut } from "@/lib/jobs/for-you/deck-keyboard";
+import { readForYouHintDismissed, writeForYouHintDismissed } from "@/lib/jobs/for-you/first-run-hint";
 import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { toast } from "@/lib/toast";
 import type { JobsHomeView } from "@/lib/jobs/for-you/home-view";
+import { cn } from "@/lib/utils";
 
-/** Fills the jobs-page viewport shell. Overflow stays on inner panes
- *  (deck-wheel + JD `data-pack-scroll`), not a second 100dvh calc that
- *  overflows the already-below-the-topbar page and traps scrolling. */
+/** Fills the jobs-page viewport shell. Overflow stays on the pack's own
+ *  `data-pack-scroll` pane, not a second 100dvh calc that overflows the
+ *  already-below-the-topbar page and traps scrolling. */
 export const FOR_YOU_HOME_FRAME_CLASS =
     "flex min-h-0 flex-1 flex-col overflow-hidden overscroll-none";
+
+/** Recurring quiet text-link button shape (Replace / Upload résumé / Got
+ *  it) — one class, not three copies that can drift apart. */
+const TEXT_LINK_BUTTON_CLASS =
+    "inline-flex min-h-11 items-center text-xs font-semibold text-foreground transition-colors hover:text-brand";
 
 export interface ForYouHomeProps {
     visiblePacks: PublicJob[];
@@ -46,6 +57,47 @@ export interface ForYouHomeProps {
     showToggle: boolean;
     onReplaceResume?: () => void;
     hasUsableResume?: boolean;
+}
+
+/** Placeholder shape for both the loading state and the pre-résumé shell —
+ *  one skeleton, reused, so the two never drift into different "card
+ *  shapes." Only `<div>`s: no headings or interactive elements, since the
+ *  pre-résumé shell must stay free of both (first-paint spec rule). */
+function ForYouPackSkeleton() {
+    return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden border border-border bg-card">
+            <div className="border-b border-border bg-muted p-4 lg:p-6">
+                <div className="flex items-start gap-3">
+                    <Skeleton className="size-10 shrink-0" />
+                    <div className="flex-1 space-y-2">
+                        <Skeleton className="h-3 w-24" />
+                        <Skeleton className="h-5 w-2/3" />
+                        <Skeleton className="h-3 w-40" />
+                    </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                    <Skeleton className="h-7 w-20" />
+                    <Skeleton className="h-7 w-24" />
+                    <Skeleton className="h-7 w-16" />
+                </div>
+            </div>
+            <div className="grid flex-1 gap-6 p-4 lg:grid-cols-[1fr_280px] lg:p-6">
+                <div className="space-y-3">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-5/6" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                </div>
+                <div className="hidden border border-border bg-muted p-4 lg:block">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="mt-3 h-2 w-full" />
+                    <Skeleton className="mt-4 h-3 w-24" />
+                    <Skeleton className="mt-2 h-2 w-full" />
+                </div>
+            </div>
+        </div>
+    );
 }
 
 export function ForYouHome({
@@ -74,6 +126,21 @@ export function ForYouHome({
     );
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
+    // Starts hidden so server and first client render agree (no localStorage
+    // during SSR); the mount effect below reveals it when this visitor
+    // hasn't dismissed it yet. Same guarded-storage shape as
+    // `last-home-view.ts`, one-shot rather than subscribed since dismissal
+    // never needs to sync across tabs mid-session.
+    const [hintDismissed, setHintDismissed] = useState(true);
+
+    useEffect(() => {
+        setHintDismissed(readForYouHintDismissed());
+    }, []);
+
+    const dismissHint = useCallback(() => {
+        writeForYouHintDismissed();
+        setHintDismissed(true);
+    }, []);
 
     useEffect(() => {
         void (async () => {
@@ -147,43 +214,93 @@ export function ForYouHome({
         })();
     }, [activeJob, resume, applying, hydratedJobs, exportPdfForJob, onOpenApply]);
 
-    const handleKeyDown = useCallback(
-        (event: React.KeyboardEvent) => {
-            if (event.key === "ArrowDown") {
-                event.preventDefault();
-                onActiveIndexChange(Math.min(activeIndex + 1, visiblePacks.length - 1));
-            } else if (event.key === "ArrowUp") {
-                event.preventDefault();
-                onActiveIndexChange(Math.max(activeIndex - 1, 0));
-            }
-        },
-        [activeIndex, visiblePacks.length, onActiveIndexChange],
-    );
-
     const showLoading = fitResolving || loading || !fitActive;
+    const canNavigate = !showLoading && visiblePacks.length > 0;
+
+    // Bundled into one ref so the document-level listener (mounted once,
+    // for as long as For-you itself is mounted — matching the design's
+    // "document-level while For-you is mounted" scope) always reads the
+    // latest values without re-registering itself on every render.
+    const shortcutStateRef = useRef({ activeIndex, packsLength: visiblePacks.length, canNavigate, applying });
+    shortcutStateRef.current = { activeIndex, packsLength: visiblePacks.length, canNavigate, applying };
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            const { activeIndex, packsLength, canNavigate, applying } = shortcutStateRef.current;
+            if (!canNavigate) return;
+            const action = resolveDeckShortcut({
+                key: event.key,
+                ctrlKey: event.ctrlKey,
+                altKey: event.altKey,
+                metaKey: event.metaKey,
+                shiftKey: event.shiftKey,
+                defaultPrevented: event.defaultPrevented,
+                target: event.target,
+            });
+            if (action === "previous") {
+                onActiveIndexChange(Math.max(activeIndex - 1, 0));
+            } else if (action === "next") {
+                onActiveIndexChange(Math.min(activeIndex + 1, packsLength - 1));
+            } else if (action === "skip" && !applying) {
+                onSkip();
+            }
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => document.removeEventListener("keydown", onKeyDown);
+    }, [onActiveIndexChange, onSkip]);
 
     return (
-        <div
-            className={FOR_YOU_HOME_FRAME_CLASS}
-            data-testid="for-you-home"
-            onKeyDown={handleKeyDown}
-            tabIndex={0}
-        >
+        <div className={FOR_YOU_HOME_FRAME_CLASS} data-testid="for-you-home">
             <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
                 {showToggle && (
                     <ForYouToggle value={homeView} onChange={onHomeViewChange} />
                 )}
-                {(!showLoading && visiblePacks.length > 0) || (hasUsableResume && onReplaceResume) ? (
-                    <div className="flex items-center gap-3">
-                        {!showLoading && visiblePacks.length > 0 && (
+                {(canNavigate) || (hasUsableResume && onReplaceResume) ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                        {canNavigate && (
                             <div className="flex items-center gap-2">
-                                <p className="text-xs text-muted-foreground tabular-nums">
-                                    {activeIndex + 1} of {visiblePacks.length}
-                                </p>
-                                <ProgressBar
-                                    progress={((activeIndex + 1) / visiblePacks.length) * 100}
-                                    className="w-16"
-                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label="Previous role"
+                                    data-testid="for-you-previous"
+                                    className="h-11 w-11"
+                                    onClick={() => onActiveIndexChange(Math.max(activeIndex - 1, 0))}
+                                    disabled={activeIndex === 0}
+                                >
+                                    <CaretLeft size={16} weight="bold" aria-hidden />
+                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-xs text-muted-foreground tabular-nums">
+                                        {activeIndex + 1} of {visiblePacks.length}
+                                    </p>
+                                    <ProgressBar
+                                        progress={((activeIndex + 1) / visiblePacks.length) * 100}
+                                        className="w-16"
+                                    />
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label="Next role"
+                                    data-testid="for-you-next"
+                                    className="h-11 w-11"
+                                    onClick={() =>
+                                        onActiveIndexChange(Math.min(activeIndex + 1, visiblePacks.length - 1))
+                                    }
+                                    disabled={activeIndex === visiblePacks.length - 1}
+                                >
+                                    <CaretRight size={16} weight="bold" aria-hidden />
+                                </Button>
+                                <span className="hidden items-center gap-1 text-muted-foreground lg:flex">
+                                    <Kbd>←</Kbd>
+                                    <Kbd>K</Kbd>
+                                    <span className="text-[10px]" aria-hidden>/</span>
+                                    <Kbd>J</Kbd>
+                                    <Kbd>→</Kbd>
+                                </span>
                             </div>
                         )}
                         {hasUsableResume && onReplaceResume && (
@@ -191,7 +308,7 @@ export function ForYouHome({
                                 type="button"
                                 data-testid="jobs-replace-resume"
                                 onClick={onReplaceResume}
-                                className="inline-flex min-h-11 items-center text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                                className={TEXT_LINK_BUTTON_CLASS}
                             >
                                 Replace
                             </button>
@@ -200,17 +317,27 @@ export function ForYouHome({
                 ) : null}
             </div>
 
+            {canNavigate && !hintDismissed && (
+                <Alert className="mb-4 shrink-0">
+                    <AlertTitle>Getting around</AlertTitle>
+                    <AlertDescription>
+                        <p>
+                            Scroll the card to read the role. Use Next and Previous (or{" "}
+                            <Kbd className="align-middle">←</Kbd> <Kbd className="align-middle">→</Kbd>) to move
+                            between matches. Skip removes a role from this list.
+                        </p>
+                        <button type="button" onClick={dismissHint} className={cn(TEXT_LINK_BUTTON_CLASS, "text-brand")}>
+                            Got it
+                        </button>
+                    </AlertDescription>
+                </Alert>
+            )}
+
             <PreferenceChipStrip chips={prefsChips} className="mb-4 shrink-0" />
 
             {showLoading ? (
-                <div
-                    data-testid="for-you-loading"
-                    className="flex min-h-0 flex-1 items-center justify-center border border-border bg-card p-12"
-                >
-                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <CircleNotch size={18} className="animate-spin" aria-hidden />
-                        Finding roles matched to your résumé…
-                    </p>
+                <div data-testid="for-you-loading" className="flex min-h-0 flex-1 flex-col">
+                    <ForYouPackSkeleton />
                 </div>
             ) : visiblePacks.length === 0 ? (
                 <div
@@ -230,7 +357,6 @@ export function ForYouHome({
                 <ForYouDeck
                     packs={visiblePacks}
                     activeIndex={activeIndex}
-                    onActiveIndexChange={onActiveIndexChange}
                     matchScores={matchScores}
                     resume={resume}
                     nowMs={nowMs}
@@ -251,7 +377,7 @@ export function ForYouHome({
                                 type="button"
                                 data-testid="for-you-upload-resume"
                                 onClick={onReplaceResume}
-                                className="inline-flex min-h-11 items-center text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                                className={TEXT_LINK_BUTTON_CLASS}
                             >
                                 Upload résumé
                             </button>
@@ -292,11 +418,13 @@ export function ForYouHome({
 }
 
 /** Neutral first-paint column while résumé presence is still unknown.
- *  Same frame as For you — never Search chrome. */
+ *  Same frame as For you — never Search chrome. Same skeleton shape as the
+ *  loading state (`ForYouPackSkeleton`) so the visitor never sees a
+ *  different "card shape" appear mid-load. */
 export function ForYouHomePending() {
     return (
         <div className={FOR_YOU_HOME_FRAME_CLASS} data-testid="for-you-home-pending">
-            <div className="min-h-0 flex-1 border border-border bg-card" />
+            <ForYouPackSkeleton />
         </div>
     );
 }

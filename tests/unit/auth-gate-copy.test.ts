@@ -30,6 +30,17 @@ test('formatAuthGateValueLine for reason "save" mentions keep-across-devices and
     assert.match(line, /alert/i);
 });
 
+test('formatAuthGateValueLine for reason "fit" mentions matching roles to résumé', () => {
+    const line = formatAuthGateValueLine("fit", 0);
+    assert.match(line, /match roles to your résumé/i);
+    assert.match(line, /recommendations/i);
+});
+
+test('formatAuthGateValueLine for reason "report" mentions reporting issue', () => {
+    const line = formatAuthGateValueLine("report", 0);
+    assert.match(line, /report an issue/i);
+});
+
 test("formatAuthGateValueLine prepends keep-line only when count is real", () => {
     assert.doesNotMatch(formatAuthGateValueLine("generic", 0), /keep/i);
     assert.match(formatAuthGateValueLine("generic", 2), /keep the 2 roles/);
