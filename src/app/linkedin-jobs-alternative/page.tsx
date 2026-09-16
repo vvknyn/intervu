@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 const faqJsonLd = buildFaqPageJsonLd(LINKEDIN_JOBS_ALTERNATIVE_FAQ);
 
-const ASEC = "mt-8 mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground";
+const ASEC = "mt-8 mb-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
 
 export default function LinkedinJobsAlternativePage() {
   return (
@@ -26,8 +26,8 @@ export default function LinkedinJobsAlternativePage() {
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }}
         />
       )}
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">LinkedIn Jobs alternative</p>
-      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">LinkedIn Jobs alternative</p>
+      <h1 className="mt-3 font-display text-display font-semibold text-foreground">
         Easy Apply is a feeling. It isn&apos;t a reply.
       </h1>
       <p className="mt-1.5 text-sm italic text-muted-foreground">

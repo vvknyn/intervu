@@ -41,7 +41,7 @@ export const COMPARISON_ROWS: ReadonlyArray<{
   },
   {
     label: "match scores",
-    velai: "facts only",
+    velai: "transparent match receipts (no pay-to-win badges)",
     typical: "invented percentages",
     indeed: '"be an early applicant" theater',
     linkedin: '"you\'re a top applicant" badges',

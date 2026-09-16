@@ -28,6 +28,7 @@ export type NavTab = {
     icon?: ComponentType;
     variant?: "cta";
     badge?: NavBadge;
+    title?: string;
 };
 
 /** Desktop TopBar: label for the clustered Jobs/Resume/Tracker dropdown. */
@@ -123,6 +124,7 @@ export const NAV_TABS: NavTab[] = [
         placement: "bar",
         tourSelector: "nav-connect",
         icon: ConnectIcon,
+        title: "Optional: Pair your AI assistant (Claude, Cursor, Gemini) via MCP",
     },
 ];
 

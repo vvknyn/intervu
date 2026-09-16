@@ -181,8 +181,10 @@ export function SettingsContainer() {
                 {tab === "prefs" && (
                     <>
                         <SettingsCard>
-                            <h2 className="mb-1 text-sm font-semibold">R&amp;D</h2>
-                            <p className="mb-4 text-xs text-muted-foreground">Experimental features — off by default.</p>
+                            <h2 className="mb-1 text-sm font-semibold">On-Device AI &amp; Privacy</h2>
+                            <p className="mb-4 text-xs text-muted-foreground">
+                                Run private AI parsing and tailoring directly in your browser. Zero cloud tracking — your résumé never leaves your device.
+                            </p>
                             <LocalAiSettingsSection />
                         </SettingsCard>
                         <SettingsCard>

@@ -45,7 +45,7 @@ export const INDEED_ALTERNATIVE_FAQ: FaqItem[] = [
   {
     question: "Is Velai free if I am leaving Indeed?",
     answer:
-      "Searching jobs on Velai is free. There is no match score and no sponsored bump in the results.",
+      "Searching jobs on Velai is free. Match receipts are based strictly on qualifications and skills, with zero paid ranking bumps.",
   },
 ];
 
