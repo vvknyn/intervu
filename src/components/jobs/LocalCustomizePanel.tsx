@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Copy, DownloadSimple, Check } from "@phosphor-icons/react";
+import { Copy, DownloadSimple, Check, Cpu, ShieldCheck } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -26,6 +26,10 @@ import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { displayCompanyBrand } from "@/lib/jobs/presentation";
+import { AuthPopover } from "@/components/auth/auth-popover";
+import { getCurrentUser } from "@/lib/firebase/client-auth";
+import { formatAuthGateValueLine } from "@/lib/auth/auth-gate-copy";
+import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
@@ -46,8 +50,13 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
     const [copied, setCopied] = useState(false);
     const [consentNeeded, setConsentNeeded] = useState(false);
     const [generatingWithModel, setGeneratingWithModel] = useState(false);
+    const [authOpen, setAuthOpen] = useState(false);
 
     const handleCopy = useCallback(async () => {
+        if (!getCurrentUser()) {
+            setAuthOpen(true);
+            return;
+        }
         if (!draft) return;
         const md = resumeDataToZipMarkdown(draft.tailored);
         await navigator.clipboard.writeText(md);
@@ -56,6 +65,10 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
     }, [draft]);
 
     const handlePdf = useCallback(() => {
+        if (!getCurrentUser()) {
+            setAuthOpen(true);
+            return;
+        }
         if (!draft) return;
         const filename = deriveResumePdfFilename({
             company: null,
@@ -72,7 +85,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
         })();
     }, [draft]);
 
-    const visible = readLocalAiEnabled() && !!resume && resumeIsUsable(resume);
+    const visible = !!resume && resumeIsUsable(resume);
 
     const resetDialogState = useCallback(() => {
         setDraft(null);
@@ -110,6 +123,10 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
     }, [resetDialogState, runGenerate]);
 
     const handleEnableAi = useCallback(async () => {
+        if (!getCurrentUser()) {
+            setAuthOpen(true);
+            return;
+        }
         grantLocalAiConsent();
         await initLocalAiLadder();
         void runGenerate(true);
@@ -128,6 +145,10 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
     );
 
     const handleAccept = useCallback(async () => {
+        if (!getCurrentUser()) {
+            setAuthOpen(true);
+            return;
+        }
         if (!draft) return;
         const ok = await confirmToast({
             title: "Update résumé for Rank?",
@@ -183,7 +204,11 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                 <DialogContent className="z-[70] flex max-h-[85dvh] w-[calc(100%-1rem)] max-w-[720px] flex-col overflow-hidden p-0 sm:max-w-xl">
                     <div className="flex min-h-0 max-h-[85dvh] flex-col">
                         <div className="shrink-0 border-b border-border px-5 py-4 pr-12">
-                            <DialogHeader className="space-y-0.5 text-left">
+                            <DialogHeader className="space-y-1 text-left">
+                                <div className="flex items-center gap-1.5 text-xs text-brand font-semibold">
+                                    <ShieldCheck size={16} />
+                                    <span>100% On-Device AI: Private to your browser</span>
+                                </div>
                                 <DialogTitle className="break-words text-base font-semibold leading-snug text-foreground">
                                     {job.title}
                                     {companyBrand ? ` · ${companyBrand}` : ""}
@@ -212,16 +237,17 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                         <Button
                                             type="button"
                                             size="sm"
-                                            className="h-11 min-h-11 rounded-none text-xs"
+                                            className="h-11 min-h-11 rounded-none text-xs font-semibold"
                                             onClick={() => void handleEnableAi()}
                                         >
+                                            <Cpu size={16} className="mr-1.5" />
                                             Enable on-device AI
                                         </Button>
                                         <Button
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            className="h-11 min-h-11 rounded-none text-xs"
+                                            className="h-11 min-h-11 rounded-none text-xs font-semibold"
                                             onClick={handleRulesDraft}
                                         >
                                             Use a rules draft
@@ -252,11 +278,11 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                             </AccordionTrigger>
                                             <AccordionContent>
                                                 <p className="text-sm leading-relaxed text-foreground">
-                                                    <span className="font-medium text-muted-foreground">After: </span>
+                                                    <span className="font-semibold text-muted-foreground">After: </span>
                                                     {draft.summaryAfter}
                                                 </p>
                                                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                                                    <span className="font-medium">Before: </span>
+                                                    <span className="font-semibold">Before: </span>
                                                     {draft.summaryBefore}
                                                 </p>
                                             </AccordionContent>
@@ -273,11 +299,11 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                                 </AccordionTrigger>
                                                 <AccordionContent>
                                                     <p className="text-sm leading-relaxed text-foreground">
-                                                        <span className="font-medium text-muted-foreground">After: </span>
+                                                        <span className="font-semibold text-muted-foreground">After: </span>
                                                         {b.after}
                                                     </p>
                                                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                                                        <span className="font-medium">Before: </span>
+                                                        <span className="font-semibold">Before: </span>
                                                         {b.before}
                                                     </p>
                                                 </AccordionContent>
@@ -294,7 +320,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                 variant="outline"
                                 size="sm"
                                 data-testid="local-customize-close"
-                                className="h-11 min-h-11 rounded-none text-xs"
+                                className="h-11 min-h-11 rounded-none text-xs font-semibold"
                                 onClick={() => handleDialogOpenChange(false)}
                             >
                                 Close
@@ -307,9 +333,9 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                         size="sm"
                                         data-testid="local-customize-copy"
                                         onClick={() => void handleCopy()}
-                                        className="h-11 min-h-11 rounded-none text-xs"
+                                        className="h-11 min-h-11 rounded-none text-xs font-semibold"
                                     >
-                                        {copied ? <Check size={14} /> : <Copy size={14} />}
+                                        {copied ? <Check size={16} /> : <Copy size={16} />}
                                         {copied ? "Copied" : "Copy"}
                                     </Button>
                                     <Button
@@ -318,9 +344,9 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                         size="sm"
                                         data-testid="local-customize-pdf"
                                         onClick={handlePdf}
-                                        className="h-11 min-h-11 rounded-none text-xs"
+                                        className="h-11 min-h-11 rounded-none text-xs font-semibold"
                                     >
-                                        <DownloadSimple size={14} />
+                                        <DownloadSimple size={16} />
                                         Download PDF
                                     </Button>
                                     <Button
@@ -328,7 +354,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                         data-testid="local-customize-accept"
                                         variant="outline"
                                         size="sm"
-                                        className="ml-auto h-11 min-h-11 rounded-none text-xs"
+                                        className="ml-auto h-11 min-h-11 rounded-none text-xs font-semibold"
                                         onClick={() => void handleAccept()}
                                     >
                                         Accept
@@ -339,6 +365,15 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <AuthPopover
+                open={authOpen}
+                onOpenChange={setAuthOpen}
+                showTrigger={false}
+                defaultTab="signup"
+                reason="tailor"
+                valueLine={formatAuthGateValueLine("tailor", listGuestPursuits().length)}
+            />
         </>
     );
 }

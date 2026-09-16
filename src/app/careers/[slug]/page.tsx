@@ -46,11 +46,11 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
       </article>
 
       <nav aria-label="Related career topics" className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-        <Link href="/jobs" className="font-medium text-brand hover:underline">
+        <Link href="/jobs" className="font-semibold text-brand hover:underline">
           Search live jobs
         </Link>
         {facetJobsHref && (
-          <Link href={facetJobsHref} className="font-medium text-brand hover:underline">
+          <Link href={facetJobsHref} className="font-semibold text-brand hover:underline">
             Search these jobs
           </Link>
         )}

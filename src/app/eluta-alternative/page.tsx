@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 const faqJsonLd = buildFaqPageJsonLd(ELUTA_ALTERNATIVE_FAQ);
 
-const ASEC = "mt-8 mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground";
+const ASEC = "mt-8 mb-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
 
 export default function ElutaAlternativePage() {
   return (
@@ -26,8 +26,8 @@ export default function ElutaAlternativePage() {
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }}
         />
       )}
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">Eluta alternative</p>
-      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Eluta alternative</p>
+      <h1 className="mt-3 font-display text-display font-semibold text-foreground">
         Eluta crawls the career page. So do we — then we ask if it&apos;s still open.
       </h1>
       <p className="mt-1.5 text-sm italic text-muted-foreground">
@@ -75,7 +75,7 @@ export default function ElutaAlternativePage() {
 
         <h2 className={ASEC}>Look at the jobs</h2>
         <p>
-          Searching is free. No match score, no sponsored bump.{" "}
+          Searching is free. Objective match receipts, no sponsored bumps.{" "}
           <Link href="/jobs">The live listings are here</Link>. Indeed and LinkedIn are different problems (
           <Link href="/indeed-alternative">Indeed alternative</Link>,{" "}
           <Link href="/linkedin-jobs-alternative">LinkedIn Jobs alternative</Link>).

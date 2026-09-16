@@ -41,6 +41,17 @@ test('formatAuthGateValueLine for reason "report" mentions reporting issue', () 
     assert.match(line, /report an issue/i);
 });
 
+test('formatAuthGateValueLine for reason "tailor" mentions on-device AI and export', () => {
+    const line = formatAuthGateValueLine("tailor", 0);
+    assert.match(line, /on-device AI/i);
+    assert.match(line, /export/i);
+});
+
+test('formatAuthGateValueLine for reason "resume" mentions edit, export, and sync', () => {
+    const line = formatAuthGateValueLine("resume", 0);
+    assert.match(line, /edit, export, and sync/i);
+});
+
 test("formatAuthGateValueLine prepends keep-line only when count is real", () => {
     assert.doesNotMatch(formatAuthGateValueLine("generic", 0), /keep/i);
     assert.match(formatAuthGateValueLine("generic", 2), /keep the 2 roles/);

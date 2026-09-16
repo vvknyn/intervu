@@ -26,7 +26,7 @@ export function MobileTabBar() {
             data-testid="mobile-tabbar"
             aria-label="Primary"
             style={{ gridTemplateColumns: `repeat(${MOBILE_TABS.length}, minmax(0, 1fr))` }}
-            className="fixed inset-x-0 bottom-0 z-50 grid h-[calc(48px+env(safe-area-inset-bottom,0px))] items-center border-t border-border bg-background px-1 lg:hidden"
+            className="fixed inset-x-0 bottom-0 z-50 grid h-[calc(var(--mobile-tabbar-h,56px)+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] items-center border-t border-border bg-background px-1 lg:hidden"
         >
             {MOBILE_TABS.map((tab) => {
                 const active = tab.match(pathname);
@@ -35,6 +35,7 @@ export function MobileTabBar() {
                     <Link
                         key={tab.href + tab.label}
                         href={tab.href}
+                        title={tab.title}
                         // Prefixed so a testid is unique page-wide: this bar
                         // shares NAV_TABS with the desktop TopBar and both are
                         // in the DOM at once (this one CSS-hidden at lg+) —

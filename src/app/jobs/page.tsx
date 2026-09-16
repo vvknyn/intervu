@@ -15,6 +15,7 @@ import {
     Check,
     Question,
     CircleNotch,
+    Bell,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -4290,9 +4291,12 @@ function JobsContent() {
             authGateVisible: showGuestEngageNudge || showGuestSaveBanner,
         });
 
+    const [manualAlertOpen, setManualAlertOpen] = useState(false);
+
     const handleDismissSearchAlert = useCallback(() => {
         dismissSearchAlertCapture();
         setSearchAlertDismissed(true);
+        setManualAlertOpen(false);
     }, []);
 
     useEffect(() => {
@@ -4691,6 +4695,21 @@ function JobsContent() {
             <>
                 {rankByFitEl}
                 {savedSearchControl}
+                {canSaveSearch && (
+                    <button
+                        type="button"
+                        data-testid="jobs-create-alert-trigger"
+                        onClick={() => setManualAlertOpen((prev) => !prev)}
+                        className={cn(
+                            toolbarControlHeight,
+                            "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand px-2",
+                        )}
+                        title="Get email alerts for this search"
+                    >
+                        <Bell size={16} aria-hidden />
+                        <span>Get alerts</span>
+                    </button>
+                )}
             </>
         ) : null;
 
@@ -5564,7 +5583,7 @@ function JobsContent() {
                                     />
                                 )}
 
-                                {showResultsSearchAlert && (
+                                {(showResultsSearchAlert || manualAlertOpen) && (
                                     <div className="mb-3 border-t border-border pt-4 pb-2">
                                         <SearchAlertCapture
                                             surface="results"
