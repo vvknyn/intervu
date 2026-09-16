@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
+/** Specs that need the explicit desktop-1440 / mobile-390 viewport projects
+ *  below — one list, so the two projects can't drift onto different spec
+ *  sets. */
+const VIEWPORT_SPECS = [/jobs-first-paint\.spec\.ts/, /for-you-deck\.spec\.ts/];
+
 /**
  * Intervu E2E Test Configuration
  *
@@ -43,18 +48,18 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    // Explicit viewport projects for jobs-first-paint.spec.ts only — scoped
-    // with testMatch so they don't run every other spec in the repo a
-    // second and third time.
+    // Explicit viewport projects for VIEWPORT_SPECS only — scoped with
+    // testMatch so they don't run every other spec in the repo a second and
+    // third time.
     {
       name: 'desktop-1440',
       use: { viewport: { width: 1440, height: 900 } },
-      testMatch: /jobs-first-paint\.spec\.ts/,
+      testMatch: VIEWPORT_SPECS,
     },
     {
       name: 'mobile-390',
       use: { viewport: { width: 390, height: 844 } },
-      testMatch: /jobs-first-paint\.spec\.ts/,
+      testMatch: VIEWPORT_SPECS,
     },
   ],
   // When PLAYWRIGHT_BASE_URL points at an externally-managed server, don't

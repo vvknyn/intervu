@@ -222,7 +222,9 @@ import {
 } from "@/lib/jobs/for-you/last-home-view";
 import { ForYouHome, ForYouHomePending } from "@/components/jobs/for-you/ForYouHome";
 import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
+import { partitionByTargetTitle } from "@/lib/jobs/for-you/title-relevance";
 import { useForYouDeck } from "@/hooks/use-for-you-deck";
+import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
@@ -2780,9 +2782,11 @@ function JobsContent() {
     // For-you toggle. Gating this list to the branch would collapse
     // `visiblePacks` to empty while browsing Search, and the hook's own
     // resize-clamp would zero the index before the user ever came back.
+    // Partitioned by target title match against effectiveQ: cards matching
+    // target titles come first, off-target cards are demoted (never hidden).
     const forYouPacks = useMemo(
-        () => renderedClusters.map((c) => c.primary),
-        [renderedClusters],
+        () => partitionByTargetTitle(renderedClusters.map((c) => c.primary), result?.effectiveQ),
+        [renderedClusters, result?.effectiveQ],
     );
     const forYouDeck = useForYouDeck(forYouPacks);
 
@@ -4196,7 +4200,7 @@ function JobsContent() {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         if (!user && !readLocalAiEnabled()) {
-            setAuthGateReason("generic");
+            setAuthGateReason("fit");
             gate({ kind: "upload", payload: true });
             return;
         }
@@ -4485,7 +4489,7 @@ function JobsContent() {
                     source="serp"
                     signedIn={Boolean(user)}
                     onRequestSignIn={() => {
-                        setAuthGateReason("generic");
+                        setAuthGateReason("report");
                         gate({ kind: "report", payload: detailJob });
                     }}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
@@ -4983,6 +4987,12 @@ function JobsContent() {
                 >
                     Skip to results
                 </a>
+
+                {!user && resumeOnFile !== true && !hasUsableResume && (
+                    <div className={cn("mt-2", cappedContentClass)}>
+                        <ColdVisitorOrientation onRankByFit={handleUploadClick} />
+                    </div>
+                )}
 
                 {/* Stands down entirely once the header owns the search
                     (2026-08-24, Vivek: the docked version left this well on

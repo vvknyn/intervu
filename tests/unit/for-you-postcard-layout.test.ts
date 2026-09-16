@@ -44,22 +44,22 @@ describe("for-you postcard layout", () => {
         );
     });
 
-    it("sizes the deck to leftover flex space with a definite pack frame", () => {
+    it("sizes the deck to leftover flex space, rendering only the active pack (no stacked peeking cards, no gesture hijack)", () => {
         const deck = source("ForYouDeck.tsx");
-        assert.match(deck, /relative min-h-0 flex-1 overflow-hidden pb-6/);
-        assert.match(deck, /onTouchStart/);
-        assert.match(deck, /onTouchEnd/);
-        assert.match(deck, /shouldPackGestureAdvanceDeck/);
-        assert.match(deck, /absolute inset-x-0 top-0 bottom-6/);
-        assert.match(deck, /addEventListener\("wheel"/);
+        assert.match(deck, /relative min-h-0 flex-1 overflow-hidden/);
+        assert.doesNotMatch(deck, /onTouchStart/);
+        assert.doesNotMatch(deck, /onTouchEnd/);
+        assert.doesNotMatch(deck, /shouldPackGestureAdvanceDeck/);
+        assert.doesNotMatch(deck, /addEventListener\("wheel"/);
+        assert.match(deck, /key=\{activePack\.id\}/, "keyed by job id so a new job starts at scrollTop 0");
         assert.doesNotMatch(deck, /className=\{cn\("relative h-full/);
     });
 
-    it("keeps the pack a bounded postcard with inner JD scroll", () => {
+    it("keeps the pack ONE native scroller (no dead zones, no nested meta scroller)", () => {
         const pack = source("ForYouPack.tsx");
         assert.match(pack, /h-full max-h-full min-h-0[\s\S]*overflow-hidden/);
-        assert.match(pack, /max-h-\[40%\]/);
-        assert.match(pack, /data-pack-meta-scroll/);
+        assert.doesNotMatch(pack, /max-h-\[40%\]/);
+        assert.doesNotMatch(pack, /data-pack-meta-scroll/);
         assert.match(pack, /data-pack-scroll/);
         assert.match(pack, /data-pack-scroll[\s\S]*overflow-y-auto/);
         assert.doesNotMatch(pack, /lg:min-h-\[420px\]/);
