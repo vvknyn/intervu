@@ -6,14 +6,14 @@ import {
 
 const TH =
   "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
-const TD = "border-t border-foreground/10 px-4 py-3 align-top";
+const TD = "border-t border-foreground px-4 py-3 align-top";
 
 export function BoardComparisonTable({ board }: { board: ComparisonBoard }) {
   return (
     <div className="overflow-x-auto">
       <table
         data-testid={`board-comparison-${board}`}
-        className="w-full border-collapse border border-foreground/10 text-[13.5px]"
+        className="w-full border-collapse border border-foreground text-[13.5px]"
       >
         <thead>
           <tr>

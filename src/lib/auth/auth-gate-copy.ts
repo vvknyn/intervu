@@ -4,7 +4,7 @@
  * prepends an honest keep-line; never fabricates a count.
  */
 
-export type AuthGateReason = "apply" | "generic" | "save" | "fit" | "report";
+export type AuthGateReason = "apply" | "generic" | "save" | "fit" | "report" | "tailor" | "resume";
 
 /** Pure guard for auth_started — fire only on false→true, not on close or
  *  re-renders while open. Kept next to AuthGateReason so AuthPopover and
@@ -29,6 +29,8 @@ const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
     save: "Sign in to keep your list across devices and get alerts when new roles match.",
     fit: "Sign in to match roles to your résumé and get personalized recommendations.",
     report: "Sign in to report an issue with this listing.",
+    tailor: "Create a free account to tailor your résumé with on-device AI and export customized applications.",
+    resume: "Create a free account to edit, export, and sync your résumé across devices.",
 };
 
 /** Honest keep-line when guest pursuits exist; null when count is zero. */

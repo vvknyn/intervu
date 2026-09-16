@@ -16,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConfidenceIndicator, ConfidenceBadge, WarningBanner } from "./ConfidenceIndicator";
 import { ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ParsedResumeResult } from "@/types/resume";
 import { parseResumeWithAI, extractPDFText, extractDocxText } from "@/actions/resume";
-import { readLocalAiEnabled } from "@/lib/local-ai/flag";
+import { readLocalAiEnabled, writeLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
 import {
@@ -291,18 +291,54 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     };
 
     const renderLocalAiConsent = () => {
-        if (!localAiEnabled || localAiConsent) return null;
         return (
-            <div className="p-4 border border-border bg-muted space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                    <Cpu size={18} weight="duotone" className="text-brand" />
-                    On-device parse (R&amp;D)
+            <div className="p-3.5 border border-border bg-muted space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                        <Cpu size={16} className="text-brand shrink-0" />
+                        <span>On-Device AI Parser</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setLocalAiEnabled(true);
+                                writeLocalAiEnabled(true);
+                            }}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-none border transition-colors ${
+                                localAiEnabled
+                                    ? "border-border bg-card text-foreground"
+                                    : "border-transparent text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                            On-Device AI
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setLocalAiEnabled(false);
+                                writeLocalAiEnabled(false);
+                            }}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-none border transition-colors ${
+                                !localAiEnabled
+                                    ? "border-border bg-card text-foreground"
+                                    : "border-transparent text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                            Standard (No AI)
+                        </button>
+                    </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                    Your résumé stays on this device. Click Enable to download an on-device model
-                    {probedEngine ? ` (${probedEngine})` : " (e.g. Llama 3.2 3B on WebGPU)"} or use local rules if the download fails.
-                    No cloud LLM is called on this path.
-                </p>
+                {localAiEnabled ? (
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                        🔒 100% On-Device AI: Your résumé never leaves this device. Download and run a private model
+                        {probedEngine ? ` (${probedEngine})` : " (e.g. Llama 3.2 3B on WebGPU)"} directly in your browser.
+                    </p>
+                ) : (
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                        Standard rules extraction: Extracts document sections using built-in heuristics without running local AI models.
+                    </p>
+                )}
             </div>
         );
     };
@@ -449,7 +485,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     </div>
                     <div className="text-right">
                         {engineLabel && (
-                            <p className="text-xs text-brand font-medium">{engineLabel}</p>
+                            <p className="text-xs text-brand font-semibold">{engineLabel}</p>
                         )}
                         <p className="text-xs text-muted-foreground">
                             Review and edit before saving
@@ -678,9 +714,9 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     };
 
     const parseButtonLabel = () => {
-        if (localAiEnabled && !localAiConsent) return "Enable on-device parse";
+        if (localAiEnabled && !localAiConsent) return "Download model & parse";
         if (localAiEnabled) return "Parse on device";
-        return "Parse with AI";
+        return "Parse with standard rules";
     };
 
     return (
@@ -702,8 +738,8 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     <DialogDescription>
                         {description ? description : (
                             <>
-                                {step === 'input' && (localAiEnabled ? "Upload or paste — parsed on this device (R&D)" : "Upload a file or paste your resume text")}
-                                {step === 'parsing' && (localAiEnabled ? "On-device parser is analyzing your résumé..." : "AI is analyzing your resume...")}
+                                {step === 'input' && (localAiEnabled ? "Upload or paste — 100% on-device AI inference" : "Upload a file or paste your resume text")}
+                                {step === 'parsing' && (localAiEnabled ? "On-device AI is analyzing your résumé..." : "Analyzing your resume...")}
                                 {step === 'review' && "Review and edit the extracted information"}
                             </>
                         )}

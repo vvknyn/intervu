@@ -207,6 +207,7 @@ export function TopBar() {
                                 <Link
                                     key={tab.href + tab.label}
                                     href={tab.href}
+                                    title={tab.title}
                                     data-testid={tab.testId}
                                     data-tour={tab.tourSelector}
                                     aria-current={active ? "page" : undefined}

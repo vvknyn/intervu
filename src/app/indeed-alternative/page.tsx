@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 const faqJsonLd = buildFaqPageJsonLd(INDEED_ALTERNATIVE_FAQ);
 const stats = getGhostJobsStats();
 
-const ASEC = "mt-8 mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground";
+const ASEC = "mt-8 mb-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
 
 export default function IndeedAlternativePage() {
   return (
@@ -28,8 +28,8 @@ export default function IndeedAlternativePage() {
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }}
         />
       )}
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">Indeed alternative</p>
-      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Indeed alternative</p>
+      <h1 className="mt-3 font-display text-display font-semibold text-foreground">
         The listing is still up. That doesn&apos;t mean they&apos;re hiring.
       </h1>
       <p className="mt-1.5 text-sm italic text-muted-foreground">

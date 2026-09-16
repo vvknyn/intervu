@@ -300,6 +300,33 @@ export function ConnectClient({
               </AccordionContent>
             </AccordionItem>
 
+            {/* FAQ for Job Seekers */}
+            <AccordionItem value="faq-seekers">
+              <AccordionTrigger>Frequently asked questions</AccordionTrigger>
+              <AccordionContent className="pb-3 pt-1">
+                <div className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+                  <div>
+                    <p className="font-semibold text-foreground">Do I need an AI to search jobs on Velai?</p>
+                    <p className="mt-0.5">
+                      No. Velai&apos;s job search, resume fit matching, and application tracker work 100% in your browser without connecting any tools. This page is an optional power feature for people who use AI assistants.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">What is an MCP connection?</p>
+                    <p className="mt-0.5">
+                      Model Context Protocol (MCP) lets your AI assistant (like Claude Desktop, Cursor, or Gemini) query Velai&apos;s verified job database directly from your conversation so you don&apos;t have to switch tabs.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">Can an AI apply to jobs for me?</p>
+                    <p className="mt-0.5">
+                      No. Velai&apos;s agent tools are strictly for reading verified roles and saving drafts to your tracker. No application is ever submitted without your direct personal action.
+                    </p>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
             {/* Privacy & Permissions Guarantees */}
             <AccordionItem value="privacy-security">
               <AccordionTrigger>Permissions and privacy</AccordionTrigger>
