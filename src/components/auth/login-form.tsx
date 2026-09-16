@@ -163,7 +163,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     }
 
     return (
-        <div className="space-y-5 pt-1">
+        <div className="space-y-4 sm:space-y-5 pt-0 sm:pt-1">
             <div className="space-y-1.5">
                 {/* A dead end otherwise — this card had no wordmark/home link
                     back to the rest of the site. Reuses TopBar's own lockup
@@ -180,7 +180,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
             </div>
 
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "login" | "signup"); setMessage(null); }} className="w-full">
-                <TabsList variant="line" className="mb-5">
+                <TabsList variant="line" className="mb-3.5 sm:mb-5">
                     <TabsTrigger value="login">{authCardCopy("login").tabLabel}</TabsTrigger>
                     <TabsTrigger value="signup">{authCardCopy("signup").tabLabel}</TabsTrigger>
                 </TabsList>
@@ -192,7 +192,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     (see lib/auth/username-email.ts), so it can't actually receive
                     the alerts/digest this form is now selling. That path stays
                     above username/password on both tabs rather than below it. */}
-                <div className="grid gap-2 mb-4">
+                <div className="grid gap-2 mb-3 sm:mb-4">
                     {/* Google now runs through WorkOS rather than Firebase, so
                         every provider issues the same session and the server
                         has one answer to "who is this". `GoogleOAuth` is
@@ -200,7 +200,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         the dashboard — not an app-side name, and not validated
                         here, because WorkOS is the authority on which
                         providers an environment actually has. */}
-                    <Button variant="outline" size="lg" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                    <Button variant="outline" type="button" className="w-full h-10 sm:h-11" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
                         {authKitPending === "GoogleOAuth" ? (
                             <CircleNotch size={16} className="mr-2 animate-spin" />
                         ) : (
@@ -215,9 +215,8 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         enabled for the environment. */}
                     <Button
                         variant="outline"
-                        size="lg"
                         type="button"
-                        className="w-full"
+                        className="w-full h-10 sm:h-11"
                         disabled={isPending || authKitPending !== null}
                         onClick={() => startAuthKit()}
                     >
@@ -229,13 +228,13 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         Use a passkey or email code
                     </Button>
                     {onGuestAccess && (
-                        <Button variant="outline" size="lg" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
+                        <Button variant="outline" type="button" className="w-full h-10 sm:h-11" disabled={isPending} onClick={onGuestAccess}>
                             Continue as Guest
                         </Button>
                     )}
                 </div>
 
-                <div className="relative mb-4">
+                <div className="relative mb-3 sm:mb-4">
                     <div className="absolute inset-0 flex items-center">
                         <span className="w-full border-t" />
                     </div>
@@ -246,9 +245,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     </div>
                 </div>
 
-                <div className="grid gap-4">
+                <div className="grid gap-3 sm:gap-4">
                     <form onSubmit={activeTab === "login" ? handleLogin : handleSignUp}>
-                        <div className="grid gap-4">
+                        <div className="grid gap-3 sm:gap-4">
                             {activeTab === "signup" && (
                                 <Field label="Email" htmlFor="email">
                                     <Input
@@ -258,6 +257,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                         disabled={isPending}
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
+                                        onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
                                     />
                                 </Field>
                             )}
@@ -271,6 +271,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                     disabled={isPending}
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
+                                    onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
                                 />
                             </Field>
                             <Field label="Password" htmlFor="password">
@@ -283,6 +284,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                         disabled={isPending}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
+                                        onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
                                         className="pr-14"
                                     />
                                     <button
@@ -302,7 +304,12 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                             {activeTab === "signup" && (
                                 <TurnstileWidget onVerify={setTurnstileToken} />
                             )}
-                            <Button disabled={isPending} size="lg" className="w-full">
+                            <Button
+                                type="submit"
+                                data-testid="auth-submit-button"
+                                disabled={isPending}
+                                className="w-full h-10 sm:h-11 font-semibold"
+                            >
                                 {isPending && (
                                     <CircleNotch size={16} className="mr-2 animate-spin" />
                                 )}

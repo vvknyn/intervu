@@ -4907,7 +4907,7 @@ function JobsContent() {
      * sized for).
      */
     const showMobileSearchCta =
-        !isLgUp && showSearchHome && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
+        !isLgUp && showSearchHome && !detailSheetOpen && !locationSheetOpen && !authOpen && !importOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -6018,7 +6018,7 @@ function JobsContent() {
                     // bottom padding (above) clears for, so the two can't
                     // drift apart the way a padding guess and this bar's
                     // real height already had.
-                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-card px-4 lg:hidden"
+                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-card px-4 lg:hidden"
                 >
                     <Button
                         type="button"
