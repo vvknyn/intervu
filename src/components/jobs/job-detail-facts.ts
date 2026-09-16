@@ -57,8 +57,27 @@ export function buildFactChips(
  * public-safe verdict; the underlying signals are not exposed to this layer
  * — see PublicJob's `ghost_badge` doc comment, types.ts).
  */
-export function ghostCheckedText(job: GhostChecked, now: number): string {
-    return checkedAgeText(job.ghost_checked_at, now);
+export function ghostCheckedText(
+    job: GhostChecked & { first_seen_at?: string | null },
+    now: number,
+): string {
+    const checkTs = job.last_observed_alive_at || job.ghost_checked_at;
+    if (!checkTs || Number.isNaN(Date.parse(checkTs))) return "Check time unavailable";
+
+    // Deduplicate intake check from first-seen age:
+    // When a job was only checked once at intake and never re-checked since, and that intake
+    // was more than 7 days ago, rendering "checked 17d ago" directly above "first seen by us 17d ago"
+    // is misleading and falsely makes an active posting look abandoned. In that case, honestly state
+    // "Verified on intake".
+    if (job.first_seen_at) {
+        const checkMs = Date.parse(checkTs);
+        const firstSeenMs = Date.parse(job.first_seen_at);
+        if (!Number.isNaN(firstSeenMs) && Math.abs(checkMs - firstSeenMs) < 3600_000 && now - checkMs > 7 * 86_400_000) {
+            return "Verified on intake";
+        }
+    }
+
+    return checkedAgeText(checkTs, now);
 }
 
 /**

@@ -25,7 +25,8 @@ const STALE_CHECK_MS = STALE_CHECK_DAYS * 86_400_000;
  * (types.ts). It read `updated_at` (the last scrape) until 2026-08-17.
  */
 export function checkFreshness(job: GhostChecked, nowMs: number): "fresh" | "stale" {
-    return isStale(job.ghost_checked_at ?? null, nowMs, STALE_CHECK_MS) ? "stale" : "fresh";
+    const checkTs = job.last_observed_alive_at || job.ghost_checked_at;
+    return isStale(checkTs ?? null, nowMs, STALE_CHECK_MS) ? "stale" : "fresh";
 }
 
 /**
@@ -140,9 +141,9 @@ export function badgeFor(
                     ? "not recently verified"
                     : `last seen ${formatRelativeAge(seen as string, nowMs)}`;
             }
-            // "fresh" guarantees ghost_checked_at parses (checkFreshness
+            // "fresh" guarantees checkTs parses (checkFreshness
             // treats null/unparseable as stale) — no NaN fallback needed.
-            const checkedAt = job.ghost_checked_at as string;
+            const checkedAt = (job.last_observed_alive_at || job.ghost_checked_at) as string;
             const parsed = Date.parse(checkedAt);
             const age = formatRelativeAge(checkedAt, nowMs);
             return nowMs - parsed > STALE_THRESHOLD_MS ? `checked ${age}` : `✓ live ${age}`;

@@ -100,6 +100,23 @@ test("checkFreshness: fresh within STALE_CHECK_DAYS, stale beyond it, stale for 
     assert.equal(checkFreshness(job("clear", "not-a-date"), NOW), "stale");
 });
 
+test("clear badge recognizes last_observed_alive_at within 24h as live", () => {
+    const text = badgeFor(
+        { ghost_badge: "clear", ghost_checked_at: ago(17 * 86_400_000), last_observed_alive_at: ago(4 * 3_600_000), updated_at: null },
+        null,
+        NOW,
+    );
+    assert.equal(text, "✓ live 4h ago");
+});
+
+test("checkFreshness: fresh when last_observed_alive_at is current even if ghost_checked_at is older", () => {
+    assert.equal(
+        checkFreshness({ ghost_badge: "clear", ghost_checked_at: ago(35 * 86_400_000), last_observed_alive_at: ago(2 * 86_400_000) }, NOW),
+        "fresh",
+    );
+});
+
+
 /**
  * A document indexed before `ghost_checked_at` existed carries no such field
  * at all. Absent must read exactly like "never scored" — unknown age, which

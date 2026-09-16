@@ -100,6 +100,27 @@ test("ghostCheckedText: a document predating the field claims nothing, rather th
     assert.equal(ghostCheckedText(job, NOW), "Check time unavailable");
 });
 
+test("ghostCheckedText: reads last_observed_alive_at when newer than ghost_checked_at", () => {
+    const job = {
+        ghost_badge: "clear" as const,
+        ghost_checked_at: new Date(NOW - 17 * 86_400_000).toISOString(),
+        last_observed_alive_at: new Date(NOW - 6 * 86_400_000).toISOString(),
+        first_seen_at: new Date(NOW - 17 * 86_400_000).toISOString(),
+    };
+    assert.equal(ghostCheckedText(job, NOW), "Checked 6d ago");
+});
+
+test("ghostCheckedText: deduplicates intake check when older than 7d and matches first_seen_at", () => {
+    const intake = new Date(NOW - 17 * 86_400_000).toISOString();
+    const job = {
+        ghost_badge: "clear" as const,
+        ghost_checked_at: intake,
+        first_seen_at: intake,
+    };
+    assert.equal(ghostCheckedText(job, NOW), "Verified on intake");
+});
+
+
 /* ---------------------------- deriveGhostSignals ---------------------------- */
 
 const freshness = (over: Partial<PostingFreshness>): PostingFreshness => ({

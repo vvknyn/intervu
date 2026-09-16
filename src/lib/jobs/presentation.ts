@@ -124,7 +124,7 @@ export function ghostMetaFor(job: GhostChecked, nowMs: number) {
     const stale = checkFreshness(job, nowMs) === "stale";
     const meta = job.ghost_badge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[job.ghost_badge];
     if (!meta || !stale) return meta;
-    return { ...meta, explain: `${meta.explain} ${lastCheckedClause(job.ghost_checked_at, nowMs)}` };
+    return { ...meta, explain: `${meta.explain} ${lastCheckedClause(job.last_observed_alive_at || job.ghost_checked_at, nowMs)}` };
 }
 
 /**

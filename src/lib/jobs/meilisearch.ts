@@ -699,6 +699,7 @@ export const JOB_LIST_ATTRIBUTES_TO_RETRIEVE = [
   "vacancy_status",
   "ghost_badge",
   "ghost_checked_at",
+  "last_observed_alive_at",
   "company_opened_90d",
   "company_closed_90d",
   "company_open_count",

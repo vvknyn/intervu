@@ -25,7 +25,9 @@ export type GhostBadge = "clear" | "caution" | "likely_ghost" | "unscored";
  * `job.updated_at`, the last scrape. Passing the job removes the decision
  * instead of correcting eight copies of it.
  */
-export type GhostChecked = Pick<PublicJob, "ghost_badge" | "ghost_checked_at">;
+export type GhostChecked = Pick<PublicJob, "ghost_badge" | "ghost_checked_at"> & {
+  last_observed_alive_at?: string | null;
+};
 
 export interface PublicJob {
   id: string;
@@ -96,6 +98,11 @@ export interface PublicJob {
    * `checkFreshness` reads as stale — the conservative direction.
    */
   ghost_checked_at?: string | null;
+  /**
+   * Dedicated liveness timestamp — when this listing was directly observed alive,
+   * either by a board scrape or an explicit HTTP probe.
+   */
+  last_observed_alive_at?: string | null;
   /** Company aggregate fields — optional until sync backfills (Task 5). */
   company_opened_90d?: number | null;
   company_closed_90d?: number | null;
