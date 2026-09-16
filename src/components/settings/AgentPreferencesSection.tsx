@@ -202,11 +202,11 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
     if (!user) {
         return (
             <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-                <h2 className={embedded ? "text-[15px] font-semibold tracking-[-0.02em] mb-1" : "text-lg font-semibold mb-1"}>
+                <h2 className={embedded ? "text-sm font-semibold mb-1" : "text-base font-semibold mb-1"}>
                     {embedded ? "Job search" : "Your agent's answers"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand/80">
+                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
                         login
                     </button>{" "}
                     to see and edit what your AI fills into applications for you.
@@ -219,7 +219,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
         <section className={embedded ? undefined : "pt-6 border-t border-border"}>
             {!embedded && (
                 <>
-                    <h2 className="text-lg font-semibold mb-1">Your agent&apos;s answers</h2>
+                    <h2 className="text-base font-semibold mb-1">Your agent&apos;s answers</h2>
                     <p className="text-sm text-muted-foreground mb-4">
                         What your AI fills into applications for you. It learns these when you first talk to it — or set
                         them here.
@@ -253,9 +253,9 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
 
                     <div className="space-y-4">
                         <div>
-                            <p className="text-[15px] font-semibold tracking-[-0.02em]">Job search</p>
+                            <p className="text-sm font-semibold">Job search</p>
                             {embedded && (
-                                <p className="mt-1 text-[13px] text-muted-foreground">
+                                <p className="mt-1 text-xs text-muted-foreground">
                                     Defaults for the board filters and overnight search. Same language as Jobs.
                                 </p>
                             )}
@@ -327,24 +327,24 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                         </div>
 
                         <div className="flex items-center justify-between gap-4">
-                            <p className="text-sm font-medium">Remote only</p>
+                            <p className="text-sm">Remote only</p>
                             <button
                                 type="button"
                                 onClick={() => setRemoteOnly((v) => !v)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${remoteOnly ? "bg-brand" : "bg-muted"}`}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-none border border-border transition-colors ${remoteOnly ? "bg-brand text-brand-foreground" : "bg-muted"}`}
                                 role="switch"
                                 aria-checked={remoteOnly}
                             >
-                                <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${remoteOnly ? "translate-x-6" : "translate-x-1"}`} />
+                                <span className={`inline-block h-4 w-4 rounded-none border border-border bg-card transition-transform ${remoteOnly ? "translate-x-[23px]" : "translate-x-[3px]"}`} />
                             </button>
                         </div>
                     </div>
 
                     <div className="space-y-4">
                         <div>
-                            <p className="text-[15px] font-semibold tracking-[-0.02em]">Standing answers</p>
+                            <p className="text-sm font-semibold">Standing answers</p>
                             {embedded && (
-                                <p className="mt-1 text-[13px] text-muted-foreground">
+                                <p className="mt-1 text-xs text-muted-foreground">
                                     What forms ask every time. Keep short — your agent fills these in.
                                 </p>
                             )}
@@ -425,12 +425,12 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                         <Button
                                             type="button"
                                             variant="ghost"
-                                            size="sm"
-                                            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+                                            size="icon"
+                                            className="shrink-0 text-muted-foreground hover:text-danger-text"
                                             onClick={() => removeCustomRow(row.id)}
                                             aria-label="Remove"
                                         >
-                                            <Trash size={14} />
+                                            <Trash />
                                         </Button>
                                     </div>
                                 </div>

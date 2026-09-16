@@ -1,5 +1,5 @@
 import { eventDate } from "@/components/company/CompanyChangeEvents";
-import type { WeeklyCadence } from "@/lib/companies/exhaust";
+import type { ExhaustSection, WeeklyCadence } from "@/lib/companies/exhaust";
 
 /**
  * Band 3 — the posting-cadence strip, the page's signature band (design
@@ -12,7 +12,7 @@ import type { WeeklyCadence } from "@/lib/companies/exhaust";
 export function CompanyCadenceStrip({
   cadence,
 }: {
-  cadence: { data: WeeklyCadence[]; source: string; asOf: string } | null;
+  cadence: ExhaustSection<WeeklyCadence[]>;
 }) {
   if (!cadence || cadence.data.length === 0) return null;
   const weeks = cadence.data;
@@ -22,7 +22,7 @@ export function CompanyCadenceStrip({
 
   return (
     <section data-testid="company-cadence-strip" className="border border-border bg-card px-6 py-6 sm:px-8">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="text-xs font-semibold text-muted-foreground">
         Their posting rhythm, last {weeks.length} weeks
       </h2>
       <div
@@ -43,12 +43,12 @@ export function CompanyCadenceStrip({
           );
         })}
       </div>
-      <div className="mt-2 flex justify-between text-[10.5px] text-muted-foreground">
+      <div className="mt-2 flex justify-between text-xs text-muted-foreground">
         <span className="mono-data">{first}</span>
         <span className="mono-data">{last}</span>
       </div>
-      <p className="mono-data mt-3 text-[11px] text-muted-foreground">
-        {cadence.source} · weekly buckets
+      <p className="mono-data mt-3 text-xs text-muted-foreground">
+        {cadence.label} · weekly buckets
       </p>
     </section>
   );

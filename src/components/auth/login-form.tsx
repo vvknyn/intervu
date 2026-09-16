@@ -4,16 +4,21 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
 import { captureEvent } from '@/lib/analytics/events'
+import { clearSignupSignalCookieFromDocument } from '@/lib/auth/authkit-signup-signal'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CircleNotch, Fingerprint } from '@phosphor-icons/react'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
+import { buildReturnTo } from '@/lib/jobs/pending-actions'
 import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import Link from 'next/link'
+import { BrandLockup } from '@/components/brand/BrandMark'
 
 interface LoginFormProps {
     onSuccess?: () => void;
@@ -27,7 +32,7 @@ interface LoginFormProps {
  *  it. Inline, no dark-mode variant needed (the mark itself is brand-fixed). */
 function GoogleGlyph() {
     return (
-        <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+        <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden data-rulebook-exempt>
             <path
                 fill="#4285F4"
                 d="M23.52 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.87c2.27-2.09 3.58-5.17 3.58-8.82Z"
@@ -102,7 +107,11 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     const startAuthKit = (provider?: string) => {
         setAuthKitPending(provider ?? 'passkey')
         const params = new URLSearchParams()
-        const next = new URLSearchParams(window.location.search).get("next")
+        // `next` already on this URL (e.g. middleware bounced here from a
+        // gated route) wins; otherwise fall back to wherever the user
+        // actually is, so a hard-nav OAuth/passkey round trip returns to the
+        // same page instead of AuthKit's own default.
+        const next = new URLSearchParams(window.location.search).get("next") || buildReturnTo(window.location)
         if (next) params.set("next", next)
         if (activeTab === "signup") params.set("mode", "signup")
         if (provider) params.set("provider", provider)
@@ -120,31 +129,32 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
         setMessage(null)
 
         startTransition(async () => {
-            const formData = new FormData()
-            formData.append('email', email)
-            formData.append('username', username)
-            formData.append('password', password)
-            formData.append('turnstileToken', turnstileToken ?? '')
-            const result = await signUp(null, formData)
-            if ("error" in result) {
-                setMessage(result.error)
-                return
+            try {
+                const formData = new FormData()
+                formData.append('email', email)
+                formData.append('username', username)
+                formData.append('password', password)
+                formData.append('turnstileToken', turnstileToken ?? '')
+                const result = await signUp(null, formData)
+                if ("error" in result) {
+                    setMessage(result.error)
+                    return
+                }
+                // `signUp` already authenticates the fresh account and saves the
+                // session server-side — no second client-side sign-in round trip.
+                //
+                // Username/password path only — AuthKit (Google/passkey/magic-auth)
+                // emits via /auth/callback cookie + PostHogProvider after identify;
+                // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
+                // so an abandoned Google redirect + password signup cannot double-fire.
+                clearSignupSignalCookieFromDocument()
+                captureEvent('signup_completed', { method: 'username' })
+                router.refresh()
+                await syncGuestFollowsToServer()
+                if (onSuccess) onSuccess()
+            } catch (err) {
+                setMessage(err instanceof Error ? err.message : "Failed to create account")
             }
-            // `signUp` already authenticates the fresh account and saves the
-            // session server-side — no second client-side sign-in round trip.
-            //
-            // ⚠️ This covers the username/password form ONLY. Google now
-            // goes through WorkOS AuthKit (`startAuthKit`), which is a full
-            // page redirect — the browser leaves before any signup could be
-            // observed, and the callback is server-side where posthog-js
-            // does not run. So AuthKit signups are currently UNCOUNTED
-            // rather than guessed at. Closing that gap needs either
-            // server-side capture or an explicit new-user signal handed
-            // back from /auth/callback; see docs/analytics/FUNNEL.md.
-            captureEvent('signup_completed', { method: 'username' })
-            router.refresh()
-            await syncGuestFollowsToServer()
-            if (onSuccess) onSuccess()
         })
     }
 
@@ -153,21 +163,24 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     }
 
     return (
-        <div className="space-y-5 pt-1">
+        <div className="space-y-4 sm:space-y-5 pt-0 sm:pt-1">
             <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
-                    {copy.eyebrow}
-                </p>
-                <h3 className="font-bold text-xl tracking-tight text-foreground">
+                {/* A dead end otherwise — this card had no wordmark/home link
+                    back to the rest of the site. Reuses TopBar's own lockup
+                    (BrandMark.tsx) rather than a second copy of the mark. */}
+                <Link href="/jobs" className="inline-flex w-fit text-brand transition-opacity hover:opacity-90" data-rulebook-exempt>
+                    <BrandLockup />
+                </Link>
+                <h1 className="font-semibold text-xl text-foreground">
                     {copy.title}
-                </h3>
+                </h1>
                 {activeTab === "signup" && (
                     <p className="text-xs text-muted-foreground">{SIGNUP_SUBCOPY}</p>
                 )}
             </div>
 
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "login" | "signup"); setMessage(null); }} className="w-full">
-                <TabsList variant="block" className="grid w-full grid-cols-2 mb-5">
+                <TabsList variant="line" className="mb-3.5 sm:mb-5">
                     <TabsTrigger value="login">{authCardCopy("login").tabLabel}</TabsTrigger>
                     <TabsTrigger value="signup">{authCardCopy("signup").tabLabel}</TabsTrigger>
                 </TabsList>
@@ -179,7 +192,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     (see lib/auth/username-email.ts), so it can't actually receive
                     the alerts/digest this form is now selling. That path stays
                     above username/password on both tabs rather than below it. */}
-                <div className="grid gap-2 mb-4">
+                <div className="grid gap-2 mb-3 sm:mb-4">
                     {/* Google now runs through WorkOS rather than Firebase, so
                         every provider issues the same session and the server
                         has one answer to "who is this". `GoogleOAuth` is
@@ -187,7 +200,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         the dashboard — not an app-side name, and not validated
                         here, because WorkOS is the authority on which
                         providers an environment actually has. */}
-                    <Button variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                    <Button variant="outline" type="button" className="w-full h-10 sm:h-11" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
                         {authKitPending === "GoogleOAuth" ? (
                             <CircleNotch size={16} className="mr-2 animate-spin" />
                         ) : (
@@ -203,7 +216,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     <Button
                         variant="outline"
                         type="button"
-                        className="w-full"
+                        className="w-full h-10 sm:h-11"
                         disabled={isPending || authKitPending !== null}
                         onClick={() => startAuthKit()}
                     >
@@ -215,26 +228,26 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         Use a passkey or email code
                     </Button>
                     {onGuestAccess && (
-                        <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
+                        <Button variant="outline" type="button" className="w-full h-10 sm:h-11" disabled={isPending} onClick={onGuestAccess}>
                             Continue as Guest
                         </Button>
                     )}
                 </div>
 
-                <div className="relative mb-4">
+                <div className="relative mb-3 sm:mb-4">
                     <div className="absolute inset-0 flex items-center">
                         <span className="w-full border-t" />
                     </div>
-                    <div className="relative flex justify-center text-xs uppercase">
+                    <div className="relative flex justify-center text-xs">
                         <span className="bg-background px-2 text-muted-foreground">
-                            Or
+                            or
                         </span>
                     </div>
                 </div>
 
-                <div className="grid gap-4">
+                <div className="grid gap-3 sm:gap-4">
                     <form onSubmit={activeTab === "login" ? handleLogin : handleSignUp}>
-                        <div className="grid gap-4">
+                        <div className="grid gap-3 sm:gap-4">
                             {activeTab === "signup" && (
                                 <Field label="Email" htmlFor="email">
                                     <Input
@@ -244,6 +257,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                         disabled={isPending}
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
+                                        onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
                                     />
                                 </Field>
                             )}
@@ -257,6 +271,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                     disabled={isPending}
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
+                                    onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
                                 />
                             </Field>
                             <Field label="Password" htmlFor="password">
@@ -269,6 +284,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                         disabled={isPending}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
+                                        onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
                                         className="pr-14"
                                     />
                                     <button
@@ -289,8 +305,10 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                 <TurnstileWidget onVerify={setTurnstileToken} />
                             )}
                             <Button
+                                type="submit"
+                                data-testid="auth-submit-button"
                                 disabled={isPending}
-                                className="w-full bg-brand text-brand-foreground hover:bg-brand hover:opacity-90 dark:bg-brand dark:text-brand-foreground dark:hover:bg-brand"
+                                className="w-full h-10 sm:h-11 font-semibold"
                             >
                                 {isPending && (
                                     <CircleNotch size={16} className="mr-2 animate-spin" />
@@ -315,9 +333,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
             </Tabs>
 
             {message && (
-                <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm justify-center">
-                    <p>{message}</p>
-                </div>
+                <Alert variant="destructive" className="text-center">
+                    <AlertDescription>{message}</AlertDescription>
+                </Alert>
             )}
         </div>
     )

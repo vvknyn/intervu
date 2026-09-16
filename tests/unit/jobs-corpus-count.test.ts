@@ -49,6 +49,10 @@ describe('formatCorpusCount', () => {
         assert.equal(formatCorpusCount({ kind: 'exact', value: 1_769_866 }), '1,769,866');
     });
 
+    it('exact, un-capped four-digit count — comma-grouped, matches the "9184" -> "9,184" regression', () => {
+        assert.equal(formatCorpusCount({ kind: 'exact', value: 9_184 }), '9,184');
+    });
+
     it('floor — comma-grouped with a trailing "+" (a true floor, never a bare number)', () => {
         assert.equal(formatCorpusCount({ kind: 'floor', value: CORPUS_COUNT_CAP }), '100,000+');
     });

@@ -170,10 +170,138 @@ export function rowExceptionMeta(job: GhostChecked, nowMs: number) {
  * too — there is no signal in a bare string to tell them apart. Presentation-
  * only: callers never write the result back to the stored record.
  */
+/**
+ * Small connectors `titleCaseDisplay` lowercases mid-title — English +
+ * French, matched against the corpus's actual language mix (Canadian
+ * postings). A connector only lowercases when it actually JOINS two other
+ * tokens (see `isConnectorPosition` below): the same word at a title's
+ * start, end, or against punctuation ("TORONTO, ON", "PORTLAND, OR -
+ * REMOTE") is a trailing code or a leading word, not a connector, and falls
+ * through to the length-based rules instead. Deliberately NOT
+ * `FUNCTION_WORDS` (lib/geo/common-words.ts): that set exists for search-
+ * relevance stopword filtering, is English-only, and is far broader than
+ * the small connector class a title actually wants lowercased ("and"/"of"/
+ * "the", not "however"/"whereas").
+ */
+const TITLE_CASE_CONNECTORS = new Set([
+    "a", "an", "and", "or", "the", "for", "of", "in", "at", "to", "by", "on", "per",
+    "de", "du", "et", "la", "le",
+]);
+
+/**
+ * A 2-3 letter ALL-CAPS token in a job title or location is overwhelmingly a
+ * code (a credential, a state/province abbreviation), not a word shouting —
+ * so the default for those lengths is to keep it uppercase. The two lexicons
+ * below name the closed set of exceptions: ordinary short words ("NEW",
+ * "SAN", "IN") that would otherwise misread as a code. This is a linguistic
+ * dictionary, not a tenant/feature gate — it doesn't grow per caller, and a
+ * token missing from it still gets a rule-based answer (stays a code), never
+ * a fallback to "leave it alone."
+ */
+const TITLE_CASE_SHORT_WORDS_2 = new Set([
+    "am", "as", "be", "do", "go", "if", "is", "jr", "my", "no", "so", "sr", "up", "we",
+]);
+
+/** 3-letter ordinary English/French words that read as prose, not an
+ *  acronym like "CNC"/"ICU"/"CDL". Also carries every 3-letter member of
+ *  `TITLE_CASE_CONNECTORS` ("and", "for", "per", "the"): a 2-letter
+ *  connector legitimately doubles as a real code often enough to keep the
+ *  code-default when it fails `isConnectorPosition` ("TORONTO, ON" must
+ *  stay "ON", not become "On"), but no 3-letter connector is ever a
+ *  plausible 3-letter job/location code, so those fall here instead — the
+ *  leading "THE" in "THE HOME DEPOT CANADA" is why this matters: it fails
+ *  `isConnectorPosition` (no left neighbour) same as "ON" does, but reads as
+ *  "The", not "THE". Exported so a test can assert against the exact
+ *  dictionary this function reads, rather than a copy of it. */
+export const TITLE_CASE_SHORT_WORDS_3: ReadonlySet<string> = new Set(
+    [
+        "air", "all", "and", "any", "art", "aux", "bar", "bay", "big", "box",
+        "bus", "but", "can", "car", "cut", "day", "des", "dry", "due", "end",
+        "est", "eye", "far", "fee", "few", "fly", "for", "fun", "gas", "get",
+        "gym", "hot", "how", "hub", "ice", "inn", "jet", "job", "key", "kid",
+        "kit", "las", "law", "les", "lot", "los", "low", "man", "map", "may",
+        "mid", "mix", "net", "new", "non", "not", "now", "off", "oil", "old",
+        "one", "our", "out", "own", "pay", "per", "pet", "pit", "pot", "pre",
+        "pro", "raw", "red", "row", "run", "san", "saw", "sea", "see", "set",
+        "sky", "spa", "sub", "sud", "sun", "sur", "tax", "tea", "the", "tip",
+        "top", "toy", "tub", "two", "use", "van", "via", "way", "who",
+    ].sort(),
+);
+
+/** The inverse dictionary for 4+ letter tokens, which are overwhelmingly
+ *  ordinary words by default: a closed set of acronyms that stay shouting
+ *  ("HVAC") instead of flattening to a fake word ("Hvac"). */
+const TITLE_CASE_KNOWN_ACRONYMS = new Set([
+    "apac", "asap", "cctv", "crna", "emea", "fema", "hipaa", "hvac", "latam",
+    "nasa", "nicu", "osha", "picu", "pmhnp", "scada", "usmc",
+]);
+
+const TITLE_CASE_TOKEN_RE = /[\p{L}\p{N}']+/gu;
+
+/** True only when `matches[i]` sits between two neighbouring tokens with
+ *  nothing but whitespace on either side. The first/last token in the
+ *  string has no neighbour on one side, and punctuation in the gap (a
+ *  comma, a dash, a period) means the token is glued to that punctuation,
+ *  not joining two words — "TORONTO, ON" (the original defect) fails on
+ *  both counts: ON is the last token, and its left gap is ", ", not pure
+ *  whitespace. */
+function isConnectorPosition(matches: RegExpMatchArray[], i: number, value: string): boolean {
+    if (i === 0 || i === matches.length - 1) return false;
+    const prev = matches[i - 1]!;
+    const next = matches[i + 1]!;
+    const leftGap = value.slice(prev.index! + prev[0].length, matches[i]!.index!);
+    const rightGap = value.slice(matches[i]!.index! + matches[i]![0].length, next.index!);
+    return /^\s+$/.test(leftGap) && /^\s+$/.test(rightGap);
+}
+
+function recaseToken(
+    w: string,
+    opts: { isConnector: boolean; isAllUpper: boolean; followedByDot: boolean },
+): string {
+    // A token carrying a digit ("310T") is a code, not a word — casing
+    // rules don't apply, so it passes through exactly as scraped.
+    if (/\d/.test(w)) return w;
+    const lower = w.toLowerCase();
+    const capitalized = lower[0]!.toUpperCase() + lower.slice(1);
+
+    if (opts.isConnector) return lower;
+    if (!opts.isAllUpper) return capitalized; // all-lowercase source: capitalize every token
+
+    if (w.length === 1) return w.toUpperCase();
+    if (w.length === 2) {
+        if (opts.followedByDot) return capitalized; // "ST." -> "St."
+        if (TITLE_CASE_SHORT_WORDS_2.has(lower)) return capitalized; // "NO" -> "No"
+        return w.toUpperCase(); // code default: "ON", "RN", "IT"
+    }
+    if (w.length === 3) {
+        if (TITLE_CASE_SHORT_WORDS_3.has(lower)) return capitalized; // "NEW" -> "New"
+        return w.toUpperCase(); // acronym default: "CNC", "ICU", "CDL"
+    }
+    if (TITLE_CASE_KNOWN_ACRONYMS.has(lower)) return w.toUpperCase(); // "HVAC"
+    return capitalized; // 4+ letters: overwhelmingly a word
+}
+
 export function titleCaseDisplay(value: string): string {
-    const hasMixedCase = value !== value.toLowerCase() && value !== value.toUpperCase();
+    const isAllUpper = value === value.toUpperCase();
+    const hasMixedCase = value !== value.toLowerCase() && !isAllUpper;
     if (hasMixedCase) return value;
-    return value.replace(/[\p{L}\p{N}']+/gu, (w) => w[0]!.toUpperCase() + w.slice(1).toLowerCase());
+
+    const matches = Array.from(value.matchAll(TITLE_CASE_TOKEN_RE));
+    let result = "";
+    let cursor = 0;
+    matches.forEach((m, i) => {
+        const w = m[0];
+        const start = m.index!;
+        result += value.slice(cursor, start);
+        result += recaseToken(w, {
+            isConnector: TITLE_CASE_CONNECTORS.has(w.toLowerCase()) && isConnectorPosition(matches, i, value),
+            isAllUpper,
+            followedByDot: value[start + w.length] === ".",
+        });
+        cursor = start + w.length;
+    });
+    result += value.slice(cursor);
+    return result;
 }
 
 export function prettyEnum(s: string | null | undefined): string {
@@ -316,6 +444,33 @@ function stripGenericSubdomainPrefixes(token: string): string {
 }
 
 /**
+ * Drop a trailing hostname label that is TLD-shaped, not a brand.
+ *
+ * 2–3 letter alphabetic labels are the ccTLD / short-gTLD class (`.us`,
+ * `.com`, `.inc`) — always a suffix, never a company name we should keep.
+ * 4–8 letter labels (`.club`, `.build`) strip only when the labels to the
+ * LEFT are not themselves a generic careers-prefix run: `relay.club` →
+ * `relay`, but `jobs.acme` / `talent.zippy` / `careers.algoleap` keep the
+ * last label as the brand so prefix-strip can recover it. A leftover
+ * multi-label token still fails open to "" below — this does not guess
+ * `acme.example` after `.com` is gone.
+ */
+function stripTrailingTldLabel(token: string): string {
+    const labels = token.split(".");
+    if (labels.length < 2) return token;
+    const last = labels[labels.length - 1]!;
+    if (!/^[A-Za-z]+$/.test(last)) return token;
+    const n = last.length;
+    const head = labels.slice(0, -1);
+    if (n === 2 || n === 3) return head.join(".");
+    if (n >= 4 && n <= 8) {
+        const headIsOnlyGeneric = head.every((l) => GENERIC_SUBDOMAIN_PREFIXES.has(l.toLowerCase()));
+        if (!headIsOnlyGeneric) return head.join(".");
+    }
+    return token;
+}
+
+/**
  * Extracts clean company brand names from raw ATS tenant domains or domain placeholders:
  * e.g. "zonenetwork.zohorecruit.com" -> "Zone Network"
  *      "sabenzait.zohorecruit.com" -> "Sabenza IT"
@@ -331,7 +486,7 @@ export function humanizeTenantSubdomain(raw: string): string {
     const atsMatch = s.match(/^([a-z0-9-]+)\.(zohorecruit|applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|recruitee|ashbyhq|breezy|workable)\.(com|io|net|co)$/i);
     let token = atsMatch ? atsMatch[1] : s;
 
-    token = token.replace(/\.(com|io|net|org|co|ai|app|dev|tech|de)$/i, "");
+    token = stripTrailingTldLabel(token);
     // Runs after the TLD strip above so "careers.com" loses its TLD first
     // (-> "careers", a single label the prefix-strip leaves alone) rather
     // than being read as prefix "careers" + bare-TLD remainder "com".
@@ -484,12 +639,16 @@ export function displayCompany(name: string | null | undefined, domain: string |
  *     brand content) instead of hand-picking which individual tokens are
  *     "safe enough" — so growing `BARE_LEGAL_SUFFIXES` never needs a fresh
  *     ambiguity argument per addition. What still keeps a token OUT of it is
- *     the token's OWN shape: an everyday unpunctuated English word/abbreviation
- *     ("Corp", "Co", "Group") that could plausibly BE a deliberate name
- *     ending stays excluded — "Acme Corp" must read as a company literally
- *     named that. A word that merely CONTAINS one of these tokens is never
- *     touched either way ("Inc Magazine" is untouched — every match here is
- *     end-anchored).
+ *     the token's OWN shape: a pure legal designator that no English brand
+ *     chooses as its own deliberate name ending ("Corp", "Corporation",
+ *     "Ltd") belongs here even bare — the remainder guard above is
+ *     corroboration enough. An ordinary English noun real brands DO choose
+ *     to end on ("Co", "Company", "Group", "Holdings") stays excluded —
+ *     "Acme Co" must read as a company literally named that — and moves to
+ *     `GEO_GATED_TAIL_WORDS` below, gated on an independent corroborating
+ *     signal instead. A word that merely CONTAINS one of these tokens is
+ *     never touched either way ("Inc Magazine" is untouched — every match
+ *     here is end-anchored).
  */
 const COMMA_LEGAL_SUFFIXES = [
     "Inc.", "Inc", "L.L.C.", "LLC", "Ltd.", "Corporation", "Corp.", "Co.",
@@ -499,43 +658,53 @@ const COMMA_LEGAL_SUFFIXES = [
  *  `stripBareLegalForm`'s doc comment) but keeps the vocabulary self-
  *  documenting as multi-word forms are added.
  *
- *  Widened 2026-08-21 (prose-company-names): every entry below is either
- *  punctuated ("Corp.", "Co.", "S.A.S.") or a foreign/technical abbreviation
- *  (ULC, B.V., KK, s.r.o., …) too rare as a genuine everyday English word to
- *  plausibly BE a deliberate brand ending — the same "own shape" test the
- *  module doc above already uses to justify this list (and the same line
- *  the ORIGINAL list already drew between "Ltd." and bare "Ltd", see
- *  `GEO_GATED_TAIL_WORDS`'s doc). The bare, unpunctuated, everyday-word
- *  forms of the same designators — "Ltd", "Corp", "Co", "Company",
- *  "Corporation" — stay OUT of this always-safe list; they move to
- *  `GEO_GATED_TAIL_WORDS` below, which strips them only when an independent
- *  signal corroborates that the trailing word is a legal marker rather than
- *  the brand's own ending. */
+ *  Widened 2026-08-21 (prose-company-names): every entry added then is
+ *  either punctuated ("Corp.", "Co.", "S.A.S.") or a foreign/technical
+ *  abbreviation (ULC, B.V., KK, s.r.o., …) too rare as a genuine everyday
+ *  English word to plausibly BE a deliberate brand ending — the same "own
+ *  shape" test the module doc above already uses to justify this list.
+ *
+ *  Widened again 2026-08-29 (a measured /jobs audit: 16.68% of live
+ *  postings carried a trailing legal suffix, only 13.42% got cleaned —
+ *  "Target Corp" and "NVIDIA Corp" reached the SERP raw because bare
+ *  "Corp"/"Corporation"/"Ltd" sat in `GEO_GATED_TAIL_WORDS` waiting for a
+ *  geography bracket that never came). Their bare forms move here despite
+ *  reading as ordinary English words, because the real test isn't "is this
+ *  an everyday word" — it's "does any English brand choose this as its OWN
+ *  deliberate name ending". Nothing does for "Corp"/"Corporation"/"Ltd":
+ *  they are pure legal designators with no brand-identity use, so the
+ *  remainder guard in `stripBareLegalForm` is corroboration enough on its
+ *  own, same as the other entries in this list. "Co"/"Company"/"Group" fail
+ *  that test — "The Walt Disney Company", "Riverside Group", and the "& Co"
+ *  idiom are real, deliberately-chosen brand endings — so they stay in
+ *  `GEO_GATED_TAIL_WORDS` below, gated on the independent geography-bracket
+ *  signal instead. One known loss from this widening: a single-token brand
+ *  that IS its legal designator ("X Corp", the Twitter entity) now renders
+ *  as bare "X" — vanishingly rare in a job corpus. */
 const BARE_LEGAL_SUFFIXES = [
     "Private Limited", "Private Ltd.", "Pvt. Ltd.", "Pvt Ltd", "Pty Ltd", "Pty. Ltd.",
-    "Ltd.", "Limited", "L.L.C.", "LLC", "LLP", "LP", "Inc.", "Inc", "Incorporated",
+    "Ltd.", "Ltd", "Limited", "L.L.C.", "LLC", "LLP", "LP", "Inc.", "Inc", "Incorporated",
     "GmbH", "PLC", "S.p.A.", "SpA", "S.A.", "S.A.S.", "SAS", "B.V.", "BV", "N.V.", "NV",
-    "AG", "AB", "Oy", "ULC", "Corp.", "Co.", "Pty", "A/S", "KK", "s.r.o.", "d.o.o.",
+    "AG", "AB", "Oy", "ULC", "Corp.", "Corp", "Corporation", "Co.", "Pty", "A/S", "KK",
+    "s.r.o.", "d.o.o.",
 ];
 const BARE_LEGAL_SUFFIXES_BY_LENGTH = [...BARE_LEGAL_SUFFIXES].sort((a, b) => b.length - a.length);
 
 /**
- * Bare (unpunctuated) corporate-structure/entity words too ordinary, on
- * their own, to safely read as a legal marker rather than a deliberate
- * brand ending — "Acme Ltd", "Acme Corp", "Riverside Group" must all render
- * untouched, because real brands legitimately end in these words. They
- * become safe to strip only once `stackedGeographyParen` finds an
- * independent corroborating signal: a bracketed geography qualifier
- * elsewhere in the name (the "(Canada) Holdings LTD" shape) — a company
- * that bothers to bracket a subsidiary's geography is naming a legal
- * filing, not styling a brand. "Company"/"Corporation" join this tier
- * rather than `BARE_LEGAL_SUFFIXES` for the same reason as "Ltd"/"Corp":
- * unlike the punctuated abbreviations above (never a deliberate brand
- * ending), the fully-spelled word IS sometimes the brand's own terminal
- * word — "The Manufacturers Life Insurance Company" stays whole below on
- * exactly that basis.
+ * Bare (unpunctuated) corporate-structure/entity words that real brands DO
+ * legitimately choose as their own deliberate name ending — "The Walt
+ * Disney Company", "Riverside Group", "The Manufacturers Life Insurance
+ * Company", the "& Co" idiom — so on their own they can't safely read as a
+ * legal marker the way "Corp"/"Corporation"/"Ltd" can: those moved to
+ * `BARE_LEGAL_SUFFIXES` above (2026-08-29) because no English brand chooses
+ * one of THOSE as its own ending, only these ordinary nouns. These stay
+ * gated: they become safe to strip only once `stackedGeographyParen` finds
+ * an independent corroborating signal — a bracketed geography qualifier
+ * elsewhere in the name (the "(Canada) Holdings LTD" shape) — because a
+ * company that bothers to bracket a subsidiary's geography is naming a
+ * legal filing, not styling a brand.
  */
-const GEO_GATED_TAIL_WORDS = ["Holdings", "Group", "Ltd", "Corp", "Co", "Company", "Corporation"];
+const GEO_GATED_TAIL_WORDS = ["Holdings", "Group", "Co", "Company"];
 
 function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -814,10 +983,10 @@ export function displayCompanyBrand(
 ): string {
     const brand = displayCompanyName(name);
     if (!brand) {
-        if (domain) return humanizeTenantSubdomain(domain);
+        if (domain) return titleCaseDisplay(humanizeTenantSubdomain(domain));
         return "";
     }
-    return preferBrandSegment(brand, domain, title);
+    return titleCaseDisplay(preferBrandSegment(brand, domain, title));
 }
 
 /**
@@ -857,6 +1026,188 @@ export function humanizeRawLocation(raw: string): string | null {
     return s;
 }
 
+// Address-vocabulary lexicons `classifyLocationPart` matches whole-word
+// (via `hasWord`) — a linguistic dictionary, not a per-tenant/spelling
+// special case, so a new language just adds entries here.
+const STREET_WORDS = new Set([
+    // en
+    "street", "st", "ave", "avenue", "blvd", "boulevard", "road", "rd", "drive", "dr",
+    "lane", "ln", "way", "court", "ct", "place", "pl", "highway", "hwy", "parkway", "pkwy",
+    "route", "rte", "circle", "cir", "terrace", "ter", "trail", "trl", "plaza", "square", "sq", "loop",
+    // fr
+    "rue", "chemin", "allée", "allee", "impasse", "quai", "cours",
+    // es/pt
+    "calle", "carrera", "avenida", "av", "paseo", "rua", "praça", "praca",
+    // it
+    "via", "viale", "piazza", "corso",
+    // de
+    "straße", "strasse", "str", "platz", "weg", "gasse", "ring",
+    // nl
+    "straat", "laan", "plein", "gracht",
+]);
+
+const UNIT_WORDS = new Set([
+    "suite", "ste", "unit", "floor", "fl", "bldg", "building", "apt", "apartment", "level", "po", "box", "#",
+]);
+
+/** Whole-word, case-insensitive membership test against a lexicon Set —
+ *  splits on the same punctuation a location part is ever glued together
+ *  with, so "21st Floor" matches "floor" but "Broadway" never false-matches
+ *  "way" mid-word, and a real place named "Trail" or "Terrace" never
+ *  false-matches the street-suffix reading of its own name. */
+function hasWord(part: string, words: ReadonlySet<string>): boolean {
+    return part
+        .toLowerCase()
+        .split(/[\s\-.,]+/)
+        .some((token) => words.has(token));
+}
+
+/** Leading number token: a digit run optionally followed by an ordinal
+ *  suffix or a single letter, ending at a word boundary. Captures the digit
+ *  run alone so callers can read its length without the suffix. */
+const NUM_RE = /^(\d+)(?:st|nd|rd|th|[A-Za-z])?(?=[\s-]|$)/i;
+
+/** A unit/suite marker immediately followed by its own number — "Suite
+ *  200", "Floor 2", "Bldg 5", "PO Box 12". Deliberately excludes the
+ *  2-letter entries in `UNIT_WORDS` ("fl"): those collide with
+ *  state/province codes ("FL"), and a 2-letter code followed by a long
+ *  digit run is a postal code riding along the state ("FL 33602"), not a
+ *  floor number — `stripEmbeddedNoise` strips that digit run on its own,
+ *  leaving the code. */
+const UNIT_NUMBER_RE = /^(suite|ste|unit|floor|bldg|building|apt|apartment|level|po\s*box|p\.o\.\s*box)\.?\s*(?:#\s*)?\S*\d/i;
+const BARE_HASH_NUMBER_RE = /^#\s*\d/;
+
+/** A trailing house-number token — "10", "5", "3B" — glued onto the end of
+ *  a street-name-first part ("Via Roma 10", "Musterstraße 5"). */
+const HOUSE_NUMBER_SUFFIX_RE = /\s\d+[A-Za-z]?$/;
+
+/** Same lexicon as `hasWord`, plus a suffix match against the 4+ letter
+ *  entries: IT/ES/FR street words are their own token ("Via Roma"), but
+ *  DE/NL compound the street suffix directly onto the name with no
+ *  separator ("Musterstraße", "Bahnhofplein") — a whole-word split alone
+ *  never sees those. The length floor excludes the 2-3 letter abbreviation
+ *  entries (st, dr, rd, ln, pl, ct, av, sq, ring, …), which are only
+ *  meaningful as their own token; matching those as a bare suffix would
+ *  false-positive on ordinary words that happen to end the same way. */
+function endsWithStreetWord(part: string): boolean {
+    const suffixWords = [...STREET_WORDS].filter((w) => w.length >= 4);
+    return part
+        .toLowerCase()
+        .split(/[\s\-.,]+/)
+        .some((token) => STREET_WORDS.has(token) || suffixWords.some((w) => token.endsWith(w)));
+}
+
+/**
+ * Classifies one comma/underscore-split location part for
+ * `stripStreetAddress`: `"drop"` when the part is street-address noise with
+ * nothing worth keeping, `"keep"` when it's untouched prose, or
+ * `{ keep }` when it's a postcode+city part that keeps its city with the
+ * leading digits removed. `STREET_WORDS` is consulted inside a numbered
+ * part (case 2, number-first: "100 Broadway") and, via `endsWithStreetWord`,
+ * on an un-numbered part that ends with a house number (case 2', name-first:
+ * "Via Roma 10") — never on a part with neither signal, so real places named
+ * Trail, Terrace, Circle Pines, Plaza, or Dublin (postal district "2") keep
+ * working.
+ */
+function classifyLocationPart(part: string): "keep" | "drop" | { keep: string } {
+    if (/^\d+$/.test(part)) return "drop";
+
+    const numMatch = part.match(NUM_RE);
+    if (numMatch) {
+        if (hasWord(part, STREET_WORDS) || hasWord(part, UNIT_WORDS)) return "drop";
+        const digits = numMatch[1]!;
+        if (digits.length >= 4) {
+            const rest = part.slice(numMatch[0].length).replace(/^[\s-]+/, "");
+            return { keep: rest.replace(/^[A-Z]{2}\s+(?=\S)/, "") };
+        }
+        return "drop";
+    }
+
+    // Rule 2': street-name-first addresses (IT/ES/DE/FR/NL) put the house
+    // number at the END instead of the start. Both signals are required —
+    // a street word alone would drop a real place whose name happens to
+    // carry one ("Trail, BC"), and a trailing number alone would drop a
+    // genuine place+number ("Dublin 2").
+    if (HOUSE_NUMBER_SUFFIX_RE.test(part) && endsWithStreetWord(part)) return "drop";
+
+    if (UNIT_NUMBER_RE.test(part) || BARE_HASH_NUMBER_RE.test(part)) return "drop";
+
+    return "keep";
+}
+
+// Postal-code SHAPES worth stripping out of a surviving part (e.g. "ON N0N
+// 1G0" -> "ON") — same shape classes `locationSummary` (lib/presentation/
+// location.ts) matches as a whole segment, here matched as a substring
+// since a street-address part often carries the code glued to a state/
+// province abbreviation rather than as its own comma segment.
+const STREET_CA_POSTAL_RE = /\b[A-Z]\d[A-Z] ?\d[A-Z]\d\b/g;
+const STREET_US_POSTAL_RE = /\b\d{5}(?:-\d{4})?\b/g;
+const STREET_UK_POSTAL_RE = /\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b/g;
+const STREET_NL_POSTAL_RE = /\b\d{4} ?[A-Z]{2}\b/g;
+
+// A bare numeric code dash-joined onto the end of a part (e.g. "Atlanta -
+// 9141", a retailer's own store number) — the same "junk digits" class
+// `classifyLocationPart`'s rule 1 drops when the number is its own comma
+// segment, here glued on with a dash instead. Anchored to a run of ALL
+// digits at the end so it never eats a real dash-joined place qualifier
+// ("Remote - AZ", "Remote - EMEA"), which is letters, not digits.
+const STREET_TRAILING_DASH_NUMBER_RE = /\s+-\s+\d+$/;
+
+function stripEmbeddedNoise(part: string): string {
+    return part
+        .replace(STREET_CA_POSTAL_RE, "")
+        .replace(STREET_US_POSTAL_RE, "")
+        .replace(STREET_UK_POSTAL_RE, "")
+        .replace(STREET_NL_POSTAL_RE, "")
+        .replace(STREET_TRAILING_DASH_NUMBER_RE, "")
+        .replace(/^[\s,.-]+|[\s,.-]+$/g, "");
+}
+
+/**
+ * Strips street-address components (house number + street, suite/unit,
+ * postal code) out of a location string so a single mailing address stops
+ * masquerading as several distinct locations downstream — `locationSummary`
+ * reads a comma-joined string as an ATS breadcrumb, so a full street
+ * address ("626 Polymoore Drive, Corunna, ON N0N 1G0, Canada") reads as 4
+ * "locations" and prints "626 Polymoore Drive +3 more" instead of a place.
+ *
+ * Pattern-based, not a place-name lookup: splits on commas (or underscores —
+ * some feeds join parts "MEX_Santa Catarina_Nuevo León_206 Canada" instead
+ * of with a comma; same parts, same rule, just a different glue character),
+ * classifies each part (`classifyLocationPart`) as street-address noise to
+ * drop (a house number, a bare number, a unit/suite marker), a postcode+city
+ * part to keep with its digits removed, or plain prose to keep untouched,
+ * then strips an embedded postal code — or a dash-joined trailing
+ * store/building number ("Atlanta - 9141") — out of whatever survives.
+ * `;`-joined multi-location strings (aggregator feeds stuffing several
+ * roles' worth of locations into one field) are handled per-segment so
+ * "Remote Canada; Remote USA" is untouched. Returns "" when nothing
+ * survives a part — the caller (`locationText`) falls through to the
+ * structured city/state/country fields rather than trusting an invented
+ * value.
+ */
+export function stripStreetAddress(raw: string): string {
+    return raw
+        .split(";")
+        .map((locationPart) =>
+            locationPart
+                .split(/[,_]/)
+                .map((part) => part.trim())
+                .filter(Boolean)
+                .map((part) => {
+                    const verdict = classifyLocationPart(part);
+                    if (verdict === "drop") return "";
+                    return verdict === "keep" ? part : verdict.keep;
+                })
+                .filter(Boolean)
+                .map(stripEmbeddedNoise)
+                .filter(Boolean)
+                .join(", "),
+        )
+        .filter(Boolean)
+        .join("; ");
+}
+
 /** `locationText`'s own "nothing usable came off the posting" sentinel —
  *  exported so callers gating on it (the SERP row's meta line) compare
  *  against the same constant `locationText` returns, rather than a second
@@ -866,11 +1217,18 @@ export const LOCATION_UNKNOWN_TEXT = "Location not listed";
 export function locationText(j: PublicJob): string {
     if (j.location) {
         const readable = humanizeRawLocation(decodeText(j.location));
-        if (readable) {
-            if (j.work_type === "remote" && !/\bremote\b/i.test(readable)) {
-                return `Remote · ${readable}`;
-            }
-            return readable;
+        // Street-address components (house number, unit, postal code)
+        // stripped so a mailing address never masquerades as the place.
+        // Nothing surviving the strip (e.g. a bare street address with no
+        // city) falls through to the structured fields below rather than
+        // returning the still-address-shaped raw string. Work mode is NOT
+        // prefixed here — every caller that renders this string also
+        // renders `work_type` as its own chip/fact adjacent to it, so a
+        // remote job wouldn't just repeat the word, it'd repeat it right
+        // next to itself ("📍 Remote · Milan, Italy · Remote · Full Time").
+        const stripped = readable ? stripStreetAddress(readable) : "";
+        if (stripped) {
+            return titleCaseDisplay(stripped);
         }
     }
     // The STRUCTURED fields carry the same accident: the Toolbx doc holds
@@ -879,17 +1237,15 @@ export function locationText(j: PublicJob): string {
     // country posting (`location_country` as an array) joins its distinct
     // values into one string BEFORE hitting that same pipeline, so a
     // 2-country posting reads "United States, Canada" like any other joined
-    // part rather than needing its own junk-filter pass.
+    // part rather than needing its own junk-filter pass. Each field also
+    // gets the same street-address strip as the raw branch above — a
+    // scraped `location_city` can carry the same house-number/unit noise.
     const country = Array.from(new Set(toValueArray(j.location_country))).join(", ");
     const parts = [j.location_city, j.location_state, country]
-        .map((v) => (v ? humanizeRawLocation(decodeText(v)) : null))
-        .filter((v): v is string => Boolean(v));
+        .map((v) => (v ? stripStreetAddress(humanizeRawLocation(decodeText(v)) ?? "") : ""))
+        .filter(Boolean);
     if (parts.length) {
-        const loc = parts.join(", ");
-        if (j.work_type === "remote" && !/\bremote\b/i.test(loc)) {
-            return `Remote · ${loc}`;
-        }
-        return loc;
+        return titleCaseDisplay(parts.join(", "));
     }
     if (j.work_type === "remote") return "Remote";
     return LOCATION_UNKNOWN_TEXT;
@@ -1054,6 +1410,25 @@ export function locationWithMode(location: string, workType: string | null | und
 }
 
 /**
+ * Same work-mode token the SERP row's fact-chip row renders
+ * (`buildFactChips`' work_type chip label, which is just `prettyEnum`),
+ * folded onto an already-computed place string as its own " · Mode"
+ * segment — for the surfaces that render `locationText` with no adjacent
+ * work-mode chip of their own (`RelatedJobRow`, `FollowAlertsBell`, the
+ * digest email) and so lost their only remote/hybrid signal once
+ * `locationText` stopped prefixing "Remote ·" onto the place text. Skipped
+ * when the mode token already IS the place text — `locationText`'s own
+ * no-structured-location fallback returns the bare word "Remote", and
+ * appending the same word again would repeat it on one line, exactly the
+ * defect `locationText`'s prefix removal fixed elsewhere.
+ */
+export function placeWithWorkMode(place: string, workType: string | null | undefined): string {
+    const mode = prettyEnum(workType);
+    if (!mode || mode === place) return place;
+    return place ? `${place} · ${mode}` : mode;
+}
+
+/**
  * The SERP row's meta line: salary leads (semibold), then whichever of
  * location/employment-type are known, joined "·" in that order — absence is
  * silence, never a placeholder ("pay undisclosed"/"Unknown"). When nothing
@@ -1092,13 +1467,22 @@ const POSTED_WINDOW_PHRASE: Record<PostedBucket, string> = {
  * number on screen is NOT the size of the corpus. Naming the window converts a
  * hidden filter into a stated fact; without it the count is quietly wrong.
  *
+ * `lastUpdated` is expected to already be MAX(updated_at) over the SAME
+ * filtered population `count` describes — the caller (`getJobsFreshnessAction`,
+ * fed the exact same `buildJobSearchPayload` output as the results search)
+ * is what makes that true, not this function. A single employer's 7 listings
+ * can each be 3 months stale while the whole corpus synced 40 minutes ago —
+ * this function has no way to tell the two apart, so it trusts its input.
+ *
  * Pure: the caller threads its own clock, so this is safe to call from a
  * render body and can be asserted on without a fake timer.
  */
 export function searchResultLine(input: {
     count: CorpusCount;
     postedBucket: PostedBucket | undefined;
-    /** Corpus sync stamp. Absent when the freshness probe hasn't answered. */
+    /** Stamp for the population `count` describes. Absent when the
+     *  freshness probe hasn't answered (or has none to give — see
+     *  `fetchJobsLastUpdated`, meilisearch.ts). */
     lastUpdated: string | null | undefined;
     nowMs: number;
 }): string {
@@ -1114,6 +1498,33 @@ export function searchResultLine(input: {
         ? ` · updated ${formatRelativeAge(input.lastUpdated, input.nowMs)}`
         : "";
     return `${formatCorpusCount(input.count)} ${noun}${window}${updated}`;
+}
+
+/**
+ * The masthead's live-count line (the "N live roles" link above the search
+ * box, page.tsx's `liveCountEl`) — reads `null` when the marketing stats
+ * probe came back empty (`getMarketingStatsAction`), so the caller can omit
+ * the whole line rather than render a stale or fabricated number.
+ *
+ * Honesty fix (intervu first-screen audit): this count
+ * (`getCachedMarketTrends().liveJobs`, market-trends.ts) is
+ * `vacancy_status = "active"` with NO posted-date filter at all, while the
+ * result line just below it
+ * (`searchResultLine`) defaults to the last 30 days — so the same masthead
+ * used to show "2,339,946 live roles" beside "111,151 roles from the last 30
+ * days" with nothing explaining the ~21x gap. The two counts are NOT a clean
+ * subset/superset pair (this one's `active`-only; the result line's
+ * `!= "closed"` also includes the `unknown` status — see `LIVE_VACANCY_FILTER`
+ *'s own comment, meilisearch.ts), so the fix does not claim one literally
+ * contains the other. What IS literally true of every count this function
+ * renders: it applies no date window. Naming that ("from any time") gives the
+ * masthead its own stated scope, parallel to the result line's "from the last
+ * 30 days" — deliberately not "all-time", which already names a DIFFERENT
+ * metric (`totalTracked`, market-trends.ts) and would collide with it.
+ */
+export function liveCountLine(count: CorpusCount | null): string | null {
+    if (count === null) return null;
+    return `${formatCorpusCount(count)} live roles from any time`;
 }
 
 /**
@@ -1185,6 +1596,54 @@ export function partitionByTitleMatch(hits: PublicJob[], q: string): { hits: Pub
     }
     if (titled.length === 0 || rest.length === 0) return { hits, seamIndex: -1 };
     return { hits: [...titled, ...rest], seamIndex: titled.length };
+}
+
+/**
+ * The tier-1/tier-2 seam for a federated tiered-retrieval result
+ * (`runTieredRetrieval`, meilisearch.ts) — placed from each hit's OWN `tier`
+ * (per-hit provenance) rather than a carried count like `tier1Total`. A
+ * count is an absolute index into the UNFILTERED pool; `hits` here may
+ * already have passed through a client-side filter (e.g. "hide viewed"), so
+ * indexing by that count lands on the wrong row the moment a filter removes
+ * any row ahead of the seam. Walking `hits` for the first `tier === 2` entry
+ * is correct regardless of what was filtered out ahead of it.
+ *
+ * Returns `null` when `hits` carries no tier at all — the non-federated
+ * mechanism — telling the caller to fall back to `firstMentionIndex`/
+ * `partitionByTitleMatch` instead. Returns `-1` for a tiered result with no
+ * tier-2 hit (every hit is tier 1 — nothing to seam). Returns `0` when the
+ * very FIRST hit is already tier 2 (a filtered/paged list can start entirely
+ * inside tier 2) — callers must render that as a real seam, not treat it as
+ * falsy/no-seam the way `-1` is.
+ */
+export function tieredSeamIndex(hits: PublicJob[]): number | null {
+    if (!hits.some((h) => h.tier !== undefined)) return null;
+    return hits.findIndex((h) => h.tier === 2);
+}
+
+/**
+ * The one flip point for "what number is the headline total" — shared by
+ * `/jobs`'s displayed count and `/api/jobs/count`'s `total` field so the
+ * union-vs-strict ruling can never drift between the two callers. Which
+ * number wins is `policy`, defaulting to the module constant
+ * `HEADLINE_POLICY`: `"union"` returns `input.total` — for a tiered-retrieval
+ * result (`tier1Total` present — see `runTieredRetrieval`, meilisearch.ts)
+ * that's the whole-document pool's own `estimatedTotalHits` (a federated
+ * union, not a client-side sum); `"titled"` returns `input.tier1Total`
+ * instead, when it's present, falling back to `input.total` when it isn't
+ * (every non-tiered path, where there is no strict-only count to prefer).
+ * `HEADLINE_POLICY` is `"union"` today — the old bug was reporting the
+ * strict-scope count as if it were the whole corpus, and union is the
+ * corrected reading — pending a product ruling on whether the headline
+ * should instead reflect only the strict-scope count.
+ */
+export const HEADLINE_POLICY: "union" | "titled" = "union";
+
+export function resolveHeadlineTotal(
+    input: { total: number; tier1Total?: number },
+    policy: "union" | "titled" = HEADLINE_POLICY,
+): number {
+    return policy === "titled" && typeof input.tier1Total === "number" ? input.tier1Total : input.total;
 }
 
 /**

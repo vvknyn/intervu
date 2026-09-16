@@ -90,12 +90,20 @@ export function restoreLocationDefault(): void {
 }
 
 /**
- * G3 (Grok UX wave) — the ONE decision for whether the location control
- * shows the applied-default disclosure chip: the server actually applied a
- * default (`defaultedLocation` is set) AND the searcher has not chosen a
- * place of their own. Once they have, their choice takes over the control
- * and the chip would just be noise sitting on top of it. Pure so the
- * disclosure logic is testable without a DOM.
+ * G3 (Grok UX wave) — the ONE decision for whether the geo default is still
+ * in effect: the server actually applied a default (`defaultedLocation` is
+ * set) AND the searcher has not chosen a place of their own. Once they have,
+ * their choice takes over the control. Pure so the disclosure logic is
+ * testable without a DOM.
+ *
+ * Shared chokepoint, not just the toolbar chip's gate: `locationTriggerLabel`
+ * (lib/jobs/location-label.ts) calls this exact function too, so the chip
+ * and the mobile trigger can never disagree about whether the default is
+ * showing (PR #461 review BLOCKER — they used to each keep their own
+ * check). Deliberately has no `work_type`/remote check, matching the
+ * server's own `hasLocationSignal` (lib/geo/ip-default.ts), which doesn't
+ * check it either — a remote-only pick doesn't suppress the default
+ * server-side.
  *
  * Takes the CHOSEN places, not the location box's draft text. The draft was
  * an exact proxy only while the box itself was the state; now that the box
@@ -132,14 +140,37 @@ export function regionDisplayName(iso2: string): string {
  *  path every other surface for this chip already uses. */
 export const DEFAULT_LOCATION_CHIP_KEY = "default-location";
 
+/**
+ * Names the scope a geo-defaulted search actually queried — the single
+ * source every "near {region}" label (below, plus jobs/page.tsx's
+ * `DefaultLocationChip`, its zero-result entry, and location-label.ts's
+ * `detectedLocationLabel`) derives its wording from, instead of each one
+ * independently deciding whether to mention remote.
+ *
+ * `remoteAnywhere` is `JobSearchResult.remoteAnywhere` (search.ts) — read off
+ * the SAME `PlaceClause.remoteAnywhere` flag `buildFilter` (meilisearch.ts)
+ * itself uses to OR `REMOTE_ANYWHERE_CLAUSE` into the applied place filter,
+ * never re-derived from country names or the word "remote" as a string
+ * match. A country-level geo default sets it unconditionally today
+ * (resolve-place.ts's `placeClause`), so every one of these chips used to
+ * read "near Canada" over a result set that also included Sydney/Dubai/Costa
+ * Rica remote listings — true of the country clause alone, false of the
+ * query that actually ran. Naming the OR keeps the label honest without
+ * hardcoding that correlation.
+ */
+export function locationDefaultScope(iso2: string, remoteAnywhere: boolean | undefined): string {
+    const name = regionDisplayName(iso2);
+    return remoteAnywhere ? `${name} or remote` : name;
+}
+
 /** Same "near {region}" copy every applied-default surface uses — flag
  *  first when `countryToFlag` resolves one (most bare ISO2 codes won't; see
- *  country-flag.ts's removed-passthrough note), then the region name, with
+ *  country-flag.ts's removed-passthrough note), then the scope name, with
  *  no leading space when there's no flag to prefix. */
-function defaultLocationChipLabel(iso2: string): string {
-    const name = regionDisplayName(iso2);
+function defaultLocationChipLabel(iso2: string, remoteAnywhere: boolean | undefined): string {
+    const scope = locationDefaultScope(iso2, remoteAnywhere);
     const flag = countryToFlag(iso2);
-    return flag ? `${flag} near ${name}` : `near ${name}`;
+    return flag ? `${flag} near ${scope}` : `near ${scope}`;
 }
 
 /**
@@ -153,8 +184,12 @@ function defaultLocationChipLabel(iso2: string): string {
  */
 export function buildDockedChips(
     defaultedIso2: string | null,
+    remoteAnywhere: boolean | undefined,
     entryChips: Array<{ key: string; label: string }>,
 ): Array<{ key: string; label: string }> {
     if (!defaultedIso2) return entryChips;
-    return [{ key: DEFAULT_LOCATION_CHIP_KEY, label: defaultLocationChipLabel(defaultedIso2) }, ...entryChips];
+    return [
+        { key: DEFAULT_LOCATION_CHIP_KEY, label: defaultLocationChipLabel(defaultedIso2, remoteAnywhere) },
+        ...entryChips,
+    ];
 }

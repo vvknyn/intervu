@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Clock } from "@phosphor-icons/react/dist/ssr";
 import { getCachedMarketTrends } from "@/lib/jobs/market-trends";
 import {
   captureDailySnapshotIfAbsent,
@@ -34,15 +33,15 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
   const delta = computeLatestDelta(snapshots);
 
   return (
-    <div className="rounded-none border border-border bg-muted/20 px-3 py-2">
+    <div className="rounded-none border border-border bg-muted px-3 py-2">
       {delta && (
         <p data-testid="trends-pulse-delta" className="text-xs text-foreground">
           <span className="text-muted-foreground">Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}: </span>
-          <span className="font-bold">{delta.netActiveChange >= 0 ? "+" : ""}{delta.netActiveChange.toLocaleString()}</span>
+          <span className="font-semibold">{delta.netActiveChange >= 0 ? "+" : ""}{delta.netActiveChange.toLocaleString()}</span>
           <span className="text-muted-foreground"> net active</span>
         </p>
       )}
-      <p data-testid="trends-pulse-tracking-since" className="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
+      <p data-testid="trends-pulse-tracking-since" className="mt-0.5 text-xs text-muted-foreground">
         tracking daily baseline since {firstSnapshotDate}
       </p>
     </div>
@@ -75,9 +74,9 @@ export default async function TrendsPage() {
 
   if (!data) {
     return (
-      <main data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-10 sm:px-8 xl:px-10">
+      <div data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-10 sm:px-8 xl:px-10">
         <p className="text-sm text-muted-foreground">Market data isn&apos;t available right now.</p>
-      </main>
+      </div>
     );
   }
 
@@ -93,17 +92,14 @@ export default async function TrendsPage() {
   const snapshots = await readRecentSnapshots();
 
   return (
-    <main data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-20 sm:px-8 sm:py-10 xl:px-10">
+    <div data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-20 sm:px-8 sm:py-10 xl:px-10">
       <PageHeader
         bare
         size="display"
         title="Market trends"
         description="Live stats from the jobs corpus we track — from companies' own career pages, not curated."
         actions={
-          <span className="mono-data flex items-center gap-1.5 rounded-none border border-border bg-card px-3 py-1.5 text-[11px] text-muted-foreground">
-            <Clock size={13} weight="bold" />
-            counts refresh every 15 minutes
-          </span>
+          <span className="text-xs text-muted-foreground">counts refresh every 15 minutes</span>
         }
       />
 
@@ -142,6 +138,6 @@ export default async function TrendsPage() {
           />
         </div>
       </div>
-    </main>
+    </div>
   );
 }

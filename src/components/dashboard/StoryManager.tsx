@@ -5,6 +5,7 @@ import { StarStory } from "@/types";
 import { StoryList } from "@/components/dashboard/StoryList";
 import { StoryEditorWizard } from "@/components/dashboard/StoryEditorWizard";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, DownloadSimple } from "@phosphor-icons/react";
 import { exportStoriesToText } from "@/lib/export-utils";
 
@@ -67,7 +68,7 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-border">
+            <div className="flex justify-between items-center bg-muted p-4 rounded-none border border-border">
                 <div>
                     <h3 className="font-semibold text-foreground">Your Career Stories</h3>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -80,7 +81,7 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                             onClick={() => setClearConfirmOpen(true)}
                             variant="ghost"
                             size="sm"
-                            className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            className="text-xs text-muted-foreground hover:text-danger-text hover:bg-muted"
                         >
                             Clear All
                         </Button>
@@ -92,14 +93,14 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                         className="text-xs"
                         disabled={activeStories.length === 0}
                     >
-                        <DownloadSimple size={14} className="mr-2" /> Export
+                        <DownloadSimple className="mr-2" /> Export
                     </Button>
                     <Button
                         onClick={handleCreate}
                         size="sm"
                         className="text-xs"
                     >
-                        <Plus size={14} className="mr-2" /> New Story
+                        <Plus className="mr-2" /> New Story
                     </Button>
                 </div>
             </div>
@@ -119,24 +120,24 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
             />
 
             {/* Clear All Confirmation Dialog */}
-            {clearConfirmOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-background rounded-lg max-w-sm w-full p-6 border border-border">
-                        <h3 className="text-lg font-semibold mb-2">Clear All Stories?</h3>
-                        <p className="text-sm text-muted-foreground mb-6">
+            <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Clear All Stories?</DialogTitle>
+                        <DialogDescription>
                             Are you sure you want to remove all your stories? This action will move them to trash.
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            <Button variant="outline" onClick={() => setClearConfirmOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button variant="destructive" onClick={handleClearAll}>
-                                Clear All
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setClearConfirmOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleClearAll}>
+                            Clear All
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

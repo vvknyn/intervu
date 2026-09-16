@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ArrowSquareOut, Buildings, CalendarBlank } from "@phosphor-icons/react";
@@ -13,7 +13,7 @@ import { toast } from "@/lib/toast";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { updateApplication } from "@/actions/application";
 import { searchJobsAction } from "@/actions/jobs";
-import { classifyExistenceCheck } from "@/lib/jobs/result-state";
+import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
@@ -39,7 +39,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
     const versions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
     return (
         <div className="border border-border bg-card p-6">
-            <div className="mb-3 text-[11px] uppercase tracking-[0.1em] text-muted-foreground">Resume used</div>
+            <div className="mb-3 text-xs text-muted-foreground">Resume used</div>
             {versions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No resume version on file for this application.</p>
             ) : (
@@ -47,8 +47,8 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                     {versions.map((version, i) => (
                         <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                             <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-foreground">{version.label}</p>
-                                <p className="text-[11px] text-muted-foreground">
+                                <p className="truncate text-sm text-foreground">{version.label}</p>
+                                <p className="text-xs text-muted-foreground">
                                     {new Date(version.saved_at).toLocaleDateString(undefined, {
                                         year: "numeric",
                                         month: "short",
@@ -60,7 +60,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
+                                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
                                 >
                                     Download
                                 </Button>
@@ -68,8 +68,8 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                                     (R4/R5) — PDF is the default per the user report. */}
                                 <button
                                     type="button"
-                                    onClick={() => downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
-                                    className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
+                                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                                 >
                                     .md
                                 </button>
@@ -109,14 +109,21 @@ export default function PursuitDetailPage() {
      * was absent for the six days before, during which this lookup failed
      * outright, and a future re-provision can drop it again with no deploy.
      * Collapsing "couldn't check" into "no longer live" would tell people a
-     * role they can still apply to is dead. `classifyExistenceCheck` is the
-     * existing chokepoint for exactly this call, and it degrades to "unknown".
+     * role they can still apply to is dead. `detailFetcher.fetch`
+     * (lib/jobs/detail-fetch.ts, wrapping `runExistenceCheck`) is the
+     * existing chokepoint for exactly this call, and it degrades to "unknown"
+     * whether the response classifies that way, its own settle budget lapses,
+     * or the request itself throws.
      */
     const [detail, setDetail] = useState<{
         open: boolean;
         job: PublicJob | null;
         state: "idle" | "loading" | "gone" | "unknown";
-    }>({ open: false, job: null, state: "idle" });
+        descriptionPending: boolean;
+    }>({ open: false, job: null, state: "idle", descriptionPending: false });
+    // Bumped by `retryDescription` to force the existence-check effect below
+    // to re-run for the same job id after a timed-out fill (0 = no retry yet).
+    const [retryNonce, setRetryNonce] = useState(0);
 
     const pursuit = pursuits.find((p) => p.id === id);
 
@@ -152,7 +159,7 @@ export default function PursuitDetailPage() {
         const variantKey = searchParams.get("variant");
         const version = pursuit.resume_versions?.find((v) => v.saved_at === variantKey);
         if (version) {
-            downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position });
+            void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position });
         } else {
             toast.error("Couldn't find that resume version — it may have been re-filed since this link was created.");
         }
@@ -167,15 +174,45 @@ export default function PursuitDetailPage() {
      */
     const openDetail = async (jobId: string) => {
         if (detail.job) return setDetail((d) => ({ ...d, open: true }));
-        setDetail({ open: true, job: null, state: "loading" });
-        const res = await searchJobsAction({ id: jobId, limit: 1, offset: 0, hideGhosts: false });
-        const check = classifyExistenceCheck(jobId, res);
+        setDetail({ open: true, job: null, state: "loading", descriptionPending: false });
+        const check = await detailFetcher.fetch(jobId, searchJobsAction);
         setDetail({
             open: true,
             job: check.status === "found" ? check.job : null,
             state: check.status === "found" ? "idle" : check.status === "not_found" ? "gone" : "unknown",
+            descriptionPending: check.status === "found" && check.descriptionPending,
         });
     };
+
+    // "try again" on a timed-out description — re-runs the SAME existence
+    // check for the currently open job. A pending result never refetches on
+    // its own (no auto-polling); this only fires from the explicit click.
+    const retryDescription = useCallback(() => {
+        const jobId = pursuit?.job_id;
+        if (!jobId) return;
+        setDetail((d) => ({ ...d, state: "loading" }));
+        setRetryNonce((n) => n + 1);
+    }, [pursuit?.job_id]);
+
+    useEffect(() => {
+        if (retryNonce === 0) return;
+        const jobId = pursuit?.job_id;
+        if (!jobId) return;
+        void (async () => {
+            const check = await detailFetcher.fetch(jobId, searchJobsAction);
+            // A failed retry ("unknown", or a "not_found" for a job that WAS
+            // showing a moment ago) keeps the previously rendered job and its
+            // pending flag on screen — see `runExistenceCheck`'s (lib/jobs/
+            // result-state.ts) doc comment for why a failed request is never
+            // treated as proof the role is gone.
+            setDetail((d) =>
+                check.status === "found"
+                    ? { ...d, job: check.job, state: "idle", descriptionPending: check.descriptionPending }
+                    : { ...d, state: "idle" },
+            );
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [retryNonce]);
 
     const mutate = async (patch: Partial<Pursuit>) => {
         setSaving(true);
@@ -226,19 +263,18 @@ export default function PursuitDetailPage() {
     // `pursuit.company_name` is a Firestore-stored snapshot (`buildJobSnapshot`/
     // `upsertPursuitCore`) — the live Meili index carries the ATS-stated raw
     // name permanently (intervu owns brand cleaning at display time, never at
-    // ingest — see meilisearch.ts's `upsertJobs`), so every snapshot taken
+    // ingest — ingest is the pipeline repo's sync.mjs, which PUTs the
+    // Subspace feed through unchanged), so every snapshot taken
     // from it carries the raw value too, and nothing ever rewrites a pursuit
     // already on file. Cleaned at render instead, same as every live search hit.
     const companyName = displayCompanyName(pursuit.company_name);
 
     const identity = (
         <>
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-none bg-brand/10 text-brand">
-                <Buildings size={26} />
-            </div>
+            <Buildings size={24} className="mt-0.5 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-bold tracking-tight">{companyName}</h1>
-                <p className="text-muted-foreground">{pursuit.position}</p>
+                <h1 className="text-xl font-semibold">{companyName}</h1>
+                <p className="text-sm text-muted-foreground">{pursuit.position}</p>
                 {snapshot?.location && <p className="mt-1 text-xs text-muted-foreground">{snapshot.location}</p>}
             </div>
         </>
@@ -334,8 +370,8 @@ export default function PursuitDetailPage() {
 
                 {snapshot?.description && (
                     <div className="rounded-none border border-border bg-card p-6">
-                        <div className="mb-2 text-[13px] font-semibold">About this role</div>
-                        <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-muted-foreground">
+                        <div className="mb-2 text-xs font-semibold">About this role</div>
+                        <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
                             {snapshot.description}
                         </p>
                     </div>
@@ -373,6 +409,8 @@ export default function PursuitDetailPage() {
                                 const href = pursuit.job_url ?? detail.job?.apply_url;
                                 if (href) window.open(href, "_blank", "noopener,noreferrer");
                             }}
+                            descriptionPending={detail.descriptionPending}
+                            onRetryDescription={retryDescription}
                         />
                     ) : detail.state === "gone" ? (
                         /* Says what actually happened. The pursuit's own saved

@@ -1,4 +1,5 @@
 import { JOBS_INDEX, host, meiliFetch, searchKey } from "./meilisearch";
+import { normalizePublicJob } from "./normalize-public-job";
 import type { PublicJob } from "./types";
 
 /**
@@ -50,6 +51,7 @@ export async function getJobById(id: string): Promise<PublicJob | null> {
     next: { revalidate: 3600 },
   });
   if (!res.ok) throw new Error(`meili job search failed: ${res.status}`);
-  const body = (await res.json()) as { hits?: PublicJob[] };
-  return body.hits?.[0] ?? null;
+  const body = (await res.json()) as { hits?: (PublicJob & { url?: string | null })[] };
+  const hit = body.hits?.[0];
+  return hit ? normalizePublicJob(hit) : null;
 }

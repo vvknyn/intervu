@@ -95,16 +95,28 @@ test("locationTriggerLabel: an explicit committed country wins", () => {
     assert.equal(label, "Germany");
 });
 
-// Item 7e (2026-08-21 front-door audit): live prod prefilled "Near Canada"
-// into this field from the IP-geo default alone — a country is not a
-// locality, and this field's own placeholder promises "City, state, or
-// remote". `locationTriggerLabel` no longer takes a detected-default input
-// at all, so there is nothing left that CAN synthesize a "Near {Country}"
-// label — this pins the empty-input fallback rather than a specific detected
-// value, since the function's signature itself now makes the old bug
-// unreachable.
-test("locationTriggerLabel: falls back to the plain placeholder with no explicit country — never synthesizes one from a country-level default", () => {
+// Item 7e (2026-08-21 front-door audit) objected to this field showing "Near
+// Canada" for two independent reasons: the prefill was PASSIVE (nothing
+// marked it as a guess, so it read as an explicit choice the searcher never
+// made), and a country is not a locality this field's own placeholder
+// promises. 2026-09-10 ("auto location detect is not working" — the
+// disclosure was missing entirely on the pristine mobile landing)
+// reintroduces the default into this same function, but only ever as an
+// explicitly-labeled "Near {region} (detected)" (see location-label.ts's
+// doc comment for which objection this closes and which it knowingly
+// doesn't) — never a bare "Near {Country}" indistinguishable from a typed
+// value. With no default to show at all, the fallback is still the plain
+// placeholder.
+test("locationTriggerLabel: falls back to the plain placeholder with no explicit country and no detected default", () => {
     assert.equal(locationTriggerLabel(PRISTINE_FILTER_STATE), "City, state, or remote");
+});
+
+test("locationTriggerLabel: an explicit committed country still wins over a detected default — never shows 'detected' once the searcher has chosen", () => {
+    const label = locationTriggerLabel(
+        { ...PRISTINE_FILTER_STATE, facets: { location_country: ["Germany"] } },
+        "US",
+    );
+    assert.equal(label, "Germany");
 });
 
 test("initLocationSheetDraft: marks detected when default is active and no explicit location", () => {

@@ -47,29 +47,100 @@ export function hasSubspaceApiKey(): boolean {
   return Boolean(process.env.SUBSPACE_API_KEY);
 }
 
-async function getJson(
-  path: string,
-  params: Record<string, string | number | undefined>,
-): Promise<JobsApiEnvelope> {
-  const url = new URL(`${baseUrl()}${path}`);
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
-  }
+/** True when `e` is a `SubspaceJobsError` raised because a request hit its
+ *  `timeoutMs` deadline (as opposed to a real network/server failure). */
+export function isSubspaceTimeout(e: unknown): boolean {
+  return e instanceof SubspaceJobsError && e.code === "timeout";
+}
 
-  let res: Response;
+interface FillDescriptionsEnvelope {
+  data: Array<{ id: string; description: string | null }>;
+}
+
+/** Shared by `postJson`/`getJson`: issues `fetch`, applying `opts.timeoutMs`
+ *  as an abort deadline, and maps a fired deadline vs. any other rejection
+ *  to a distinguishable `SubspaceJobsError` (`isSubspaceTimeout` reads the
+ *  "timeout" code this assigns). */
+async function fetchWithDeadline(
+  path: string,
+  url: string,
+  init: RequestInit,
+  opts?: { timeoutMs?: number },
+): Promise<Response> {
   try {
-    res = await fetch(url.toString(), {
-      headers: { "x-api-key": requireApiKey(), accept: "application/json" },
-      // Always read the source of truth; intervu does its own caching/indexing.
-      cache: "no-store",
+    return await fetch(url, {
+      ...init,
+      ...(opts?.timeoutMs != null ? { signal: AbortSignal.timeout(opts.timeoutMs) } : {}),
     });
   } catch (e) {
+    if (e instanceof Error && e.name === "TimeoutError") {
+      throw new SubspaceJobsError(`Timed out after ${opts?.timeoutMs} ms calling ${path}`, undefined, "timeout");
+    }
     throw new SubspaceJobsError(
       `Network error calling ${path}: ${e instanceof Error ? e.message : String(e)}`,
       undefined,
       "network_error",
     );
   }
+}
+
+async function postJson<T>(path: string, body: unknown, opts?: { timeoutMs?: number }): Promise<T> {
+  const url = new URL(`${baseUrl()}${path}`);
+
+  const res = await fetchWithDeadline(
+    path,
+    url.toString(),
+    {
+      method: "POST",
+      headers: {
+        "x-api-key": requireApiKey(),
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+    opts,
+  );
+
+  if (!res.ok) {
+    let message = `${res.status} ${res.statusText}`;
+    let code: string | undefined;
+    try {
+      const errBody = (await res.json()) as { error?: { message?: string; code?: string } };
+      if (errBody?.error) {
+        message = errBody.error.message ?? message;
+        code = errBody.error.code;
+      }
+    } catch {
+      /* non-JSON error body — keep the status line */
+    }
+    throw new SubspaceJobsError(`Jobs API ${path} failed: ${message}`, res.status, code);
+  }
+
+  return (await res.json()) as T;
+}
+
+async function getJson(
+  path: string,
+  params: Record<string, string | number | undefined>,
+  opts?: { timeoutMs?: number },
+): Promise<JobsApiEnvelope> {
+  const url = new URL(`${baseUrl()}${path}`);
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
+  }
+
+  const res = await fetchWithDeadline(
+    path,
+    url.toString(),
+    {
+      headers: { "x-api-key": requireApiKey(), accept: "application/json" },
+      // Always read the source of truth; intervu does its own caching/indexing.
+      cache: "no-store",
+    },
+    opts,
+  );
 
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
@@ -95,9 +166,7 @@ export interface SnapshotPage {
 }
 
 /** One page of the full active corpus. `limit` default 500, max 1000. */
-export async function getSnapshot(
-  opts: { cursor?: string; limit?: number } = {},
-): Promise<SnapshotPage> {
+export async function getSnapshot(opts: { cursor?: string; limit?: number } = {}): Promise<SnapshotPage> {
   const env = await getJson("/jobs/snapshot", { cursor: opts.cursor, limit: opts.limit });
   return { jobs: env.data ?? [], nextCursor: env.meta?.next_cursor ?? null };
 }
@@ -127,6 +196,23 @@ export async function* iterateSnapshot(
     cursor = nextCursor ?? undefined;
     pages += 1;
   } while (cursor && pages < maxPages);
+}
+
+/** Demand-fill empty descriptions for visible hit ids (Subspace ladder/Postgres). */
+export async function fillVisibleDescriptions(
+  ids: string[],
+  opts?: { mode?: "visible"; timeoutMs?: number },
+): Promise<Array<{ id: string; description: string | null }>> {
+  const capped = ids.slice(0, 20);
+  if (capped.length === 0) return [];
+  const body: { ids: string[]; mode?: "visible" } = { ids: capped };
+  if (opts?.mode === "visible") {
+    body.mode = "visible";
+  }
+  const env = await postJson<FillDescriptionsEnvelope>("/jobs/fill-descriptions", body, {
+    timeoutMs: opts?.timeoutMs,
+  });
+  return env.data ?? [];
 }
 
 /** Async-iterate the delta since `since`, following `next_cursor`. */

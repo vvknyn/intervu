@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Check, CircleNotch } from "@phosphor-icons/react";
 import { highlightMatch } from "@/lib/highlight-match";
 import { isLocationSelected } from "@/lib/jobs/location-suggest";
+import { splitLocationLabel } from "@/lib/presentation/location";
 import { LOCATION_TRIGGER_PLACEHOLDER } from "@/components/jobs/FilterPanel";
 import type { LocationSuggestGroup, LocationSuggestion, SuggestField } from "@/lib/jobs/location-suggest";
 import { cn } from "@/lib/utils";
@@ -53,10 +54,50 @@ interface LocationComboboxProps {
     className?: string;
     containerClassName?: string;
     "data-testid"?: string;
+    /** Accessible name for the underlying `<input>` — it has no visible
+     *  `<label>`, only a placeholder that changes once a place is chosen. */
+    ariaLabel?: string;
 }
 
 /** Flatten groups to the flat list keyboard navigation moves through — the
  *  headers are not stops. */
+/**
+ * One suggestion's visible text. The row is a single truncating line, so the
+ * part that tells two suggestions apart has to sit at the START of it —
+ * `splitLocationLabel` decides which part that is (see its doc for the prod
+ * rows that forced this: two St. Louis sites rendering identically because
+ * the ellipsis ate the only difference between them).
+ *
+ * `label` itself is untouched — it stays the corpus's own string, which is
+ * what the row commits, compares and filters on. This is display only.
+ */
+function SuggestionLabel({ label, query }: { label: string; query: string }) {
+    const { lead, context } = splitLocationLabel(label);
+    const paint = (text: string, matchClass: string) =>
+        highlightMatch(text, query).map((seg, si) => (
+            <span key={si} className={seg.matched ? matchClass : undefined}>
+                {seg.text}
+            </span>
+        ));
+    return (
+        <span className="flex min-w-0 flex-1 items-baseline gap-2">
+            {/* The cap exists only to leave room for the context column beside
+                it. A value with no context is the whole row — capping it there
+                too would truncate labels that used to fit ("North America Or
+                Europe" and "North America And Europe" both cut to "North
+                America …" at 60% width, measured on prod). */}
+            <span className={cn("truncate", context ? "max-w-[60%] shrink-0" : "min-w-0 flex-1")}>
+                {paint(lead, "font-semibold text-foreground")}
+            </span>
+            {context && (
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                    {paint(context, "font-semibold")}
+                </span>
+            )}
+        </span>
+    );
+}
+
 function flatten(groups: LocationSuggestGroup[]): LocationSuggestion[] {
     return groups.flatMap((g) => g.items);
 }
@@ -70,6 +111,7 @@ export function LocationCombobox({
     className,
     containerClassName,
     "data-testid": testId = "location-input",
+    ariaLabel = "Location",
 }: LocationComboboxProps) {
     const [groups, setGroups] = useState<LocationSuggestGroup[]>([]);
     const [fetching, setFetching] = useState(false);
@@ -175,7 +217,7 @@ export function LocationCombobox({
                     .reduce((n, g) => n + g.items.length, 0);
                 return (
                     <Fragment key={group.field}>
-                        <li aria-hidden className="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <li aria-hidden className="px-4 pt-2.5 pb-1 text-xs font-semibold text-muted-foreground">
                             {group.heading}
                         </li>
                         {group.items.map((item, i) => {
@@ -190,23 +232,17 @@ export function LocationCombobox({
                                         "flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors",
                                         index === activeIndex
                                             ? "bg-muted text-foreground"
-                                            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
                                     )}
                                     onMouseEnter={() => setActiveIndex(index)}
                                     onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => commit(item.label, item.field)}
                                 >
-                                    <span className="min-w-0 flex-1 truncate">
-                                        {highlightMatch(item.label, value).map((seg, si) => (
-                                            <span key={si} className={seg.matched ? "font-semibold text-foreground" : undefined}>
-                                                {seg.text}
-                                            </span>
-                                        ))}
-                                    </span>
-                                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground/80">
+                                    <SuggestionLabel label={item.label} query={value} />
+                                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                                         {item.count.toLocaleString()}
                                     </span>
-                                    {chosen && <Check size={14} weight="bold" className="shrink-0 text-foreground" aria-label="Already filtered" />}
+                                    {chosen && <Check weight="bold" className="shrink-0 text-foreground" aria-label="Already filtered" />}
                                 </li>
                             );
                         })}
@@ -222,6 +258,7 @@ export function LocationCombobox({
                 data-testid={testId}
                 type="text"
                 role="combobox"
+                aria-label={ariaLabel}
                 aria-expanded={open}
                 aria-autocomplete="list"
                 aria-controls="location-suggestions"
@@ -255,7 +292,7 @@ export function LocationCombobox({
                 typeof document !== "undefined" &&
                 createPortal(
                     <div
-                        className="fixed z-[100] min-w-[280px] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
+                        className="fixed z-[100] min-w-[280px] overflow-hidden border border-border-strong bg-popover animate-in fade-in slide-in-from-top-1"
                         style={{
                             top: overlayRect.top,
                             left: overlayRect.left,

@@ -9,10 +9,10 @@ import { MatchChip } from "@/components/jobs/MatchChip";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CircleNotch } from "@phosphor-icons/react";
+import { MagnifyingGlass, X } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { companyRowMetaSegments } from "@/lib/presentation";
@@ -190,10 +190,10 @@ export function CompanyRoleSearch({
 
   return (
     <section data-testid="company-role-search">
-      <h2 className="mb-4 flex items-baseline justify-between font-display text-[20px] font-semibold">
+      <h2 className="mb-4 flex items-baseline justify-between font-display text-lg font-semibold">
         Open roles
         {jobs.length > 0 && (
-          <span className="text-xs font-normal text-muted-foreground" aria-live="polite">
+          <span className="text-sm font-normal text-muted-foreground" aria-live="polite">
             {roleCountLabel(displayed.length, matched.length, hasQuery, openCountLabel)}
           </span>
         )}
@@ -204,18 +204,26 @@ export function CompanyRoleSearch({
           <label htmlFor="company-role-search" className="sr-only">
             Search {companyName}&apos;s open roles by title, location, or level
           </label>
-          <Input
-            id="company-role-search"
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setQuery("");
-            }}
-            placeholder={`Search ${companyName}'s open roles…`}
-          />
+          <div className="relative">
+            <MagnifyingGlass
+              size={16}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              id="company-role-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setQuery("");
+              }}
+              placeholder={`Search ${companyName}'s open roles…`}
+              className="h-10 pl-9"
+            />
+          </div>
           {searchesPartialWindow && hasQuery && (
-            <p className="mt-2 text-[11px] text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               Searching the {jobs.length} most recent roles —{" "}
               <Link href={jobsSearchUrl} className="text-brand hover:underline">
                 use full search
@@ -233,7 +241,7 @@ export function CompanyRoleSearch({
               No open roles match &ldquo;{trimmedQuery}&rdquo;.
             </p>
             <Link href={jobsSearchUrl} className="mt-2 inline-block text-sm text-brand hover:underline">
-              Search all jobs at {companyName} →
+              Search all jobs at {companyName}
             </Link>
           </div>
         ) : (
@@ -251,7 +259,7 @@ export function CompanyRoleSearch({
           </div>
         )
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="divide-y divide-border border-t border-border">
           {displayed.map((job) => {
             const meta = companyRowMetaSegments(job);
             // Exception-only status: the routine "clear, currently checked"
@@ -264,35 +272,39 @@ export function CompanyRoleSearch({
                 <button
                   type="button"
                   onClick={() => setSelectedJob(job)}
-                  className="w-full text-left flex items-center gap-4 border border-border bg-card px-5 py-4 transition-all hover:border-border-strong hover:bg-chip/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
+                  className="w-full text-left flex items-center gap-4 px-3 py-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="text-[17px] font-semibold text-foreground group-hover:text-brand transition-colors">
-                        {decodeText(job.title)}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="min-w-0 truncate text-base font-semibold text-foreground transition-colors group-hover:text-brand">
+                        {titleCaseDisplay(decodeText(job.title))}
                       </div>
-                      {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />}
+                      {matchScore && (
+                        <span className="shrink-0">
+                          <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />
+                        </span>
+                      )}
                     </div>
                     {meta.length > 0 && (
-                      <div className="mt-1 text-[14px] text-muted-foreground">
+                      // Pay leads this line same as everywhere else it's
+                      // sourced from `companyRowMetaSegments`, but a role row
+                      // reads as one plain secondary caption here — never
+                      // bolded, per the rulebook's "pay NOT bold" rule.
+                      <div className="mt-1 truncate text-sm text-muted-foreground">
                         {meta.map((segment, i) => (
                           <span key={i}>
-                            {i > 0 && <span className="mx-1 text-muted-foreground/60" aria-hidden>·</span>}
-                            <span className={segment.emphasis ? "font-semibold text-foreground" : undefined}>
-                              {segment.text}
-                            </span>
+                            {i > 0 && <span className="mx-1" aria-hidden>·</span>}
+                            {segment.text}
                           </span>
                         ))}
                       </div>
                     )}
                     {exception && (
-                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        ● {exception.label}
-                      </div>
+                      <div className="mt-1.5 text-xs text-muted-foreground">{exception.label}</div>
                     )}
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground group-hover:text-brand group-hover:translate-x-0.5 transition-all" aria-hidden>
-                    View role →
+                  <span className="shrink-0 text-sm text-brand" aria-hidden>
+                    View role
                   </span>
                 </button>
               </li>
@@ -304,16 +316,16 @@ export function CompanyRoleSearch({
       {displayed.length > 0 && (
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-border bg-card p-6">
           <div>
-            <h3 className="font-display text-[18px] font-semibold text-foreground">
+            <h3 className="font-display text-base font-semibold text-foreground">
               Explore all open roles at {companyName}
             </h3>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
               Screened for postings that aren&apos;t really hiring, plus freshness and verified salary transparency.
             </p>
           </div>
-          <Button asChild variant="brand" size="lg" className="h-11 px-6 font-semibold shrink-0">
+          <Button asChild variant="brand" size="lg" className="shrink-0">
             <Link href={jobsSearchUrl}>
-              View all {openCountLabel} jobs →
+              View all {openCountLabel} jobs
             </Link>
           </Button>
         </div>
@@ -325,20 +337,20 @@ export function CompanyRoleSearch({
           side="bottom"
           hideCloseButton
           overlayClassName="bg-[rgba(18,21,26,0.42)]"
-          className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0 shadow-[var(--shadow-overlay)] data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+          className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
         >
           <div className="shrink-0 border-b border-border">
             <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-              <span className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
+              <span className="h-1.5 w-10 rounded-none bg-border" />
             </div>
             <div className="flex items-center gap-2 px-4 pb-3">
               <div className="min-w-0 flex-1">
                 {selectedJob ? (
                   <>
-                    <p className="truncate text-base font-semibold tracking-[-0.03em] text-foreground">
+                    <p className="truncate text-base font-semibold text-foreground">
                       {decodeText(selectedJob.title)}
                     </p>
-                    <p className="truncate text-[13px] text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground">
                       {displayCompanyBrand(selectedJob.company, selectedJob.company_domain, selectedJob.title)}
                     </p>
                   </>
@@ -350,9 +362,9 @@ export function CompanyRoleSearch({
                 type="button"
                 aria-label="Close"
                 onClick={() => setSelectedJob(null)}
-                className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80"
+                className="flex h-11 w-11 shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
               >
-                ×
+                <X size={16} weight="bold" aria-hidden />
               </button>
             </div>
           </div>
@@ -372,7 +384,7 @@ export function CompanyRoleSearch({
                 source="co"
                 onOpenRelated={handleOpenRelated}
                 collapseDescription={false}
-                detailClassName="border-0 bg-transparent shadow-none"
+                detailClassName="border-0 bg-transparent"
               />
             )}
           </div>

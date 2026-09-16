@@ -14,18 +14,30 @@
  */
 import { foldForMatch } from "@/lib/geo/corpus-values";
 import { isMalformedLocationValue } from "@/lib/geo/malformed-location-value";
+import { isMisfiledCountryName } from "@/lib/geo/misfiled-country";
+import { regionLabel } from "@/lib/geo/regions";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { capitalizeWords } from "@/lib/text-case";
+// Type-only on purpose: this module is in the CLIENT bundle (the combobox
+// imports it), and a value import of gazetteer.ts would drag the multi-MB
+// gazetteer JSON along. The server route passes the loaded instance in.
+import type { Gazetteer } from "@/lib/geo/gazetteer";
 import type { LocationField } from "@/lib/geo/resolve-place";
 import type { FacetHit } from "@/lib/geo/corpus-values";
 
 /**
- * Which facet a suggestion writes when committed. Every PLACE suggestion
- * (city/state/country) writes `location_country` regardless of which of the
- * three fields matched it — see `addLocation` in page.tsx — so `LocationField`
- * alone was never the whole answer to "what does this commit". The one
- * suggestion that targets something else is the bare-work-mode row, hence a
- * widened union here rather than a new type per field.
+ * Which facet a suggestion writes when committed. A picked CITY or STATE
+ * suggestion writes its OWN field (`location_city`/`location_state`) — see
+ * `addLocation` in page.tsx — so it's filtered as the exact literal it was
+ * advertised and counted as (`resolvePickedFacetValue`,
+ * query-understanding.ts), never re-resolved as free text through the
+ * gazetteer. A picked COUNTRY suggestion still writes `location_country`,
+ * the same bucket free-typed text uses: country picks were never the source
+ * of the mis-resolution this fields-through-the-click design exists to fix
+ * (see the module doc's "San Jose" / composite-value bug), and that bucket
+ * already runs the full gazetteer + exact-literal pipeline. The one
+ * suggestion that targets something else entirely is the bare-work-mode
+ * row, hence a widened union here rather than a new type per field.
  */
 export type SuggestField = LocationField | "work_type";
 
@@ -206,6 +218,7 @@ export function mergeFieldHits(
     field: LocationField,
     hits: readonly FacetHit[],
     perField = LOCATION_SUGGEST_PER_FIELD,
+    gazetteer?: Gazetteer,
 ): LocationSuggestion[] {
     const groups = new Map<string, { total: number; best: FacetHit }>();
 
@@ -217,6 +230,52 @@ export function mergeFieldHits(
         // of malformation and still renders — see isMalformedLocationValue's
         // doc for why absence of gazetteer knowledge never suppresses.
         if (isMalformedLocationValue(hit.value)) continue;
+        // A value that NAMES A REGION is not a city, a state or a country,
+        // whichever field it was scraped into — so it never renders as one.
+        //
+        // Measured on prod 2026-08-29: `location_city = "North America"` is a
+        // real corpus value with 23 postings, so the dropdown offered "North
+        // America" under CITIES, and picking it filtered to those 23 rows
+        // (2 inside the 30-day default). Typing the same words and pressing
+        // Enter routes through `resolve-place.ts`'s region tier and returns
+        // ~6,200 — the OR of every member country. Two rows that read
+        // identically, three orders of magnitude apart. The one that reads
+        // like a continent and delivers a city is the trap, so it goes.
+        //
+        // Removing it, rather than re-pointing it, is what keeps the
+        // advertised count honest: a "North America — 6,200" row would have
+        // to promise a number this endpoint cannot measure (the region clause
+        // ORs country + admin1 + city candidates and is capped at
+        // `MAX_REGION_CLAUSE_TERMS`, so no sum of member-country facet counts
+        // equals what the filter then delivers). With the row gone, the box's
+        // existing free-text commit — Enter, blur, or SEARCH, all one path
+        // through `addLocation` — is the ONLY way a region phrase resolves,
+        // and that path already answers it correctly.
+        //
+        // `regionLabel` reads the same `REGION_ALIASES` table the resolver
+        // does, matched on the fully folded value, so this is one rule over a
+        // data table, not a list of banned strings: a region added there is
+        // covered here by construction, and a city whose name merely CONTAINS
+        // a region word ("North Vancouver", "Asia Pacific Heights") is
+        // untouched.
+        //
+        // Accepted loss, stated rather than hidden: a posting whose city
+        // literally reads "North America" is now only reachable through the
+        // region filter if its own country/city text matches a member
+        // candidate. Where such a row carries no country at all it is
+        // unreachable from this box — that is the ingest-side defect (#50,
+        // canonical geography at ingest), not something this display seam can
+        // repair.
+        if (regionLabel(hit.value)) continue;
+        // Same trap, one tier down: a value that names a COUNTRY is not a
+        // city or a state either — unless a real city/admin1 genuinely
+        // carries that name, which is what the predicate's protective
+        // lookups check ("Georgia" the US state stays; "Canada" under
+        // CITIES goes). Measured trap and the full rule: see
+        // misfiled-country.ts. Skipped without a gazetteer (the server
+        // route always passes one) — absence of knowledge never
+        // suppresses, per this ladder's positive-evidence-only stance.
+        if (gazetteer && isMisfiledCountryName(field, hit.value, gazetteer)) continue;
         const folded = foldForMatch(hit.value);
         if (!folded) continue;
         const existing = groups.get(folded);
@@ -252,12 +311,13 @@ export function mergeFieldHits(
 export function buildLocationSuggestions(
     hitsByField: Partial<Record<LocationField, readonly FacetHit[]>>,
     perField = LOCATION_SUGGEST_PER_FIELD,
+    gazetteer?: Gazetteer,
 ): LocationSuggestGroup[] {
     const out: LocationSuggestGroup[] = [];
     for (const { field, heading } of LOCATION_SUGGEST_FIELDS) {
         const hits = hitsByField[field];
         if (!hits) continue;
-        const items = mergeFieldHits(field, hits, perField);
+        const items = mergeFieldHits(field, hits, perField, gazetteer);
         if (items.length > 0) out.push({ field, heading, items });
     }
     return out;

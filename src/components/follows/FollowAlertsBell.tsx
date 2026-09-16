@@ -11,7 +11,7 @@ import {
 import type { FollowAlertGroup } from "@/lib/follows/alerts";
 import { jobPostedMs } from "@/lib/follows/alerts";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
-import { locationText } from "@/lib/jobs/presentation";
+import { decodeText, locationText, placeWithWorkMode, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { PublicJob } from "@/lib/jobs/types";
 import { useFollows } from "@/lib/follows/use-follows";
@@ -113,7 +113,7 @@ export function FollowAlertsBell() {
           className="relative grid h-8 w-8 shrink-0 place-items-center text-muted-foreground transition-colors outline-none hover:text-foreground"
         >
           <Bell size={20} weight="regular" aria-hidden />
-          <span className="absolute -right-1 -top-1 mono-data rounded-none bg-brand px-1 text-[10px] font-bold leading-[14px] text-brand-foreground">
+          <span className="absolute -right-1 -top-1 mono-data rounded-none bg-brand px-1 text-xs font-semibold text-brand-foreground">
             {totalNew}
           </span>
         </button>
@@ -123,26 +123,28 @@ export function FollowAlertsBell() {
         sideOffset={6}
         className="w-[min(20rem,calc(100vw-1rem))] rounded-none border border-border bg-card p-0"
       >
-        <div className="flex items-start gap-3 border-b border-border/60 p-4">
+        <div className="flex items-start gap-3 border-b border-border p-4">
           <div className="min-w-0 flex-1">
-            <h2 className="text-[15px] font-semibold leading-snug">{title}</h2>
-            <p className="mt-1 text-[11.5px] text-muted-foreground">
+            <h2 className="text-sm font-semibold leading-snug">{title}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
               Observed since your last visit · hiring signal
             </p>
           </div>
           <button
             type="button"
             onClick={acknowledge}
-            className="shrink-0 text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
             aria-label="Dismiss follow alerts"
           >
             dismiss
           </button>
         </div>
 
-        <ul className="max-h-[min(24rem,50vh)] divide-y divide-border/60 overflow-y-auto">
+        <ul className="max-h-[min(24rem,50vh)] divide-y divide-border overflow-y-auto">
           {rows.map(({ job, displayName }) => {
-            const loc = locationText(job);
+            // placeWithWorkMode: this row has no adjacent work-type chip, so
+            // it's the only place a remote/hybrid job's work mode can show.
+            const loc = placeWithWorkMode(locationText(job), job.work_type);
             const meta = loc ? `${displayName} · ${loc}` : displayName;
             return (
               <li key={job.id}>
@@ -150,15 +152,15 @@ export function FollowAlertsBell() {
                   href={jobPath(job)}
                   data-testid="follow-alert-row"
                   onClick={acknowledge}
-                  className="flex items-center justify-between gap-3 px-4 py-3 text-[13.5px] transition-colors hover:text-brand"
+                  className="flex items-center justify-between gap-3 px-4 py-3 text-sm transition-colors hover:text-brand"
                 >
                   <div className="min-w-0">
-                    <div className="truncate font-medium">{job.title}</div>
-                    <div className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
+                    <div className="truncate">{titleCaseDisplay(decodeText(job.title))}</div>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
                       {meta}
                     </div>
                   </div>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                  <span className="shrink-0 text-xs text-muted-foreground">
                     {jobAgeLabel(job, nowMs)}
                   </span>
                 </Link>
@@ -167,14 +169,14 @@ export function FollowAlertsBell() {
           })}
         </ul>
 
-        <div className="border-t border-border/60 p-4">
+        <div className="border-t border-border p-4">
           <Link
             href="/jobs?board=elite"
             data-testid="follow-alerts-cta"
             onClick={acknowledge}
-            className="block w-full rounded-none bg-primary px-4 py-3 text-center text-[14px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            className="block w-full rounded-none bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
           >
-            View followed roles →
+            View followed roles
           </Link>
         </div>
       </PopoverContent>

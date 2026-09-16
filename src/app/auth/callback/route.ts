@@ -1,7 +1,14 @@
 import { handleAuth } from "@workos-inc/authkit-nextjs";
 import { after } from "next/server";
+import { cookies } from "next/headers";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisioning";
+import { withDirectHitGuard } from "@/lib/auth/callback-guard";
+import {
+    resolveAuthKitSignupSignal,
+    SIGNUP_SIGNAL_COOKIE_NAME,
+    signupSignalCookieOptions,
+} from "@/lib/auth/authkit-signup-signal";
 
 /**
  * WorkOS AuthKit OAuth callback route.
@@ -28,14 +35,46 @@ import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisionin
  * same reasoning as `signIn`/`signUp`'s own provisioning calls: it must never
  * turn a successful WorkOS exchange into a redirect error, and a person
  * finishing sign-in should not wait on Resend or Firestore to land on the app.
+ *
+ * `authenticationMethod` comes straight off the session WorkOS just handed
+ * back (`"GoogleOAuth"`, `"Passkey"`, `"MagicAuth"`, ...) — free to read, so
+ * `provisionAppAccess`'s telemetry gets the real method instead of a
+ * one-size-fits-all `"oauth"` that would mislabel a passkey or magic-link
+ * sign-in. It's typed optional upstream; `"ExternalAuth"` (WorkOS's own
+ * catch-all member of the same union) covers the rare case it's absent
+ * rather than inventing a new label.
+ *
+ * AuthKit signups emit `signup_completed` via a short-lived
+ * `intervu_signup_completed` cookie set here (`cookies().set()`, the same
+ * API WorkOS `saveSession` already uses on this route — wrapping
+ * handleAuth's Response to append Set-Cookie would risk dropping the
+ * session cookie) and consumed client-side in `PostHogProvider` after
+ * `posthog.identify(uid)`. The signal is `!hasApp(metadata.apps, intervu)`
+ * evaluated BEFORE `provisionAppAccess` tags them — not
+ * `user.createdAt ≈ now`. Username/password signups never hit this route;
+ * they fire from `login-form.tsx` directly.
+ *
+ * `withDirectHitGuard` (src/lib/auth/callback-guard.ts) redirects a request
+ * that carries neither `code` nor `error` straight to /login instead of
+ * letting it fall into handleAuth's generic 500 — see that file for why.
  */
-export const GET = handleAuth({
-    baseURL: getSiteUrl(),
-    onSuccess: async ({ user }) => {
-        after(() =>
-            realProvisioningDeps()
-                .then((deps) => provisionAppAccess(deps, user))
-                .catch((err) => console.error("[Auth] callback provisioning failed:", err)),
-        );
-    },
-});
+export const GET = withDirectHitGuard(
+    handleAuth({
+        baseURL: getSiteUrl(),
+        onSuccess: async ({ user, authenticationMethod }) => {
+            const signal = resolveAuthKitSignupSignal({
+                apps: user.metadata?.apps,
+                authenticationMethod: authenticationMethod ?? "ExternalAuth",
+            });
+            if (signal) {
+                const cookieStore = await cookies();
+                cookieStore.set(SIGNUP_SIGNAL_COOKIE_NAME, signal, signupSignalCookieOptions());
+            }
+            after(() =>
+                realProvisioningDeps()
+                    .then((deps) => provisionAppAccess(deps, user, authenticationMethod ?? "ExternalAuth"))
+                    .catch((err) => console.error("[Auth] callback provisioning failed:", err)),
+            );
+        },
+    }),
+);

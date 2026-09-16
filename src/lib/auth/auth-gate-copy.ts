@@ -4,7 +4,14 @@
  * prepends an honest keep-line; never fabricates a count.
  */
 
-export type AuthGateReason = "apply" | "generic" | "save";
+export type AuthGateReason = "apply" | "generic" | "save" | "fit" | "report" | "tailor" | "resume";
+
+/** Pure guard for auth_started — fire only on false→true, not on close or
+ *  re-renders while open. Kept next to AuthGateReason so AuthPopover and
+ *  tests share one rule without mounting the modal. */
+export function shouldCaptureAuthStarted(wasOpen: boolean, nowOpen: boolean): boolean {
+    return !wasOpen && nowOpen;
+}
 
 export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 
@@ -17,9 +24,13 @@ export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 export const SIGNUP_SUBCOPY = "Get job alerts, saved searches, and an application tracker — on any device.";
 
 const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
-    apply: "Create a free account — we'll take you straight to the posting and start tracking this application.",
+    apply: "Create a free account to track this application across devices.",
     generic: "Sign in to sync your tracker across devices.",
     save: "Sign in to keep your list across devices and get alerts when new roles match.",
+    fit: "Sign in to match roles to your résumé and get personalized recommendations.",
+    report: "Sign in to report an issue with this listing.",
+    tailor: "Create a free account to tailor your résumé with on-device AI and export customized applications.",
+    resume: "Create a free account to edit, export, and sync your résumé across devices.",
 };
 
 /** Honest keep-line when guest pursuits exist; null when count is zero. */
@@ -40,7 +51,6 @@ export function formatAuthGateValueLine(reason: AuthGateReason, guestPursuitCoun
 export type AuthCardTab = "login" | "signup";
 
 export interface AuthCardCopy {
-    eyebrow: string;
     title: string;
     tabLabel: string;
     submitLabel: string;
@@ -48,13 +58,12 @@ export interface AuthCardCopy {
 
 /** Single source of truth for LoginForm's per-tab wording. The tab label,
  *  card heading, and submit button all have to name the same action
- *  (control-names-the-action) — deriving all four from one `label` instead
+ *  (control-names-the-action) — deriving all three from one `label` instead
  *  of three call sites each picking their own string is what makes them
  *  incapable of drifting apart. */
 export function authCardCopy(tab: AuthCardTab): AuthCardCopy {
     const label = tab === "signup" ? "Create account" : "Sign in";
     return {
-        eyebrow: `velai · ${label.toLowerCase()}`,
         title: label,
         tabLabel: label,
         submitLabel: label,
@@ -70,4 +79,6 @@ export const GUEST_AUTH_STRINGS: Record<string, string> = {
     APPLY_LINE: formatAuthGateValueLine("apply", 0),
     GENERIC_LINE: formatAuthGateValueLine("generic", 0),
     APPLY_WITH_KEEP: formatAuthGateValueLine("apply", 2),
+    FIT_LINE: formatAuthGateValueLine("fit", 0),
+    REPORT_LINE: formatAuthGateValueLine("report", 0),
 };

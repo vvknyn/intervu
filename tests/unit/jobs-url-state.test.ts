@@ -17,6 +17,7 @@ test("round-trip identity for a loaded state", () => {
         salaryMin: 150_000,
         visaOnly: true,
         postedBucket: "7d" as const,
+        postedExplicit: true,
         hideGhosts: false,
         sort: "salary" as const,
         jobId: "dd-4821",
@@ -31,8 +32,20 @@ test("defaults stay out of the URL", () => {
 });
 
 test("junk params and junk values are dropped", () => {
-    const s = parseJobsUrl(new URLSearchParams("bogus=1&sort=zzz&posted=99d&salary=7&work=remote"));
+    const s = parseJobsUrl(new URLSearchParams("bogus=1&sort=zzz&posted=99d&salary=7&work=remote&view=nope"));
     assert.deepEqual(s, { ...DEFAULT_URL_STATE, facets: { work_type: ["remote"] } });
+});
+
+test("view=for-you and view=search round-trip when explicit", () => {
+    for (const view of ["for-you", "search"] as const) {
+        const s = { ...DEFAULT_URL_STATE, homeView: view };
+        assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
+    }
+});
+
+test("default homeView stays out of the URL", () => {
+    assert.equal(serializeJobsUrl(DEFAULT_URL_STATE), "");
+    assert.equal(parseJobsUrl(new URLSearchParams("")).homeView, null);
 });
 
 // Product decision: fresh visits default to "30d" instead of unset. Encoding
@@ -48,11 +61,31 @@ test("absent posted param parses to the 30d default", () => {
 
 test("posted=any parses to no filter (undefined), not the default", () => {
     assert.equal(parseJobsUrl(new URLSearchParams("posted=any")).postedBucket, undefined);
+    assert.equal(parseJobsUrl(new URLSearchParams("posted=any")).postedExplicit, true);
 });
 
 test("back-compat: posted=7d (and other existing buckets) parse unchanged", () => {
     assert.equal(parseJobsUrl(new URLSearchParams("posted=7d")).postedBucket, "7d");
+    assert.equal(parseJobsUrl(new URLSearchParams("posted=7d")).postedExplicit, true);
     assert.equal(parseJobsUrl(new URLSearchParams("posted=older")).postedBucket, "older");
+});
+
+test("posted=30d parses to explicit 30d default", () => {
+    assert.deepEqual(parseJobsUrl(new URLSearchParams("posted=30d")), {
+        ...DEFAULT_URL_STATE,
+        facets: {},
+        postedExplicit: true,
+    });
+});
+
+test("serializeJobsUrl writes posted=30d for explicit 30d", () => {
+    const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, postedExplicit: true });
+    assert.equal(url, "?posted=30d");
+});
+
+test("explicit posted=30d round-trips through serialize + parse", () => {
+    const s = { ...DEFAULT_URL_STATE, postedExplicit: true };
+    assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
 });
 
 test("serializeJobsUrl omits posted for the 30d default", () => {
@@ -60,12 +93,12 @@ test("serializeJobsUrl omits posted for the 30d default", () => {
 });
 
 test("serializeJobsUrl writes posted=any for an explicit no-filter state", () => {
-    const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined });
+    const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined, postedExplicit: true });
     assert.equal(url, "?posted=any");
 });
 
 test("posted=any round-trips through serialize + parse", () => {
-    const s = { ...DEFAULT_URL_STATE, postedBucket: undefined };
+    const s = { ...DEFAULT_URL_STATE, postedBucket: undefined, postedExplicit: true };
     assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
 });
 
@@ -139,4 +172,33 @@ test("a company domain is canonicalized to lower/trimmed, and blank means no sco
 test("company scope composes with a query and survives the round-trip alongside it", () => {
     const s = { ...DEFAULT_URL_STATE, q: "driver", companyDomain: "harrods.com" };
     assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
+});
+
+// (g) Picked-field provenance URL grammar. `city=`/`state=` are NEW params
+// added alongside the pre-existing `country=`, wired through the SAME
+// generic FACET_PARAMS loop rather than a parallel encoding — no new parsing
+// code, and `country=` itself is untouched.
+test("(g) back-compat: a legacy country= URL still parses into facets.location_country exactly as before — the new city=/state= params never intercept it", () => {
+    const s = parseJobsUrl(new URLSearchParams("country=Canada"));
+    assert.deepEqual(s.facets, { location_country: ["Canada"] });
+    assert.equal(serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: { location_country: ["Canada"] } }), "?country=Canada");
+});
+
+test("(g) city= and state= round-trip through the generic facet param loop, same as country=", () => {
+    const s = {
+        ...DEFAULT_URL_STATE,
+        facets: { location_city: ["San Jose"], location_state: ["Georgia"] },
+    };
+    const url = serializeJobsUrl(s);
+    assert.equal(url, "?city=San+Jose&state=Georgia");
+    assert.deepEqual(parseJobsUrl(new URLSearchParams(url.slice(1))), s);
+});
+
+test("(g) all three location params compose on one URL without colliding — city, state, and a free-text country pick are three independent facet keys", () => {
+    const s = {
+        ...DEFAULT_URL_STATE,
+        facets: { location_city: ["San Jose"], location_state: ["Georgia"], location_country: ["Canada"] },
+    };
+    const url = serializeJobsUrl(s);
+    assert.deepEqual(parseJobsUrl(new URLSearchParams(url.slice(1))), s);
 });

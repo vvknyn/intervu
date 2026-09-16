@@ -25,11 +25,11 @@ export function ContextModal({ isOpen, onClose, context, setContext, onSave }: C
                     <Textarea
                         value={context}
                         onChange={(e) => setContext(e.target.value)}
-                        className="w-full h-32 p-3 text-base md:text-sm bg-muted/30 border border-border rounded-md resize-none"
+                        className="w-full h-32 p-3 text-base md:text-sm bg-muted border border-border rounded-none resize-none"
                         placeholder="e.g. The interviewer is a VP of Engineering. Focus heavily on distributed caching strategies..."
                     />
                 </div>
-                <DialogFooter className="bg-muted/30 -mx-6 -mb-6 p-4 border-t border-border flex justify-end gap-2">
+                <DialogFooter className="bg-muted -mx-6 -mb-6 p-4 border-t border-border flex justify-end gap-2">
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
                     <Button onClick={onSave}>Save & Regenerate</Button>
                 </DialogFooter>

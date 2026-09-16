@@ -105,11 +105,11 @@ function SectionHeader({ section, nav }: { section: NavigableSection; nav: Secti
                 >
                     <CaretLeft size={20} weight="bold" />
                 </button>
-                <div className="flex h-8 w-8 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground">
+                <div className="flex h-8 w-8 items-center justify-center rounded-none border border-border bg-muted text-foreground">
                     <Icon size={18} />
                 </div>
                 <div>
-                    <h2 className="text-sm font-bold uppercase tracking-tight text-foreground sm:text-base">
+                    <h2 className="text-sm font-semibold text-foreground sm:text-base">
                         {config.title}
                     </h2>
                     <p className="text-xs text-muted-foreground">{config.subtitle}</p>
@@ -228,7 +228,7 @@ export function EditingPanel({
         return (
             <div className="h-full space-y-6 overflow-y-auto p-4 sm:p-6">
                 <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    <h3 className="text-xs font-semibold text-muted-foreground">
                         Resume Sections
                     </h3>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -245,16 +245,16 @@ export function EditingPanel({
                                 key={sec}
                                 type="button"
                                 onClick={() => onNavigateSection(sec)}
-                                className="flex items-start gap-3 rounded-none border border-border bg-card p-3.5 text-left transition-all hover:border-foreground hover:bg-muted/20"
+                                className="flex items-start gap-3 rounded-none border border-border bg-card p-3.5 text-left transition-all hover:border-foreground hover:bg-muted"
                             >
-                                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground">
+                                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-none border border-border bg-muted text-foreground">
                                     <Icon size={16} />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <div className="text-xs font-bold uppercase tracking-tight text-foreground">
+                                    <div className="text-xs font-semibold text-foreground">
                                         {config.title}
                                     </div>
-                                    <div className="truncate text-[11px] text-muted-foreground">
+                                    <div className="truncate text-xs text-muted-foreground">
                                         {config.subtitle}
                                     </div>
                                 </div>
@@ -268,7 +268,7 @@ export function EditingPanel({
                     <div className="flex items-center justify-between border-b border-border pb-2">
                         <div className="flex items-center gap-2">
                             <ListNumbers size={16} className="text-muted-foreground" />
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">Section Order</h4>
+                            <h4 className="text-xs font-semibold text-foreground">Section Order</h4>
                         </div>
                         {isCustomOrder && (
                             <button
@@ -280,16 +280,16 @@ export function EditingPanel({
                             </button>
                         )}
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                         Reorder sections on your standard template:
                     </p>
                     <div className="space-y-1.5">
                         {currentSectionOrder.map((sec, idx) => (
                             <div
                                 key={sec}
-                                className="flex items-center justify-between rounded-none border border-border bg-background/50 px-3 py-2 text-xs"
+                                className="flex items-center justify-between rounded-none border border-border bg-background px-3 py-2 text-xs"
                             >
-                                <span className="text-xs uppercase text-foreground">{sec}</span>
+                                <span className="text-xs text-foreground">{sec}</span>
                                 <div className="flex items-center gap-1">
                                     <button
                                         type="button"
@@ -297,7 +297,7 @@ export function EditingPanel({
                                         onClick={() => moveSection(sec, "up")}
                                         className="rounded-none p-1 text-muted-foreground hover:bg-muted disabled:opacity-20"
                                     >
-                                        <ArrowUp size={13} />
+                                        <ArrowUp />
                                     </button>
                                     <button
                                         type="button"
@@ -305,7 +305,7 @@ export function EditingPanel({
                                         onClick={() => moveSection(sec, "down")}
                                         className="rounded-none p-1 text-muted-foreground hover:bg-muted disabled:opacity-20"
                                     >
-                                        <ArrowDown size={13} />
+                                        <ArrowDown />
                                     </button>
                                 </div>
                             </div>
@@ -410,7 +410,7 @@ export function EditingPanel({
                         placeholder="Write a focused 2-4 sentence executive summary of your background, core strengths, and impact..."
                         className="min-h-[220px] font-sans leading-relaxed"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                         Keep it clear and impactful. This section renders directly below your contact info on the template.
                     </p>
                 </div>
@@ -492,7 +492,7 @@ export function EditingPanel({
                         disabled={!newSkillCategory.trim()}
                         className="gap-1 text-xs"
                     >
-                        <Plus size={14} /> Add Category
+                        <Plus /> Add Category
                     </Button>
                 </div>
 
@@ -518,9 +518,9 @@ export function EditingPanel({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeCategory(catIdx)}
-                                        className="h-8 text-destructive hover:text-destructive"
+                                        className="h-8 text-danger-text hover:text-danger-text"
                                     >
-                                        <Trash size={14} />
+                                        <Trash />
                                     </Button>
                                 </div>
 
@@ -529,15 +529,15 @@ export function EditingPanel({
                                     {cat.skills.map((skill, skillIdx) => (
                                         <span
                                             key={skillIdx}
-                                            className="inline-flex items-center gap-1 rounded-none border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground"
+                                            className="inline-flex items-center gap-1 rounded-none border border-border bg-muted px-2 py-0.5 text-xs text-foreground"
                                         >
                                             {skill}
                                             <button
                                                 type="button"
                                                 onClick={() => removeSkillFromCategory(catIdx, skillIdx)}
-                                                className="hover:text-destructive"
+                                                className="hover:text-danger-text"
                                             >
-                                                <X size={10} />
+                                                <X />
                                             </button>
                                         </span>
                                     ))}
@@ -617,7 +617,7 @@ export function EditingPanel({
                         {experience.length} position{experience.length === 1 ? "" : "s"} listed
                     </span>
                     <Button type="button" size="sm" onClick={addExperience} className="gap-1 text-xs">
-                        <Plus size={14} /> Add Position
+                        <Plus /> Add Position
                     </Button>
                 </div>
 
@@ -633,7 +633,7 @@ export function EditingPanel({
                                 className="rounded-none border border-border bg-card p-4 space-y-3"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    <span className="text-xs font-semibold text-muted-foreground">
                                         Role #{idx + 1}
                                     </span>
                                     <Button
@@ -641,9 +641,9 @@ export function EditingPanel({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeExp(exp.id)}
-                                        className="h-7 text-destructive hover:text-destructive"
+                                        className="h-7 text-danger-text hover:text-danger-text"
                                     >
-                                        <Trash size={14} />
+                                        <Trash />
                                     </Button>
                                 </div>
 
@@ -727,7 +727,7 @@ export function EditingPanel({
                         {education.length} credential{education.length === 1 ? "" : "s"} listed
                     </span>
                     <Button type="button" size="sm" onClick={addEducation} className="gap-1 text-xs">
-                        <Plus size={14} /> Add Education
+                        <Plus /> Add Education
                     </Button>
                 </div>
 
@@ -743,7 +743,7 @@ export function EditingPanel({
                                 className="rounded-none border border-border bg-card p-4 space-y-3"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    <span className="text-xs font-semibold text-muted-foreground">
                                         Record #{idx + 1}
                                     </span>
                                     <Button
@@ -751,9 +751,9 @@ export function EditingPanel({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeEdu(edu.id)}
-                                        className="h-7 text-destructive hover:text-destructive"
+                                        className="h-7 text-danger-text hover:text-danger-text"
                                     >
-                                        <Trash size={14} />
+                                        <Trash />
                                     </Button>
                                 </div>
 

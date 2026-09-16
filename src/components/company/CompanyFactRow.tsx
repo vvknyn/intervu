@@ -36,7 +36,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       value: profile.organizationType
         ? `${profile.yearFounded} · ${profile.organizationType}`
         : String(profile.yearFounded),
-      receipt: exhaust.profile!.source,
+      receipt: exhaust.profile!.label,
     });
   }
 
@@ -45,7 +45,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       key: "headcount",
       label: "Headcount",
       value: `≈${profile.nbEmployees} people`,
-      receipt: exhaust.profile!.source,
+      receipt: exhaust.profile!.label,
     });
   }
 
@@ -63,7 +63,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       key: "sec-listing",
       label: "SEC listing",
       value: latestFiling ? `Public filer · latest filing ${eventDate(latestFiling)}` : "Public filer",
-      receipt: exhaust.secListing.source,
+      receipt: exhaust.secListing.label,
     });
   } else if (fundingCell === "funding" && exhaust.funding) {
     const f = exhaust.funding.data;
@@ -77,7 +77,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       );
     }
     if (parts.length > 0) {
-      cells.push({ key: "funding", label: "Funding", value: parts.join(" · "), receipt: exhaust.funding.source });
+      cells.push({ key: "funding", label: "Funding", value: parts.join(" · "), receipt: exhaust.funding.label });
     }
   }
 
@@ -86,7 +86,7 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
       key: "gov-contracts",
       label: "Federal contracts",
       value: `${money(exhaust.govContracts.data.totalAmount)} active`,
-      receipt: exhaust.govContracts.source,
+      receipt: exhaust.govContracts.label,
     });
   }
 
@@ -94,13 +94,13 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
 
   return (
     <section data-testid="company-fact-row" className="border border-border bg-card px-6 py-6 sm:px-8">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">On the record</h2>
+      <h2 className="text-xs font-semibold text-muted-foreground">On the record</h2>
       <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
         {cells.map((c) => (
           <div key={c.key} className="border border-border px-4 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{c.label}</div>
-            <div className="mt-1 text-[14px] font-semibold text-foreground">{c.value}</div>
-            <div className="mono-data mt-1 text-[10.5px] text-muted-foreground">{c.receipt}</div>
+            <div className="text-xs font-semibold text-muted-foreground">{c.label}</div>
+            <div className="mt-1 text-sm font-semibold text-foreground">{c.value}</div>
+            <div className="mono-data mt-1 text-xs text-muted-foreground">{c.receipt}</div>
           </div>
         ))}
       </div>

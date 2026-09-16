@@ -143,7 +143,7 @@ export function LocationPickerSheet({
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent
                 side="bottom"
-                className="mx-auto max-h-[85dvh] w-full max-w-[720px] overflow-hidden rounded-t-[18px] border-border p-0"
+                className="mx-auto max-h-[85dvh] w-full max-w-[720px] overflow-hidden border-border p-0"
             >
                 <SheetTitle className="sr-only">Location</SheetTitle>
                 <div className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-card p-4 pb-[env(safe-area-inset-bottom,16px)]">
@@ -232,6 +232,7 @@ export function LocationPickerSheet({
                             <Input
                                 data-testid="location-sheet-other-input"
                                 type="text"
+                                aria-label="Location"
                                 placeholder="Country or city"
                                 value={draft.otherText}
                                 onChange={(e) =>
@@ -245,7 +246,7 @@ export function LocationPickerSheet({
                     <Button
                         type="button"
                         data-testid="location-sheet-continue"
-                        className="mt-5 h-11 w-full rounded-none bg-primary text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+                        className="mt-5 h-11 w-full rounded-none bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
                             onClick={() => {
                                 const suppressDefault =
                                     !draft.useDetected &&

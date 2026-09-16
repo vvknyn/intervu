@@ -19,6 +19,12 @@ import {
   followPersistValueLine,
 } from "../../src/lib/follows/persist-copy";
 import { GUEST_AUTH_STRINGS } from "../../src/lib/auth/auth-gate-copy";
+import {
+  ELUTA_ALTERNATIVE,
+  INDEED_ALTERNATIVE,
+  LINKEDIN_JOBS_ALTERNATIVE,
+} from "../../src/lib/seo/alternatives";
+import { CAREER_HUBS } from "../../src/lib/seo/career-hubs";
 
 /**
  * Class guard for the guest-surface rule
@@ -54,6 +60,17 @@ const GUEST_STRINGS: Record<string, string> = {
   FOLLOW_EMAIL_SENT_LINE: followEmailSentLine(),
   FOLLOW_EMAIL_VERIFIED_LINE: followEmailVerifiedLine("Example Co"),
   ...GUEST_AUTH_STRINGS,
+  INDEED_ALTERNATIVE_DESCRIPTION: INDEED_ALTERNATIVE.description,
+  LINKEDIN_JOBS_ALTERNATIVE_DESCRIPTION: LINKEDIN_JOBS_ALTERNATIVE.description,
+  ELUTA_ALTERNATIVE_DESCRIPTION: ELUTA_ALTERNATIVE.description,
+  ...Object.fromEntries(
+    CAREER_HUBS.flatMap((hub) => [
+      [`CAREER_HUB_TITLE_${hub.slug}`, hub.title],
+      [`CAREER_HUB_DESCRIPTION_${hub.slug}`, hub.description],
+      [`CAREER_HUB_H1_${hub.slug}`, hub.h1],
+      ...hub.intro.map((paragraph, index) => [`CAREER_HUB_INTRO_${hub.slug}_${index}`, paragraph]),
+    ]),
+  ),
 };
 
 test("guest-surface strings carry no machinery jargon", () => {

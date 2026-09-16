@@ -12,7 +12,7 @@ export function SettingsLoading() {
     return (
         <PageLayout fullWidth>
             <div className="mx-auto flex max-w-[720px] flex-col items-center justify-center gap-3 px-4 py-16 text-muted-foreground sm:px-8">
-                <div className="h-5 w-5 animate-spin rounded-full border border-border border-t-foreground" />
+                <div className="h-5 w-5 animate-spin rounded-none border border-border border-t-foreground" />
                 <p className="text-sm">Loading account…</p>
             </div>
         </PageLayout>

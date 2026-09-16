@@ -80,19 +80,36 @@ test("zero-result state's quiet-default entry WIDENS on clear — 30d is a fixed
     const entries = activeFilterEntries(base, { includeQuietDefaults: true });
     const cleared = entries[0].clear(base);
     assert.equal(cleared.postedBucket, undefined);
+    assert.equal(cleared.postedExplicit, true);
     assert.notDeepEqual(cleared, base);
+});
+
+test("explicit 30d is an active posted filter entry in the toolbar", () => {
+    const s: FilterState = { ...base, postedExplicit: true };
+    const entries = activeFilterEntries(s);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].key, "postedBucket");
+    assert.equal(entries[0].label, "Last 30 days");
+});
+
+test("clearing explicit 30d restores the quiet default", () => {
+    const s: FilterState = { ...base, postedExplicit: true };
+    const cleared = activeFilterEntries(s)[0].clear(s);
+    assert.equal(cleared.postedBucket, "30d");
+    assert.equal(cleared.postedExplicit, undefined);
 });
 
 test("a non-pristine bucket's clear is unchanged by this fix — 7d still clears back to pristine 30d", () => {
     const s: FilterState = { ...base, postedBucket: "7d" };
     const entries = activeFilterEntries(s);
     assert.equal(entries[0].clear(s).postedBucket, "30d");
+    assert.equal(entries[0].clear(s).postedExplicit, undefined);
 });
 
 test("class-wide guard: the widened state round-trips through the URL as explicit Any, not a silent re-narrow on reload", () => {
     const entries = activeFilterEntries(base, { includeQuietDefaults: true });
     const cleared = entries[0].clear(base);
-    const urlState: JobsUrlState = { ...DEFAULT_URL_STATE, ...cleared };
+    const urlState: JobsUrlState = { ...DEFAULT_URL_STATE, ...cleared, postedExplicit: true };
     const qs = serializeJobsUrl(urlState);
     assert.match(qs, /posted=any/);
     assert.equal(parseJobsUrl(new URLSearchParams(qs)).postedBucket, undefined);

@@ -1,7 +1,7 @@
 import { buildPageOgImage, OG_IMAGE_CONTENT_TYPE, OG_IMAGE_SIZE } from "@/lib/og/page-card";
 import { getJobById } from "@/lib/jobs/get-job";
 import { parseJobSlug } from "@/lib/jobs/job-slug";
-import { displayCompanyBrand } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { SITE_NAME } from "@/lib/seo/constants";
 
 export const runtime = "edge";
@@ -30,5 +30,6 @@ export default async function Image({ params }: { params: Promise<{ slug: string
       ? `${company} · opened ${job.company_opened_90d}, closed ${job.company_closed_90d} in 90d`
       : (company ?? "Live jobs, checked against companies' own career pages");
 
-  return buildPageOgImage(job?.title ?? SITE_NAME, eyebrow);
+  const jobTitle = job ? titleCaseDisplay(decodeText(job.title)) : null;
+  return buildPageOgImage(jobTitle ?? SITE_NAME, eyebrow);
 }

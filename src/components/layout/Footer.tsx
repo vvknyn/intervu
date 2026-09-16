@@ -17,6 +17,12 @@ import { FOOTER_PROVENANCE_LINE } from "@/lib/marketing-stats";
 export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true }[] = [
     { label: "Research", href: "/research/ghost-jobs" },
     { label: "About", href: "/about" },
+    { label: "Remote jobs", href: "/careers/remote-jobs" },
+    { label: "Canada jobs", href: "/careers/canada-jobs" },
+    { label: "Company career pages", href: "/careers/company-career-pages" },
+    { label: "Indeed alternative", href: "/indeed-alternative" },
+    { label: "LinkedIn Jobs alternative", href: "/linkedin-jobs-alternative" },
+    { label: "Eluta alternative", href: "/eluta-alternative" },
     { label: "Contact", href: "/contact" },
     { label: "Report a bug", href: "/contact?kind=bug", fromCurrentPage: true },
     { label: "Setup help", href: "/connect/help" },
@@ -75,7 +81,7 @@ export function FooterContent() {
     return (
         <footer
             data-testid="site-footer"
-            className="shrink-0 border-t border-border/80 bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
+            className="shrink-0 border-t border-border bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
         >
             {/* Same `shell-row` as TopBar — the two bands frame the page, so
                 they have to share its gutter or the frame is crooked. */}
@@ -89,7 +95,7 @@ export function FooterContent() {
                             aria-label={mode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
                             className="inline-flex items-center gap-1.5 transition-colors duration-100 hover:text-foreground"
                         >
-                            {mode === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+                            {mode === "dark" ? <Sun /> : <Moon />}
                             <span>Dark mode {mode === "dark" ? "on" : "off"}</span>
                         </button>
                     )}

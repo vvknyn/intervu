@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { goAfterJobAction } from "@/actions/application";
 import { markJobAppliedAction } from "@/actions/jobs";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { AuthPopover } from "@/components/auth/auth-popover";
+import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { ApplyReturnPrompt, useApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
 import { fetchResumeData } from "@/actions/resume";
 import { JobDetail, JobDetailActionBar } from "@/components/jobs/JobDetail";
 import { JobDetailDocument } from "@/components/jobs/JobDetailDocument";
@@ -19,19 +21,16 @@ import {
 import { getGuestSaveCount, recordGuestSave } from "@/lib/auth/guest-save-gate";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { shortDate } from "@/lib/jobs/presentation";
-import {
-    emptyPending,
-    queuePending,
-    resolveApplyGateDecision,
-    takeReplay,
-    type PendingState,
-} from "@/lib/jobs/pending-actions";
+import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
 import type { PublicJob } from "@/lib/jobs/types";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
+import { hasReachedStage } from "@/lib/pursuits/types";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
+import { readLocalAiEnabled } from "@/lib/local-ai/flag";
+import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -79,12 +78,13 @@ export function PublicJobDetail({
     const [goingAfter, setGoingAfter] = useState(false);
     const [applyIntentOpen, setApplyIntentOpen] = useState(false);
     const [user, setUser] = useState<User | null>(() => getCurrentUser());
-    const [authOpen, setAuthOpen] = useState(false);
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
+    // Controls the report dialog from outside `ReportJobButton` so a
+    // post-auth replay (see `useAuthGate` below) can reopen the exact
+    // dialog the user was filling out before sign-in.
+    const [reportDialogOpen, setReportDialogOpen] = useState(false);
     const router = useRouter();
     const { byJobId } = usePursuits();
-    const authedRef = useRef(false);
-    const pendingRef = useRef<PendingState<PublicJob, PublicJob>>(emptyPending());
 
     useEffect(() => onAuthChange(setUser), []);
 
@@ -95,8 +95,20 @@ export function PublicJobDetail({
     const [resumeAsOfDate, setResumeAsOfDate] = useState<string | null>(null);
     useEffect(() => {
         if (!user) {
-            setResume(null);
-            setResumeAsOfDate(null);
+            if (readLocalAiEnabled()) {
+                const stored = readLocalAiResume();
+                if (stored && resumeIsUsable(stored.data)) {
+                    setResume(stored.data);
+                    const ms = Date.parse(stored.updatedAt);
+                    setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
+                } else {
+                    setResume(null);
+                    setResumeAsOfDate(null);
+                }
+            } else {
+                setResume(null);
+                setResumeAsOfDate(null);
+            }
             return;
         }
         let cancelled = false;
@@ -131,18 +143,47 @@ export function PublicJobDetail({
         };
     }, []);
 
+    // The one auth gate (`use-auth-gate.ts`): signed in → run the handler
+    // now; signed out → persist the action (survives both in-place login and
+    // a hard OAuth/passkey navigation away and back) and open the popover.
+    // `apply`/`gate` reference `doMarkApplied`/`replayApplyGate`, declared
+    // later in this component — safe because these are arrow functions, not
+    // calls: the reference resolves only when the auth gate invokes them,
+    // long after this component has finished its first render.
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob, PublicJob>({
+        handlers: {
+            apply: (action) => void doMarkApplied(action.payload),
+            gate: (action) => void replayApplyGate(action.payload),
+            // This surface has no résumé importer — nothing here ever calls
+            // `gate({ kind: "upload", ... })`, so this is unreachable. Still
+            // required: `AuthGateHandlers` is a mapped type over every
+            // `PendingAction` kind, so every caller supplies all four.
+            upload: () => {},
+            // Single-job page: only reopen the dialog when the persisted
+            // report actually belongs to THIS job — a stale or foreign
+            // record must never pop the dialog for whatever job this route
+            // happens to be showing.
+            report: (action) => {
+                if (action.payload?.id === job.id) setReportDialogOpen(true);
+            },
+        },
+        user,
+    });
+
     const openAuth = (reason: AuthGateReason | null = null) => {
-        authedRef.current = false;
         setAuthGateReason(reason);
         setAuthOpen(true);
     };
 
     const openPostingNow = (target: PublicJob) => {
         if (!target.apply_url) return;
+        // A1 — only a signed-in departure arms the return prompt; guests
+        // already left via this same call but auth for tracking is separate.
+        if (user) armApplyReturnJob(target);
         window.open(target.apply_url, "_blank", "noopener,noreferrer");
     };
 
-    const doMarkApplied = async (target: PublicJob) => {
+    const doMarkApplied = async (target: ApplyReturnJob) => {
         try {
             const res = await markJobAppliedAction({
                 company: target.company ?? "",
@@ -160,6 +201,7 @@ export function PublicJobDetail({
             }
             invalidatePursuitsCache();
             captureEvent("job_marked_applied", { job_id: target.id });
+            toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
                 openAuth("apply");
@@ -169,43 +211,30 @@ export function PublicJobDetail({
         }
     };
 
+    // A1 — shared hook (see jobs/page.tsx's own mount for the sibling
+    // comment): this surface's "already applied" is the same
+    // `byJobId`/`hasReachedStage` pursuit check, and marking applied from
+    // the prompt reuses `doMarkApplied` above rather than a second write path.
+    const { prompt: applyReturnPrompt, arm: armApplyReturnJob, markApplied: markApplyReturnApplied, dismiss: dismissApplyReturn } =
+        useApplyReturnPrompt({
+            isAlreadyApplied: (jobId) => {
+                const pursuit = byJobId.get(jobId);
+                return !!pursuit && hasReachedStage(pursuit, "applied");
+            },
+            onMarkApplied: doMarkApplied,
+        });
+
     const replayApplyGate = async (target: PublicJob) => {
         await doMarkApplied(target);
         if (target.apply_url) window.location.href = target.apply_url;
     };
 
-    const maybeReplay = useCallback(() => {
-        if (!authedRef.current) return;
-        const { next, action } = takeReplay(pendingRef.current);
-        pendingRef.current = next;
-        if (!action) return;
-        switch (action.kind) {
-            case "gate":
-                void replayApplyGate(action.payload);
-                break;
-            default:
-                break;
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const handleAuthed = () => {
-        authedRef.current = true;
-        maybeReplay();
-    };
-
-    useEffect(() => {
-        if (user) maybeReplay();
-    }, [user, maybeReplay]);
-
-    const handleApplyGate = (target: PublicJob) => {
-        pendingRef.current = queuePending(pendingRef.current, { kind: "gate", payload: target });
-        openAuth("apply");
-    };
-
     const handleOpenPosting = (target: PublicJob) => {
-        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
-            handleApplyGate(target);
+        const decision = resolveApplyClickDecision(Boolean(user));
+        if (decision === "open-then-auth") {
+            if (target.apply_url) openPostingNow(target);
+            setAuthGateReason("apply");
+            gate({ kind: "apply", payload: target });
             return;
         }
         if (target.apply_url && shouldPromptApplyIntent()) {
@@ -265,8 +294,13 @@ export function PublicJobDetail({
         }
     };
 
-    const requireAuth = () => {
-        openAuth("generic");
+    // The only `onRequestSignIn` consumer on this surface is `ReportJobButton`
+    // (both `JobDetail`/`JobDetailDocument` reserve that prop for it) — route
+    // it through the report gate so a signed-out report reopens this exact
+    // dialog once the user is back, same as Apply.
+    const requireReportAuth = () => {
+        setAuthGateReason("report");
+        gate({ kind: "report", payload: job });
     };
 
     return (
@@ -280,7 +314,7 @@ export function PublicJobDetail({
             <AuthPopover
                 open={authOpen}
                 onOpenChange={setAuthOpen}
-                onAuthed={handleAuthed}
+                onAuthed={onAuthed}
                 showTrigger={false}
                 valueLine={
                     authGateReason
@@ -288,6 +322,7 @@ export function PublicJobDetail({
                         : undefined
                 }
                 defaultTab={authGateReason === "apply" ? "signup" : "login"}
+                reason={authGateReason ?? undefined}
             />
             {layout === "document" ? (
                 <JobDetailDocument
@@ -298,12 +333,19 @@ export function PublicJobDetail({
                     pursuit={byJobId.get(job.id)}
                     goingAfter={goingAfter}
                     reportJobEnabled={reportJobEnabled}
+                    reportDialogOpen={reportDialogOpen}
+                    onReportDialogOpenChange={setReportDialogOpen}
                     onOpenRelated={handleOpenRelated}
-                    onRequestSignIn={requireAuth}
+                    onRequestSignIn={requireReportAuth}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
                     matchAsOfDate={resumeAsOfDate}
+                    resume={resume}
+                    onAcceptLocalTailor={(data) => {
+                        setResume(data);
+                        if (readLocalAiEnabled()) writeLocalAiResume(data);
+                    }}
                 />
             ) : (
                 <JobDetail
@@ -314,40 +356,47 @@ export function PublicJobDetail({
                     pursuit={byJobId.get(job.id)}
                     goingAfter={goingAfter}
                     reportJobEnabled={reportJobEnabled}
+                    reportDialogOpen={reportDialogOpen}
+                    onReportDialogOpenChange={setReportDialogOpen}
                     onClose={onClose}
                     onOpenRelated={handleOpenRelated}
-                    onRequestSignIn={requireAuth}
+                    onRequestSignIn={requireReportAuth}
                     collapseDescription={collapseDescription}
                     className={cn(detailClassName)}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
                     matchAsOfDate={resumeAsOfDate}
+                    resume={resume}
+                    onAcceptLocalTailor={(data) => {
+                        setResume(data);
+                        if (readLocalAiEnabled()) writeLocalAiResume(data);
+                    }}
                 />
             )}
             {/* Document layout already has its own sticky-rail Apply card at
-                lg+ (JobDetailDocument's `applyCardEl`) — this bar stacking on
-                top of it would be a redundant second Apply CTA that, at full
-                document width, sits on top of the (now unclamped) description
-                text instead of a short clamped panel. Mobile still needs it:
-                the document layout's single-column stack has no persistent
-                rail there. The panel layout is unchanged — unconditional,
+                lg+ (JobDetailDocument's `applyCardEl`) AND, below `lg`, its
+                own in-stack sticky `JobDetailActionBar` (rulebook "sticky
+                mobile action bar", stacked above the sitewide MobileTabBar) —
+                a second mount here would double it up in the DOM. Only the
+                panel layout (the SERP glass panel, which owns no action bar
+                of its own at any width) needs this bar; unconditional,
                 exactly as before. */}
-            {layout === "document" ? (
-                <div className="lg:hidden">
-                    <JobDetailActionBar
-                        job={job}
-                        signedIn={Boolean(user)}
-                        onOpenPosting={() => handleOpenPosting(job)}
-                    />
-                </div>
-            ) : (
+            {layout !== "document" && (
                 <JobDetailActionBar
                     job={job}
                     signedIn={Boolean(user)}
                     onOpenPosting={() => handleOpenPosting(job)}
+                    onGoAfter={() => handleGoAfter(job)}
+                    pursuit={byJobId.get(job.id)}
+                    goingAfter={goingAfter}
                 />
             )}
+            <ApplyReturnPrompt
+                record={applyReturnPrompt}
+                onMarkApplied={markApplyReturnApplied}
+                onDismiss={dismissApplyReturn}
+            />
         </>
     );
 }

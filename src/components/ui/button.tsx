@@ -4,34 +4,37 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// Rulebook (docs/design/rulebook-2026-09/RULEBOOK.md line 15) tertiary shape:
+// a 1px Klein outline on a transparent fill, blue text. `outline`,
+// `secondary` and `quiet` were three separate strings for this one shape
+// (secondary's grey fill and outline/quiet's ink border were the rulebook
+// violations) — one shared constant so they can't drift apart again.
+const TERTIARY_BUTTON_CLASSES = "border border-brand bg-transparent text-brand hover:bg-muted"
+
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-none text-sm font-medium transition-all duration-150 ease-out disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-1 focus-visible:ring-brand focus-visible:ring-offset-0 active:scale-[0.99]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-none text-sm font-normal transition-colors focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default:
-          "bg-primary/90 text-primary-foreground hover:bg-primary backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)] font-semibold",
-        brand: "bg-brand/90 text-brand-foreground hover:bg-brand backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)] font-semibold",
-        destructive:
-          "bg-destructive/90 text-white hover:bg-destructive backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)]",
-        outline:
-          "border border-border/80 bg-background/60 hover:bg-muted/80 text-foreground font-medium backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.3)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]",
-        secondary:
-          "bg-muted/60 text-foreground hover:bg-muted/90 font-medium backdrop-blur-md border border-border/40",
-        ghost:
-          "hover:bg-muted/60 text-foreground backdrop-blur-xs",
-        link: "text-brand underline-offset-4 hover:underline",
-        quiet: "border border-border/80 bg-card/60 text-foreground hover:bg-card/90 backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.3)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]",
+        default: "bg-brand text-brand-foreground hover:bg-brand-hover",
+        brand: "bg-brand text-brand-foreground hover:bg-brand-hover",
+        destructive: "bg-danger-text text-white hover:opacity-90",
+        outline: TERTIARY_BUTTON_CLASSES,
+        secondary: TERTIARY_BUTTON_CLASSES,
+        ghost: "text-brand hover:bg-muted",
+        link: "text-brand underline-offset-4 hover:underline h-auto px-0",
+        // Alias of tertiary — not in the rulebook's own variant set, kept
+        // because CompletenessMock.tsx (outside this change's scope) still
+        // references it.
+        quiet: TERTIARY_BUTTON_CLASSES,
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-6 gap-1 px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1.5 px-3 has-[>svg]:px-2.5 text-xs font-medium",
-        lg: "h-11 px-6 has-[>svg]:px-4 text-base font-semibold",
-        icon: "size-9",
-        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "h-8 px-3",
+        xs: "h-8 px-2",
+        sm: "h-8 px-3",
+        lg: "h-10 px-4 [&_svg]:size-5",
+        icon: "size-8",
+        "icon-lg": "size-10 [&_svg]:size-5",
       },
     },
     defaultVariants: {

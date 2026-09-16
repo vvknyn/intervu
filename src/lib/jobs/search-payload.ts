@@ -1,5 +1,6 @@
 import type { FilterState } from "@/components/jobs/FilterPanel";
-import type { JobSearchParams, JobSortMode } from "@/lib/jobs/types";
+import { appliedPostedBucket } from "@/components/jobs/FilterPanel";
+import type { JobSearchParams, JobSortMode, PostedBucket } from "@/lib/jobs/types";
 
 /**
  * The ONE place that turns (FilterState, query, sort) into the shared subset
@@ -37,7 +38,20 @@ import type { JobSearchParams, JobSortMode } from "@/lib/jobs/types";
  * request would range-filter over a field with ~no data and silently
  * 0-result every hit. Same signal, same chokepoint, so the picker and the
  * request can never disagree about whether the bucket is real.
+ *
+ * The fresh-visit `30d` default IS a real request filter (product default —
+ * see `DEFAULT_URL_STATE.postedBucket`, url-state.ts); only an explicit
+ * "Any date" lifts it. WHICH window is in force is `appliedPostedBucket`'s
+ * call (FilterPanel), shared with every control that draws one; this adds
+ * only the corpus-support gate, the one concern the pickers don't have.
  */
+export function effectivePostedBucket(
+    state: Pick<FilterState, "postedBucket" | "postedExplicit">,
+    postedDateSupported: boolean,
+): PostedBucket | undefined {
+    return postedDateSupported ? appliedPostedBucket(state) : undefined;
+}
+
 export function buildJobSearchPayload(
     state: FilterState,
     query: string,
@@ -57,7 +71,7 @@ export function buildJobSearchPayload(
         facets: state.facets,
         salaryMin: state.salaryMin || undefined,
         visaOnly: state.visaOnly || undefined,
-        postedBucket: postedDateSupported ? state.postedBucket : undefined,
+        postedBucket: effectivePostedBucket(state, postedDateSupported),
         yearsExperience: state.yearsExperience,
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,

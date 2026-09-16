@@ -1,3 +1,5 @@
+import { activeFilterEntries, type FilterState } from "@/components/jobs/FilterPanel";
+import type { EventPayloads } from "@/lib/analytics/events";
 import type { JobSearchResult, PublicJob } from "./types";
 
 /**
@@ -80,6 +82,59 @@ export function unmatchedPlaceNote(mentions: string[] | undefined): string | nul
     const noun = mentions.length === 1 ? "a place" : "places";
     const pronoun = mentions.length === 1 ? "it" : "them";
     return `We don't recognize ${list} as ${noun} — showing results without ${pronoun}.`;
+}
+
+/**
+ * Pure: the `search_zero_results` analytics payload (lib/analytics/events.ts)
+ * for one failed search — everything needed to reconstruct WHICH filter
+ * combination produced zero hits from a dashboard, without ever carrying the
+ * typed query text (see `EventPayloads.search_zero_results`'s own doc
+ * comment for the "why" of that split). Extracted here, not inlined at the
+ * `captureEvent` call site (jobs/page.tsx), so it's testable without a
+ * browser or a mocked `posthog-js` — matching this file's own
+ * `unmatchedPlaceNote`/`isUnavailableJobsResult` precedent.
+ *
+ * `active_facets` reads `activeFilterEntries` (FilterPanel.tsx) — the SAME
+ * chokepoint the toolbar chips, the mobile sheet, and this exact zero-result
+ * state's own "clear a filter" suggestions already read — with
+ * `includeQuietDefaults: true`, so a silently-applied default (today, only
+ * the pristine 30d posted-bucket) is named here just like an explicit pick.
+ * That can make `active_facets` longer than `filter_count` (which stays the
+ * pre-existing, quiet-defaults-excluded count — an established dashboard
+ * contract this change doesn't touch): a search failing under a quiet
+ * default IS the kind of excluder this payload exists to surface, the same
+ * reasoning `activeFilterEntries`'s own doc comment gives for why the
+ * zero-result state passes that option elsewhere. Never enumerates a facet
+ * by name — a facet added to `FilterState` later is covered by construction,
+ * the same guarantee `activeFilterEntries` already gives its other callers.
+ *
+ * `defaultedLocation`/`unmatchedPlaceMentions` are the two location-resolver
+ * outputs that actually reach the client today (see `searchJobsAction`'s
+ * return type, actions/jobs.ts): an IP-based default country, and typed
+ * location text the resolver could not match to anything in the corpus. The
+ * resolver's interpretation of a place it DID recognize — the over-
+ * resolution bug class ("US CA San Diego" -> huge match set) — is NOT
+ * included: `places` (query-understanding.ts) is consumed only inside
+ * `searchJobs` to build the backend filter and is never part of
+ * `JobSearchResult`, so there is nothing to read here without a new API
+ * field — out of scope for this change, left as a finding rather than
+ * invented.
+ */
+export function buildZeroResultPayload(
+    filterState: FilterState,
+    query: string,
+    location: { defaultedLocation?: string; unmatchedPlaceMentions?: string[] },
+): EventPayloads["search_zero_results"] {
+    return {
+        query_length: query.trim().length,
+        filter_count: activeFilterEntries(filterState).length,
+        active_facets: activeFilterEntries(filterState, { includeQuietDefaults: true }).map((entry) => ({
+            key: entry.key.split(":")[0],
+            value: entry.label,
+        })),
+        defaulted_location: location.defaultedLocation ?? null,
+        unmatched_place_mentions: location.unmatchedPlaceMentions ?? [],
+    };
 }
 
 /**
@@ -224,13 +279,13 @@ export function shouldBackOnDetailSheetClose(open: boolean, urlJobId: string | n
  * Item 5, 2026-08-21 front-door audit: the caller now passes
  * `hasAmbientJob` as "is there actually a job selected/previewable" rather
  * than "are there hits at all" — on the pristine, zero-intent landing
- * there's no explicit selection AND no search behind the first hit for an
- * ambient preview to be standing in for, so `hasAmbientJob` is false there
- * even with hits on screen, and the pane mounts at "none" instead of
- * "pane" — the shared ternary's own placeholder branch, not a bespoke
- * empty state. Everywhere else (a real search, a deep link) is unchanged:
- * this function's own contract didn't move, only what the caller means by
- * "ambient job" got more precise.
+ * below xl there's no explicit selection AND ambient preview is suppressed
+ * (see `shouldSuppressLandingAmbientPreview`), so `hasAmbientJob` is false
+ * there even with hits on screen. At xl+ on the same pristine landing,
+ * `hits[0]` fills the pane as an ambient preview without writing `?job=`.
+ * Everywhere else (a real search, a deep link) is unchanged: this function's
+ * own contract didn't move, only what the caller means by "ambient job" got
+ * more precise.
  */
 export type DetailMountSite = "sheet" | "pane" | "none";
 
@@ -241,6 +296,17 @@ export function resolveDetailMountSite(
 ): DetailMountSite {
     if (detailSheetOpen) return isXlUp ? "pane" : "sheet";
     return isXlUp && hasAmbientJob ? "pane" : "none";
+}
+
+/**
+ * Item 5 / first-viewport collapse (2026-08-31): on the pristine landing,
+ * below xl there is no detail pane and the sheet must not auto-open — so
+ * `hits[0]` must not stand in as an ambient preview. At xl+ the pane earns
+ * an ambient preview even with zero explicit intent, so suppression lifts.
+ * Every non-pristine state keeps the ordinary browsing default.
+ */
+export function shouldSuppressLandingAmbientPreview(isPristineLanding: boolean, isXlUp: boolean): boolean {
+    return isPristineLanding && !isXlUp;
 }
 
 /**
@@ -273,7 +339,7 @@ export const DEAD_JOB_TOMBSTONE_TEXT = "This role is no longer available.";
 
 /** Outcome of the Task 11 dead-link existence check (`classifyExistenceCheck` below). */
 export type ExistenceCheckStatus =
-    | { status: "found"; job: PublicJob }
+    | { status: "found"; job: PublicJob; descriptionPending: boolean }
     | { status: "not_found" }
     /** The check itself was inconclusive — backend unconfigured, or the
      *  request failed (e.g. `id` isn't a legal filter on this index yet —
@@ -325,9 +391,12 @@ export type ExistenceCheckStatus =
  * called by `searchJobs`'s meilisearch path, so its note never reaches a
  * `JobSearchResult` at all.
  */
-export function classifyExistenceCheck(id: string, result: JobSearchResult): ExistenceCheckStatus {
+export function classifyExistenceCheck(
+    id: string,
+    result: JobSearchResult & { descriptionPending?: boolean },
+): ExistenceCheckStatus {
     const job = result.hits.find((h) => h.id === id) ?? null;
-    if (job) return { status: "found", job };
+    if (job) return { status: "found", job, descriptionPending: Boolean(result.descriptionPending) };
     const isCompleteAndClean =
         result.configured &&
         result.backend === "meilisearch" &&
@@ -336,6 +405,46 @@ export function classifyExistenceCheck(id: string, result: JobSearchResult): Exi
         result.hits.length === 0;
     if (isCompleteAndClean) return { status: "not_found" };
     return { status: "unknown" };
+}
+
+/**
+ * The one chokepoint every id-scoped detail fetch goes through (jobs/page.tsx's
+ * dead-job check + on-demand hydrate, yours/[id]/page.tsx's open + retry).
+ * `classifyExistenceCheck` above only ever sees a resolved `JobSearchResult`
+ * — it has no opinion on the REQUEST itself throwing (dropped connection, a
+ * server action rejecting). Every prior call site hand-rolled that try/catch
+ * differently: one mapped a throw to `unknown`, another silently swallowed it
+ * and left its caller's state untouched. This is that mapping, written once.
+ *
+ * Query shape is fixed at `{ id, limit: 1, offset: 0, hideGhosts: false }`
+ * for every caller — `hideGhosts` must stay false so this sees the WHOLE
+ * corpus, not just the non-ghost subset, or a genuinely live likely_ghost
+ * posting would classify `not_found` and get declared dead (verified in
+ * `buildFilter`, lib/jobs/meilisearch.ts).
+ *
+ * `search` is injected rather than importing `searchJobsAction` directly, so
+ * this stays a plain unit-tested function with no Next server-action/runtime
+ * dependency.
+ *
+ * Contract: never throws. The request failing is `unknown`, exactly like
+ * every other inconclusive case `classifyExistenceCheck` already covers —
+ * never a thrown error reaching the caller, and never a false `not_found`.
+ */
+export async function runExistenceCheck(
+    id: string,
+    search: (query: {
+        id: string;
+        limit: number;
+        offset: number;
+        hideGhosts: boolean;
+    }) => Promise<JobSearchResult & { descriptionPending?: boolean }>,
+): Promise<ExistenceCheckStatus> {
+    try {
+        const result = await search({ id, limit: 1, offset: 0, hideGhosts: false });
+        return classifyExistenceCheck(id, result);
+    } catch {
+        return { status: "unknown" };
+    }
 }
 
 /**

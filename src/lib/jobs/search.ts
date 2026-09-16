@@ -13,6 +13,7 @@ import {
   fetchJobsLastUpdated,
   fetchPostedDateFilterSupported,
   hasMeilisearch,
+  LOCATION_FACET_FIELDS,
   probeCompanyMatch,
   searchMeili,
 } from "./meilisearch";
@@ -72,6 +73,40 @@ export async function locationVocabulary(): Promise<LocationVocabulary> {
   return { gazetteer: loadGazetteer(), corpusChecker, companyProbe: probeCompanyMatch };
 }
 
+/**
+ * The query-understanding step every entry point into jobs search must run
+ * before raw params reach a backend: work-mode/place tokens parsed out of
+ * free text (`applyQueryUnderstanding`), then the typed/picked location
+ * facet resolved into `places` (`resolveLocationFacet`) — subdivision
+ * expansion and remote-anywhere widening both live inside that resolution,
+ * so anything that skips this function never sees either.
+ *
+ * Extracted (PR #479 round 2) so `/api/jobs/count` can call this exact
+ * function instead of a second, drifted approximation of it — round 1's
+ * defect: the count route built its filter straight off
+ * `raw.facets.location_country`, never running this step, so a widening
+ * applied here never reached the canary at all.
+ *
+ * `needsVocab`'s gate and the `raw.id` dead-link skip are unchanged by this
+ * extraction: a single-id existence probe (jobs/page.tsx's dead-link check)
+ * has no query text or location facet to resolve, so building the
+ * gazetteer/corpus-checker vocabulary for it is pure waste.
+ *
+ * The IP-country default (`applyLocationDefault`, below) is deliberately
+ * OUTSIDE this function — it's applied only by the browser-facing action
+ * (`actions/jobs.ts`, via `searchJobs`'s `opts.clientIp`), never by an MCP
+ * call or the count canary, both of which must reflect exactly what was
+ * typed/picked, not a guess from request IP.
+ */
+export async function understandSearchParams(raw: JobSearchParams): Promise<JobSearchParams> {
+  const needsVocab =
+    !raw.id && Boolean((raw.q ?? "").trim() || LOCATION_FACET_FIELDS.some((f) => raw.facets?.[f]?.length));
+  const vocab = needsVocab ? await locationVocabulary() : undefined;
+  return vocab
+    ? await resolveLocationFacet(await applyQueryUnderstanding(raw, vocab), vocab)
+    : await applyQueryUnderstanding(raw, vocab);
+}
+
 export async function searchJobs(
   raw: JobSearchParams,
   // `countryLookup` is injected rather than built in here (unlike
@@ -84,15 +119,26 @@ export async function searchJobs(
   // constructs and passes one; every other caller (MCP, the OG route)
   // simply omits it and the IP-default step below no-ops.
   opts?: { clientIp?: string; countryLookup?: CountryLookup },
-): Promise<JobSearchResult & { meta?: SearchServeMeta; defaultedLocation?: string; unmatchedPlaceMentions?: string[] }> {
+): Promise<
+  JobSearchResult & {
+    meta?: SearchServeMeta;
+    defaultedLocation?: string;
+    /** See `LocationDefaultApplication.remoteAnywhere` (ip-default.ts) — same
+     *  gate/lifecycle as `defaultedLocation`, so it always travels with it
+     *  through every return point below. */
+    remoteAnywhere?: boolean;
+    unmatchedPlaceMentions?: string[];
+  }
+> {
   // Vocabulary is only relevant when there's something to resolve — query
-  // text, or the board's typed location facet (`resolveLocationFacet`). The
+  // text, or a location facet (`resolveLocationFacet`): the typed
+  // `location_country` box, or a city/state value picked from the typeahead.
+  // `LOCATION_FACET_FIELDS` is the same single source of truth
+  // `resolveLocationFacet` itself reads, so a picked-only search (no query
+  // text, no country) can't silently skip resolution and leak an
+  // unconverted facet into `buildFilter`'s generic AND-across-keys loop. The
   // dead-link id probe and plain browses skip the lookup entirely.
-  const needsVocab = !raw.id && Boolean((raw.q ?? "").trim() || raw.facets?.location_country?.length);
-  const vocab = needsVocab ? await locationVocabulary() : undefined;
-  const understood = vocab
-    ? await resolveLocationFacet(await applyQueryUnderstanding(raw, vocab), vocab)
-    : await applyQueryUnderstanding(raw, vocab);
+  const understood = await understandSearchParams(raw);
 
   // IP country default — last in the understanding pipeline, and only when
   // NOTHING else already said where to search: not a typed/MCP place, not
@@ -116,11 +162,11 @@ export async function searchJobs(
   // the same kind of REQUEST-scoped fact — it describes what got dropped from
   // THIS query's typed location text — so it's threaded through the exact
   // same return points, for the exact same reasons, below.
-  const { params: p, defaultedLocation } = await applyLocationDefault(
+  const { params: p, defaultedLocation, remoteAnywhere } = await applyLocationDefault(
     understood,
     opts?.clientIp,
     opts?.countryLookup,
-    async () => vocab ?? locationVocabulary(),
+    locationVocabulary,
   );
 
   const backend = activeBackend();
@@ -140,7 +186,7 @@ export async function searchJobs(
       return {
         ...result,
         meta: { degraded: false, servedFrom: "live" },
-        ...(defaultedLocation && { defaultedLocation }),
+        ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
         ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
       };
     }
@@ -148,7 +194,7 @@ export async function searchJobs(
       return {
         ...(await searchSnapshotPreview(p)),
         effectiveQ: p.q ?? "",
-        ...(defaultedLocation && { defaultedLocation }),
+        ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
         ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
       };
     }
@@ -174,7 +220,7 @@ export async function searchJobs(
           // the comment on `defaultedLocation`'s computation above for why
           // it must not be stamped there. Same reasoning for
           // `unmatchedPlaceMentions`.
-          ...(degraded.servedKey === "exact" && defaultedLocation && { defaultedLocation }),
+          ...(degraded.servedKey === "exact" && defaultedLocation && { defaultedLocation, remoteAnywhere }),
           ...(degraded.servedKey === "exact" &&
             p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
         };
@@ -190,7 +236,7 @@ export async function searchJobs(
       configured: true,
       unavailable: true,
       note: SEARCH_UNAVAILABLE_MESSAGE,
-      ...(defaultedLocation && { defaultedLocation }),
+      ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
       ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
     };
   }
@@ -208,9 +254,10 @@ export async function searchJobs(
   };
 }
 
-/** The corpus's last-updated timestamp, for the "last synced" trust stamp. Meilisearch-only for now. */
-export async function getJobsLastUpdated(): Promise<string | null> {
-  if (activeBackend() === "meilisearch") return fetchJobsLastUpdated();
+/** The last-updated timestamp of the rows `p` matches, for the "last synced"
+ *  trust stamp — `p` omitted means the whole corpus. Meilisearch-only for now. */
+export async function getJobsLastUpdated(p: JobSearchParams = {}): Promise<string | null> {
+  if (activeBackend() === "meilisearch") return fetchJobsLastUpdated(p);
   return null;
 }
 

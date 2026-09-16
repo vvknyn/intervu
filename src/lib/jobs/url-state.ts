@@ -12,6 +12,8 @@ export interface JobsUrlState {
     salaryMin: number;
     visaOnly: boolean;
     postedBucket: PostedBucket | undefined;
+    /** True when `posted` is present in the URL or the user pinned Posted. */
+    postedExplicit?: boolean;
     /** Minimum-years-of-experience bucket (`?years=`). `undefined` is both
      *  "no filter" and the pristine default — see `YearsExperienceBucket`'s
      *  doc (types.ts) for why this has no non-empty default unlike `postedBucket`. */
@@ -52,6 +54,8 @@ export interface JobsUrlState {
      * employers in an allowlist — the coupling this field exists to avoid.
      */
     companyDomain: string | null;
+    /** Explicit home tab: `view=for-you` | `view=search`. Null = implicit default. */
+    homeView: "for-you" | "search" | null;
 }
 
 
@@ -96,6 +100,7 @@ export const DEFAULT_URL_STATE: JobsUrlState = {
     jobId: null,
     board: null,
     companyDomain: null,
+    homeView: null,
 };
 
 /**
@@ -115,6 +120,13 @@ const FACET_PARAMS: Record<string, FacetKey> = {
     exp: "experience_level",
     emp: "employment_type",
     country: "location_country",
+    // Field-scoped location picks (typeahead, `SuggestField`) — separate
+    // params from `country` so a picked city/state literal round-trips
+    // through the SAME field it was advertised on, never through the
+    // gazetteer re-resolution `country=` values go through. `country=`
+    // itself is untouched: existing links keep resolving exactly as before.
+    city: "location_city",
+    state: "location_state",
     src: "source",
     tech: "tech_stack",
     skills: "must_have_skills",
@@ -133,6 +145,7 @@ const TIER_FOR_SALARY = Object.fromEntries(
 const POSTED_VALUES: readonly PostedBucket[] = ["1d", "3d", "7d", "30d", "older"];
 const YEARS_EXPERIENCE_VALUES: readonly YearsExperienceBucket[] = ["0-2", "3-5", "6-10", "11+"];
 const SORT_VALUES: readonly UrlSort[] = ["newest", "relevance", "salary", "fit"];
+const HOME_VIEW_VALUES: readonly NonNullable<JobsUrlState["homeView"]>[] = ["for-you", "search"];
 
 export function urlSortToMode(s: UrlSort): JobSortMode | "fit" {
     return s === "salary" ? "salary_desc" : s;
@@ -202,8 +215,10 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
     const posted = sp.get("posted");
     if (posted === "any") {
         s.postedBucket = undefined;
+        s.postedExplicit = true;
     } else if (posted && (POSTED_VALUES as readonly string[]).includes(posted)) {
         s.postedBucket = posted as PostedBucket;
+        s.postedExplicit = true;
     }
     const years = sp.get("years");
     if (years && (YEARS_EXPERIENCE_VALUES as readonly string[]).includes(years)) {
@@ -221,6 +236,10 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
     const board = sp.get("board");
     if (board && isBoardId(board)) s.board = board;
     s.companyDomain = normalizeCompanyDomain(sp.get("company"));
+    const view = sp.get("view");
+    if (view && (HOME_VIEW_VALUES as readonly string[]).includes(view)) {
+        s.homeView = view as NonNullable<JobsUrlState["homeView"]>;
+    }
     return s;
 }
 
@@ -236,6 +255,7 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     // omitting it would silently read back as "30d" on reload. The default
     // itself ("30d") stays omitted, same as any other default field here.
     if (s.postedBucket === undefined) sp.set("posted", "any");
+    else if (s.postedBucket === DEFAULT_URL_STATE.postedBucket && s.postedExplicit) sp.set("posted", s.postedBucket);
     else if (s.postedBucket !== DEFAULT_URL_STATE.postedBucket) sp.set("posted", s.postedBucket);
     if (s.yearsExperience) sp.set("years", s.yearsExperience);
     if (s.salaryMin > 0 && TIER_FOR_SALARY[s.salaryMin]) sp.set("salary", TIER_FOR_SALARY[s.salaryMin]);
@@ -246,6 +266,7 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     if (s.jobId) sp.set("job", s.jobId);
     if (s.board) sp.set("board", s.board);
     if (s.companyDomain) sp.set("company", s.companyDomain);
+    if (s.homeView) sp.set("view", s.homeView);
     const out = sp.toString();
     return out ? `?${out}` : "";
 }

@@ -23,16 +23,16 @@ export function HowItWorksFilm({ film, onOpenChange }: HowItWorksFilmProps) {
     return (
         <Dialog open={film !== null} onOpenChange={onOpenChange}>
             <DialogContent
-                className="max-w-[min(920px,calc(100vw-2rem))] gap-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#12151a] p-0 text-[#ececec] shadow-2xl sm:max-w-[min(920px,calc(100vw-2rem))]"
+                className="max-w-[min(920px,calc(100vw-2rem))] gap-0 overflow-hidden rounded-none border border-foreground bg-[#12151a] p-0 text-[#ececec] sm:max-w-[min(920px,calc(100vw-2rem))]"
                 showCloseButton
             >
                 {active ? (
                     <>
                         <DialogHeader className="space-y-1 border-b border-[#2a2f36] px-5 py-4 text-left">
-                            <DialogTitle className="text-[17px] font-medium tracking-[-0.02em] text-[#ececec]">
+                            <DialogTitle className="text-base text-[#ececec]">
                                 How it works · {active.title}
                             </DialogTitle>
-                            <DialogDescription className="text-[13px] text-[#8b919a]">
+                            <DialogDescription className="text-xs text-[#8b919a]">
                                 {active.subtitle} · silent · no audio needed
                             </DialogDescription>
                         </DialogHeader>

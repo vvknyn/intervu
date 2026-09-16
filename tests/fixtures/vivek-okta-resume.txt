@@ -1,0 +1,70 @@
+                                      Vivek Narayanan
+                  Customer Success Operations Manager | Technical Account Management
+                viveknyan@gmail.com ·+1 (437)-224-8332 ·Richmond Hill, Ontario ·linkedin.com/in/viveknar
+
+
+SUMMARY
+
+Senior Customer Success and operations leader with 12+ years of experience driving operational excellence
+across the full enterprise customer lifecycle — from onboarding and adoption through renewal and expansion.
+Proven operator who designs repeatable management systems, establishes rigorous operating cadences (QBRs,
+MBRs, Get Well Plans), and bridges corporate strategy with regional execution to maximize Net Revenue
+Retention. Combines deep analytical skills with a bias toward data-driven decisions: built observability
+dashboards, automated compliance workflows, and shifted teams from lagging indicators to leading health
+metrics. Adept at cross-functional orchestration across Sales, Renewals, Support, Product, and Engineering to
+eliminate silos and improve customer outcomes.
+
+SKILLS
+
+Customer Success Operations & Management Systems; Revenue Operations (RevOps); Operating Rhythm
+Governance (QBR/MBR/Get Well Plans); Net Revenue Retention Strategy; Customer Lifecycle Management;
+Cross-Functional Orchestration (Sales, Renewals, Support, CS, Eng); Risk Mitigation & Path to Green; Executive
+Stakeholder Management & Read-Outs; Data Visualization & Metrics (leading/lagging indicators); Process
+Automation & AI-Driven Efficiency; Documentation Lifecycle Management; Capacity & Coverage Planning;
+Salesforce; Gainsight; Observability (New Relic); SLA Management & Governance; Regulatory Compliance; SQL;
+Python; JIRA; Confluence; Agile/Scrum.
+
+EXPERIENCE
+
+Client-facing Product Manager                                                             September ’21 — Present
+TELUS Health Wellbeing
+  Served as named Technical Account Manager and sole owner of a $1.7M ARR portfolio across 2 enterprise
+  accounts, driving 100% retention through SLA governance, SOW negotiation, executive stakeholder
+  management, and quarterly business reviews.
+  Led incident command for a critical P2 SLA breach, coordinating engineering response and executive
+  communications to reduce API latency by 85% and avert a P1 escalation.
+  Owned outage response, engineering triage, client communications, RCA/PIR, and service hardening.
+  Coordinated engineering, QA, and product across 4+ concurrent SOWs (~800 engineering hours), including a
+  complex API migration with zero business disruption.
+  Overhauled New Relic observability and SLA alerting, sustaining 99.95% uptime and a <20-minute time-to-
+  first-response across multiple regions.
+  Architected an automated data deletion and inactivity reporting pipeline processing 500+ records per cycle,
+  reducing manual effort by 90% and supporting APRA CPS 234 compliance.
+  Delivered a zero-defect API transition for 950K+ users across 6 production regions.
+Technology Lead                                                                             July ’19 — February ’20
+Tracxn Technologies
+  Led a 5-person engineering team to overhaul API workflows for a startup data platform and improve data
+  pipeline performance.
+  Translated product requirements into a prioritized backlog and managed development tasks to completion.
+Team Lead                                                                                     May ’18 — May ’19
+Zophop Technologies
+   Acted as primary client-facing lead for a major transportation client, diagnosing operational data issues and
+   improving dashboard metric accuracy by 20%.
+   Led cross-functional analysis with vendors and field teams, increasing GPS device availability by 35%.
+Senior Software Engineer                                                               February ’13 — April ’18
+Optym
+   Served as solutions consultant for enterprise clients, facilitating data-scoping workshops and delivering 4–5%
+   cost savings through route optimization.
+   Deployed a custom ETL solution that increased product adoption by 80% by eliminating data-ingestion issues
+   for new clients.
+
+EDUCATION
+
+MITx Micromasters Program in Statistics and Data Science
+Massachusetts Institute of Technology
+
+M.B.A., General Business Administration
+University of Illinois at Urbana Champaign
+
+M.S., Computer Science
+University at Buffalo

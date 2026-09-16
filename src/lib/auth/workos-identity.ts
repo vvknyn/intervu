@@ -17,6 +17,9 @@ export interface ServerUser {
   uid: string;
   email?: string;
   displayName?: string;
+  /** Google profile photo (or whatever avatar the identity provider hands
+   *  back) — absent for a password signup. See `toServerUser`. */
+  pictureUrl?: string;
 }
 
 /** The fields this resolver reads off a WorkOS user. */
@@ -31,16 +34,29 @@ export interface WorkosIdentity {
    *  field is surfaced back to the user in places (e.g. its dashboard) a
    *  made-up first name would look wrong. See `toServerUser`'s fallback. */
   metadata?: Record<string, string> | null;
+  /** `profilePictureUrl` on `@workos-inc/node`'s `User` interface
+   *  (node_modules/@workos-inc/node/lib/factory-VM3aexOH.d.mts) — set for
+   *  Google sign-in, null for a password signup. */
+  profilePictureUrl?: string | null;
 }
 
 /**
  * Resolve a WorkOS user to a `ServerUser`.
  *
  * `uid` prefers `externalId` because the migration stores each Firebase uid
- * there, and Firestore keys every document by it (`profiles`, `applications`,
- * `tailored_resumes`, `search_events` all carry `user_id`). Get this wrong and
- * a returning user signs in successfully and finds an empty account — nothing
- * errors, which is what makes it the dangerous field.
+ * there, and the owner-scoped Firestore data is addressed by that uid — some
+ * collections key the DOCUMENT by it (`owner: { by: "docId" }`), others carry
+ * it in a field (`owner: { by: "field", field: "user_id" }`). Which shape each
+ * collection uses is recorded per collection in
+ * `src/lib/db/firestore-migration-manifest.ts`, and is deliberately NOT
+ * restated here: a hand-copied roster drifts, and this one had. It previously
+ * read "`profiles`, `applications`, `tailored_resumes`, `search_events` all
+ * carry `user_id`" — wrong twice over. `profiles` is keyed by docId and has no
+ * `user_id` field, and `search_events` is `owner: { by: "none" }`: anonymous
+ * telemetry that carries no identity field of any kind, so it is not addressed
+ * by this uid at all. Get this wrong and a returning user signs in
+ * successfully and finds an empty account — nothing errors, which is what
+ * makes it the dangerous field.
  *
  * `displayName` prefers a real first/last name (Google sign-in) and falls
  * back to `metadata.username` (password signup) — the same label Firebase's
@@ -53,5 +69,6 @@ export function toServerUser(user: WorkosIdentity): ServerUser {
     uid: user.externalId || user.id,
     email: user.email ?? undefined,
     displayName: name || user.metadata?.username || undefined,
+    pictureUrl: user.profilePictureUrl ?? undefined,
   };
 }

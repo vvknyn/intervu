@@ -88,6 +88,7 @@ export function normalizeSearchCacheKey(p: JobSearchParams): string {
     withFacets: Boolean(p.withFacets),
     board: p.board ?? "",
     companyDomain: (p.companyDomain ?? "").trim().toLowerCase(),
+    companyDomains: [...(p.companyDomains ?? [])].map((d) => d.trim().toLowerCase()).sort(),
   });
 }
 
@@ -106,7 +107,8 @@ export function isDefaultBrowseParams(p: JobSearchParams): boolean {
     !p.postedSinceMs &&
     !p.places?.length &&
     !p.board &&
-    !p.companyDomain
+    !p.companyDomain &&
+    !(p.companyDomains?.length ?? 0)
   );
 }
 

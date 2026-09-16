@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BoardComparisonTable } from "@/components/marketing/BoardComparisonTable";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 const TITLE = "About velai";
@@ -11,23 +12,17 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/about", TITLE, DESCRIPTION),
 };
 
-// Squared "rtable" treatment, same convention as research/ghost-jobs/page.tsx:
-// one hairline border around the whole table, header cells uppercase with no
-// top border, every data-row cell gets a top hairline instead of a bottom one.
-const RTABLE_TH = "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
-const RTABLE_TD = "border-t border-foreground/10 px-4 py-3 align-top";
-
-// Section labels read as small uppercase caps, never mono (typography.test.ts
-// bans font-mono outside <code>) — `:where()` in the typography plugin keeps
-// its own h2 styling at zero specificity, so these utilities win outright.
-const ASEC = "mt-8 mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground";
+// Full section headings (per-page note: "/about ... sections 20/28 600") —
+// `:where()` in the typography plugin keeps its own h2 styling at zero
+// specificity, so this utility wins outright.
+const ASEC = "mt-8 mb-3 text-xl font-semibold text-foreground";
 
 export default function AboutPage() {
   return (
-    <main data-testid="about-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">About velai</p>
-      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">About velai</h1>
-      <p className="mt-1.5 text-sm italic text-muted-foreground">
+    <div data-testid="about-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <p className="text-xs font-semibold text-muted-foreground">About velai</p>
+      <h1 className="mt-3 font-display text-display font-semibold text-foreground">About velai</h1>
+      <p className="mt-1.5 text-xl text-muted-foreground">
         An honest layer over the real job market: what&apos;s actually posted, flagged when it looks stale, out of
         the way otherwise.
       </p>
@@ -62,40 +57,19 @@ export default function AboutPage() {
         </p>
 
         <h2 className={ASEC}>Compared to Indeed and LinkedIn</h2>
+        <p>
+          The full write-ups are separate:{" "}
+          <Link href="/indeed-alternative">Indeed alternative</Link>,{" "}
+          <Link href="/linkedin-jobs-alternative">LinkedIn Jobs alternative</Link>, and{" "}
+          <Link href="/eluta-alternative">Eluta alternative</Link> for Canada. Career-page hubs live under{" "}
+          <Link href="/careers/company-career-pages">company career pages</Link>,{" "}
+          <Link href="/careers/canada-jobs">Canada jobs</Link>, and{" "}
+          <Link href="/careers/remote-jobs">remote jobs</Link>.
+        </p>
       </article>
 
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-foreground/10 text-[13.5px]">
-          <thead>
-            <tr>
-              <th className={RTABLE_TH}></th>
-              <th className={RTABLE_TH}>velai</th>
-              <th className={RTABLE_TH}>typical job board</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className={RTABLE_TD}>listings come from</td>
-              <td className={RTABLE_TD}>employers&apos; own career pages</td>
-              <td className={RTABLE_TD}>employer ads + resold feeds</td>
-            </tr>
-            <tr>
-              <td className={RTABLE_TD}>when a role closes</td>
-              <td className={RTABLE_TD}>gone, usually within a day</td>
-              <td className={RTABLE_TD}>lingers until the ad lapses</td>
-            </tr>
-            <tr>
-              <td className={RTABLE_TD}>screening</td>
-              <td className={RTABLE_TD}>posting check on every role</td>
-              <td className={RTABLE_TD}>none disclosed</td>
-            </tr>
-            <tr>
-              <td className={RTABLE_TD}>match scores</td>
-              <td className={RTABLE_TD}>none — facts only</td>
-              <td className={RTABLE_TD}>invented percentages</td>
-            </tr>
-          </tbody>
-        </table>
+      <div className="mt-4">
+        <BoardComparisonTable board="typical" />
       </div>
 
       <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
@@ -115,6 +89,6 @@ export default function AboutPage() {
           Questions or feedback: use the <Link href="/contact">contact page</Link>.
         </p>
       </article>
-    </main>
+    </div>
   );
 }

@@ -138,7 +138,7 @@ describe("resolveCoverageLadder", () => {
   it("is full when an enrichment profile row exists", () => {
     assert.equal(
       resolveCoverageLadder({
-        profile: { data: { tagline: null } as never, source: "x", asOf: "x" },
+        profile: { data: { tagline: null } as never, source: "x", label: "x", asOf: "x" },
         funding: null,
         secListing: null,
         govContracts: null,

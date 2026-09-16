@@ -48,7 +48,7 @@ export const POSTHOG_PRODUCT = "intervu";
  * test here can hold the two together. Without that rule these requests 404 and
  * analytics is silently dead — the same invisible failure this replaced. If you
  * change this path, change the Caddyfile in the same breath and re-check
- * `curl -o /dev/null -w '%{http_code}' https://intervuhq.com/ph/static/recorder.js`
+ * `curl -o /dev/null -w '%{http_code}' https://velai.app/ph/static/recorder.js`
  * (200 = wired, 404 = analytics is off).
  */
 export const POSTHOG_PROXY_PATH = "/ph";
@@ -103,7 +103,7 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   //
   // posthog-js derives the UI host by string-replacing the ingestion subdomain
   // out of api_host (`request-router.ts`, the `uiHost` getter). That rewrite
-  // assumes a posthog.com address; against "https://intervuhq.com/ph" it
+  // assumes a posthog.com address; against "https://velai.app/ph" it
   // matches nothing and hands the toolbar and every "view in PostHog" link a
   // URL pointing back at us. Naming the real UI host keeps those working.
   ui_host: "https://us.posthog.com",

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
+import { LegalDocHeader, LEGAL_H2 } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Privacy Policy";
 const DESCRIPTION = "How velai collects, uses, and protects your data.";
@@ -12,12 +12,65 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "August 27, 2026";
+const LAST_UPDATED = "September 3, 2026";
+
+/**
+ * Every Firestore collection the storage claims on this page cover today.
+ * Rendered below rather than hand-typed into the prose, and checked by
+ * tests/unit/privacy-claims-match-code.test.ts against
+ * `liveFirestoreCollections()` (tests/support/firestore-collection-scan.ts),
+ * which is the UNION of `scanFirestoreCollections()` (every collection
+ * referenced by a literal in src/) and every `collection` named in
+ * `MIGRATION_MANIFEST`. The scan alone is not enough: it deliberately
+ * harvests zero from files that resolve their collection name through the
+ * manifest at runtime (`src/lib/agent/store.ts`), so `agent_codes`,
+ * `agent_credentials`, and `agent_record_budgets` were live and disclosed
+ * nowhere on this page until the union caught them. That test fails in both
+ * directions: a live collection missing from this list, and a name kept
+ * here after its last writer is gone — this page said search activity was
+ * NOT in Firestore while search-log.ts wrote it there, and nothing caught
+ * the drift until it was found by hand (fixed in 5d03378).
+ */
+export const FIRESTORE_COLLECTIONS_DISCLOSED: readonly string[] = [
+  "agent_clients",
+  "agent_codes",
+  "agent_credentials",
+  "agent_record_budgets",
+  "app_config",
+  "applications",
+  "apply_counters",
+  "connect_waitlist",
+  "contact_messages",
+  "credit_grants",
+  "email_digest_state",
+  "email_suppressions",
+  "favorite_questions",
+  "feedback",
+  "follow_funnel_events",
+  "followedCompanies",
+  "interview_prep_cache",
+  "interview_questions",
+  "job_analyses",
+  "job_views",
+  "market_stats_daily",
+  "profiles",
+  "resume_history",
+  "savedSearches",
+  "search_events",
+  "search_opens",
+  "sources",
+  "stories",
+  "tailored_resumes",
+  "users",
+  "viewer_sessions",
+  "waitlist",
+  "welcome_emails",
+];
 
 export default function PrivacyPage() {
   return (
-    <main data-testid="privacy-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <div className="rounded-none border border-border/80 bg-card/75 p-6 sm:p-10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+    <div data-testid="privacy-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <div className="rounded-none border border-border bg-card p-6 sm:p-10">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
         <article className="prose prose-sm max-w-none dark:prose-invert">
@@ -26,7 +79,7 @@ export default function PrivacyPage() {
           anything here is unclear, use the contact page — we read every message ourselves.
         </p>
 
-        <h2>What we collect</h2>
+        <h2 className={LEGAL_H2}>What we collect</h2>
         <p>
           When you create an account, we collect the email address and profile information you provide. You can
           sign in with Google, a passkey, an email code, or a username and password. Google, passkey, and
@@ -40,17 +93,37 @@ export default function PrivacyPage() {
           ever accessed by our servers — never exposed directly to the browser or to other users.
         </p>
         <p>
+          We also keep a record of what you do while searching: the searches you run (including the text of what
+          you typed), which job postings come up, and which ones you click, open, save, or apply
+          to. If you&apos;re signed in, we tie this to your account and build a profile of your search
+          activity over time — what you&apos;re looking for, and what you actually respond to. Today this sits in
+          Google Cloud Firestore, alongside the rest of your account data. We&apos;re moving it onto a
+          PostgreSQL database we run on our own servers.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          For reference, the Firestore collections these storage claims cover today are:{" "}
+          {FIRESTORE_COLLECTIONS_DISCLOSED.join(", ")}.
+        </p>
+        <p>
           If you join a waitlist (for example, &ldquo;tell me when it&apos;s ready&rdquo; on the connect page), we
           store the email address you enter and which product you asked about — nothing else — and use it only to
           send you that one notification. You don&apos;t need an account for this, and you can ask us to remove it
           at any time via the <Link href="/contact">contact page</Link>.
         </p>
         <p>
+          If you sign up for weekly search alerts while browsing jobs without an account, we store the email
+          address you enter and the search you asked to watch, and use them only to send you new matching roles
+          each week until you unsubscribe.
+        </p>
+        <p>
           When you search, we read your IP address transiently for two things: to default your job search to your
           country so first results are nearby, and to rate-limit abusive traffic. Your IP is not stored with your
           account, your searches, or your tracked applications — the country lookup happens on our own server
-          against a local database, with no third-party geolocation service involved. Like nearly every website,
-          our servers keep ordinary technical logs that can briefly include request IPs.
+          against a local database, with no third-party geolocation service involved. That same country check does
+          one more thing: if it places you in the EU or UK, we don&apos;t give your browser a long-lived id that
+          would link your search activity across visits — you get one that resets when you close the tab, and we
+          don&apos;t currently ask you to opt into anything more. Like nearly every website, our servers keep
+          ordinary technical logs that can briefly include request IPs.
         </p>
         <p>
           The job listings you search are public information we collect from employers&apos; own career pages. We
@@ -58,15 +131,17 @@ export default function PrivacyPage() {
           anyone.
         </p>
 
-        <h2>How we use it</h2>
+        <h2 className={LEGAL_H2}>How we use it</h2>
         <p>
           We use your account data to run the product: to show your tracked applications and keep your resumes and
-          prep answers where you left them. velai is free to use — nothing you do draws on a balance or requires
-          payment. That&apos;s it — we don&apos;t use your data to train models, and we don&apos;t build
-          advertising profiles.
+          prep answers where you left them. We use your search-activity profile for two things: to make your own
+          results more relevant the more you use velai, and, looked at in aggregate across everyone, to understand
+          which kinds of job postings people actually apply to so we can improve search for everyone. velai is
+          free to use — nothing you do draws on a balance or requires payment — and we don&apos;t sell any of this
+          to advertisers.
         </p>
 
-        <h2>AI processing</h2>
+        <h2 className={LEGAL_H2}>AI processing</h2>
         <p>
           Some features — resume parsing (when you upload one) and resume tailoring — work by sending the relevant
           text (your resume, a job description) to an AI provider to generate a response. We use OpenRouter and Groq
@@ -76,7 +151,7 @@ export default function PrivacyPage() {
           them.
         </p>
 
-        <h2>Connected AI clients</h2>
+        <h2 className={LEGAL_H2}>Connected AI clients</h2>
         <p>
           If you pair an AI client with velai from the <Link href="/connect">connect page</Link> (Claude,
           ChatGPT, Gemini, or another app that speaks MCP), that client can — after you sign in and approve the
@@ -88,7 +163,7 @@ export default function PrivacyPage() {
           further access.
         </p>
 
-        <h2>Email</h2>
+        <h2 className={LEGAL_H2}>Email</h2>
         <p>
           We send email through Resend, a transactional email provider, which processes your address and message
           content on our behalf under its own processor terms. Beyond your address itself, we store which kind of
@@ -103,7 +178,7 @@ export default function PrivacyPage() {
           <Link href="/settings">account settings</Link>.
         </p>
 
-        <h2>Cookies &amp; analytics</h2>
+        <h2 className={LEGAL_H2}>Cookies &amp; analytics</h2>
         <p>
           We use a session cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts) and
           identifies your session — nothing more. The jobs board sets one more tiny cookie the first time you
@@ -127,27 +202,38 @@ export default function PrivacyPage() {
           your browser: we can see that you filled in a field, never what you put in it. A replay covers a single
           tab, and is tied to your identity only if you&apos;re signed in.
         </p>
-
-        <h2>Retention &amp; deletion</h2>
         <p>
-          We keep your data for as long as your account is active. You can delete your account and everything tied
-          to it at any time from <Link href="/settings">account settings</Link> — it&apos;s self-serve, not a
-          support ticket. Deletion removes your profile, tracked applications, resumes, and prep answers from our
-          systems.
+          PostHog also powers in-app feedback surveys — a feedback tab and short forms when a search returns no
+          results — that may optionally ask for your email address. We use it only to notify you when matching
+          jobs arrive or to follow up on your feedback; the field is optional, and every survey works without it.
         </p>
 
-        <h2>Your choices</h2>
+        <h2 className={LEGAL_H2}>Retention &amp; deletion</h2>
+        <p>
+          We keep your account data for as long as your account is active. Search-activity records — which
+          searches, which clicks, which applies — are kept for 90 days and then deleted; after that we keep only
+          aggregate statistics, like what share of people who searched for a role went on to apply to it, which no
+          longer identify you.
+        </p>
+        <p>
+          You can delete your account and everything tied to it at any time from{" "}
+          <Link href="/settings">account settings</Link> — it&apos;s self-serve, not a support ticket. Deletion
+          removes your account profile, tracked applications, resumes, prep answers, and search-activity profile
+          from our systems.
+        </p>
+
+        <h2 className={LEGAL_H2}>Your choices</h2>
         <p>
           You control your data: edit or remove anything you&apos;ve created, delete your account outright, or
           contact us with any question or request — including one we haven&apos;t anticipated here.
         </p>
 
-        <h2>Contact</h2>
+        <h2 className={LEGAL_H2}>Contact</h2>
         <p>
           Questions: use the <Link href="/contact">contact page</Link>.
         </p>
       </article>
       </div>
-    </main>
+    </div>
   );
 }

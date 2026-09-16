@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
-import { Briefcase, Database, ShieldWarning, ArrowUpRight } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { TREND_CAUTION } from "./chart-palette";
 
 export function TrendsHero({
   liveJobs,
@@ -15,13 +16,20 @@ export function TrendsHero({
   totalTracked: CorpusCount;
   ghostFlaggedLive: CorpusCount;
 }) {
-  const tiles = [
+  const tiles: {
+    label: string;
+    subtitle: string;
+    value: CorpusCount;
+    testId: string;
+    indicator: string;
+    indicatorStyle?: CSSProperties;
+    href?: string;
+  }[] = [
     {
       label: "Live active openings",
       subtitle: "Verified direct from employer career pages",
       value: liveJobs,
       testId: "trends-stat-live",
-      icon: <Briefcase size={16} weight="duotone" className="text-foreground" />,
       indicator: "bg-st-offer",
       href: `/${serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined })}`,
     },
@@ -30,16 +38,17 @@ export function TrendsHero({
       subtitle: "Every posting we've ever seen, live or closed",
       value: totalTracked,
       testId: "trends-stat-total",
-      icon: <Database size={16} weight="duotone" className="text-foreground" />,
-      indicator: "bg-slate-400 dark:bg-slate-500",
+      indicator: "bg-placeholder-text dark:bg-muted-foreground",
     },
     {
       label: "Possibly stale",
       subtitle: "Failed the same posting check shown on the job page",
       value: ghostFlaggedLive,
       testId: "trends-stat-ghost",
-      icon: <ShieldWarning size={16} weight="duotone" className="text-st-intv" />,
-      indicator: "bg-st-intv",
+      // `--warn` doesn't match the rulebook's caution color — literal value
+      // from chart-palette instead (see TrendSection.tsx's TONE_BG_STYLE).
+      indicator: "",
+      indicatorStyle: { backgroundColor: TREND_CAUTION },
     },
   ];
 
@@ -49,29 +58,23 @@ export function TrendsHero({
         const content = (
           <div
             data-testid={tile.testId}
-            className="group relative flex h-full flex-col justify-between rounded-none border border-border bg-card p-6 transition-colors hover:border-border-strong"
+            className={cn(
+              "flex h-full flex-col justify-between rounded-none border border-border bg-card p-6 transition-colors",
+              tile.href && "hover:bg-muted",
+            )}
           >
             <div>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className={cn("h-1.5 w-1.5 rounded-none", tile.indicator)} aria-hidden />
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
-                    {tile.label}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40">
-                    {tile.icon}
-                  </div>
-                  {tile.href && (
-                    <ArrowUpRight
-                      size={14}
-                      className="text-muted-foreground opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 group-hover:text-foreground"
-                    />
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn("h-1.5 w-1.5 rounded-none", tile.indicator)}
+                  style={tile.indicatorStyle}
+                  aria-hidden
+                />
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {tile.label}
+                </span>
               </div>
-              <p className="mt-3 text-3xl font-bold tracking-tight text-foreground tabular-nums">
+              <p className="mt-3 text-lg font-semibold text-foreground tabular-nums">
                 {formatCorpusCount(tile.value)}
               </p>
             </div>

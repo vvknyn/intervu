@@ -85,7 +85,7 @@ export async function syncGuestPursuitsToServer(): Promise<boolean> {
                           title: g.job_snapshot?.title ?? g.position,
                           company: g.job_snapshot?.company ?? g.company_name,
                           location: g.job_snapshot?.location ?? null,
-                          description: g.job_snapshot?.description ?? null,
+                          description: g.job_snapshot?.description,
                           apply_url: g.job_snapshot?.apply_url ?? g.job_url ?? "",
                       },
                       g.status,

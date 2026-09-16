@@ -51,6 +51,10 @@ playwright/.cache/
 /scripts/test-*.ts
 /scripts/debug-*.ts
 /scripts/verify-*.ts
+# ...except permanent operator tools with their own doc (see
+# deploy/db-box/README-telemetry-verify.md), not one-off throwaways.
+!/scripts/verify-telemetry-e2e.ts
+!/scripts/verify-resume-from-data.ts
 
 # supabase temp files
 supabase/.temp/

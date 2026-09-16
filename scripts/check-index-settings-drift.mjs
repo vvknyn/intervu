@@ -3,8 +3,9 @@
  * Detects drift between the repo-canonical `JOBS_INDEX_SETTINGS`
  * (src/lib/jobs/meilisearch.ts) and the live jobs index's actual settings.
  *
- * Why this exists: `applyIndexSettings()` PATCHes the whole settings object,
- * and Meilisearch REPLACES array-valued settings (filterableAttributes etc.)
+ * Why this exists: a settings PATCH (applied by the pipeline repo's sync
+ * worker) replaces the whole settings object, and Meilisearch REPLACES
+ * array-valued settings (filterableAttributes etc.)
  * wholesale rather than merging entries — so a canon that's missing an
  * attribute the live index already carries (e.g. `occupation`, added
  * box-side via Meili task 467532, 2026-08-18) would silently DROP it on the

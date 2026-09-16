@@ -5,33 +5,34 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  // Same rule as Chip: a badge is a label, so sans — with tabular figures for
-  // the counts badges often carry.
-  "inline-flex items-center justify-center rounded-none border border-transparent px-2 py-0.5 text-[11px] tabular-nums font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none transition-colors",
+  // Badges are words, not chips: no fill, no border, no container — a
+  // badge's entire signal is its text colour. Same rule as Chip on typeface:
+  // a badge is a label, so sans — with tabular figures for the counts
+  // badges often carry.
+  "inline-flex items-center p-0 border-0 bg-transparent text-xs font-semibold tabular-nums w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
   {
     variants: {
       variant: {
-        default: "bg-primary/90 text-primary-foreground [a&]:hover:bg-primary",
-        secondary:
-          "bg-secondary/70 text-secondary-foreground [a&]:hover:bg-secondary/90 border border-border/50",
-        destructive:
-          "bg-destructive/80 text-white [a&]:hover:bg-destructive dark:bg-destructive/60",
-        outline:
-          "border-border/80 bg-background/50 text-foreground [a&]:hover:bg-muted/70",
-        ghost: "[a&]:hover:bg-muted/60 text-foreground",
-        link: "text-primary underline-offset-4 [a&]:hover:underline",
-        brand: "bg-brand/15 text-brand border-brand/25 [a&]:hover:bg-brand/25",
-        // Status variants — design-token backed, dark-mode correct (see lib/ui/status-tokens.ts).
-        "st-saved": "bg-st-saved-soft/80 text-st-saved border-st-saved/30",
-        "st-applied": "bg-st-applied-soft/80 text-st-applied border-st-applied/30",
-        "st-intv": "bg-st-intv-soft/80 text-st-intv border-st-intv/30",
-        "st-offer": "bg-st-offer-soft/80 text-st-offer border-st-offer/30",
-        "st-closed": "bg-st-closed-soft/80 text-st-closed border-st-closed/30",
-        // Verdict variants — same soft-fill/ink/hairline shape as the st-*
-        // set above, backed by the verdict-* tokens (globals.css) that every
-        // favorable/caution signal on the site already reads from.
-        "verdict-good": "bg-verdict-good-bg/80 text-verdict-good border-verdict-good/30",
-        "verdict-caution": "bg-verdict-caution-bg/80 text-verdict-caution border-verdict-caution/30",
+        default: "text-muted-foreground",
+        secondary: "text-muted-foreground",
+        destructive: "text-danger-text",
+        outline: "text-muted-foreground",
+        ghost: "text-muted-foreground",
+        link: "text-brand underline-offset-4 [a&]:hover:underline",
+        brand: "text-brand",
+        // Status variants — text colour only now; the soft-fill/hairline
+        // container is gone, but the hue still comes from the same
+        // design-token set (dark-mode correct, see lib/ui/status-tokens.ts).
+        "st-saved": "text-st-saved",
+        "st-applied": "text-st-applied",
+        "st-intv": "text-st-intv",
+        "st-offer": "text-st-offer",
+        "st-closed": "text-st-closed",
+        // Verdict variants — same text-only treatment, backed by the
+        // verdict-* tokens (globals.css) that every favorable/caution
+        // signal on the site already reads from.
+        "verdict-good": "text-verdict-good",
+        "verdict-caution": "text-verdict-caution",
       },
     },
     defaultVariants: {

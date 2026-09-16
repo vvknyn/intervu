@@ -105,10 +105,8 @@
 }
 
 .elite-signal .elite-intel {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  /* Plain inline text (DotSeparated), not flex — flex-wrap here is what let
+     a "·" separator land at the start of a wrapped line. */
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--elite-rule);
@@ -120,10 +118,6 @@
 .elite-signal .elite-intel-hot {
   color: var(--elite-brand);
   font-weight: 500;
-}
-
-.elite-signal .elite-intel-sep {
-  color: var(--elite-border-strong);
 }
 
 .elite-signal .elite-fit-overlay {

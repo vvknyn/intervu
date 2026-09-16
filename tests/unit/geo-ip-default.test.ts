@@ -70,7 +70,11 @@ test("resolveLocationDefault: IP resolves to a country the corpus has postings f
   const result = await resolveLocationDefault("1.2.3.4", GAZETTEER, checker, lookup);
   assert.ok(result);
   assert.equal(result!.countryCode, "CA");
-  assert.deepEqual(result!.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+  // remoteAnywhere: true — resolveLocationDefault builds its country clause
+  // via the shared `placeClause` factory (geo/resolve-place.ts), same as
+  // every other country resolution; see jobs-remote-anywhere.test.ts for the
+  // dedicated coverage of that.
+  assert.deepEqual(result!.places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
 });
 
 test("resolveLocationDefault: fails open when the IP doesn't resolve to a country", async () => {
@@ -110,6 +114,7 @@ test("applyLocationDefault: payload flag round-trip — suppressLocationDefault:
     loadContext,
   );
   assert.equal(result.defaultedLocation, undefined);
+  assert.equal(result.remoteAnywhere, undefined, "no default applied — nothing for the chip to disclose");
   assert.deepEqual(result.params, { q: "software engineer", suppressLocationDefault: true }, "params come back untouched");
 });
 
@@ -118,7 +123,12 @@ test("applyLocationDefault: fires when nothing suppresses it — the same inputs
   const loadContext = fakeLoadContext(["Canada"]);
   const result = await applyLocationDefault({ q: "software engineer" }, "1.2.3.4", lookup, loadContext);
   assert.equal(result.defaultedLocation, "CA");
-  assert.deepEqual(result.params.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+  assert.deepEqual(result.params.places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
+  // Honesty fix (Defect 2): the top-level `remoteAnywhere` the client
+  // renders "near {Country} or remote" from is read OFF `params.places`
+  // (not assumed alongside `defaultedLocation`) — this pins that it
+  // actually round-trips out of the return value, not just into it.
+  assert.equal(result.remoteAnywhere, true);
 });
 
 test("applyLocationDefault: no-op (and never touches loadContext) when there's no IP or no countryLookup", async () => {

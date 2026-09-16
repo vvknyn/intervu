@@ -2,6 +2,7 @@ import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PostingFreshness } from "@/lib/jobs/posting-freshness";
 import type { GhostChecked, PublicJob } from "@/lib/jobs/types";
+import type { TrackRecord } from "@/lib/companies/aggregates";
 
 /**
  * Pure data→chips mapping for JobDetail's structured facts row (2026-08-01
@@ -250,6 +251,58 @@ export function deriveExposureBadges(job: PublicJob, nowMs: number): ExposureBad
     }
     return badges;
 }
+
+export interface KpiStatChip {
+    value: string;
+    label: string;
+}
+
+/**
+ * A single job document's own opened/closed-90d pair, or `null` when either
+ * half is missing — the SAME both-or-neither gate `resolveTrackRecord`
+ * (`lib/companies/aggregates.ts`) applies across a company's hit list,
+ * applied here to the one job doc a detail view already has in hand. Used to
+ * live inline (and duplicated) at both call sites of `pairedKpiChips` below;
+ * pulled out so "half a history is not a track record" is enforced in one
+ * place, not re-typed at each render site.
+ */
+export function jobTrackRecord(job: PublicJob): TrackRecord | null {
+    return typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number"
+        ? { opened90d: job.company_opened_90d, closed90d: job.company_closed_90d }
+        : null;
+}
+
+/**
+ * The employer rail's "opened / closed, 90d" KPI, reshaped into two
+ * independent labeled chips instead of one slash-joined string. Joined as
+ * "6/5" it reads as a fraction or a rating on every job detail view (launch-
+ * consistency sweep, 2026-09) — the fix is the render SHAPE, not that
+ * instance's numbers, so it uses the exact same value+label chip shape every
+ * other KPI in this rail already renders (see "Live roles" in
+ * JobDetail.tsx/JobDetailDocument.tsx): two chips side by side can never read
+ * as a fraction again, regardless of what either number is.
+ *
+ * Pure reshape only — takes an already-resolved `TrackRecord` (see
+ * `jobTrackRecord` above), so a missing half can never reach it.
+ */
+export function pairedKpiChips(record: TrackRecord): KpiStatChip[] {
+    return [
+        { value: record.opened90d.toLocaleString(), label: "Opened, 90d" },
+        { value: record.closed90d.toLocaleString(), label: "Closed, 90d" },
+    ];
+}
+
+/**
+ * The Apply button's copy — ONE string for every surface that renders it
+ * (SERP desktop split pane, standalone `/jobs/[slug]` page, mobile sticky
+ * action bar) so they cannot drift apart again (launch-consistency sweep,
+ * 2026-09: the desktop split pane read a bare "Apply" while the other two
+ * surfaces already said "Apply on Company Site"). The longer form is the
+ * more honest one — the button always navigates to the employer's own
+ * posting, never an in-app application flow, and applying stays fully
+ * self-serve for guests with no sign-in gate.
+ */
+export const APPLY_BUTTON_LABEL = "Apply on Company Site";
 
 /** First comma segment of a job's full location text ("Redmond, WA, US" →
  *  "Redmond") — keeps the "also in" chip compact instead of wrapping full

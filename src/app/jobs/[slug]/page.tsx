@@ -46,12 +46,13 @@ export async function generateMetadata({
 
     const { job, path } = found;
     const company = displayCompanyFor(job);
-    const where = titleCaseDisplay(locationText(job));
-    const title = `${job.title}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | ${SITE_NAME}`;
+    const where = locationText(job);
+    const jobTitle = titleCaseDisplay(decodeText(job.title));
+    const title = `${jobTitle}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | ${SITE_NAME}`;
     const description =
         job.company_opened_90d != null && job.company_closed_90d != null && company
             ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
-            : `${job.title}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
+            : `${jobTitle}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
 
     return {
         title,
@@ -84,21 +85,21 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
     if (`/jobs/${slug}` !== path) permanentRedirect(path);
 
     return (
-        <main data-testid="job-page" className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6">
+        <div data-testid="job-page" className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6">
             {/* Breadcrumb (spec annotation #1) — a cold visitor landing on a
                 shared job link otherwise has no path into the board. Two
                 segments only: back to /jobs, then the current job title as
                 plain text — there is no sourced taxonomy field to put a third
                 segment on, so none is invented. */}
-            <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Link href="/jobs" className="inline-flex items-center gap-1 hover:text-foreground hover:underline">
-                    <ArrowLeft size={12} weight="bold" aria-hidden />
+                    <ArrowLeft size={16} weight="bold" aria-hidden />
                     All jobs
                 </Link>
                 <span aria-hidden>/</span>
-                <span className="truncate text-foreground">{decodeText(job.title)}</span>
+                <span className="truncate text-foreground">{titleCaseDisplay(decodeText(job.title))}</span>
             </nav>
             <PublicJobDetail job={job} layout="document" />
-        </main>
+        </div>
     );
 }

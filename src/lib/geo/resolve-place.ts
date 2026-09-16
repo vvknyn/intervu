@@ -39,7 +39,7 @@
  * free-text search words — an explicitly-typed location is intentional
  * input, not a coincidental substring (see query-understanding.ts).
  */
-import type { PlaceFilter } from "../jobs/types";
+import type { PlaceClause, PlaceFilter } from "../jobs/types";
 import type { Gazetteer, GazetteerCity, GazetteerCountry } from "./gazetteer";
 import { haversineKm } from "./distance";
 import { COMMON_WORDS } from "./common-words";
@@ -90,11 +90,17 @@ export interface PlaceCandidate {
   /** Candidate text in gazetteer casing — NOT yet known to exist in the
    *  corpus; corpus-values.ts is what turns this into a real filter. */
   value: string;
-  /** "exact" (default): only the literal value (case-insensitive) counts.
+  /** "exact" (default): only the literal value (case-insensitive) counts,
+   *  gated on PLACE_MIN_COUNT (corpus-values.ts) — the value came from
+   *  resolving a NAME, so it could coincidentally collide with an ordinary
+   *  word.
    *  "prefix": also accept any corpus value starting with "<value> - " —
    *  the compound-region pattern real postings use ("Canada - Remote",
-   *  "Canada - Toronto") that an exact match alone would miss. */
-  matchMode?: "exact" | "prefix";
+   *  "Canada - Toronto") that an exact match alone would miss.
+   *  "literal": the candidate IS the whole, already-typed/picked string, not
+   *  a name-derived guess — see `selectMatchingHits`'s "literal" branch for
+   *  why this mode carries no PLACE_MIN_COUNT floor. */
+  matchMode?: "exact" | "prefix" | "literal";
 }
 
 export type PlaceEntityType = "city" | "admin1" | "country" | "region";
@@ -176,6 +182,43 @@ function resolveCountry(normalized: string, gazetteer: Gazetteer): PlaceResoluti
 export function countryPlaceCandidates(iso2: string, gazetteer: Gazetteer): PlaceCandidate[] | null {
   const country = gazetteer.countriesByIso2.get(iso2.toUpperCase());
   return country ? countryCandidates(country, gazetteer) : null;
+}
+
+/**
+ * Every `PlaceClause` in src is built here; the caller states whether the
+ * clause is a country filter (`opts.country`) rather than handing in an
+ * entity type — a caller working from a raw corpus literal, not a
+ * `PlaceResolution`, has no entity type to hand in at all. Ruling (Vivek,
+ * Sep 2026): a remote job with no geographic restriction must be listed
+ * under ANY country filter. Data fact (live-verified against the Meili
+ * `jobs` index): that set is exactly `work_type = "remote" AND
+ * location_country IS NULL` (52,512 docs all-dates; `IS EMPTY` and
+ * `NOT EXISTS` both measured 0). `opts.country: true` stamps
+ * `remoteAnywhere: true` on unconditionally; a specific city/admin1/region
+ * (or a literal that isn't a country reading) never gets this.
+ *
+ * The five callers, each deciding `opts.country` from the fact it actually
+ * has:
+ *  - `parsePlaceTokens` (query-understanding.ts) — a typed/picked country
+ *    facet the gazetteer resolved: `entity.type === "country"`.
+ *  - `resolveLocationDefault` (ip-default.ts) — the IP-geolocated default:
+ *    always a country.
+ *  - `placesForCountry` (ip-default.ts) — the cached cold-visit /jobs front
+ *    door: always a country.
+ *  - `resolvePhraseOrRawLiteral` (query-understanding.ts) — the raw-literal
+ *    fallback for a phrase the gazetteer can't resolve at all but the corpus
+ *    has as an exact value: a country iff one of the exact hits landed on
+ *    `location_country` (see that call site's comment).
+ *  - `resolveLocationFacet`'s picked-value loop (query-understanding.ts) —
+ *    a clicked city/state suggestion: never a country by construction
+ *    (`PICKED_LOCATION_FIELDS` excludes `location_country`), so always
+ *    `false`.
+ */
+export function placeClause(any: PlaceFilter[], opts: { country: boolean; scopedToCountry?: PlaceFilter[] }): PlaceClause {
+  const clause: PlaceClause =
+    opts.scopedToCountry && opts.scopedToCountry.length > 0 ? { any, scopedToCountry: opts.scopedToCountry } : { any };
+  if (opts.country) clause.remoteAnywhere = true;
+  return clause;
 }
 
 /** A region/continent phrase ("North America", "EMEA", ...) resolves to ONE

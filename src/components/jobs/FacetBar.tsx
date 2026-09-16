@@ -8,6 +8,7 @@ import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { cn } from "@/lib/utils";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import {
+    appliedPostedBucket,
     facetValueLabel,
     POSTED_BUCKET_PRESETS,
     SALARY_PRESETS,
@@ -65,6 +66,39 @@ export function facetBarRepresents(postedDateSupported: boolean): ReadonlySet<st
     ]);
 }
 
+/** Standing facet keys the bar can surface — one list for render + tests. */
+export type StandingFacetChipKey = "postedBucket" | "salaryMin" | FacetKey;
+
+/**
+ * Whether a standing FacetBar chip should render. Posted follows
+ * `appliedPostedBucket` so the quiet fresh-visit 30d default still shows
+ * as Posted · Past month. Other standing chips stay hidden until the
+ * searcher applies them. Leftover/Clear still use `activeFilterEntries`,
+ * which omits quiet 30d.
+ */
+export function facetBarShouldRenderChip(
+    key: StandingFacetChipKey,
+    state: FilterState,
+    postedDateSupported: boolean,
+): boolean {
+    if (key === "postedBucket") {
+        if (!postedDateSupported) return false;
+        return appliedPostedBucket(state) != null;
+    }
+    if (key === "salaryMin") return state.salaryMin > 0;
+    return (state.facets[key] ?? []).length > 0;
+}
+
+/** True when at least one standing facet chip has an applied value. */
+export function hasStandingFacetSelection(
+    state: FilterState,
+    postedDateSupported: boolean,
+): boolean {
+    if (facetBarShouldRenderChip("postedBucket", state, postedDateSupported)) return true;
+    if (facetBarShouldRenderChip("salaryMin", state, postedDateSupported)) return true;
+    return FACET_BAR_FACETS.some((f) => facetBarShouldRenderChip(f.key, state, postedDateSupported));
+}
+
 /** One dropdown chip. `activeValue` doubles as the active-state signal and
  *  the chip's value suffix ("Posted · Past week"). */
 function FacetChip({
@@ -83,18 +117,18 @@ function FacetChip({
             <PopoverTrigger
                 data-testid={testId}
                 className={cn(
-                    chipVariants({ active: activeValue != null }),
+                    chipVariants({ active: activeValue != null, interactive: true }),
                     toolbarControlHeight,
-                    "inline-flex box-border items-center justify-center leading-none rounded-none px-3 lg:px-2",
+                    "inline-flex box-border items-center justify-center text-xs leading-none rounded-none px-3 lg:px-2",
                 )}
             >
                 {activeValue ? `${label} · ${activeValue}` : label}
-                <CaretDown size={11} weight="bold" aria-hidden className="opacity-60" />
+                <CaretDown size={16} weight="bold" aria-hidden className="opacity-60" />
             </PopoverTrigger>
             <PopoverContent
                 align="start"
                 sideOffset={6}
-                className="flex w-56 flex-col gap-0.5 rounded-none border border-border bg-card p-2 shadow-md"
+                className="flex w-56 flex-col gap-0.5 rounded-none border border-border bg-card p-2"
             >
                 {children}
             </PopoverContent>
@@ -145,49 +179,58 @@ export function FacetBar({
         );
     };
 
+    const posted = appliedPostedBucket(state);
+
+    if (!hasStandingFacetSelection(state, postedDateSupported)) return null;
+
     return (
-        <div data-testid="facet-bar" className="hidden flex-wrap items-center gap-1.5 lg:flex">
-            {postedDateSupported && (
+        <div data-testid="facet-bar" className="flex flex-nowrap items-center gap-2">
+            {postedDateSupported &&
+                facetBarShouldRenderChip("postedBucket", state, postedDateSupported) && (
+                    <FacetChip
+                        label="Posted"
+                        activeValue={posted ? (DATE_POSTED_SHORT_LABELS[posted] ?? posted) : null}
+                        testId="facet-chip-posted"
+                    >
+                        {POSTED_BUCKET_PRESETS.map((o) => (
+                            <Affordance
+                                key={o.label}
+                                inputType="radio"
+                                active={posted === o.value}
+                                onClick={() => onPostedBucket(o.value)}
+                            >
+                                {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}
+                            </Affordance>
+                        ))}
+                    </FacetChip>
+                )}
+            {facetBarShouldRenderChip("salaryMin", state, postedDateSupported) && (
                 <FacetChip
-                    label="Posted"
-                    activeValue={state.postedBucket ? (DATE_POSTED_SHORT_LABELS[state.postedBucket] ?? state.postedBucket) : null}
-                    testId="facet-chip-posted"
+                    label="Salary"
+                    activeValue={
+                        state.salaryMin > 0
+                            ? (SALARY_PRESETS.find((s) => s.value === state.salaryMin)?.label ?? null)
+                            : null
+                    }
+                    testId="facet-chip-salary"
                 >
-                    {POSTED_BUCKET_PRESETS.map((o) => (
+                    {SALARY_PRESETS.map((s) => (
                         <Affordance
-                            key={o.label}
+                            key={s.value}
                             inputType="radio"
-                            active={state.postedBucket === o.value}
-                            onClick={() => onPostedBucket(o.value)}
+                            active={state.salaryMin === s.value}
+                            onClick={() => onSalaryMin(s.value)}
                         >
-                            {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}
+                            {s.label}
                         </Affordance>
                     ))}
                 </FacetChip>
             )}
-            <FacetChip
-                label="Salary"
-                activeValue={
-                    state.salaryMin > 0
-                        ? (SALARY_PRESETS.find((s) => s.value === state.salaryMin)?.label ?? null)
-                        : null
-                }
-                testId="facet-chip-salary"
-            >
-                {SALARY_PRESETS.map((s) => (
-                    <Affordance
-                        key={s.value}
-                        inputType="radio"
-                        active={state.salaryMin === s.value}
-                        onClick={() => onSalaryMin(s.value)}
-                    >
-                        {s.label}
-                    </Affordance>
-                ))}
-            </FacetChip>
-            {FACET_BAR_FACETS.map((f) => (
-                <Fragment key={f.key}>{facetChip(f.label, f.key, f.testId)}</Fragment>
-            ))}
+            {FACET_BAR_FACETS.map((f) =>
+                facetBarShouldRenderChip(f.key, state, postedDateSupported) ? (
+                    <Fragment key={f.key}>{facetChip(f.label, f.key, f.testId)}</Fragment>
+                ) : null,
+            )}
         </div>
     );
 }

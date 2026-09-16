@@ -52,3 +52,10 @@ test("empty query passes through", async () => {
     const p = { q: "" };
     assert.equal(await applyQueryUnderstanding(p), p);
 });
+
+test("inferred remote without places stays global work_type", async () => {
+    assert.deepEqual(await applyQueryUnderstanding({ q: "backend engineer remote" }), {
+        q: "backend engineer",
+        facets: { work_type: ["remote"] },
+    });
+});

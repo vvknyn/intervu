@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   MIN_INDEXABLE_ROLES,
+  MIN_SITEMAP_ROLES,
+  SITEMAP_COMPANY_CAP,
   fetchCompanySnapshotRoleCount,
   fetchIndexableCompanyDomains,
   parseCompanyDirectoryHit,
@@ -88,8 +90,8 @@ describe("resolveCompanyIndexability — the /co/[slug] sitemap + robots seam", 
   it("the surfaced drift case: a sitemap-listed company whose live count has since dipped stays indexable", () => {
     // The exact bug this seam closes: the old page path read ONLY
     // `jobs.length` (2) and noindexed a URL the sitemap still listed off a
-    // snapshot of 5 — a recurring GSC "Submitted URL marked noindex".
-    const result = resolveCompanyIndexability({ snapshotRoleCount: 5, liveRoleCount: 2 });
+    // snapshot of 30 — a recurring GSC "Submitted URL marked noindex".
+    const result = resolveCompanyIndexability({ snapshotRoleCount: 30, liveRoleCount: 2 });
     assert.equal(result.inSitemap, true);
     assert.equal(result.pageIndexable, true);
   });
@@ -101,20 +103,38 @@ describe("resolveCompanyIndexability — the /co/[slug] sitemap + robots seam", 
     });
   });
 
-  it("a snapshot-qualified company with zero live roles this instant: both true, the sitemap's measurement wins", () => {
-    assert.deepEqual(resolveCompanyIndexability({ snapshotRoleCount: 3, liveRoleCount: 0 }), {
+  it("a sitemap-qualified company with zero live roles this instant: both true, the sitemap's measurement wins", () => {
+    assert.deepEqual(resolveCompanyIndexability({ snapshotRoleCount: 30, liveRoleCount: 0 }), {
       inSitemap: true,
       pageIndexable: true,
     });
   });
 
-  it("treats the threshold as a floor on both inputs independently", () => {
+  it("page-indexable at MIN_INDEXABLE_ROLES but absent from the sitemap below MIN_SITEMAP_ROLES", () => {
+    assert.deepEqual(resolveCompanyIndexability({ snapshotRoleCount: 3, liveRoleCount: 3 }), {
+      inSitemap: false,
+      pageIndexable: true,
+    });
+  });
+
+  it("qualifies for both page and sitemap once the snapshot clears MIN_SITEMAP_ROLES", () => {
+    assert.deepEqual(resolveCompanyIndexability({ snapshotRoleCount: 30, liveRoleCount: 30 }), {
+      inSitemap: true,
+      pageIndexable: true,
+    });
+  });
+
+  it("treats sitemap and page thresholds as independent floors", () => {
     assert.equal(
-      resolveCompanyIndexability({ snapshotRoleCount: MIN_INDEXABLE_ROLES - 1, liveRoleCount: 0 }).inSitemap,
+      resolveCompanyIndexability({ snapshotRoleCount: MIN_SITEMAP_ROLES - 1, liveRoleCount: 0 }).inSitemap,
       false,
     );
     assert.equal(
-      resolveCompanyIndexability({ snapshotRoleCount: MIN_INDEXABLE_ROLES, liveRoleCount: 0 }).inSitemap,
+      resolveCompanyIndexability({ snapshotRoleCount: MIN_SITEMAP_ROLES, liveRoleCount: 0 }).inSitemap,
+      true,
+    );
+    assert.equal(
+      resolveCompanyIndexability({ snapshotRoleCount: null, liveRoleCount: MIN_INDEXABLE_ROLES }).pageIndexable,
       true,
     );
   });
@@ -200,7 +220,7 @@ describe("/co/[slug] metadata", () => {
   });
 
   it("stays indexable when live roles have dipped below a snapshot the sitemap already lists — the surfaced bug", async () => {
-    const meta = await buildCompanyPageMetadata(company({ jobs: roles(2) }), stubSnapshot(5));
+    const meta = await buildCompanyPageMetadata(company({ jobs: roles(2) }), stubSnapshot(30));
     assert.equal(meta.robots, undefined);
   });
 
@@ -335,37 +355,53 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
 });
 
 describe("fetchIndexableCompanyDomains — the company_directory paging walk", () => {
-  it("sends the MIN_INDEXABLE_ROLES filter clause in the actual request, not just conceptually", async () => {
+  it("sends the MIN_SITEMAP_ROLES filter clause in the actual request, not just conceptually", async () => {
     const { calls, search } = fakeSearch([[{ domain: "acme.com", open_role_count: 40 }]]);
     await fetchIndexableCompanyDomains(search);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].filter, `open_role_count >= ${MIN_INDEXABLE_ROLES}`);
+    assert.equal(calls[0].filter, `open_role_count >= ${MIN_SITEMAP_ROLES}`);
     assert.equal(calls[0].offset, 0);
+    assert.deepEqual(calls[0].sort, ["open_role_count:desc"]);
+    assert.equal(calls[0].limit, SITEMAP_COMPANY_CAP);
   });
 
-  it("walks multiple pages, advancing the offset by the page size each round, until a short page ends it", async () => {
+  it("walks multiple pages when sort fails, then caps by open role count", async () => {
     const fullPage = Array.from({ length: 1000 }, (_, i) => ({
       domain: `company-${i}.com`,
-      open_role_count: 10,
+      open_role_count: 30 + (i % 5),
     }));
-    const { calls, search } = fakeSearch([fullPage, [{ domain: "last.com", open_role_count: 5 }]]);
+    let round = 0;
+    const calls: { sort: string[]; filter: string; limit: number; offset: number }[] = [];
+    const search = async (request: { sort: string[]; filter: string; limit: number; offset: number }) => {
+      calls.push(request);
+      if (request.sort.includes("open_role_count:desc")) {
+        throw new Error("sort not configured");
+      }
+      const hits = round === 0 ? fullPage : [{ domain: "last.com", open_role_count: 26 }];
+      round += 1;
+      return { hits };
+    };
     const found = await fetchIndexableCompanyDomains(search);
-    assert.equal(calls.length, 2);
-    assert.equal(calls[0].offset, 0);
-    assert.equal(calls[1].offset, 1000);
+    assert.equal(calls.length, 3);
+    assert.equal(calls[1].offset, 0);
+    assert.equal(calls[2].offset, 1000);
     assert.equal(found.length, 1001);
     assert.ok(found.some((d) => d.domain === "last.com"));
+    assert.equal(found[0].openRoleCount, 34);
   });
 
-  it("stops after the first page once it comes back short of the page size", async () => {
+  it("returns one sorted page when Meilisearch accepts open_role_count:desc", async () => {
     const { calls, search } = fakeSearch([
-      [{ domain: "a.com", open_role_count: 40 }, { domain: "b.com", open_role_count: 12 }],
+      [
+        { domain: "big.com", open_role_count: 400 },
+        { domain: "mid.com", open_role_count: 30 },
+      ],
     ]);
     const found = await fetchIndexableCompanyDomains(search);
     assert.equal(calls.length, 1);
     assert.deepEqual(
-      found.map((d) => d.domain).sort(),
-      ["a.com", "b.com"],
+      found.map((d) => d.domain),
+      ["big.com", "mid.com"],
     );
   });
 
@@ -380,7 +416,7 @@ describe("fetchIndexableCompanyDomains — the company_directory paging walk", (
         { domain: "good.com", open_role_count: 40 },
         { open_role_count: 40 }, // missing domain
         { domain: "bad.com", open_role_count: "not-a-number" },
-        { domain: "also-good.com", open_role_count: 12 },
+        { domain: "also-good.com", open_role_count: 30 },
       ],
     ]);
     const found = await fetchIndexableCompanyDomains(search);

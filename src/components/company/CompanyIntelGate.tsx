@@ -1,7 +1,6 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { LockSimple } from "@phosphor-icons/react/dist/ssr";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { useCompanyFollowChannel } from "@/components/companies/CompanyFollowChannelProvider";
 import { resolveFollowingState } from "@/components/companies/FollowButton";
@@ -83,24 +82,19 @@ function CompanyIntelGateInner({
       className={cn("relative", !unlocked && "min-h-[320px]")}
     >
       <div
-        className={cn(!unlocked && "pointer-events-none select-none blur-[6px]")}
+        className={cn(!unlocked && "pointer-events-none select-none")}
         aria-hidden={!unlocked}
       >
         {children}
       </div>
       {!unlocked && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background/70 px-6 py-10 text-center">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background px-6 py-10 text-center">
           <div className="flex w-full max-w-sm flex-col items-center gap-4 border border-border bg-card px-6 py-6">
-            <p className="text-[15px] font-semibold text-foreground">Follow this company to see its hiring history</p>
-            <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+            <p className="text-sm font-semibold text-foreground">Follow this company to see its hiring history</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
               {description ?? `Recent hiring changes, funding, tech stack, and news for ${displayName} — visible once you follow.`}
             </p>
-            <div className="flex w-full items-center gap-2 border border-dashed border-border px-3 py-2">
-              <LockSimple className="h-3.5 w-3.5 shrink-0 text-muted-foreground" weight="bold" aria-hidden />
-              <span className="text-[10.5px] uppercase tracking-wide text-muted-foreground">
-                Followers only
-              </span>
-            </div>
+            <p className="text-xs font-semibold text-muted-foreground">Followers only</p>
             {showFollowButton && (
               <CompanyFollowControl
                 domain={domain}

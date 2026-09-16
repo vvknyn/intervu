@@ -194,6 +194,53 @@ describe('scoreJobAgainstResume', () => {
         });
     });
 
+    describe('responsibility bullets drive relevance when titles do not overlap', () => {
+        const PM_JOB = mkJob({
+            title: 'Product Manager',
+            tags: [],
+            occupation: undefined,
+            experience_level: 'mid',
+        });
+
+        const CS_OPS_BASE = mkResume(
+            { profession: 'Customer Success Operations Manager', yearsOfExperience: 8 },
+            [],
+            [{
+                id: '1',
+                company: 'Co',
+                role: 'Customer Success Operations Manager',
+                dates: '2020',
+                description: '',
+            }],
+        );
+
+        const CS_OPS_WITH_DUTIES = mkResume(
+            { profession: 'Customer Success Operations Manager', yearsOfExperience: 8 },
+            [],
+            [{
+                id: '1',
+                company: 'Co',
+                role: 'Customer Success Operations Manager',
+                dates: '2020',
+                description: [
+                    'Owned product roadmap and backlog prioritization.',
+                    'Gathered requirements from stakeholders for new features.',
+                ].join('\n'),
+            }],
+        );
+
+        it('scores higher with product-duty bullets than without when job title is Product Manager', () => {
+            const without = scoreJobAgainstResume(CS_OPS_BASE, PM_JOB);
+            const withDuties = scoreJobAgainstResume(CS_OPS_WITH_DUTIES, PM_JOB);
+            assert.ok(without);
+            assert.ok(withDuties);
+            assert.ok(
+                withDuties!.total > without!.total,
+                `with duties (${withDuties!.total}) should exceed without (${without!.total})`,
+            );
+        });
+    });
+
     describe('relevance vocabulary sourcing', () => {
         it('a rank word in the job title (e.g. "Senior") does not change the relevance score', () => {
             const withRank = scoreJobAgainstResume(SWE_RESUME, mkJob({
@@ -291,5 +338,97 @@ describe('scoreJobAgainstResume', () => {
         const a = scoreJobAgainstResume(SWE_RESUME, J1_FULL_MATCH);
         const b = scoreJobAgainstResume(SWE_RESUME, J1_FULL_MATCH);
         assert.deepEqual(a, b);
+    });
+
+    describe('location component', () => {
+        const ONTARIO_RESUME = mkResume(
+            { profession: 'Software Engineer', yearsOfExperience: 5, location: 'Richmond Hill, Ontario' },
+            [{ category: 'Skills', skills: ['JavaScript', 'React', 'Node.js'] }],
+        );
+
+        it('empty résumé location → no location component (existing totals unchanged)', () => {
+            const result = scoreJobAgainstResume(SWE_RESUME, J1_FULL_MATCH);
+            assert.ok(result);
+            assert.equal(result!.total, 100);
+            assert.equal(result!.components.some((c) => c.key === 'location'), false);
+        });
+
+        it('Ontario résumé + remote job includes location bonus', () => {
+            const result = scoreJobAgainstResume(ONTARIO_RESUME, J1_FULL_MATCH);
+            assert.ok(result);
+            const location = result!.components.find((c) => c.key === 'location');
+            assert.ok(location);
+            assert.equal(location!.score, 1);
+            assert.match(location!.detail, /remote/i);
+        });
+
+        it('Ontario résumé + US-only onsite without Canada does not score a full location match', () => {
+            const usOnsite = mkJob({
+                title: 'Software Engineer',
+                tags: ['javascript', 'react', 'node.js'],
+                occupation: 'Software Engineer',
+                experience_level: 'mid',
+                work_type: 'onsite',
+                location: 'San Francisco, CA',
+                location_country: 'United States',
+            });
+            const result = scoreJobAgainstResume(ONTARIO_RESUME, usOnsite);
+            assert.ok(result);
+            const location = result!.components.find((c) => c.key === 'location');
+            assert.ok(location);
+            assert.equal(location!.score, 0.35);
+            assert.match(location!.detail, /different country/i);
+        });
+
+        it('Ontario résumé + remote job specified in Canada scores full location match', () => {
+            const caRemote = mkJob({
+                title: 'Software Engineer',
+                tags: ['javascript', 'react', 'node.js'],
+                occupation: 'Software Engineer',
+                experience_level: 'mid',
+                work_type: 'remote',
+                location_country: 'Canada',
+            });
+            const result = scoreJobAgainstResume(ONTARIO_RESUME, caRemote);
+            assert.ok(result);
+            const location = result!.components.find((c) => c.key === 'location');
+            assert.ok(location);
+            assert.equal(location!.score, 1);
+            assert.equal(location!.detail, 'remote — same country');
+        });
+
+        it('Ontario résumé + remote job specified in UK gets partial credit on country mismatch', () => {
+            const ukRemote = mkJob({
+                title: 'Software Engineer',
+                tags: ['javascript', 'react', 'node.js'],
+                occupation: 'Software Engineer',
+                experience_level: 'mid',
+                work_type: 'remote',
+                location_country: 'United Kingdom',
+            });
+            const result = scoreJobAgainstResume(ONTARIO_RESUME, ukRemote);
+            assert.ok(result);
+            const location = result!.components.find((c) => c.key === 'location');
+            assert.ok(location);
+            assert.equal(location!.score, 0.65);
+            assert.equal(location!.detail, 'remote — based in United Kingdom');
+        });
+
+        it('Ontario résumé + unconstrained remote job (no country) scores full match', () => {
+            const unconstrainedRemote = mkJob({
+                title: 'Software Engineer',
+                tags: ['javascript', 'react', 'node.js'],
+                occupation: 'Software Engineer',
+                experience_level: 'mid',
+                work_type: 'remote',
+                location_country: null,
+            });
+            const result = scoreJobAgainstResume(ONTARIO_RESUME, unconstrainedRemote);
+            assert.ok(result);
+            const location = result!.components.find((c) => c.key === 'location');
+            assert.ok(location);
+            assert.equal(location!.score, 1);
+            assert.equal(location!.detail, 'remote — open to any location');
+        });
     });
 });

@@ -1,5 +1,10 @@
 "use client";
 
+// design-lint-allow-file: decorative mockup, not product chrome -- depicts a
+// generic profile-completeness card on its own fixed palette. Retains raw
+// hex colours and arbitrary radius/tracking values by design; exempt from the
+// repo-wide banned-utility gate (tests/unit/design-language.test.ts).
+
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowSquareOut, Check, ShieldCheck, Trash, WarningCircle } from "@phosphor-icons/react";
@@ -29,6 +34,7 @@ import {
     postedAgeShort,
     prettyEnum,
     salaryText,
+    titleCaseDisplay,
 } from "@/lib/jobs/presentation";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -325,7 +331,7 @@ function CopyUrlBar() {
             <button
                 type="button"
                 onClick={handleCopy}
-                className="shrink-0 rounded-none border-l-2 border-foreground px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground transition hover:bg-muted/50"
+                className="shrink-0 rounded-none border-l-2 border-foreground px-3 py-2.5 text-xs font-semibold text-foreground transition hover:bg-muted"
             >
                 {copied ? "Copied" : "Copy"}
             </button>
@@ -365,22 +371,22 @@ function MockJobRow({
                 }
             }}
             className={cn(
-                "group mb-2 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#7e8896] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
-                active && "border-foreground shadow-[0_0_0_1px_rgb(var(--foreground))]",
+                "group mb-2 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#7e8896] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2",
+                active && "border-foreground",
             )}
         >
             <div className="row-span-2 self-start">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
             <div className="min-w-0">
-                <div className="text-[15px] font-semibold leading-snug tracking-tight text-foreground">
-                    {decodeText(job.title)}
+                <div className="text-sm font-semibold leading-snug text-foreground">
+                    {titleCaseDisplay(decodeText(job.title))}
                 </div>
-                <div className="mt-1 text-[13px] text-muted-foreground">{cleanCompany(job.company) || "Unknown company"}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{cleanCompany(job.company) || "Unknown company"}</div>
             </div>
             <span
                 className={cn(
-                    "inline-flex h-fit items-center gap-1 self-start rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em]",
+                    "inline-flex h-fit items-center gap-1 self-start rounded-full border px-1.5 py-0.5 text-xs",
                     flagged
                         ? "border-border bg-card text-muted-foreground"
                         : "border-live-tint-border bg-live-tint-bg text-verdict-live",
@@ -388,7 +394,7 @@ function MockJobRow({
             >
                 {flagged ? "review" : "verified"}
             </span>
-            <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint">
+            <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-faint">
                 <span>{locationLine}</span>
                 {age && (
                     <>
@@ -399,12 +405,12 @@ function MockJobRow({
                 <span aria-hidden>·</span>
                 <span>{salary ? `from ${salary}` : "pay n/a"}</span>
                 {level && (
-                    <span className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+                    <span className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-xs text-muted-foreground">
                         {level}
                     </span>
                 )}
                 {employment && employment.toLowerCase() !== "full-time" && employment.toLowerCase() !== "full time" && (
-                    <span className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+                    <span className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-xs text-muted-foreground">
                         {employment}
                     </span>
                 )}
@@ -435,7 +441,7 @@ function MockJobDetail({
     const checkedText = ghostCheckedText(job, MOCK_NOW);
     const handoffJob = {
         id: job.id,
-        title: decodeText(job.title),
+        title: titleCaseDisplay(decodeText(job.title)),
         company: cleanCompany(job.company) || job.company || "Unknown company",
         location: locationText(job) || null,
     };
@@ -446,7 +452,7 @@ function MockJobDetail({
                 <div className="flex items-start gap-3">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                     <div className="min-w-0 flex-1">
-                        <h2 className="text-lg font-semibold leading-tight tracking-tight">{decodeText(job.title)}</h2>
+                        <h2 className="text-lg font-semibold leading-tight">{titleCaseDisplay(decodeText(job.title))}</h2>
                         <div className="mt-1 text-sm text-muted-foreground">
                             {cleanCompany(job.company) || "Unknown company"} · {locationText(job)}
                         </div>
@@ -455,9 +461,9 @@ function MockJobDetail({
                                 {chips.map((c) => (
                                     <span
                                         key={c.kind}
-                                        className="mono-data inline-flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground"
+                                        className="mono-data inline-flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
                                     >
-                                        <b className="font-medium text-muted-foreground">{FACT_CHIP_KEY[c.kind]}</b>
+                                        <b className="text-muted-foreground">{FACT_CHIP_KEY[c.kind]}</b>
                                         <span className={c.kind === "first_seen" ? "verified-underline" : undefined}>
                                             {factValue(c.kind, c.label)}
                                         </span>
@@ -495,7 +501,7 @@ function MockJobDetail({
                         type="button"
                         disabled
                         title="Available after sign-in"
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground opacity-60 disabled:pointer-events-none"
+                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground opacity-60 disabled:pointer-events-none"
                     >
                         <Check size={14} />
                         Mark as applied
@@ -513,12 +519,12 @@ function MockJobDetail({
                                 <WarningCircle size={18} className="mt-0.5 shrink-0" weight="fill" />
                             )}
                             <div>
-                                <div className="verified-underline text-[13px] font-semibold">{ghost.label}</div>
+                                <div className="verified-underline text-xs font-semibold">{ghost.label}</div>
                                 <div className="mt-0.5 text-xs leading-relaxed opacity-90">{ghost.explain}</div>
                             </div>
                         </div>
                         {ghostSignals.length > 0 && (
-                            <div className="mono-data mt-3 grid grid-cols-1 gap-x-5 gap-y-1.5 text-[12px] sm:grid-cols-2">
+                            <div className="mono-data mt-3 grid grid-cols-1 gap-x-5 gap-y-1.5 text-xs sm:grid-cols-2">
                                 {ghostSignals.map((s) => (
                                     <span key={s.text}>
                                         {s.status === "favorable" ? "✓ " : "— "}
@@ -527,7 +533,7 @@ function MockJobDetail({
                                 ))}
                             </div>
                         )}
-                        <div className="verified-underline mono-data mt-2.5 inline-block text-[11px] font-medium opacity-80">
+                        <div className="verified-underline mono-data mt-2.5 inline-block text-xs opacity-80">
                             every signal automated · {checkedText.charAt(0).toLowerCase()}
                             {checkedText.slice(1)}
                         </div>
@@ -535,15 +541,15 @@ function MockJobDetail({
                 )}
 
                 <div className="mb-5">
-                    <div className="mb-2 text-[13px] font-semibold">About this role</div>
+                    <div className="mb-2 text-xs font-semibold">About this role</div>
                     {blocks.length > 0 ? (
-                        <div className="text-[13.5px] leading-relaxed text-muted-foreground">
+                        <div className="text-sm leading-relaxed text-muted-foreground">
                             {blocks.map((b, i) => {
                                 if (b.type === "heading") {
                                     return (
                                         <h4
                                             key={i}
-                                            className="mb-1.5 mt-4 text-[12px] font-semibold uppercase tracking-[0.06em] text-foreground first:mt-0"
+                                            className="mb-1.5 mt-4 text-xs font-semibold text-foreground first:mt-0"
                                         >
                                             {b.text}
                                         </h4>
@@ -567,7 +573,7 @@ function MockJobDetail({
                             })}
                         </div>
                     ) : (
-                        <div className="border border-dashed border-border bg-muted/30 px-3.5 py-3 text-[13px] text-muted-foreground">
+                        <div className="border border-dashed border-border bg-muted px-3.5 py-3 text-xs text-muted-foreground">
                             No description was captured for this role.
                         </div>
                     )}
@@ -657,7 +663,7 @@ export function CompletenessMock() {
     return (
         <div className="min-h-screen bg-background text-foreground">
             <div className={cn("border-b px-4 py-2 text-center text-xs", siteChrome.border, siteChrome.bar, siteChrome.muted)}>
-                <span className="uppercase tracking-wider">Completeness mock — not live</span>
+                <span className="">Completeness mock — not live</span>
                 {" · "}
                 <Link href="/mock/auth-gate" className="text-brand underline-offset-2 hover:underline">
                     Auth-gate mock
@@ -672,9 +678,9 @@ export function CompletenessMock() {
                 <div className="mx-auto flex h-16 w-full max-w-[920px] items-center justify-between px-5 sm:px-7">
                     <div className="flex items-center gap-2.5 text-[#ececec]">
                         <BrandMark className="h-10 w-10" />
-                        <span className="text-[22px] font-semibold tracking-[-0.03em]">velai</span>
+                        <span className="text-lg font-semibold">velai</span>
                     </div>
-                    <nav aria-label="Mock panels" className="flex items-center gap-[18px] text-[13px]">
+                    <nav aria-label="Mock panels" className="flex items-center gap-[18px] text-xs">
                         {MOCK_PANELS.map(({ id, label }) => (
                             <button
                                 key={id}
@@ -698,21 +704,21 @@ export function CompletenessMock() {
                     }}
                 >
                     <main className="mx-auto w-full max-w-[920px] px-4 pb-20 pt-7 sm:px-5">
-                        <section className="rounded-none border-0 bg-black/30 p-3 backdrop-blur-[18px]">
+                        <section className="rounded-none border-0 bg-muted p-3">
                             <div className="flex flex-wrap gap-2">
                                 <Input
                                     readOnly
                                     defaultValue="product manager"
                                     aria-label="Role search"
-                                    className="h-[46px] min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-black/40 px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
+                                    className="h-[46px] min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-black px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black focus-visible:ring-0"
                                 />
                                 <Input
                                     readOnly
                                     defaultValue="Remote"
                                     aria-label="Location search"
-                                    className="h-[46px] max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black/40 px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
+                                    className="h-[46px] max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black focus-visible:ring-0"
                                 />
-                                <Button className="h-[46px] rounded-none bg-[#ececec] px-[18px] text-[13px] font-semibold text-[#12151a] hover:opacity-90">
+                                <Button className="h-[46px] rounded-none bg-[#ececec] px-[18px] text-xs font-semibold text-[#12151a] hover:opacity-90">
                                     Search
                                 </Button>
                             </div>
@@ -722,16 +728,16 @@ export function CompletenessMock() {
                                     aria-expanded={filtersOpen}
                                     onClick={() => setFiltersOpen((v) => !v)}
                                     className={cn(
-                                        "rounded-none border-0 bg-black/40 px-3 py-1.5 text-xs font-medium text-[#ececec]",
+                                        "rounded-none border-0 bg-black px-3 py-1.5 text-xs text-[#ececec]",
                                         filtersOpen && "bg-[#ececec] text-[#12151a]",
                                     )}
                                 >
                                     Filters · 3
                                 </button>
-                                <span className="text-[11px] text-[#8b919a]">Remote · Past month · Hide stale</span>
+                                <span className="text-xs text-[#8b919a]">Remote · Past month · Hide stale</span>
                             </div>
                             {filtersOpen && (
-                                <div className="panel-enter mt-3 rounded-none border-0 bg-black/40 p-4 text-[13px] text-[#ececec]">
+                                <div className="panel-enter mt-3 rounded-none border-0 bg-black p-4 text-xs text-[#ececec]">
                                     Active filters shown above — mock only, not wired to search.
                                 </div>
                             )}
@@ -739,7 +745,7 @@ export function CompletenessMock() {
 
                         <div className="mt-9">
                             <div className="mb-3">
-                                <span data-testid="result-line" className="text-[13px] text-muted-foreground tabular-nums">
+                                <span data-testid="result-line" className="text-xs text-muted-foreground tabular-nums">
                                     {TOTAL_ROLES.toLocaleString()} roles
                                 </span>
                             </div>
@@ -779,7 +785,7 @@ export function CompletenessMock() {
                         onChange={setTrackerFilter}
                     />
                     {syncBannerOpen && (
-                        <div className="mb-3.5 flex items-center justify-between rounded-none border border-border bg-muted/40 px-4 py-2.5 text-sm text-foreground">
+                        <div className="mb-3.5 flex items-center justify-between rounded-none border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
                             <span>Synced 2 guest roles after you signed in</span>
                             <button
                                 type="button"
@@ -810,7 +816,7 @@ export function CompletenessMock() {
 
             {panel === "connect" && (
                 <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-                    <h1 className="font-display text-display font-extrabold text-foreground">
+                    <h1 className="font-display text-display font-semibold text-foreground">
                         Your AI already knows how to job hunt. Give it the real market.
                     </h1>
                     <p className="mt-3 max-w-xl text-sm text-muted-foreground">
@@ -830,7 +836,7 @@ export function CompletenessMock() {
                                     if (handoff) saveHandoffClient(handoff);
                                 }}
                                 className={cn(
-                                    "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border px-4 py-2 text-sm font-medium transition",
+                                    "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border px-4 py-2 text-sm transition",
                                     connectTab === client.id
                                         ? "border-foreground bg-foreground text-background"
                                         : "border-border text-foreground hover:border-foreground",
@@ -842,7 +848,7 @@ export function CompletenessMock() {
                     </div>
                     <div className="mt-6 space-y-6">
                         <div className="rounded-none border border-border p-6">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-foreground">1 · Connect</p>
+                            <p className="text-xs font-semibold text-foreground">1 · Connect</p>
                             <p className="mt-3 text-sm text-foreground">{STEP1_INTRO[connectTab]}</p>
                             {activeClient.supportsDirectConnect && (
                                 <div className="mt-3">
@@ -851,7 +857,7 @@ export function CompletenessMock() {
                             )}
                         </div>
                         <div className="rounded-none border border-border p-6">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-foreground">2 · Approve</p>
+                            <p className="text-xs font-semibold text-foreground">2 · Approve</p>
                             <p className="mt-3 text-sm text-foreground">Approve once — you&apos;re paired.</p>
                             <ul className="mt-3 space-y-1.5 text-sm">
                                 <li className="flex items-start gap-2 text-brand">
@@ -898,7 +904,7 @@ export function CompletenessMock() {
                                 <button
                                     type="button"
                                     onClick={() => setPanel("connect")}
-                                    className="text-brand underline underline-offset-2 hover:text-brand/80"
+                                    className="text-brand underline underline-offset-2 hover:text-brand"
                                 >
                                     Pair one from Connect.
                                 </button>
@@ -911,7 +917,7 @@ export function CompletenessMock() {
                                         className="flex items-center justify-between gap-4 rounded-lg border border-border p-3"
                                     >
                                         <div className="min-w-0">
-                                            <p className="truncate text-sm font-medium">{cred.name}</p>
+                                            <p className="truncate text-sm">{cred.name}</p>
                                             <p className="text-xs text-muted-foreground">
                                                 {cred.kind} · connected {cred.connected} · last used {cred.lastUsed}
                                             </p>
@@ -938,7 +944,7 @@ export function CompletenessMock() {
                     side="bottom"
                     hideCloseButton
                     overlayClassName="bg-[rgba(18,21,26,0.42)]"
-                    className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0 shadow-[var(--shadow-overlay)]"
+                    className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0"
                 >
                     <div className="flex shrink-0 justify-center py-2.5 pt-2.5" aria-hidden>
                         <span className="h-1 w-9 rounded-full bg-[#d0d6de]" />

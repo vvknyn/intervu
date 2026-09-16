@@ -4,7 +4,7 @@ import { Fragment, useState, useEffect, useRef, useSyncExternalStore, useImperat
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
-import { CircleNotch, Clock, MagnifyingGlass, Buildings, CaretRight } from "@phosphor-icons/react";
+import { CircleNotch, Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
 import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
@@ -18,12 +18,29 @@ interface SearchAutocompleteProps {
     value: string;
     onChange: (value: string) => void;
     onSearch: () => void;
+    /**
+     * Optional clear affordance. When provided and `value` is non-empty, this
+     * component renders its own "X" button, absolutely positioned at the
+     * input's right edge INSIDE its own relative wrapper, above the input's
+     * `z-20` (see the Input's `className` below). The stacking contract for
+     * any control layered over the field belongs to the field itself, not to
+     * a page-level sibling guessing at a z-index that has to beat the
+     * Input's — that guess is exactly what left the mobile jobs-page clear
+     * button unreachable (its sibling `z-10` lost to the Input's `z-20`).
+     * Omitted (the default) renders no button — existing callers unaffected.
+     */
+    onClear?: () => void;
     placeholder?: string;
     disabled?: boolean;
     className?: string; // Class for the Input
     containerClassName?: string;
     autoFocus?: boolean;
     leadingIcon?: React.ReactNode;
+    /** Accessible name for the underlying `<input>` — it carries no visible
+     *  `<label>` (the placeholder is not one), so screen readers need this
+     *  instead. Defaults to the query-search case; a non-search mount would
+     *  pass its own. */
+    ariaLabel?: string;
     /**
      * Optional async suggestion source (e.g. title/company from a live search
      * index). When provided, it REPLACES the local `getSuggestions` + history
@@ -88,6 +105,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     value,
     onChange,
     onSearch,
+    onClear,
     placeholder,
     disabled,
     className,
@@ -95,7 +113,8 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     autoFocus,
     leadingIcon,
     suggest,
-    seeds
+    seeds,
+    ariaLabel = "Search jobs"
 }, ref) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [suggestLoading, setSuggestLoading] = useState(false);
@@ -156,6 +175,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const inputRef = useRef<HTMLInputElement>(null);
     const anchorRef = useRef<HTMLDivElement>(null);
     const showSuggestLoading = Boolean(suggest) && isOpen && value.trim().length > 0 && suggestLoading;
+    const showClear = Boolean(onClear) && value.length > 0;
     const dropdownOpen = isOpen && (suggestions.length > 0 || showSuggestLoading);
     const overlayRect = useAnchoredOverlayRect(anchorRef, dropdownOpen);
     useImperativeHandle(
@@ -284,15 +304,28 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 starts") measures this and is the regression gate. */}
             <div className="relative flex h-full w-full items-center">
                 {leadingIcon && (
-                    <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
+                    <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
                         {leadingIcon}
                     </span>
                 )}
                 <Input
                     ref={inputRef}
                     type="text"
+                    aria-label={ariaLabel}
                     placeholder={placeholder}
-                    className={cn("relative z-20 transition-all", leadingIcon && "min-w-0 flex-1", className)}
+                    className={cn(
+                        "relative z-20 transition-all",
+                        leadingIcon && "min-w-0 flex-1",
+                        // Must clear the button's own footprint (inset + size),
+                        // which differs per breakpoint below: mobile needs
+                        // right-1.5 (6px) + w-10 (40px) = 46px -> pr-12 (48px);
+                        // lg needs lg:right-2.5 (10px) + lg:w-6 (24px) = 34px
+                        // -> lg:pr-9 (36px). A single non-responsive value here
+                        // either clips the button's own breakpoint or leaves
+                        // slack under the other one.
+                        showClear && "pr-12 lg:pr-9",
+                        className,
+                    )}
                     value={value}
                     onChange={(e) => {
                         onChange(e.target.value);
@@ -313,6 +346,31 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     disabled={disabled}
                     autoFocus={autoFocus}
                 />
+                {/* z-30, strictly above the Input's z-20 — a sibling with a
+                    LOWER z-index here lost hit-testing to the (visually
+                    transparent) Input on top of it, which is the exact bug
+                    this button fixes. Kept inside this same shallow wrapper
+                    (not `containerClassName`) so it shares the Input's own
+                    stacking context rather than the caller's. */}
+                {showClear && (
+                    <button
+                        type="button"
+                        data-testid="search-input-clear"
+                        aria-label="Clear search"
+                        title="Clear search"
+                        // Same guard as the suggestion `<li>` items above and
+                        // the sibling `topbar-docked-location-clear` button:
+                        // without it, mousedown moves focus to this button
+                        // before onClick fires, blurring the Input. Touch taps
+                        // are unaffected — they fire their own click regardless
+                        // of what a mousedown handler does.
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => onClear?.()}
+                        className="absolute right-1.5 z-30 flex h-10 w-10 items-center justify-center rounded-none bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5 lg:h-6 lg:w-6"
+                    >
+                        <X size={20} aria-hidden />
+                    </button>
+                )}
             </div>
 
             {/* Portaled so clipped ancestors (docked header `overflow-hidden`)
@@ -322,7 +380,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 typeof document !== "undefined" &&
                 createPortal(
                     <div
-                        className="fixed z-[100] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
+                        className="fixed z-[100] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] animate-in fade-in slide-in-from-top-1"
                         style={{
                             top: overlayRect.top,
                             left: overlayRect.left,
@@ -343,7 +401,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                 return (
                                     <Fragment key={index}>
                                         {showLabel && (
-                                            <li aria-hidden className="whitespace-nowrap px-4 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                            <li aria-hidden className="whitespace-nowrap px-4 pt-2.5 pb-1 text-xs font-semibold text-muted-foreground">
                                                 {label}
                                             </li>
                                         )}
@@ -352,7 +410,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                             aria-selected={index === activeIndex}
                                             className={cn(
                                                 "flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors",
-                                                index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                                                index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                                             )}
                                             onClick={() => handleSelect(suggestion.text)}
                                             onMouseEnter={() => setActiveIndex(index)}
@@ -376,7 +434,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                                     ),
                                                 )}
                                             </span>
-                                            {index === activeIndex && <CaretRight size={14} className="opacity-50" />}
+                                            {index === activeIndex && <CaretRight className="opacity-50" />}
                                         </li>
                                     </Fragment>
                                 );

@@ -56,8 +56,8 @@ test("type scale: body default and theme tokens wired at the chokepoint", () => 
     const themeBlock = GLOBALS.slice(GLOBALS.indexOf("@theme {"), GLOBALS.indexOf("\n}", GLOBALS.indexOf("@theme {")) + 2);
     assert.match(themeBlock, /--text-body:\s*1rem;/, "@theme must register --text-body");
     assert.match(themeBlock, /--text-meta:\s*0\.875rem;/, "@theme must register --text-meta");
-    assert.match(themeBlock, /--text-xs:\s*0\.8125rem;/, "@theme must override --text-xs to 0.8125rem (13px)");
-    assert.match(themeBlock, /--text-sm:\s*0\.9375rem;/, "@theme must override --text-sm to 0.9375rem (15px)");
+    assert.match(themeBlock, /--text-xs:\s*0\.75rem;/, "@theme must override --text-xs to 0.75rem (12px)");
+    assert.match(themeBlock, /--text-sm:\s*0\.875rem;/, "@theme must override --text-sm to 0.875rem (14px)");
 });
 
 test("elevation is none: every --shadow-* scale key resolves to none", () => {
@@ -332,43 +332,21 @@ function isForbiddenNamedShadowPreset(utility: string, scaleDefaults: Map<string
     return splitShadowLayers(stockValue).some(isForbiddenOuterShadowLayer);
 }
 
-test("shadow means floating: .glass-panel/.glass-card never regain an outer shadow", () => {
-    // Direct regression guard for the fix: these four blocks (base × hover,
-    // light × dark) are the exact surfaces the owner's complaint named — every
-    // job row cast a real drop shadow, and hover added more shadow plus a
-    // lift. Only the inset sheen may remain.
-    const blocks: Array<[string, RegExp]> = [
-        ["light base", /^\.glass-panel,\n\.glass-card \{[\s\S]*?\n\}/m],
-        ["dark base", /^\.dark \.glass-panel,\n\.dark \.glass-card \{[\s\S]*?\n\}/m],
-        ["light hover", /^\.glass-card:hover \{[\s\S]*?\n\}/m],
-        ["dark hover", /^\.dark \.glass-card:hover \{[\s\S]*?\n\}/m],
-    ];
-
-    for (const [label, pattern] of blocks) {
-        const match = GLOBALS.match(pattern);
-        assert.ok(match, `could not find the ${label} .glass-panel/.glass-card block`);
-        const shadowMatch = match[0].match(/box-shadow\s*:\s*([^;]+);/);
-        assert.ok(shadowMatch, `${label} block has no box-shadow declaration`);
-        const offenders = splitShadowLayers(shadowMatch[1]).filter(isForbiddenOuterShadowLayer);
-        assert.deepEqual(
-            offenders,
-            [],
-            `${label} .glass-panel/.glass-card casts an outer shadow again: ${offenders.join(", ")}. ` +
-                `In-flow surfaces are flat — separation is border + whitespace, hover is border-darkening.`,
-        );
-    }
-
-    // The hover blocks must not lift either — a lift is the other half of
-    // "floating," and the rule bans it from in-flow surfaces on its own.
-    const hoverBlocks = GLOBALS.match(/\.glass-card:hover \{[\s\S]*?\n\}/g) ?? [];
-    assert.ok(hoverBlocks.length >= 2, "expected a light and dark .glass-card:hover block");
-    for (const block of hoverBlocks) {
-        assert.doesNotMatch(
-            block,
-            /transform\s*:\s*translateY/,
-            "a .glass-card:hover block still lifts on hover — hover affordance is border-darkening only",
-        );
-    }
+test("no .glass-panel/.glass-card/.glass-tint-* CSS rule survives (Group A part 2 deletion)", () => {
+    // Supersedes the old ".glass-panel/.glass-card never regain an outer
+    // shadow" regression guard: that test asserted properties ABOUT a CSS
+    // block (no box-shadow, no hover lift, no .dark duplicate). Group A part
+    // 2 deletes the block outright — every call site now carries plain
+    // `bg-card border border-border` utilities directly, which structurally
+    // cannot regain a shadow/lift/`.dark` override (the "no blur/shadow"
+    // and "no banned class" tests above already guard utility-class drift
+    // class-wide) — so the invariant is now "the rule doesn't exist", not
+    // "the rule stays shadow-free".
+    assert.doesNotMatch(
+        GLOBALS,
+        /\.glass-(?:panel|card|panel-raised|panel-accent-top|tint-(?:blue|emerald|amber|purple|muted))\b/,
+        "a .glass-* CSS rule reappeared in globals.css — the flat bg-card/border-border utility replacement should not regain a dedicated CSS class",
+    );
 });
 
 test("shadow means floating: outer utility shadows only appear as the overlay token", () => {
@@ -446,27 +424,10 @@ test("shadow means floating: outer utility shadows only appear as the overlay to
             `surface genuinely outside this change's scope — add it to tests/unit/shadow-preset-baseline.json.`,
     );
 
-    // Coverage half of the invariant: the primitives that are genuinely
-    // floating (portal-rendered, nothing behind them) must actually carry the
-    // token, not just fail to violate it — an explicit list of the surfaces
-    // docs/design/ATTENTION.md names as overlays.
-    const OVERLAY_PRIMITIVE_FILES = [
-        "src/components/ui/dialog.tsx",
-        "src/components/ui/sheet.tsx",
-        "src/components/ui/tooltip.tsx",
-        "src/components/ui/select.tsx",
-        "src/components/ui/dropdown-menu.tsx",
-        "src/components/ui/popover.tsx",
-        "src/components/search/SearchAutocomplete.tsx",
-    ];
-    const missingToken = OVERLAY_PRIMITIVE_FILES.filter(
-        (rel) => !readFileSync(path.join(ROOT, rel), "utf8").includes("shadow-[var(--shadow-overlay)]"),
-    );
-    assert.deepEqual(
-        missingToken,
-        [],
-        `overlay primitive(s) missing the shadow-[var(--shadow-overlay)] treatment: ${missingToken.join(", ")}`,
-    );
+    // No "must carry the overlay token" half any more: rulebook clause 4 resolves
+    // every shadow token, --shadow-overlay included, to none on both themes, so
+    // an overlay carrying the class renders identically to one without it. The
+    // classifier still treats the token as sanctioned wherever it survives.
 });
 
 test("shadow classifier: survives an inset sheen, catches a hardcoded outer shadow", () => {
@@ -556,5 +517,471 @@ test("/co: no rounded-2xl/rounded-3xl survives in the company-page family", () =
         `rounded-2xl/rounded-3xl surviving in the company-page family: ${offenders.join("; ")}. ` +
             `Every --radius-* key is 0px already — drop the class (or use rounded-none where dropping it ` +
             `would leave the element non-square by default).`,
+    );
+});
+
+/**
+ * Repo-wide static gate for docs/design/DESIGN-LANGUAGE.md's mechanical
+ * rules — the same categories the one-time src/-wide sweep fixed by hand in
+ * this change, kept from silently regressing one class at a time. Matches on
+ * class SHAPE (a Tailwind utility name/value pattern), never an enumerated
+ * file list, so a new component is covered by construction.
+ *
+ * Two exemption markers, both living in a comment so they must be looked up
+ * against RAW (unstripped) source — comment-stripping first would make a
+ * marker permanently invisible to its own exemption check:
+ *   - `// design-lint-allow` within ALLOW_WINDOW_LINES lines above a match
+ *     exempts that one line (e.g. BrandMark.tsx's wordmark, the one
+ *     rulebook-sanctioned uppercase/tracking exception).
+ *   - `design-lint-allow-file` anywhere in a file exempts the whole file
+ *     (decorative mockups whose intentional raw values are too dense/
+ *     scattered for a per-line marker).
+ */
+
+// Walk/exemption plumbing AND the banned-class rule table both now live in
+// scripts/design/banned-classes.cjs — the same functions this test used to
+// define locally, moved so scripts/design/sweep-banned-classes.cjs can share
+// them instead of re-implementing an identical walk/exemption scan (Group A
+// part 2). `require`, not `import`: a bare `require(str)` call resolves to
+// `any` under @types/node with no module-resolution step, so a .cjs sibling
+// with no .d.ts can't trip module resolution the way an ESM `import` would.
+// The destructure below is still explicitly typed — an untyped `any` doesn't
+// trip resolution, but it DOES lose contextual parameter typing for any
+// inline callback passed to `findOffenders` (a bare `(line) => ...` becomes
+// an implicit-any parameter, which `tsc --noEmit` correctly flags).
+type BannedRule = { name: string; pattern: RegExp; skip?: (line: string) => boolean };
+const {
+    rules: bannedClasses,
+    ALLOW_WINDOW_LINES,
+    EXCLUDED_DIRS,
+    FILE_EXEMPTIONS,
+    walkTsxFiles,
+    stripComments,
+    isFileAllowed,
+    isLineAllowed,
+    isScrimLine,
+    findOffenders,
+}: {
+    rules: BannedRule[];
+    ALLOW_WINDOW_LINES: number;
+    EXCLUDED_DIRS: Set<string>;
+    FILE_EXEMPTIONS: { file: string; why: string }[];
+    walkTsxFiles: (dir: string) => string[];
+    stripComments: (src: string) => string;
+    isFileAllowed: (raw: string) => boolean;
+    isLineAllowed: (rawLines: string[], lineIdx: number) => boolean;
+    isScrimLine: (line: string) => boolean;
+    findOffenders: (dir: string, pattern: RegExp, opts?: { skip?: (line: string, rawLine?: string) => boolean }) => string[];
+} = require("../../scripts/design/banned-classes.cjs");
+
+test("no arbitrary text-size or leading value survives outside an allow marker", () => {
+    const offenders = [
+        ...findOffenders(path.join(ROOT, "src"), /\btext-\[[0-9.]+(?:px|rem|em)\]/),
+        ...findOffenders(path.join(ROOT, "src"), /\bleading-\[[0-9.]+(?:px|rem|em)\]/),
+    ];
+    assert.deepEqual(
+        offenders,
+        [],
+        `arbitrary text-size/leading value(s): ${offenders.join("; ")}. Round to the nearest scale rung ` +
+            `(12/16 · 14/20 · 16/22 · 20/28, or the expressive 28/36 · 32/40 · 42/50).`,
+    );
+});
+
+test("no uppercase or tracking-* utility survives outside the wordmark exemption", () => {
+    const offenders = [
+        ...findOffenders(path.join(ROOT, "src"), /\buppercase\b/),
+        ...findOffenders(path.join(ROOT, "src"), /\btracking-(?:tighter|tight|normal|wide|wider|widest|\[[^\]]+\])/),
+    ];
+    assert.deepEqual(
+        offenders,
+        [],
+        `uppercase/tracking-* survives: ${offenders.join("; ")}. Rulebook: sentence case, normal tracking ` +
+            `everywhere except the wordmark (data-rulebook-exempt + design-lint-allow).`,
+    );
+});
+
+test("no retired font weight survives", () => {
+    const offenders = [
+        ...findOffenders(path.join(ROOT, "src"), /\bfont-medium\b/),
+        ...findOffenders(path.join(ROOT, "src"), /\bfont-(?:bold|extrabold|black)\b/),
+    ];
+    assert.deepEqual(
+        offenders,
+        [],
+        `retired font weight survives: ${offenders.join("; ")}. Only font-normal/font-semibold (400/600) remain.`,
+    );
+});
+
+test("no blur, backdrop-blur, drop-shadow, or arbitrary shadow utility survives", () => {
+    // shadow-[var(--shadow-overlay)] is the one sanctioned non-zero shadow —
+    // the same overlay token the "outer utility shadows" test above requires
+    // on every floating portal primitive — so it's exempt by its exact
+    // value, not by file, mirroring the scrim carve-out for translucency. A
+    // line skips only when EVERY banned-pattern match on it is that token,
+    // so a real violation sharing a line with the token still gets caught.
+    const bannedBlurShadow = /\b(?:backdrop-blur(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|blur(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|drop-shadow(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|shadow-\[[^\]]*\])\b/g;
+    const offenders = findOffenders(path.join(ROOT, "src"), bannedBlurShadow, {
+        skip: (strippedLine) => {
+            const matches = strippedLine.match(bannedBlurShadow) ?? [];
+            return matches.length > 0 && matches.every((m) => m === "shadow-[var(--shadow-overlay)]");
+        },
+    });
+    assert.deepEqual(
+        offenders,
+        [],
+        `blur/shadow utility survives: ${offenders.join("; ")}. No blur, no drop-shadow, no arbitrary shadow — ` +
+            `elevation is border + whitespace (see the outer-shadow guard above for named-preset shadow-*).`,
+    );
+});
+
+test("no raw Tailwind palette class survives — every colour resolves to a semantic role", () => {
+    const prefixes = ["bg", "text", "border", "ring", "divide", "outline", "decoration", "fill", "stroke", "accent", "caret", "from", "via", "to", "placeholder"];
+    const families = ["slate", "gray", "zinc", "neutral", "stone", "blue", "indigo", "sky", "violet", "purple", "green", "emerald", "teal", "amber", "yellow", "orange", "red", "rose", "pink"];
+    const offenders = findOffenders(path.join(ROOT, "src"), new RegExp(`\\b(?:${prefixes.join("|")})-(?:${families.join("|")})-[0-9]+\\b`));
+    assert.deepEqual(
+        offenders,
+        [],
+        `raw palette class survives: ${offenders.join("; ")}. Use a semantic token (brand/live/warn/danger-text/` +
+            `muted/muted-foreground/border/foreground/placeholder-text) instead of a raw Tailwind colour name.`,
+    );
+});
+
+test("no banned class from the shared rule table survives (Group A part 2)", () => {
+    // ONE rule table, two consumers: scripts/design/banned-classes.cjs feeds
+    // both this gate and scripts/design/sweep-banned-classes.cjs. Adding a
+    // new banned-class family means adding one entry there — this test needs
+    // no changes to cover it. Supersedes the old hand-rolled "no
+    // opacity-modified colour survives" test, whose prefix-[a-zA-Z]+ pattern
+    // couldn't match a hyphenated compound role name (text-muted-foreground,
+    // border-verdict-good) and so missed most of its own family; that family
+    // is now `bannedClasses`' "colour/NN opacity suffix" entry instead.
+    const offenders: string[] = [];
+    for (const rule of bannedClasses) {
+        const found = findOffenders(path.join(ROOT, "src"), rule.pattern, { skip: rule.skip });
+        offenders.push(...found.map((o) => `[${rule.name}] ${o}`));
+    }
+    assert.deepEqual(
+        offenders,
+        [],
+        `banned class(es) survive: ${offenders.join("; ")}. Run ` +
+            `\`node scripts/design/sweep-banned-classes.cjs\` to fix mechanically, or add a ` +
+            `design-lint-allow / design-lint-allow-file marker for a deliberate exception.`,
+    );
+});
+
+test("no arbitrary rounded-[...] radius survives (rounded-[inherit] is exempt by shape)", () => {
+    const offenders = findOffenders(path.join(ROOT, "src"), /\brounded(?:-[tblrse]{1,2})?-\[[0-9.]+(?:px|rem|em|%)\]/);
+    assert.deepEqual(
+        offenders,
+        [],
+        `arbitrary rounded-[...] radius survives: ${offenders.join("; ")}. Every --radius-* key is 0px — use ` +
+            `rounded-none, or a keyword value (rounded-[inherit]) which this rule does not flag.`,
+    );
+});
+
+test("scrim/allow classifiers: shape-based, proven on fixtures other than the real sites", () => {
+    assert.equal(isScrimLine('<div className="fixed inset-0 z-50 bg-black/60" />'), true, "fixed + inset-0 + bg-black/NN is the sanctioned scrim shape");
+    assert.equal(isScrimLine('<div className="fixed top-4 right-4 bg-black/60" />'), false, "fixed without inset-* must not read as a scrim");
+    assert.equal(isScrimLine('<div className="inset-0 bg-black/60" />'), false, "inset-0 without fixed must not read as a scrim");
+    assert.equal(isScrimLine('<div className="fixed inset-0 bg-brand/60" />'), false, "a non-black/white opacity colour is not the sanctioned scrim");
+
+    // Window is 6 lines ending at (and including) the match line, so a marker
+    // at index 0 is inside the window for a match at index 5 (6 lines: 0..5)
+    // and just outside it for a match at index 6 (window becomes 1..6).
+    const fixtureLines = ["// design-lint-allow", "b", "c", "d", "e", "f — 5 lines below the marker", "g — 6 lines below the marker"];
+    assert.equal(isLineAllowed(fixtureLines, 5), true, "marker 5 lines above the match falls inside the 6-line window");
+    assert.equal(isLineAllowed(fixtureLines, 6), false, "marker 6 lines above the match falls outside the 6-line window");
+    assert.equal(isLineAllowed(["x", "// design-lint-allow-file"], 0), false, "the file-level marker must not also satisfy a line-level lookup");
+});
+
+test("FILE_EXEMPTIONS is the complete, exact set of design-lint-allow-file files", () => {
+    // The whole-file marker is itself an escape hatch from every rule above —
+    // this ratchet is what keeps that escape hatch from growing unreviewed.
+    // A new `design-lint-allow-file` marker with no matching FILE_EXEMPTIONS
+    // entry (or vice versa) fails here instead of silently widening the gate.
+    const markedFiles = walkTsxFiles(path.join(ROOT, "src"))
+        .filter((f) => isFileAllowed(readFileSync(f, "utf8")))
+        .map((f) => path.relative(ROOT, f))
+        .sort();
+    const declaredFiles = FILE_EXEMPTIONS.map((e) => e.file).sort();
+    assert.deepEqual(
+        markedFiles,
+        declaredFiles,
+        `design-lint-allow-file marker(s) and banned-classes.cjs's FILE_EXEMPTIONS list have drifted apart — ` +
+            `marked: [${markedFiles.join(", ")}], declared: [${declaredFiles.join(", ")}]. Add/remove the file on ` +
+            `both sides together.`,
+    );
+});
+
+/**
+ * Loading placeholders are quiet rectangles (rulebook v2, Sep 2026): a
+ * skeleton is a flat layer block that pulses. What broke this was ONE CSS
+ * class (`.skeleton-bar`, 30 call sites) painting a moving gradient — so the
+ * guard reads every rule in globals.css rather than one class name: a rule
+ * that both animates and paints a gradient is a shimmer, and a keyframes
+ * block that moves background-position is a sweep, whatever either is called.
+ */
+function shimmerRules(css: string): string[] {
+    const src = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const offenders: string[] = [];
+    for (const m of src.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const selector = m[1].trim().split("\n").pop()!.trim();
+        if (/animation(?:-name)?\s*:/.test(m[2]) && /gradient\(/.test(m[2])) offenders.push(selector);
+    }
+    for (const m of src.matchAll(/@keyframes\s+([a-zA-Z0-9_-]+)\s*\{([\s\S]*?)\}\s*\}/g)) {
+        if (/background-position\s*:/.test(m[2])) offenders.push(`@keyframes ${m[1]}`);
+    }
+    return offenders;
+}
+
+test("loading placeholders are flat: no rule in globals.css animates a gradient or sweeps background-position", () => {
+    assert.deepEqual(
+        shimmerRules(GLOBALS),
+        [],
+        "a shimmer/sweep survives in globals.css — placeholders are flat bg-muted blocks that pulse (see .skeleton-bar and ui/skeleton.tsx)",
+    );
+});
+
+test("shimmer classifier: catches a sweep and an animated gradient under any name, passes a flat pulse", () => {
+    const fixture = `
+.card-ghost { background-image: linear-gradient(90deg, transparent, rgb(0 0 0 / .06), transparent); animation: sweep 1s infinite; }
+@keyframes sweep { from { background-position: 200% 0; } 50% { opacity: .9; } to { background-position: -200% 0; } }
+.quiet { background-color: rgb(var(--muted)); animation: var(--animate-pulse); }
+@keyframes pulse { 50% { opacity: .5; } }
+/* .commented-out { background: linear-gradient(red, blue); animation: x 1s; } */`;
+    assert.deepEqual(shimmerRules(fixture), [".card-ghost", "@keyframes sweep"]);
+});
+
+// ─── Icon sizes (rulebook v2 clause 6: 16 · 20 in a 40px control · 24 display) ──
+// Detection lives in scripts/design/icon-sizes.cjs next to its `--apply`
+// codemod, so the gate and the fix share one import-aware scanner: only JSX
+// tags imported from @phosphor-icons/react are inspected, never a `size` prop
+// on some other component. Same `require` reasoning as banned-classes above.
+const { scanSource: scanIconSizes, findIconSizeOffenders } = require("../../scripts/design/icon-sizes.cjs") as {
+    scanSource: (src: string) => { offenders: { line: number; tag: string; detail: string }[]; rewritten: string };
+    findIconSizeOffenders: (dir: string) => string[];
+};
+
+test("icons are 16/20/24: no Phosphor element under src/ carries another size prop or a sub-16px Tailwind size", () => {
+    assert.deepEqual(findIconSizeOffenders(path.join(ROOT, "src")), []);
+});
+
+test("icon-size classifier: catches small, large and Tailwind-sized icons; leaves allowed sizes and non-icon size props alone", () => {
+    const fixture = [
+        'import { Bell, Check } from "@phosphor-icons/react";',
+        'import { Avatar } from "@/components/ui/avatar";',
+        "export const X = () => (<>",
+        '  <Check size={12} className="h-3 w-3 shrink-0" />',
+        '  <Bell size={20} weight="fill" />',
+        '  <Bell size={40} className="text-brand" />',
+        "  <Avatar size={12} />",
+        "</>);",
+    ].join("\n");
+    const { offenders, rewritten } = scanIconSizes(fixture);
+    assert.deepEqual(offenders.map((o) => `${o.line} ${o.tag} ${o.detail}`), [
+        '4 Check size 12→default(16); className "h-3 w-3 shrink-0"→"shrink-0"',
+        "6 Bell size 40→24",
+    ]);
+    assert.match(rewritten, /<Check className="shrink-0" \/>/);
+    assert.match(rewritten, /<Bell size=\{20\} weight="fill" \/>/);
+    assert.match(rewritten, /<Bell size=\{24\} className="text-brand" \/>/);
+    assert.match(rewritten, /<Avatar size=\{12\} \/>/);
+});
+
+test("icon-size classifier: an ssr-entry icon gets the explicit 16px + bold that IconDefaultsProvider cannot reach", () => {
+    const fixture = 'import { House } from "@phosphor-icons/react/dist/ssr";\nexport const Y = () => <House size={14} />;';
+    const { offenders, rewritten } = scanIconSizes(fixture);
+    assert.deepEqual(offenders.map((o) => o.detail), ['size 14→16 (ssr entry, explicit); ssr entry: weight="bold" added']);
+    assert.match(rewritten, /<House size=\{16\} weight="bold" \/>/);
+});
+
+// ─── Gradient paints (rulebook: depth = tint step or hairline, zero gradients) ──
+// Guards the gap the /jobs results-page wash slipped through: the class
+// sweep above reads Tailwind CLASS NAMES and the computed-style probe (run
+// separately) reads background-color, so neither ever looks at a gradient
+// PAINT. The one gradient shape still sanctioned is a FADE to/from the page
+// itself (transparent, white, or the --background/--card token) — never one
+// that carries a brand/token/hex colour into the page. Classification is by
+// the colour VALUE at each stop, never by which component/file wrote it, so
+// a new gradient anywhere in src/ is covered by construction.
+
+/** True when a trimmed gradient stop OPENS with something colour-shaped (a
+ *  keyword, hex, rgb()/rgba()/hsl()/hsla(), or a var(--token)) — as opposed
+ *  to a geometry/direction segment ("to right", "ellipse 80% 40% at 50% -10%",
+ *  a bare angle) that carries no colour to judge at all. */
+function isGradientColorStop(stop: string): boolean {
+    return /^(?:transparent\b|white\b|#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|var\(--)/i.test(stop);
+}
+
+/** True when a colour stop is page-coloured: transparent, white (keyword,
+ *  hex, or an rgb/rgba white at any alpha), or the --background/--card token
+ *  (bare or rgb()-wrapped). Anything else that reached here already passed
+ *  `isGradientColorStop`, so it is a real colour — a tint. */
+function isPageColorStop(stop: string): boolean {
+    return (
+        /^transparent\b/i.test(stop) ||
+        /^white\b/i.test(stop) ||
+        /^#fff(?:fff)?\b/i.test(stop) ||
+        /^rgba?\(\s*255[,\s]+255[,\s]+255\s*[,/]/i.test(stop) ||
+        /^var\(--(?:background|card)\)/.test(stop) ||
+        /^rgb\(\s*var\(--(?:background|card)\)\s*\)/.test(stop)
+    );
+}
+
+/** True for a bare (non-arbitrary) Tailwind from-/via-/to- stop whose colour
+ *  is page-coloured — the same vocabulary `isPageColorStop` allows for a CSS
+ *  gradient, spelled as Tailwind stop utilities instead. */
+function isAllowedTailwindStop(token: string): boolean {
+    return /^(?:from|via|to)-(?:card|background|white|transparent)(?:\/[0-9]{1,3})?$/.test(token);
+}
+
+/** Splits a gradient's argument list on commas OUTSIDE any parens, tracking
+ *  nesting depth exactly — rather than the single-level lookahead the shadow
+ *  classifier above uses — because a stop like `rgb(var(--brand) / 0.12)`
+ *  nests a var() inside an rgb(), one level deeper than a shadow layer. */
+function splitTopLevelCommas(value: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < value.length; i++) {
+        if (value[i] === "(") depth++;
+        else if (value[i] === ")") depth--;
+        else if (value[i] === "," && depth === 0) {
+            parts.push(value.slice(start, i));
+            start = i + 1;
+        }
+    }
+    parts.push(value.slice(start));
+    return parts;
+}
+
+/** Extracts the argument list of every linear-/radial-/conic-gradient(...)
+ *  call in `source`, matching parens by depth so a nested rgb(var(...))
+ *  doesn't truncate the extraction. Underscores are normalised to spaces
+ *  first: Tailwind's arbitrary-value bracket syntax (`[mask-image:...]`)
+ *  writes a space as `_`, which would otherwise defeat the `\b`-anchored
+ *  colour-start checks (`transparent_0%` has no word boundary after
+ *  "transparent"). CSS colour/geometry syntax never uses a literal
+ *  underscore, so the substitution is safe. */
+function extractGradientArgs(source: string): string[] {
+    const args: string[] = [];
+    const fnRe = /(?:linear|radial|conic)-gradient\(/g;
+    let m: RegExpExecArray | null;
+    while ((m = fnRe.exec(source))) {
+        const openIdx = m.index + m[0].length - 1;
+        let depth = 1;
+        let i = openIdx + 1;
+        for (; i < source.length && depth > 0; i++) {
+            if (source[i] === "(") depth++;
+            else if (source[i] === ")") depth--;
+        }
+        args.push(source.slice(openIdx + 1, i - 1).replace(/_/g, " "));
+        fnRe.lastIndex = i;
+    }
+    return args;
+}
+
+/**
+ * Returns every offending colour stop in `source` — a CSS gradient stop or a
+ * Tailwind from-/via-/to- stop that isn't page-coloured. A gradient that
+ * only fades to/from transparent/white/--background/--card returns [].
+ * Shape-based on both syntaxes a gradient can be written in this repo:
+ *   (a) a real CSS `linear-|radial-|conic-gradient(...)` (inline style,
+ *       Tailwind arbitrary-value bracket, or a .css rule);
+ *   (b) a Tailwind `from-*`/`via-*`/`to-*` utility, judged only when it
+ *       shares a quoted class-string literal with a `bg-gradient-` utility
+ *       — a bare `from-*` with no gradient utility active paints nothing.
+ */
+function findTintedGradients(source: string): string[] {
+    const offenders: string[] = [];
+
+    for (const args of extractGradientArgs(source)) {
+        for (const rawStop of splitTopLevelCommas(args)) {
+            const stop = rawStop.trim();
+            if (isGradientColorStop(stop) && !isPageColorStop(stop)) offenders.push(stop);
+        }
+    }
+
+    for (const literal of source.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`/g)) {
+        const content = literal[1] ?? literal[2] ?? literal[3] ?? "";
+        if (!/\bbg-gradient-/.test(content)) continue;
+        for (const token of content.matchAll(/(?<!gradient-)\b(?:from|via|to)-[a-zA-Z][a-zA-Z0-9-]*(?:\/[0-9]{1,3})?\b/g)) {
+            if (!isAllowedTailwindStop(token[0])) offenders.push(token[0]);
+        }
+    }
+
+    return offenders;
+}
+
+test("gradients are fades, never tints: no gradient paint under src/ carries a colour stop other than page/card/white/transparent", () => {
+    const files: string[] = [];
+    const walk = (dir: string) => {
+        for (const entry of readdirSync(dir)) {
+            const full = path.join(dir, entry);
+            if (EXCLUDED_DIRS.has(full)) continue;
+            if (statSync(full).isDirectory()) {
+                walk(full);
+            } else if (/\.(?:tsx?|css)$/.test(entry)) {
+                files.push(full);
+            }
+        }
+    };
+    walk(path.join(ROOT, "src"));
+
+    const offenders: string[] = [];
+    for (const file of files) {
+        const src = readFileSync(file, "utf8");
+        if (isFileAllowed(src)) continue;
+        for (const stop of findTintedGradients(src)) {
+            offenders.push(`${path.relative(ROOT, file)}: ${stop}`);
+        }
+    }
+
+    assert.deepEqual(
+        offenders,
+        [],
+        `gradient paint carrying a non-page colour stop: ${offenders.join("; ")}. A gradient may only fade ` +
+            `to/from transparent/white/the --background or --card token — anything else is a tint; use a flat ` +
+            `token fill instead of a gradient wash.`,
+    );
+});
+
+test("tinted-gradient classifier: catches brand/hex/Tailwind tints, passes page fades, ignores a from-* with no gradient utility", () => {
+    // A brand/token radial tint — same SHAPE as the /jobs wash this change
+    // removes, but a different site (circle vs ellipse, a different token).
+    assert.deepEqual(
+        findTintedGradients("background: radial-gradient(circle at 20% 20%, rgb(var(--accent) / 0.3), transparent 60%);"),
+        ["rgb(var(--accent) / 0.3)"],
+        "a token colour other than --background/--card inside a radial-gradient must be caught",
+    );
+    // A hex tint inside a linear-gradient.
+    assert.deepEqual(
+        findTintedGradients("background-image: linear-gradient(180deg, #1a73e8, transparent);"),
+        ["#1a73e8"],
+        "a hex tint inside a linear-gradient must be caught",
+    );
+    // A Tailwind gradient utility carrying a brand stop.
+    assert.deepEqual(
+        findTintedGradients('<div className="bg-gradient-to-t from-brand/20 to-transparent" />'),
+        ["from-brand/20"],
+        "a brand Tailwind gradient stop must be caught even though to-transparent beside it is fine",
+    );
+    // The sanctioned Tailwind fade (JobDetail.tsx's real shape).
+    assert.deepEqual(
+        findTintedGradients('<div className="bg-gradient-to-t from-card to-transparent" />'),
+        [],
+        "a card-to-transparent Tailwind fade is the sanctioned shape",
+    );
+    // The sanctioned CSS fade (WatchingWall.tsx's real mask shape).
+    assert.deepEqual(
+        findTintedGradients("mask-image: linear-gradient(to right, transparent, white 66%, rgba(255,255,255,0.45));"),
+        [],
+        "a transparent/white/rgba(255,255,255,...) mask fade is the sanctioned shape",
+    );
+    // Not a gradient stop at all: no bg-gradient- utility anywhere in the string.
+    assert.deepEqual(
+        findTintedGradients('<div className="from-emerald-500 text-white" />'),
+        [],
+        "a from-* class with no bg-gradient- utility in the same string isn't a gradient stop — ignored",
     );
 });

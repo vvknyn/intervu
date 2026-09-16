@@ -9,6 +9,7 @@ import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
+import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {
     deleteSavedSearch,
     hrefFromJobsUrlState,
@@ -55,7 +56,7 @@ export function SavedSearchesPanel({
 }) {
     const [naming, setNaming] = useState(false);
     const [nameDraft, setNameDraft] = useState("");
-    const [newCounts, setNewCounts] = useState<Record<string, number>>({});
+    const [newCounts, setNewCounts] = useState<Record<string, CorpusCount>>({});
     const [saving, setSaving] = useState(false);
     const [removingId, setRemovingId] = useState<string | null>(null);
 
@@ -126,7 +127,7 @@ export function SavedSearchesPanel({
                 ),
             );
             if (cancelled) return;
-            const next: Record<string, number> = {};
+            const next: Record<string, CorpusCount> = {};
             saved.forEach((s, i) => {
                 next[s.id] = counts[i];
             });
@@ -155,11 +156,14 @@ export function SavedSearchesPanel({
                     onClick={startSave}
                     className={cn(
                         compact
-                            ? cn(toolbarControlHeight, "inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2 text-xs font-medium leading-none text-muted-foreground transition-colors hover:text-foreground")
-                            : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-tint-muted px-3 text-xs font-bold uppercase tracking-wider text-foreground hover:text-foreground transition-colors",
+                            ? cn(
+                                  toolbarControlHeight,
+                                  "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand px-3 lg:px-2",
+                              )
+                            : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none bg-muted px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
                     )}
                 >
-                    <BookmarkSimple size={compact ? 12 : 14} aria-hidden />
+                    {!compact && <BookmarkSimple aria-hidden />}
                     Save search
                 </button>
             )}
@@ -167,7 +171,7 @@ export function SavedSearchesPanel({
                 <div className={cn(
                     compact
                         ? "flex items-center gap-1"
-                        : "flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-panel px-2",
+                        : "flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none bg-card border border-border px-2",
                 )}>
                     <input
                         data-testid="save-search-name"
@@ -179,8 +183,8 @@ export function SavedSearchesPanel({
                         }}
                         className={cn(
                             compact
-                                ? "h-6 min-w-[6rem] rounded border border-border bg-background/80 px-1.5 text-[13px] text-foreground outline-none focus:border-brand"
-                                : "h-7 min-w-[8rem] rounded-none border border-border bg-background/80 px-2 text-base md:text-[13px] text-foreground outline-none focus:border-brand",
+                                ? "h-6 min-w-[6rem] rounded-none border border-border bg-background px-1.5 text-xs text-foreground outline-none focus:border-brand"
+                                : "h-7 min-w-[8rem] rounded-none border border-border bg-background px-2 text-base md:text-xs text-foreground outline-none focus:border-brand",
                         )}
                         aria-label="Saved search name"
                         autoFocus
@@ -192,11 +196,11 @@ export function SavedSearchesPanel({
                         onClick={() => void commitSave()}
                         className={cn(
                             compact
-                                ? "inline-flex items-center gap-1 text-[13px] font-medium text-foreground underline underline-offset-2 hover:no-underline disabled:opacity-50"
-                                : "inline-flex h-7 items-center gap-1 rounded-none glass-tint-blue px-2.5 text-xs font-bold uppercase whitespace-nowrap disabled:opacity-50",
+                                ? "inline-flex items-center gap-1 text-xs text-foreground underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                                : "inline-flex h-7 items-center gap-1 rounded-none bg-muted text-brand px-2.5 text-xs font-semibold whitespace-nowrap disabled:opacity-50",
                         )}
                     >
-                        {saving && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
+                        {saving && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
                         {saving ? "Saving…" : "Save"}
                     </button>
                     <button
@@ -204,7 +208,7 @@ export function SavedSearchesPanel({
                         onClick={() => setNaming(false)}
                         className={cn(
                             compact
-                                ? "text-[13px] text-muted-foreground hover:text-foreground"
+                                ? "text-xs text-muted-foreground hover:text-foreground"
                                 : "text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 px-1",
                         )}
                     >
@@ -218,7 +222,7 @@ export function SavedSearchesPanel({
                         <li key={s.id} className={cn(
                             compact
                                 ? "inline-flex items-center gap-1"
-                                : "inline-flex h-11 sm:h-[46px] items-center gap-1 rounded-none glass-tint-muted px-2.5 py-0.5",
+                                : "inline-flex h-11 sm:h-[46px] items-center gap-1 rounded-none bg-muted px-2.5 py-0.5",
                         )}>
                             <button
                                 type="button"
@@ -229,19 +233,19 @@ export function SavedSearchesPanel({
                                 }}
                                 className={cn(
                                     compact
-                                        ? "max-w-[8rem] truncate text-[13px] text-foreground underline underline-offset-2 hover:no-underline"
-                                        : "max-w-[10rem] truncate text-[13px] font-medium text-foreground hover:underline",
+                                        ? "max-w-[8rem] truncate text-xs text-foreground underline underline-offset-2 hover:no-underline"
+                                        : "max-w-[10rem] truncate text-xs text-foreground hover:underline",
                                 )}
                                 title={s.name}
                             >
                                 {s.name}
                             </button>
-                            {(newCounts[s.id] ?? 0) >= 1 && (
+                            {(newCounts[s.id]?.value ?? 0) >= 1 && (
                                 <span
                                     data-testid="saved-search-new-count"
-                                    className="text-xs font-bold text-brand"
+                                    className="text-xs font-semibold text-brand"
                                 >
-                                    +{newCounts[s.id]}
+                                    +{formatCorpusCount(newCounts[s.id])}
                                 </span>
                             )}
                             <button
@@ -253,9 +257,9 @@ export function SavedSearchesPanel({
                                 aria-label={`Remove saved search ${s.name}`}
                             >
                                 {removingId === s.id ? (
-                                    <CircleNotch size={11} className="animate-spin" aria-hidden />
+                                    <CircleNotch className="animate-spin" aria-hidden />
                                 ) : (
-                                    <X size={11} />
+                                    <X />
                                 )}
                             </button>
                         </li>

@@ -1,3 +1,6 @@
+import { displayCompanyName } from "./presentation";
+import type { JobSearchParams } from "./types";
+
 /**
  * Company-name query intent (search-quality wave, 2026-08-11).
  *
@@ -68,20 +71,25 @@ export interface CompanyNameSample {
   total: number;
   /** `company` values from the top of that company-scoped search. */
   companies: string[];
+  /** `company_domain` per hit, same order as `companies`; empty string when absent. */
+  domains: string[];
 }
 
 /**
- * Case/whitespace/punctuation-insensitive company-name comparison. Trailing
- * legal suffixes are NOT stripped: "Stripe" and "Stripe Inc" are different
- * strings here on purpose, because the corpus stores whichever form the ATS
- * published and we only want to claim intent when the typed text matches
- * what is actually indexed.
+ * Case/whitespace/punctuation-insensitive company-name comparison. Stored
+ * names are compared as-is — legal-suffix stripping for intent lives in
+ * `companyNameStem`, which reuses the display stem from `displayCompanyName`.
  */
 export function normalizeCompanyName(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+/** Display stem normalized for intent comparison — empty stem fails open. */
+export function companyNameStem(value: string): string {
+  return normalizeCompanyName(displayCompanyName(value));
 }
 
 /**
@@ -91,12 +99,56 @@ export function normalizeCompanyName(value: string): string {
  * Pure — the caller supplies the probe result, so this is unit-testable with
  * no Meilisearch and no mocks.
  */
+function companyStemMatches(queryStem: string, company: string): boolean {
+  if (!queryStem) return false;
+  return companyNameStem(company) === queryStem;
+}
+
 export function isCompanyNameQuery(q: string, sample: CompanyNameSample): boolean {
-  const needle = normalizeCompanyName(q);
+  const needle = companyNameStem(q);
   if (!needle) return false;
   const inspected = sample.companies.length;
   if (inspected === 0) return false;
-  const exact = sample.companies.filter((c) => normalizeCompanyName(c ?? "") === needle).length;
+  const exact = sample.companies.filter((c) => companyStemMatches(needle, c ?? "")).length;
   if (exact < COMPANY_INTENT_MIN_EXACT) return false;
   return exact / inspected >= COMPANY_INTENT_MIN_RATIO;
+}
+
+/**
+ * Dominant employer domains from a sample that already passed `isCompanyNameQuery`.
+ * Returns 0–N lowercase domains that meet the same count/ratio floors.
+ */
+export function dominantCompanyDomains(q: string, sample: CompanyNameSample): string[] {
+  if (!isCompanyNameQuery(q, sample)) return [];
+  const needle = companyNameStem(q);
+  if (!needle) return [];
+
+  const inspected = sample.companies.length;
+  const domainCounts = new Map<string, number>();
+  for (let i = 0; i < inspected; i++) {
+    if (!companyStemMatches(needle, sample.companies[i] ?? "")) continue;
+    const domain = (sample.domains[i] ?? "").trim().toLowerCase();
+    if (!domain) continue;
+    domainCounts.set(domain, (domainCounts.get(domain) ?? 0) + 1);
+  }
+
+  const qualified: string[] = [];
+  for (const [domain, count] of domainCounts) {
+    if (count >= COMPANY_INTENT_MIN_EXACT && count / inspected >= COMPANY_INTENT_MIN_RATIO) {
+      qualified.push(domain);
+    }
+  }
+  return qualified.sort();
+}
+
+/** Pin retrieve to probed employer domains unless `?company=` already set. */
+export function applyCompanyDomainPin(
+  p: JobSearchParams,
+  intent: { companyScoped: boolean; companyDomains: string[] },
+): JobSearchParams {
+  if (!intent.companyScoped || intent.companyDomains.length === 0 || p.companyDomain) return p;
+  if (intent.companyDomains.length === 1) {
+    return { ...p, companyDomain: intent.companyDomains[0] };
+  }
+  return { ...p, companyDomains: intent.companyDomains };
 }

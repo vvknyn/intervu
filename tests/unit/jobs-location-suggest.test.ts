@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+import { buildGazetteerIndex } from "../../src/lib/geo/gazetteer";
 import {
     mergeFieldHits,
     buildLocationSuggestions,
@@ -191,4 +192,163 @@ test("malformed-value suppression does not touch group ordering", () => {
         groups.find((g) => g.field === "location_country")!.items.map((i) => i.label),
         ["Canada"],
     );
+});
+
+/**
+ * Region names never render as a place suggestion (2026-08-29).
+ *
+ * Measured on prod: `location_city = "North America"` is a real corpus value
+ * with 23 postings. The dropdown offered it under CITIES; picking it filtered
+ * to those 23 rows (2 within the 30-day default), while typing the same words
+ * and pressing Enter routed through the region tier and returned ~6,200. Two
+ * rows reading identically, three orders of magnitude apart.
+ */
+test("a region name is dropped from the CITY group — the row that surfaced this", () => {
+    const out = mergeFieldHits("location_city", [
+        { value: "Toronto", count: 2306 },
+        { value: "North America", count: 23 },
+    ]);
+    assert.deepEqual(out.map((o) => o.label), ["Toronto"]);
+});
+
+// The point of the rule is the CLASS, not the one value that surfaced it:
+// every phrase in REGION_ALIASES, on every location field. Asserted with
+// three other regions on the two other fields — a continent, an acronym
+// business region, and a curated multi-country one — none of which is
+// "North America" and none of which is on `location_city`.
+test("the rule is not about North America, and not about the city field", () => {
+    assert.deepEqual(
+        mergeFieldHits("location_state", [
+            { value: "Ontario", count: 900 },
+            { value: "EMEA", count: 41 },
+        ]).map((o) => o.label),
+        ["Ontario"],
+    );
+    assert.deepEqual(
+        mergeFieldHits("location_country", [
+            { value: "Sweden", count: 500 },
+            { value: "Nordics", count: 12 },
+        ]).map((o) => o.label),
+        ["Sweden"],
+    );
+    assert.deepEqual(
+        mergeFieldHits("location_city", [{ value: "APAC", count: 77 }]).map((o) => o.label),
+        [],
+    );
+});
+
+test("matching is folded, so a region escapes by neither casing nor punctuation", () => {
+    assert.deepEqual(
+        mergeFieldHits("location_city", [
+            { value: "north america", count: 9 },
+            { value: "  Latin America  ", count: 4 },
+            { value: "LATAM", count: 3 },
+        ]).map((o) => o.label),
+        [],
+    );
+});
+
+// The gate is exact-value-only. A real place whose name merely CONTAINS a
+// region word is a place, and still renders — otherwise this rule would
+// quietly delete half of British Columbia.
+test("a real place that merely contains a region word is untouched", () => {
+    assert.deepEqual(
+        mergeFieldHits("location_city", [
+            { value: "North Vancouver", count: 120 },
+            { value: "South America Boulevard", count: 3 },
+            { value: "Asian Highway Town", count: 2 },
+        ]).map((o) => o.label).sort(),
+        ["Asian Highway Town", "North Vancouver", "South America Boulevard"],
+    );
+});
+
+test("a group whose only value was a region name disappears rather than rendering empty", () => {
+    const groups = buildLocationSuggestions({
+        location_city: [{ value: "North America", count: 23 }],
+        location_country: [{ value: "United States", count: 500000 }],
+    });
+    assert.deepEqual(groups.map((g) => g.field), ["location_country"]);
+});
+
+/**
+ * Country names misfiled into the city/state facets never render there
+ * (2026-08-29, the "just 2 results?" report).
+ *
+ * Measured on prod: `location_city = "Canada"` is a real corpus value with
+ * 31 postings, so typing "Canada" offered a CITIES · Canada row beside the
+ * honest Countries · Canada row (66,010). Picking the city row filtered the
+ * exact literal → 2 results in the default 30 days, under a relaxation
+ * banner. The rule and its protective lookups live in misfiled-country.ts
+ * (tested exhaustively in geo-misfiled-country.test.ts); these assert the
+ * ladder wiring — the rung fires inside mergeFieldHits, threads through
+ * buildLocationSuggestions, and stays inert without a gazetteer.
+ */
+
+const GAZETTEER = buildGazetteerIndex({
+    countries: [
+        ["CA", "CAN", "Canada"],
+        ["GE", "GEO", "Georgia"],
+        ["MX", "MEX", "Mexico"],
+    ],
+    admin1: [["US", "GA", "Georgia"]],
+    cities: [["Mexico", null, 39.17, -91.88, "US", "MO", 11660]],
+});
+
+test("a country name is dropped from the CITY group — the row that surfaced this", () => {
+    const out = mergeFieldHits(
+        "location_city",
+        [
+            { value: "Toronto", count: 2306 },
+            { value: "Canada", count: 31 },
+        ],
+        LOCATION_SUGGEST_PER_FIELD,
+        GAZETTEER,
+    );
+    assert.deepEqual(out.map((o) => o.label), ["Toronto"]);
+});
+
+test("the protective lookups hold through the ladder: Georgia the state and Mexico the city stay", () => {
+    assert.deepEqual(
+        mergeFieldHits(
+            "location_state",
+            [
+                { value: "Georgia", count: 8148 },
+                { value: "Canada", count: 33 },
+            ],
+            LOCATION_SUGGEST_PER_FIELD,
+            GAZETTEER,
+        ).map((o) => o.label),
+        ["Georgia"],
+    );
+    assert.deepEqual(
+        mergeFieldHits(
+            "location_city",
+            [{ value: "Mexico", count: 136 }],
+            LOCATION_SUGGEST_PER_FIELD,
+            GAZETTEER,
+        ).map((o) => o.label),
+        ["Mexico"],
+    );
+});
+
+test("the honest COUNTRY row survives, so the broad result stays one click away", () => {
+    const groups = buildLocationSuggestions(
+        {
+            location_city: [{ value: "Canada", count: 31 }],
+            location_state: [{ value: "Canada", count: 33 }],
+            location_country: [{ value: "Canada", count: 66010 }],
+        },
+        LOCATION_SUGGEST_PER_FIELD,
+        GAZETTEER,
+    );
+    // The two trap groups dissolve entirely (no empty groups), the honest
+    // one renders — the dropdown now has exactly one "Canada", the one that
+    // delivers.
+    assert.deepEqual(groups.map((g) => g.field), ["location_country"]);
+    assert.deepEqual(groups[0]!.items.map((i) => i.label), ["Canada"]);
+});
+
+test("without a gazetteer the rung is inert — absence of knowledge never suppresses", () => {
+    const out = mergeFieldHits("location_city", [{ value: "Canada", count: 31 }]);
+    assert.deepEqual(out.map((o) => o.label), ["Canada"]);
 });

@@ -15,7 +15,10 @@ import { tmpdir } from "node:os";
  * symbol that nobody imports is not a type error or a lint warning.
  *
  * DETECTION MODE SHIPPED: transitive reachability, not direct-importer.
- * Seed = every non-test file outside `src/lib`. Walk the static import graph
+ * Seed = every non-test file outside `src/lib`, plus every non-test file
+ * under any configured extra entry root (see `entryRoots` below — the real
+ * scan passes `scripts/`, since those files are run directly and are never
+ * themselves imported from `src/`). Walk the static import graph
  * (alias `@/...`, relative `./...`/`../...`, and `import(...)`) from those
  * seeds. Any `src/lib` module the walk never reaches is orphaned. This was
  * required (not just "simpler") because the direct-importer definition
@@ -109,18 +112,39 @@ interface AdoptionScanOptions {
   aliasPrefix: string;
   /** Absolute path the alias prefix resolves to. */
   aliasTarget: string;
+  /**
+   * Extra absolute directories treated as entrypoints alongside srcRoot.
+   * Non-test files under these roots join the edge map and seed the
+   * reachable set, using the same non-test filter as the srcRoot seeds. A
+   * directory that doesn't exist is skipped rather than erroring.
+   */
+  entryRoots?: string[];
 }
 
 /**
  * Transitive reachability pass. Returns the sorted, POSIX-relative (to
  * srcRoot) paths of every module under libRoot that no non-test file outside
  * libRoot can reach via the static/dynamic import graph.
+ *
+ * "Entrypoint" means: every non-test file under srcRoot outside libRoot,
+ * plus every non-test file under any of `entryRoots`. The latter exists
+ * because this repo has a second real entrypoint directory, `scripts/`,
+ * whose files are executed directly (by cron on the production box, and by
+ * hand) rather than imported from `src/` — a `src/lib` module used only from
+ * `scripts/` is genuinely wired, not dead, even though nothing under
+ * `srcRoot` ever reaches it. Don't drop this and fold `scripts/` back into a
+ * single seed set without it — that's what makes those modules falsely
+ * orphaned again.
  */
 function findOrphanedModules(opts: AdoptionScanOptions): string[] {
-  const { srcRoot, libRoot, aliasPrefix, aliasTarget } = opts;
+  const { srcRoot, libRoot, aliasPrefix, aliasTarget, entryRoots = [] } = opts;
   const allFiles = walkCodeFiles(srcRoot);
+  const extraEntryFiles = entryRoots
+    .filter((dir) => existsSync(dir) && statSync(dir).isDirectory())
+    .flatMap((dir) => walkCodeFiles(dir));
+  const edgeSourceFiles = [...allFiles, ...extraEntryFiles];
   const edges = new Map<string, string[]>();
-  for (const file of allFiles) {
+  for (const file of edgeSourceFiles) {
     const specifiers = extractSpecifiers(readFileSync(file, "utf8"));
     const targets: string[] = [];
     for (const spec of specifiers) {
@@ -131,7 +155,8 @@ function findOrphanedModules(opts: AdoptionScanOptions): string[] {
   }
 
   const libPrefix = libRoot.endsWith(sep) ? libRoot : libRoot + sep;
-  const seeds = allFiles.filter((f) => !f.startsWith(libPrefix));
+  const notUnderLib = (f: string) => !f.startsWith(libPrefix);
+  const seeds = [...allFiles.filter(notUnderLib), ...extraEntryFiles.filter(notUnderLib)];
   const reachable = new Set(seeds);
   const queue = [...seeds];
   while (queue.length) {
@@ -315,6 +340,77 @@ describe("findOrphanedModules — fixtures", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("does not flag a module imported only from a file in an extra entry root", () => {
+    // Mirrors scripts/: a directory outside srcRoot whose files are run
+    // directly and are the ONLY importer of a src/lib module.
+    const root = makeFixtureTree({
+      "lib/wired.ts": `export const value = 1;\n`,
+      "app/page.ts": `export const page = "home";\n`,
+    });
+    const entryRoot = makeFixtureTree({
+      "cron-job.ts": `import { value } from "@/lib/wired";\nexport const run = value;\n`,
+    });
+    try {
+      const orphans = findOrphanedModules({
+        srcRoot: root,
+        libRoot: join(root, "lib"),
+        aliasPrefix: "@/",
+        aliasTarget: root,
+        entryRoots: [entryRoot],
+      });
+      assert.deepEqual(orphans, [], "a module reachable only from an extra entry root must count as adoption");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(entryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("negative control: entryRoots does not blanket-rescue a module nothing imports", () => {
+    const root = makeFixtureTree({
+      "lib/orphan.ts": `export const value = 1;\n`,
+      "app/page.ts": `export const page = "home";\n`,
+    });
+    const entryRoot = makeFixtureTree({
+      "cron-job.ts": `export const run = "unrelated";\n`,
+    });
+    try {
+      const orphans = findOrphanedModules({
+        srcRoot: root,
+        libRoot: join(root, "lib"),
+        aliasPrefix: "@/",
+        aliasTarget: root,
+        entryRoots: [entryRoot],
+      });
+      assert.deepEqual(orphans, ["lib/orphan.ts"], "entryRoots must not rescue a module nothing actually imports");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(entryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("a test file inside an extra entry root still does not count as adoption", () => {
+    const root = makeFixtureTree({
+      "lib/orphan.ts": `export const value = 1;\n`,
+      "app/page.ts": `export const page = "home";\n`,
+    });
+    const entryRoot = makeFixtureTree({
+      "cron-job.test.ts": `import { value } from "@/lib/orphan";\nexport const check = value;\n`,
+    });
+    try {
+      const orphans = findOrphanedModules({
+        srcRoot: root,
+        libRoot: join(root, "lib"),
+        aliasPrefix: "@/",
+        aliasTarget: root,
+        entryRoots: [entryRoot],
+      });
+      assert.deepEqual(orphans, ["lib/orphan.ts"], "a *.test.ts file in an extra entry root must not count as wiring");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(entryRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("describeAdoptionDrift — fixtures", () => {
@@ -359,6 +455,7 @@ describe("src/lib module adoption", () => {
       libRoot: REPO_LIB,
       aliasPrefix: alias.prefix,
       aliasTarget: alias.target,
+      entryRoots: [join(REPO_ROOT, "scripts")],
     });
     const baseline: string[] = JSON.parse(readFileSync(BASELINE_PATH, "utf8")).orphans;
     const drift = describeAdoptionDrift(current, baseline);

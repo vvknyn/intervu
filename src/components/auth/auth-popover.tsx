@@ -1,9 +1,12 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { captureEvent } from "@/lib/analytics/events";
+import { type AuthGateReason, shouldCaptureAuthStarted } from "@/lib/auth/auth-gate-copy";
 
 interface AuthPopoverProps {
     open: boolean;
@@ -27,23 +30,34 @@ interface AuthPopoverProps {
     valueLine?: React.ReactNode;
     /** Initial login-form tab — signup for apply gates, login otherwise. */
     defaultTab?: "login" | "signup";
+    /** Auth-gate reason class for auth_started telemetry — omit for generic. */
+    reason?: AuthGateReason;
 }
 
-export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine, defaultTab = "login" }: AuthPopoverProps) {
+export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine, defaultTab = "login", reason }: AuthPopoverProps) {
+    const wasOpenRef = useRef(false);
+
+    useEffect(() => {
+        if (shouldCaptureAuthStarted(wasOpenRef.current, open)) {
+            captureEvent("auth_started", { reason: reason ?? "generic" });
+        }
+        wasOpenRef.current = open;
+    }, [open, reason]);
+
     const handleSuccess = () => {
         onAuthed?.();
         onOpenChange(false);
     };
 
     const valueLineNode = valueLine && (
-        <p className="mb-4 text-sm leading-[1.55] text-muted-foreground">{valueLine}</p>
+        <p className="mb-4 text-sm leading-normal text-muted-foreground">{valueLine}</p>
     );
 
     // When no trigger, use a Dialog instead (e.g. programmatic open from buttons)
     if (!showTrigger) {
         return (
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-[420px] p-6 pt-8 rounded-none border border-border-strong bg-card">
+                <DialogContent className="sm:max-w-[420px] max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-none border border-border bg-card">
                     <DialogTitle className="sr-only">Authentication</DialogTitle>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
@@ -59,7 +73,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
                     Log In
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[420px] p-6 pt-8 rounded-none border border-border-strong bg-card">
+            <PopoverContent align="end" className="w-[420px] max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-none border border-border bg-card">
                 <div>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />

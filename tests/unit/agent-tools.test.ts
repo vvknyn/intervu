@@ -264,10 +264,11 @@ describe('toolSearchJobs', () => {
     assert.deepEqual(out, { error: 'Daily corpus budget reached: resets at 2026-08-05T00:00:00.000Z' });
   });
 
-  it('defaults limit to 10 when omitted', async () => {
+  it('defaults limit to AGENT.SEARCH_DEFAULT_LIMIT when omitted', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, {});
-    assert.equal(searchCalls[0].limit, 10);
+    assert.equal(searchCalls[0].limit, AGENT.SEARCH_DEFAULT_LIMIT);
+    assert.equal(AGENT.SEARCH_DEFAULT_LIMIT, 10);
   });
 
   it('defaults hideGhosts to true when includeGhostFlagged is omitted', async () => {
@@ -313,17 +314,34 @@ describe('toolSearchJobs', () => {
     assert.equal(searchCalls[0].q, 'backend engineer');
   });
 
-  it('maps hits to the real PublicJob field names, plus the derived intervu_url (R6) — no other invented fields', async () => {
+  it('maps hits to the FULL JobDetailFields allowlist (not the old narrow list-card subset), plus the derived intervu_url (R6) — no other invented fields', async () => {
     const { deps } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.total, 1);
     assert.deepEqual(Object.keys(out.hits[0]).sort(), [
-      'apply_url', 'company', 'first_seen_at', 'ghost_badge', 'id',
-      'intervu_url', 'location', 'posted_at', 'title', 'updated_at', 'vacancy_status',
+      'apply_url', 'company', 'company_domain', 'employment_type', 'experience_level',
+      'first_seen_at', 'ghost_badge', 'id', 'intervu_url', 'location', 'location_country',
+      'posted_at', 'salary_currency', 'salary_max', 'salary_min', 'salary_period',
+      'tags', 'title', 'updated_at', 'vacancy_status', 'work_type',
     ]);
     assert.equal(out.hits[0].id, 'job-1');
     assert.equal(out.hits[0].ghost_badge, 'clear');
+    assert.equal(out.hits[0].salary_min, 120000);
+    assert.equal(out.hits[0].work_type, 'remote');
+    assert.deepEqual(out.hits[0].tags, ['backend']);
+  });
+
+  it('a search hit is field-for-field identical to get_job\'s projection for the same job (both funnel through toJobDetailFields) — proves search_jobs alone is enough to evaluate a candidate role', async () => {
+    const { deps } = stubDeps([makeJob()]);
+    const searchOut = await toolSearchJobs(deps, {});
+    const jobOut = await toolGetJob(deps, { id: 'job-1' });
+    if ('error' in searchOut || 'error' in jobOut) throw new Error('unexpected error shape');
+    // get_job's payload is the hit PLUS description/content_note — strip
+    // those two before comparing so this proves the shared allowlist, not
+    // get_job's extra untrusted-content wrapping.
+    const { description: _description, content_note: _contentNote, ...jobFields } = jobOut;
+    assert.deepEqual(searchOut.hits[0], jobFields);
   });
 
   it('R6: every search hit carries a shareable intervu_url built from the job id, and passes through apply_url as-is', async () => {
@@ -651,7 +669,7 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
   it('maps location "Canada" to a places param too — proves the mapping is class-wide, not a Toronto special case', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { location: 'Canada' });
-    assert.deepEqual(searchCalls[0].places, [{ any: [{ field: 'location_country', value: 'Canada' }] }]);
+    assert.deepEqual(searchCalls[0].places, [{ any: [{ field: 'location_country', value: 'Canada' }], remoteAnywhere: true }]);
   });
 
   it('drops an unrecognized location instead of inventing a places filter', async () => {
@@ -724,6 +742,84 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
     assert.equal(searchCalls[0].salaryMin, 150000);
   });
 
+  it('maps sort straight through to JobSearchParams.sort', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { sort: 'salary_desc' });
+    assert.equal(searchCalls[0].sort, 'salary_desc');
+  });
+
+  it('never sets sort when omitted (auto sort stays the backend\'s call)', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, {});
+    assert.equal(searchCalls[0].sort, undefined);
+  });
+
+  it('maps years_experience straight through to JobSearchParams.yearsExperience', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { years_experience: '6-10' });
+    assert.equal(searchCalls[0].yearsExperience, '6-10');
+  });
+
+  it('maps a facets object key (tech_stack) to JobSearchParams.facets, canonicalized (deduped + sorted) the SAME way buildFilter\'s downstream canonicalFacetValues would', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { facets: { tech_stack: ['python', 'go'] } });
+    assert.deepEqual(searchCalls[0].facets, { tech_stack: ['go', 'python'] });
+  });
+
+  it('maps a DIFFERENT facets object key (location_country) to JobSearchParams.facets — proves the merge is generic, not a tech_stack special case', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { facets: { location_country: ['Canada'] } });
+    assert.deepEqual(searchCalls[0].facets, { location_country: ['Canada'] });
+  });
+
+  it('merges a generic facets key with a named facet param into the SAME composed facets object, rather than one overriding the other', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { experience_level: 'senior', facets: { tech_stack: ['rust'] } });
+    assert.deepEqual(searchCalls[0].facets, { experience_level: ['senior'], tech_stack: ['rust'] });
+  });
+
+  it('a facets entry for the SAME key a named filter set only NARROWS it (intersect), never widens it', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { remote_only: true, facets: { work_type: ['remote', 'hybrid'] } });
+    assert.deepEqual(searchCalls[0].facets, { work_type: ['remote'] });
+  });
+
+  it('a facets entry with NO overlap against a named filter for the same key is an input error, not a silent empty page', async () => {
+    const { deps } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { experience_level: 'senior', facets: { experience_level: ['entry'] } });
+    if (!('error' in out)) throw new Error('expected an error shape');
+    assert.match(out.error, /facets\.experience_level/);
+  });
+
+  it('a no-overlap facets/named-filter conflict never reaches the search backend', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { remote_only: true, facets: { work_type: ['onsite'] } });
+    if (!('error' in out)) throw new Error('expected an error shape');
+    assert.match(out.error, /facets\.work_type/);
+    assert.equal(searchCalls.length, 0);
+  });
+
+  it('a facets entry using the "any" widen sentinel for a named-filter key never conflicts with it — canonicalizes to empty and is skipped like an absent entry', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { remote_only: true, facets: { work_type: ['any'] } });
+    if ('error' in out) throw new Error(`expected no error, got: ${out.error}`);
+    assert.deepEqual(searchCalls[0].facets, { work_type: ['remote'] });
+  });
+
+  it('a facets entry using the "all" widen sentinel for a named-filter key never conflicts with it either — proves the skip is class-wide, not a work_type/"any" special case', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { experience_level: 'senior', facets: { experience_level: ['all'] } });
+    if ('error' in out) throw new Error(`expected no error, got: ${out.error}`);
+    assert.deepEqual(searchCalls[0].facets, { experience_level: ['senior'] });
+  });
+
+  it('a facets entry that is ONLY a widen sentinel, with no named filter for that key, drops the facet entirely rather than sending it through as a literal value', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { facets: { tech_stack: ['all'] } });
+    if ('error' in out) throw new Error(`expected no error, got: ${out.error}`);
+    assert.equal(searchCalls[0].facets, undefined);
+  });
+
   it('composes every filter together with query into the one params object the backend sees', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, {
@@ -746,7 +842,7 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
         experience_level: ['senior'],
         employment_type: ['full_time'],
       },
-      places: [{ any: [{ field: 'location_country', value: 'Canada' }] }],
+      places: [{ any: [{ field: 'location_country', value: 'Canada' }], remoteAnywhere: true }],
     });
   });
 });

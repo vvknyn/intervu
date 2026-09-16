@@ -24,10 +24,12 @@
  * `hasApp` guard below), so calling this unconditionally on every sign-in is
  * safe and self-heals any account this migration couldn't reach directly.
  */
-import type { User } from "@workos-inc/node";
+import type { User, AuthenticationMethod } from "@workos-inc/node";
 import { hasApp, mergeApps, APP_INTERVU } from "./workos-apps";
 import { ensureOrganization, ensureMembership, INTERVU_ORGANIZATION_NAME, createClient, type WorkosClient } from "./workos-sync";
 import { sendWelcomeEmailOnce, type WelcomeSendResult } from "@/lib/email/welcome";
+import { screenSignupEmail, emailDomain } from "./email-quality";
+import { normalizeEmail } from "@/lib/email/normalize-email";
 
 export interface ProvisioningDeps {
   syncClient: WorkosClient;
@@ -54,9 +56,38 @@ export async function realProvisioningDeps(): Promise<ProvisioningDeps> {
  * Ensure `user` has everything a first-class intervu account needs. Safe to
  * call on every sign-in/signup — see module doc for why each step no-ops
  * cheaply once already done.
+ *
+ * `source` is supplied by the caller, not inferred here, because this
+ * function is the one place all three entry points meet: the password path
+ * already ran `validateSignupEmail` (username-email.ts) before an account
+ * could exist, so the email-quality observation below only ever fires there
+ * for an address that degraded after signup (e.g. a domain added to the
+ * disposable list since); the hosted-flow callback never validated the
+ * email at all, so this is its only signal. Observe-only — logs and never
+ * throws, matching this function's existing best-effort membership/tag
+ * repair.
+ *
+ * `source` is WorkOS's own `AuthenticationMethod` for a hosted-flow entry
+ * (`"GoogleOAuth"`, `"Passkey"`, `"MagicAuth"`, ...) — a real, honest value
+ * from the callback's own session data, not a blanket `"oauth"` that would
+ * mislabel a passkey or magic-link sign-in as OAuth. `"password"` is the
+ * one entry point WorkOS doesn't describe, since it never goes through a
+ * hosted flow at all.
  */
-export async function provisionAppAccess(deps: ProvisioningDeps, user: Pick<User, "id" | "externalId" | "email" | "metadata">): Promise<void> {
+export async function provisionAppAccess(
+  deps: ProvisioningDeps,
+  user: Pick<User, "id" | "externalId" | "email" | "metadata">,
+  source: "password" | AuthenticationMethod,
+): Promise<void> {
   const uid = user.externalId || user.id;
+
+  if (user.email) {
+    const email = normalizeEmail(user.email);
+    const reason = screenSignupEmail(email);
+    if (reason) {
+      console.warn("[provisioning] signup_email_quality", { reason, domain: emailDomain(email), source });
+    }
+  }
 
   await deps.sendWelcomeEmailOnce(uid, user.email);
 

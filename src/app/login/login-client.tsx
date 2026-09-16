@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
+import { captureEvent } from "@/lib/analytics/events";
 
 export function LoginClient() {
     const router = useRouter();
@@ -17,6 +18,12 @@ export function LoginClient() {
         return onAuthChange(setUser);
     }, []);
 
+    // Dedicated /login route — count once on mount; LoginForm is not wired
+    // here (AuthPopover owns the in-app chokepoint and would double-count).
+    useEffect(() => {
+        captureEvent("auth_started", { reason: "generic" });
+    }, []);
+
     const redirectAfterAuth = useCallback(() => {
         router.replace(validateNextParam(searchParams.get("next")) ?? "/jobs");
     }, [router, searchParams]);
@@ -26,10 +33,10 @@ export function LoginClient() {
     }, [user, redirectAfterAuth]);
 
     return (
-        <main className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 pt-[72px]">
-            <div className="w-full max-w-[400px] border border-border-strong bg-card p-6 pt-7">
+        <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 pt-[72px]">
+            <div className="w-full max-w-[400px] border border-border bg-card p-8">
                 <LoginForm onSuccess={redirectAfterAuth} />
             </div>
-        </main>
+        </div>
     );
 }

@@ -15,24 +15,24 @@ import { ClockCounterClockwise } from "@phosphor-icons/react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { formatAuthGateValueLine } from "@/lib/auth/auth-gate-copy";
 import { useViewed } from "@/lib/views/use-viewed";
 import { usePursuits } from "@/lib/pursuits/use-pursuits";
 import { stageLabel, type Pursuit } from "@/lib/pursuits/types";
-import { applicationStatusTone, STATUS_BADGE_VARIANT } from "@/lib/ui/status-tokens";
+import { trackerStatusColorClass } from "@/lib/pursuits/tracker-display";
+import { cn } from "@/lib/utils";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
+import { DotSeparated } from "@/components/ui/dot-separated";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import type { JobView } from "@/lib/views/types";
 
 function HistoryHeader() {
     return (
         <PageHeader
-            size="display"
             fullWidth
             sticky={false}
             title="Tracker"
@@ -43,17 +43,15 @@ function HistoryHeader() {
 
 function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
     return (
-        <div className="rounded-none border border-border bg-card p-8 shadow-xs text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand/20 bg-brand/10 text-brand shadow-2xs">
-                <ClockCounterClockwise size={24} weight="duotone" />
-            </div>
-            <div className="space-y-1 max-w-md mx-auto">
-                <h3 className="text-lg font-bold text-foreground tracking-tight">Sign in to see your history</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+        <div className="mx-auto max-w-[480px] rounded-none border border-border bg-card p-8 text-center space-y-6">
+            <ClockCounterClockwise size={24} weight="duotone" className="mx-auto text-muted-foreground" />
+            <div className="space-y-1">
+                <h3 className="text-base font-semibold text-foreground">Sign in to see your history</h3>
+                <p className="text-sm text-muted-foreground">
                     We keep track of every job you open so you can find your way back to it.
                 </p>
             </div>
-            <Button className="rounded-none font-semibold" onClick={onLoginClick}>
+            <Button className="font-semibold" onClick={onLoginClick}>
                 Sign in
             </Button>
         </div>
@@ -62,14 +60,12 @@ function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
 
 function HistoryEmptyState() {
     return (
-        <div data-testid="history-empty" className="rounded-none border border-border bg-card p-8 shadow-xs text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand/20 bg-brand/10 text-brand shadow-2xs">
-                <ClockCounterClockwise size={24} weight="duotone" />
+        <div data-testid="history-empty" className="mx-auto max-w-[480px] rounded-none border border-border bg-card p-8 text-center space-y-6">
+            <ClockCounterClockwise size={24} weight="duotone" className="mx-auto text-muted-foreground" />
+            <div className="space-y-1">
+                <h3 className="text-base font-semibold text-foreground">Jobs you open will show up here.</h3>
             </div>
-            <div className="space-y-1 max-w-md mx-auto">
-                <h3 className="text-lg font-bold text-foreground tracking-tight">Jobs you open will show up here.</h3>
-            </div>
-            <Button asChild className="rounded-none font-semibold">
+            <Button asChild className="font-semibold">
                 <Link href="/jobs">Browse verified roles</Link>
             </Button>
         </div>
@@ -82,35 +78,35 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
     // `job_snapshot.company` is a Firestore-stored copy taken when the job was
     // viewed (`buildJobSnapshot`, lib/pursuits/types.ts) — the live Meili index
     // carries the ATS-stated raw name permanently (intervu owns brand cleaning
-    // at display time, never at ingest — see meilisearch.ts's `upsertJobs`),
-    // so every snapshot taken from it carries the raw value too, and a view is
+    // at display time, never at ingest — ingest is the pipeline repo's
+    // sync.mjs, which PUTs the Subspace feed through unchanged), so every
+    // snapshot taken from it carries the raw value too, and a view is
     // never rewritten after the fact. Cleaned at render instead, same as every
     // live search hit.
     const companyName = displayCompanyName(snapshot.company);
     return (
         <div
             data-testid="history-row"
-            className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-1.5 rounded-none border border-border bg-card p-4"
+            className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-1.5 px-3 py-4"
         >
             <div className="min-w-0">
-                <Link href={href} className="block truncate text-[15px] font-semibold tracking-[-0.02em] hover:text-brand">
+                <Link href={href} className="block truncate text-base font-semibold hover:text-brand">
                     {snapshot.title}
                 </Link>
-                <div className="truncate text-[13px] text-muted-foreground">{companyName}</div>
+                <div className="truncate text-sm text-muted-foreground">{companyName}</div>
             </div>
             {stage && (
-                <Badge variant={STATUS_BADGE_VARIANT[applicationStatusTone(stage.status)]}>
+                <span className={cn("h-fit text-sm", trackerStatusColorClass(stage.status))}>
                     {stageLabel(stage, Date.now())}
-                </Badge>
+                </span>
             )}
-            <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-[#8b939e]">
-                <span>{formatRelativeAge(view.last_viewed_at, Date.now())}</span>
-                {view.view_count > 1 && (
-                    <>
-                        <span aria-hidden="true">·</span>
-                        <span>viewed {view.view_count}×</span>
-                    </>
-                )}
+            <div className="col-span-2 font-mono text-sm text-muted-foreground">
+                <DotSeparated
+                    items={[
+                        formatRelativeAge(view.last_viewed_at, Date.now()),
+                        view.view_count > 1 && `viewed ${view.view_count}×`,
+                    ]}
+                />
             </div>
         </div>
     );
@@ -139,19 +135,25 @@ export default function HistoryPage() {
         <PageLayout fullWidth header={<HistoryHeader />}>
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
                 <TrackerTabs active="history" />
-                <div className="mt-4 space-y-3">
-                    {!user ? (
+                {!user ? (
+                    <div className="mt-4">
                         <HistoryGate onLoginClick={() => setAuthPopoverOpen(true)} />
-                    ) : loading ? (
+                    </div>
+                ) : loading ? (
+                    <div className="mt-4">
                         <HistoryLoading />
-                    ) : entries.length === 0 ? (
+                    </div>
+                ) : entries.length === 0 ? (
+                    <div className="mt-4">
                         <HistoryEmptyState />
-                    ) : (
-                        entries.map((view) => (
+                    </div>
+                ) : (
+                    <div className="mt-4 divide-y divide-border border-t border-border">
+                        {entries.map((view) => (
                             <HistoryRow key={view.id} view={view} stage={byJobId.get(view.job_id)} />
-                        ))
-                    )}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <AuthPopover

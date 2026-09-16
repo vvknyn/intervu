@@ -20,7 +20,7 @@ import { ANALYTICS_EVENTS } from "../../src/lib/analytics/events";
  * an accepted orphan. This test is per-EVENT rather than per-module, so
  * wiring one event can no longer vouch for the rest of the catalog —
  * `events.ts` (the funnel module generalized to every entity) now declares
- * 19.
+ * 24.
  */
 
 const SRC = join(process.cwd(), "src");
@@ -104,4 +104,22 @@ test("search events carry a length, never the query itself", () => {
     !/\bquery:\s/.test(call[0]),
     `search_submitted is sending the raw query: ${call[0]}`,
   );
+});
+
+/**
+ * apply_clicked must fire before the auth gate so gate drop-off is measurable
+ * (docs/analytics/EVENTS.md). Source-order lock — no runtime behavior change.
+ */
+test("apply_clicked fires before resolveApplyClickDecision in handleOpenPosting", () => {
+  const jobsPage = readFileSync(join(SRC, "app/jobs/page.tsx"), "utf8");
+  const fnMatch = jobsPage.match(
+    /const handleOpenPosting = \(job: PublicJob\) => \{([\s\S]*?)\n    \};/,
+  );
+  assert.ok(fnMatch, "handleOpenPosting not found");
+  const body = fnMatch[1];
+  const applyIdx = body.indexOf('captureEvent("apply_clicked"');
+  const gateIdx = body.indexOf("resolveApplyClickDecision");
+  assert.ok(applyIdx !== -1, "apply_clicked capture not found in handleOpenPosting");
+  assert.ok(gateIdx !== -1, "resolveApplyClickDecision not found in handleOpenPosting");
+  assert.ok(applyIdx < gateIdx, "apply_clicked must fire before the auth gate");
 });

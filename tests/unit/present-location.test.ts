@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { locationSummary } from "../../src/lib/presentation/location";
+import { locationSummary, splitLocationLabel } from "../../src/lib/presentation/location";
+import { locationText } from "../../src/lib/jobs/presentation";
+import type { PublicJob } from "../../src/lib/jobs/types";
 
 // --- Rule 1: strip a trailing postal code ---------------------------------
 
@@ -47,6 +49,35 @@ test("keeps a 3-segment location intact (boundary — not yet a summary)", () =>
   assert.equal(locationSummary("Waterloo, Ontario, CAN"), "Waterloo, Ontario, CAN");
 });
 
+// A1 audit defect (2026-09-09 prod screenshot): a raw street address fed
+// straight into `locationSummary` still reads as a 4-segment breadcrumb and
+// summarizes to "626 Polymoore Drive +3 more" — `locationSummary` itself has
+// no notion of a street address, so that's not this module's bug to fix.
+// The fix lives upstream: `locationText` (jobs/presentation.ts) runs
+// `stripStreetAddress` before handing its output to `locationSummary`, so
+// the address never reaches this module as more than 3 segments.
+const job = (over: Partial<PublicJob>): PublicJob =>
+  ({
+    location: null,
+    location_city: null,
+    location_state: null,
+    location_country: null,
+    work_type: null,
+    ...over,
+  }) as PublicJob;
+
+test("a street address still summarizes to '+N more' when read raw, unmediated by locationText", () => {
+  assert.equal(
+    locationSummary("626 Polymoore Drive, Corunna, ON N0N 1G0, Canada"),
+    "626 Polymoore Drive +3 more",
+  );
+});
+
+test("regression: locationText's sanitised output no longer trips the '+N more' summary", () => {
+  const cleaned = locationText(job({ location: "626 Polymoore Drive, Corunna, ON N0N 1G0, Canada" }));
+  assert.equal(locationSummary(cleaned), "Corunna, ON, Canada");
+});
+
 // --- Rule 4: an all "Remote - XX" US-state list collapses -----------------
 
 test("collapses a long remote-state list to 'Remote (US)' (audit shape: 40 states)", () => {
@@ -84,4 +115,55 @@ test("leaves a plain two-segment location untouched", () => {
 
 test("leaves a single-word location untouched", () => {
   assert.equal(locationSummary("Remote"), "Remote");
+});
+
+// --- splitLocationLabel: which part of a value identifies the row ---------
+//
+// The typeahead row is one truncating line. Whatever sits at its start is
+// what a searcher can actually read, so the rule is about WHICH part that is.
+
+test("leads with the site, not the continent — the two prod rows that surfaced this", () => {
+  // Both rendered as "North America/USA/Missouri/St. …" and offered different
+  // things (24 postings vs 12).
+  const ccp = splitLocationLabel("North America/USA/Missouri/St. Louis - CCP");
+  const wpe = splitLocationLabel("North America/USA/Missouri/St. Louis - WPE");
+  assert.equal(ccp.lead, "St. Louis - CCP");
+  assert.equal(wpe.lead, "St. Louis - WPE");
+  assert.notEqual(ccp.lead, wpe.lead, "the whole point: the leads must differ");
+  assert.equal(ccp.context, "North America / USA / Missouri");
+});
+
+test("the rule is the shape, not those rows — any 3+ level path splits the same way", () => {
+  assert.deepEqual(splitLocationLabel("Europe/GRE/Markopoulo"), {
+    lead: "Markopoulo",
+    context: "Europe / GRE",
+  });
+  assert.deepEqual(splitLocationLabel("A/B/C/D/E"), { lead: "E", context: "A / B / C / D" });
+});
+
+test("tolerates padding and empty levels around the separators", () => {
+  assert.deepEqual(splitLocationLabel("North America / USA //  Minnesota / Mankato "), {
+    lead: "Mankato",
+    context: "North America / USA / Minnesota",
+  });
+});
+
+test("two slash-joined parts are a name or a pair, never a path", () => {
+  // Reversing either of these would lead the row with the wrong word:
+  // "Frankfurt/Main" is one city; "Middle East/Africa" is a two-item list.
+  assert.deepEqual(splitLocationLabel("Frankfurt/Main"), { lead: "Frankfurt/Main", context: "" });
+  assert.deepEqual(splitLocationLabel("Middle East/Africa"), { lead: "Middle East/Africa", context: "" });
+});
+
+test("does not reverse the delimiters whose direction is not reliable", () => {
+  // A comma list is conventionally narrow-first, and a spaced dash goes both
+  // ways in this corpus ("Toronto - Bay St" vs "APAC - Malaysia - Seoul").
+  for (const raw of ["Toronto, Ontario, Canada", "APAC - Malaysia - Kuala Lumpur", "Toronto - Bay St"]) {
+    assert.deepEqual(splitLocationLabel(raw), { lead: raw, context: "" }, raw);
+  }
+});
+
+test("a plain place is returned whole, so every row renders through one shape", () => {
+  assert.deepEqual(splitLocationLabel("Toronto"), { lead: "Toronto", context: "" });
+  assert.deepEqual(splitLocationLabel(""), { lead: "", context: "" });
 });

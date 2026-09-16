@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { decodeText, rowExceptionMeta } from "@/lib/jobs/presentation";
+import { decodeText, rowExceptionMeta, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { companyRowMetaSegments } from "@/lib/presentation";
-import { cn } from "@/lib/utils";
 
 /**
  * This company's live-postings list. Every row links back to the main jobs
@@ -25,17 +24,17 @@ export function CompanyRolesList({
   if (roles.length === 0) return null;
 
   return (
-    <section data-testid="company-roles" className="mt-8 border-t border-foreground pt-6">
+    <section data-testid="company-roles" className="mt-8 border-t border-border pt-6">
       <div className="flex items-baseline justify-between">
-        <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           Live roles
         </span>
-        <Link href={jobsSearchUrl} className="text-xs text-foreground underline underline-offset-2">
-          View all in search →
+        <Link href={jobsSearchUrl} className="text-sm text-brand hover:underline">
+          View all in search
         </Link>
       </div>
 
-      <ul className="mt-4 space-y-2">
+      <ul className="mt-4 divide-y divide-border border-t border-border">
         {roles.map((job) => {
           // Exception-only: a "clear" verdict whose backing check has gone
           // stale still renders STALE_CLEAR_META's neutral "Not recently
@@ -49,27 +48,23 @@ export function CompanyRolesList({
             <li key={job.id}>
               <Link
                 href={jobsSearchUrl}
-                className="flex items-center justify-between gap-4 border border-foreground/10 px-4 py-3 text-[13.5px] transition-colors hover:border-foreground/30"
+                className="flex items-center justify-between gap-4 px-3 py-4 transition-colors hover:bg-muted"
               >
                 <div className="min-w-0">
-                  <div className="font-medium text-foreground">{decodeText(job.title)}</div>
+                  <div className="text-base font-semibold text-foreground">{titleCaseDisplay(decodeText(job.title))}</div>
                   {meta.length > 0 && (
-                    <div className="mt-0.5 text-xs text-muted-foreground">
+                    <div className="mt-1 text-sm text-muted-foreground">
                       {meta.map((segment, i) => (
                         <span key={i}>
-                          {i > 0 && <span className="mx-1 text-muted-foreground/60" aria-hidden>·</span>}
-                          <span className={segment.emphasis ? "font-semibold text-foreground" : undefined}>
-                            {segment.text}
-                          </span>
+                          {i > 0 && <span className="mx-1" aria-hidden>·</span>}
+                          {segment.text}
                         </span>
                       ))}
                     </div>
                   )}
                 </div>
                 {ghost && (
-                  <span className={cn("shrink-0 px-2 py-0.5 text-[11px]", ghost.cls)}>
-                    {ghost.label}
-                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{ghost.label}</span>
                 )}
               </Link>
             </li>

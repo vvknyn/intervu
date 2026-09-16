@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Libre_Franklin, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
@@ -6,6 +7,7 @@ import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { TopBar } from "@/components/layout/TopBar";
 import { SearchDockProvider } from "@/components/layout/SearchDockContext";
 import { Footer } from "@/components/layout/Footer";
+import { IconDefaultsProvider } from "@/components/providers/IconDefaultsProvider";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
@@ -21,6 +23,7 @@ import {
 } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
+import { LocalAiParamSync } from "@/components/providers/LocalAiParamSync";
 
 /**
  * Three faces, each named for the ROLE it plays rather than the vendor that
@@ -119,7 +122,7 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    // File-convention icons (favicon.ico, icon.png, icon.svg) are picked up
+    // File-convention icons (favicon.ico, icon.png) are picked up
     // automatically from src/app/ — only the apple-touch icon needs an
     // explicit entry, since it also has to exist as a literal
     // /apple-touch-icon.png (public/) for iOS's own HTML-independent
@@ -174,14 +177,38 @@ export default function RootLayout({
         />
         <AuthKitProvider>
         <PostHogProvider>
+          <Suspense fallback={null}>
+            <LocalAiParamSync />
+          </Suspense>
           <ThemeProvider>
+            <IconDefaultsProvider>
             <TourProvider>
+              {/* First focusable element on every page (keyboard-only rule:
+                  standard "skip to main content" pattern). Same visually-hidden-
+                  until-focus classes as /jobs's own "Skip to results" link
+                  (src/app/jobs/page.tsx) — that one stays too, it targets a
+                  narrower destination inside this same <main>; two skip links
+                  is the standard pattern, not a duplicate. */}
+              <a
+                href="#main"
+                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
+              >
+                Skip to main content
+              </a>
               {/* Wraps BOTH the header and the page: /jobs publishes its search
                   summary here once its own search box scrolls away, and TopBar
                   renders it. Siblings can't share state without this. */}
               <SearchDockProvider>
               <TopBar />
+              {/* The one <main> landmark per page (standard-pattern rule) —
+                  every page used to own its own <main>, so a page with a
+                  selected job (two h1-bearing regions) rendered two, and ~19
+                  pages rendered none. Page-level `<main>`s were converted to
+                  `<div>` (classes untouched) so this is the only one; `tabIndex=
+                  {-1}` lets the skip link above actually move focus here. */}
+              <main id="main" tabIndex={-1}>
               {children}
+              </main>
               </SearchDockProvider>
               <Footer />
               <MobileTabBar />
@@ -189,6 +216,7 @@ export default function RootLayout({
               <TourTrigger />
               <Toaster />
             </TourProvider>
+            </IconDefaultsProvider>
           </ThemeProvider>
         </PostHogProvider>
         </AuthKitProvider>

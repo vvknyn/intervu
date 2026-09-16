@@ -20,8 +20,36 @@ test("guestKeepLine uses plural copy for multiple pursuits", () => {
 });
 
 test("formatAuthGateValueLine varies by reason class", () => {
-    assert.match(formatAuthGateValueLine("apply", 0), /posting/);
+    assert.match(formatAuthGateValueLine("apply", 0), /track this application/i);
     assert.match(formatAuthGateValueLine("generic", 0), /sync/);
+});
+
+test('formatAuthGateValueLine for reason "save" mentions keep-across-devices and alerts', () => {
+    const line = formatAuthGateValueLine("save", 0);
+    assert.match(line, /across devices/i);
+    assert.match(line, /alert/i);
+});
+
+test('formatAuthGateValueLine for reason "fit" mentions matching roles to résumé', () => {
+    const line = formatAuthGateValueLine("fit", 0);
+    assert.match(line, /match roles to your résumé/i);
+    assert.match(line, /recommendations/i);
+});
+
+test('formatAuthGateValueLine for reason "report" mentions reporting issue', () => {
+    const line = formatAuthGateValueLine("report", 0);
+    assert.match(line, /report an issue/i);
+});
+
+test('formatAuthGateValueLine for reason "tailor" mentions on-device AI and export', () => {
+    const line = formatAuthGateValueLine("tailor", 0);
+    assert.match(line, /on-device AI/i);
+    assert.match(line, /export/i);
+});
+
+test('formatAuthGateValueLine for reason "resume" mentions edit, export, and sync', () => {
+    const line = formatAuthGateValueLine("resume", 0);
+    assert.match(line, /edit, export, and sync/i);
 });
 
 test("formatAuthGateValueLine prepends keep-line only when count is real", () => {

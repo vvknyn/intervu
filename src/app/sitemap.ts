@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { fetchIndexableCompanyDomains } from "@/lib/companies/indexable";
 import { companyBoardPath } from "@/lib/companies/paths";
+import { CAREER_HUBS } from "@/lib/seo/career-hubs";
 import { getSiteUrl } from "@/lib/seo/constants";
 
 /**
@@ -49,9 +50,15 @@ export const dynamic = "force-dynamic";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
 
+  const careerHubEntries: MetadataRoute.Sitemap = CAREER_HUBS.map((hub) => ({
+    url: `${siteUrl}${hub.path}`,
+    changeFrequency: "weekly",
+    priority: 0.65,
+  }));
+
   // `/co/[slug]` company pages. `fetchIndexableCompanyDomains` discovers the
   // CANDIDATES straight from the published `company_directory` index — every
-  // domain with `open_role_count >= MIN_INDEXABLE_ROLES` — not the curated
+  // domain with `open_role_count >= MIN_SITEMAP_ROLES`, capped — not the curated
   // "elite" board list, which `get-company.ts` never treated as a boundary
   // on which domains can render a page; see indexable.ts's 2026-08-13
   // docblock update. The threshold gate is applied server-side by that
@@ -103,6 +110,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.6,
     },
+    {
+      url: `${siteUrl}/indeed-alternative`,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
+      url: `${siteUrl}/linkedin-jobs-alternative`,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
+      url: `${siteUrl}/eluta-alternative`,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    ...careerHubEntries,
     {
       url: `${siteUrl}/about`,
       changeFrequency: "monthly",

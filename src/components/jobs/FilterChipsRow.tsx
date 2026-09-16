@@ -4,8 +4,9 @@ import { CaretDown } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { chipVariants } from "@/components/ui/chip";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
-import { SALARY_PRESETS, postedBucketLabel, type FilterState } from "@/components/jobs/FilterPanel";
+import { SALARY_PRESETS, appliedPostedBucket, postedBucketLabel, type FilterState } from "@/components/jobs/FilterPanel";
 import { toolbarChipClass } from "@/lib/jobs/toolbar-control-height";
+import { isRemoteWorkTypeValue } from "@/lib/jobs/meilisearch";
 
 /**
  * Mobile "Posted" chip cycle — a tighter subset of the rail's full
@@ -19,8 +20,30 @@ import { toolbarChipClass } from "@/lib/jobs/toolbar-control-height";
  */
 const POSTED_CHIP_CYCLE: (PostedBucket | undefined)[] = [undefined, "1d", "3d", "7d", "30d"];
 
-function nextPostedBucket(current: PostedBucket | undefined): PostedBucket | undefined {
-    const idx = POSTED_CHIP_CYCLE.indexOf(current);
+/**
+ * Steps from what is APPLIED, not from what sits in state. Cycling the raw
+ * bucket made the first tap on a fresh visit go 30d → "Any" — a step that
+ * widened nothing (30d was never sent) on a chip that already claimed to be
+ * active. From the applied value the same cycle starts at the tightest real
+ * window, so the first tap always changes the result set.
+ */
+/**
+ * The quick chip's face: the applied window's label, or `null` when no date
+ * filter is on — the chip then reads "Posted" and draws inactive. Pure and
+ * exported because the chip's own claim about what is filtering is the thing
+ * that was wrong; a JSX expression can't be asserted, this can.
+ */
+export function postedChipLabel(
+    state: Pick<FilterState, "postedBucket" | "postedExplicit">,
+): string | null {
+    const applied = appliedPostedBucket(state);
+    return applied ? postedBucketLabel(applied) : null;
+}
+
+export function nextPostedBucket(
+    state: Pick<FilterState, "postedBucket" | "postedExplicit">,
+): PostedBucket | undefined {
+    const idx = POSTED_CHIP_CYCLE.indexOf(appliedPostedBucket(state));
     return POSTED_CHIP_CYCLE[(idx + 1) % POSTED_CHIP_CYCLE.length];
 }
 
@@ -52,7 +75,7 @@ export function nextSalaryPreset(current: number): number {
 export function pickRemoteFacetValue(distribution: FacetDistribution | undefined): string | undefined {
     const workTypes = distribution?.work_type;
     if (!workTypes) return undefined;
-    const matches = Object.keys(workTypes).filter((k) => /remote/i.test(k));
+    const matches = Object.keys(workTypes).filter(isRemoteWorkTypeValue);
     if (matches.length === 0) return undefined;
     return matches.reduce((best, k) => (workTypes[k] > workTypes[best] ? k : best), matches[0]);
 }
@@ -76,11 +99,9 @@ function Chip({
             disabled={disabled}
             onClick={onClick}
             className={cn(
-                chipVariants({ active }),
+                chipVariants({ active, interactive: true }),
                 toolbarChipClass,
                 "shrink-0 leading-none gap-1",
-                !active && "border-foreground/20 bg-background text-foreground/80",
-                active && "border-brand/70 bg-brand/15 text-brand shadow-[inset_0_1px_0_0_rgba(255,255,255,0.32)]",
                 className,
             )}
         >
@@ -129,6 +150,7 @@ export function FilterChipsRow({
     // rendering ACTIVE (highlighted) while reading as if nothing were
     // selected. Falls back to a derived "$Nk+" (matching the presets' own
     // label style) instead, generic over any value, not just a known one.
+    const postedLabel = postedChipLabel(state);
     const salaryLabel = salaryActive
         ? (SALARY_PRESETS.find((s) => s.value === state.salaryMin)?.label ?? `$${Math.round(state.salaryMin / 1000)}k+`)
         : undefined;
@@ -144,11 +166,11 @@ export function FilterChipsRow({
                 disagree about what's offerable. */}
             {postedDateSupported && (
                 <Chip
-                    active={!!state.postedBucket}
-                    onClick={() => onPostedBucket(nextPostedBucket(state.postedBucket))}
+                    active={!!postedLabel}
+                    onClick={() => onPostedBucket(nextPostedBucket(state))}
                 >
-                    {state.postedBucket ? postedBucketLabel(state.postedBucket) : "Posted"}
-                    <CaretDown size={11} weight="bold" />
+                    {postedLabel ?? "Posted"}
+                    <CaretDown size={16} weight="bold" />
                 </Chip>
             )}
             <Chip
@@ -165,7 +187,7 @@ export function FilterChipsRow({
                 onClick={() => onSalaryMin(nextSalaryPreset(state.salaryMin))}
             >
                 {salaryLabel ?? "Salary"}
-                <CaretDown size={11} weight="bold" />
+                <CaretDown size={16} weight="bold" />
             </Chip>
         </div>
     );

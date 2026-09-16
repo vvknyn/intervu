@@ -10,14 +10,22 @@
  */
 import { getBoardDomains } from "@/lib/boards/allowlists";
 import {
+  applyCompanyDomainPin,
   COMPANY_INTENT_SAMPLE,
+  dominantCompanyDomains,
   isCompanyNameQuery,
   normalizeCompanyName,
   type CompanyNameSample,
 } from "./company-intent";
+import {
+  buildCompanyScopedSearchLanes,
+  shouldRunCompanyScopedLanes,
+} from "./company-scoped-lanes";
 import { isTechSkillQuery } from "./tech-skills";
 import { decodeText, displayCompanyBrand, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
+import { parseQuotedOrPhrases, resolveFitPhrases, shouldRunFitPhraseLane } from "./fit-phrases";
 import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
+import { normalizePublicJobs } from "./normalize-public-job";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
@@ -48,6 +56,9 @@ const JOBS_SYNONYM_SOURCE: Array<{ term: string; expansions: string[]; oneWay?: 
   { term: "qa", expansions: ["quality assurance"] },
   { term: "hr", expansions: ["human resources"] },
   { term: "devops", expansions: ["dev ops"] },
+  { term: "sde", expansions: ["software engineer", "software developer"] },
+  { term: "software developer", expansions: ["software engineer"] },
+  { term: "full stack", expansions: ["software engineer"], oneWay: true },
 ];
 
 /** Expands a `JOBS_SYNONYM_SOURCE`-shaped table into Meilisearch's directional synonym map. */
@@ -130,7 +141,7 @@ export const JOBS_INDEX_SETTINGS = {
     // Owned by the subspace-side sync worker, not intervu — populated by its
     // own classifier and applied live as Meili task 467532, 2026-08-18.
     // intervu never filters on it. Listed here anyway so this canon stays a
-    // faithful mirror of the live index: applyIndexSettings's PATCH replaces
+    // faithful mirror of the live index: a settings PATCH replaces
     // filterableAttributes wholesale, so omitting a live-only entry here
     // would silently DROP it on the next apply. Do not remove without
     // confirming the box no longer needs it.
@@ -281,9 +292,9 @@ export const JOBS_INDEX_SETTINGS = {
   // Live GET against the jobs index that night showed this exact 15-word
   // list already set (source unknown — not this repo's apply-* scripts, none
   // of which touch stopWords); this repo's JOBS_INDEX_SETTINGS was silently
-  // missing it, so the next `applyIndexSettings` PATCH (which REPLACES
-  // stopWords wholesale, same hazard as filterableAttributes above) would
-  // have wiped it. Live on the index since ~2026-08-27.
+  // missing it, so the next settings PATCH (which REPLACES stopWords
+  // wholesale, same hazard as filterableAttributes above) would have wiped
+  // it. Live on the index since ~2026-08-27.
   stopWords: ["a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"],
   // Made explicit 2026-08-23; previously left unset (silently riding Meili's
   // factory default, which these numbers equal exactly — GET-verified live
@@ -326,10 +337,6 @@ export function hasMeilisearch(): boolean {
 
 export function searchKey(): string {
   return process.env.MEILISEARCH_SEARCH_KEY || process.env.MEILISEARCH_API_KEY || "";
-}
-
-function adminKey(): string {
-  return process.env.MEILISEARCH_ADMIN_KEY || process.env.MEILISEARCH_API_KEY || "";
 }
 
 /** Per-attempt timeout for a read-path Meilisearch call. Single knob — retune
@@ -458,6 +465,8 @@ export interface BuildSearchBodyOpts extends BuildFilterOpts {
   companyScoped?: boolean;
   /** Title-only recall lane for seniority+role pair searches. */
   titleScoped?: boolean;
+  /** Expand pass: whole-document retrieval, still `matchingStrategy: "all"`. */
+  wholeDocument?: boolean;
 }
 
 /** TRANSITIONAL: live index may lack `company_domain` in filterableAttributes. */
@@ -468,7 +477,7 @@ export function resetCompanyDomainFilterSupportForTests(): void {
 }
 
 function needsDomainFilters(p: JobSearchParams): boolean {
-  return Boolean(p.board || p.companyDomain);
+  return Boolean(p.board || p.companyDomain || (p.companyDomains?.length ?? 0) > 0);
 }
 
 /** Domain label with TLD stripped — weak retrieval bias for company browse. */
@@ -490,13 +499,16 @@ export function postFilterSearchQ(p: JobSearchParams): string {
 /** Board / companyDomain predicates — mirrors snapshot-preview passBase. */
 export function jobMatchesDomainFilters(
   j: PublicJob,
-  p: Pick<JobSearchParams, "board" | "companyDomain">,
+  p: Pick<JobSearchParams, "board" | "companyDomain" | "companyDomains">,
 ): boolean {
   if (p.board) {
     const domains = getBoardDomains(p.board);
     if (domains.length > 0 && !domains.includes((j.company_domain ?? "").toLowerCase())) return false;
   }
-  if (p.companyDomain) {
+  if (p.companyDomains?.length) {
+    const allowed = new Set(p.companyDomains.map((d) => d.trim().toLowerCase()));
+    if (!allowed.has((j.company_domain ?? "").toLowerCase())) return false;
+  } else if (p.companyDomain) {
     if ((j.company_domain ?? "").toLowerCase() !== p.companyDomain.trim().toLowerCase()) return false;
   }
   return true;
@@ -504,18 +516,35 @@ export function jobMatchesDomainFilters(
 
 export function filterHitsByDomainFilters(
   hits: PublicJob[],
-  p: Pick<JobSearchParams, "board" | "companyDomain">,
+  p: Pick<JobSearchParams, "board" | "companyDomain" | "companyDomains">,
 ): PublicJob[] {
   if (!needsDomainFilters(p)) return hits;
   return hits.filter((j) => jobMatchesDomainFilters(j, p));
 }
 
+/**
+ * A remote job carrying no geographic restriction — ruling + data fact are
+ * on `PlaceClause.remoteAnywhere` (jobs/types.ts), the one field that gates
+ * whether `renderPlaceClause` below ORs this in. Exported so the sizing
+ * probe (PR #479 body) and any future caller building the equivalent
+ * top-level predicate quote the same literal, never a hand-copied second
+ * one.
+ */
+export const REMOTE_ANYWHERE_CLAUSE = 'work_type = "remote" AND location_country IS NULL';
+
 /** Pure: one `PlaceClause` -> its Meilisearch boolean sub-expression — the
  *  `any` OR-group alone, or ANDed against `scopedToCountry` when present
  *  (see `PlaceClause`'s doc, jobs/types.ts, for why only a city/metro
- *  mention ever carries that second group). */
+ *  mention ever carries that second group). When `remoteAnywhere` is set
+ *  (country resolutions only), `REMOTE_ANYWHERE_CLAUSE` is OR'd into the
+ *  `any` group itself — never a separate AND'd part — so a place-bound work
+ *  type ("onsite canada") or a global `work_type` facet still excludes it by
+ *  construction: both render as a top-level AND against a clause that can
+ *  only ever be satisfied by a `work_type = "remote"` doc. No explicit
+ *  work-type guard needed here. */
 export function renderPlaceClause(clause: PlaceClause): string {
-  const parts = ["(" + clause.any.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")"];
+  const anyExpr = clause.any.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ");
+  const parts = [clause.remoteAnywhere ? `(${anyExpr} OR (${REMOTE_ANYWHERE_CLAUSE}))` : `(${anyExpr})`];
   if (clause.scopedToCountry?.length) {
     parts.push("(" + clause.scopedToCountry.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")");
   }
@@ -555,8 +584,14 @@ export function withLiveVacancyFilter(extra?: string): string {
   return extra ? `${LIVE_VACANCY_FILTER} AND ${extra}` : LIVE_VACANCY_FILTER;
 }
 
-function canonicalFacetValues(rawVals: string[]): string[] {
-  const vals = rawVals.filter((v) => v !== "any" && v !== "all");
+/** Widen sentinels — mean "no filter on this facet", not a corpus place name. */
+export function isNeutralLocationFacetValue(v: string): boolean {
+  const t = v.trim().toLowerCase();
+  return t === "any" || t === "all";
+}
+
+export function canonicalFacetValues(rawVals: string[]): string[] {
+  const vals = rawVals.filter((v) => !isNeutralLocationFacetValue(v));
   return [...new Set(vals)].sort();
 }
 
@@ -631,27 +666,43 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
         f.push(`company_domain IN [${domains.map((d) => JSON.stringify(d)).join(", ")}]`);
       }
     }
-    if (p.companyDomain) {
+    if (p.companyDomains?.length) {
+      const domains = [...new Set(p.companyDomains.map((d) => d.trim().toLowerCase()).filter(Boolean))];
+      if (domains.length > 0) {
+        f.push(`company_domain IN [${domains.map((d) => JSON.stringify(d)).join(", ")}]`);
+      }
+    } else if (p.companyDomain) {
       f.push(`company_domain = ${JSON.stringify(p.companyDomain.trim().toLowerCase())}`);
     }
   }
   return f;
 }
 
-/** One page of hits, per the jobs SERP (`PAGE` in `app/jobs/page.tsx`,
- *  currently 20) — kept as an independent constant here rather than
- *  importing that file, which is out of scope for the change that added
- *  this. `shouldRelaxSearch` treats fewer than this many strict/scoped hits
- *  as thin enough to justify one whole-document fallback pass. */
-export const RELAX_MIN_HITS = 20;
-
-/** Pure relax policy: fall back to whole-document, word-dropping search when
- *  a real query's strict/scoped pass came back THIN — fewer than
- *  `RELAX_MIN_HITS` hits, zero included as the extreme case. A query with a
- *  full page of genuine matches shows those, never padded with word-dropped
- *  noise from a second pass. */
+/** Pure relax policy: widen retrieval only on a true query miss — non-empty
+ *  `q` AND zero strict/scoped hits. Filter-thin pages (e.g. 2 hits) must NOT
+ *  expand. */
 export function shouldRelaxSearch(strictTotal: number, q: string): boolean {
-  return Boolean(q.trim()) && strictTotal < RELAX_MIN_HITS;
+  return Boolean(q.trim()) && strictTotal === 0;
+}
+
+/** Union strict hits first, then expand-pass extras; `widened` only when extras
+ *  were added. */
+export function mergeExpandedIntoStrict(
+  strict: JobSearchResult,
+  expanded: JobSearchResult,
+): JobSearchResult {
+  const seen = new Set(strict.hits.map((h) => h.id));
+  const extras = expanded.hits.filter((h) => !seen.has(h.id));
+  if (extras.length === 0) return strict;
+  return {
+    ...strict,
+    hits: [...strict.hits, ...extras],
+    total: Math.max(strict.total, expanded.total),
+    backend: strict.backend,
+    configured: strict.configured,
+    facetDistribution: strict.facetDistribution ?? expanded.facetDistribution,
+    widened: true,
+  };
 }
 
 /** Explicit shape so call sites and tests can touch optional fields under tsc. */
@@ -740,8 +791,9 @@ export interface MeiliSearchBody {
  * ship as dead code that silently never fixes the bug it exists for.
  * Sourcing from the settings object the sync worker already applies to the
  * live index keeps one canonical number: retune typo tolerance by editing
- * `JOBS_INDEX_SETTINGS.typoTolerance` and both the live index (next
- * `applyIndexSettings`) and query-building below follow automatically.
+ * `JOBS_INDEX_SETTINGS.typoTolerance` and both the live index (via the
+ * pipeline repo's settings apply) and query-building below follow
+ * automatically.
  *
  * Returns `null` — never a guessed number — if the field is ever missing or
  * malformed, so `quoteShortTokens` can fail safe to unquoted queries instead
@@ -781,73 +833,93 @@ export function quoteShortTokens(q: string): string {
   return tokens.map((tok) => (tok.startsWith('"') || tok.length >= threshold ? tok : `"${tok}"`)).join(" ");
 }
 
+/**
+ * Title-like fields for `titleFirstScoped` below (a bare role query — e.g.
+ * "product manager", "registered nurse" — with no other lane claiming it).
+ * The subset of the LIVE `JOBS_INDEX_SETTINGS.searchableAttributes` (verified
+ * against the Meili box, 2026-09-09) that carries a role/occupation signal
+ * rather than a skill or a free-text mention:
+ *  - `description` excluded on purpose — that's the whole defect this scope
+ *    exists to close (a description mention of "product information" is why
+ *    "product manager" surfaced "Assistant Store Manager" on Freshest).
+ *  - `location` excluded — not role-bearing.
+ *  - `must_have_skills`/`tech_stack` excluded — skill fields, not occupation.
+ *  - `occupation` itself excluded despite the name — it's
+ *    `filterableAttributes`-only on the live index, NOT in
+ *    `searchableAttributes`, so scoping to it would 400.
+ * What's left: `title`, `company`, `tags`.
+ */
+const TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON = ["title", "company", "tags"] as const;
+
+/**
+ * A "bare role query" — free text with no other lane claiming it (not
+ * company-named, not a tech-skill token, not a seniority+role pair the
+ * role-title lane already owns). This is the exact predicate under which
+ * `buildSearchBody` (below) scopes retrieval to `TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON`
+ * — pulled out as its own export so `searchMeili`'s tiered-retrieval branch
+ * can ask the SAME question ("does this query get the title-first scope?")
+ * before it has a `MeiliSearchBody` to inspect, rather than re-deriving a
+ * second copy of this condition that could drift from `buildSearchBody`'s.
+ */
+export function isBareRoleQuery(q: string, companyScoped: boolean): boolean {
+  if (companyScoped) return false;
+  if (isTechSkillQuery(q)) return false;
+  if (parseQuotedOrPhrases(q) != null) return false;
+  return Boolean(q.trim()) && !shouldRunRoleTitleLane(q, companyScoped);
+}
+
+/**
+ * Sole source of truth for `attributesToSearchOn` given a resolved scope
+ * classification (`companyScoped`/`titleScoped`, both already decided by the
+ * caller — this function never derives them itself). `buildSearchBody` below
+ * and `buildLastUpdatedQuery` (the freshness-stamp builder, further down this
+ * file) both call THIS function with the SAME inputs, so the results query
+ * and the "updated X ago" stamp query cannot independently decide this field
+ * and drift apart — the exact defect a reviewer found in intervu #484 (the
+ * stamp builder had no attribute-scope logic at all, so any non-empty text
+ * query could match on `description` alone while the real results were
+ * scoped to title/company).
+ *
+ * Priority, matching what `searchMeili` already does: an explicit
+ * `companyScoped`/`titleScoped` override wins first (`company-scoped-lanes.ts`
+ * and `role-title-lane.ts`'s own sub-queries pass these); otherwise a
+ * standalone tech/programming-language token (e.g. "Rust", "Swift") scopes to
+ * title/tags/description to avoid non-tech false positives ("Rust Medical
+ * Center"); otherwise every other non-empty bare-role query scopes to
+ * `TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON` so a description mention can't
+ * surface an unrelated title; otherwise (empty query, or `wholeDocument`'s
+ * expand pass) no restriction — whole-document.
+ */
+export function resolveAttributesToSearchOn(
+  p: JobSearchParams,
+  opts?: Pick<BuildSearchBodyOpts, "companyScoped" | "titleScoped" | "wholeDocument">,
+): string[] | undefined {
+  if (opts?.companyScoped) return ["company"];
+  if (opts?.titleScoped) return ["title"];
+  if (!opts?.wholeDocument && isTechSkillQuery(p.q ?? "")) return ["title", "tags", "description"];
+  if (!opts?.wholeDocument && isBareRoleQuery(p.q ?? "", !!opts?.companyScoped)) {
+    return [...TITLE_FIRST_ATTRIBUTES_TO_SEARCH_ON];
+  }
+  return undefined;
+}
+
 export function buildSearchBody(
   p: JobSearchParams,
   legacy: boolean,
   matchingStrategy: MatchingStrategy = "all",
   opts?: BuildSearchBodyOpts,
 ): MeiliSearchBody {
-  // `matchingStrategy === "last"` is this file's existing marker for "this is
-  // the relaxed pass" (see `searchMeili`'s `runPass`/`shouldRelaxSearch`) —
-  // fired after a strict/scoped pass came back thin (see `RELAX_MIN_HITS`;
-  // zero is just the extreme of thin). Reusing it here means the relax pass
-  // drops tech-skill AND title-first attribute scoping back to
-  // whole-document search by construction (`matchingStrategy === "last"`).
-  const techSkillScoped =
-    !opts?.companyScoped && matchingStrategy !== "last" && isTechSkillQuery(p.q ?? "");
-  // Default retrieval scope for everything the classifiers above don't
-  // already claim more specifically. Benchmarked live 2026-08-27 (12
-  // queries, k=10): scoping a real query to title/company/tags — instead of
-  // the whole document — lifted strictTitleHit on "director of brand and
-  // product" 0.10 -> 0.50 with no regressions on the other 11. A query with
-  // no genuine title/company/tag match now comes back thin or zero under
-  // this scope; `shouldRelaxSearch`/`RELAX_MIN_HITS` below catch that and
-  // re-run unscoped. Gated on `matchingStrategy !== "last"` for the same
-  // reason `techSkillScoped` is — the relax pass must be truly
-  // whole-document, not re-narrowed. Gated on non-empty `q` so a plain
-  // browse (no query text to scope) is unaffected — Meilisearch has nothing
-  // to match attributes against anyway.
-  const titleFirstScoped =
-    !opts?.companyScoped &&
-    !opts?.titleScoped &&
-    !techSkillScoped &&
-    matchingStrategy !== "last" &&
-    Boolean((p.q ?? "").trim());
+  const attributesToSearchOn = resolveAttributesToSearchOn(p, opts);
   return {
     // `quoteShortTokens` only rewrites the text handed to Meilisearch — every
-    // classifier below (`techSkillScoped`, `buildFilter`, …) still reads the
-    // raw `p.q`/`p` so quoting can never change what the query is CLASSIFIED
-    // as, only how its short tokens are matched.
+    // classifier above (`resolveAttributesToSearchOn`, `buildFilter`, …)
+    // still reads the raw `p.q`/`p` so quoting can never change what the
+    // query is CLASSIFIED as, only how its short tokens are matched.
     q: quoteShortTokens(p.q ?? ""),
-    // Whole-document retrieval is the fallback (relax pass, or an empty
-    // browse query) — explicit sorts only change ORDER BY (`buildMeiliSort`),
-    // not which attributes may match. Scoped exceptions below, each narrower
-    // than the last and therefore always winning when more than one applies:
-    //  - `companyScoped`: the query text names an employer — see the
-    //    "FOREMAN - SEAL & STRIPE" note in company-intent.ts. Restricts to
-    //    `company` alone.
-    //  - `titleScoped`: the role-title lane's own pair queries (see
-    //    `fetchRoleTitleLaneHits`) — restricted to `title` alone.
-    //  - `techSkillScoped`: standalone tech/programming language tokens
-    //    (e.g. "Rust", "Swift", "Python") scope to title/tags/description
-    //    to prevent non-tech company false positives (e.g. "Rust Medical Center").
-    //  - `titleFirstScoped`: the default above — everything else.
-    ...(opts?.companyScoped
-      ? { attributesToSearchOn: ["company"] }
-      : opts?.titleScoped
-        ? { attributesToSearchOn: ["title"] }
-        : techSkillScoped
-          ? { attributesToSearchOn: ["title", "tags", "description"] }
-          : titleFirstScoped
-            ? { attributesToSearchOn: ["title", "company", "tags"] }
-            : {}),
-    // Meilisearch's DEFAULT is "last", which drops query words from the end
-    // until something matches. For a three-word role that means a search for
-    // "Technical Account Manager" is allowed to answer with documents that
-    // only matched "Technical" — observed live: Maintenance Technician and
-    // Laboratory Technician rows filling a Technical-Account-Manager search.
-    // Requiring every word is the honest default; `searchMeili` relaxes to
-    // "last" only after strict matching has genuinely found nothing.
+    ...(attributesToSearchOn ? { attributesToSearchOn } : {}),
+    // Requiring every word is the honest default; `searchMeili` runs one
+    // whole-document expand pass (`wholeDocument`) only after a strict/scoped
+    // pass returns zero — never word-dropping (`matchingStrategy: "last"`).
     matchingStrategy,
     filter: buildFilter(p, legacy, opts),
     facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
@@ -862,6 +934,37 @@ export function buildSearchBody(
   };
 }
 
+/**
+ * One limit-0 Meilisearch count pass — `buildSearchBody`'s body for `p`,
+ * pinned to `limit: 0, offset: 0`, POSTed through the shared `meiliFetch`
+ * chokepoint. Shared by `searchMeili`'s tiered-retrieval branch (the
+ * parallel tier-1 strict count that supplies `tier1Total`) and by
+ * `/api/jobs/count` (the recall canary's `titled`/`wholeDoc` fields), so
+ * "how many strict-scope/whole-document matches does this query have" is
+ * computed identically wherever either number is needed — never re-derived
+ * from a different call's result. Exported (not a `searchMeili`-local
+ * closure) because the count route is a separate caller with no `intent`/
+ * `companyScoped` resolution of its own to piggyback on.
+ */
+export async function runCountPass(
+  h: string,
+  p: JobSearchParams,
+  opts: BuildSearchBodyOpts,
+): Promise<number> {
+  const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+    cache: "no-store",
+    body: JSON.stringify(buildSearchBody({ ...p, limit: 0, offset: 0 }, false, "all", opts)),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Meilisearch count pass failed: ${res.status} ${text.slice(0, 300)}`);
+  }
+  const body = (await res.json()) as { estimatedTotalHits?: number; totalHits?: number; hits?: unknown[] };
+  return body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0;
+}
+
 const POST_FILTER_PAGE_SIZE = 500;
 const POST_FILTER_SCAN_CAP = 10_000;
 const DOMAIN_POSTFILTER_NOTE =
@@ -871,7 +974,7 @@ const DOMAIN_POSTFILTER_NOTE =
 async function searchWithDomainPostFilter(
   h: string,
   p: JobSearchParams,
-  matchingStrategy: MatchingStrategy,
+  wholeDocument = false,
 ): Promise<JobSearchResult> {
   const offset = p.offset ?? 0;
   const limit = p.limit ?? 40;
@@ -884,7 +987,7 @@ async function searchWithDomainPostFilter(
   const scanParams = { ...p, q: postFilterSearchQ(p) };
 
   for (let page = 1; ; page++) {
-    const built = buildSearchBody(scanParams, legacy, matchingStrategy, { skipDomainFilters: true });
+    const built = buildSearchBody(scanParams, legacy, "all", { skipDomainFilters: true, ...(wholeDocument ? { wholeDocument: true } : {}) });
     const { limit: _limit, offset: _offset, ...rest } = built;
     const body = {
       ...rest,
@@ -915,7 +1018,7 @@ async function searchWithDomainPostFilter(
       hits: PublicJob[];
       facetDistribution?: Record<string, Record<string, number>>;
     };
-    const hits = parsed.hits ?? [];
+    const hits = normalizePublicJobs(parsed.hits ?? []);
     scanned += hits.length;
     matched.push(...filterHitsByDomainFilters(hits, p));
     if (parsed.facetDistribution) facetDistribution = parsed.facetDistribution as FacetDistribution;
@@ -944,23 +1047,11 @@ async function searchWithDomainPostFilter(
 
 /** Read-path: search the jobs index.
  *
- *  One pass, strict (`matchingStrategy: "all"`, every query word must match).
- *  A real query is scoped to title/company/tags by default (`buildSearchBody`'s
- *  `titleFirstScoped`, added 2026-08-27) rather than the whole document — the
- *  earlier whole-document default let place words act like title words:
- *  "product manager canada" found only the 24 roles literally TITLED that
- *  under the OLD title/company precision pass, while 23,813 postings matched
- *  all three words somewhere unscoped (measured live 2026-07-26); title-first
- *  scoping keeps that precision without dragging place words into the title
- *  match. `companyScoped`/`titleScoped`/`techSkillScoped` narrow further for
- *  their own query shapes.
- *
- *  One pass, not two, is also the latency posture the 2026-07-24 incident
- *  bought: no sequential second request to blow the settle guard under load.
- *  Only a THIN or zero result (`shouldRelaxSearch`/`RELAX_MIN_HITS` — fewer
- *  than one SERP page of hits) relaxes to a second, whole-document,
- *  word-dropping ("last") pass — flagged `widened` so the UI can disclose
- *  partial matches. */
+ *  One strict pass (`matchingStrategy: "all"`). Company/title/tech-skill queries
+ *  may scope `attributesToSearchOn`; default SERP retrieval is whole-document.
+ *  Only a true query miss (`shouldRelaxSearch`: non-empty `q`, zero hits)
+ *  triggers one expand pass — still `matchingStrategy: "all"`, unscoped — merged
+ *  onto strict hits and flagged `widened` when extras land. */
 /**
  * Sort-integrity chokepoint for `searchMeili`. `searchCutoffMs`
  * (`JOBS_INDEX_SETTINGS`) can interrupt a slow search under embed-batch/
@@ -997,6 +1088,95 @@ async function applySortIntegrityGuard(
   return { ...retry, hits: [...retry.hits].sort((a, b) => compareJobsBySort(a, b, mode)) };
 }
 
+/**
+ * Tiered retrieval for a bare role query (`isBareRoleQuery`): ONE federated
+ * `/multi-search` blending tier 1 (strict title/company/tags scope, weight
+ * 100 — byte-identical to `buildSearchBody(params, false, "all", {})`, the
+ * pre-existing strict pass) ahead of tier 2 (whole-document, weight 1) into
+ * a single deduplicated pool. Meilisearch's federation dedupes hits by
+ * document id and unions the totals into `estimatedTotalHits` — verified
+ * live (leg 7 A2-A5): the union total, strict-scope hits ranked first under
+ * every sort (posted_ts included), continuing into whole-document-only
+ * hits once the strict pool is exhausted. `total` here IS the whole-document
+ * pool size — no separate "expand on zero hits" fallback, no merge step.
+ *
+ * `federation.limit`/`offset`/`facetsByIndex` carry what a per-query
+ * `facets`/`limit`/`offset` would under a plain search — federation rejects
+ * those per-query (400 `invalid_multi_search_query_facets`), so they're
+ * stripped from each query body and moved to the federation envelope.
+ * Facets requested only when the caller asked for them (`p.withFacets`),
+ * using the same `REQUESTED_FACET_KEYS` the SERP has always requested.
+ *
+ * `tier1Total` — the strict-only count — comes from a parallel limit-0
+ * `runCountPass` (shared with `/api/jobs/count`'s `titled` field) rather
+ * than from the federated response: federation doesn't report a per-query
+ * sub-total, only the union. This is what lets the client use a
+ * server-supplied seam index instead of re-deriving it from loaded hits
+ * (`firstMentionIndex`/`partitionByTitleMatch`), which reshuffles under an
+ * explicit sort (leg 6 §2).
+ *
+ * No 400/posted_ts legacy retry here (unlike `runPass` below) and no
+ * fallback to the old scoped-pass mechanism on failure — a federation error
+ * surfaces like any other Meilisearch error.
+ */
+async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
+  const strictBody = buildSearchBody(p, false, "all", {});
+  const wholeBody = buildSearchBody(p, false, "all", { wholeDocument: true });
+  const { limit: _sLimit, offset: _sOffset, facets: _sFacets, ...strictQuery } = strictBody;
+  const { limit: _wLimit, offset: _wOffset, facets: _wFacets, ...wholeQuery } = wholeBody;
+
+  const federatedBody = {
+    federation: {
+      limit: p.limit ?? 40,
+      offset: p.offset ?? 0,
+      ...(p.withFacets ? { facetsByIndex: { [JOBS_INDEX]: [...REQUESTED_FACET_KEYS] } } : {}),
+    },
+    queries: [
+      { ...strictQuery, indexUid: JOBS_INDEX, federationOptions: { weight: 100 } },
+      { ...wholeQuery, indexUid: JOBS_INDEX, federationOptions: { weight: 1 } },
+    ],
+  };
+
+  const [fedRes, tier1Total] = await Promise.all([
+    meiliFetch(`${h}/multi-search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(federatedBody),
+    }),
+    runCountPass(h, p, {}),
+  ]);
+
+  if (!fedRes.ok) {
+    const text = await fedRes.text().catch(() => "");
+    throw new Error(`Meilisearch federated search failed: ${fedRes.status} ${text.slice(0, 300)}`);
+  }
+  const body = (await fedRes.json()) as {
+    hits?: (PublicJob & { _federation?: { queriesPosition?: number } })[];
+    estimatedTotalHits?: number;
+    facetsByIndex?: Record<string, { distribution?: Record<string, Record<string, number>> }>;
+  };
+  // Per-hit provenance, not a carried count: `queriesPosition` reflects each
+  // hit's OWN place in the federated `queries` array (0 = strict, 1 = whole
+  // document) regardless of where a client-side filter later moves it in the
+  // rendered list — see `PublicJob.tier` (types.ts) for why this beats
+  // indexing into `hits` by `tier1Total`.
+  const hits = normalizePublicJobs(
+    (body.hits ?? []).map(({ _federation, ...hit }) => ({
+      ...hit,
+      tier: (_federation?.queriesPosition === 0 ? 1 : 2) as 1 | 2,
+    })),
+  );
+  return {
+    hits,
+    total: body.estimatedTotalHits ?? body.hits?.length ?? 0,
+    backend: "meilisearch",
+    configured: true,
+    facetDistribution: body.facetsByIndex?.[JOBS_INDEX]?.distribution as FacetDistribution | undefined,
+    tier1Total,
+  };
+}
+
 export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> {
   const h = host();
   if (!h) {
@@ -1009,98 +1189,111 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     };
   }
 
-  const companyScoped = await resolveCompanyIntent(p.id ? undefined : p.q);
+  const intent = await resolveCompanyIntentResult(p.id ? undefined : p.q);
 
-  const runSearch = async (): Promise<JobSearchResult> => {
-    const needsDomain = needsDomainFilters(p);
+  // Inferred company narrowing (attributesToSearchOn:["company"] + the
+  // company_domain pin below) can zero out a query that plainly has hits —
+  // e.g. an employer whose postings don't lead with the bare company name in
+  // the title/description. `runWithIntent` re-runs the whole pass with a
+  // no-op intent when that happens, so the fallback covers every path below
+  // (lanes' early return included), not just the plain-search tail. An
+  // EXPLICIT `companyDomain`/`board` param never reaches here scoped — only
+  // an inferred `intent.companyScoped` triggers the retry.
+  const runWithIntent = async (intent: CompanyIntentResult): Promise<JobSearchResult> => {
+    const companyScoped = intent.companyScoped;
+    const searchParams = applyCompanyDomainPin(p, intent);
 
-    const runDomainPostFilter = (matchingStrategy: MatchingStrategy = "all") =>
-      searchWithDomainPostFilter(h, p, matchingStrategy);
+    const runSearch = async (params: JobSearchParams = searchParams): Promise<JobSearchResult> => {
+      const needsDomain = needsDomainFilters(params);
 
-    if (companyDomainFilterUnsupported && needsDomain) {
-      const strict = await runDomainPostFilter();
-      if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
-      const relaxed = await runDomainPostFilter("last");
-      return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
-    }
+      const runDomainPostFilter = (wholeDocument = false) =>
+        searchWithDomainPostFilter(h, params, wholeDocument);
 
-    // One extra round trip, memoized per query across requests
-    // (`resolveCompanyIntent`), and only for free-text queries: an id probe,
-    // a plain browse or a board/domain browse never asks. The domain
-    // post-filter path above is deliberately excluded — those are
-    // `board`/`companyDomain` browses that are ALREADY constrained to one
-    // employer, so company-scoping the query text would add nothing.
-    const runPass = async (
-      matchingStrategy: MatchingStrategy = "all",
-    ): Promise<JobSearchResult> => {
-      const post = (legacy: boolean) =>
-        meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
-          method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
-          cache: "no-store",
-          body: JSON.stringify(buildSearchBody(p, legacy, matchingStrategy, { companyScoped })),
-        });
+      if (companyDomainFilterUnsupported && needsDomain) {
+        const strict = await runDomainPostFilter();
+        if (!shouldRelaxSearch(strict.total, params.q ?? "")) return strict;
+        const expanded = await runDomainPostFilter(true);
+        return mergeExpandedIntoStrict(strict, expanded);
+      }
 
-      let res = await post(false);
-      if (!res.ok && res.status === 400) {
-        const text = await res.text().catch(() => "");
-        // TRANSITIONAL: posted_ts isn't sortable/filterable on the live index yet
-        // (the settings PATCH + reindex run on the sync box, separately from this
-        // deploy). Retry once without it instead of 400ing every search. Safe to
-        // delete this branch once that reindex has landed.
-        if (/posted_ts/i.test(text)) {
-          console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
-          res = await post(true);
-        } else if (/company_domain/i.test(text) && needsDomain) {
-          companyDomainFilterUnsupported = true;
-          console.warn("company_domain not yet filterable — falling back to local post-filter");
-          return runDomainPostFilter(matchingStrategy);
-        } else {
+      // Bare role query ("software engineer", "registered nurse", …, no
+      // other lane claiming it): tiered federated retrieval replaces the
+      // old "strict pass, expand only on zero hits" mechanism below for
+      // THIS query class only — company-name/tech-skill/browse queries
+      // still fall through to `runPass`. See `runTieredRetrieval`'s doc.
+      if (isBareRoleQuery(params.q ?? "", companyScoped)) {
+        return runTieredRetrieval(h, params);
+      }
+
+      // One extra round trip, memoized per query across requests
+      // (`resolveCompanyIntentResult`), and only for free-text queries: an id probe,
+      // a plain browse or a board/domain browse never asks. The domain
+      // post-filter path above is deliberately excluded — those are
+      // `board`/`companyDomain` browses that are ALREADY constrained to one
+      // employer, so company-scoping the query text would add nothing.
+      const runPass = async (wholeDocument = false): Promise<JobSearchResult> => {
+        const post = (legacy: boolean) =>
+          meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+            method: "POST",
+            headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+            cache: "no-store",
+            body: JSON.stringify(
+              buildSearchBody(params, legacy, "all", { companyScoped, ...(wholeDocument ? { wholeDocument: true } : {}) }),
+            ),
+          });
+
+        let res = await post(false);
+        if (!res.ok && res.status === 400) {
+          const text = await res.text().catch(() => "");
+          // TRANSITIONAL: posted_ts isn't sortable/filterable on the live index ye
+          // (the settings PATCH + reindex run on the sync box, separately from this
+          // deploy). Retry once without it instead of 400ing every search. Safe to
+          // delete this branch once that reindex has landed.
+          if (/posted_ts/i.test(text)) {
+            console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
+            res = await post(true);
+          } else if (/company_domain/i.test(text) && needsDomain) {
+            companyDomainFilterUnsupported = true;
+            console.warn("company_domain not yet filterable — falling back to local post-filter");
+            return runDomainPostFilter(wholeDocument);
+          } else {
+            throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
+          }
+        }
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
           throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
         }
-      }
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
-      }
-      const body = (await res.json()) as {
-        hits: PublicJob[];
-        estimatedTotalHits?: number;
-        totalHits?: number;
-        facetDistribution?: Record<string, Record<string, number>>;
+        const body = (await res.json()) as {
+          hits: PublicJob[];
+          estimatedTotalHits?: number;
+          totalHits?: number;
+          facetDistribution?: Record<string, Record<string, number>>;
+        };
+        return {
+          hits: normalizePublicJobs(body.hits ?? []),
+          total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
+          backend: "meilisearch",
+          configured: true,
+          facetDistribution: body.facetDistribution as FacetDistribution | undefined,
+        };
       };
-      return {
-        hits: body.hits ?? [],
-        total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
-        backend: "meilisearch",
-        configured: true,
-        facetDistribution: body.facetDistribution as FacetDistribution | undefined,
-      };
+
+      const strict = await runPass();
+      if (!shouldRelaxSearch(strict.total, params.q ?? "")) return strict;
+
+      // Strict/scoped pass returned zero — one whole-document expand pass
+      // (`matchingStrategy: "all"`, no attribute scoping) merged onto stric
+      // hits rather than replacing them. Flagged `widened` only when extras land.
+      const expanded = await runPass(true);
+      return mergeExpandedIntoStrict(strict, expanded);
     };
 
-    const strict = await runPass();
-    if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
+    const isRelevance = resolveEffectiveSort(p) === "relevance";
+    let result: JobSearchResult;
 
-    // The strict/scoped pass came back thin or empty (`shouldRelaxSearch`,
-    // `RELAX_MIN_HITS`) — drop both the title-first scope AND matching
-    // strictness back to whole-document, word-dropping search
-    // (`matchingStrategy: "last"` clears `titleFirstScoped`/`techSkillScoped`
-    // in `buildSearchBody` by construction), so a query with genuinely few or
-    // no title/company/tag matches still returns its best whole-document
-    // matches instead of a near-empty page. This REPLACES the strict result
-    // outright rather than appending to it — a thin-but-nonzero strict page
-    // is not merged with the relaxed one. Flagged `widened` because that's
-    // exactly the partial-match disclosure the UI needs when this fires.
-    const relaxed = await runPass("last");
-    return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
-  };
-
-  const isRelevance = resolveEffectiveSort(p) === "relevance";
-  let result: JobSearchResult;
-
-  if (isRelevance) {
-    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
-      const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, p, companyScoped);
+    if (shouldRunCompanyScopedLanes(companyScoped, searchParams)) {
+      const { hits: laneHits, facetDistribution } = await fetchCompanyScopedLaneHits(h, searchParams, companyScoped);
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
       for (const hit of laneHits) {
@@ -1108,34 +1301,216 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         seen.add(hit.id);
         unique.push(hit);
       }
-      const floored = unique.filter((hit) =>
-        titleSatisfiesRoleQuery(decodeText(hit.title), p.q ?? ""),
-      );
-      const ranked = applyRelevanceQualityReranking(floored, p.q ?? "");
+      const ranked = isRelevance ? applyRelevanceQualityReranking(unique, p.q ?? "") : unique;
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
-      result = {
+      // Lane-priority order IS the ranking for every sort — skip applySortIntegrityGuard
+      // (same as relevance role-title lane; guard would flatten newest/salary lanes).
+      return {
         hits: pageRoleTitleHits(ranked, offset, limit),
         total: ranked.length,
         backend: "meilisearch",
         configured: true,
         facetDistribution,
       };
-    } else {
-      result = await runSearch();
-      if (result.hits.length > 0) {
-        result.hits = applyRelevanceQualityReranking(result.hits, p.q);
-      }
     }
-  } else {
-    result = await runSearch();
-  }
 
-  return applySortIntegrityGuard(result, p, runSearch);
+    if (shouldRunFitPhraseLane(searchParams)) {
+      const fitPhrases = resolveFitPhrases(searchParams)!;
+      const { hits: laneHits, facetDistribution } = await fetchFitPhraseLaneHits(h, searchParams, companyScoped);
+      const seen = new Set<string>();
+      const unique: PublicJob[] = [];
+      for (const hit of laneHits) {
+        if (seen.has(hit.id)) continue;
+        seen.add(hit.id);
+        unique.push(hit);
+      }
+      const rerankQ = fitPhrases[0] ?? p.q ?? "";
+      const ranked = isRelevance
+        ? applyRelevanceQualityReranking(unique, rerankQ)
+        : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
+      const offset = p.offset ?? 0;
+      const limit = p.limit ?? 40;
+      return {
+        hits: pageRoleTitleHits(ranked, offset, limit),
+        total: ranked.length,
+        backend: "meilisearch",
+        configured: true,
+        facetDistribution,
+      };
+    }
+
+    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
+      const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, searchParams, companyScoped);
+      const seen = new Set<string>();
+      const unique: PublicJob[] = [];
+      for (const hit of laneHits) {
+        if (seen.has(hit.id)) continue;
+        seen.add(hit.id);
+        unique.push(hit);
+      }
+      const ranked = isRelevance
+        ? applyRelevanceQualityReranking(unique, p.q ?? "")
+        : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
+      const offset = p.offset ?? 0;
+      const limit = p.limit ?? 40;
+      // `ranked` is already in final order (relevance rerank, or compareJobsBySort
+      // for an explicit sort), so return directly and skip applySortIntegrityGuard —
+      // same as the company-scoped lane above. The guard's retry calls runSearch(),
+      // which has no notion of role-title membership, so letting it fire here would
+      // silently swap the lane's pool back for the whole-corpus one.
+      return {
+        hits: pageRoleTitleHits(ranked, offset, limit),
+        total: ranked.length,
+        backend: "meilisearch",
+        configured: true,
+        facetDistribution,
+      };
+    }
+
+    result = await runSearch();
+    if (isRelevance && result.hits.length > 0) {
+      result.hits = applyRelevanceQualityReranking(result.hits, p.q);
+    }
+
+    return applySortIntegrityGuard(result, p, () => runSearch());
+  };
+
+  const result = await runWithIntent(intent);
+  if (intent.companyScoped && result.total === 0) {
+    const fallback = await runWithIntent({ companyScoped: false, companyDomains: [] });
+    return {
+      ...fallback,
+      companyIntent: { domains: intent.companyDomains, scopedTotal: 0, fallback: true },
+    };
+  }
+  return result;
 }
 
 export function pageRoleTitleHits(ranked: PublicJob[], offset: number, limit: number): PublicJob[] {
   return ranked.slice(offset, offset + limit);
+}
+
+const COMPANY_LANE_HIT_LIMIT = 100;
+
+async function fetchCompanyScopedLaneHits(
+  h: string,
+  p: JobSearchParams,
+  companyScoped: boolean,
+): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> {
+  const lanes = buildCompanyScopedSearchLanes(p);
+  const searchLane = async (
+    laneParams: JobSearchParams,
+    withFacets: boolean,
+    legacy: boolean,
+  ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
+    // Pinned to relevance regardless of the caller's requested sort: this
+    // fetch is capped at COMPANY_LANE_HIT_LIMIT, and a capped fetch's top-N
+    // is only stable when the ORDER BY is fixed — under newest/salary_desc
+    // the same cap would silently admit a different top-N per sort, making
+    // lane membership sort-dependent. The caller (searchMeili) re-orders the
+    // assembled union by the requested sort AFTER retrieval.
+    const body = buildSearchBody(
+      { ...laneParams, withFacets, limit: COMPANY_LANE_HIT_LIMIT, offset: 0, sort: "relevance" },
+      legacy,
+      "all",
+      { companyScoped },
+    );
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok && res.status === 400) {
+      const text = await res.text().catch(() => "");
+      if (/posted_ts/i.test(text) && !legacy) {
+        return searchLane(laneParams, withFacets, true);
+      }
+      return { hits: [] };
+    }
+    if (!res.ok) return { hits: [] };
+    const json = (await res.json()) as {
+      hits?: PublicJob[];
+      facetDistribution?: Record<string, Record<string, number>>;
+    };
+    return {
+      hits: normalizePublicJobs(json.hits ?? []),
+      facetDistribution: json.facetDistribution as FacetDistribution | undefined,
+    };
+  };
+
+  const batches = await Promise.all(
+    lanes.map((laneParams, i) => searchLane(laneParams, i === 0 && !!p.withFacets, false)),
+  );
+  return {
+    hits: batches.flatMap((b) => b.hits),
+    facetDistribution: batches[0]?.facetDistribution,
+  };
+}
+
+function fitPhraseTitleScoped(phrase: string): boolean {
+  return phrase.trim().split(/\s+/).length >= 2;
+}
+
+async function fetchFitPhraseLaneHits(
+  h: string,
+  p: JobSearchParams,
+  companyScoped: boolean,
+): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> {
+  const phrases = resolveFitPhrases(p);
+  if (!phrases || phrases.length === 0) return { hits: [] };
+
+  const searchPhrase = async (
+    phrase: string,
+    withFacets: boolean,
+    legacy: boolean,
+  ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
+    const body = buildSearchBody(
+      {
+        ...p,
+        q: phrase,
+        fitPhrases: undefined,
+        withFacets,
+        limit: 1000,
+        offset: 0,
+        sort: "relevance",
+      },
+      legacy,
+      "all",
+      { companyScoped, titleScoped: fitPhraseTitleScoped(phrase) },
+    );
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok && res.status === 400) {
+      const text = await res.text().catch(() => "");
+      if (/posted_ts/i.test(text) && !legacy) {
+        return searchPhrase(phrase, withFacets, true);
+      }
+      return { hits: [] };
+    }
+    if (!res.ok) return { hits: [] };
+    const json = (await res.json()) as {
+      hits?: PublicJob[];
+      facetDistribution?: Record<string, Record<string, number>>;
+    };
+    return {
+      hits: normalizePublicJobs(json.hits ?? []),
+      facetDistribution: json.facetDistribution as FacetDistribution | undefined,
+    };
+  };
+
+  const batches = await Promise.all(
+    phrases.map((phrase, i) => searchPhrase(phrase, i === 0 && !!p.withFacets, false)),
+  );
+  return {
+    hits: batches.flatMap((b) => b.hits),
+    facetDistribution: batches[0]?.facetDistribution,
+  };
 }
 
 async function fetchRoleTitleLaneHits(
@@ -1151,8 +1526,14 @@ async function fetchRoleTitleLaneHits(
     withFacets: boolean,
     legacy: boolean,
   ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
+    // Pinned to relevance for the same reason as fetchCompanyScopedLaneHits
+    // above: each pair query is capped at 1000 hits, and a fixed cap is only
+    // safe under a fixed order — some pairs (e.g. "director product") match
+    // well over 1000 docs, so a sort-varying top-1000 would make the lane's
+    // deduped pool size drift by the requested sort instead of staying a
+    // permutation of one set. `searchMeili` re-orders the union afterward.
     const body = buildSearchBody(
-      { ...p, q: pairQ, withFacets, limit: 1000, offset: 0 },
+      { ...p, q: pairQ, withFacets, limit: 1000, offset: 0, sort: "relevance" },
       legacy,
       "all",
       { companyScoped, titleScoped: true },
@@ -1176,7 +1557,7 @@ async function fetchRoleTitleLaneHits(
       facetDistribution?: Record<string, Record<string, number>>;
     };
     return {
-      hits: json.hits ?? [],
+      hits: normalizePublicJobs(json.hits ?? []),
       facetDistribution: json.facetDistribution as FacetDistribution | undefined,
     };
   };
@@ -1214,6 +1595,13 @@ export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): P
       if (aIsNonTech !== bIsNonTech) return aIsNonTech - bIsNonTech;
     }
 
+    // 0b. Role-title lane: satisfy query shape first, demote — never drop.
+    if (query && roleTitlePairQueries(query).length > 0) {
+      const aRole = titleSatisfiesRoleQuery(decodeText(a.title), query) ? 1 : 0;
+      const bRole = titleSatisfiesRoleQuery(decodeText(b.title), query) ? 1 : 0;
+      if (aRole !== bRole) return bRole - aRole;
+    }
+
     // 1. Title relevance tier (meaningful-token coverage, stopword-tolerant)
     const aTitleScore = query ? titleRelevanceScore(decodeText(a.title), query) : 0;
     const bTitleScore = query ? titleRelevanceScore(decodeText(b.title), query) : 0;
@@ -1237,6 +1625,18 @@ export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): P
 
 /** The three location fields a parsed place can constrain. */
 export const LOCATION_FACET_FIELDS = ["location_city", "location_state", "location_country"] as const;
+
+/** True when a `work_type` facet value looks like "remote" for whatever this
+ *  corpus happens to call it — never a hardcoded `"remote"` string, since the
+ *  upstream feed's casing/spelling isn't a contract ("Remote", "remote_us",
+ *  etc. must all match). Single source of truth for that test: picking the
+ *  live remote facet VALUE out of a distribution (`pickRemoteFacetValue`,
+ *  FilterChipsRow.tsx) and recognizing an already-committed remote selection
+ *  from filter state alone (`locationTriggerLabel`, jobs/location-label.ts)
+ *  both call this rather than each keeping its own regex. */
+export function isRemoteWorkTypeValue(value: string): boolean {
+  return /remote/i.test(value);
+}
 
 /**
  * Read-path: does a specific candidate STRING exist as a value in a given
@@ -1367,16 +1767,67 @@ export async function meiliMultiSearch(
   return body.results ?? [];
 }
 
-/** Read-path: the `updated_at` of the most recently updated doc, for the "last synced" stamp. */
-export async function fetchJobsLastUpdated(): Promise<string | null> {
+/**
+ * Pure: the `q`/`filter`/`attributesToSearchOn` `fetchJobsLastUpdated` sends
+ * for `p` — the exact same `buildFilter(p)` clauses, `quoteShortTokens(p.q)`
+ * text, AND `resolveAttributesToSearchOn` scope the results search itself
+ * uses, so the two queries agree on which rows match. `opts.companyScoped`
+ * is REQUIRED, not defaulted — it's the one piece of that classification
+ * that needs an async Meilisearch probe to resolve (`resolveCompanyIntent`),
+ * so this pure function takes it as an already-resolved input rather than
+ * guessing `false` when the caller forgot to await it (a wrong guess would
+ * silently reintroduce the bug this fixes). `titleScoped` — the role-title
+ * lane's membership — IS derivable synchronously from `p.q`/`companyScoped`
+ * alone (`shouldRunRoleTitleLane`), so it's computed here rather than pushed
+ * onto every caller. Split out so each narrowing shape (default 30d window,
+ * no window, a single employer, a text query, a facet) is assertable without
+ * a network call.
+ */
+export function buildLastUpdatedQuery(
+  p: JobSearchParams,
+  opts: { companyScoped: boolean },
+): { q: string; filter: string[]; attributesToSearchOn?: string[] } {
+  const titleScoped = shouldRunRoleTitleLane(p.q ?? "", opts.companyScoped);
+  const attributesToSearchOn = resolveAttributesToSearchOn(p, { companyScoped: opts.companyScoped, titleScoped });
+  return {
+    q: quoteShortTokens(p.q ?? ""),
+    filter: buildFilter(p),
+    ...(attributesToSearchOn ? { attributesToSearchOn } : {}),
+  };
+}
+
+/**
+ * Read-path: MAX(`updated_at`) over the rows `p` would match (see
+ * `buildLastUpdatedQuery`), so the "last synced" stamp describes the
+ * population actually on screen rather than always the whole corpus. `p`
+ * omitted (or `{}`) means "no narrowing" — the true corpus-wide stamp, still
+ * scoped to live vacancies like every other search (`LIVE_VACANCY_FILTER` in
+ * `buildFilter`). Resolves `companyScoped` via the SAME cached
+ * `resolveCompanyIntentResult` `searchMeili` calls for the real results
+ * search — not a second heuristic — before building the query, so the two
+ * requests' `attributesToSearchOn` cannot diverge (intervu #484 review fix).
+ * One extra Meilisearch round trip only on a cache miss (10-minute TTL,
+ * keyed by query text); one search round trip: limit 1, sorted
+ * `updated_at:desc`. A failed or unavailable probe returns `null` — the
+ * caller (`searchResultLine`, presentation.ts) renders no clause rather than
+ * guessing.
+ */
+export async function fetchJobsLastUpdated(p: JobSearchParams = {}): Promise<string | null> {
   const h = host();
   if (!h) return null;
   try {
+    const { companyScoped } = await resolveCompanyIntentResult(p.id ? undefined : p.q);
     const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
-      body: JSON.stringify({ limit: 1, sort: ["updated_at:desc"], attributesToRetrieve: ["updated_at"] }),
+      body: JSON.stringify({
+        ...buildLastUpdatedQuery(p, { companyScoped }),
+        matchingStrategy: "all",
+        limit: 1,
+        sort: ["updated_at:desc"],
+        attributesToRetrieve: ["updated_at"],
+      }),
     });
     if (!res.ok) return null;
     const body = (await res.json()) as { hits?: { updated_at?: string }[] };
@@ -1522,7 +1973,8 @@ export function dedupeJobSuggestionHits(
       company = humanizeTenantSubdomain(domain);
     }
     // The index carries the ATS-stated raw name (intervu owns display-time
-    // cleaning, not ingest — see upsertJobs), so fold junk prefixes / legal
+    // cleaning, not ingest — ingest is the pipeline repo's sync.mjs, which
+    // PUTs the Subspace feed through unchanged), so fold junk prefixes / legal
     // suffixes / slogan-brand splits onto the same canonical form the SERP
     // renders RIGHT before the dedup key below — otherwise "REQ123 Acme",
     // "Acme, Inc.", and "We build things - Acme" dedupe as three distinct,
@@ -1636,7 +2088,7 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
 export async function probeCompanyNames(phrase: string, sampleSize: number): Promise<CompanyNameSample> {
   const query = phrase.trim();
   const h = host();
-  const empty: CompanyNameSample = { total: 0, companies: [] };
+  const empty: CompanyNameSample = { total: 0, companies: [], domains: [] };
   if (!h || !query) return empty;
   try {
     const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
@@ -1650,12 +2102,12 @@ export async function probeCompanyNames(phrase: string, sampleSize: number): Pro
         filter: buildFilter({ q: query }),
         hitsPerPage: sampleSize,
         page: 1,
-        attributesToRetrieve: ["company"],
+        attributesToRetrieve: ["company", "company_domain"],
       }),
     });
     if (!res.ok) return empty;
     const body = (await res.json()) as {
-      hits?: { company?: string | null }[];
+      hits?: { company?: string | null; company_domain?: string | null }[];
       totalHits?: number;
       estimatedTotalHits?: number;
     };
@@ -1663,6 +2115,7 @@ export async function probeCompanyNames(phrase: string, sampleSize: number): Pro
     return {
       total: body.totalHits ?? body.estimatedTotalHits ?? hits.length,
       companies: hits.map((hit) => hit.company ?? ""),
+      domains: hits.map((hit) => (hit.company_domain ?? "").trim().toLowerCase()),
     };
   } catch {
     return empty;
@@ -1688,22 +2141,32 @@ export async function probeCompanyMatch(phrase: string): Promise<boolean> {
  */
 const COMPANY_INTENT_TTL_MS = 10 * 60_000;
 const COMPANY_INTENT_CACHE_MAX = 500;
-const companyIntentCache = new Map<string, { value: boolean; atMs: number }>();
+
+export interface CompanyIntentResult {
+  companyScoped: boolean;
+  companyDomains: string[];
+}
+
+const companyIntentCache = new Map<string, { value: CompanyIntentResult; atMs: number }>();
 
 export function resetCompanyIntentCacheForTests(): void {
   companyIntentCache.clear();
 }
 
-export async function resolveCompanyIntent(q: string | undefined): Promise<boolean> {
+export async function resolveCompanyIntentResult(q: string | undefined): Promise<CompanyIntentResult> {
   const query = (q ?? "").trim();
-  if (!query) return false;
+  if (!query) return { companyScoped: false, companyDomains: [] };
   const key = normalizeCompanyName(query);
   const hit = companyIntentCache.get(key);
   const now = Date.now();
   if (hit && now - hit.atMs < COMPANY_INTENT_TTL_MS) return hit.value;
 
   const sample = await probeCompanyNames(query, COMPANY_INTENT_SAMPLE);
-  const value = isCompanyNameQuery(query, sample);
+  const companyScoped = isCompanyNameQuery(query, sample);
+  const value: CompanyIntentResult = {
+    companyScoped,
+    companyDomains: companyScoped ? dominantCompanyDomains(query, sample) : [],
+  };
   if (companyIntentCache.size >= COMPANY_INTENT_CACHE_MAX) {
     const oldest = companyIntentCache.keys().next().value;
     if (oldest !== undefined) companyIntentCache.delete(oldest);
@@ -1712,38 +2175,20 @@ export async function resolveCompanyIntent(q: string | undefined): Promise<boole
   return value;
 }
 
-/* --------- Ingestion / admin (invoked only by the pipeline-box sync worker) --------- */
-
-async function adminFetch(path: string, init: RequestInit): Promise<unknown> {
-  const h = host();
-  if (!h) throw new Error("MEILISEARCH_HOST not set");
-  const res = await fetch(`${h}${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${adminKey()}`,
-      ...(init.headers || {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Meilisearch ${path} failed: ${res.status} ${text.slice(0, 300)}`);
-  }
-  return res.json();
-}
-
-export async function applyIndexSettings(): Promise<void> {
-  await adminFetch(`/indexes/${JOBS_INDEX}/settings`, {
-    method: "PATCH",
-    body: JSON.stringify(JOBS_INDEX_SETTINGS),
-  });
+export async function resolveCompanyIntent(q: string | undefined): Promise<boolean> {
+  return (await resolveCompanyIntentResult(q)).companyScoped;
 }
 
 /**
  * Derive a sanitized, numeric "posted" timestamp (epoch ms) for a job. Meilisearch
  * range operators are numeric-only, so the raw ISO `posted_at` string can't be
- * used to range-filter directly — this is the numeric derivative, computed once
- * at the ingest chokepoint (`upsertJobs`) rather than at query time.
+ * used to range-filter directly — this is the numeric derivative, computed on
+ * read by every consumer below (sort.ts, JobDetail, snapshot-preview.ts,
+ * follows/alerts.ts) rather than stored on the index. The live jobs index is
+ * written by the separate interview-os repo's scripts/jobs-sync/sync.mjs,
+ * which derives its own `posted_ts` (public-job.ts's `derivePublicPostedTs`)
+ * before PUTting documents — this is intervu's independent read-side copy of
+ * that same derivation, not the ingest path.
  *
  * Measured live: `posted_at` is 18% null and carries future-dated sentinels
  * (2030-01-31, 2026-12-31) that sit at the head of a naive `posted_at:desc`
@@ -1757,51 +2202,4 @@ export async function applyIndexSettings(): Promise<void> {
 export function derivePostedTs(job: { posted_at?: string | null; first_seen_at?: string | null }): number | null {
   const now = Date.now();
   return sanitizeTimestamp(job.posted_at, now) ?? sanitizeTimestamp(job.first_seen_at, now) ?? null;
-}
-
-export async function upsertJobs(jobs: PublicJob[]): Promise<void> {
-  if (!jobs.length) return;
-  // Chokepoint: every ingest path (initialLoad / syncChanged / reconcileAndEvict
-  // in lib/jobs/sync.ts) funnels through here, so deriving posted_ts once at
-  // the PUT boundary keeps it consistent without threading it through each
-  // caller. NOTE: this function has zero callers in production — the live
-  // Meili index is written by the separate interview-os repo's
-  // scripts/jobs-sync/sync.mjs (systemd timers), which PUTs the Subspace feed
-  // through unchanged. `company` is deliberately left as the ATS-stated raw
-  // name on the index; intervu owns brand-name cleaning at display time
-  // (lib/jobs/presentation.ts), not at ingest.
-  const docs = jobs.map((j) => ({
-    ...j,
-    posted_ts: derivePostedTs(j),
-  }));
-  await adminFetch(`/indexes/${JOBS_INDEX}/documents?primaryKey=id`, {
-    method: "PUT",
-    body: JSON.stringify(docs),
-  });
-}
-
-export async function deleteJobs(ids: string[]): Promise<void> {
-  if (!ids.length) return;
-  await adminFetch(`/indexes/${JOBS_INDEX}/documents/delete-batch`, {
-    method: "POST",
-    body: JSON.stringify(ids),
-  });
-}
-
-/** All indexed job ids (for reconciliation / eviction). */
-export async function allIndexedIds(): Promise<Set<string>> {
-  const ids = new Set<string>();
-  let offset = 0;
-  const limit = 1000;
-  for (;;) {
-    const body = (await adminFetch(
-      `/indexes/${JOBS_INDEX}/documents?fields=id&limit=${limit}&offset=${offset}`,
-      { method: "GET" },
-    )) as { results?: { id: string }[] };
-    const results = body.results ?? [];
-    for (const r of results) ids.add(r.id);
-    if (results.length < limit) break;
-    offset += limit;
-  }
-  return ids;
 }

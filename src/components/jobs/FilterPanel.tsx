@@ -159,33 +159,10 @@ export function applyLocationSheetDraft(
     return { ...state, facets };
 }
 
-/**
- * Label for the mobile location trigger from committed filter state.
- *
- * Item 7e (2026-08-21 front-door audit): used to also synthesize "Near
- * {Country}" from the server's IP-geo default when nothing was explicitly
- * picked — live prod showed "Near Canada" prefilled into what reads as a
- * CITY field. `result.defaultedLocation` is always country-granularity
- * (there is no city-level geo signal anywhere in this codebase — see
- * `lib/geo/ip-default.ts`), and a country is not a locality, so that
- * default can only ever produce copy this field's own placeholder
- * ("City, state, or remote") explicitly promises it won't. The
- * `LocationPickerSheet`'s own "(detected)" sheet OPTION is a different,
- * already-honest affordance (explicit, disclosed, opt-in) and is
- * unaffected — this only removes the passive, undisclosed prefill.
- */
-export const LOCATION_TRIGGER_PLACEHOLDER = "City, state, or remote";
-
-export function locationTriggerLabel(state: FilterState): string {
-    const values = (state.facets.location_country ?? []).map((v) => v.trim()).filter(Boolean);
-    if (values.length === 0) return LOCATION_TRIGGER_PLACEHOLDER;
-    if (values.length === 1) return values[0]!;
-    // A trigger is one line of a narrow control, so past the first place it
-    // reports a COUNT rather than truncating a list — "Montréal +2" says how
-    // much is hidden, where "Montréal, Toron…" only says that something is.
-    // The chips row below spells all of them out and can remove any one.
-    return `${values[0]} +${values.length - 1}`;
-}
+/** Moved to `lib/jobs/location-label.ts` (pure, no React/DOM) so it's
+ *  importable directly from `node:test` — re-exported here since this is
+ *  still the file every caller and existing test imports it from. */
+export { LOCATION_TRIGGER_PLACEHOLDER, locationTriggerLabel } from "@/lib/jobs/location-label";
 
 /** Static facet option ladders — always shown in SerpFilters even when the
  *  current result set's distribution is empty (selected values still merge in). */
@@ -286,6 +263,8 @@ export interface FilterState {
     salaryMin: number;
     visaOnly: boolean;
     postedBucket: PostedBucket | undefined;
+    /** True when `posted` is in the URL or the user pinned Posted. */
+    postedExplicit?: boolean;
     /** Minimum-years-of-experience bucket. `undefined` is both "no filter"
      *  and the pristine default — see `YearsExperienceBucket` (types.ts). */
     yearsExperience: YearsExperienceBucket | undefined;
@@ -326,6 +305,25 @@ export const PRISTINE_FILTER_STATE: FilterState = {
 };
 
 /**
+ * The posted window ACTUALLY in force. The fresh-visit pristine `30d` is a
+ * real, product-default narrowing — not a display-only value — so it is
+ * applied exactly like a bucket the searcher picked. `undefined` means
+ * exactly one thing: the searcher explicitly widened to "Any date"
+ * (`postedBucket: undefined`, `postedExplicit: true` — see `parseJobsUrl`,
+ * lib/jobs/url-state.ts, for `?posted=any`).
+ *
+ * Every surface answers "what Posted window is on?" through here — the
+ * request gate, the chip row, and all three pickers. The rule having three
+ * separate homes (before this function existed) is precisely how the two
+ * newest pickers ended up with none.
+ */
+export function appliedPostedBucket(
+    state: Pick<FilterState, "postedBucket">,
+): PostedBucket | undefined {
+    return state.postedBucket;
+}
+
+/**
  * Pure: which fields actually differ between two FilterState snapshots, by
  * field name (`"employment_type"`, `"salaryMin"`, `"board"`, …) — the
  * `search_filter_applied` analytics seam's diff, called from the one
@@ -352,7 +350,7 @@ export function changedFilterFacets(prev: FilterState, next: FilterState): strin
     }
     if (prev.salaryMin !== next.salaryMin) changed.push("salaryMin");
     if (prev.visaOnly !== next.visaOnly) changed.push("visaOnly");
-    if (prev.postedBucket !== next.postedBucket) changed.push("postedBucket");
+    if (prev.postedBucket !== next.postedBucket || prev.postedExplicit !== next.postedExplicit) changed.push("postedBucket");
     if (prev.yearsExperience !== next.yearsExperience) changed.push("yearsExperience");
     if (prev.hideGhosts !== next.hideGhosts) changed.push("hideGhosts");
     if (prev.board !== next.board) changed.push("board");
@@ -462,13 +460,20 @@ export function activeFilterEntries(
         });
     }
 
-    // Soft Signal: quiet defaults stay out of the pill row. "30d" (pristine)
-    // and explicit "Any" (`undefined`) are both non-chips — only finite age
-    // buckets (24h / 3d / 7d / …) surface. Clear still restores pristine 30d.
-    // `opts.includeQuietDefaults` opts pristine "30d" back in for callers that
-    // need it named (see the param doc above) — "Any" stays excluded either
-    // way, since an explicit "no filter" never narrowed anything to name.
-    const postedIsQuietDefault = state.postedBucket === PRISTINE_FILTER_STATE.postedBucket;
+    // Soft Signal: quiet defaults stay out of the pill row. "30d" (pristine,
+    // nobody chose it) and explicit "Any" (`undefined`) are both non-chips —
+    // only finite age buckets (24h / 3d / 7d / …) surface. Clear still
+    // restores pristine 30d. `opts.includeQuietDefaults` opts pristine "30d"
+    // back in for callers that need it named (see the param doc above) —
+    // "Any" stays excluded either way, since an explicit "no filter" never
+    // narrowed anything to name.
+    //
+    // Deliberately NOT derived from `appliedPostedBucket`: that predicate
+    // answers "is this applied to the request" (pristine 30d: yes, same as
+    // a picked 30d), while this answers "did the searcher choose this" (a
+    // UI-decluttering call, same family as `hideGhosts`'s silent default
+    // below never drawing its own chip either).
+    const postedIsQuietDefault = state.postedBucket === PRISTINE_FILTER_STATE.postedBucket && !state.postedExplicit;
     if (state.postedBucket && (!postedIsQuietDefault || opts?.includeQuietDefaults)) {
         // A clear must always WIDEN. For every finite bucket that ISN'T the
         // pristine default, widening means falling back to pristine 30d — as
@@ -483,7 +488,14 @@ export function activeFilterEntries(
         entries.push({
             key: "postedBucket",
             label: postedBucketLabel(state.postedBucket),
-            clear: (s) => ({ ...s, postedBucket: widenTo }),
+            clear: (s) => {
+                if (postedIsQuietDefault) {
+                    return { ...s, postedBucket: undefined, postedExplicit: true };
+                }
+                const next = { ...s, postedBucket: widenTo };
+                delete next.postedExplicit;
+                return next;
+            },
         });
     }
 

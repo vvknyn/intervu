@@ -1,4 +1,4 @@
-import type { IntegrityFacts } from "@/lib/companies/exhaust";
+import type { ExhaustSection, IntegrityFacts } from "@/lib/companies/exhaust";
 
 /**
  * Band 6 (gated) — "How their postings behave": counts by `closed_reason`
@@ -10,7 +10,7 @@ import type { IntegrityFacts } from "@/lib/companies/exhaust";
 export function CompanyIntegrityBand({
   integrity,
 }: {
-  integrity: { data: IntegrityFacts; source: string; asOf: string } | null;
+  integrity: ExhaustSection<IntegrityFacts>;
 }) {
   if (!integrity) return null;
   const { closedReasonCounts, openedCount } = integrity.data;
@@ -20,23 +20,23 @@ export function CompanyIntegrityBand({
 
   return (
     <section data-testid="company-integrity-band" className="border border-border bg-card px-6 py-6 sm:px-8">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="text-xs font-semibold text-muted-foreground">
         How their postings behave
       </h2>
-      <p className="mt-2 text-[14px] leading-relaxed text-foreground">
+      <p className="mt-2 text-sm leading-relaxed text-foreground">
         {closedTotal} role{closedTotal === 1 ? "" : "s"} closed in the last 90 days
         {openedCount > 0 ? `; ${openedCount} opened in the same window.` : "."}
       </p>
       {closedReasonCounts.length > 0 && (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-[13.5px]">
+          <table className="w-full text-sm">
             <thead>
               <tr>
-                <th className="border-b border-border-strong pb-2 pr-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <th className="border-b border-border-strong pb-2 pr-3 text-left text-xs font-semibold text-muted-foreground">
                   How roles closed (90 days)
                 </th>
-                <th className="border-b border-border-strong pb-2 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  count
+                <th className="border-b border-border-strong pb-2 text-right text-xs font-semibold text-muted-foreground">
+                  Count
                 </th>
               </tr>
             </thead>
@@ -51,7 +51,7 @@ export function CompanyIntegrityBand({
           </table>
         </div>
       )}
-      <p className="mono-data mt-3 text-[11px] text-muted-foreground">{integrity.source} · window 90 days</p>
+      <p className="mono-data mt-3 text-xs text-muted-foreground">{integrity.label} · window 90 days</p>
     </section>
   );
 }

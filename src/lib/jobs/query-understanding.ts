@@ -12,13 +12,15 @@
  * roles that title-first ranking (see searchMeili's precision pass) already
  * orders correctly.
  */
-import type { JobSearchParams, PlaceClause } from "./types";
+import type { JobSearchParams, PlaceClause, PlaceFilter } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
-import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution } from "../geo/resolve-place";
-import { MAX_REGION_CLAUSE_TERMS } from "../geo/regions";
+import { scanPlacePhrases, rebuildAfterRejection, placeClause, type PlaceResolution, type LocationField } from "../geo/resolve-place";
+import { MAX_REGION_CLAUSE_TERMS, regionLabel } from "../geo/regions";
+import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
 import { SENIORITY_PHRASES } from "./role-title-lane";
+import { isNeutralLocationFacetValue, LOCATION_FACET_FIELDS } from "./meilisearch";
 
 export {
   roleTitlePairQueries,
@@ -208,7 +210,7 @@ export async function parsePlaceTokens(
     const any = results[i * 2];
     if (any.length === 0) return; // nothing this resolution proposed exists in the corpus at all
     const scope = results[i * 2 + 1];
-    places.push(scope.length > 0 ? { any, scopedToCountry: scope } : { any });
+    places.push(placeClause(any, { country: r.entity.type === "country", scopedToCountry: scope.length > 0 ? scope : undefined }));
   });
   return { residualQ, places };
 }
@@ -276,16 +278,20 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  * A typed value must never survive as an exact facet predicate with zero
  * corpus support — that's how "North America" (a real phrase, but the corpus
  * has no `location_country = "North America"` row) guaranteed zero results
- * forever (reproduced live 2026-08-26). So a phrase that the gazetteer can't
- * resolve gets ONE more chance: a direct corpus probe of the raw literal
- * (`resolvePhraseOrRawLiteral` below), for the raw-ingest values that are
- * real corpus facts despite naming no GeoNames place ("Worldwide", "EMEA"
- * typed verbatim by an employer's ATS). Only when NEITHER clears does the
- * phrase get dropped — recorded in `unmatchedPlaceMentions` so the caller can
- * tell the searcher, rather than run a predicate guaranteed to return
- * nothing. Each value is judged independently: one bad value in a multi-value
- * facet (`?location_country=a,b` deep links, /trends' country links) no
- * longer poisons the ones that DID resolve.
+ * forever (reproduced live 2026-08-26). So a phrase the gazetteer can't fully
+ * account for gets ONE more chance: a direct probe of the raw literal
+ * against every location facet field (`resolveExactFacetValue`, below), for
+ * both the raw-ingest values that are real corpus facts despite naming no
+ * GeoNames place ("Worldwide", "EMEA" typed verbatim by an employer's ATS)
+ * AND the structured/compound values a picker or deep link hands back
+ * verbatim ("US CA San Diego" — see `resolvePhraseOrRawLiteral`'s doc for why
+ * tokenizing must be tried, and shown incomplete, before this literal probe
+ * ever runs). Only when NEITHER clears does the phrase get dropped —
+ * recorded in `unmatchedPlaceMentions` so the caller can tell the searcher,
+ * rather than run a predicate guaranteed to return nothing. Each value is
+ * judged independently: one bad value in a multi-value facet
+ * (`?location_country=a,b` deep links, /trends' country links) no longer
+ * poisons the ones that DID resolve.
  *
  * Before any place resolution runs, a work-mode pre-pass strips work-mode
  * phrases ("remote", "hybrid", ...) via the SAME `parseWorkTypeTokens` the
@@ -294,31 +300,156 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  * location box's own placeholder says "City, state, or remote").
  */
 /**
- * Resolve one typed phrase via the gazetteer, or — when nothing in it names
- * a real, corpus-known place — check whether the raw literal itself is a
- * value THIS corpus's `location_country` facet genuinely holds. Reuses
- * `vocab.corpusChecker` directly as a single-candidate group probe (the same
- * checker `parsePlaceTokens` already validates gazetteer candidates
- * through), so a raw literal is held to the identical `PLACE_MIN_COUNT` bar
- * — never a lower one just because it skipped the gazetteer.
+ * Does the WHOLE typed phrase exactly match a value one of the location
+ * facets already carries, across all three fields (`LOCATION_FACET_FIELDS`,
+ * meilisearch.ts). Used by `resolvePhraseOrRawLiteral` below only once
+ * tokenizing has already shown it can't account for the whole phrase — see
+ * that function's doc for why the ordering matters.
+ *
+ * `matchMode: "literal"` (resolve-place.ts / corpus-values.ts) is what
+ * exempts this from PLACE_MIN_COUNT: the candidate isn't a name-derived
+ * guess that could coincidentally collide with an ordinary word, it's the
+ * verbatim string a searcher already typed or clicked, checked against the
+ * corpus's own values — so a low-count city/metro literal is exactly as
+ * legitimate a match as a high-count country one.
+ */
+async function probeFacetFields(
+  fields: readonly LocationField[],
+  phrase: string,
+  vocab: LocationVocabulary,
+): Promise<PlaceFilter[]> {
+  const [hits] = await vocab.corpusChecker([
+    fields.map((field) => ({ field, value: phrase, matchMode: "literal" as const })),
+  ]);
+  return hits;
+}
+
+export async function resolveExactFacetValue(phrase: string, vocab: LocationVocabulary): Promise<PlaceFilter[]> {
+  return probeFacetFields(LOCATION_FACET_FIELDS, phrase, vocab);
+}
+
+/**
+ * Resolve a value that was PICKED from the location typeahead, not typed —
+ * the suggestion already names the single field it was advertised on
+ * (`SuggestField`, location-suggest.ts: the dropdown row's own count comes
+ * from a facet-search against exactly that field). Probing only that field,
+ * rather than `resolveExactFacetValue`'s all-three-field OR, is what keeps
+ * "advertised count == delivered count": a bare or composite value that
+ * happens to also collide with a DIFFERENT field's value (e.g. "San Jose"
+ * matching a `location_state` row for Costa Rica's San José province) can
+ * never be picked up by a filter that was never asked for.
+ *
+ * Same `matchMode: "literal"` primitive as `resolveExactFacetValue` — a
+ * picked value is an already-advertised corpus literal, so there is no
+ * tokenizing/arity question to resolve the way a TYPED phrase has
+ * (`resolvePhraseOrRawLiteral` below): a click carries no ambiguity a
+ * gazetteer scan could usefully second-guess. "Already-advertised" is a
+ * caller-side guarantee, not a URL one — `resolveLocationFacet` screens out
+ * the values the typeahead would no longer offer on the field before
+ * reaching here (see its picked loop).
+ */
+export async function resolvePickedFacetValue(
+  field: LocationField,
+  phrase: string,
+  vocab: LocationVocabulary,
+): Promise<PlaceFilter[]> {
+  return probeFacetFields([field], phrase, vocab);
+}
+
+/**
+ * Resolve one typed phrase, in three tiers:
+ *
+ * 1. Tokenize it (`parsePlaceTokens`). Trust that result as-is ONLY when it
+ *    consumed the WHOLE phrase (`residualQ` empty) AND resolved to exactly
+ *    ONE place — a bare place name ("toronto"), a region ("North America").
+ *    A single consumed place is where the gazetteer's generosity (radius-
+ *    neighbor padding, cross-country homonym scoping, region member
+ *    expansion) is actually wanted, and there is nothing left over to
+ *    explain away.
+ *
+ *    Arity, not completeness, is the discriminator, because those two come
+ *    apart: full consumption is evidence the string was DECOMPOSABLE, not
+ *    evidence that decomposing it was faithful to what was typed. A
+ *    machine-emitted composite built by joining an admin1/country name to a
+ *    city ("Massachusetts Boston", "United States Daly City") tokenizes
+ *    COMPLETELY into several places with zero residual too — every segment
+ *    is independently a real place, but the string as a whole was never
+ *    typed by a human meaning "Massachusetts OR Boston". Trusting arity>1
+ *    full consumption here would return that fragmented AND-of-places
+ *    before ever checking whether the whole phrase is itself a corpus
+ *    value (see the test file's "arity gate" block). Gating on arity===1
+ *    keeps the bare-word case fast while routing every multi-place
+ *    consumption — indistinguishable, at the tokenizer's own level, from
+ *    an ordinary compound like "US CA San Diego" — through step 2 below.
+ *
+ * 2. Anything tokenizing didn't reduce to one clean place — residual text
+ *    left over ("US CA San Diego", "Product Manager - Toronto, Canada") OR
+ *    multiple places consumed with nothing left over ("Massachusetts
+ *    Boston") — gets tried as ONE exact known facet value first
+ *    (`resolveExactFacetValue`). A picker or deep link that hands back this
+ *    exact string already knows precisely which corpus row it means;
+ *    resolving it by literal identity, rather than trusting a
+ *    re-derivation the tokenizer had to fragment to produce, is what keeps
+ *    that precision intact.
+ *
+ * 3. No literal match either — fall back to whatever tokenizing DID manage
+ *    (today's partial-match behavior, unchanged: "San Diego Renewable
+ *    Group" still finds San Diego, "Toronto, Canada" still finds both).
+ *    Only when tokenizing found nothing AT ALL does the phrase get dropped
+ *    as unmatched.
  */
 async function resolvePhraseOrRawLiteral(
   phrase: string,
   vocab: LocationVocabulary,
 ): Promise<{ places: PlaceClause[]; unmatched: string[] }> {
-  const { places } = await parsePlaceTokens(phrase, vocab);
+  const { residualQ, places } = await parsePlaceTokens(phrase, vocab);
+  if (places.length === 1 && residualQ.trim() === "") return { places, unmatched: [] };
+
+  const exact = await resolveExactFacetValue(phrase, vocab);
+  if (exact.length > 0) {
+    // A literal that matched an exact location_country value IS a country
+    // filter from the searcher's point of view — this clause already ORs
+    // city/state/country readings of the same string, and remote-anywhere
+    // is one more such reading (placeClause, geo/resolve-place.ts).
+    const country = exact.some((f) => f.field === "location_country");
+    return { places: [placeClause(exact, { country })], unmatched: [] };
+  }
+
   if (places.length > 0) return { places, unmatched: [] };
-  const [hits] = await vocab.corpusChecker([[{ field: "location_country", value: phrase }]]);
-  if (hits.length > 0) return { places: [{ any: hits }], unmatched: [] };
   return { places: [], unmatched: [phrase] };
 }
+
+/**
+ * Every location field OTHER than `location_country` — i.e. the fields a
+ * value can only reach `p.facets` on by being PICKED from the typeahead
+ * with its field intact (`SuggestField`, addLocation in page.tsx), never by
+ * free-typed text (the location box only ever writes `location_country`).
+ * Derived from `LOCATION_FACET_FIELDS` (meilisearch.ts) rather than a
+ * second literal list, so a future location field is covered here too.
+ */
+const PICKED_LOCATION_FIELDS = LOCATION_FACET_FIELDS.filter(
+  (field): field is Exclude<(typeof LOCATION_FACET_FIELDS)[number], "location_country"> => field !== "location_country",
+);
 
 export async function resolveLocationFacet(
   p: JobSearchParams,
   vocab: LocationVocabulary,
 ): Promise<JobSearchParams> {
-  const typed = (p.facets?.location_country ?? []).map((v) => v.trim()).filter(Boolean);
-  if (typed.length === 0) return p;
+  const typedRaw = (p.facets?.location_country ?? []).map((v) => v.trim()).filter(Boolean);
+  // Widen sentinels (`any`/`all`, same set as `canonicalFacetValues` in
+  // meilisearch.ts) are not place phrases — drop them before resolution so
+  // they are not gazetteer/literal-probed. When nothing real remains, leave
+  // `p` intact so `hasLocationSignal` stays true and `buildFilter` strips
+  // the sentinel at filter-build time.
+  const typed = typedRaw.filter((v) => !isNeutralLocationFacetValue(v));
+  // Picked city/state suggestions: each already names its own field, so it
+  // resolves as one exact literal on that field alone (`resolvePickedFacetValue`)
+  // rather than through the gazetteer/work-mode pipeline below, which exists
+  // to disambiguate free-typed TEXT — a click already answered that question.
+  const picked = PICKED_LOCATION_FIELDS.flatMap((field) =>
+    (p.facets?.[field] ?? []).map((v) => v.trim()).filter(Boolean).map((value) => ({ field, value })),
+  );
+  if (typed.length === 0 && picked.length === 0) return p;
 
   // Work-mode terms typed into the location box ("remote", "hybrid") are not
   // places — strip them with the SAME parser the search box's query text
@@ -364,7 +495,56 @@ export async function resolveLocationFacet(
     );
   }
 
-  const { location_country: _raw, ...facets } = p.facets!;
+  // Picked values resolve independently of the typed/country ones above —
+  // literal probe only, no work-mode binding (a picked place can never carry
+  // typed-in work-mode text) — and fold into the SAME `resolved`/`unmatched`
+  // accumulators, so they OR together with any typed places via the one
+  // `p.places` merge below (`JobSearchParams.places` is already OR-across-
+  // mentions by construction — see its doc).
+  for (const { field, value } of picked) {
+    // …with ONE carve-out: a value the SUGGESTION chokepoint would refuse to
+    // offer on this field is not a real pick, whatever the URL says. Old deep
+    // links, browser history and saved searches still carry the ones the
+    // dropdown used to emit — a region under CITIES (`?city=North+America`)
+    // or a country name an ATS stuffed into a city/state field
+    // (`?city=Canada`, 31 rows beside Countries·Canada's 66,010) — and a
+    // literal probe honours them exactly, which is precisely the near-empty
+    // result those links produce today. Routing them back through the TYPED
+    // pipeline recovers the meaning the label always had: region → its member
+    // countries, country name → the country.
+    //
+    // The two predicates are the same ones `mergeFieldHits` (location-suggest)
+    // filters with, so the invariant holds by construction rather than by
+    // maintenance: resolution honours literally exactly the set of values
+    // suggestion would still offer. Neither predicate can catch a legitimate
+    // homonym pick — `regionLabel` reads a closed alias table, and
+    // `isMisfiledCountryName` demands positive gazetteer evidence that the
+    // value is a country AND is NOT a city/admin1 (States·Georgia and
+    // Cities·Mexico stay literal on both sides).
+    if (regionLabel(value) || isMisfiledCountryName(field, value, vocab.gazetteer)) {
+      const { places, unmatched: miss } = await resolvePhraseOrRawLiteral(value, vocab);
+      resolved.push(...places);
+      unmatched.push(...miss);
+      continue;
+    }
+    const hits = await resolvePickedFacetValue(field, value, vocab);
+    if (hits.length === 0) {
+      unmatched.push(value);
+      continue;
+    }
+    // Never a country filter by construction — `field` is drawn from
+    // `PICKED_LOCATION_FIELDS`, which excludes `location_country`.
+    resolved.push(placeClause(hits, { country: false }));
+  }
+
+  // Every location field this function resolves is stripped from the
+  // generic facets bag the same way — left standing, a raw picked literal
+  // would AND against the resolved `places` clause it now lives in instead
+  // (`buildFilter`'s per-key loop is AND-across-keys) and zero the search
+  // out. `LOCATION_FACET_FIELDS` is the single source of truth for which
+  // keys those are, so a new location field is covered here by construction.
+  const facets = { ...p.facets! };
+  for (const field of LOCATION_FACET_FIELDS) delete facets[field];
   // The dropdown's own work_type selection is a DIFFERENT question ("remote
   // anywhere") from one typed into a place phrase ("remote in Canada"), so
   // it stays global and still AND's across the whole query.
@@ -409,17 +589,27 @@ export async function applyQueryUnderstanding(
   const q = (p.q ?? "").trim();
   if (!q) return p;
 
+  const explicitWorkType = (p.facets?.work_type?.length ?? 0) > 0;
   let next = p;
   const { residualQ, workTypes } = parseWorkTypeTokens(q);
-  if (workTypes.length > 0 && !p.facets?.work_type?.length) {
-    next = { ...next, q: residualQ, facets: { ...next.facets, work_type: workTypes } };
+  if (workTypes.length > 0 && !explicitWorkType) {
+    next = { ...next, q: residualQ };
   }
 
   if (vocab && !p.facets?.location_country?.length) {
     const parsed = await parsePlaceTokens((next.q ?? "").trim(), vocab, true);
     if (parsed.places.length > 0) {
-      next = { ...next, q: parsed.residualQ, places: parsed.places };
+      const places =
+        workTypes.length > 0 && !explicitWorkType
+          ? parsed.places.map((clause) => ({ ...clause, workTypes: [...workTypes] }))
+          : parsed.places;
+      next = { ...next, q: parsed.residualQ, places };
     }
   }
+
+  if (workTypes.length > 0 && !explicitWorkType && !(next.places?.length ?? 0)) {
+    next = { ...next, facets: { ...next.facets, work_type: workTypes } };
+  }
+
   return next;
 }

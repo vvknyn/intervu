@@ -293,7 +293,6 @@ describe("jobs page chrome guards", () => {
 
     it("résumé prompts stay off while any jobs tour is active", () => {
         const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /showPersonalizationInvite[\s\S]*!tourActive/);
         assert.match(src, /showResumeMoment[\s\S]*!tourActive/);
     });
 
@@ -335,23 +334,34 @@ describe("jobs page chrome guards", () => {
         assert.match(page, /topbar-docked-field-directory/);
         assert.match(page, /createPortal\(fieldDirectoryMenu/);
         assert.match(page, /createPortal\(clearFiltersEl/);
-        assert.match(page, /createPortal\(savedSearchControl/);
+        // The docked save-search mount carries `savedSearchMountEl`, a
+        // fragment of the résumé band word (`rankByFitEl`) then the save-
+        // search panel (`savedSearchControl`) — not `savedSearchControl`
+        // alone, so a résumé-less guest sees the entry even when
+        // `canSaveSearch` is false and `savedSearchControl` is null.
+        assert.match(page, /createPortal\(savedSearchMountEl/);
+        assert.match(page, /savedSearchMountEl\s*=\s*rankByFitEl \|\| savedSearchControl/);
         assert.match(topbar, /data-testid="topbar-docked-clear-filters"/);
         assert.match(topbar, /data-testid="topbar-docked-save-search"/);
         const dockedRow = topbar.slice(
-            topbar.indexOf('data-testid="topbar-docked-field-directory"'),
+            topbar.indexOf('data-testid="topbar-docked-filters-toggle"'),
             topbar.indexOf('data-testid="topbar-docked-extras"'),
         );
-        const fieldIdx = dockedRow.indexOf("topbar-docked-field-directory");
         const filtersIdx = dockedRow.indexOf("topbar-docked-filters-toggle");
+        const fieldIdx = dockedRow.indexOf("topbar-docked-field-directory");
         const facetsIdx = dockedRow.indexOf("topbar-docked-facets");
         const clearIdx = dockedRow.indexOf("topbar-docked-clear-filters");
         const saveIdx = dockedRow.indexOf("topbar-docked-save-search");
         const chipIdx = dockedRow.indexOf("topbar-docked-chip");
         const sortIdx = dockedRow.indexOf("topbar-docked-sort");
-        assert.ok(fieldIdx > -1 && filtersIdx > fieldIdx && facetsIdx > filtersIdx, "Browse by field mounts before Filters, then facets");
+        const spacerIdx = dockedRow.indexOf('min-w-0 flex-1');
+        assert.ok(filtersIdx > -1 && filtersIdx < fieldIdx, "Filters toggle leads the left cluster");
+        assert.ok(fieldIdx > -1 && facetsIdx > fieldIdx, "Browse by field mounts before facets");
+        assert.ok(filtersIdx < facetsIdx, "Filters toggle must not sit between field and facets");
         assert.ok(chipIdx > facetsIdx, "Leftover filter chips mount after facet dropdowns");
-        assert.ok(clearIdx > chipIdx && saveIdx > clearIdx, "Clear filters and save search mount after chips");
+        assert.ok(clearIdx > chipIdx, "Clear filters mounts at the trailing end of the chip cluster");
+        assert.ok(filtersIdx < clearIdx && clearIdx < spacerIdx, "Filters toggle before Clear, Clear before spacer");
+        assert.ok(saveIdx > spacerIdx, "Save search is after the flex spacer");
         assert.doesNotMatch(topbar, /topbar-docked-status/, "live corpus count deferred from docked toolbar");
         assert.ok(sortIdx > saveIdx, "Sort segments mount after save search");
     });
@@ -430,7 +440,7 @@ describe("jobs page chrome guards", () => {
     it("exception JIT queries data-exception selectors and pickExceptionJit", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.match(src, /pickExceptionJit/);
-        assert.match(src, /listingsVisible: hits\.length > 0 && \(!showLandingMarketing \|\| isLgUp\)/);
+        assert.match(src, /listingsVisible: hits\.length > 0/);
         assert.match(src, /\[data-exception="both"\]/);
         assert.match(src, /\[data-exception="stale"\]/);
         assert.match(src, /\[data-exception="relisted"\]/);
@@ -452,12 +462,18 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /!showJobsToolbarRow && savedSearchControl/);
     });
 
-    it("mounts FilterChipsRow inside the toolbar scroller", () => {
+    it("mounts FacetBar as the in-page applied-chip rail, not FilterChipsRow", () => {
         const src = readFileSync(PAGE, "utf8");
-        const toolbar = src.slice(src.indexOf('data-testid="jobs-toolbar"'));
-        assert.match(toolbar, /<FilterChipsRow/);
-        const beforeToolbar = src.slice(0, src.indexOf('data-testid="jobs-toolbar"'));
-        assert.doesNotMatch(beforeToolbar, /<FilterChipsRow/);
+        const toolbar = src.slice(src.indexOf('data-testid="jobs-toolbar"'), src.indexOf('data-testid="active-filter-row"'));
+        assert.match(toolbar, /facetBarEl/);
+        assert.doesNotMatch(toolbar, /<FilterChipsRow/);
+    });
+
+    it("mounts the filter toolbar before Browse by field on the landing", () => {
+        const src = readFileSync(PAGE, "utf8");
+        const toolbarIdx = src.indexOf('data-testid="jobs-toolbar"');
+        const showcaseIdx = src.indexOf("<LandingMarketingShowcase");
+        assert.ok(toolbarIdx > -1 && showcaseIdx > toolbarIdx, "jobs-toolbar precedes LandingMarketingShowcase");
     });
 
 });

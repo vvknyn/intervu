@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { domainToSlug } from "@/lib/boards/slug";
 import { Button } from "@/components/ui/button";
 import { fetchCompanyProfile } from "@/lib/companies/company-stats";
-import { companyFromSlug } from "@/lib/companies/paths";
+import { companyBoardPath, companyFromSlug, companyPagePath } from "@/lib/companies/paths";
 import { CompanyHeader } from "@/components/company/CompanyHeader";
 import { CompanyRolesList } from "@/components/company/CompanyRolesList";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
@@ -53,11 +53,17 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const name = companyFromSlug(slug);
+  const profile = await fetchCompanyProfile(name);
+  const title = `Is ${name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`;
+  const description = `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${name} on velai.`;
+  const canonical = profile?.domain
+    ? companyBoardPath(profile.domain)
+    : companyPagePath(name);
   return {
-    title: `Is ${name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`,
-    description: `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${name} on velai.`,
+    title,
+    description,
     robots: { index: false, follow: true },
-    alternates: { canonical: "/jobs" },
+    alternates: { canonical },
   };
 }
 
@@ -72,22 +78,22 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
 
   if (!profile) {
     return (
-      <main data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <p className="text-sm text-muted-foreground">Company data isn&apos;t available right now.</p>
-      </main>
+      </div>
     );
   }
 
   const jobsSearchUrl = `/?q=${encodeURIComponent(profile.name)}`;
 
   return (
-    <main data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <CompanyHeader name={profile.name} totalOpenRoles={profile.totalOpenRoles} />
 
       {profile.roles.length === 0 ? (
         <>
           <p
-            className="mt-8 border-t border-foreground pt-6 text-sm text-muted-foreground"
+            className="mt-8 border-t border-border pt-6 text-sm text-muted-foreground"
             data-testid="company-empty-state"
           >
             We haven&apos;t verified enough about this company yet.
@@ -99,6 +105,6 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
       ) : (
         <CompanyRolesList roles={profile.roles} jobsSearchUrl={jobsSearchUrl} now={Date.now()} />
       )}
-    </main>
+    </div>
   );
 }

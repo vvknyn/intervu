@@ -108,16 +108,16 @@ function resolveConfirm(ok: boolean) {
 
 const VARIANT_META: Record<ToastVariant, { icon: React.ReactNode; cls: string }> = {
     success: {
-        icon: <CheckCircle size={18} weight="fill" className="text-green-500 shrink-0" />,
-        cls: "border-green-500/30",
+        icon: <CheckCircle weight="fill" className="text-live shrink-0" />,
+        cls: "border-live",
     },
     error: {
-        icon: <WarningCircle size={18} weight="fill" className="text-red-500 shrink-0" />,
-        cls: "border-red-500/30",
+        icon: <WarningCircle weight="fill" className="text-danger-text shrink-0" />,
+        cls: "border-danger-text",
     },
     info: {
-        icon: <Info size={18} weight="fill" className="text-blue-500 shrink-0" />,
-        cls: "border-blue-500/30",
+        icon: <Info weight="fill" className="text-brand shrink-0" />,
+        cls: "border-brand",
     },
 };
 
@@ -142,23 +142,23 @@ export function Toaster() {
 
     return (
         <>
-            <div className="pointer-events-none fixed bottom-4 right-4 z-[200] flex w-full max-w-sm flex-col gap-2">
+            <div className="pointer-events-none fixed bottom-4 right-4 z-[300] flex w-full max-w-sm flex-col gap-2">
                 {items.map((t) => {
                     const meta = VARIANT_META[t.variant];
                     return (
                         <div
                             key={t.id}
                             role="status"
-                            className={`pointer-events-auto flex items-start gap-2.5 rounded-xl border bg-background/95 px-4 py-3 text-sm shadow-lg backdrop-blur animate-in slide-in-from-bottom-2 fade-in ${meta.cls}`}
+                            className={`pointer-events-auto flex items-start gap-2.5 rounded-none border bg-background px-4 py-3 text-sm  animate-in slide-in-from-bottom-2 fade-in ${meta.cls}`}
                         >
                             {meta.icon}
                             <span className="flex-1 leading-snug text-foreground">{t.message}</span>
                             <button
                                 onClick={() => dismissToast(t.id)}
-                                className="shrink-0 text-muted-foreground/60 transition-colors hover:text-foreground"
+                                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
                                 aria-label="Dismiss"
                             >
-                                <X size={14} weight="bold" />
+                                <X weight="bold" />
                             </button>
                         </div>
                     );

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { approveConsentAction, denyConsentAction } from "@/actions/agent-consent";
-import { BrandMark } from "@/components/brand/BrandMark";
+import { BrandLockup } from "@/components/brand/BrandMark";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConsentAllowButton, ConsentDenyButton } from "@/components/oauth/ConsentSubmitButtons";
@@ -14,11 +14,8 @@ import type { ConsentParams } from "@/lib/agent/consent";
  */
 function ConsentBrand() {
     return (
-        <div className="mb-6 flex items-center justify-center gap-2 text-brand">
-            <BrandMark className="h-7 w-7 text-brand" />
-            <span className="font-display text-[20px] font-black uppercase tracking-tight text-brand">
-                velai
-            </span>
+        <div className="mb-6 flex items-center justify-center" data-rulebook-exempt>
+            <BrandLockup />
         </div>
     );
 }
@@ -27,7 +24,7 @@ export function CenteredCard({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex min-h-[70vh] flex-col items-center justify-center p-4">
             <ConsentBrand />
-            <Card className="w-full max-w-md">{children}</Card>
+            <Card className="w-full max-w-[400px]">{children}</Card>
         </div>
     );
 }
@@ -82,9 +79,10 @@ function HiddenConsentFields({ params }: { params: ConsentParams }) {
 }
 
 /**
- * `params.redirect_uri` has already passed `isAllowedRedirectUri`
- * (`validateConsentRequest`, consent.ts) by the time this renders — https:,
- * or http: on localhost/127.0.0.1 only — so `new URL()` here can't throw.
+ * `params.redirect_uri` has already passed DCR-time `isAllowedRedirectUri`
+ * (oauth.ts) and consent-time registration checks (`validateConsentRequest`,
+ * consent.ts) — https:, http: on localhost/127.0.0.1, or native MCP schemes
+ * (cursor:, vscode:, vscode-insiders:) — so `new URL()` here can't throw.
  * Naming the redirect host (IMPORTANT 6 review fix) matters because
  * `clientName` is attacker-chosen DCR metadata (`registerClient`, oauth.ts,
  * accepts any `client_name`) — a user approving on name alone has no way to
@@ -107,7 +105,7 @@ export function ConsentCard({ clientName, params }: { clientName: string; params
                 <CardTitle>Connect this agent to your account</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <div className="border border-border bg-muted/40 p-3">
+                <div className="border border-border bg-muted p-3">
                     <dl className="grid grid-cols-[7.5rem_1fr] gap-y-1.5 text-xs">
                         <dt className="text-muted-foreground">says it is</dt>
                         <dd className="text-foreground">&quot;{clientName}&quot;</dd>

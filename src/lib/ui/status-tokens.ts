@@ -22,11 +22,11 @@ export type StatusTone = "saved" | "applied" | "intv" | "offer" | "closed";
 
 /** Soft-background pill: soft tinted bg + colored foreground + matching border. */
 export const STATUS_PILL: Record<StatusTone, string> = {
-  saved: "bg-st-saved-soft text-st-saved border border-st-saved/20",
-  applied: "bg-st-applied-soft text-st-applied border border-st-applied/20",
-  intv: "bg-st-intv-soft text-st-intv border border-st-intv/20",
-  offer: "bg-st-offer-soft text-st-offer border border-st-offer/20",
-  closed: "bg-st-closed-soft text-st-closed border border-st-closed/20",
+  saved: "bg-st-saved-soft text-st-saved border border-st-saved",
+  applied: "bg-st-applied-soft text-st-applied border border-st-applied",
+  intv: "bg-st-intv-soft text-st-intv border border-st-intv",
+  offer: "bg-st-offer-soft text-st-offer border border-st-offer",
+  closed: "bg-st-closed-soft text-st-closed border border-st-closed",
 };
 
 /**
@@ -184,21 +184,21 @@ export type ListingStateTone = "fresh" | "relisted" | "reported";
 
 /** Chip idiom (border + bg + text) — SERP row FACT_BOX, JobDetail's fact chips. */
 export const LISTING_STATE_CHIP: Record<ListingStateTone, string> = {
-  fresh: "border-sky-200/90 bg-sky-50/90 text-sky-950 dark:border-sky-900/70 dark:bg-sky-950/60 dark:text-sky-200",
-  relisted: "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
-  reported: "border border-red-300 bg-transparent text-red-800 dark:border-red-800 dark:text-red-300",
+  fresh: "border-muted bg-muted text-brand dark:border-brand dark:bg-brand dark:text-muted-foreground",
+  relisted: "border-warn bg-muted text-warn dark:border-warn dark:bg-warn dark:text-muted-foreground",
+  reported: "border border-danger-text bg-transparent text-danger-text dark:border-danger-text dark:text-danger-text",
 };
 
 /** Chip idiom's bold uppercase key-label sub-color (the `<b>pay</b>`-style tag). */
 export const LISTING_STATE_CHIP_LABEL: Record<ListingStateTone, string> = {
-  fresh: "text-sky-600 dark:text-sky-400",
-  relisted: "text-amber-700 dark:text-amber-400",
-  reported: "text-red-700 dark:text-red-400",
+  fresh: "text-brand dark:text-brand",
+  relisted: "text-warn dark:text-warn",
+  reported: "text-danger-text dark:text-danger-text",
 };
 
 /** Plain inline-text idiom — prose notes and the ghost-check ledger's per-signal lines (no box). */
 export const LISTING_STATE_TEXT: Record<ListingStateTone, string> = {
-  fresh: "text-sky-700 dark:text-sky-400",
-  relisted: "text-amber-700 dark:text-amber-400",
-  reported: "text-red-700 dark:text-red-400",
+  fresh: "text-brand dark:text-brand",
+  relisted: "text-warn dark:text-warn",
+  reported: "text-danger-text dark:text-danger-text",
 };

@@ -9,8 +9,12 @@ import {
     buildSearchBody,
     withLiveVacancyFilter,
     LIVE_VACANCY_FILTER,
+    buildLastUpdatedQuery,
+    quoteShortTokens,
 } from "../../src/lib/jobs/meilisearch";
+import { shouldRunRoleTitleLane } from "../../src/lib/jobs/role-title-lane";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "../../src/lib/jobs/types";
+import type { JobSearchParams } from "../../src/lib/jobs/types";
 
 const SERP_FILTERS_SRC = readFileSync(
     fileURLToPath(new URL("../../src/components/jobs/SerpFilters.tsx", import.meta.url)),
@@ -93,7 +97,7 @@ test("fetchPostedDateFilterSupported: probe failure is null (unknown), success m
 
 test("F6: buildSearchBody requests only REQUESTED_FACET_KEYS, not the full FACETABLE_KEYS — 'source' costs a Meili facet computation on every search for a value nothing renders", () => {
     const body = buildSearchBody({ q: "", withFacets: true }, false);
-    assert.deepEqual(body.facets, [...REQUESTED_FACET_KEYS]);
+    assert.deepEqual(body.facets, [...REQUESTED_FACET_KEYS] as string[]);
     assert.ok(FACETABLE_KEYS.includes("source"), "source stays a legal filter (?src=, MCP) — just not a requested facet");
     assert.ok(!body.facets!.includes("source"));
 });
@@ -110,7 +114,7 @@ test("F6 guard: every REQUESTED_FACET_KEYS member is referenced somewhere in the
 });
 
 test("F6 guard: 'source' is FACETABLE but deliberately absent from both the requested-keys list and the render path", () => {
-    assert.ok(!REQUESTED_FACET_KEYS.includes("source"));
+    assert.ok(!(REQUESTED_FACET_KEYS as readonly string[]).includes("source"));
     assert.ok(!RENDER_PATH_SRC.includes('"source"'));
 });
 
@@ -162,4 +166,80 @@ test("fetchFacetSearch: every request body carries the composed liveness filter,
         },
         { facetName: "work_type", facetQuery: "", filter: LIVE_VACANCY_FILTER },
     ]);
+});
+
+// Freshness-line truthfulness (intervu #484): `buildLastUpdatedQuery` gives
+// `fetchJobsLastUpdated` the SAME `filter`/`q` the results search sends for
+// `p`, so the "updated X ago" stamp is MAX(updated_at) over the population
+// actually on screen — never a corpus-wide number computed independently of
+// the filters. Each case below is a distinct narrowing shape the reviewer
+// required coverage for, including the pristine 30d default that the
+// enumeration-based `isNarrowedResultSet` gate missed.
+
+test("buildLastUpdatedQuery: pristine default (untouched 30d window) scopes the filter to it", () => {
+    const { filter, q } = buildLastUpdatedQuery({ postedBucket: "30d" }, { companyScoped: false });
+    assert.equal(q, "");
+    assert.equal(filter[0], LIVE_VACANCY_FILTER);
+    assert.ok(
+        filter.some((clause) => /^posted_ts >= \d+$/.test(clause)),
+        `expected a posted_ts floor clause, got ${JSON.stringify(filter)}`,
+    );
+});
+
+test("buildLastUpdatedQuery: explicit unfiltered corpus (no posted window) carries no date clause", () => {
+    const { filter, q } = buildLastUpdatedQuery({}, { companyScoped: false });
+    assert.equal(q, "");
+    assert.deepEqual(filter, [LIVE_VACANCY_FILTER]);
+});
+
+test("buildLastUpdatedQuery: employer drawer (companyDomain scope) — the founder's exact repro", () => {
+    const { filter } = buildLastUpdatedQuery({ companyDomain: "acme.com" }, { companyScoped: false });
+    assert.ok(filter.includes('company_domain = "acme.com"'), `expected a company_domain clause, got ${JSON.stringify(filter)}`);
+});
+
+test("buildLastUpdatedQuery: a text query is sent as the SAME quoted q the results search uses", () => {
+    const { q } = buildLastUpdatedQuery({ q: "registered nurse" }, { companyScoped: false });
+    assert.equal(q, quoteShortTokens("registered nurse"));
+    assert.notEqual(q, "", "a real query must not collapse to match-all");
+});
+
+test("buildLastUpdatedQuery: a facet with no text (country) scopes the filter, leaves q empty", () => {
+    const { filter, q } = buildLastUpdatedQuery({ facets: { location_country: ["US"] } }, { companyScoped: false });
+    assert.equal(q, "");
+    assert.ok(filter.includes('(location_country = "US")'), `expected a location_country clause, got ${JSON.stringify(filter)}`);
+});
+
+// Review fix (intervu #484, second pass): the 5 cases above only ever pass
+// `companyScoped: false` with queries that never trigger a title/company/
+// tech scope, so they can't catch `attributesToSearchOn` drift — the
+// reviewer's actual finding. This table asserts, for a spread of scope
+// shapes INCLUDING two the reviewer didn't test (title-scoped text, and
+// text combined with a facet filter), that `buildLastUpdatedQuery`'s
+// `attributesToSearchOn` is IDENTICAL to what `buildSearchBody` sends for
+// the real results search — not merely "close" or "similarly shaped". Both
+// sides call the same `resolveAttributesToSearchOn`, so this also proves
+// that shared function is the only place either query gets this field from.
+const ATTRIBUTES_TO_SEARCH_ON_CASES: { name: string; p: JobSearchParams; companyScoped: boolean }[] = [
+    { name: "empty text (pristine default)", p: { postedBucket: "30d" }, companyScoped: false },
+    { name: "plain text (bare role query)", p: { q: "registered nurse" }, companyScoped: false },
+    { name: "company-scoped text", p: { q: "Acme Corp" }, companyScoped: true },
+    { name: "title-scoped text (role-title lane)", p: { q: "director of brand and product" }, companyScoped: false },
+    {
+        name: "text + filters",
+        p: { q: "registered nurse", facets: { location_country: ["US"] } },
+        companyScoped: false,
+    },
+];
+
+test("buildLastUpdatedQuery: attributesToSearchOn matches buildSearchBody's for every scope shape (intervu #484 review fix)", () => {
+    for (const { name, p, companyScoped } of ATTRIBUTES_TO_SEARCH_ON_CASES) {
+        const titleScoped = shouldRunRoleTitleLane(p.q ?? "", companyScoped);
+        const resultsBody = buildSearchBody(p, false, "all", { companyScoped, titleScoped });
+        const stampQuery = buildLastUpdatedQuery(p, { companyScoped });
+        assert.deepEqual(
+            stampQuery.attributesToSearchOn,
+            resultsBody.attributesToSearchOn,
+            `${name}: stamp scope ${JSON.stringify(stampQuery.attributesToSearchOn)} != results scope ${JSON.stringify(resultsBody.attributesToSearchOn)}`,
+        );
+    }
 });

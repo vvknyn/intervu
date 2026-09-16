@@ -9,8 +9,8 @@ import { join, relative, sep } from "node:path";
  * The company-name seam rework (2026-08-29) removed an ingest-time cleaning
  * seam that would have run in production for exactly zero requests (the live
  * Meili index is written by a separate repo's sync job, which PUTs the
- * Subspace feed through unchanged — see `upsertJobs`'s own doc comment). That
- * means the index carries the ATS-stated raw `company` string PERMANENTLY;
+ * Subspace feed through unchanged). That means the index carries the
+ * ATS-stated raw `company` string PERMANENTLY;
  * intervu owns brand cleaning at DISPLAY time only
  * (`lib/jobs/presentation.ts`'s `displayCompanyBrand` chain, or the
  * `lib/presentation/` wrapper built on it). Four real bypasses of that
@@ -113,6 +113,16 @@ const ALLOWLIST: AllowEntry[] = [
     file: "src/components/jobs/PublicJobDetail.tsx",
     match: "company: target.company ?? \"\",",
     reason: "Firestore write payload for markJobAppliedAction — same as jobs/page.tsx's mirror call",
+  },
+  {
+    file: "src/components/jobs/ApplyReturnPrompt.tsx",
+    match: "company: job.company }",
+    reason: "write-only sessionStorage field written by armApplyReturn — the record is never rendered raw, only decodeText(record.title) is displayed",
+  },
+  {
+    file: "src/components/jobs/ApplyReturnPrompt.tsx",
+    match: "company: pending.company, apply_url: \"\"",
+    reason: "pass-through of the already-stored sessionStorage record back to the caller's doMarkApplied, which itself only uses it as a Firestore write payload (see the jobs/page.tsx and PublicJobDetail.tsx entries above)",
   },
   {
     file: "src/components/modals/FavoritesModal.tsx",
