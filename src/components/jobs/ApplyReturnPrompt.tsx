@@ -104,7 +104,7 @@ export function ApplyReturnPrompt({
         <div
             data-testid="apply-return-prompt"
             role="status"
-            className="fixed bottom-24 right-4 z-[190] flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3"
+            className="fixed bottom-24 right-4 z-40 flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3"
         >
             <div className="min-w-0 flex-1">
                 <div className="mono-data whitespace-nowrap text-xs text-muted-foreground">Did you apply?</div>
