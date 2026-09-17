@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { mcpConnectorUrl, openclawInstallCommand, setupSteps } from "../../src/components/marketing/openclaw-content";
+import { stripTsComments } from "../support/strip-comments";
 
 /**
  * An MCP connector fails silently when the URL a person pastes and the origin
@@ -27,9 +28,6 @@ const CONNECTOR_SURFACES = [
     "src/app/openclaw/page.tsx",
 ];
 
-const stripComments = (src: string) =>
-    src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/^\s*\/\/.*$/gm, "");
-
 describe("connector origin: one source, no hand-typed copies", () => {
     it("every displayed connector string is built from the issuer it is given", () => {
         const issuer = "https://example.test";
@@ -42,7 +40,7 @@ describe("connector origin: one source, no hand-typed copies", () => {
 
     it("no connector surface spells an origin of its own", () => {
         for (const path of CONNECTOR_SURFACES) {
-            const src = stripComments(read(path));
+            const src = stripTsComments(read(path));
             const hit = src.match(ORIGIN_LITERAL);
             assert.equal(
                 hit,
