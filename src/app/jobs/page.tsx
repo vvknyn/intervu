@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SearchAutocomplete, type SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
@@ -244,6 +244,7 @@ import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
 import {
+    AUTH_CTA_LABEL,
     formatAuthGateValueLine,
     GUEST_SAVE_TOAST,
     SIGNUP_SUBCOPY,
@@ -5712,7 +5713,7 @@ function JobsContent() {
                                             onClick={() => openAuth("save", "user")}
                                             className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
-                                            sign in
+                                            {AUTH_CTA_LABEL}
                                         </button>
                                         <button
                                             type="button"
@@ -5735,7 +5736,7 @@ function JobsContent() {
                                             onClick={() => openAuth("generic", "user")}
                                             className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
-                                            sign in
+                                            {AUTH_CTA_LABEL}
                                         </button>
                                         <button
                                             type="button"
@@ -5871,7 +5872,7 @@ function JobsContent() {
                                     <p className="mt-1 text-xs text-muted-foreground">
                                         Tap one to search — your filters stay on
                                     </p>
-                                    <div className="mt-3.5 flex flex-wrap gap-x-[18px] gap-y-2.5" role="list" aria-label="Suggested roles">
+                                    <div className="mt-3.5 flex flex-wrap gap-x-4 gap-y-2.5" role="list" aria-label="Suggested roles">
                                         {searchSeeds.map((seed) => (
                                             <button
                                                 key={seed}
@@ -6176,7 +6177,7 @@ function JobsContent() {
                                                         href={depthGateSignInHref}
                                                         className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                                                     >
-                                                        Sign in
+                                                        {AUTH_CTA_LABEL}
                                                     </a>
                                                 </p>
                                             ) : loadingMore ? (
@@ -6325,12 +6326,11 @@ function JobsContent() {
                 <SheetContent
                     side="bottom"
                     hideCloseButton
-                    overlayClassName="bg-[rgba(18,21,26,0.42)]"
                     className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
                     <div className="shrink-0 border-b border-border">
                         <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-                            <span className="h-1.5 w-10 rounded-none bg-border dark:bg-border" />
+                            <SheetHandle />
                         </div>
                         <div className="flex items-center gap-2 px-4 pb-3">
                             <div className="min-w-0 flex-1">

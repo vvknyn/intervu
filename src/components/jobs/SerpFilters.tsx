@@ -339,13 +339,23 @@ export function SerpFilters({
 
                 <Group label="Visa">
                     <Affordance active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
-                        Sponsors visas
+                        {/* Caption nests inside the label's text column instead of a
+                            sibling <p> aligned to it with a pl-[icon-width+gap] literal
+                            — it inherits the column's left edge for free. stopPropagation
+                            keeps the caption inert (info only, not part of the toggle
+                            target), matching the old sibling <p>'s behavior. */}
+                        <span className="flex flex-col gap-0.5">
+                            <span>Sponsors visas</span>
+                            {visaShare != null && (
+                                <span
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-xs leading-snug text-muted-foreground"
+                                >
+                                    sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
+                                </span>
+                            )}
+                        </span>
                     </Affordance>
-                    {visaShare != null && (
-                        <p className="pl-[22px] text-xs leading-snug text-muted-foreground">
-                            sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
-                        </p>
-                    )}
                 </Group>
 
                 <FacetGroup

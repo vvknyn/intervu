@@ -26,7 +26,7 @@ export function CompanyCadenceStrip({
         Their posting rhythm, last {weeks.length} weeks
       </h2>
       <div
-        className="mt-4 flex h-[72px] items-end gap-[2px] overflow-x-auto pb-1"
+        className="mt-4 flex h-[72px] items-end gap-0.5 overflow-x-auto pb-1"
         role="img"
         aria-label={`Weekly new postings, ${first} through ${last}`}
       >

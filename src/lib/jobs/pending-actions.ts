@@ -24,7 +24,7 @@
  * — that same write also covers the in-place login case for free (write,
  * then read back moments later, same tab). The bug this module exists to
  * kill: a persisted action that survives a DISMISS and then fires after an
- * *unrelated* later sign-in (e.g. the global sidebar "Log in"), silently
+ * *unrelated* later sign-in (e.g. the global sidebar "Sign in"), silently
  * writing a phantom application or popping a dialog for a job the user
  * abandoned. The fix is that `takePersistedPendingAction` ALWAYS clears the
  * record the moment it's read — matched, invalid, expired, or

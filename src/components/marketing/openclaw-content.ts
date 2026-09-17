@@ -161,7 +161,7 @@ export const WHAT_IT_WONT_DO_ITEMS: readonly ContentStep[] = [
   { title: "Never submits", body: "You always click submit — the agent stops the moment a form is ready to send." },
   { title: "Never invents experience", body: "It works with what's real on your resume, not what would look good." },
   { title: "Never answers EEO or demographic questions", body: "Those fields are left for you." },
-  { title: "Stops at account walls", body: "If a posting needs a new login, it stops and hands the posting back to you." },
+  { title: "Stops at account walls", body: "If a posting needs a new sign-in, it stops and hands the posting back to you." },
 ];
 
 /** "Runs on your machine" — a single statement, not a list, so it isn't an

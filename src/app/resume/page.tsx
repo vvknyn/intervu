@@ -10,7 +10,7 @@ import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
-import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { AUTH_CTA_LABEL, formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
@@ -55,7 +55,7 @@ function SignedOutEmptyState({
                     Upload resume
                 </Button>
                 <Button variant="outline" size="sm" onClick={onLoginClick} className="w-full sm:w-auto rounded-none font-semibold">
-                    Sign in
+                    {AUTH_CTA_LABEL}
                 </Button>
             </div>
         </div>
@@ -107,7 +107,7 @@ function ResumeContent() {
                 className={cn(
                     "mx-auto transition-all",
                     editorOpen
-                        ? "max-w-6xl px-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
+                        ? "max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
                         : "max-w-6xl px-4 pb-16 pt-6 sm:px-8 xl:max-w-7xl xl:px-10",
                 )}
             >

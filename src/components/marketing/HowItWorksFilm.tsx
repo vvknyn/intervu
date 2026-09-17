@@ -1,5 +1,9 @@
 "use client";
 
+// design-lint-allow-file: self-contained dark film plate -- its own
+// black/near-black palette, not this app's token set; exempt from the
+// repo-wide banned-utility gate (tests/unit/design-language.test.ts).
+
 import {
     Dialog,
     DialogContent,
