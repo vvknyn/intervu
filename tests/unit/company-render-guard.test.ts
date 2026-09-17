@@ -136,7 +136,7 @@ const ALLOWLIST: AllowEntry[] = [
   },
   {
     file: "src/components/jobs/JobDetail.tsx",
-    match: '<CompanyLogo domain={job.company_domain} name={job.company} size="lg" />',
+    match: '<CompanyLogo domain={job.company_domain} name={job.company} size="md" />',
     reason: "CompanyLogo cleans its `name` prop internally — see the jobs/page.tsx entry above",
   },
   {
