@@ -1,6 +1,7 @@
 
 import { LLMProvider, LLMRequest, LLMResponse } from './types';
 import { GROQ_DEFAULT_MODEL } from './models';
+import { getSiteUrl } from '@/lib/seo/constants';
 import OpenAI from 'openai';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
@@ -169,7 +170,7 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
 export class OpenRouterProvider extends OpenAICompatibleProvider {
     constructor(apiKey: string, model: string = 'deepseek/deepseek-v4-flash') {
         super('OpenRouter', apiKey, model, 'https://openrouter.ai/api/v1', {
-            'HTTP-Referer': 'https://intervu.cc',
+            'HTTP-Referer': getSiteUrl(),
             'X-Title': 'Velai',
         });
     }
