@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { captureEvent } from "@/lib/analytics/events";
-import {
-    type AuthGateReason,
-    type AuthGateTrigger,
-    resolveAuthOpenEvent,
-    shouldCaptureAuthStarted,
-} from "@/lib/auth/auth-gate-copy";
-import { recordNudgeDismissed, shouldShowAutoNudge } from "@/lib/auth/nudge-cap";
+import { type AuthGateReason, type AuthGateTrigger, resolveAuthOpenEvent } from "@/lib/auth/auth-gate-copy";
+import { canShowAutoNudge, markAutoNudgeShown, recordNudgeDismissed } from "@/lib/auth/nudge-cap";
+import { type NudgeGateState, nudgeGateNext, shouldRecordDismiss } from "@/lib/auth/nudge-gate";
 
 interface AuthPopoverProps {
     open: boolean;
@@ -52,34 +48,46 @@ interface AuthPopoverProps {
 }
 
 export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine, defaultTab = "login", reason, trigger }: AuthPopoverProps) {
-    const wasOpenRef = useRef(false);
     const succeededRef = useRef(false);
     const effectiveReason = reason ?? "generic";
+    const [gate, setGate] = useState<NudgeGateState>("idle");
 
-    // An auto-triggered open is capped — see nudge-cap.ts. A suppressed
-    // nudge never reaches the DOM: the gated action it followed (e.g.
-    // opening the ATS tab) already ran, so silently not showing the
-    // popover on top of it is correct, not a broken UI.
-    const suppressed = trigger === "auto" && open && !shouldShowAutoNudge(effectiveReason);
-    const effectiveOpen = open && !suppressed;
-
+    // The auto-nudge cap (nudge-cap.ts) is decided once per open
+    // TRANSITION, not on every render: /jobs re-renders constantly, and
+    // re-deciding on each render burned the 7-day dismiss suppression on
+    // phantom closes nobody made (see nudge-gate.ts). A suppressed nudge
+    // never reaches the DOM: the gated action it followed (e.g. opening
+    // the ATS tab) already ran, so silently not showing the popover on
+    // top of it is correct, not a broken UI.
     useEffect(() => {
-        if (suppressed) {
-            onOpenChange(false);
+        if (open && gate === "idle") {
+            const allowed = trigger !== "auto" || canShowAutoNudge(effectiveReason);
+            const next = nudgeGateNext(gate, { type: "open", trigger, allowed });
+            if (next === "shown") {
+                if (trigger === "auto") markAutoNudgeShown(effectiveReason);
+                captureEvent(resolveAuthOpenEvent(trigger), { reason: effectiveReason });
+            } else {
+                // Suppressed: tell the parent so its own `open` state
+                // doesn't stay stuck true for a popover that never shows.
+                onOpenChange(false);
+            }
+            setGate(next);
             return;
         }
-        if (shouldCaptureAuthStarted(wasOpenRef.current, effectiveOpen)) {
-            captureEvent(resolveAuthOpenEvent(trigger), { reason: effectiveReason });
+        if (!open && gate !== "idle") {
+            const next = nudgeGateNext(gate, { type: "close" });
+            // Closing without a preceding success is a dismiss — only
+            // counts toward the auto-nudge cap; a user who opened this
+            // themselves and backed out isn't "nudge fatigue".
+            if (shouldRecordDismiss(gate, next) && trigger === "auto" && !succeededRef.current) {
+                recordNudgeDismissed(effectiveReason);
+            }
+            succeededRef.current = false;
+            setGate(next);
         }
-        // Closing without a preceding success is a dismiss — only counts
-        // toward the auto-nudge cap; a user who opened this themselves and
-        // backed out isn't "nudge fatigue".
-        if (wasOpenRef.current && !effectiveOpen && trigger === "auto" && !succeededRef.current) {
-            recordNudgeDismissed(effectiveReason);
-        }
-        if (!effectiveOpen) succeededRef.current = false;
-        wasOpenRef.current = effectiveOpen;
-    }, [effectiveOpen, suppressed, trigger, effectiveReason, onOpenChange]);
+    }, [open, gate, trigger, effectiveReason, onOpenChange]);
+
+    const effectiveOpen = gate === "shown";
 
     const handleSuccess = () => {
         succeededRef.current = true;
