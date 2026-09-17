@@ -131,6 +131,7 @@ function applyModelTailor(
 
         bullets.push({
             experienceId: exp.id,
+            source: "experience",
             company: exp.company,
             role: exp.role,
             before: hit,
@@ -175,11 +176,13 @@ function isGrounded(vocabulary: Set<string>, before: string, after: string): boo
 }
 
 function revertBulletInResume(resume: ResumeData, bullet: TailorBulletDiff): ResumeData {
-    const expIdx = resume.experience.findIndex((e) => e.id === bullet.experienceId);
-    if (expIdx < 0) return resume;
-    resume.experience[expIdx] = {
-        ...resume.experience[expIdx],
-        description: resume.experience[expIdx].description.replace(bullet.after, bullet.before),
+    const list = bullet.source === "project" ? resume.projects : resume.experience;
+    if (!list) return resume;
+    const idx = list.findIndex((e) => e.id === bullet.experienceId);
+    if (idx < 0) return resume;
+    list[idx] = {
+        ...list[idx],
+        description: list[idx].description.replace(bullet.after, bullet.before),
     };
     return resume;
 }

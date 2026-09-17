@@ -1,4 +1,5 @@
 import { type CorpusCount } from "@/lib/jobs/corpus-count";
+import { POPULAR_LOCATION_COUNTRIES } from "@/components/jobs/FilterPanel";
 
 /** Single source of truth for every user-visible "screened for ghost jobs /
  *  postings that aren't really hiring" claim — link the claim, don't just
@@ -11,6 +12,43 @@ export const GHOST_RESEARCH_HREF = "/research/ghost-jobs";
  *  instead of a second, independently-typed copy of the phrase. */
 export const GHOST_SCREENING_CLAUSE = "screened for stale postings";
 
+/** Short forms for the sentence below, keyed by the canonical spelling in
+ *  `POPULAR_LOCATION_COUNTRIES`. Any country not listed here (i.e. every
+ *  country added going forward) falls back to its full name — the sentence
+ *  never breaks, it just doesn't abbreviate that one. */
+const COUNTRY_SHORT_NAME: Partial<Record<(typeof POPULAR_LOCATION_COUNTRIES)[number], string>> = {
+    "United States": "the US",
+    "United Kingdom": "the UK",
+};
+
+/** How many countries the sentence names outright before folding the rest
+ *  into a plain "more countries" item — never a count (the landing claim
+ *  is guarded to state no number; the live-jobs count owns that role, see
+ *  "states no count" below). */
+const NAMED_COUNTRY_COUNT = 3;
+
+/**
+ * R5: the geo clause of the provenance claim, derived from
+ * `POPULAR_LOCATION_COUNTRIES` (FilterPanel.tsx) — the same list the mobile
+ * location sheet shows — rather than an independently hand-typed set of
+ * country names that can drift from what the filters actually cover.
+ * Naming all ten in a sentence would read like a legal disclaimer, so it
+ * names the first few and folds the rest into a plain "more countries" —
+ * `Intl.ListFormat` joins whatever items are present, so this reads
+ * naturally whether or not there's a "more countries" or "remote" item.
+ */
+function geoClause(): string {
+    const named = POPULAR_LOCATION_COUNTRIES.slice(0, NAMED_COUNTRY_COUNT).map(
+        (c) => COUNTRY_SHORT_NAME[c] ?? c,
+    );
+    const items = [
+        ...named,
+        ...(POPULAR_LOCATION_COUNTRIES.length > NAMED_COUNTRY_COUNT ? ["more countries"] : []),
+        "remote",
+    ];
+    return new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(items);
+}
+
 /**
  * The honest-market claim's factual core — source provenance + ghost
  * screening. Single source of truth: the landing claim sentence and the
@@ -22,7 +60,7 @@ export const GHOST_SCREENING_CLAUSE = "screened for stale postings";
  * companies' own career pages" states the same fact from the seeker's side.
  */
 export const CORPUS_SOURCE_DESCRIPTOR =
-    `from companies' own career pages across the US, Canada and remote, ${GHOST_SCREENING_CLAUSE}`;
+    `from companies' own career pages across ${geoClause()}, ${GHOST_SCREENING_CLAUSE}`;
 
 /**
  * Numbers the landing claim can render when available. Sourced from the same

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { FacetDistribution, FacetKey, PanelFacetKey, PostedBucket, YearsExperienceBucket } from "@/lib/jobs/types";
@@ -77,6 +78,62 @@ export function Affordance({
             {typeof count === "number" && (
                 <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{count.toLocaleString()}</span>
             )}
+        </label>
+    );
+}
+
+/**
+ * Free-form salary floor, alongside the SALARY_PRESETS ladder (G1) — writes
+ * the exact same `salary_min` param the preset radios do, so there is one
+ * filter, not a second one layered on top. No max: the product only ever
+ * filters on a floor. Local draft state so typing doesn't fight the
+ * controlled `salaryMin` prop on every keystroke; commits on blur/Enter,
+ * and stays in sync when a preset click changes `salaryMin` externally.
+ * Exported so both SerpFilters' own Salary group and FacetBar's Salary chip
+ * (a presentation of this same filter, not a second one) mount it.
+ */
+export function SalaryCustomMinInput({
+    salaryMin,
+    onSalaryMin,
+}: {
+    salaryMin: number;
+    onSalaryMin: (v: number) => void;
+}) {
+    const [draft, setDraft] = useState(salaryMin > 0 ? String(salaryMin) : "");
+
+    useEffect(() => {
+        setDraft(salaryMin > 0 ? String(salaryMin) : "");
+    }, [salaryMin]);
+
+    const commit = () => {
+        const parsed = Math.max(0, Math.round(Number(draft.replace(/[^0-9]/g, "")) || 0));
+        onSalaryMin(parsed);
+    };
+
+    return (
+        <label className="mt-1 flex items-center gap-1.5 text-xs text-foreground">
+            <span className="shrink-0 text-muted-foreground">Custom minimum</span>
+            <span className="flex min-w-0 items-center gap-1 border border-border px-1.5 py-1">
+                <span className="text-muted-foreground">$</span>
+                <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    inputMode="numeric"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={commit}
+                    onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        commit();
+                    }}
+                    placeholder="e.g. 65000"
+                    aria-label="Custom minimum salary"
+                    data-testid="salary-custom-min"
+                    className="w-20 min-w-0 bg-transparent text-xs text-foreground outline-none"
+                />
+            </span>
         </label>
     );
 }
@@ -247,6 +304,7 @@ export function SerpFilters({
                             {s.label}
                         </Affordance>
                     ))}
+                    <SalaryCustomMinInput salaryMin={state.salaryMin} onSalaryMin={onSalaryMin} />
                 </Group>
 
                 <FacetGroup

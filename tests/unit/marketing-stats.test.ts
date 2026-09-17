@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { LANDING_PROVENANCE_LINE, FOOTER_PROVENANCE_LINE, CORPUS_SOURCE_DESCRIPTOR } from "../../src/lib/marketing-stats";
+import { POPULAR_LOCATION_COUNTRIES } from "../../src/components/jobs/FilterPanel";
 
 /* ------------------------ LANDING_PROVENANCE_LINE ------------------------ */
 
@@ -21,6 +22,29 @@ test("the landing claim states no count — the live count line owns that number
 test("the landing and footer claims share one descriptor rather than two wordings", () => {
     assert.match(FOOTER_PROVENANCE_LINE, new RegExp(CORPUS_SOURCE_DESCRIPTOR));
     assert.match(LANDING_PROVENANCE_LINE, new RegExp(CORPUS_SOURCE_DESCRIPTOR));
+});
+
+/* --------------------------- ITEM R5: geo single source --------------------------- */
+// The descriptor used to hand-type "the US, Canada and remote" independently
+// of POPULAR_LOCATION_COUNTRIES (FilterPanel.tsx's mobile location-sheet
+// list), so the two could disagree about which countries the corpus covers.
+// These tie the descriptor's facts to that one source: a country the
+// descriptor names verbatim, and a count that moves with the list's length.
+
+test("R5: the geo clause names a country straight out of POPULAR_LOCATION_COUNTRIES, not a hand-typed duplicate", () => {
+    // Index 2 ("Canada") isn't abbreviated, so it appears in the descriptor
+    // exactly as spelled in the source list.
+    assert.match(CORPUS_SOURCE_DESCRIPTOR, new RegExp(POPULAR_LOCATION_COUNTRIES[2]!));
+});
+
+test("R5: the descriptor folds the rest of the list into a plain 'more countries', with no digit — the landing claim's no-count guard above applies here too", () => {
+    assert.match(CORPUS_SOURCE_DESCRIPTOR, /more countries/);
+    assert.doesNotMatch(CORPUS_SOURCE_DESCRIPTOR, /\d/);
+});
+
+test("R5: marketing-stats.ts imports the country list rather than typing its own", () => {
+    const src = readFileSync(new URL("../../src/lib/marketing-stats.ts", import.meta.url), "utf8");
+    assert.match(src, /import \{ POPULAR_LOCATION_COUNTRIES \} from "@\/components\/jobs\/FilterPanel"/);
 });
 
 /* ------------------------- ITEM U: single cache chokepoint ------------------------ */
