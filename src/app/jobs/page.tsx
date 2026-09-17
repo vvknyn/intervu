@@ -5497,7 +5497,7 @@ function JobsContent() {
                                         data-testid="local-ai-guest-banner"
                                         className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
-                                        <span>R&D local mode — résumé stays in this browser until you sign in.</span>
+                                        <span>Local mode: your résumé is read and structured in this browser.</span>
                                         {showResumeReplace && (
                                             <button
                                                 type="button"
