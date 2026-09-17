@@ -334,6 +334,24 @@ export function visibleTags(raw: string[] | null | undefined, limit: number): st
     return raw.map(decodeText).map((t) => t.trim()).filter(Boolean).slice(0, limit);
 }
 
+/**
+ * Skill-list evidence gate — the ONE place display code may read
+ * `must_have_skills` / `preferred_skills` off a job. The old extractor
+ * fabricated skill values with no signal it had actually found a
+ * requirements section; the upstream re-extraction (subspace #3016) stamps
+ * `skills_section_found: true` only when it parsed a real
+ * Requirements/Preferred heading. Absence of the field means an
+ * old, unstamped row — treated as `false`, same as `false` itself: hide.
+ * Callers still run the result through `visibleTags` for decode/trim/limit.
+ */
+export function evidencedSkills(
+    job: Pick<PublicJob, "must_have_skills" | "preferred_skills" | "skills_section_found">,
+    field: "must_have_skills" | "preferred_skills",
+): string[] {
+    if (job.skills_section_found !== true) return [];
+    return job[field] ?? [];
+}
+
 /** Tokenizer shared by `cleanCompany`'s subset check and the relevance-seam
  *  matchers below — lowercase, split on anything that isn't alnum/+/#/.
  *  (keeps "c++" and ".net" intact as single tokens). */
