@@ -380,8 +380,6 @@ export function CompanyRoleSearch({
           <div
             ref={detailScrollRef}
             data-testid="mobile-detail-scroller"
-            // design-lint-allow: env(safe-area-inset-bottom) is a live
-            // iOS inset, not a literal.
             className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar"
           >
             {selectedJob && (

@@ -67,8 +67,6 @@ export function TourTrigger() {
     <div
       className={cn(
         "fixed right-4 z-[80] flex items-center gap-0.5 rounded-none pl-2.5 pr-1 py-1 text-xs transition-all outline-none animate-in fade-in slide-in-from-bottom-2 duration-200",
-        // design-lint-allow: composes the existing --mobile-tabbar-h token
-        // with env(safe-area-inset-bottom) — not a literal.
         "bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+1rem)] lg:right-6 lg:bottom-6",
         minimizedTour
           ? "bg-brand text-brand-foreground"

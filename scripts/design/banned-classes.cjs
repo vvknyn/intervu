@@ -30,6 +30,7 @@ const FILE_EXEMPTIONS = [
     { file: "src/components/marketing/WhatsAppThreadHero.tsx", why: "Decorative marketing mock of a WhatsApp thread — raw pixel values recreate a third-party chat UI, not this app's own surfaces." },
     { file: "src/components/mock/AuthGateMock.tsx", why: "Decorative onboarding mockup — intentional raw values too dense/scattered for a per-line marker." },
     { file: "src/components/mock/CompletenessMock.tsx", why: "Decorative onboarding mockup — same as AuthGateMock.tsx." },
+    { file: "src/components/marketing/HowItWorksFilm.tsx", why: "Self-contained dark film plate — its own black/near-black palette, not this app's token set." },
 ];
 
 function walkTsxFiles(dir, out = []) {
@@ -133,7 +134,7 @@ const OPACITY_PREFIXES = ["bg", "text", "border", "ring", "divide", "outline", "
  *  restructures the markup so no literal is needed at all (see
  *  docs/design/DESIGN-LANGUAGE.md). */
 const SPACING_LITERAL_PREFIXES = ["p", "px", "py", "pt", "pr", "pb", "pl", "m", "mx", "my", "mt", "mr", "mb", "ml", "gap", "gap-x", "gap-y", "space-x", "space-y", "inset", "top", "right", "bottom", "left"];
-const arbitrarySpacingLiteral = new RegExp(`\\b(?:${SPACING_LITERAL_PREFIXES.join("|")})-\\[(?!var\\(--)[^\\]]+\\]`, "g");
+const arbitrarySpacingLiteral = new RegExp(`\\b(?:${SPACING_LITERAL_PREFIXES.join("|")})-\\[(?![^\\]]*(?:var\\(--|env\\())[^\\]]+\\]`, "g");
 
 /** Matches an arbitrary bracket colour literal (hex/rgb/hsl/oklch) on any
  *  colour-bearing utility — the same prefix vocabulary as OPACITY_PREFIXES

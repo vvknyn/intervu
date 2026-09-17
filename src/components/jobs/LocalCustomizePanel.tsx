@@ -314,8 +314,6 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                             )}
                         </div>
 
-                        {/* design-lint-allow: max() floors the live env(safe-area-inset-bottom)
-                            inset at 0.75rem — a computed value, not a literal. */}
                         <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                             <Button
                                 type="button"

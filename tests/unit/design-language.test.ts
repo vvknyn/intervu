@@ -691,10 +691,22 @@ test("no arbitrary rounded-[...] radius survives (rounded-[inherit] is exempt by
 const flags = (re: RegExp, s: string): boolean => s.match(re) !== null;
 
 test("arbitrary spacing literal classifier: shape-based, proven on fixtures other than the real sites", () => {
-    assert.equal(flags(arbitrarySpacingLiteral, '<div className="pl-[calc(0.875rem+0.5rem)]">'), true, "a calc() literal re-spelling a banned value must still be flagged");
-    assert.equal(flags(arbitrarySpacingLiteral, '<div className="ml-[1.375rem]">'), true, "a rem literal must be flagged");
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="pl-[1.375rem]">'), true, "a plain rem literal must be flagged");
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="ml-[calc(0.875rem+0.5rem)]">'), true, "a calc() literal re-spelling a banned value must still be flagged");
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="top-[52px]">'), true, "a px literal must be flagged");
     assert.equal(flags(arbitrarySpacingLiteral, '<div className="gap-[2px]">'), true, "a px literal must be flagged");
     assert.equal(flags(arbitrarySpacingLiteral, '<div className="-mt-[3px]">'), true, "a negative-prefix spacing literal must be flagged");
+    assert.equal(
+        flags(arbitrarySpacingLiteral, '<div className="pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))]">'),
+        false,
+        "a calc() composing token(s) with env() anywhere in the bracket is a composition, not a literal, even though it doesn't start with var(--",
+    );
+    assert.equal(
+        flags(arbitrarySpacingLiteral, '<div className="bottom-[calc(var(--x)+8px)]">'),
+        false,
+        "a calc() composing a token with a literal offset is still a composition by shape — the token reference need not be the whole bracket",
+    );
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="top-[env(safe-area-inset-top)]">'), false, "env() alone is a live inset reference, not a literal");
     assert.equal(flags(arbitrarySpacingLiteral, '<div className="pt-[var(--topbar-h)]">'), false, "a bracket value composing an existing CSS custom property is a token reference, not a literal");
     assert.equal(flags(arbitrarySpacingLiteral, '<div className="pl-6">'), false, "a scale rung must not be flagged");
     assert.equal(flags(arbitrarySpacingLiteral, '<div className="grid-cols-[auto_1fr]">'), false, "a non-spacing prefix sharing the -[...] shape must not be flagged");
@@ -717,6 +729,17 @@ test("arbitrary colour literal classifier: shape-based, proven on fixtures other
     assert.equal(flags(arbitraryColorLiteral, '<div className="border-[hsl(210,10%,50%)]">'), true, "an hsl() literal must be flagged");
     assert.equal(flags(arbitraryColorLiteral, '<div className="bg-[var(--scrim)]">'), false, "a bracket value composing an existing CSS custom property is a token reference, not a literal");
     assert.equal(flags(arbitraryColorLiteral, '<div className="bg-border">'), false, "a semantic token class must not be flagged");
+});
+
+test("no arbitrary colour literal survives outside an allow marker or a FILE_EXEMPTIONS entry", () => {
+    const offenders = findOffenders(path.join(ROOT, "src"), arbitraryColorLiteral);
+    assert.deepEqual(
+        offenders,
+        [],
+        `arbitrary colour literal(s): ${offenders.join("; ")}. Substitute an existing token (bg-card, text-foreground, ` +
+            `outline-brand, ...), compose one with var(--token), or add a reasoned FILE_EXEMPTIONS entry for a ` +
+            `self-contained surface with its own fixed palette.`,
+    );
 });
 
 test("scrim/allow classifiers: shape-based, proven on fixtures other than the real sites", () => {
