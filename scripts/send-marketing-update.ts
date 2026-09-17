@@ -62,7 +62,8 @@ import { getSiteUrl } from "@/lib/seo/constants";
 import { getIntervuPg } from "@/lib/pg/pool";
 import { loadCampaign, renderCampaign, type CampaignSender } from "@/lib/marketing/campaign";
 import { createTransport, DryRunTransport, ResendMarketingTransport } from "@/lib/marketing/transport";
-import { listSentUserIds, recordMarketingSend } from "@/lib/marketing/send-log";
+import { listSentUserIds, claimMarketingSend, releaseMarketingSend } from "@/lib/marketing/send-log";
+import { deliverOne } from "@/lib/marketing/deliver";
 import { selectCampaignRecipients, type CampaignCandidate } from "@/lib/marketing/recipients";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -232,24 +233,37 @@ async function main() {
       siteUrl,
     );
 
+    let sendResult: { id: string } | undefined;
     try {
-      const result = await transport.send({
-        to: recipient.email,
-        subject: rendered.subject,
-        html: rendered.html,
-        text: rendered.text,
-        unsubscribeUrl,
+      const outcome = await deliverOne({
+        // Claim BEFORE send: the row exists before the email goes out, so
+        // a crash after a real send can't leave the log unaware of it.
+        // Dry-run has no pg row to claim/release — no-ops, unchanged
+        // dry-run behavior (writes only under tmp/).
+        claim: live
+          ? () => claimMarketingSend(pg!, { campaign: campaignName, userId: recipient.userId, email: recipient.email })
+          : async () => true,
+        send: async () => {
+          sendResult = await transport.send({
+            to: recipient.email,
+            subject: rendered.subject,
+            html: rendered.html,
+            text: rendered.text,
+            unsubscribeUrl,
+          });
+        },
+        release: live
+          ? () => releaseMarketingSend(pg!, { campaign: campaignName, userId: recipient.userId })
+          : async () => undefined,
+        log: (message) => console.error(`[marketing] hash=${hashEmail(recipient.email)} ${message}`),
       });
-      if (live && pg) {
-        await recordMarketingSend(pg, {
-          campaign: campaignName,
-          userId: recipient.userId,
-          email: recipient.email,
-          messageId: result.id,
-        });
+
+      if (outcome === "already-sent") {
+        skipped++;
+      } else {
+        console.log(`[marketing] hash=${hashEmail(recipient.email)} id=${sendResult?.id} ok`);
+        sent++;
       }
-      console.log(`[marketing] hash=${hashEmail(recipient.email)} id=${result.id} ok`);
-      sent++;
     } catch (err) {
       console.error(`[marketing] hash=${hashEmail(recipient.email)} FAILED:`, err instanceof Error ? err.message : err);
       skipped++;
