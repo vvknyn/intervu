@@ -142,8 +142,6 @@ import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton, MetaLine } from "@/components/jobs/JobDetail";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
-import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
-import { rowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { applyLocalAiSearchParam, readLocalAiEnabled } from "@/lib/local-ai/flag";
@@ -374,8 +372,8 @@ function ToolbarSegment({
             onClick={onClick}
             title={title}
             className={cn(
-                "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold leading-none transition-all duration-150",
-                pressed ? "text-brand" : "text-muted-foreground hover:text-foreground",
+                "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold leading-none transition-all duration-150 text-foreground",
+                pressed && "underline underline-offset-2",
             )}
         >
             {pending && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
@@ -465,7 +463,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     data-testid="serp-ask-seed"
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
-                    className="inline-flex items-center rounded-none border border-border bg-muted px-2.5 py-1 text-left text-xs text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
+                    className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-1 text-left text-xs text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
                 >
                     {seed}
                 </button>
@@ -526,7 +524,7 @@ function JobsTourReplayButton() {
                         onClick={() => startTour()}
                         className={cn(
                             toolbarControlHeight,
-                            "inline-flex w-11 shrink-0 items-center justify-center whitespace-nowrap rounded-none p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:w-7",
+                            "inline-flex w-11 shrink-0 items-center justify-center whitespace-nowrap rounded-lg p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:w-7",
                         )}
                     >
                         <Question size={16} weight="bold" aria-hidden />
@@ -647,10 +645,12 @@ export function JobCard({
     // text AND its own chip would say the same fact twice.
     const factChips = buildFactChips(job, null, null).filter((c) => c.kind === "work_type" || c.kind === "salary");
     const freshness = classifyPostingFreshness(job, now);
-    // Positive-only trust signal (mirrors `rowTrustChip`'s own doc comment:
-    // "review"/"ghost" verdicts already surface via `exceptionMark` above,
-    // not duplicated here).
-    const activelyPosted = rowTrustChip(job, now) === "clear";
+    // A4 (soft-surfaces): the row's only "active" signal is the ABSENCE of
+    // an exceptionMark — "review"/"ghost"/"relisted" verdicts surface via
+    // `exceptionMark` above (rowExceptionMark, the single chokepoint for
+    // that enum); the "clear" (active) case renders no word at all, so
+    // there is no separate `activelyPosted` state to source a second one
+    // from here.
 
     return (
         <div
@@ -671,13 +671,16 @@ export function JobCard({
                 }
             }}
             className={cn(
-                // Rows are hairline-separated, not bordered cards (rulebook
-                // item h): the divider lives on the content wrapper below,
-                // inset past the tile, so this outer grid carries no border
-                // or bottom margin of its own — rows touch, the line between
-                // them starts at the title's x, not the tile's.
+                // rounded-none: flush — rows are hairline-separated, not
+                // bordered cards (rulebook item h): the divider lives on the
+                // content wrapper below, inset past the tile, so this outer
+                // grid carries no border or bottom margin of its own — rows
+                // touch, the line between them starts at the title's x, not
+                // the tile's.
                 "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-card text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand gap-x-3 px-4 pt-4",
-                active && "border-l-[3px] border-l-brand bg-muted text-brand",
+                // A2 (soft-surfaces): selected row gets the same soft `bg-muted`
+                // fill as hover, no brand-colored left border/text.
+                active && "bg-muted",
             )}
         >
             <div className="self-start">
@@ -690,7 +693,7 @@ export function JobCard({
                         href={jobPath(job)}
                         data-testid="job-title"
                         className={cn(
-                            "text-lg leading-snug",
+                            "text-base leading-snug line-clamp-2",
                             // Selected row (`active`) freezes `:hover` in some
                             // browsers because the pointer never truly leaves —
                             // so the row that's already selected must not carry
@@ -758,19 +761,12 @@ export function JobCard({
                     ) : (
                         <span>{presented.company.name}</span>
                     )}
-                    {/* Location joins the identity line, not the facts line
-                        below — a pin prefix is the one icon the rulebook's
-                        row anatomy allows ("HIG prefix before the place,
-                        never icon+word for the same fact twice"), so it's
-                        marked exempt from the list region's zero-icon count
-                        rather than counted as a "fact icon." No "·" before
-                        it — the pin icon already separates it from the
-                        company name, and at narrow widths the location
-                        wraps to its own line, leaving a lone "·" dangling
-                        at the end of the company line above it. */}
+                    {/* Line2 (soft-surfaces ROWS spec): "{company} · {location}",
+                        no pin icon — the identity line reads as plain text,
+                        separated by an explicit "·" like line3's facts. */}
                     {locationKnown && (
-                        <span data-rulebook-exempt className="inline-flex items-center gap-1">
-                            <FACT_CHIP_ICON.location size={16} className="shrink-0" aria-hidden />
+                        <span className="inline-flex items-center gap-1">
+                            <span aria-hidden>·</span>
                             {presented.location}
                         </span>
                     )}
@@ -783,8 +779,8 @@ export function JobCard({
                     the detail pane's verdict word — sharing this line with
                     the facts (instead of a second row) is what keeps the
                     comfortable row inside the rulebook's 96-112px band. */}
-                {(factChips.length > 0 || freshness.kind === "fresh" || activelyPosted || variantCount > 0) && (
-                    <div className="mt-1 flex flex-wrap items-baseline text-xs text-muted-foreground">
+                {(factChips.length > 0 || freshness.kind === "fresh" || variantCount > 0) && (
+                    <div className="mt-1 flex flex-wrap items-baseline text-sm text-muted-foreground">
                         <MetaLine
                             items={[
                                 ...factChips.map((c) => (
@@ -799,7 +795,6 @@ export function JobCard({
                                         New
                                     </span>
                                 ),
-                                activelyPosted && <span className="text-live dark:text-live">Actively posted</span>,
                                 // "+N location(s)"/"+N opening(s)" joins the same
                                 // flowing meta line as plain text (rulebook item k)
                                 // instead of a boxed chip — still the cluster
@@ -893,7 +888,7 @@ function SimilarRolesCta({ onClick }: { onClick: () => void }) {
  */
 function DeadJobTombstone({ onSimilarRoles }: { onSimilarRoles: () => void }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-none border border-dashed border-border bg-card px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
             <WarningCircle size={24} className="mb-3 text-muted-foreground" />
             <h3 className="text-sm font-semibold">{DEAD_JOB_TOMBSTONE_TEXT}</h3>
             <SimilarRolesCta onClick={onSimilarRoles} />
@@ -923,9 +918,9 @@ function DeadJobUnresolved({
     checking: boolean;
 }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-none border border-dashed border-border bg-card px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
             {checking ? (
-                <span className="mb-3 h-5 w-5 animate-spin rounded-none border-2 border-brand border-t-brand" />
+                <span className="mb-3 h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-brand" />
             ) : (
                 <MagnifyingGlass size={24} className="mb-3 text-muted-foreground" />
             )}
@@ -955,9 +950,10 @@ const RESUME_MOMENT_OPENS = 3;
  */
 function JobCardSkeleton() {
     return (
+        // rounded-none: mirrors the real row's flush shape (JobCard below).
         <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-card pt-4">
             <div className="self-start">
-                <div className="skeleton-bar h-12 w-12 rounded-none" />
+                <div className="skeleton-bar h-12 w-12 rounded-xl" />
             </div>
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 border-b border-border pb-4">
                 <div className="min-w-0 space-y-2">
@@ -4759,7 +4755,7 @@ function JobsContent() {
             onClick={() => void handleRankByFit()}
             className={cn(
                 toolbarControlHeight,
-                "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand",
+                "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
             )}
         >
             Rank by fit
@@ -4778,7 +4774,7 @@ function JobsContent() {
                         onClick={() => setManualAlertOpen((prev) => !prev)}
                         className={cn(
                             toolbarControlHeight,
-                            "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand px-2",
+                            "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-2",
                         )}
                         title="Get email alerts for this search"
                     >
@@ -4817,7 +4813,7 @@ function JobsContent() {
                 type="button"
                 data-testid="result-line-get-alerts"
                 onClick={() => setManualAlertOpen((prev) => !prev)}
-                className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                className="text-xs font-semibold text-foreground transition-colors"
             >
                 Get new matches by email
             </button>
@@ -4873,7 +4869,7 @@ function JobsContent() {
                 suggest={suggestForBox}
                 seeds={searchSeeds}
                 placeholder={SEARCH_PLACEHOLDER}
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-full border-0 bg-transparent px-1 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
         </div>
@@ -4887,7 +4883,7 @@ function JobsContent() {
                 onCommit={addLocation}
                 selected={chosenLocations}
                 data-testid="topbar-docked-location-input"
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-full border-0 bg-transparent pl-1 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
             {(locationDraft || chosenLocations.length > 0) && (
@@ -4901,7 +4897,7 @@ function JobsContent() {
                         setLocationDraft("");
                         clearLocations();
                     }}
-                    className="mr-1 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
+                    className="mr-1 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <X size={20} aria-hidden />
                 </button>
@@ -4924,7 +4920,7 @@ function JobsContent() {
                     data-testid="jobs-sort-trigger"
                     className={cn(
                         toolbarControlHeight,
-                        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors hover:text-brand",
+                        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
                     )}
                 >
                     {fitResolving && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
@@ -5155,7 +5151,7 @@ function JobsContent() {
                 {!headerDockActive && showSearchHome && (
                 <section
                     className={cn(
-                        "rounded-none transition-colors",
+                        "transition-colors",
                         // Requirement 1c (front-door redesign): at rest the
                         // search field is re-housed inside the same centered
                         // 960px column as the masthead and `FrontDoorFieldLinks`,
@@ -5170,7 +5166,10 @@ function JobsContent() {
                         // lg+ — max-w-7xl, the widest named container token already used
                         // site-wide (resume/page.tsx, settings, connect, etc.), not a new
                         // arbitrary value. Below lg, unchanged.
-                        atRest ? "mx-auto max-w-[960px] lg:max-w-7xl" : "border border-border bg-card p-2 sm:p-2.5",
+                        // rounded-none (at rest): PR #534's own flat front-door frame,
+                        // out of this pass's scope — the raised well below is the
+                        // soft-surfaces panel this pass owns.
+                        atRest ? "rounded-none mx-auto max-w-[960px] lg:max-w-7xl" : "rounded-xl border border-border bg-card p-2 sm:p-2.5",
                     )}
                 >
                     {/* A3 (front-door redesign): the live count renders once,
@@ -5197,7 +5196,7 @@ function JobsContent() {
                             // one handler here covers both without changing
                             // `SearchAutocomplete`'s own props.
                             onFocus={() => setMobileSearchFocused(true)}
-                            className="flex flex-col rounded-none border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
+                            className="flex flex-col rounded-full border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
                                     ref={searchAutocompleteRef}
@@ -5225,7 +5224,7 @@ function JobsContent() {
                                         // existing control-height token (h-14) instead of the
                                         // mid-search state's h-[56px]. Below lg, unchanged.
                                         atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
-                                        "w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0",
+                                        "w-full min-w-0 rounded-full border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0",
                                     )}
                                     containerClassName="min-w-0 w-full"
                                 />
@@ -5245,7 +5244,7 @@ function JobsContent() {
                                     aria-label={mobileLocationLabel}
                                     title={mobileLocationLabel}
                                     onClick={() => setLocationSheetOpen(true)}
-                                    className="flex h-11 min-w-0 flex-1 items-center truncate rounded-none border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
+                                    className="flex h-11 min-w-0 flex-1 items-center truncate rounded-full border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
                                 >
                                     <span className={cn("truncate", mobileLocationLabel === "City, state, or remote" && "text-muted-foreground")}>
                                         {mobileLocationLabel}
@@ -5265,7 +5264,7 @@ function JobsContent() {
                                     containerClassName="hidden lg:flex"
                                     className={cn(
                                         atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
-                                        "min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0",
+                                        "min-w-0 flex-1 rounded-full border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0",
                                     )}
                                 />
                                 {/* Location's own one-tap clear, matching the query
@@ -5292,7 +5291,7 @@ function JobsContent() {
                                             setLocationDraft("");
                                             clearLocations();
                                         }}
-                                        className="mr-2 hidden h-6 w-6 shrink-0 items-center justify-center rounded-none bg-muted text-muted-foreground transition-colors hover:text-foreground lg:flex"
+                                        className="mr-2 hidden h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors hover:text-foreground lg:flex"
                                     >
                                         <X size={20} aria-hidden />
                                     </button>
@@ -5319,7 +5318,7 @@ function JobsContent() {
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
                                     atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
-                                    "w-full rounded-none px-6 text-xs font-semibold sm:w-auto transition-colors",
+                                    "w-full rounded-lg px-6 text-xs font-semibold sm:w-auto transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
                             >
@@ -5399,7 +5398,7 @@ function JobsContent() {
                     <div
                         id="filters-panel"
                         data-testid="filters-panel"
-                        className="panel-enter max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-none border border-border bg-card p-2.5 text-foreground custom-scrollbar"
+                        className="panel-enter max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-2.5 text-foreground custom-scrollbar"
                     >
                         {renderFiltersPanel()}
                         {/* The global `Footer` is mounted below this infinite feed and
@@ -5442,7 +5441,7 @@ function JobsContent() {
                             className={cn(
                                 chipVariants({ active: filtersOpen, interactive: true }),
                                 toolbarControlHeight,
-                                "box-border shrink-0 px-3.5 rounded-none font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
+                                "box-border shrink-0 px-3.5 font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
                             )}
                         >
                             <span className="lg:hidden">Filters</span>
@@ -5506,7 +5505,7 @@ function JobsContent() {
                         <div
                             id="filters-panel"
                             data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-none border border-border bg-card p-2.5 text-foreground custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-2.5 text-foreground custom-scrollbar"
                         >
                             {renderFiltersPanel()}
                         </div>
@@ -5641,7 +5640,7 @@ function JobsContent() {
                     // itself needs — is there a list to pair a pane with —
                     // so browsing the default corpus gets the same preview
                     // layout a search does, just with nothing selected yet.
-                    hits.length > 0 && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
+                    hits.length > 0 && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-4"
                 )}>
                     {/* Two-Panel Selector (master-detail) detail pane, xl+
                         only. Placed BEFORE the list column in source order —
@@ -5660,7 +5659,7 @@ function JobsContent() {
                     {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"
-                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-none xl:border-l xl:border-border"
+                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-xl xl:border xl:border-border xl:bg-card"
                         >
                             {detailMountSite === "pane" ? (
                                 renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
@@ -5678,7 +5677,12 @@ function JobsContent() {
                         </div>
                     )}
 
-                    <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
+                    {/* LAYOUT (soft-surfaces): the list column is its own white
+                        panel, same role as the detail pane beside it — plain
+                        at every width (mobile: full-width rounded-xl panel;
+                        xl+: paired with the detail panel via the grid gap
+                        above). */}
+                    <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card xl:min-w-0">
                         {/* Mobile cold visitors already get a seeded default browse
                             (overlay-ask); hiding the results column forced an extra
                             typed query before result_clicked / job_viewed, dropping
@@ -5988,7 +5992,7 @@ function JobsContent() {
                                                                 type="button"
                                                                 data-testid="beyond-window-show-all"
                                                                 onClick={() => panelPostedBucket(undefined)}
-                                                                className="text-brand hover:underline"
+                                                                className="text-foreground underline-offset-2 hover:underline"
                                                             >
                                                                 Show all
                                                             </button>
@@ -6262,7 +6266,7 @@ function JobsContent() {
                     <Button
                         type="button"
                         onClick={handleMobilePrimaryCta}
-                        className="h-11 w-full rounded-none bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
+                        className="h-11 w-full rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
                     >
                         Search
                     </Button>
@@ -6454,7 +6458,7 @@ function JobsLoading() {
     return (
         <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
             <div className="flex flex-col items-center gap-4">
-                <div className="h-8 w-8 animate-spin rounded-none border-2 border-brand border-t-brand" />
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-brand" />
                 <p className="text-sm">Loading jobs…</p>
             </div>
         </div>

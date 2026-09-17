@@ -238,7 +238,7 @@ export function LocationPickerSheet({
                                 onChange={(e) =>
                                     setDraft((d) => ({ ...d, otherText: e.target.value, useDetected: false }))
                                 }
-                                className="h-11 rounded-none border-border bg-background text-base"
+                                className="h-11 rounded-lg border-border bg-background text-base"
                             />
                         )}
                     </div>
@@ -246,7 +246,7 @@ export function LocationPickerSheet({
                     <Button
                         type="button"
                         data-testid="location-sheet-continue"
-                        className="mt-5 h-11 w-full rounded-none bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
+                        className="mt-5 h-11 w-full rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
                             onClick={() => {
                                 const suppressDefault =
                                     !draft.useDetected &&

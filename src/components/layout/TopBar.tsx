@@ -79,7 +79,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-50 shrink-0 border-b border-border bg-background transition-colors"
+            className="sticky top-0 z-50 shrink-0 border-b border-border bg-card transition-colors"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
@@ -111,10 +111,11 @@ export function TopBar() {
                         it back one click away.
 
                         It takes the WHOLE empty span of the bar (`flex-1`) and
-                        wears the real field's own chrome — field-01 (h-8,
-                        `bg-muted`, a `border-border-strong` underline) — with
-                        a plain-text "Search" trailing edge, not a filled
-                        block: the header carries zero filled controls.
+                        wears the real field's own chrome — a `bg-card` pill
+                        with a `border-border` outline — with a plain-text
+                        "Search" trailing edge, not a filled block: brand navy
+                        stays reserved for the page's own primary Search CTA,
+                        not this docked stand-in.
                         Sized in the header's own token so it can't drift from
                         the bar. As a 380px pill
                         with a small grey "Edit" it read as a status label, not
@@ -133,7 +134,7 @@ export function TopBar() {
                             }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="hidden h-8 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-none border-0 border-b border-border-strong bg-muted text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="hidden h-8 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-full border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
                                 <MagnifyingGlass className="shrink-0 self-center text-foreground" />
@@ -146,11 +147,13 @@ export function TopBar() {
                                 <MapPin aria-hidden className="ml-3 shrink-0 self-center text-muted-foreground" />
                                 <div data-testid="topbar-docked-location" className="relative flex h-full min-w-0 flex-1 items-stretch overflow-visible" />
                             </div>
-                            {/* Ghost, not filled — the header carries zero filled
-                                controls (round-7 canvas correction). */}
+                            {/* Ghost, not filled — brand navy is reserved for
+                                Sign in, the page's own Search CTA, and Upload
+                                resume; this docked stand-in isn't one of the
+                                three. */}
                             <button
                                 type="submit"
-                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-sm font-semibold leading-none text-brand transition-colors hover:bg-muted"
+                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-sm font-semibold leading-none text-foreground transition-colors hover:bg-muted"
                             >
                                 Search
                             </button>
@@ -164,7 +167,7 @@ export function TopBar() {
                         <DropdownMenu>
                             <DropdownMenuTrigger
                                 className={cn(
-                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-none px-3 py-1 text-sm transition-colors outline-none",
+                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1 text-sm transition-colors outline-none",
                                     menuActive
                                         ? "font-semibold text-foreground"
                                         : "font-normal text-muted-foreground hover:text-foreground",
@@ -214,7 +217,7 @@ export function TopBar() {
                                     aria-current={active ? "page" : undefined}
                                     data-nav-current={active ? "true" : undefined}
                                     className={cn(
-                                        "whitespace-nowrap rounded-none px-3 py-1 text-sm transition-colors",
+                                        "whitespace-nowrap rounded-lg px-3 py-1 text-sm transition-colors",
                                         active
                                             ? "font-semibold text-foreground"
                                             : "font-normal text-muted-foreground hover:text-foreground",
@@ -254,32 +257,33 @@ export function TopBar() {
                             mobile it is the "auth affordance pinned right" the
                             component contract above promises, since the alerts
                             CTA is desktop-only. */}
-                        <button
+                        {/* The one filled brand control in the header (ACCENT
+                            DISCIPLINE) — reuses the shared Button's `default`
+                            variant rather than a one-off filled treatment. */}
+                        <Button
                             type="button"
                             data-testid="topbar-signin"
                             onClick={() => {
                                 setAuthTab("login");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="whitespace-nowrap px-1 text-sm text-foreground transition-opacity hover:opacity-80"
+                            className="rounded-lg"
                         >
                             {AUTH_CTA_LABEL}
-                        </button>
-                        {/* Ghost, not filled — the header carries zero filled
-                            controls (round-7 canvas correction). */}
-                        <Button
+                        </Button>
+                        {/* Plain nav link, not a control — Sign in is the
+                            header's one filled action. */}
+                        <button
                             type="button"
-                            variant="ghost"
-                            size="sm"
                             data-testid="topbar-alerts-cta"
                             onClick={() => {
                                 setAuthTab("signup");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="hidden lg:inline-flex"
+                            className="hidden whitespace-nowrap px-1 text-sm font-normal text-muted-foreground transition-colors hover:text-foreground lg:inline-flex"
                         >
                             Get job alerts
-                        </Button>
+                        </button>
                         </>
                     )}
                     </div>
@@ -308,7 +312,7 @@ export function TopBar() {
                             className={cn(
                                 chipVariants({ active: docked.filtersExpanded, interactive: true }),
                                 toolbarControlHeight,
-                                "box-border shrink-0 items-center justify-center gap-2 rounded-none px-3 text-xs font-semibold lg:px-3",
+                                "box-border shrink-0 items-center justify-center gap-2 px-3 text-xs font-semibold lg:px-3",
                             )}
                         >
                             Filters

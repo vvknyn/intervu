@@ -191,7 +191,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                 disabled={loading && dialogOpen}
                 onClick={handleOpen}
                 className={cn(
-                    "h-10 shrink-0 rounded-none text-xs font-semibold sm:h-9",
+                    "h-10 shrink-0 rounded-lg text-xs font-semibold sm:h-9",
                     compactTrigger && "px-3",
                     loading && dialogOpen && "opacity-60",
                 )}
@@ -237,7 +237,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                         <Button
                                             type="button"
                                             size="sm"
-                                            className="h-11 min-h-11 rounded-none text-xs font-semibold"
+                                            className="h-11 min-h-11 rounded-lg text-xs font-semibold"
                                             onClick={() => void handleEnableAi()}
                                         >
                                             <Cpu size={16} className="mr-1.5" />
@@ -247,7 +247,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            className="h-11 min-h-11 rounded-none text-xs font-semibold"
+                                            className="h-11 min-h-11 rounded-lg text-xs font-semibold"
                                             onClick={handleRulesDraft}
                                         >
                                             Use a rules draft
@@ -320,7 +320,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                 variant="outline"
                                 size="sm"
                                 data-testid="local-customize-close"
-                                className="h-11 min-h-11 rounded-none text-xs font-semibold"
+                                className="h-11 min-h-11 rounded-lg text-xs font-semibold"
                                 onClick={() => handleDialogOpenChange(false)}
                             >
                                 Close
@@ -333,7 +333,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                         size="sm"
                                         data-testid="local-customize-copy"
                                         onClick={() => void handleCopy()}
-                                        className="h-11 min-h-11 rounded-none text-xs font-semibold"
+                                        className="h-11 min-h-11 rounded-lg text-xs font-semibold"
                                     >
                                         {copied ? <Check size={16} /> : <Copy size={16} />}
                                         {copied ? "Copied" : "Copy"}
@@ -344,7 +344,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                         size="sm"
                                         data-testid="local-customize-pdf"
                                         onClick={handlePdf}
-                                        className="h-11 min-h-11 rounded-none text-xs font-semibold"
+                                        className="h-11 min-h-11 rounded-lg text-xs font-semibold"
                                     >
                                         <DownloadSimple size={16} />
                                         Download PDF
@@ -354,7 +354,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                         data-testid="local-customize-accept"
                                         variant="outline"
                                         size="sm"
-                                        className="ml-auto h-11 min-h-11 rounded-none text-xs font-semibold"
+                                        className="ml-auto h-11 min-h-11 rounded-lg text-xs font-semibold"
                                         onClick={() => void handleAccept()}
                                     >
                                         Accept
