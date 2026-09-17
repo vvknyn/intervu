@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
 import {
+  evidencedSkills,
   GHOST_META,
   HEADLINE_POLICY,
   isInternalPosting,
@@ -12,6 +15,8 @@ import {
 } from "../../src/lib/jobs/presentation";
 import type { PublicJob } from "../../src/lib/jobs/types";
 import { ghostBadgeTone, STATUS_PILL } from "../../src/lib/ui/status-tokens";
+
+const ROOT = path.resolve(__dirname, "../..");
 
 function hit(id: string, tier?: 1 | 2): PublicJob {
   return { id, tier } as unknown as PublicJob;
@@ -274,4 +279,72 @@ test("visibleTags: an array of only blank/whitespace entries decodes to nothing 
 
 test("visibleTags: a different field shape (mixed real, blank, and URL-encoded entries) keeps only real decoded content, respecting the limit", () => {
   assert.deepEqual(visibleTags(["REST", "", "Spark%20AI", "  ", "SQL"], 2), ["REST", "Spark AI"]);
+});
+
+// The old extractor fabricated must-have/preferred skill values with no
+// signal it had actually found a Requirements/Preferred heading to parse
+// (velai "Must-have skills: REST · Spark" on a Product Designer posting).
+// `evidencedSkills` is the one gate every display reader of those two
+// fields must go through: the array renders only when the upstream
+// extractor stamped `skills_section_found: true`; a `false` OR an absent
+// field (an old, unstamped row) both hide.
+test("evidencedSkills: skills_section_found=true + non-empty array returns the full list", () => {
+  const job = { must_have_skills: ["REST", "Spark"], preferred_skills: [], skills_section_found: true };
+  assert.deepEqual(evidencedSkills(job, "must_have_skills"), ["REST", "Spark"]);
+});
+
+test("evidencedSkills: skills_section_found=false + non-empty array hides it", () => {
+  const job = { must_have_skills: ["REST", "Spark"], preferred_skills: [], skills_section_found: false };
+  assert.deepEqual(evidencedSkills(job, "must_have_skills"), []);
+});
+
+test("evidencedSkills: skills_section_found undefined (old unstamped row) + non-empty array hides it", () => {
+  const job = { must_have_skills: ["REST", "Spark"], preferred_skills: [] };
+  assert.deepEqual(evidencedSkills(job, "must_have_skills"), []);
+});
+
+test("evidencedSkills: skills_section_found=true + empty array is still an empty list", () => {
+  const job = { must_have_skills: [], preferred_skills: [], skills_section_found: true };
+  assert.deepEqual(evidencedSkills(job, "must_have_skills"), []);
+});
+
+test("evidencedSkills: reads preferred_skills too when asked, independent of must_have_skills", () => {
+  const job = { must_have_skills: [], preferred_skills: ["SQL"], skills_section_found: true };
+  assert.deepEqual(evidencedSkills(job, "preferred_skills"), ["SQL"]);
+});
+
+// Source-scan gate (same walker idiom as tests/unit/design-language.test.ts):
+// a field this flag does NOT cover (`tags`) must be untouched by
+// `evidencedSkills` — proves the gate isn't accidentally swallowing every
+// tag-list field — and no file outside types.ts/presentation.ts may read
+// `must_have_skills`/`preferred_skills` as a property, so a future
+// component can't bypass the predicate by reaching for `job.must_have_skills`
+// directly.
+test("evidencedSkills: a field it doesn't gate (tags) is untouched — visibleTags(job.tags) still sees everything", () => {
+  const job = { tags: ["remote", "senior"] } as unknown as PublicJob;
+  assert.deepEqual(visibleTags(job.tags, 16), ["remote", "senior"]);
+});
+
+test("source-scan gate: only types.ts and presentation.ts read must_have_skills/preferred_skills as a property", () => {
+  const ALLOWED = new Set([path.join(ROOT, "src/lib/jobs/types.ts"), path.join(ROOT, "src/lib/jobs/presentation.ts")]);
+  const PROPERTY_READ = /\.(must_have_skills|preferred_skills)\b/;
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      const full = path.join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+      } else if (/\.tsx?$/.test(entry) && !ALLOWED.has(full)) {
+        const src = readFileSync(full, "utf8").replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
+        if (PROPERTY_READ.test(src)) offenders.push(path.relative(ROOT, full));
+      }
+    }
+  };
+  walk(path.join(ROOT, "src"));
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `direct must_have_skills/preferred_skills property read outside the gate in: ${offenders.join(", ")} — funnel through evidencedSkills() instead.`,
+  );
 });

@@ -38,6 +38,7 @@ import {
     decodeText,
     displayCompany,
     displayCompanyBrand,
+    evidencedSkills,
     ghostMetaFor,
     locationText,
     salaryText,
@@ -420,14 +421,14 @@ export function JobDetailDocument({
                 />
             </div>
 
-            {visibleTags(job.must_have_skills, 12).length > 0 && (
+            {visibleTags(evidencedSkills(job, "must_have_skills"), 12).length > 0 && (
                 <div className="mt-4 border-t border-border pt-4">
                     {/* Rulebook item c's pattern applied to this chip list too:
                         a sentence-case label + one flowing secondary line, no
                         bordered chips. */}
                     <div className="mb-1 text-sm font-semibold text-foreground">Must-have skills</div>
                     <div className="mono-data text-sm text-muted-foreground">
-                        {visibleTags(job.must_have_skills, 12).join(" · ")}
+                        {visibleTags(evidencedSkills(job, "must_have_skills"), 12).join(" · ")}
                     </div>
                 </div>
             )}
