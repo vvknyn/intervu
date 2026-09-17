@@ -46,6 +46,7 @@ describe("hasMeaningfulDiff", () => {
                     bullets: [
                         {
                             experienceId: "e1",
+                            source: "experience",
                             company: "Acme",
                             role: "Eng",
                             before: "Built things",

@@ -281,7 +281,14 @@ describe("groundDraft", () => {
             summaryBefore: PM_RESUME.generatedSummary,
             summaryAfter: PM_RESUME.generatedSummary,
             bullets: [
-                { experienceId: "exp-1", company: "Acme Corp", role: "Senior Product Manager", before, after },
+                {
+                    experienceId: "exp-1",
+                    source: "experience",
+                    company: "Acme Corp",
+                    role: "Senior Product Manager",
+                    before,
+                    after,
+                },
             ],
             tailored,
         };
