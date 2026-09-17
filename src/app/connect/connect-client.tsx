@@ -168,7 +168,7 @@ export function ConnectClient({
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="text-xs font-semibold text-foreground">Sign in to velai</h3>
                     <Button asChild size="sm" className="shrink-0">
-                      <a href={`/login?next=${encodeURIComponent("/connect")}`}>Sign in</a>
+                      <a href={`/login?next=${encodeURIComponent("/connect")}`}>Log In</a>
                     </Button>
                   </div>
                   <p className="mt-1 text-xs leading-snug text-muted-foreground">

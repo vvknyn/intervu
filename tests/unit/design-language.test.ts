@@ -680,6 +680,34 @@ test("no arbitrary rounded-[...] radius survives (rounded-[inherit] is exempt by
     );
 });
 
+/** Matches on the SHAPE of an arbitrary px spacing value (any of the padding/
+ *  margin/gap/space utilities followed by -[Npx]), not on any specific
+ *  number — so a future off-scale literal is caught by construction instead
+ *  of needing its own entry. Design decision: spacing rounds to the nearest
+ *  4px scale rung (16px for the two-value cases this rule was written
+ *  against), or composes existing tokens (see .below-topbar in globals.css)
+ *  when the value is really a sum of two chokepoints. */
+const arbitrarySpacingPx =
+    /\b(?:p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|space-x|space-y)-\[[0-9.]+px\]/;
+
+test("arbitrary spacing-px classifier: shape-based, proven on a fixture other than the real 18px/72px sites", () => {
+    assert.equal(arbitrarySpacingPx.test('<div className="mt-[13px]">'), true, "an unrelated px-literal arbitrary spacing value must be flagged");
+    assert.equal(arbitrarySpacingPx.test('<div className="mt-3">'), false, "a scale rung must not be flagged");
+    assert.equal(arbitrarySpacingPx.test('<div className="p-[1.5rem]">'), false, "a non-px arbitrary unit is out of this rule's scope");
+    assert.equal(arbitrarySpacingPx.test('<div className="max-w-[13px]">'), false, "a non-spacing prefix sharing the -[Npx] shape must not be flagged");
+});
+
+test("no arbitrary spacing utility with a px literal survives outside an allow marker", () => {
+    const offenders = findOffenders(path.join(ROOT, "src"), arbitrarySpacingPx);
+    assert.deepEqual(
+        offenders,
+        [],
+        `arbitrary spacing px literal(s): ${offenders.join("; ")}. Round to the nearest 4px scale rung ` +
+            `(Design decision: 16px), or compose existing tokens (see .below-topbar in globals.css) when ` +
+            `the value is a sum of two chokepoints.`,
+    );
+});
+
 test("scrim/allow classifiers: shape-based, proven on fixtures other than the real sites", () => {
     assert.equal(isScrimLine('<div className="fixed inset-0 z-50 bg-black/60" />'), true, "fixed + inset-0 + bg-black/NN is the sanctioned scrim shape");
     assert.equal(isScrimLine('<div className="fixed top-4 right-4 bg-black/60" />'), false, "fixed without inset-* must not read as a scrim");

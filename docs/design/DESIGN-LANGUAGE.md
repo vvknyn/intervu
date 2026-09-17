@@ -1,7 +1,10 @@
 # intervu Design Language — the single source of truth
 
 **This document supersedes every other design spec in this repo.** If anything below conflicts
-with an older file, this wins. The older passes are archived context only:
+with an older file, this wins. The older passes are archived context only. The one live exception
+is `docs/design/rulebook-2026-09/RULEBOOK.md`, which this document does not supersede: this file
+governs look, tokens, radius, type and components; RULEBOOK.md governs the spacing axis, grid and
+header height.
 
 | Superseded | What it was |
 |---|---|

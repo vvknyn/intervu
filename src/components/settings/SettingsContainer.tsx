@@ -45,7 +45,7 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
 }
 
 function SettingsCard({ children }: { children: React.ReactNode }) {
-    return <div className="panel-enter mb-3 rounded-none border border-border bg-card p-[18px]">{children}</div>;
+    return <div className="panel-enter mb-3 rounded-none border border-border bg-card p-4">{children}</div>;
 }
 
 export function SettingsContainer() {

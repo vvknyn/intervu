@@ -58,7 +58,7 @@ export function LoggedOutCard({ returnTo }: { returnTo: string }) {
             </CardContent>
             <CardFooter>
                 <Button asChild className="w-full">
-                    <Link href={loginUrl}>Sign in</Link>
+                    <Link href={loginUrl}>Log In</Link>
                 </Button>
             </CardFooter>
         </CenteredCard>

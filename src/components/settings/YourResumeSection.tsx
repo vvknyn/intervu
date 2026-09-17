@@ -217,7 +217,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
         );
         if (embedded) {
             return (
-                <div className="mb-3 rounded-none border border-border bg-card p-[18px]">
+                <div className="mb-3 rounded-none border border-border bg-card p-4">
                     {guestContent}
                 </div>
             );
@@ -287,7 +287,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
 
     if (embedded) {
         return (
-            <div className="mb-3 rounded-none border border-border bg-card p-[18px]">
+            <div className="mb-3 rounded-none border border-border bg-card p-4">
                 {content}
             </div>
         );

@@ -342,7 +342,9 @@ export function SerpFilters({
                         Sponsors visas
                     </Affordance>
                     {visaShare != null && (
-                        <p className="pl-[22px] text-xs leading-snug text-muted-foreground">
+                        // Aligns with the Affordance label text, not its checkbox: w-3.5 (0.875rem)
+                        // + gap-2 (0.5rem), the same two values that row composes.
+                        <p className="pl-[calc(0.875rem+0.5rem)] text-xs leading-snug text-muted-foreground">
                             sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
                         </p>
                     )}
