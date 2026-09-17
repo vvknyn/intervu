@@ -4,6 +4,8 @@
  * prepends an honest keep-line; never fabricates a count.
  */
 
+import { ANALYTICS_EVENTS } from "@/lib/analytics/event-names";
+
 export type AuthGateReason = "apply" | "generic" | "save" | "fit" | "report" | "tailor" | "resume";
 
 /** Pure guard for auth_started — fire only on false→true, not on close or
@@ -21,8 +23,10 @@ export function shouldCaptureAuthStarted(wasOpen: boolean, nowOpen: boolean): bo
  *  kept next to AuthGateReason so AuthPopover and tests share one rule. */
 export type AuthGateTrigger = "user" | "auto";
 
-export function resolveAuthOpenEvent(trigger: AuthGateTrigger): "auth_started" | "auth_nudge_shown" {
-    return trigger === "user" ? "auth_started" : "auth_nudge_shown";
+export function resolveAuthOpenEvent(
+    trigger: AuthGateTrigger,
+): typeof ANALYTICS_EVENTS.auth_started | typeof ANALYTICS_EVENTS.auth_nudge_shown {
+    return trigger === "user" ? ANALYTICS_EVENTS.auth_started : ANALYTICS_EVENTS.auth_nudge_shown;
 }
 
 export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
