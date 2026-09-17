@@ -10,7 +10,7 @@ import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
-import { formatAuthGateValueLine } from "@/lib/auth/auth-gate-copy";
+import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -71,6 +71,7 @@ function ResumeContent() {
     const [user, setUser] = useState<User | null>(() => getCurrentUser());
     const [authReady, setAuthReady] = useState(() => getCurrentUser() !== null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
+    const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [localResume, setLocalResume] = useState<ResumeData | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
@@ -89,6 +90,15 @@ function ResumeContent() {
             setLocalResume(stored?.data ?? null);
         }
     }, [user, authReady]);
+
+    // Edit/PDF gate an action whose label is NOT "sign in" (the click's
+    // intent is to edit/export, not to authenticate) — auto, same as the
+    // apply/save gates elsewhere. "Sign up to sync" and every `onLoginClick`
+    // below render nothing but a sign-in affordance — user.
+    const openAuth = (trigger: AuthGateTrigger) => {
+        setAuthTrigger(trigger);
+        setAuthPopoverOpen(true);
+    };
 
     const handleImportResume = (data: ResumeData) => {
         writeLocalAiResume(data);
@@ -136,7 +146,7 @@ function ResumeContent() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setAuthPopoverOpen(true)}
+                                        onClick={() => openAuth("auto")}
                                         className="rounded-none text-xs font-semibold"
                                     >
                                         <PencilSimple size={16} className="mr-1" />
@@ -145,7 +155,7 @@ function ResumeContent() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setAuthPopoverOpen(true)}
+                                        onClick={() => openAuth("auto")}
                                         className="rounded-none text-xs font-semibold"
                                     >
                                         <DownloadSimple size={16} className="mr-1" />
@@ -153,7 +163,7 @@ function ResumeContent() {
                                     </Button>
                                     <Button
                                         size="sm"
-                                        onClick={() => setAuthPopoverOpen(true)}
+                                        onClick={() => openAuth("user")}
                                         className="rounded-none text-xs font-semibold"
                                     >
                                         Sign up to sync
@@ -164,14 +174,14 @@ function ResumeContent() {
                         </div>
                     ) : (
                         <SignedOutEmptyState
-                            onLoginClick={() => setAuthPopoverOpen(true)}
+                            onLoginClick={() => openAuth("user")}
                             onUploadClick={() => setImportModalOpen(true)}
                         />
                     )
                 ) : (
                     <YourResumeSection
                         user={user}
-                        onLoginClick={() => setAuthPopoverOpen(true)}
+                        onLoginClick={() => openAuth("user")}
                         embedded
                         onEditorActiveChange={setEditorOpen}
                     />
@@ -189,6 +199,7 @@ function ResumeContent() {
                     open={authPopoverOpen}
                     onOpenChange={setAuthPopoverOpen}
                     showTrigger={false}
+                    trigger={authTrigger}
                     defaultTab="signup"
                     reason="resume"
                     valueLine={formatAuthGateValueLine("resume")}

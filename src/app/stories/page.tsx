@@ -152,7 +152,7 @@ function StoriesContent() {
                     >
                         Sign in
                     </Button>
-                    <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
+                    <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} trigger="user" />
                 </div>
             </PageLayout>
         );
@@ -165,7 +165,7 @@ function StoriesContent() {
                     sticky={false}
                     title="Stories"
                     description="Your saved answers, ready to reuse"
-                    rightRail={<AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />}
+                    rightRail={<AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} trigger="user" />}
                 />
             }
         >

@@ -239,7 +239,7 @@ export function SettingsContainer() {
                     </>
                 )}
 
-                <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
+                <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} trigger="user" />
 
                 <Dialog
                     open={showDeleteDialog}

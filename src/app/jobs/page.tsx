@@ -244,6 +244,7 @@ import {
     GUEST_SAVE_TOAST,
     SIGNUP_SUBCOPY,
     type AuthGateReason,
+    type AuthGateTrigger,
 } from "@/lib/auth/auth-gate-copy";
 import {
     getGuestSaveCount,
@@ -1850,6 +1851,12 @@ function JobsContent() {
     // Which auth value-line reason class to show (apply / generic).
     // Set by the call site that opened the popover; null = no value line.
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
+    // Was this open a deliberate "sign in" click (a banner's `sign in` link)
+    // or a side effect of some OTHER action — Apply, the 2nd guest Save, a
+    // session expiring mid-write? Read by the single `<AuthPopover>` mount
+    // below; every `openAuth`/`gate()`/`setAuthOpen(true)` call site sets it
+    // right before opening, same pattern as `authGateReason`.
+    const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
     // Controls the report dialog from outside `ReportJobButton` so a
     // post-auth replay (see `useAuthGate` below) can reopen the exact
     // dialog the user was filling out before sign-in.
@@ -3759,6 +3766,7 @@ function JobsContent() {
             // after only marks applied (no second navigation).
             if (job.apply_url) openPostingNow(job);
             setAuthGateReason("apply");
+            setAuthTrigger("auto");
             gate({ kind: "apply", payload: job });
             return;
         }
@@ -3783,6 +3791,7 @@ function JobsContent() {
             if (res.error) {
                 // Session may have expired between login and save → reopen auth.
                 if (classifySentinel(res.error) === "auth") {
+                    setAuthTrigger("auto");
                     setAuthOpen(true);
                 } else {
                     toast.error(`Could not save: ${res.error}`);
@@ -3794,6 +3803,7 @@ function JobsContent() {
             toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
+                setAuthTrigger("auto");
                 setAuthOpen(true);
             } else {
                 toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
@@ -3839,7 +3849,7 @@ function JobsContent() {
     const handleGoAfter = (job: PublicJob) => {
         if (!user) {
             if (getGuestSaveCount() >= 1) {
-                openAuth("save");
+                openAuth("save", "auto");
                 return;
             }
             addGuestPursuit(job);
@@ -3860,6 +3870,7 @@ function JobsContent() {
                 if (res.error) {
                     // Session may have expired between login and save → reopen auth.
                     if (classifySentinel(res.error) === "auth") {
+                        setAuthTrigger("auto");
                         setAuthOpen(true);
                     } else {
                         toast.error(`Could not save: ${res.error}`);
@@ -3874,6 +3885,7 @@ function JobsContent() {
                 captureEvent("job_saved", { job_id: job.id });
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
+                    setAuthTrigger("auto");
                     setAuthOpen(true);
                 } else {
                     toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
@@ -3889,7 +3901,7 @@ function JobsContent() {
     // "first save free, second requires sign-in" rule with one counter.
     const handleBeforeGuestSavedSearch = (): "proceed" | "block" => {
         if (getGuestSaveCount() >= 1) {
-            openAuth("save");
+            openAuth("save", "auto");
             return "block";
         }
         const newCount = recordGuestSave();
@@ -3903,8 +3915,9 @@ function JobsContent() {
     // (see `handleOpenPosting`'s guest branch, `beginResumeUpload`, the report
     // gate below),
     // which persists the action itself; this just opens the popover.
-    const openAuth = (reason: AuthGateReason | null = null) => {
+    const openAuth = (reason: AuthGateReason | null, trigger: AuthGateTrigger) => {
         setAuthGateReason(reason);
+        setAuthTrigger(trigger);
         setAuthOpen(true);
     };
 
@@ -4196,6 +4209,7 @@ function JobsContent() {
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         if (!user && !readLocalAiEnabled()) {
             setAuthGateReason("fit");
+            setAuthTrigger("auto");
             gate({ kind: "upload", payload: true });
             return;
         }
@@ -4487,6 +4501,7 @@ function JobsContent() {
                     signedIn={Boolean(user)}
                     onRequestSignIn={() => {
                         setAuthGateReason("report");
+                        setAuthTrigger("auto");
                         gate({ kind: "report", payload: detailJob });
                     }}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
@@ -5525,7 +5540,7 @@ function JobsContent() {
                                         <span>Sign in to keep this list across devices and get alerts when new roles match —</span>
                                         <button
                                             type="button"
-                                            onClick={() => openAuth("save")}
+                                            onClick={() => openAuth("save", "user")}
                                             className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
                                             sign in
@@ -5548,7 +5563,7 @@ function JobsContent() {
                                         <span>{SIGNUP_SUBCOPY} —</span>
                                         <button
                                             type="button"
-                                            onClick={() => openAuth("generic")}
+                                            onClick={() => openAuth("generic", "user")}
                                             className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
                                             sign in
@@ -6102,6 +6117,7 @@ function JobsContent() {
                     onAuthed();
                 }}
                 showTrigger={false}
+                trigger={authTrigger}
                 valueLine={
                     authGateReason
                         ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length)
