@@ -306,7 +306,7 @@ describe("jobs page chrome guards", () => {
         // two heroes, kept as a structural check rather than a component-name
         // check now that the masthead is inline markup, not a component.
         const src = readFileSync(PAGE, "utf8");
-        const mastheadStart = src.indexOf("{showLandingMarketing ? (");
+        const mastheadStart = src.indexOf("{atRest && showSearchHome ? (");
         const fallbackH1 = src.indexOf('<h1 className="sr-only">Jobs</h1>');
         assert.notStrictEqual(mastheadStart, -1, "masthead ternary anchor moved — update this test");
         assert.notStrictEqual(fallbackH1, -1, "sr-only fallback h1 anchor moved — update this test");
@@ -379,25 +379,32 @@ describe("jobs page chrome guards", () => {
         assert.doesNotMatch(replay, /h-9 w-9/);
     });
 
-    it("mounts the masthead's headline and provenance line when showLandingMarketing", () => {
+    it("mounts the masthead's eyebrow, headline and subline when at rest — no display-size count", () => {
         // Was the "does not render LandingMasthead" guard for the OLD bug
         // (component authored, never mounted). The masthead is now inline
         // markup absorbed at this callsite — assert its real content mounts
         // instead of asserting a component name that no longer exists.
+        // Front-door redesign: the gate broadened from `showLandingMarketing`
+        // to `atRest`. Design pass D1 (2026-09-17, Fable): the masthead's own
+        // display-size `resultCountLine` was CUT — redundant with the
+        // identical line already heading the results list below (still
+        // asserted present there, and NOT `liveCountEl`, which stays at the
+        // end of the results list, asserted absent from this branch
+        // elsewhere).
         const src = readFileSync(PAGE, "utf8");
-        const start = src.indexOf("{showLandingMarketing ? (");
+        const start = src.indexOf("{atRest && showSearchHome ? (");
         const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
         assert.notStrictEqual(start, -1);
         assert.notStrictEqual(end, -1);
         const branch = src.slice(start, end);
         assert.match(branch, /JOBS_USP\.mastheadTitle/);
         assert.match(branch, /JOBS_USP\.searchDescription/);
-        assert.match(branch, /liveCountEl/);
+        assert.doesNotMatch(branch, /\{resultCountLine\}/, "the hero's own count line was cut (D1) — it duplicated the results list heading");
     });
 
-    it("lg+ docks search in the header whenever search is the active home view", () => {
+    it("lg+ docks search in the header whenever search is the active home view, except at rest", () => {
         const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /const headerDockActive = isLgUp && showSearchHome;/);
+        assert.match(src, /const headerDockActive = isLgUp && showSearchHome && !atRest;/);
     });
 
     it("does not render the comfortable/dense layout switch", () => {
@@ -467,8 +474,8 @@ describe("jobs page chrome guards", () => {
     it("mounts the filter toolbar before Browse by field on the landing", () => {
         const src = readFileSync(PAGE, "utf8");
         const toolbarIdx = src.indexOf('data-testid="jobs-toolbar"');
-        const showcaseIdx = src.indexOf("<LandingMarketingShowcase");
-        assert.ok(toolbarIdx > -1 && showcaseIdx > toolbarIdx, "jobs-toolbar precedes LandingMarketingShowcase");
+        const fieldLinksIdx = src.indexOf("<FrontDoorFieldLinks");
+        assert.ok(toolbarIdx > -1 && fieldLinksIdx > toolbarIdx, "jobs-toolbar precedes FrontDoorFieldLinks");
     });
 
 });

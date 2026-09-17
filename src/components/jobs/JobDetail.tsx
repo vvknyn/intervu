@@ -13,7 +13,7 @@ import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, APPLY_BUTTON_LABEL } from "@/components/jobs/job-detail-facts";
+import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, APPLY_BUTTON_LABEL, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
@@ -1011,7 +1011,7 @@ export function JobDetail({
                                 12/16 secondary caption, no underline signature
                                 (rulebook item e). */}
                             <div className="text-xs text-muted-foreground">
-                                every signal automated · nothing inferred
+                                {GHOST_CHECK_TAGLINE}
                             </div>
                             {/* S4 exposure trust badges (dark launch) — positive-only,
                                 same quiet mono house style as the fact chips, same

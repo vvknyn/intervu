@@ -31,17 +31,16 @@ test('formatAuthGateValueLine for reason "save" mentions keep-across-devices and
     assert.match(line, /alert/i);
 });
 
-test('formatAuthGateValueLine for reason "fit" mentions matching roles to résumé', () => {
+test('formatAuthGateValueLine for reason "fit" mentions uploading a résumé and ranking by fit — only facts, no unproven claims', () => {
     const line = formatAuthGateValueLine("fit", 0);
-    assert.match(line, /match roles to your résumé/i);
-    assert.match(line, /recommendations/i);
-});
-
-// Facts only (verified true from src/lib/match/score.ts and
-// src/lib/local-ai/tailor-with-engine.ts, both client-side modules) — not a
-// claim about the résumé file itself, which is extracted server-side.
-test('formatAuthGateValueLine for reason "fit" states scoring/tailoring run in the browser', () => {
-    assert.match(formatAuthGateValueLine("fit", 0), /Fit scoring and tailoring run in your browser\./);
+    assert.match(line, /upload your résumé/i);
+    assert.match(line, /rank every result by fit/i);
+    // Fable design pass, 2026-09-17: dropped "personalized recommendations"
+    // and the on-device claim ("Fit scoring and tailoring run in your
+    // browser") — the latter was true of the scoring engine but not the
+    // upload path itself, which is server-side (ResumeImportModal.tsx).
+    assert.doesNotMatch(line, /recommendations/i);
+    assert.doesNotMatch(line, /run in your browser/i);
 });
 
 test('formatAuthGateValueLine for reason "report" mentions reporting issue', () => {
