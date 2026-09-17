@@ -22,6 +22,13 @@
  * `NEXT_PUBLIC_POSTHOG_KEY` is unset, same as the client SDK's own guard
  * (`shouldCaptureEvent`, events.ts) — and never throws, so a route handler
  * never needs to wrap this in its own try/catch.
+ *
+ * Stamps `$host` (the bare hostname of `getSiteUrl()`) and `$lib:
+ * "velai-server"` on every event: this goes out over a raw `fetch`, not the
+ * posthog-js browser SDK, so none of the SDK's automatic properties —
+ * `$host` included — are attached for free. Dashboards filter on
+ * `$host === "velai.app"`, so without it these events exist in PostHog but
+ * never surface on any dashboard built that way.
  */
 import { ANALYTICS_EVENTS, type AnalyticsEventKey } from "@/lib/analytics/event-names";
 import type { EventPayloads } from "@/lib/analytics/events";
@@ -37,8 +44,11 @@ export function captureServerEvent<K extends AnalyticsEventKey>(
   if (!apiKey) return;
 
   let apiHost: string;
+  let siteHost: string;
   try {
-    apiHost = posthogApiHost(getSiteUrl(), process.env.NEXT_PUBLIC_POSTHOG_HOST);
+    const siteUrl = getSiteUrl();
+    apiHost = posthogApiHost(siteUrl, process.env.NEXT_PUBLIC_POSTHOG_HOST);
+    siteHost = new URL(siteUrl).hostname;
   } catch {
     return;
   }
@@ -49,7 +59,11 @@ export function captureServerEvent<K extends AnalyticsEventKey>(
     body: JSON.stringify({
       api_key: apiKey,
       event: ANALYTICS_EVENTS[event],
-      properties: { ...properties, distinct_id: distinctId },
+      // $host and $lib are appended last so caller-supplied `properties`
+      // can never override them — see the module doc: dashboards filter on
+      // `$host`, and the browser SDK sets it automatically, but a raw
+      // server-side `fetch` carries no request context to derive it from.
+      properties: { ...properties, distinct_id: distinctId, $host: siteHost, $lib: "velai-server" },
       timestamp: new Date().toISOString(),
     }),
   }).catch(() => {

@@ -69,6 +69,8 @@ describe("captureServerEvent", () => {
     assert.equal(body.properties.distinct_id, "distinct-1");
     assert.equal(body.properties.surface, "results");
     assert.equal(body.properties.outcome, "accepted");
+    assert.equal(body.properties.$host, "intervuhq.com");
+    assert.equal(body.properties.$lib, "velai-server");
     assert.ok(typeof body.timestamp === "string");
   });
 
@@ -88,6 +90,50 @@ describe("captureServerEvent", () => {
     assert.equal(body.event, "search_alert_verified");
     assert.equal(body.properties.distinct_id, "distinct-2");
     assert.equal(body.properties.has_results, false);
+    assert.equal(body.properties.$host, "intervuhq.com");
+    assert.equal(body.properties.$lib, "velai-server");
+  });
+
+  it("derives $host as the bare hostname even when the site URL carries a port and a path", async () => {
+    setEnv({ key: "phc_test", host: "https://proxy.example.com/ph", siteUrl: "https://staging.intervuhq.com:8443/app" });
+    const fake = new FakeFetch();
+    global.fetch = fake.fetch as typeof fetch;
+
+    captureServerEvent("search_alert_submitted", "distinct-3", {
+      surface: "results",
+      query_length: 5,
+      filter_count: 2,
+      has_results: true,
+      outcome: "accepted",
+    });
+
+    assert.equal(fake.calls.length, 1);
+    const body = JSON.parse(fake.calls[0].init?.body as string);
+    assert.equal(body.properties.$host, "staging.intervuhq.com");
+    assert.equal(body.properties.$lib, "velai-server");
+  });
+
+  it("does not let caller-supplied properties overwrite $host or $lib", async () => {
+    const fake = new FakeFetch();
+    global.fetch = fake.fetch as typeof fetch;
+
+    captureServerEvent("search_alert_submitted", "distinct-4", {
+      surface: "results",
+      query_length: 1,
+      filter_count: 0,
+      has_results: true,
+      outcome: "accepted",
+      // @ts-expect-error — EventPayloads doesn't declare these keys; the
+      // point is to prove a same-named property can't smuggle a spoofed
+      // value through if one ever did.
+      $host: "evil.example.com",
+      $lib: "spoofed",
+    });
+
+    assert.equal(fake.calls.length, 1);
+    const body = JSON.parse(fake.calls[0].init?.body as string);
+    assert.equal(body.properties.$host, "intervuhq.com");
+    assert.equal(body.properties.$lib, "velai-server");
   });
 
   it("never fetches when NEXT_PUBLIC_POSTHOG_KEY is unset", async () => {

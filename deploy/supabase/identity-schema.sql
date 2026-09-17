@@ -117,6 +117,16 @@ ALTER TABLE intervu.auth_tokens ADD COLUMN IF NOT EXISTS intent_search_hash text
 -- (captured server-side — see src/lib/analytics/server-capture.ts) can carry
 -- the same properties `search_alert_submitted` did, without re-deriving them
 -- from a bare token-consume request that has no live search context.
+--
+-- Deploy order: these two columns must exist BEFORE the app code that WRITES
+-- intent_distinct_id/intent_analytics (the search-alert submit route) ships
+-- to that environment — that write has no schema guard of its own, so it
+-- fails against a database this file hasn't been applied to yet. Both ALTER
+-- TABLE ... ADD COLUMN IF NOT EXISTS statements below are idempotent — safe
+-- to re-run any number of times, including re-running this whole file. Apply
+-- the same way as the rest of this file (see the header at the top): as
+-- `postgres`, via the Supabase SQL editor, or via psql against the project's
+-- direct connection, e.g. `psql -v ON_ERROR_STOP=1 -f deploy/supabase/identity-schema.sql`.
 ALTER TABLE intervu.auth_tokens ADD COLUMN IF NOT EXISTS intent_distinct_id text;
 ALTER TABLE intervu.auth_tokens ADD COLUMN IF NOT EXISTS intent_analytics jsonb;
 ALTER TABLE intervu.auth_tokens DROP CONSTRAINT IF EXISTS auth_tokens_purpose_check;
