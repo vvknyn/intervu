@@ -75,6 +75,10 @@ export function resumeDataToZipMarkdown(data: ResumeData): string {
             else if (institution) lines.push(`- ${degree} | ${institution}`);
             else if (year) lines.push(`- ${degree} | ${year}`);
             else if (degree) lines.push(`- ${degree}`);
+            if (ed.gpa?.trim()) lines.push(`- GPA: ${ed.gpa.trim()}`);
+            if (ed.honours?.length) lines.push(`- Honours: ${ed.honours.join(", ")}`);
+            if (ed.coursework?.length) lines.push(`- Relevant coursework: ${ed.coursework.join(", ")}`);
+            if (ed.activities?.length) lines.push(`- Activities: ${ed.activities.join(", ")}`);
         }
         lines.push("");
     }

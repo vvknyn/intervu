@@ -41,6 +41,14 @@ export function detectProfessionType(profession: string): ProfessionType {
     return 'general';
 }
 
+/** Inserts 'projects' immediately after 'experience' in a section order —
+ *  the one place that decides where Projects sits, so every branch below
+ *  agrees without repeating the splice. */
+function withProjectsAfterExperience(order: ResumeSection[]): ResumeSection[] {
+    const idx = order.indexOf('experience');
+    return [...order.slice(0, idx + 1), 'projects', ...order.slice(idx + 1)];
+}
+
 // Get optimal section order based on experience and profession
 export function getSectionOrder(yearsOfExperience: number, professionType: ProfessionType): ResumeSection[] {
     const isFresher = yearsOfExperience < 3;
@@ -49,28 +57,28 @@ export function getSectionOrder(yearsOfExperience: number, professionType: Profe
     if (isFresher) {
         switch (professionType) {
             case 'engineering':
-                return ['summary', 'skills', 'education', 'experience'];
+                return withProjectsAfterExperience(['summary', 'skills', 'education', 'experience']);
             case 'design':
-                return ['summary', 'skills', 'education', 'experience'];
+                return withProjectsAfterExperience(['summary', 'skills', 'education', 'experience']);
             case 'data':
-                return ['summary', 'skills', 'education', 'experience'];
+                return withProjectsAfterExperience(['summary', 'skills', 'education', 'experience']);
             default:
-                return ['summary', 'education', 'skills', 'experience'];
+                return withProjectsAfterExperience(['summary', 'education', 'skills', 'experience']);
         }
     }
 
     // Experienced: Experience first, then skills
     switch (professionType) {
         case 'engineering':
-            return ['summary', 'skills', 'experience', 'education'];
+            return withProjectsAfterExperience(['summary', 'skills', 'experience', 'education']);
         case 'product':
-            return ['summary', 'experience', 'skills', 'education'];
+            return withProjectsAfterExperience(['summary', 'experience', 'skills', 'education']);
         case 'data':
-            return ['summary', 'skills', 'experience', 'education'];
+            return withProjectsAfterExperience(['summary', 'skills', 'experience', 'education']);
         case 'business':
-            return ['summary', 'experience', 'skills', 'education'];
+            return withProjectsAfterExperience(['summary', 'experience', 'skills', 'education']);
         default:
-            return ['summary', 'experience', 'skills', 'education'];
+            return withProjectsAfterExperience(['summary', 'experience', 'skills', 'education']);
     }
 }
 
@@ -92,6 +100,11 @@ export interface ResumeEducation {
     degree: string;
     institution: string;
     year?: string;
+    /** Typed by the person — never inferred/extracted from an upload. */
+    gpa?: string;
+    honours?: string[];
+    coursework?: string[];
+    activities?: string[];
 }
 
 export interface ResumeData {

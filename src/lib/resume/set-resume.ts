@@ -84,6 +84,10 @@ const resumeEducationSchema = z.object({
     degree: cappedString(200),
     institution: cappedString(200),
     year: cappedString(20).optional(),
+    gpa: cappedString(20).optional(),
+    honours: z.array(cappedString(200)).max(LIST_MAX).optional(),
+    coursework: z.array(cappedString(200)).max(LIST_MAX).optional(),
+    activities: z.array(cappedString(200)).max(LIST_MAX).optional(),
 });
 
 /**
@@ -95,6 +99,7 @@ const resumeEducationSchema = z.object({
 const resumeDataSchema: z.ZodType<ResumeData> = z.object({
     profile: resumeProfileSchema,
     experience: z.array(resumeExperienceSchema).max(LIST_MAX),
+    projects: z.array(resumeExperienceSchema).max(LIST_MAX).optional(),
     competencies: z.array(resumeCompetencyCategorySchema).max(LIST_MAX),
     education: z.array(resumeEducationSchema).max(LIST_MAX),
     generatedSummary: cappedString(TEXT_FIELD_MAX),
