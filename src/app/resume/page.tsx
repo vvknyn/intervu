@@ -101,6 +101,21 @@ function ResumeContent() {
         setImportModalOpen(false);
     };
 
+    // THE single entry point for opening the résumé importer on this page —
+    // both the empty-state "Upload resume" button and the local-résumé
+    // "Replace" button go through this, not `setImportModalOpen(true)`
+    // directly, mirroring `beginResumeUpload` on /jobs. Sign-in is
+    // unconditional: a signed-out visitor never reaches the importer, even
+    // to replace a résumé that's already on this device (product ruling,
+    // 2026-09-17: résumé upload requires sign-in to grow signups).
+    const beginResumeUpload = () => {
+        if (!user) {
+            openAuth("auto");
+            return;
+        }
+        setImportModalOpen(true);
+    };
+
     return (
         <PageLayout fullWidth header={!editorOpen ? <ResumeHeader /> : undefined}>
             <div
@@ -133,7 +148,7 @@ function ResumeContent() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setImportModalOpen(true)}
+                                        onClick={() => beginResumeUpload()}
                                         className="rounded-none text-xs font-semibold"
                                     >
                                         Replace
@@ -170,7 +185,7 @@ function ResumeContent() {
                     ) : (
                         <SignedOutEmptyState
                             onLoginClick={() => openAuth("user")}
-                            onUploadClick={() => setImportModalOpen(true)}
+                            onUploadClick={() => beginResumeUpload()}
                         />
                     )
                 ) : (

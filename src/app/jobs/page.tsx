@@ -4239,7 +4239,12 @@ function JobsContent() {
     const beginResumeUpload = () => {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
-        if (!user && !readLocalAiEnabled()) {
+        // Sign-in is unconditional here — a signed-out visitor never reaches
+        // the importer, even with local-AI (on-device) parsing enabled. That
+        // flag only changes WHERE parsing happens once a session exists; it
+        // was never meant to bypass the account gate itself (product ruling,
+        // 2026-09-17: résumé upload requires sign-in to grow signups).
+        if (!user) {
             setAuthGateReason("fit");
             setAuthTrigger("auto");
             gate({ kind: "upload", payload: true });
