@@ -67,7 +67,7 @@ export function ResetPasswordForm() {
 
     if (success) {
         return (
-            <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 pt-[72px]">
+            <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 below-topbar">
                 <div className="w-full max-w-[400px] border border-border bg-card p-8 text-center">
                     <div className="mb-6 flex justify-center">
                         <CheckCircle size={24} weight="fill" className="text-live" />
@@ -84,7 +84,7 @@ export function ResetPasswordForm() {
     }
 
     return (
-        <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 pt-[72px]">
+        <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 below-topbar">
             <div className="w-full max-w-[400px] border border-border bg-card p-8">
                 <div className="mb-8 text-center">
                     <h1 className="text-xl font-semibold text-foreground">

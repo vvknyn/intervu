@@ -30,6 +30,7 @@ const FILE_EXEMPTIONS = [
     { file: "src/components/marketing/WhatsAppThreadHero.tsx", why: "Decorative marketing mock of a WhatsApp thread — raw pixel values recreate a third-party chat UI, not this app's own surfaces." },
     { file: "src/components/mock/AuthGateMock.tsx", why: "Decorative onboarding mockup — intentional raw values too dense/scattered for a per-line marker." },
     { file: "src/components/mock/CompletenessMock.tsx", why: "Decorative onboarding mockup — same as AuthGateMock.tsx." },
+    { file: "src/components/marketing/HowItWorksFilm.tsx", why: "Self-contained dark film plate — its own black/near-black palette, not this app's token set." },
 ];
 
 function walkTsxFiles(dir, out = []) {
@@ -120,6 +121,30 @@ const SIZE = "(?:xs|sm|md|lg|xl|2xl|3xl|full)";
  *  "no raw Tailwind palette class survives" test already established;
  *  reused here rather than re-declared so the two colour rules can't drift. */
 const OPACITY_PREFIXES = ["bg", "text", "border", "ring", "divide", "outline", "decoration", "fill", "stroke", "accent", "caret", "from", "via", "to", "placeholder"];
+
+/** Matches on the SHAPE of an arbitrary bracket value on a spacing utility —
+ *  any padding/margin/gap/space/inset/edge-offset prefix followed by
+ *  `-[...]` — not on any specific unit or number, so a value re-spelled in
+ *  rem/calc()/em to dodge a px-only check is still caught (the px-only
+ *  predecessor of this rule was evaded by `pl-[calc(0.875rem+0.5rem)]`,
+ *  which contains no px literal at all). The one carve-out is a bracket
+ *  value that composes an existing CSS custom property
+ *  (`pt-[var(--topbar-h)]`) — that's a token reference, not a raw literal.
+ *  Design decision: spacing rounds to the nearest 4px scale rung, or
+ *  restructures the markup so no literal is needed at all (see
+ *  docs/design/DESIGN-LANGUAGE.md). */
+const SPACING_LITERAL_PREFIXES = ["p", "px", "py", "pt", "pr", "pb", "pl", "m", "mx", "my", "mt", "mr", "mb", "ml", "gap", "gap-x", "gap-y", "space-x", "space-y", "inset", "top", "right", "bottom", "left"];
+const arbitrarySpacingLiteral = new RegExp(`\\b(?:${SPACING_LITERAL_PREFIXES.join("|")})-\\[(?![^\\]]*(?:var\\(--|env\\())[^\\]]+\\]`, "g");
+
+/** Matches an arbitrary bracket colour literal (hex/rgb/hsl/oklch) on any
+ *  colour-bearing utility — the same prefix vocabulary as OPACITY_PREFIXES
+ *  plus `shadow` (a shadow's colour argument is a colour literal too),
+ *  reused rather than re-declared for the same reason. A bracket value that
+ *  composes an existing CSS custom property (`bg-[var(--scrim)]`) is not
+ *  flagged — the alternation only matches literal colour syntax, so `var(`
+ *  never satisfies it. */
+const COLOR_LITERAL_PREFIXES = [...OPACITY_PREFIXES, "shadow"];
+const arbitraryColorLiteral = new RegExp(`\\b(?:${COLOR_LITERAL_PREFIXES.join("|")})-\\[(?:#|rgba?\\(|hsla?\\(|oklch\\()`, "g");
 
 const rules = [
     {
@@ -227,6 +252,8 @@ module.exports = {
     ALLOW_WINDOW_LINES,
     FILE_EXEMPTIONS,
     rules,
+    arbitrarySpacingLiteral,
+    arbitraryColorLiteral,
     walkTsxFiles,
     stripComments,
     isFileAllowed,

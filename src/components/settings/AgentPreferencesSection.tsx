@@ -10,6 +10,7 @@ import { AGENT } from "@/lib/agent/config";
 import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS, type ExperienceLevel, type EmploymentType, type PostedWithinDays } from "@/lib/agent/facets";
 import { facetValueLabel } from "@/components/jobs/FilterPanel";
 import type { User } from "@/lib/firebase/client-auth";
+import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import {
     fetchAgentPreferencesAction,
     saveAgentPreferencesAction,
@@ -207,7 +208,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                 </h2>
                 <p className="text-sm text-muted-foreground">
                     <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
-                        login
+                        {AUTH_CTA_LABEL}
                     </button>{" "}
                     to see and edit what your AI fills into applications for you.
                 </p>

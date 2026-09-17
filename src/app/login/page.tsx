@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
     return (
-        <Suspense fallback={<RouteSuspenseFallback label="Loading login" />}>
+        <Suspense fallback={<RouteSuspenseFallback label="Loading sign in" />}>
             <LoginClient />
         </Suspense>
     );

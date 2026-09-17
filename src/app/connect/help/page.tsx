@@ -244,7 +244,7 @@ export default function ConnectHelpPage() {
           <p>
             Near the end of the install, a browser window opens automatically asking you to approve
             the connection between your Mac and velai. It waits about 60 seconds for you to click
-            through — like a login link that expires quickly, it&apos;s timed on purpose so a
+            through — like a sign-in link that expires quickly, it&apos;s timed on purpose so a
             connection can&apos;t be approved by someone else later without you noticing.
           </p>
           <p>
