@@ -13,6 +13,7 @@ import { exportZipResumePdf, exportZipResumePdfFromData } from "@/lib/resume/exp
 import { parseResumeContent } from "@/lib/resume/parse-resume-content";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { captureEvent } from "@/lib/analytics/events";
+import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
@@ -209,7 +210,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
                 <h2 className="text-sm font-semibold mb-1">Your resume</h2>
                 <p className="text-sm text-muted-foreground">
                     <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
-                        login
+                        {AUTH_CTA_LABEL}
                     </button>{" "}
                     to see the resume your agent has on file.
                 </p>

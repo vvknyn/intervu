@@ -121,13 +121,13 @@ test.describe('AUTH - Authentication Tests', () => {
       await page.waitForTimeout(500);
 
       // Try to submit without filling fields — scoped to the auth dialog:
-      // the TopBar's own always-visible "Log in" trigger also matches
-      // "Log In" case-insensitively and stays in the DOM once the dialog
+      // the TopBar's own always-visible "Sign in" trigger also matches
+      // "Sign In" case-insensitively and stays in the DOM once the dialog
       // opens, so an unscoped locator picks it up instead of the real
       // submit button.
       const submitButton = page
         .getByRole('dialog')
-        .locator('button[type="submit"], button:has-text("Sign In"), button:has-text("Log In")')
+        .locator('button[type="submit"], button:has-text("Sign In")')
         .first();
       if (await submitButton.isVisible()) {
         await submitButton.click();

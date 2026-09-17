@@ -10,7 +10,7 @@ import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
-import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { AUTH_CTA_LABEL, formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -60,7 +60,7 @@ function SignedOutEmptyState({
                     Upload resume
                 </Button>
                 <Button variant="outline" size="sm" onClick={onLoginClick} className="w-full sm:w-auto rounded-none font-semibold">
-                    Sign in
+                    {AUTH_CTA_LABEL}
                 </Button>
             </div>
         </div>

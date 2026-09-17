@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { ConsentAllowButton, ConsentDenyButton } from "@/components/oauth/ConsentSubmitButtons";
 import type { ConsentParams } from "@/lib/agent/consent";
+import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
 /**
  * Brand lockup for the chrome-free /oauth surface — same mark/wordmark
@@ -58,7 +59,7 @@ export function LoggedOutCard({ returnTo }: { returnTo: string }) {
             </CardContent>
             <CardFooter>
                 <Button asChild className="w-full">
-                    <Link href={loginUrl}>Log In</Link>
+                    <Link href={loginUrl}>{AUTH_CTA_LABEL}</Link>
                 </Button>
             </CardFooter>
         </CenteredCard>

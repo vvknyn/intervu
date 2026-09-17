@@ -20,6 +20,7 @@ import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesS
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LocalAiSettingsSection } from "@/components/settings/LocalAiSettingsSection";
 import { cn } from "@/lib/utils";
+import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
 type AccountTab = "resume" | "prefs" | "account";
 
@@ -196,7 +197,7 @@ export function SettingsContainer() {
                 {tab === "account" && (
                     <>
                         <SettingsCard>
-                            <h2 className="mb-1 text-sm font-semibold">Sign-in</h2>
+                            <h2 className="mb-1 text-sm font-semibold">{AUTH_CTA_LABEL}</h2>
                             <p className="mb-4 text-xs text-muted-foreground">
                                 Email is how we reach you for resets. Password stays with you.
                             </p>

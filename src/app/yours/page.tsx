@@ -24,7 +24,7 @@ import { TrackerKanbanBoard } from "@/components/tracker/TrackerKanbanBoard";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
-import { formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
+import { AUTH_CTA_LABEL, formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before they're sent.";
@@ -98,7 +98,7 @@ function TrackerEmptyState({
                         onClick={onLoginClick}
                         className="font-semibold text-brand underline-offset-4 hover:underline"
                     >
-                        Sign in
+                        {AUTH_CTA_LABEL}
                     </button>{" "}
                     to sync across devices.
                 </p>

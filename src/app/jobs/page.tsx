@@ -241,6 +241,7 @@ import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
 import {
+    AUTH_CTA_LABEL,
     formatAuthGateValueLine,
     GUEST_SAVE_TOAST,
     SIGNUP_SUBCOPY,
@@ -5612,7 +5613,7 @@ function JobsContent() {
                                             onClick={() => openAuth("save", "user")}
                                             className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
-                                            sign in
+                                            {AUTH_CTA_LABEL}
                                         </button>
                                         <button
                                             type="button"
@@ -5635,7 +5636,7 @@ function JobsContent() {
                                             onClick={() => openAuth("generic", "user")}
                                             className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
-                                            sign in
+                                            {AUTH_CTA_LABEL}
                                         </button>
                                         <button
                                             type="button"
@@ -6076,7 +6077,7 @@ function JobsContent() {
                                                         href={depthGateSignInHref}
                                                         className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                                                     >
-                                                        Sign in
+                                                        {AUTH_CTA_LABEL}
                                                     </a>
                                                 </p>
                                             ) : loadingMore ? (

@@ -271,7 +271,7 @@ export const MCP_TOOL_SPECS = {
             "Returns download_url, a working link to the tailored resume as a formatted PDF — present it " +
             "to the user right away in your reply (e.g. \"Download your tailored resume: <download_url>\"), " +
             "don't wait to be asked. The link opens in the user's browser and requires them to be signed " +
-            "in to velai there; if they aren't, it takes them through login and lands back on the download.",
+            "in to velai there; if they aren't, it takes them through sign-in and lands back on the download.",
         inputSchema: saveResumeVariantInput,
     },
     get_resume_variant: {

@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { captureEvent } from "@/lib/analytics/events";
-import { type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { AUTH_CTA_LABEL, type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { canShowAutoNudge, markAutoNudgeShown, recordNudgeDismissed } from "@/lib/auth/nudge-cap";
 import { type NudgeDecision, type NudgeGateState, decideNudgeOnce, nudgeGateNext, shouldRecordDismiss } from "@/lib/auth/nudge-gate";
 
@@ -38,7 +38,7 @@ interface AuthPopoverProps {
      * Who is opening this popover — required, no default, so every call
      * site has to state its intent (a stray auto-open can't silently pass
      * as a real funnel start again). "user": a deliberate sign-in click
-     * (Log In button, a banner's "sign in" link, a method button).
+     * (Sign in button, a banner's "sign in" link, a method button).
      * "auto": the product opened it as a side effect of a gated action
      * (guest Apply, a second guest Save, ...). "user" fires `auth_started`;
      * "auto" fires `auth_nudge_shown` instead, and is subject to the
@@ -146,7 +146,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
         <Popover open={effectiveOpen} onOpenChange={onOpenChange}>
             <PopoverTrigger asChild>
                 <Button size="sm" variant="outline" className="h-9">
-                    Log In
+                    {AUTH_CTA_LABEL}
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[420px] max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-none border border-border bg-card">

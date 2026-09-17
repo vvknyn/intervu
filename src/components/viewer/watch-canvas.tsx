@@ -151,7 +151,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
         const join = async (previousOfferSdp: string | null) => {
             for (let attempt = 0; attempt < HOST_WAIT_ATTEMPTS && !cancelled; attempt++) {
                 const res = await fetch(url);
-                if (res.status === 401) return setStatus("log in to velai on this phone, then reopen this link", "ended");
+                if (res.status === 401) return setStatus("sign in to velai on this phone, then reopen this link", "ended");
                 if (!res.ok) return setStatus(ENDED_COPY, "ended");
 
                 const { host } = (await res.json()) as { host: { sdp: string } | null };

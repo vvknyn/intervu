@@ -1067,3 +1067,138 @@ test("tinted-gradient classifier: catches brand/hex/Tailwind tints, passes page 
         "a from-* class with no bg-gradient- utility in the same string isn't a gradient stop — ignored",
     );
 });
+
+// ---------------------------------------------------------------------------
+// Auth CTA label: one spelling ("Sign in", sentence case) for every sign-in
+// control, single source of truth = AUTH_CTA_LABEL (src/lib/auth/auth-gate-copy.ts).
+// Reviewer round-1 fix-up (2026-09-17): two sites had drifted to "Log In".
+// Shape-based, not a spelling list — classifies by what a literal LOOKS like
+// (a bare control label vs. a route/identifier vs. real prose), so a new
+// control anywhere in src is covered by construction, not by being added to
+// a file list here.
+// ---------------------------------------------------------------------------
+
+const AUTH_CTA_FILE = path.join(ROOT, "src/lib/auth/auth-gate-copy.ts");
+
+/** A control label that IS the sign-in action and nothing else — either verb,
+ *  optional space/hyphen between the two words, case-insensitive. */
+const BARE_AUTH_LABEL = /^\s*(?:sign|log)[ -]?in\s*$/i;
+
+/** The "log in" spelling anywhere inside a longer string — the drift this
+ *  fix-up reverses; "sign in" is the canonical verb and is never flagged. */
+const LOG_IN_ANYWHERE = /\blog[ -]?in\b/i;
+
+/** True when a literal's trimmed text is real user-facing copy rather than a
+ *  route path, an identifier/discriminant value (AuthCardTab's "login", an
+ *  event name, a CSS class), or other code plumbing. A route starts with
+ *  "/"; an identifier/discriminant in this codebase is always a single
+ *  lowercase token — no space, no capital letter. Real copy, even a
+ *  lowercase control label, always has one or the other (a capital, sentence
+ *  punctuation, or an internal space), so this classifies by shape, not by
+ *  naming any file or literal. */
+function isUserFacingAuthText(text: string): boolean {
+    if (text.startsWith("/")) return false;
+    if (!/[A-Z]/.test(text) && !/\s/.test(text)) return false;
+    return true;
+}
+
+/** Every JSX text child and every whole string/template-literal value in a
+ *  (comment-stripped) source file — the two shapes rendered copy can take. */
+function extractTextAndLiterals(strippedSrc: string): string[] {
+    const out: string[] = [];
+    for (const m of strippedSrc.matchAll(/>([^<>{}]*)</g)) out.push(m[1]);
+    for (const m of strippedSrc.matchAll(
+        /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|`([^`\\]*(?:\\.[^`\\]*)*)`/g,
+    )) {
+        out.push(m[1] ?? m[2] ?? m[3] ?? "");
+    }
+    return out;
+}
+
+function isBareAuthLabelViolation(literal: string): boolean {
+    const trimmed = literal.trim();
+    return !!trimmed && isUserFacingAuthText(trimmed) && BARE_AUTH_LABEL.test(trimmed);
+}
+
+function isLogInSpellingViolation(literal: string): boolean {
+    const trimmed = literal.trim();
+    return !!trimmed && isUserFacingAuthText(trimmed) && LOG_IN_ANYWHERE.test(trimmed);
+}
+
+test("classifier self-test: bare-label + log-in-spelling detectors, on fixtures not among the sites this fix-up touched", () => {
+    assert.ok(
+        extractTextAndLiterals("<a>Log-in</a>").some(isBareAuthLabelViolation),
+        'expected "<a>Log-in</a>" to be caught as a bare label',
+    );
+    assert.ok(
+        extractTextAndLiterals('const x = "LOGIN";').some(isBareAuthLabelViolation),
+        'expected "LOGIN" to be caught as a bare label',
+    );
+    assert.ok(
+        extractTextAndLiterals("const msg = 'log in to continue';").some(isLogInSpellingViolation),
+        "expected 'log in to continue' to be caught by the log-in-anywhere gate",
+    );
+
+    const routeLiterals = extractTextAndLiterals("router.push('/login');");
+    assert.ok(
+        routeLiterals.every((lit) => !isBareAuthLabelViolation(lit) && !isLogInSpellingViolation(lit)),
+        "expected the '/login' route literal to pass both gates",
+    );
+    assert.ok(
+        !isBareAuthLabelViolation("loginClient") && !isLogInSpellingViolation("loginClient"),
+        "expected the loginClient identifier to pass both gates",
+    );
+    const proseLiterals = extractTextAndLiterals("<p>Sign in to save this search</p>");
+    assert.ok(
+        proseLiterals.every((lit) => !isBareAuthLabelViolation(lit) && !isLogInSpellingViolation(lit)),
+        "expected sentence-case 'Sign in to save this search' prose to pass both gates",
+    );
+    // Edge case proven here, not at a fixed site: a bare lowercase AuthCardTab
+    // discriminant ("login" — no space, no capital, e.g. `tab === "login"` or
+    // the `"login" | "signup"` type) must pass both gates, or this test would
+    // fail on every legitimate non-copy use of that value across the app.
+    assert.ok(
+        !isBareAuthLabelViolation("login") && !isLogInSpellingViolation("login"),
+        'expected the bare "login" tab discriminant to pass both gates',
+    );
+});
+
+test("no control renders a bare sign-in/log-in label outside AUTH_CTA_LABEL", () => {
+    const offenders: string[] = [];
+    for (const file of walkTsxFiles(path.join(ROOT, "src"))) {
+        if (file === AUTH_CTA_FILE) continue;
+        const raw = readFileSync(file, "utf8");
+        if (isFileAllowed(raw)) continue;
+        const stripped = stripComments(raw);
+        const rel = path.relative(ROOT, file);
+        for (const literal of extractTextAndLiterals(stripped)) {
+            if (isBareAuthLabelViolation(literal)) offenders.push(`${rel}: "${literal.trim()}"`);
+        }
+    }
+    assert.deepEqual(
+        [...new Set(offenders)],
+        [],
+        `bare sign-in/log-in label(s) found outside AUTH_CTA_LABEL: ${offenders.join("; ")}. Import ` +
+            `AUTH_CTA_LABEL from @/lib/auth/auth-gate-copy and render {AUTH_CTA_LABEL} instead of a ` +
+            `hard-coded label.`,
+    );
+});
+
+test('no user-facing string in src spells the auth verb "log in" — canonical is "sign in"', () => {
+    const offenders: string[] = [];
+    for (const file of walkTsxFiles(path.join(ROOT, "src"))) {
+        const raw = readFileSync(file, "utf8");
+        if (isFileAllowed(raw)) continue;
+        const stripped = stripComments(raw);
+        const rel = path.relative(ROOT, file);
+        for (const literal of extractTextAndLiterals(stripped)) {
+            if (isLogInSpellingViolation(literal)) offenders.push(`${rel}: "${literal.trim()}"`);
+        }
+    }
+    assert.deepEqual(
+        [...new Set(offenders)],
+        [],
+        `"log in" spelling survives outside a route/identifier/event-name: ${offenders.join("; ")}. Canonical ` +
+            `verb is "sign in" (sentence case) everywhere in user-facing copy.`,
+    );
+});

@@ -16,7 +16,7 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { formatAuthGateValueLine } from "@/lib/auth/auth-gate-copy";
+import { AUTH_CTA_LABEL, formatAuthGateValueLine } from "@/lib/auth/auth-gate-copy";
 import { useViewed } from "@/lib/views/use-viewed";
 import { usePursuits } from "@/lib/pursuits/use-pursuits";
 import { stageLabel, type Pursuit } from "@/lib/pursuits/types";
@@ -52,7 +52,7 @@ function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
                 </p>
             </div>
             <Button className="font-semibold" onClick={onLoginClick}>
-                Sign in
+                {AUTH_CTA_LABEL}
             </Button>
         </div>
     );
