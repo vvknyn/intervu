@@ -8,6 +8,7 @@ import {
   stripStreetAddress,
   tieredSeamIndex,
   titleCaseDisplay,
+  visibleTags,
 } from "../../src/lib/jobs/presentation";
 import type { PublicJob } from "../../src/lib/jobs/types";
 import { ghostBadgeTone, STATUS_PILL } from "../../src/lib/ui/status-tokens";
@@ -255,4 +256,22 @@ test("resolveHeadlineTotal: policy \"titled\" returns tier1Total when present", 
 
 test("resolveHeadlineTotal: policy \"titled\" with tier1Total undefined falls back to total", () => {
   assert.equal(resolveHeadlineTotal({ total: 42 }, "titled"), 42);
+});
+
+// A raw array field (`job.tags`, `job.must_have_skills`) passing `.length > 0`
+// does not guarantee any entry decodes to real content — an array of blank
+// or garbage strings survives that check and used to render a heading
+// ("Keywords from the posting") over nothing. `visibleTags` is the one
+// chokepoint every such section now gates on instead.
+test("visibleTags: null/undefined input is an empty list", () => {
+  assert.deepEqual(visibleTags(null, 16), []);
+  assert.deepEqual(visibleTags(undefined, 16), []);
+});
+
+test("visibleTags: an array of only blank/whitespace entries decodes to nothing — the actual defect (a heading with no content)", () => {
+  assert.deepEqual(visibleTags(["", "   ", "%20"], 16), []);
+});
+
+test("visibleTags: a different field shape (mixed real, blank, and URL-encoded entries) keeps only real decoded content, respecting the limit", () => {
+  assert.deepEqual(visibleTags(["REST", "", "Spark%20AI", "  ", "SQL"], 2), ["REST", "Spark AI"]);
 });

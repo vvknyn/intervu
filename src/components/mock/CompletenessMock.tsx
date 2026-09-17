@@ -503,7 +503,7 @@ function MockJobDetail({
                         title="Available after sign-in"
                         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground opacity-60 disabled:pointer-events-none"
                     >
-                        <Check size={14} />
+                        <Check size={16} />
                         Mark as applied
                     </button>
                 </div>

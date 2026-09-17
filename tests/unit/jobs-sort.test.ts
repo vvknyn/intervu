@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
     resolveEffectiveSort,
     buildMeiliSort,
@@ -7,7 +9,9 @@ import {
     coerceSortToSupported,
     shouldScopeTextMatchToTitle,
     isPageSorted,
+    sortOptionLabel,
 } from '../../src/lib/jobs/sort';
+import { JOB_SORT_MODES } from '../../src/lib/jobs/types';
 import type { PublicJob } from '../../src/lib/jobs/types';
 
 function mkJob(overrides: Partial<PublicJob> & { id: string }): PublicJob {
@@ -182,5 +186,42 @@ describe('coerceSortToSupported', () => {
         assert.deepEqual(buildMeiliSort({ q: 'engineer', sort: coerceSortToSupported('newest', true) }), [
             'posted_ts:desc',
         ]);
+    });
+});
+
+describe('sortOptionLabel', () => {
+    it('returns a non-empty, sentence-case label for every JobSortMode, under both résumé states', () => {
+        // Class check, not instance check: iterates JOB_SORT_MODES (the type's
+        // own source of truth) rather than hand-listing 'newest'/'salary_desc'/
+        // 'relevance' again — a fourth mode added later is covered for free.
+        for (const mode of JOB_SORT_MODES) {
+            for (const resumeOnFile of [true, false, null]) {
+                const label = sortOptionLabel(mode, resumeOnFile);
+                assert.ok(label.length > 0, `${mode}/${resumeOnFile} produced an empty label`);
+                assert.doesNotMatch(label, /^[a-z]/, `${mode}/${resumeOnFile} label "${label}" is not sentence-case`);
+            }
+        }
+    });
+
+    it('relevance depends on resumeOnFile; every other mode does not', () => {
+        assert.equal(sortOptionLabel('relevance', true), 'Best match');
+        assert.equal(sortOptionLabel('relevance', false), 'Relevance');
+        assert.equal(sortOptionLabel('relevance', null), 'Relevance');
+        for (const mode of JOB_SORT_MODES.filter((m) => m !== 'relevance')) {
+            const labels = new Set([true, false, null].map((resumeOnFile) => sortOptionLabel(mode, resumeOnFile)));
+            assert.equal(labels.size, 1, `${mode} label varies with resumeOnFile: ${[...labels].join(', ')}`);
+        }
+    });
+
+    it('is the one label source both the desktop sort menu and the mobile filter-sheet tabs import — a re-typed literal cannot drift back in', () => {
+        // Regression guard for the actual defect: the mobile ToolbarSegment
+        // tabs used to carry their own hand-typed lowercase copies
+        // ('freshest', 'top pay') instead of importing this function.
+        const pageSrc = readFileSync(path.join(__dirname, '../../src/app/jobs/page.tsx'), 'utf8');
+        assert.match(pageSrc, /import\s*\{[^}]*\bsortOptionLabel\b[^}]*\}\s*from\s*["']@\/lib\/jobs\/sort["']/);
+        const sortOptionLabelCallSites = pageSrc.match(/sortOptionLabel\(/g) ?? [];
+        assert.ok(sortOptionLabelCallSites.length >= 5, `expected sortOptionLabel used at every desktop + mobile call site, found ${sortOptionLabelCallSites.length}`);
+        assert.doesNotMatch(pageSrc, /label="freshest"/);
+        assert.doesNotMatch(pageSrc, /label="top pay"/);
     });
 });

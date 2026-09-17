@@ -108,7 +108,7 @@ export function ColdVisitorOrientation({
                     aria-label="Dismiss welcome guide"
                     className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-none text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 >
-                    <X size={14} weight="bold" aria-hidden />
+                    <X size={16} weight="bold" aria-hidden />
                 </button>
             </div>
         );

@@ -22,7 +22,7 @@ import { formatDescription, type DescBlock } from "@/lib/jobs/format-description
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, placeWithWorkMode, clampLocationSegments, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
+import { ghostMetaFor, displayCompany, displayCompanyBrand, locationText, placeWithWorkMode, clampLocationSegments, shortDate, salaryText, postedAgeShort, visibleTags } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { presentJob } from "@/lib/presentation";
 import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
@@ -1149,13 +1149,13 @@ export function JobDetail({
                     })()}
                 </div>
 
-                {job.tags && job.tags.length > 0 && (
+                {visibleTags(job.tags, 16).length > 0 && (
                     <div className="border-t border-border py-6">
                         {/* Rulebook item c: no bordered tag chips — a sentence-case
                             label plus one flowing secondary line joined by " · ". */}
                         <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
                         <div className="mono-data text-sm text-muted-foreground">
-                            {job.tags.slice(0, 16).map(decodeText).join(" · ")}
+                            {visibleTags(job.tags, 16).join(" · ")}
                         </div>
                     </div>
                 )}
