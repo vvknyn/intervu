@@ -11,6 +11,7 @@
  */
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { splitRoleTitles } from "@/lib/jobs/adjacent-roles";
+import { resumeMatchText } from "@/lib/resume/match-text";
 import type { ResumeData } from "@/types/resume";
 
 /**
@@ -93,26 +94,16 @@ const TITLE_FAMILY_PATTERNS: Readonly<Record<RoleFamilyId, readonly RegExp[]>> =
     operations: [/operations manager/i, /program manager/i],
 };
 
-/** Collect responsibility text: experience descriptions + generated summary. */
-export function collectDutyText(resume: ResumeData): string {
-    const parts: string[] = [];
-    for (const exp of resume.experience ?? []) {
-        const desc = (exp.description ?? "").trim();
-        if (desc) parts.push(desc);
-    }
-    const summary = (resume.generatedSummary ?? "").trim();
-    if (summary) parts.push(summary);
-    return parts.join("\n");
-}
-
 /** Tokenize duty text: meaningful title tokens with rank words stripped. */
 export function dutyTokens(text: string): string[] {
     return meaningfulTitleTokens(text).filter((t) => !RANK_WORDS.has(t));
 }
 
-/** Unique duty tokens across the résumé's responsibility text. */
+/** Unique duty tokens across the résumé's matchable text (summary,
+ *  experience/project bullets, skills) — see resumeMatchText for why all
+ *  four sources are read, not experience alone. */
 export function resumeDutyTokens(resume: ResumeData): string[] {
-    return [...new Set(dutyTokens(collectDutyText(resume)))];
+    return [...new Set(dutyTokens(resumeMatchText(resume)))];
 }
 
 function normalizeTitles(titles: string[]): string[] {

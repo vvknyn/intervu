@@ -1,6 +1,4 @@
-import type { ResumeData, ResumeSection } from "@/types/resume";
-
-const DEFAULT_ORDER: ResumeSection[] = ["summary", "experience", "skills", "education"];
+import { getSectionOrder, type ResumeData } from "@/types/resume";
 
 /**
  * Renders a `ResumeData` into plain markdown text — the exact string the
@@ -13,7 +11,7 @@ const DEFAULT_ORDER: ResumeSection[] = ["summary", "experience", "skills", "educ
  * never a lying "N/A".
  */
 export function resumeDataToMarkdown(data: ResumeData): string {
-    const { profile, experience, competencies, education, generatedSummary } = data;
+    const { profile, experience, competencies, education, generatedSummary, projects } = data;
     const lines: string[] = [];
 
     lines.push(`# ${profile?.name || "Resume"}`);
@@ -21,8 +19,7 @@ export function resumeDataToMarkdown(data: ResumeData): string {
     if (contactBits.length) lines.push(contactBits.join(" · "));
     lines.push("");
 
-    const order = data.sectionOrder?.length ? data.sectionOrder : DEFAULT_ORDER;
-    for (const section of order) {
+    for (const section of getSectionOrder(data)) {
         switch (section) {
             case "summary":
                 if (generatedSummary) lines.push("## Summary", "", generatedSummary, "");
@@ -45,12 +42,24 @@ export function resumeDataToMarkdown(data: ResumeData): string {
             case "education":
                 if (education?.length) {
                     lines.push("## Education", "");
-                    for (const ed of education) lines.push(`${ed.degree} — ${ed.institution}${ed.year ? ` (${ed.year})` : ""}`);
+                    for (const ed of education) {
+                        lines.push(`${ed.degree} — ${ed.institution}${ed.year ? ` (${ed.year})` : ""}`);
+                        if (ed.gpa) lines.push(`GPA: ${ed.gpa}`);
+                        if (ed.honours?.length) lines.push(`Honours: ${ed.honours.join(", ")}`);
+                        if (ed.coursework?.length) lines.push(`Relevant coursework: ${ed.coursework.join(", ")}`);
+                        if (ed.activities?.length) lines.push(`Activities: ${ed.activities.join(", ")}`);
+                    }
                     lines.push("");
                 }
                 break;
             case "projects":
-                break; // ResumeData carries no projects field yet.
+                if (projects?.length) {
+                    lines.push("## Projects", "");
+                    for (const p of projects) {
+                        lines.push(`### ${p.role}${p.company ? ` — ${p.company}` : ""}`, p.dates, "", p.description, "");
+                    }
+                }
+                break;
         }
     }
 

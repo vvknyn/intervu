@@ -6,7 +6,6 @@ import {
     ResumeExperience,
     ResumeEducation,
     ResumeSection,
-    detectProfessionType,
     getSectionOrder,
 } from "@/types/resume";
 import { Button } from "@/components/ui/button";
@@ -26,6 +25,7 @@ import {
     Briefcase,
     GraduationCap,
     ListNumbers,
+    FolderSimple,
     X,
 } from "@phosphor-icons/react";
 
@@ -36,7 +36,7 @@ interface EditingPanelProps {
     onNavigateSection: (section: string | null) => void;
 }
 
-const ALL_SECTIONS = ["header", "summary", "skills", "experience", "education"] as const;
+const ALL_SECTIONS = ["header", "summary", "skills", "experience", "projects", "education"] as const;
 type NavigableSection = (typeof ALL_SECTIONS)[number];
 
 const SECTION_CONFIG: Record<
@@ -62,6 +62,11 @@ const SECTION_CONFIG: Record<
         title: "Professional Experience",
         subtitle: "Work history, achievements, and responsibilities",
         icon: Briefcase,
+    },
+    projects: {
+        title: "Projects",
+        subtitle: "Independent, academic, or side projects worth showcasing",
+        icon: FolderSimple,
     },
     education: {
         title: "Education & Credentials",
@@ -151,22 +156,22 @@ export function EditingPanel({
 }: EditingPanelProps) {
     const [newSkillCategory, setNewSkillCategory] = useState("");
     const [newSkillInputs, setNewSkillInputs] = useState<Record<string, string>>({});
+    // Uncommitted text for the comma-separated education list fields (honours,
+    // coursework, activities) — keyed by `${educationId}:${field}` so an
+    // in-progress "Dean's List, " doesn't get collapsed by the committed
+    // array's re-join on every keystroke (same problem `newSkillInputs`
+    // avoids for skills, one field per category instead of per list-field).
+    const [eduListDrafts, setEduListDrafts] = useState<Record<string, string>>({});
 
-    const currentSectionOrder = useMemo(() => {
-        if (data.sectionOrder && data.sectionOrder.length > 0) {
-            return data.sectionOrder;
-        }
-        const professionType = detectProfessionType(data.profile?.profession || "");
-        return getSectionOrder(data.profile?.yearsOfExperience || 0, professionType);
-    }, [data.sectionOrder, data.profile?.profession, data.profile?.yearsOfExperience]);
+    const currentSectionOrder = useMemo(
+        () => getSectionOrder(data),
+        [data.sectionOrder, data.profile?.profession, data.profile?.yearsOfExperience],
+    );
 
     const isCustomOrder = Boolean(data.sectionOrder && data.sectionOrder.length > 0);
 
     const getNavigationSections = useMemo(() => {
-        return [
-            "header",
-            ...currentSectionOrder.filter((s) => s !== "projects"),
-        ] as NavigableSection[];
+        return ["header", ...currentSectionOrder] as NavigableSection[];
     }, [currentSectionOrder]);
 
     const currentSectionIndex = selectedSection
@@ -692,7 +697,118 @@ export function EditingPanel({
         );
     }
 
-    // 6. Education
+    // 6. Projects
+    if (selectedSection === "projects") {
+        const projects = data.projects || [];
+
+        const addProject = () => {
+            const newProj: ResumeExperience = {
+                id: `proj-${Date.now()}`,
+                company: "",
+                role: "",
+                dates: "",
+                description: "",
+            };
+            onUpdate({ projects: [newProj, ...projects] });
+        };
+
+        const updateProjField = (id: string, field: keyof ResumeExperience, value: string) => {
+            onUpdate({
+                projects: projects.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
+            });
+        };
+
+        const removeProj = (id: string) => {
+            onUpdate({
+                projects: projects.filter((p) => p.id !== id),
+            });
+        };
+
+        return (
+            <div className="h-full space-y-5 overflow-y-auto p-4 sm:p-6">
+                <SectionHeader section="projects" nav={nav} />
+
+                <div className="flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground">
+                        {projects.length} project{projects.length === 1 ? "" : "s"} listed
+                    </span>
+                    <Button type="button" size="sm" onClick={addProject} className="gap-1 text-xs">
+                        <Plus /> Add Project
+                    </Button>
+                </div>
+
+                {projects.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-muted-foreground">
+                        No projects listed. Add one to showcase independent or academic work.
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {projects.map((proj, idx) => (
+                            <div
+                                key={proj.id || idx}
+                                className="rounded-none border border-border bg-card p-4 space-y-3"
+                            >
+                                <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                        Project #{idx + 1}
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => removeProj(proj.id)}
+                                        className="h-7 text-danger-text hover:text-danger-text"
+                                    >
+                                        <Trash />
+                                    </Button>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div className="space-y-1">
+                                        <Label className="text-xs font-semibold">Project Name</Label>
+                                        <Input
+                                            value={proj.role}
+                                            onChange={(e) => updateProjField(proj.id, "role", e.target.value)}
+                                            placeholder="e.g. Real-time Chat App"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs font-semibold">Organization / Link (optional)</Label>
+                                        <Input
+                                            value={proj.company}
+                                            onChange={(e) => updateProjField(proj.id, "company", e.target.value)}
+                                            placeholder="e.g. github.com/you/project or Course name"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold">Dates (optional)</Label>
+                                    <Input
+                                        value={proj.dates}
+                                        onChange={(e) => updateProjField(proj.id, "dates", e.target.value)}
+                                        placeholder="e.g. Fall 2024"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold">Key Details & Bullets</Label>
+                                    <Textarea
+                                        value={proj.description}
+                                        onChange={(e) => updateProjField(proj.id, "description", e.target.value)}
+                                        placeholder="• Start each bullet with an action verb (Built, Led, Reduced, Scaled)..."
+                                        className="min-h-[120px]"
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // 7. Education
     if (selectedSection === "education") {
         const education = data.education || [];
 
@@ -706,9 +822,23 @@ export function EditingPanel({
             onUpdate({ education: [...education, newEdu] });
         };
 
-        const updateEduField = (id: string, field: keyof ResumeEducation, value: string) => {
+        const updateEduField = (id: string, field: "degree" | "institution" | "year" | "gpa", value: string) => {
             onUpdate({
                 education: education.map((e) => (e.id === id ? { ...e, [field]: value } : e)),
+            });
+        };
+
+        const eduListDraftKey = (id: string, field: "honours" | "coursework" | "activities") => `${id}:${field}`;
+
+        const commitEduListField = (id: string, field: "honours" | "coursework" | "activities", raw: string) => {
+            const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+            onUpdate({
+                education: education.map((e) => (e.id === id ? { ...e, [field]: list } : e)),
+            });
+            setEduListDrafts((prev) => {
+                const next = { ...prev };
+                delete next[eduListDraftKey(id, field)];
+                return next;
             });
         };
 
@@ -783,6 +913,70 @@ export function EditingPanel({
                                             placeholder="e.g. 2022"
                                         />
                                     </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div className="space-y-1">
+                                        <Label className="text-xs font-semibold">GPA</Label>
+                                        <Input
+                                            value={edu.gpa || ""}
+                                            onChange={(e) => updateEduField(edu.id, "gpa", e.target.value)}
+                                            placeholder="e.g. 3.8 / 4.0"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs font-semibold">Honours</Label>
+                                        <Input
+                                            value={
+                                                eduListDrafts[eduListDraftKey(edu.id, "honours")] ??
+                                                (edu.honours || []).join(", ")
+                                            }
+                                            onChange={(e) =>
+                                                setEduListDrafts((prev) => ({
+                                                    ...prev,
+                                                    [eduListDraftKey(edu.id, "honours")]: e.target.value,
+                                                }))
+                                            }
+                                            onBlur={(e) => commitEduListField(edu.id, "honours", e.target.value)}
+                                            placeholder="e.g. Dean's List, Magna Cum Laude"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold">Relevant coursework</Label>
+                                    <Input
+                                        value={
+                                            eduListDrafts[eduListDraftKey(edu.id, "coursework")] ??
+                                            (edu.coursework || []).join(", ")
+                                        }
+                                        onChange={(e) =>
+                                            setEduListDrafts((prev) => ({
+                                                ...prev,
+                                                [eduListDraftKey(edu.id, "coursework")]: e.target.value,
+                                            }))
+                                        }
+                                        onBlur={(e) => commitEduListField(edu.id, "coursework", e.target.value)}
+                                        placeholder="e.g. Data Structures, Distributed Systems, Linear Algebra"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold">Activities</Label>
+                                    <Input
+                                        value={
+                                            eduListDrafts[eduListDraftKey(edu.id, "activities")] ??
+                                            (edu.activities || []).join(", ")
+                                        }
+                                        onChange={(e) =>
+                                            setEduListDrafts((prev) => ({
+                                                ...prev,
+                                                [eduListDraftKey(edu.id, "activities")]: e.target.value,
+                                            }))
+                                        }
+                                        onBlur={(e) => commitEduListField(edu.id, "activities", e.target.value)}
+                                        placeholder="e.g. Robotics Club, Varsity Soccer, Hackathon Organizer"
+                                    />
                                 </div>
                             </div>
                         ))}
