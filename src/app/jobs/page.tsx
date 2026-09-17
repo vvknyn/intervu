@@ -155,6 +155,7 @@ import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
 import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
+import { isSameOpenJob } from "@/lib/jobs/is-same-open-job";
 import {
     isUnavailableJobsResult,
     resolveSelectionAfterRefresh,
@@ -2590,6 +2591,13 @@ function JobsContent() {
     // Deliberate job open: pushes `?job=<id>` so back-button + refresh both
     // work (picked back up by the URL-derived-selection effect below).
     const openJob = (id: string) => {
+        // Re-click chokepoint: a click on the row that's already the
+        // deliberately-open job is a no-op — every side effect below
+        // (fetch, recordJobOpenedAction, captureEvent, recordJobViewAction)
+        // already ran for this id. One guard here, not one per call site —
+        // see `isSameOpenJob`'s doc comment (lib/jobs/is-same-open-job.ts)
+        // for why `detailSheetOpen`, not just an id match, gates it.
+        if (isSameOpenJob(selectedId, id, detailSheetOpen)) return;
         // Prime the description fetch FIRST, before any telemetry dispatch
         // below — Next's client action queue runs server actions strictly
         // serially (app-router-instance.js runAction/runRemainingActions), so

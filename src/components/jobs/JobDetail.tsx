@@ -39,6 +39,7 @@ import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { resolveDescriptionSectionState, DESCRIPTION_SLOW_HINT_MS } from "@/lib/jobs/description-section-state";
+import { useDescriptionSettled } from "@/components/jobs/use-description-settled";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import type { ResumeData } from "@/types/resume";
 
@@ -557,6 +558,11 @@ export function JobDetail({
         hasBlocks: blocks.length > 0,
         pending: Boolean(descriptionPending),
     });
+    // Gate for every below-the-fold fetch this panel makes (related jobs,
+    // company open count): true once the description has settled (ready or
+    // confirmed empty), flipped in a `useEffect` so it lands strictly after
+    // the render that painted the description — see use-description-settled.ts.
+    const descriptionSettled = useDescriptionSettled({ description: job.description, descriptionPending });
     // Delayed progress message for the "loading" state — resets whenever the
     // job or the state itself changes, so switching jobs (or a retry landing
     // on "body"/"pending") never leaves a stale hint counting down.
@@ -634,6 +640,10 @@ export function JobDetail({
     // painting a stale job's related list onto the new one.
     const [related, setRelated] = useState<PublicJob[]>([]);
     useEffect(() => {
+        // Below-the-fold: waits for the description to settle (ready or
+        // confirmed empty — see use-description-settled.ts) so this fetch
+        // never races the description paint.
+        if (!descriptionSettled) return;
         let cancelled = false;
         setRelated([]);
         // Guests see this list gated behind sign-in — fetching for them would
@@ -654,7 +664,7 @@ export function JobDetail({
         return () => {
             cancelled = true;
         };
-    }, [job.id, job.company_domain, job.title, signedIn]);
+    }, [job.id, job.company_domain, job.title, signedIn, descriptionSettled]);
 
     // ITEM N (2026-08-15), decoupled from sign-in 2026-08-20 — the
     // hiring-truth rail's "Live roles" figure used to read
@@ -672,6 +682,9 @@ export function JobDetail({
     // same as before this existed.
     const [liveOpenCount, setLiveOpenCount] = useState<OpenCount | null>(null);
     useEffect(() => {
+        // Below-the-fold: same settle gate as the related-jobs effect above
+        // — see use-description-settled.ts.
+        if (!descriptionSettled) return;
         let cancelled = false;
         setLiveOpenCount(null);
         if (!job.company_domain) return;
@@ -686,7 +699,7 @@ export function JobDetail({
         return () => {
             cancelled = true;
         };
-    }, [job.company_domain]);
+    }, [job.company_domain, descriptionSettled]);
 
     // Resolve to ONE open-count number the same way the render below reads
     // it (live figure first, stale field as fallback), then run it through
