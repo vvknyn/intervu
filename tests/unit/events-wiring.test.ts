@@ -34,13 +34,25 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-/** Event names passed to captureEvent() anywhere in src/, excluding the module itself. */
+/**
+ * Event names passed to captureEvent() OR captureServerEvent() anywhere in
+ * src/, excluding the module itself. Both are `K extends AnalyticsEventKey`
+ * generic sinks (events.ts, server-capture.ts) — captureServerEvent exists
+ * for events a client-side capture can't reliably send before a redirect
+ * completes (see server-capture.ts), so an event fired only that way is
+ * just as wired as one fired through captureEvent, and the scan has to
+ * recognize both call shapes to avoid flagging real server-side wiring as
+ * dead.
+ */
 function wiredEvents(files: string[]): Set<string> {
   const found = new Set<string>();
   for (const file of files) {
     if (file === EVENTS_MODULE) continue;
     const source = readFileSync(file, "utf8");
     for (const m of source.matchAll(/captureEvent\(\s*["'`]([a-z_]+)["'`]/g)) {
+      found.add(m[1]);
+    }
+    for (const m of source.matchAll(/captureServerEvent\(\s*["'`]([a-z_]+)["'`]/g)) {
       found.add(m[1]);
     }
   }

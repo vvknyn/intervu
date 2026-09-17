@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { captureEvent } from "@/lib/analytics/events";
-import { type AuthGateReason, type AuthGateTrigger, resolveAuthOpenEvent } from "@/lib/auth/auth-gate-copy";
+import { type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { canShowAutoNudge, markAutoNudgeShown, recordNudgeDismissed } from "@/lib/auth/nudge-cap";
 import { type NudgeDecision, type NudgeGateState, decideNudgeOnce, nudgeGateNext, shouldRecordDismiss } from "@/lib/auth/nudge-gate";
 
@@ -83,7 +83,16 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
             const next = nudgeGateNext(gate, { type: "open", trigger, allowed });
             if (next === "shown") {
                 if (trigger === "auto") markAutoNudgeShown(decision.reason);
-                captureEvent(resolveAuthOpenEvent(trigger), { reason: decision.reason });
+                // Literal call per branch (not a resolveAuthOpenEvent() return
+                // value passed through as a variable) so the analytics wiring
+                // scan can see both real wire names are actually fired.
+                // resolveAuthOpenEvent (auth-gate-copy.ts) is the single source
+                // of truth this branch mirrors: "auto" trigger → nudge, "user" → started.
+                if (trigger === "auto") {
+                    captureEvent("auth_nudge_shown", { reason: decision.reason });
+                } else {
+                    captureEvent("auth_started", { reason: decision.reason });
+                }
             } else {
                 // Suppressed: tell the parent so its own `open` state
                 // doesn't stay stuck true for a popover that never shows.
