@@ -125,6 +125,16 @@ export interface PublicJob {
   max_years_experience?: number | null;
   must_have_skills?: string[];
   preferred_skills?: string[];
+  /**
+   * Dark launch (2026-09-17) — set by the upstream extractor only when it
+   * actually found a Requirements/Preferred heading to parse. Older
+   * unstamped rows lack this field; absence must be treated as `false`
+   * (never as "found"), same posture as the exposure badges above. Use
+   * `evidencedSkills()` in presentation.ts for any display read of
+   * `must_have_skills` / `preferred_skills` — never read those fields
+   * directly for rendering.
+   */
+  skills_section_found?: boolean;
   tech_stack?: string[];
   in_office_days?: number | null;
   normalized_salary_min?: number | null;
