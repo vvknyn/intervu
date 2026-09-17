@@ -88,6 +88,17 @@ describe("canShowAutoNudge", () => {
         assert.equal(canShowAutoNudge("save", t0 + 1000), true);
     });
 
+    it("a dismiss recorded for the decided reason does not suppress a different reason on the same open state (PublicJobDetail apply/report swap)", () => {
+        // PublicJobDetail.tsx opens the same AuthPopover with reason "apply"
+        // (:236) and reason "report" (:302) on one shared `open` boolean; a
+        // prop swap mid-open must not let a dismiss recorded for the reason
+        // the popover was actually shown FOR bleed into the other reason.
+        installStorage({}, {});
+        recordNudgeDismissed("apply");
+        assert.equal(canShowAutoNudge("report"), true, "report is untouched by an apply dismiss");
+        assert.equal(canShowAutoNudge("apply"), false, "apply itself stays suppressed");
+    });
+
     it("returns false, never throws, when storage is unavailable (private mode)", () => {
         installStorage(null, null);
         assert.doesNotThrow(() => {

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { nudgeGateNext, shouldRecordDismiss } from "../../src/lib/auth/nudge-gate";
+import { decideNudgeOnce, nudgeGateNext, shouldRecordDismiss } from "../../src/lib/auth/nudge-gate";
 
 // Run every scenario for two different gated-action reasons so the state
 // machine is proven class-wide (any auto nudge), not just the apply gate
@@ -57,5 +57,25 @@ describe("shouldRecordDismiss", () => {
         assert.equal(shouldRecordDismiss("idle", "idle"), false);
         assert.equal(shouldRecordDismiss("suppressed", "idle"), false);
         assert.equal(shouldRecordDismiss("shown", "shown"), false);
+    });
+});
+
+describe("decideNudgeOnce", () => {
+    it("with no prior record, returns the proposed decision", () => {
+        const decision = decideNudgeOnce(null, { reason: "apply", trigger: "auto" });
+        assert.deepEqual(decision, { reason: "apply", trigger: "auto" });
+    });
+
+    it("second decide call with a non-null record returns the existing record unchanged — the StrictMode double-invoke case", () => {
+        // AuthPopover's effect has no cleanup, so React StrictMode's
+        // synchronous double-invoke runs the setup twice against the same
+        // pre-commit closure. Both invocations would compute the same
+        // proposed decision from props in practice, but this proves the
+        // guard itself: whatever the second call proposes, the record from
+        // the first call wins.
+        const first = decideNudgeOnce(null, { reason: "apply", trigger: "auto" });
+        const second = decideNudgeOnce(first, { reason: "report", trigger: "auto" });
+        assert.deepEqual(second, { reason: "apply", trigger: "auto" }, "existing record is unchanged, not overwritten by the second call's proposal");
+        assert.equal(second, first, "same object identity — not even a new record shape");
     });
 });

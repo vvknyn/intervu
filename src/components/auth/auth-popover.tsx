@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { captureEvent } from "@/lib/analytics/events";
 import { type AuthGateReason, type AuthGateTrigger, resolveAuthOpenEvent } from "@/lib/auth/auth-gate-copy";
 import { canShowAutoNudge, markAutoNudgeShown, recordNudgeDismissed } from "@/lib/auth/nudge-cap";
-import { type NudgeGateState, nudgeGateNext, shouldRecordDismiss } from "@/lib/auth/nudge-gate";
+import { type NudgeDecision, type NudgeGateState, decideNudgeOnce, nudgeGateNext, shouldRecordDismiss } from "@/lib/auth/nudge-gate";
 
 interface AuthPopoverProps {
     open: boolean;
@@ -51,6 +51,14 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     const succeededRef = useRef(false);
     const effectiveReason = reason ?? "generic";
     const [gate, setGate] = useState<NudgeGateState>("idle");
+    // The record this popover instance actually decided FOR — reason and
+    // trigger as they were at decision time, not whatever `props` say when
+    // the consequence (marking shown, recording a dismiss) later runs. A
+    // ref, not state: it must survive React StrictMode's synchronous
+    // double-invoke of this effect (both invocations close over the same
+    // pre-commit `gate === "idle"`), and `decideNudgeOnce` makes the second
+    // invocation a no-op instead of a re-decide. See nudge-gate.ts.
+    const decisionRef = useRef<NudgeDecision | null>(null);
 
     // The auto-nudge cap (nudge-cap.ts) is decided once per open
     // TRANSITION, not on every render: /jobs re-renders constantly, and
@@ -61,11 +69,21 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     // top of it is correct, not a broken UI.
     useEffect(() => {
         if (open && gate === "idle") {
+            const alreadyDecided = decisionRef.current !== null;
+            decisionRef.current = decideNudgeOnce(decisionRef.current, { reason: effectiveReason, trigger });
+            if (alreadyDecided) {
+                // StrictMode's synchronous double-invoke of this same open
+                // transition (both invocations close over the same
+                // pre-commit `gate === "idle"`) — the first invocation
+                // already decided and acted; this one is a no-op.
+                return;
+            }
+            const decision = decisionRef.current;
             const allowed = trigger !== "auto" || canShowAutoNudge(effectiveReason);
             const next = nudgeGateNext(gate, { type: "open", trigger, allowed });
             if (next === "shown") {
-                if (trigger === "auto") markAutoNudgeShown(effectiveReason);
-                captureEvent(resolveAuthOpenEvent(trigger), { reason: effectiveReason });
+                if (trigger === "auto") markAutoNudgeShown(decision.reason);
+                captureEvent(resolveAuthOpenEvent(trigger), { reason: decision.reason });
             } else {
                 // Suppressed: tell the parent so its own `open` state
                 // doesn't stay stuck true for a popover that never shows.
@@ -78,11 +96,14 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
             const next = nudgeGateNext(gate, { type: "close" });
             // Closing without a preceding success is a dismiss — only
             // counts toward the auto-nudge cap; a user who opened this
-            // themselves and backed out isn't "nudge fatigue".
-            if (shouldRecordDismiss(gate, next) && trigger === "auto" && !succeededRef.current) {
-                recordNudgeDismissed(effectiveReason);
+            // themselves and backed out isn't "nudge fatigue". Recorded
+            // for the reason this popover instance was decided for, not
+            // whatever `reason` prop the parent has swapped to since.
+            if (shouldRecordDismiss(gate, next) && decisionRef.current?.trigger === "auto" && !succeededRef.current) {
+                recordNudgeDismissed(decisionRef.current.reason);
             }
             succeededRef.current = false;
+            decisionRef.current = null;
             setGate(next);
         }
     }, [open, gate, trigger, effectiveReason, onOpenChange]);
