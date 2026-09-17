@@ -27,6 +27,13 @@ function baseInput(overrides: Partial<Parameters<typeof submitSearchAlert>[1]> =
     redirectPath: "/jobs?q=staff+engineer",
     turnstileToken: "tok",
     requestIp: "1.2.3.4",
+    distinctId: "distinct-1",
+    analytics: {
+      surface: "results" as const,
+      query_length: 14,
+      filter_count: 0,
+      has_results: true,
+    },
     ...overrides,
   };
 }
@@ -110,5 +117,23 @@ describe("submitSearchAlert — happy path", () => {
     assert.equal(sent.searchName, "Staff engineer");
     assert.match(sent.verifyUrl, /^https:\/\/intervuhq\.com\/api\/search-alerts\/verify\?token=[0-9a-f]{64}$/);
     assert.match(q.calls[2].text, /verify_search_alert/);
+    assert.equal(q.calls[2].params[7], "distinct-1", "distinctId must be bound into the insert");
+    assert.equal(
+      q.calls[2].params[8],
+      JSON.stringify({ surface: "results", query_length: 14, filter_count: 0, has_results: true }),
+      "analytics payload must be bound as JSON",
+    );
+  });
+
+  it("binds a null distinctId when the client had none to send", async () => {
+    const q = new FakeQueryable([
+      { rows: [{ count: 0 }] },
+      { rows: [{ id: "id-1", email: "person@example.com", email_verified_at: null, contact_token: "tok-1" }] },
+      { rows: [] },
+    ]);
+    const deps = baseDeps({ q });
+    const result = await submitSearchAlert(deps, baseInput({ distinctId: null }));
+    assert.deepEqual(result, { status: "accepted" });
+    assert.equal(q.calls[2].params[7], null, "a missing distinctId must bind null, never a fabricated id");
   });
 });

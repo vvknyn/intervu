@@ -1,5 +1,12 @@
 import { randomBytes, createHash } from "node:crypto";
 import type { Queryable } from "../pg/pool";
+import type { EventPayloads } from "../analytics/events";
+
+/** Same shape `search_alert_submitted`/`search_alert_verified` share (the
+ *  latter is the former minus `outcome`) — round-tripped through
+ *  `auth_tokens.intent_analytics` from submit to verify, since the verify
+ *  request is a bare token consume with no live search context of its own. */
+export type SearchAlertAnalytics = EventPayloads["search_alert_verified"];
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -81,14 +88,16 @@ export async function createSearchAlertVerifyToken(
     name: string;
     href: string;
     searchHash: string;
+    distinctId: string | null;
+    analytics: SearchAlertAnalytics;
   },
 ): Promise<string> {
   const raw = randomBytes(32).toString("hex");
   const tokenHash = createHash("sha256").update(raw).digest();
   await q.query(
     `INSERT INTO intervu.auth_tokens
-       (token_hash, identity_id, purpose, redirect_path, request_ip, intent_name, intent_href, intent_search_hash, expires_at)
-     VALUES ($1, $2, 'verify_search_alert', $3, $4, $5, $6, $7, now() + interval '30 minutes')`,
+       (token_hash, identity_id, purpose, redirect_path, request_ip, intent_name, intent_href, intent_search_hash, intent_distinct_id, intent_analytics, expires_at)
+     VALUES ($1, $2, 'verify_search_alert', $3, $4, $5, $6, $7, $8, $9, now() + interval '30 minutes')`,
     [
       tokenHash,
       input.identityId,
@@ -97,6 +106,8 @@ export async function createSearchAlertVerifyToken(
       input.name,
       input.href,
       input.searchHash,
+      input.distinctId ?? null,
+      JSON.stringify(input.analytics),
     ],
   );
   return raw;
@@ -113,6 +124,8 @@ export async function consumeSearchAlertToken(
   name: string;
   href: string;
   searchHash: string;
+  distinctId: string | null;
+  analytics: SearchAlertAnalytics | null;
 } | null> {
   const tokenHash = createHash("sha256").update(rawToken).digest();
   const { rows: tokenRows } = await q.query<{
@@ -121,11 +134,13 @@ export async function consumeSearchAlertToken(
     intent_name: string | null;
     intent_href: string | null;
     intent_search_hash: string | null;
+    intent_distinct_id: string | null;
+    intent_analytics: SearchAlertAnalytics | null;
   }>(
     `UPDATE intervu.auth_tokens
      SET consumed_at = now()
      WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now() AND purpose = 'verify_search_alert'
-     RETURNING identity_id, redirect_path, intent_name, intent_href, intent_search_hash`,
+     RETURNING identity_id, redirect_path, intent_name, intent_href, intent_search_hash, intent_distinct_id, intent_analytics`,
     [tokenHash],
   );
   const token = tokenRows[0];
@@ -149,6 +164,8 @@ export async function consumeSearchAlertToken(
     name: token.intent_name,
     href: token.intent_href,
     searchHash: token.intent_search_hash,
+    distinctId: token.intent_distinct_id,
+    analytics: token.intent_analytics,
   };
 }
 

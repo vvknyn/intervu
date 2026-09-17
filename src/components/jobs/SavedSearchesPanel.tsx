@@ -37,6 +37,8 @@ export function SavedSearchesPanel({
     onBeforeGuestSave,
     compact = false,
     className,
+    label = "Save search",
+    hideList = false,
 }: {
     saved: SavedSearch[];
     urlState: JobsUrlState;
@@ -53,6 +55,14 @@ export function SavedSearchesPanel({
     /** Inline/text-scale variant — matches the 11px indicator row rather than the h-11 toolbar. */
     compact?: boolean;
     className?: string;
+    /** Trigger copy — the toolbar mount keeps "Save search"; a second mount
+     *  elsewhere on the page (e.g. the results-count line) can hand a
+     *  fuller sentence without forking the save mechanism itself. */
+    label?: string;
+    /** Suppresses the already-saved chips list, for a second compact mount
+     *  (results-count line) that should offer only the save action rather
+     *  than duplicate the toolbar's saved-searches management list. */
+    hideList?: boolean;
 }) {
     const [naming, setNaming] = useState(false);
     const [nameDraft, setNameDraft] = useState("");
@@ -164,7 +174,7 @@ export function SavedSearchesPanel({
                     )}
                 >
                     {!compact && <BookmarkSimple aria-hidden />}
-                    Save search
+                    {label}
                 </button>
             )}
             {naming && (
@@ -216,7 +226,7 @@ export function SavedSearchesPanel({
                     </button>
                 </div>
             )}
-            {saved.length > 0 && (
+            {!hideList && saved.length > 0 && (
                 <ul className={cn("flex items-center gap-1.5", compact ? "shrink-0 flex-nowrap" : "flex-wrap")}>
                     {saved.map((s) => (
                         <li key={s.id} className={cn(

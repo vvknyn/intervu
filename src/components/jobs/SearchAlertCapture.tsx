@@ -5,11 +5,22 @@
  * POST /api/search-alerts; mirrors FollowEmailStep + AccountEmailPrompt styling.
  */
 import { useEffect, useState } from "react";
+import posthog from "posthog-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import { captureEvent } from "@/lib/analytics/events";
 import { markSearchAlertSubmitted } from "@/lib/jobs/search-alert-capture";
+
+/** Never throws — a missing/unavailable PostHog distinct id must not block
+ *  the alert submission it would otherwise ride along with. */
+function readPosthogDistinctId(): string | null {
+  try {
+    return posthog.get_distinct_id() || null;
+  } catch {
+    return null;
+  }
+}
 
 export interface SearchAlertCaptureProps {
   surface: "zero_results" | "results";
@@ -61,6 +72,10 @@ export function SearchAlertCapture({
     if (status === "submitting") return;
     setStatus("submitting");
 
+    // `search_alert_submitted` is captured server-side now (POST /api/
+    // search-alerts, on request completion) — that's the one place this
+    // event can't be dropped by the browser navigating away before a
+    // client-side capture fires. See src/lib/analytics/server-capture.ts.
     try {
       const res = await fetch("/api/search-alerts", {
         method: "POST",
@@ -71,15 +86,17 @@ export function SearchAlertCapture({
           href: searchHref,
           redirectPath: window.location.pathname + window.location.search,
           turnstileToken,
+          // Read defensively: get_distinct_id() is documented as safe once
+          // posthog.init() has run, but that never happens at all when
+          // NEXT_PUBLIC_POSTHOG_KEY is unset — a missing distinct id must
+          // never block the alert submission itself, only the analytics
+          // capture riding along with it.
+          distinctId: readPosthogDistinctId(),
+          surface,
+          queryLength,
+          filterCount,
+          hasResults,
         }),
-      });
-      const outcome = res.ok ? ("accepted" as const) : ("rejected" as const);
-      captureEvent("search_alert_submitted", {
-        surface,
-        query_length: queryLength,
-        filter_count: filterCount,
-        has_results: hasResults,
-        outcome,
       });
       if (res.ok) {
         markSearchAlertSubmitted();
@@ -88,13 +105,6 @@ export function SearchAlertCapture({
         setStatus("error");
       }
     } catch {
-      captureEvent("search_alert_submitted", {
-        surface,
-        query_length: queryLength,
-        filter_count: filterCount,
-        has_results: hasResults,
-        outcome: "rejected",
-      });
       setStatus("error");
     }
   };

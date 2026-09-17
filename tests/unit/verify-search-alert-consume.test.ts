@@ -40,6 +40,8 @@ describe("consumeAndSaveSearchAlert — success", () => {
             intent_name: "PM roles",
             intent_href: "/jobs?q=pm",
             intent_search_hash: "hash1",
+            intent_distinct_id: null,
+            intent_analytics: null,
           },
         ],
       },
@@ -56,10 +58,50 @@ describe("consumeAndSaveSearchAlert — success", () => {
       { rows: [] },
     ]);
     const result = await consumeAndSaveSearchAlert(q, "a".repeat(64));
-    assert.deepEqual(result, { redirectPath: "/jobs?q=pm", contactToken: "tok-1" });
+    assert.deepEqual(result, {
+      redirectPath: "/jobs?q=pm",
+      contactToken: "tok-1",
+      distinctId: null,
+      analytics: null,
+    });
     assert.equal(q.calls.length, 3);
     assert.match(q.calls[2].text, /INSERT INTO intervu\.email_saved_searches/);
     assert.deepEqual(q.calls[2].params, ["id-1", "hash1", "PM roles", "/jobs?q=pm"]);
+  });
+
+  // The submit half stores distinct_id and the search_alert_* analytics
+  // payload on the token row (auth_tokens.intent_distinct_id/intent_
+  // analytics — see submitSearchAlert/createSearchAlertVerifyToken); this
+  // proves the verify half hands them straight back out unchanged, since
+  // that round trip is the only reason `search_alert_verified` can be
+  // captured server-side with the same properties `search_alert_submitted`
+  // had (there is no live search context on a bare verify GET).
+  it("round-trips distinctId and analytics captured at submit time", async () => {
+    const analytics = { surface: "zero_results", query_length: 8, filter_count: 2, has_results: false };
+    const q = new FakeQueryable([
+      {
+        rows: [
+          {
+            identity_id: "id-1",
+            redirect_path: "/jobs?q=pm",
+            intent_name: "PM roles",
+            intent_href: "/jobs?q=pm",
+            intent_search_hash: "hash1",
+            intent_distinct_id: "distinct-1",
+            intent_analytics: analytics,
+          },
+        ],
+      },
+      {
+        rows: [
+          { id: "id-1", email: "a@b.co", email_verified_at: "2026-08-19T00:00:00Z", contact_token: "tok-1" },
+        ],
+      },
+      { rows: [] },
+    ]);
+    const result = await consumeAndSaveSearchAlert(q, "a".repeat(64));
+    assert.equal(result?.distinctId, "distinct-1");
+    assert.deepEqual(result?.analytics, analytics);
   });
 });
 

@@ -121,7 +121,7 @@ export function shouldShowLocationDefaultChip(
 
 /** Country name for an ISO2 via the browser's own region-name table, with a
  *  bare-code fallback if `Intl.DisplayNames` throws. Single source for every
- *  "near {region}" label the applied-default disclosure renders — the
+ *  region-scope label the applied-default disclosure renders — the
  *  desktop header-dock chip (`buildDockedChips` below), the mobile
  *  `DefaultLocationChip`, the zero-result entry, and the location sheet's
  *  detected-label all call this ONE function rather than each keeping its
@@ -142,7 +142,7 @@ export const DEFAULT_LOCATION_CHIP_KEY = "default-location";
 
 /**
  * Names the scope a geo-defaulted search actually queried — the single
- * source every "near {region}" label (below, plus jobs/page.tsx's
+ * source every region-scope label (below, plus jobs/page.tsx's
  * `DefaultLocationChip`, its zero-result entry, and location-label.ts's
  * `detectedLocationLabel`) derives its wording from, instead of each one
  * independently deciding whether to mention remote.
@@ -160,17 +160,17 @@ export const DEFAULT_LOCATION_CHIP_KEY = "default-location";
  */
 export function locationDefaultScope(iso2: string, remoteAnywhere: boolean | undefined): string {
     const name = regionDisplayName(iso2);
-    return remoteAnywhere ? `${name} or remote` : name;
+    return remoteAnywhere ? `${name} · Remote` : name;
 }
 
-/** Same "near {region}" copy every applied-default surface uses — flag
+/** Same region-scope copy every applied-default surface uses — flag
  *  first when `countryToFlag` resolves one (most bare ISO2 codes won't; see
  *  country-flag.ts's removed-passthrough note), then the scope name, with
  *  no leading space when there's no flag to prefix. */
 function defaultLocationChipLabel(iso2: string, remoteAnywhere: boolean | undefined): string {
     const scope = locationDefaultScope(iso2, remoteAnywhere);
     const flag = countryToFlag(iso2);
-    return flag ? `${flag} near ${scope}` : `near ${scope}`;
+    return flag ? `${flag} ${scope}` : scope;
 }
 
 /**

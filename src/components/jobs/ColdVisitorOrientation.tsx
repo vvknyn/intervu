@@ -52,11 +52,20 @@ export function subscribeColdOrientation(onStoreChange: () => void): () => void 
 export interface ColdVisitorOrientationProps {
     onRankByFit: () => void;
     className?: string;
+    /** A2 (desktop first screen): collapses the two-card welcome panel to one
+     *  line — icon, a single sentence, the Rank-by-fit button, dismiss —
+     *  so it can no longer push the first result row down the page. Only the
+     *  desktop hero mount (jobs/page.tsx, `hidden lg:block`) passes this; the
+     *  mobile mount (`lg:hidden`, after the 3rd result row) keeps the full
+     *  card. Same dismissal state either way — `readColdOrientationDismissed`
+     *  doesn't know or care which shape rendered. */
+    compact?: boolean;
 }
 
 export function ColdVisitorOrientation({
     onRankByFit,
     className,
+    compact,
 }: ColdVisitorOrientationProps) {
     const dismissed = useSyncExternalStore(
         subscribeColdOrientation,
@@ -69,6 +78,41 @@ export function ColdVisitorOrientation({
     }, []);
 
     if (dismissed) return null;
+
+    if (compact) {
+        return (
+            <div
+                data-testid="cold-visitor-orientation"
+                data-compact="true"
+                className={cn(
+                    "flex items-center gap-3 rounded-none border border-border bg-card px-3 py-2 text-sm text-foreground",
+                    className,
+                )}
+            >
+                <Sparkle size={16} weight="fill" className="shrink-0 text-brand" aria-hidden />
+                <span className="min-w-0 flex-1 truncate">
+                    Search every live role, or rank results by résumé fit.
+                </span>
+                <Button
+                    type="button"
+                    size="sm"
+                    onClick={onRankByFit}
+                    data-testid="orientation-rank-by-fit"
+                    className="shrink-0 text-xs font-semibold rounded-none"
+                >
+                    Rank by fit
+                </Button>
+                <button
+                    type="button"
+                    onClick={handleDismiss}
+                    aria-label="Dismiss welcome guide"
+                    className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-none text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                    <X size={14} weight="bold" aria-hidden />
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div
