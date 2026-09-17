@@ -4271,13 +4271,15 @@ function JobsContent() {
         setResumeUpdatedAt(updatedAt);
         setResumeSourceLabel(sourceLabel);
         setImportOpen(false);
-        if (user) {
-            void saveResumeData(data, source, confidence)
-                .then(() => captureEvent("resume_uploaded", {}))
-                .catch(() => {});
-        } else if (readLocalAiEnabled()) {
-            writeLocalAiResume(data, updatedAt, sourceLabel);
-        }
+        // `handleImport` only ever fires once `<ResumeImportModal>` is open,
+        // which — since `beginResumeUpload` above gates unconditionally on
+        // sign-in — means `user` is always truthy here (P2 review fix,
+        // 2026-09-17: the `else if (readLocalAiEnabled())` local-storage
+        // fallback this used to have was dead code for a signed-out saver
+        // that could no longer be reached).
+        void saveResumeData(data, source, confidence)
+            .then(() => captureEvent("resume_uploaded", {}))
+            .catch(() => {});
         // `handleUploadClick` queued this because no usable résumé was on
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
@@ -5121,19 +5123,6 @@ function JobsContent() {
                             <p className="mx-auto mt-2 hidden max-w-2xl text-sm text-muted-foreground lg:block">
                                 {JOBS_USP.searchDescription}
                             </p>
-                            {/* Requirement 1b: the at-rest hero's own display-
-                                size count. NOT `liveCountEl` — that's a
-                                different, unwindowed "live roles" stat that
-                                still renders once at the end of the results
-                                list, unchanged. This reuses the same 30-day-
-                                windowed `resultCountLine` the results list's
-                                own smaller count line reads from, so the hero
-                                and the list can never disagree. */}
-                            {resultCountLine && (
-                                <p className="mt-3 text-3xl font-semibold tabular-nums text-foreground sm:text-4xl">
-                                    {resultCountLine}
-                                </p>
-                            )}
                         </div>
                     </div>
                 ) : (
@@ -5176,7 +5165,12 @@ function JobsContent() {
                         // is now the only visible frame, so a query result
                         // doesn't snap from a boxed-within-a-box well to a
                         // plain one once it runs.
-                        atRest ? "mx-auto max-w-[960px]" : "border border-border bg-card p-2 sm:p-2.5",
+                        // Requirement D2 (2026-09-17 design pass): at rest, the search
+                        // form itself widens past the masthead's shared 960px column at
+                        // lg+ — max-w-7xl, the widest named container token already used
+                        // site-wide (resume/page.tsx, settings, connect, etc.), not a new
+                        // arbitrary value. Below lg, unchanged.
+                        atRest ? "mx-auto max-w-[960px] lg:max-w-7xl" : "border border-border bg-card p-2 sm:p-2.5",
                     )}
                 >
                     {/* A3 (front-door redesign): the live count renders once,
@@ -5225,7 +5219,14 @@ function JobsContent() {
                                     seeds={searchSeeds}
                                     placeholder={SEARCH_PLACEHOLDER}
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
-                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0"
+                                    className={cn(
+                                        // Requirement D2 (2026-09-17 design pass): at rest, search is
+                                        // the largest element on the page — lg+ jumps to the tallest
+                                        // existing control-height token (h-14) instead of the
+                                        // mid-search state's h-[56px]. Below lg, unchanged.
+                                        atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                        "w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0",
+                                    )}
                                     containerClassName="min-w-0 w-full"
                                 />
                             </div>
@@ -5262,7 +5263,10 @@ function JobsContent() {
                                     onCommit={addLocation}
                                     selected={chosenLocations}
                                     containerClassName="hidden lg:flex"
-                                    className="h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 sm:h-[56px]"
+                                    className={cn(
+                                        atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                        "min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0",
+                                    )}
                                 />
                                 {/* Location's own one-tap clear, matching the query
                                     field's `search-input-clear`. The toolbar's "✕ clear
@@ -5314,7 +5318,8 @@ function JobsContent() {
                                 onClick={() => submitSearch(queryDraft)}
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
-                                    "h-11 sm:h-[56px] w-full rounded-none px-6 text-xs font-semibold sm:w-auto transition-colors",
+                                    atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                    "w-full rounded-none px-6 text-xs font-semibold sm:w-auto transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
                             >

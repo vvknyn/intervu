@@ -379,15 +379,18 @@ describe("jobs page chrome guards", () => {
         assert.doesNotMatch(replay, /h-9 w-9/);
     });
 
-    it("mounts the masthead's headline, provenance line and count when at rest", () => {
+    it("mounts the masthead's eyebrow, headline and subline when at rest — no display-size count", () => {
         // Was the "does not render LandingMasthead" guard for the OLD bug
         // (component authored, never mounted). The masthead is now inline
         // markup absorbed at this callsite — assert its real content mounts
         // instead of asserting a component name that no longer exists.
         // Front-door redesign: the gate broadened from `showLandingMarketing`
-        // to `atRest`, and the masthead now carries its own display-size
-        // `resultCountLine` (NOT `liveCountEl` — that stays at the end of the
-        // results list, asserted absent from this branch elsewhere).
+        // to `atRest`. Design pass D1 (2026-09-17, Fable): the masthead's own
+        // display-size `resultCountLine` was CUT — redundant with the
+        // identical line already heading the results list below (still
+        // asserted present there, and NOT `liveCountEl`, which stays at the
+        // end of the results list, asserted absent from this branch
+        // elsewhere).
         const src = readFileSync(PAGE, "utf8");
         const start = src.indexOf("{atRest && showSearchHome ? (");
         const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
@@ -396,7 +399,7 @@ describe("jobs page chrome guards", () => {
         const branch = src.slice(start, end);
         assert.match(branch, /JOBS_USP\.mastheadTitle/);
         assert.match(branch, /JOBS_USP\.searchDescription/);
-        assert.match(branch, /\{resultCountLine\}/);
+        assert.doesNotMatch(branch, /\{resultCountLine\}/, "the hero's own count line was cut (D1) — it duplicated the results list heading");
     });
 
     it("lg+ docks search in the header whenever search is the active home view, except at rest", () => {

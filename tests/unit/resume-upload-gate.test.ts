@@ -23,15 +23,19 @@ assert.ok(beginResumeUploadStart !== -1, "beginResumeUpload not found in resume/
 const beginResumeUploadEnd = SOURCE.indexOf("};", beginResumeUploadStart);
 const beginResumeUpload = SOURCE.slice(beginResumeUploadStart, beginResumeUploadEnd + 2);
 
-test("setImportModalOpen(true) appears exactly once in the whole file, inside beginResumeUpload, after the `if (!user)` early return", () => {
+test("setImportModalOpen(true) appears exactly twice in the whole file: beginResumeUpload's signed-in branch and the useAuthGate upload handler's post-auth replay", () => {
     // Strip `//`-comment lines first — the chokepoint's own doc comment
     // names `setImportModalOpen(true)` in prose, which must not count as a
-    // second call site.
+    // real call site.
     const nonCommentSource = SOURCE.split("\n")
         .filter((line) => !line.trim().startsWith("//"))
         .join("\n");
     const occurrences = nonCommentSource.split("setImportModalOpen(true)").length - 1;
-    assert.equal(occurrences, 1, `expected exactly 1 non-comment occurrence of setImportModalOpen(true), found ${occurrences}`);
+    assert.equal(
+        occurrences,
+        2,
+        `expected exactly 2 non-comment occurrences of setImportModalOpen(true) — beginResumeUpload's signed-in branch and the useAuthGate "upload" handler's replay — found ${occurrences}`,
+    );
 
     assert.match(beginResumeUpload, /setImportModalOpen\(true\)/);
 
@@ -42,6 +46,34 @@ test("setImportModalOpen(true) appears exactly once in the whole file, inside be
     assert.ok(returnIdx !== -1 && openCallIdx !== -1);
     // The signed-in call must come AFTER the guarded early return, not before.
     assert.ok(openCallIdx > returnIdx, "setImportModalOpen(true) must sit after the guard's return;");
+
+    // Second site: the useAuthGate handlers map's `upload` callback — the
+    // post-auth replay this test's own name promises.
+    const handlersStart = SOURCE.indexOf("useAuthGate<never, never, never>");
+    assert.ok(handlersStart !== -1, "useAuthGate call site not found");
+    const uploadHandlerStart = SOURCE.indexOf("upload: () => {", handlersStart);
+    assert.ok(uploadHandlerStart !== -1, "upload handler not found in useAuthGate's handlers map");
+    const uploadHandlerEnd = SOURCE.indexOf("},", uploadHandlerStart);
+    assert.match(SOURCE.slice(uploadHandlerStart, uploadHandlerEnd), /setImportModalOpen\(true\)/);
+});
+
+test("/resume registers an `upload` handler via the shared use-auth-gate module, and beginResumeUpload's signed-out branch routes through gate({kind:\"upload\"}) — mirroring the /jobs invariant, not a bespoke flag", () => {
+    assert.match(SOURCE, /import \{ useAuthGate \} from "@\/components\/auth\/use-auth-gate";/);
+
+    const useAuthGateStart = SOURCE.indexOf("useAuthGate<never, never, never>({");
+    assert.ok(useAuthGateStart !== -1, "useAuthGate<never, never, never>({...}) call not found");
+    const handlersEnd = SOURCE.indexOf("});", useAuthGateStart);
+    const handlersBlock = SOURCE.slice(useAuthGateStart, handlersEnd);
+    assert.match(handlersBlock, /upload:\s*\(\)\s*=>\s*\{\s*\n\s*setImportModalOpen\(true\);/);
+
+    // beginResumeUpload's signed-out branch must call `gate(...)`, not a
+    // bare `openAuth(...)` with no way to replay after sign-in (the P1 bug:
+    // the importer never reopened post-auth).
+    const guardStart = beginResumeUpload.indexOf("if (!user) {");
+    const guardEnd = beginResumeUpload.indexOf("return;", guardStart);
+    const guardBranch = beginResumeUpload.slice(guardStart, guardEnd);
+    assert.match(guardBranch, /gate\(\{\s*kind:\s*"upload"/);
+    assert.doesNotMatch(guardBranch, /openAuth\(/, "signed-out branch must not fall back to a bare popover-open with no replay");
 });
 
 test("both call sites — SignedOutEmptyState's onUploadClick and the local-résumé Replace button — invoke beginResumeUpload, not setImportModalOpen directly", () => {

@@ -4,9 +4,9 @@ import Link from "next/link";
 import { PostingCheckSignalsGrid } from "@/components/jobs/JobDetail";
 import { GHOST_CHECK_TAGLINE, REPRESENTATIVE_GHOST_SIGNALS } from "@/components/jobs/job-detail-facts";
 import { VARIANT_COPY } from "@/components/mcp/McpHandoffNote";
+import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { RESUME_UPLOAD_SIGNIN_LINE } from "@/lib/jobs/resume-cta-copy";
 import { FOOTER_PROVENANCE_LINE, GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
-import { cn } from "@/lib/utils";
 
 /**
  * Fills the desktop detail pane at rest (requirement 3) instead of a
@@ -17,11 +17,13 @@ import { cn } from "@/lib/utils";
  *  - `FOOTER_PROVENANCE_LINE` — the site footer's own provenance line,
  *    same split-on-`GHOST_SCREENING_CLAUSE`-and-link convention
  *    (Footer.tsx) so the linked claim isn't duplicated as plain text here.
- *  - "Posting check" — `REPRESENTATIVE_GHOST_SIGNALS`, a literal subset of
- *    what `deriveGhostSignals` actually emits (job-detail-facts.ts), with
- *    the same glyph + `<b className="capitalize">{s.kind}</b>` convention
- *    JobDetail.tsx uses for a real job's signals — just without that
- *    panel's relist/age-note branches, which need a real `PublicJob`.
+ *  - "What every posting is checked for" — `REPRESENTATIVE_GHOST_SIGNALS`, a
+ *    literal subset of what `deriveGhostSignals` actually emits
+ *    (job-detail-facts.ts), rendered as a plain definition list (no check
+ *    icons — Fable design pass, 2026-09-17) using the same
+ *    `<b className="capitalize">{s.kind}</b>` convention JobDetail.tsx uses
+ *    for a real job's signals, just without that panel's relist/age-note
+ *    branches, which need a real `PublicJob`.
  *  - "Connect AI" — `VARIANT_COPY.intelligence` (McpHandoffNote.tsx) text
  *    only: that component's own bordered/boxed JSX is the wrong weight for
  *    a quiet at-rest pane (requirement 5), so only its copy is reused, not
@@ -52,22 +54,11 @@ export function FrontDoorDetailPitch({ onSignInClick }: { onSignInClick: () => v
             </div>
 
             <div className="py-4">
-                <p className="text-xs font-semibold text-muted-foreground">Posting check</p>
+                <p className="text-xs font-semibold text-muted-foreground">What every posting is checked for</p>
                 <PostingCheckSignalsGrid>
                     {REPRESENTATIVE_GHOST_SIGNALS.map((s) => (
-                        <div key={s.text} className="flex items-start gap-2">
-                            <span
-                                className={cn(
-                                    "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-sm font-semibold",
-                                    s.status === "favorable" ? "text-live" : "text-muted-foreground",
-                                )}
-                                aria-hidden
-                            >
-                                {s.status === "favorable" ? "✓" : s.status === "unfavorable" ? "—" : null}
-                            </span>
-                            <div className="min-w-0 flex-1 leading-snug">
-                                <b className="capitalize">{s.kind}</b> <span className="text-muted-foreground">{s.text}</span>
-                            </div>
+                        <div key={s.text} className="leading-snug">
+                            <b className="capitalize">{s.kind}</b> <span className="text-muted-foreground">{s.text}</span>
                         </div>
                     ))}
                 </PostingCheckSignalsGrid>
@@ -94,7 +85,7 @@ export function FrontDoorDetailPitch({ onSignInClick }: { onSignInClick: () => v
                     onClick={onSignInClick}
                     className="font-semibold text-brand underline underline-offset-4 hover:text-brand"
                 >
-                    Sign in
+                    {AUTH_CTA_LABEL}
                 </button>
             </div>
         </div>

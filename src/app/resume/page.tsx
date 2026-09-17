@@ -5,6 +5,7 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
+import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
@@ -65,7 +66,6 @@ function SignedOutEmptyState({
 function ResumeContent() {
     const [user, setUser] = useState<User | null>(() => getCurrentUser());
     const [authReady, setAuthReady] = useState(() => getCurrentUser() !== null);
-    const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [localResume, setLocalResume] = useState<ResumeData | null>(null);
@@ -78,6 +78,26 @@ function ResumeContent() {
         });
         return () => unsubscribe();
     }, []);
+
+    // The one auth gate (`use-auth-gate.ts`), same mechanism /jobs uses: signed
+    // in → run the handler now; signed out → persist the action (survives both
+    // in-place login and a hard OAuth/passkey navigation away and back) and
+    // open the popover. `apply`/`gate`/`report` are never queued from this
+    // page — `PendingAction`'s kinds are shared with /jobs, and
+    // `takePersistedPendingAction` is path-scoped (pending-actions.ts), so a
+    // /jobs-queued action can never replay here — but the hook's handler map
+    // is total over every kind, so they're still typed, inert no-ops.
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<never, never, never>({
+        handlers: {
+            apply: () => {},
+            gate: () => {},
+            upload: () => {
+                setImportModalOpen(true);
+            },
+            report: () => {},
+        },
+        user,
+    });
 
     useEffect(() => {
         if (!user && authReady) {
@@ -92,7 +112,7 @@ function ResumeContent() {
     // below render nothing but a sign-in affordance — user.
     const openAuth = (trigger: AuthGateTrigger) => {
         setAuthTrigger(trigger);
-        setAuthPopoverOpen(true);
+        setAuthOpen(true);
     };
 
     const handleImportResume = (data: ResumeData) => {
@@ -104,13 +124,20 @@ function ResumeContent() {
     // THE single entry point for opening the résumé importer on this page —
     // both the empty-state "Upload resume" button and the local-résumé
     // "Replace" button go through this, not `setImportModalOpen(true)`
-    // directly, mirroring `beginResumeUpload` on /jobs. Sign-in is
-    // unconditional: a signed-out visitor never reaches the importer, even
-    // to replace a résumé that's already on this device (product ruling,
-    // 2026-09-17: résumé upload requires sign-in to grow signups).
+    // directly, mirroring `beginResumeUpload` on /jobs (same shape: guard +
+    // `gate()` in the signed-out branch, direct open when already signed
+    // in). Sign-in is unconditional: a signed-out visitor never reaches the
+    // importer, even to replace a résumé that's already on this device
+    // (product ruling, 2026-09-17: résumé upload requires sign-in to grow
+    // signups). Review fix (2026-09-17): was a bare `openAuth("auto")` with
+    // no post-auth replay — the importer never opened after sign-in. Now
+    // routes through `gate({ kind: "upload" })`, the same pending-actions
+    // mechanism /jobs uses, so `handlers.upload` above reopens it exactly
+    // once, whichever way the user authenticates.
     const beginResumeUpload = () => {
         if (!user) {
-            openAuth("auto");
+            setAuthTrigger("auto");
+            gate({ kind: "upload", payload: true });
             return;
         }
         setImportModalOpen(true);
@@ -206,8 +233,9 @@ function ResumeContent() {
                 />
 
                 <AuthPopover
-                    open={authPopoverOpen}
-                    onOpenChange={setAuthPopoverOpen}
+                    open={authOpen}
+                    onOpenChange={setAuthOpen}
+                    onAuthed={onAuthed}
                     showTrigger={false}
                     trigger={authTrigger}
                     defaultTab="signup"

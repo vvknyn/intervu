@@ -94,6 +94,34 @@ test("handleUploadClick is a bare pass-through to beginResumeUpload — not a se
     assert.match(body, /const handleUploadClick = \(\) => \{\s*\n\s*beginResumeUpload\(\);\s*\n\s*\};/);
 });
 
+test("setImportOpen(true) appears exactly twice in the whole file: the beginResumeUpload chokepoint (~line 4253) and the useAuthGate upload handler's post-auth replay (~line 1886) — no third site bypassing either", () => {
+    // Strip `//`-comment lines first — doc comments (e.g. the one above
+    // `handleImport`) name `setImportOpen(true)` in prose, which must not
+    // count as a real call site.
+    const nonCommentSource = SOURCE.split("\n")
+        .filter((line) => !line.trim().startsWith("//"))
+        .join("\n");
+    const occurrences = nonCommentSource.split("setImportOpen(true)").length - 1;
+    assert.equal(
+        occurrences,
+        2,
+        `expected exactly 2 non-comment occurrences of setImportOpen(true) — the beginResumeUpload chokepoint and the useAuthGate "upload" handler's replay — found ${occurrences}`,
+    );
+
+    // Site 1: inside the useAuthGate handlers map's `upload` callback.
+    const handlersStart = SOURCE.indexOf("const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate");
+    assert.ok(handlersStart !== -1, "useAuthGate call site not found");
+    const uploadHandlerStart = SOURCE.indexOf("upload: () => {", handlersStart);
+    assert.ok(uploadHandlerStart !== -1, "upload handler not found in useAuthGate's handlers map");
+    const uploadHandlerEnd = SOURCE.indexOf("},", uploadHandlerStart);
+    assert.match(SOURCE.slice(uploadHandlerStart, uploadHandlerEnd), /setImportOpen\(true\)/);
+
+    // Site 2: beginResumeUpload's signed-in direct-open branch (already
+    // proven not to be inside the signed-out `if (!user)` branch by the
+    // "signed-in: beginResumeUpload opens the importer directly" test above).
+    assert.match(beginResumeUpload, /setImportOpen\(true\)/);
+});
+
 test("a second, independently-gated control (Apply) uses its OWN auth-gate reason, not \"fit\"", () => {
     // handleOpenPosting has no fixed sibling name to bound against, so slice
     // to the next top-level `const` declaration that follows it in source.
