@@ -39,38 +39,38 @@ describe("jobs USP copy: single source for tour and landing", () => {
     });
 
     it("tourSteps.jobs titles and descriptions derive from JOBS_USP", () => {
+        // The straightFromCompany / `jobs-card` step was dropped from the
+        // guided tour (JOBS_USP.straightFromCompany is still exported and
+        // used elsewhere, e.g. the landing showcase, just no longer as a
+        // tour stop) — five steps, not six.
         const steps = tourSteps.jobs;
         assert.ok(steps, "jobs tour steps must exist");
-        assert.equal(steps.length, 6);
+        assert.equal(steps.length, 5);
 
         assert.equal(steps[0].selector, '[data-tour="jobs-search"]');
-        assert.equal(steps[0].title, JOBS_USP.mastheadTitle);
+        assert.equal(steps[0].title, "Start with a search");
         assert.equal(steps[0].description, JOBS_USP.searchDescription);
 
-        assert.equal(steps[1].selector, '[data-tour="jobs-card"]');
-        assert.equal(steps[1].title, JOBS_USP.straightFromCompany.title);
-        assert.equal(steps[1].description, JOBS_USP.straightFromCompany.body);
-
-        assert.equal(steps[2].selector, '[data-tour="row-exception"]');
-        assert.equal(steps[2].title, EXCEPTION_KEY_TITLE);
-        assert.equal(steps[2].description, EXCEPTION_KEY_BODY);
+        assert.equal(steps[1].selector, '[data-tour="row-exception"]');
+        assert.equal(steps[1].title, EXCEPTION_KEY_TITLE);
+        assert.equal(steps[1].description, EXCEPTION_KEY_BODY);
         assert.match(EXCEPTION_KEY_BODY, /\.$/);
+        assert.equal(steps[1].optional, true);
+
+        assert.equal(steps[2].selector, '[data-tour="jobs-posting-check"]');
+        assert.equal(steps[2].title, JOBS_USP.checkedBeforeApply.title);
+        assert.equal(steps[2].description, JOBS_USP.checkedBeforeApply.body);
         assert.equal(steps[2].optional, true);
 
-        assert.equal(steps[3].selector, '[data-tour="jobs-posting-check"]');
-        assert.equal(steps[3].title, JOBS_USP.checkedBeforeApply.title);
-        assert.equal(steps[3].description, JOBS_USP.checkedBeforeApply.body);
+        assert.equal(steps[3].selector, '[data-tour="jobs-pay"]');
+        assert.equal(steps[3].title, JOBS_USP.realPay.title);
+        assert.equal(steps[3].description, JOBS_USP.realPay.body);
         assert.equal(steps[3].optional, true);
 
-        assert.equal(steps[4].selector, '[data-tour="jobs-pay"]');
-        assert.equal(steps[4].title, JOBS_USP.realPay.title);
-        assert.equal(steps[4].description, JOBS_USP.realPay.body);
+        assert.equal(steps[4].selector, '[data-tour="nav-connect"]');
+        assert.equal(steps[4].title, JOBS_USP.connect.title);
+        assert.equal(steps[4].description, JOBS_USP.connect.body);
         assert.equal(steps[4].optional, true);
-
-        assert.equal(steps[5].selector, '[data-tour="nav-connect"]');
-        assert.equal(steps[5].title, JOBS_USP.connect.title);
-        assert.equal(steps[5].description, JOBS_USP.connect.body);
-        assert.equal(steps[5].optional, true);
     });
 });
 
@@ -88,11 +88,14 @@ describe("nav tab placement", () => {
         assert.equal(agents?.tourSelector, "nav-connect");
     });
 
-    it("TopBar has no standalone theme button in the header cluster", () => {
+    it("TopBar has no theme button of its own — dark mode lives in the footer only", () => {
         const src = readFileSync(TOPBAR, "utf8");
-        const headerCluster = src.slice(src.indexOf('aria-label="Primary"'), src.indexOf("{user ?"));
+        const headerCluster = src.slice(
+            src.indexOf('aria-label="Primary"'),
+            src.indexOf('authChrome === "authenticated" && user ?'),
+        );
         assert.doesNotMatch(headerCluster, /aria-label=\{mode === "dark"/);
-        assert.match(src, /Dark mode/);
+        assert.doesNotMatch(src, /Dark mode/);
     });
 
     it("signed-out theme control lives in the footer", () => {
@@ -366,14 +369,6 @@ describe("jobs page chrome guards", () => {
         assert.ok(sortIdx > saveIdx, "Sort segments mount after save search");
     });
 
-    it("auto-starts the jobs tour only after a result card exists", () => {
-        const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /data-tour="jobs-card"/);
-        assert.match(src, /hits\.length === 0\) return/);
-        assert.match(src, /\[hasSeenTour, startTour, hits\.length\]/);
-        assert.match(src, /hasSeenMainTour:\s*hasSeenTour\("jobs"\)/);
-    });
-
     it("jobs tour replay uses the shared toolbar height token", () => {
         const src = readFileSync(PAGE, "utf8");
         const replay = src.slice(
@@ -400,9 +395,9 @@ describe("jobs page chrome guards", () => {
         assert.match(branch, /liveCountEl/);
     });
 
-    it("lg+ always docks search in the header", () => {
+    it("lg+ docks search in the header whenever search is the active home view", () => {
         const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /const headerDockActive = isLgUp;/);
+        assert.match(src, /const headerDockActive = isLgUp && showSearchHome;/);
     });
 
     it("does not render the comfortable/dense layout switch", () => {
