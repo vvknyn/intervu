@@ -6,7 +6,6 @@ import {
     ResumeExperience,
     ResumeEducation,
     ResumeSection,
-    detectProfessionType,
     getSectionOrder,
 } from "@/types/resume";
 import { Button } from "@/components/ui/button";
@@ -164,13 +163,10 @@ export function EditingPanel({
     // avoids for skills, one field per category instead of per list-field).
     const [eduListDrafts, setEduListDrafts] = useState<Record<string, string>>({});
 
-    const currentSectionOrder = useMemo(() => {
-        if (data.sectionOrder && data.sectionOrder.length > 0) {
-            return data.sectionOrder;
-        }
-        const professionType = detectProfessionType(data.profile?.profession || "");
-        return getSectionOrder(data.profile?.yearsOfExperience || 0, professionType);
-    }, [data.sectionOrder, data.profile?.profession, data.profile?.yearsOfExperience]);
+    const currentSectionOrder = useMemo(
+        () => getSectionOrder(data),
+        [data.sectionOrder, data.profile?.profession, data.profile?.yearsOfExperience],
+    );
 
     const isCustomOrder = Boolean(data.sectionOrder && data.sectionOrder.length > 0);
 

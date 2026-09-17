@@ -31,7 +31,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { AGENT } from "@/lib/agent/config";
-import type { ResumeData, ResumeSection } from "@/types/resume";
+import { ALL_SECTIONS, type ResumeData } from "@/types/resume";
 import type { ResumeVersionSnapshot } from "@/lib/pursuits/types";
 import { canonicalizeBaseResume, getBaseResumeForUser, type BaseResume } from "@/lib/resume/base-resume";
 import { z } from "zod";
@@ -53,8 +53,6 @@ const TEXT_FIELD_MAX = AGENT.RESUME_DATA_FIELD_MAX_CHARS;
 const LIST_MAX = AGENT.RESUME_DATA_ARRAY_MAX_ITEMS;
 
 const cappedString = (max: number) => z.string().trim().max(max);
-
-const RESUME_SECTIONS = ["summary", "skills", "experience", "education", "projects"] as const satisfies readonly ResumeSection[];
 
 const resumeProfileSchema = z.object({
     name: cappedString(200),
@@ -103,7 +101,7 @@ const resumeDataSchema: z.ZodType<ResumeData> = z.object({
     competencies: z.array(resumeCompetencyCategorySchema).max(LIST_MAX),
     education: z.array(resumeEducationSchema).max(LIST_MAX),
     generatedSummary: cappedString(TEXT_FIELD_MAX),
-    sectionOrder: z.array(z.enum(RESUME_SECTIONS)).optional(),
+    sectionOrder: z.array(z.enum(ALL_SECTIONS)).optional(),
 });
 
 export interface ResumeDataIssue {

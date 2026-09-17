@@ -1,6 +1,4 @@
-import type { ResumeData, ResumeSection } from "@/types/resume";
-
-const DEFAULT_ORDER: ResumeSection[] = ["summary", "experience", "projects", "skills", "education"];
+import { getSectionOrder, type ResumeData } from "@/types/resume";
 
 /**
  * Renders a `ResumeData` into plain markdown text — the exact string the
@@ -21,8 +19,7 @@ export function resumeDataToMarkdown(data: ResumeData): string {
     if (contactBits.length) lines.push(contactBits.join(" · "));
     lines.push("");
 
-    const order = data.sectionOrder?.length ? data.sectionOrder : DEFAULT_ORDER;
-    for (const section of order) {
+    for (const section of getSectionOrder(data)) {
         switch (section) {
             case "summary":
                 if (generatedSummary) lines.push("## Summary", "", generatedSummary, "");

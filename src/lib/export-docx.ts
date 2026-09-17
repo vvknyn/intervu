@@ -1,6 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, AlignmentType, TabStopPosition, TabStopType, BorderStyle } from "docx";
 import { saveAs } from "file-saver";
-import { ResumeData, ResumeSection, detectProfessionType, getSectionOrder } from "@/types/resume";
+import { ResumeData, ResumeSection, getSectionOrder } from "@/types/resume";
 
 export const exportToDocx = async (data: ResumeData) => {
     // Compact styles for maximum space utilization
@@ -9,9 +9,9 @@ export const exportToDocx = async (data: ResumeData) => {
     const NAME_FONT_SIZE = 28; // 14pt
     const FONT_FAMILY = "Times New Roman";
 
-    // Get dynamic section order
-    const professionType = detectProfessionType(data.profile.profession || '');
-    const sectionOrder = getSectionOrder(data.profile.yearsOfExperience || 0, professionType);
+    // Get dynamic section order (honors a saved custom order, merging in any
+    // section — e.g. 'projects' — that order predates)
+    const sectionOrder = getSectionOrder(data);
 
     // 1. Header Section - Compact centered
     const headerParagraphs = [

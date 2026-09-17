@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { ResumeData, ResumeSection, detectProfessionType, getSectionOrder } from "@/types/resume";
+import { ResumeData, ResumeSection, getSectionOrder } from "@/types/resume";
 import { PencilSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
@@ -106,14 +106,11 @@ export function LiveResumePreview({
 }: LiveResumePreviewProps) {
     const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
-    // Section ordering (custom or auto-detected)
-    const sectionOrder = useMemo(() => {
-        if (data.sectionOrder && data.sectionOrder.length > 0) {
-            return data.sectionOrder;
-        }
-        const professionType = detectProfessionType(data.profile?.profession || "");
-        return getSectionOrder(data.profile?.yearsOfExperience || 0, professionType);
-    }, [data.sectionOrder, data.profile?.profession, data.profile?.yearsOfExperience]);
+    // Section ordering (custom or auto-detected; merges in any section a saved order predates)
+    const sectionOrder = useMemo(
+        () => getSectionOrder(data),
+        [data.sectionOrder, data.profile?.profession, data.profile?.yearsOfExperience],
+    );
 
     // Diff calculation helpers
     const getChangeStatus = (section: string, itemId?: string): "modified" | "new" | "removed" | null => {

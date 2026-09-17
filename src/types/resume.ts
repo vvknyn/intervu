@@ -9,7 +9,11 @@ export interface ResumeProfile {
     website?: string;
 }
 
-export type ResumeSection = 'summary' | 'skills' | 'experience' | 'education' | 'projects';
+/** Every section `getSectionOrder` can place — the one place this set is
+ *  enumerated, so `ResumeSection` and the missing-section merge below can't
+ *  drift apart. */
+export const ALL_SECTIONS = ['summary', 'skills', 'experience', 'projects', 'education'] as const;
+export type ResumeSection = (typeof ALL_SECTIONS)[number];
 export type ProfessionType = 'engineering' | 'product' | 'design' | 'data' | 'business' | 'general';
 
 // Helper to detect profession type from title
@@ -41,45 +45,77 @@ export function detectProfessionType(profession: string): ProfessionType {
     return 'general';
 }
 
-/** Inserts 'projects' immediately after 'experience' in a section order —
- *  the one place that decides where Projects sits, so every branch below
- *  agrees without repeating the splice. */
-function withProjectsAfterExperience(order: ResumeSection[]): ResumeSection[] {
-    const idx = order.indexOf('experience');
-    return [...order.slice(0, idx + 1), 'projects', ...order.slice(idx + 1)];
-}
-
-// Get optimal section order based on experience and profession
-export function getSectionOrder(yearsOfExperience: number, professionType: ProfessionType): ResumeSection[] {
+/** The default section order for a profession/experience combination — every
+ *  branch is a permutation of `ALL_SECTIONS`, so `getSectionOrder` below can
+ *  merge any section a saved order predates without a section-specific case. */
+function defaultSectionOrder(yearsOfExperience: number, professionType: ProfessionType): ResumeSection[] {
     const isFresher = yearsOfExperience < 3;
 
     // Freshers: Education first, then skills, then experience
     if (isFresher) {
         switch (professionType) {
             case 'engineering':
-                return withProjectsAfterExperience(['summary', 'skills', 'education', 'experience']);
             case 'design':
-                return withProjectsAfterExperience(['summary', 'skills', 'education', 'experience']);
             case 'data':
-                return withProjectsAfterExperience(['summary', 'skills', 'education', 'experience']);
+                return ['summary', 'skills', 'education', 'experience', 'projects'];
             default:
-                return withProjectsAfterExperience(['summary', 'education', 'skills', 'experience']);
+                return ['summary', 'education', 'skills', 'experience', 'projects'];
         }
     }
 
     // Experienced: Experience first, then skills
     switch (professionType) {
         case 'engineering':
-            return withProjectsAfterExperience(['summary', 'skills', 'experience', 'education']);
-        case 'product':
-            return withProjectsAfterExperience(['summary', 'experience', 'skills', 'education']);
         case 'data':
-            return withProjectsAfterExperience(['summary', 'skills', 'experience', 'education']);
+            return ['summary', 'skills', 'experience', 'projects', 'education'];
+        case 'product':
         case 'business':
-            return withProjectsAfterExperience(['summary', 'experience', 'skills', 'education']);
         default:
-            return withProjectsAfterExperience(['summary', 'experience', 'skills', 'education']);
+            return ['summary', 'experience', 'projects', 'skills', 'education'];
     }
+}
+
+/** Inserts every section that's in `defaultOrder` but missing from `saved`
+ *  at the position it would occupy by default — i.e. immediately after the
+ *  nearest earlier (in default order) section that's already present, or at
+ *  the start if none is. General merge, not a per-section splice: a section
+ *  order saved before ANY given section existed still gets that section back
+ *  in a sensible spot, not just 'projects'. */
+function mergeMissingSections(saved: ResumeSection[], defaultOrder: ResumeSection[]): ResumeSection[] {
+    const merged = [...saved];
+    for (const section of defaultOrder) {
+        if (merged.includes(section)) continue;
+        const defaultIdx = defaultOrder.indexOf(section);
+        let insertAt = merged.length;
+        for (let i = defaultIdx - 1; i >= 0; i--) {
+            const anchorIdx = merged.indexOf(defaultOrder[i]);
+            if (anchorIdx !== -1) {
+                insertAt = anchorIdx + 1;
+                break;
+            }
+        }
+        merged.splice(insertAt, 0, section);
+    }
+    return merged;
+}
+
+/**
+ * The ONLY reader of `data.sectionOrder` — every consumer that needs a
+ * résumé's section order (live preview, markdown/zip-markdown/docx export,
+ * the editing panel nav) calls this instead of reading the field directly,
+ * so a saved order from before a section existed (e.g. a résumé reordered
+ * before 'projects' shipped) still surfaces that section rather than
+ * silently dropping it for whoever bypassed the merge.
+ */
+export function getSectionOrder(data: {
+    sectionOrder?: ResumeSection[];
+    profile?: { yearsOfExperience?: number; profession?: string };
+}): ResumeSection[] {
+    const professionType = detectProfessionType(data.profile?.profession || '');
+    const defaultOrder = defaultSectionOrder(data.profile?.yearsOfExperience || 0, professionType);
+    const saved = data.sectionOrder;
+    if (!saved || saved.length === 0) return defaultOrder;
+    return mergeMissingSections(saved, defaultOrder);
 }
 
 export interface ResumeExperience {
