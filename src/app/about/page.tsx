@@ -56,7 +56,7 @@ export default function AboutPage() {
           listing that quietly goes nowhere. None of this is a guess dressed up as certainty — see our{" "}
           <Link href="/terms">terms</Link> for how we frame these signals — but it&apos;s a lot more than a bare
           listing gives you. Read how we{" "}
-          <Link href={GHOST_RESEARCH_HREF}>screen for ghost jobs</Link>.
+          <Link href={GHOST_RESEARCH_HREF}>screen for stale postings</Link>.
         </p>
 
         <h2 className={ASEC}>Compared to Indeed and LinkedIn</h2>
