@@ -122,13 +122,15 @@ const nextConfig: NextConfig = {
         destination: "/connect",
         permanent: true,
       },
-      // Automation-first front door (2026-08-03) — `/` is the OpenClaw
-      // pitch now, `/jobs` is the manual SERP. A deep link with a search
-      // query (`?q=...`, e.g. from an old bookmark or shared URL) still
-      // means "show me results," so it redirects to `/jobs` with every
-      // query param preserved; NOT permanent since `/`'s content itself
-      // isn't gone, just relocated for this one param shape. Bare `/`
-      // (no `q`) is the front door and must NOT redirect.
+      // `/` itself now unconditionally redirects to `/jobs` (src/app/page.tsx,
+      // "the front door IS the job board") via an in-app redirect() call —
+      // but that call targets a bare path and drops query params. A deep
+      // link with a search query (`?q=...`, e.g. an old bookmark or shared
+      // URL) still means "show me results," so this rule intercepts it
+      // first, at the routing layer, and forwards `q` (and any other query
+      // params) through to `/jobs` before `/`'s own redirect runs and loses
+      // them. NOT permanent: this is plumbing around page.tsx's redirect,
+      // not a URL shape we're committing to forever.
       {
         source: "/",
         has: [{ type: "query", key: "q" }],

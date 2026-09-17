@@ -1,6 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveRelatedQuery, significantTitleWords } from '../../src/lib/jobs/related-jobs';
+import { dedupeRelatedJobs, resolveRelatedQuery, significantTitleWords } from '../../src/lib/jobs/related-jobs';
+
+interface RowIn {
+    id: string;
+    title: string;
+    company: string | null;
+    location: string | null;
+    posted_ts?: number | null;
+}
 
 describe('resolveRelatedQuery', () => {
     it('enough company hits — uses them as-is, never touches the title', () => {
@@ -63,5 +71,36 @@ describe('significantTitleWords', () => {
 
     it('an all-noise title yields no words at all', () => {
         assert.deepEqual(significantTitleWords('Senior Staff Lead'), []);
+    });
+});
+
+describe('dedupeRelatedJobs', () => {
+    it('excludes the job currently being viewed', () => {
+        const rows: RowIn[] = [
+            { id: 'current', title: 'Software Engineer', company: 'Acme', location: 'Remote', posted_ts: 100 },
+            { id: 'other', title: 'Product Manager', company: 'Acme', location: 'Remote', posted_ts: 100 },
+        ];
+        const out = dedupeRelatedJobs(rows, 'current');
+        assert.deepEqual(out.map((r) => r.id), ['other']);
+    });
+
+    it('collapses identical title+company+location rows, keeping the newest posted_ts', () => {
+        const rows: RowIn[] = [
+            { id: 'a', title: 'Software Engineer', company: 'Acme', location: 'Remote', posted_ts: 100 },
+            { id: 'b', title: 'software engineer', company: 'acme', location: 'remote', posted_ts: 300 },
+            { id: 'c', title: 'Software Engineer', company: 'Acme', location: 'Remote', posted_ts: 200 },
+        ];
+        const out = dedupeRelatedJobs(rows, 'current');
+        assert.equal(out.length, 1);
+        assert.equal(out[0]!.id, 'b');
+    });
+
+    it('same title+company but a different location — both kept, not deduped away', () => {
+        const rows: RowIn[] = [
+            { id: 'nyc', title: 'Software Engineer', company: 'Acme', location: 'New York, NY', posted_ts: 100 },
+            { id: 'sf', title: 'Software Engineer', company: 'Acme', location: 'San Francisco, CA', posted_ts: 100 },
+        ];
+        const out = dedupeRelatedJobs(rows, 'current');
+        assert.deepEqual(out.map((r) => r.id).sort(), ['nyc', 'sf']);
     });
 });

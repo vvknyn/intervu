@@ -32,6 +32,7 @@ import { jobCompanyHref } from "@/lib/companies/paths";
 import { formatDescription } from "@/lib/jobs/format-description";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
+import { dedupeRelatedJobs } from "@/lib/jobs/related-jobs";
 import {
     clampLocationSegments,
     decodeText,
@@ -166,34 +167,47 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
                 checkedText={checkedText}
             />
             {signals.length > 0 && (
-                <PostingCheckSignalsGrid>
-                    {signals.map((s) => {
-                        const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
-                        return (
-                            <div key={s.text} className="flex items-start gap-2">
-                                {/* "not tracked" (unknown) renders no glyph at all
-                                    (rulebook item e) — the ratio above already
-                                    states it as "N not tracked". */}
-                                <span
-                                    className={cn(
-                                        "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-sm font-semibold",
-                                        relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live" : "text-muted-foreground",
-                                    )}
-                                    aria-hidden={s.status !== "unknown"}
-                                >
-                                    {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unfavorable" ? "—" : null}
-                                </span>
-                                <div className="min-w-0 flex-1 leading-snug">
-                                    {/* `s.kind` (job-detail-facts.ts) is always
-                                        lowercase — sentence case applied here at
-                                        the render call site, same as JobDetail.tsx. */}
-                                    <b className="mr-2 text-sm font-semibold capitalize text-foreground">{s.kind}</b>
-                                    <span className={cn("text-sm", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>{s.text}</span>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </PostingCheckSignalsGrid>
+                // Progressive disclosure below `lg`: the verdict line above is
+                // always visible, but the per-signal rows are detail, not the
+                // headline — collapsed under a native <details> (no JS state
+                // to fight an uncontrolled `open` prop on re-render) closed by
+                // default on mobile. `lg:!block` on the content wrapper forces
+                // it visible at desktop regardless of the `open` attribute;
+                // `group-open:block` is what shows it once a mobile visitor
+                // does open it.
+                <details className="group mt-1">
+                    <summary className="cursor-pointer text-xs text-brand hover:underline lg:hidden">Show details</summary>
+                    <div className="hidden group-open:block lg:!block">
+                        <PostingCheckSignalsGrid>
+                            {signals.map((s) => {
+                                const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
+                                return (
+                                    <div key={s.text} className="flex items-start gap-2">
+                                        {/* "not tracked" (unknown) renders no glyph at all
+                                            (rulebook item e) — the ratio above already
+                                            states it as "N not tracked". */}
+                                        <span
+                                            className={cn(
+                                                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-sm font-semibold",
+                                                relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live" : "text-muted-foreground",
+                                            )}
+                                            aria-hidden={s.status !== "unknown"}
+                                        >
+                                            {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unfavorable" ? "—" : null}
+                                        </span>
+                                        <div className="min-w-0 flex-1 leading-snug">
+                                            {/* `s.kind` (job-detail-facts.ts) is always
+                                                lowercase — sentence case applied here at
+                                                the render call site, same as JobDetail.tsx. */}
+                                            <b className="mr-2 text-sm font-semibold capitalize text-foreground">{s.kind}</b>
+                                            <span className={cn("text-sm", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>{s.text}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </PostingCheckSignalsGrid>
+                    </div>
+                </details>
             )}
             {exposureBadges.length > 0 && (
                 <div className="mono-data mt-3 text-xs text-muted-foreground">
@@ -433,19 +447,19 @@ export function JobDetailDocument({
             data-testid="job-detail-apply-card"
             className={cn(
                 "border-t border-border py-4",
-                // Below `lg` the inline pair below is hidden (the sticky
+                // Below `lg` this whole card is hidden — the sticky
                 // `JobDetailActionBar` mounted at the foot of the mobile
                 // stack is the one filled button + bookmark for that
                 // viewport, so the viewport never shows two filled buttons
-                // at once) and the report button is the only thing this
-                // card can show there — hide the WRAPPER itself (border +
-                // padding included) whenever that won't render either, or
-                // mobile gets a hairline-and-padding "dead" gap between
-                // Must-have skills and Posting check with nothing inside it.
-                !(reportJobEnabled && job.apply_url) && "hidden lg:block",
+                // at once. The report-listing control used to live nested
+                // in here too (so it had to poke through this "hidden"
+                // gate); it's now its own block (`reportControlEl` below)
+                // with its own mobile position, so this card can be
+                // unconditionally desktop-only.
+                "hidden lg:block",
             )}
         >
-            <div className="hidden items-center gap-2 lg:flex">
+            <div className="flex items-center gap-2">
                 {job.apply_url && (
                     <Button onClick={onOpenPosting} className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
                         <ArrowSquareOut size={16} />
@@ -463,20 +477,29 @@ export function JobDetailDocument({
                     onAccept={onAcceptLocalTailor}
                 />
             </div>
-            {reportJobEnabled && job.apply_url && (
-                <ReportJobButton
-                    jobUrl={job.apply_url}
-                    jobTitle={jobTitle}
-                    onRequireAuth={() => onRequestSignIn?.()}
-                    open={reportDialogOpen}
-                    onOpenChange={onReportDialogOpenChange}
-                    className="mt-2"
-                />
-            )}
         </div>
     );
 
     const receiptEl = <Receipt job={job} now={now} />;
+
+    // Report-listing control (F1: its own mobile step, near the end, after
+    // the employer numbers) — split out of applyCardEl above so it can carry
+    // an independent `max-lg:order-*` instead of being pinned to the apply
+    // card's mobile position. Never rendered for a closed job (unchanged
+    // from the prior nested placement, which only ever appeared in the
+    // non-closed `applyCardEl` branch) or without a real posting URL to
+    // report.
+    const reportControlEl = !closed && reportJobEnabled && job.apply_url && (
+        <div className="border-t border-border py-4">
+            <ReportJobButton
+                jobUrl={job.apply_url}
+                jobTitle={jobTitle}
+                onRequireAuth={() => onRequestSignIn?.()}
+                open={reportDialogOpen}
+                onOpenChange={onReportDialogOpenChange}
+            />
+        </div>
+    );
 
     const postingEl = (
         <div data-testid="job-detail-posting" className="border-t border-border py-6">
@@ -494,11 +517,18 @@ export function JobDetailDocument({
             {job.tags && job.tags.length > 0 && (
                 <div className="mt-5 border-t border-border pt-4">
                     {/* Rulebook item c: label + one flowing secondary line, no
-                        bordered chips. */}
+                        bordered chips. Label stays visible; only the tag list
+                        itself collapses below `lg` — same disclosure idiom as
+                        the posting-check signal rows above (Receipt). */}
                     <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
-                    <div className="mono-data text-sm text-muted-foreground">
-                        {job.tags.slice(0, 16).map(decodeText).join(" · ")}
-                    </div>
+                    <details className="group">
+                        <summary className="cursor-pointer text-xs text-brand hover:underline lg:hidden">Show details</summary>
+                        <div className="hidden group-open:block lg:!block">
+                            <div className="mono-data text-sm text-muted-foreground">
+                                {job.tags.slice(0, 16).map(decodeText).join(" · ")}
+                            </div>
+                        </div>
+                    </details>
                 </div>
             )}
         </div>
@@ -525,24 +555,39 @@ export function JobDetailDocument({
         </div>
     );
 
-    const relatedEl = related.length > 0 && (
+    // Excludes the job currently being viewed and collapses rows that are
+    // the same opening cross-posted or re-scraped into more than one row
+    // (identical title+company+location) down to the newest — see
+    // `dedupeRelatedJobs` (lib/jobs/related-jobs.ts) for the exact rule.
+    const relatedDeduped = dedupeRelatedJobs(related, job.id);
+
+    const relatedEl = relatedDeduped.length > 0 && (
         <div data-testid="job-detail-related" className="border-t border-border py-6">
             <h2 className="mb-2 text-sm font-semibold text-foreground">More like this</h2>
             {/* Rulebook item h: rows separated only by a hairline, not
                 bordered cards — RelatedJobRow itself carries no border now
                 (see JobDetail.tsx), so this wrapper supplies the dividers. */}
             <div className="divide-y divide-border">
-                {related.map((r) => (
+                {relatedDeduped.map((r) => (
                     <RelatedJobRow key={r.id} job={r} now={now} onClick={() => onOpenRelated?.(r.id, r)} />
                 ))}
             </div>
         </div>
     );
 
-    // Closed postings: "more like this" moves ahead of the (now purely
-    // reference) posting text — see spec annotation #10. Open postings keep
-    // the ordinary reading order (apply → check → posting → employer → ai →
-    // related).
+    // Mobile reading order (F1, <lg): title/company/location/posted → apply
+    // card → description → posting check → employer numbers → report
+    // control → More like this → AI handoff (not itself part of the spec'd
+    // order — placed last, after every fact-bearing section). Desktop order
+    // is unchanged (still plain source order below — no `lg:order-*`
+    // overrides exist in this file): apply → posting check → employer →
+    // report → AI, with the content column's posting/related sections
+    // alongside in the left column.
+    //
+    // Closed postings keep their own special case: "more like this" moves
+    // ahead of the (now purely reference) posting text — see spec annotation
+    // #10 — so its mobile order sits right after the apply card, before
+    // posting/receipt/employer.
     return (
         <div data-testid="job-detail-document">
             {/* Single render, CSS-only reordering: below `lg`, `max-lg:contents`
@@ -557,15 +602,16 @@ export function JobDetailDocument({
             <div className={cn("flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6", !closed && "max-lg:pb-12")}>
                 <div className="flex min-w-0 flex-col max-lg:contents">
                     <div className="max-lg:order-1">{heroEl}</div>
-                    {closed && <div className="max-lg:order-4">{relatedEl}</div>}
-                    <div className="max-lg:order-5">{postingEl}</div>
+                    {closed && <div className="max-lg:order-3">{relatedEl}</div>}
+                    <div className="max-lg:order-4">{postingEl}</div>
                     {!closed && <div className="max-lg:order-8">{relatedEl}</div>}
                 </div>
                 <div className="flex flex-col max-lg:contents lg:sticky lg:top-6">
                     <div className="max-lg:order-2">{applyCardEl}</div>
-                    <div className="max-lg:order-3">{receiptEl}</div>
+                    <div className="max-lg:order-5">{receiptEl}</div>
                     <div className="max-lg:order-6">{employerCardEl}</div>
-                    <div className="max-lg:order-7">{aiBoxEl}</div>
+                    <div className="max-lg:order-7">{reportControlEl}</div>
+                    <div className="max-lg:order-9">{aiBoxEl}</div>
                 </div>
             </div>
 
