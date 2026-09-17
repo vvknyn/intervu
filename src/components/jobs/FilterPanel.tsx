@@ -45,7 +45,9 @@ const VALUE_LABELS: Partial<Record<FacetKey, Record<string, string>>> = {
  */
 export const SALARY_PRESETS = [
     { label: "Any", value: 0 },
+    { label: "$30k+", value: 30_000 },
     { label: "$50k+", value: 50_000 },
+    { label: "$75k+", value: 75_000 },
     { label: "$100k+", value: 100_000 },
     { label: "$150k+", value: 150_000 },
     { label: "$200k+", value: 200_000 },
