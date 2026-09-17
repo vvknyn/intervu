@@ -229,7 +229,7 @@ describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
         assert.doesNotMatch(src, /export function LandingUspSection/);
     });
 
-    it('renders the tested headline, provenance line, and live count when showLandingMarketing', () => {
+    it('renders the tested headline and provenance line when showLandingMarketing, with no live count (A3: count moved to end of list)', () => {
         const src = readFileSync(JOBS_PAGE, 'utf8');
         const start = src.indexOf('{showLandingMarketing ? (');
         const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
@@ -238,9 +238,14 @@ describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
         const branch = src.slice(start, end);
         assert.match(branch, /\{JOBS_USP\.mastheadTitle\}/);
         assert.match(branch, /\{JOBS_USP\.searchDescription\}/);
-        assert.match(branch, /\{liveCountEl\}/);
         // The claim text itself, not just the symbol reference — same fact
         // the deleted LandingMasthead's own test asserted.
         assert.match(JOBS_USP.searchDescription, /screened for stale postings/);
+        // A3 (front-door redesign): the corpus count no longer renders in the
+        // masthead at all — it renders exactly once, at the end of the
+        // results list, guarded by the same `{liveCountEl}` symbol elsewhere
+        // in the file.
+        assert.doesNotMatch(branch, /\{liveCountEl\}/);
+        assert.match(src.slice(end), /\{liveCountEl\}/, 'liveCountEl no longer rendered anywhere — A3 requires it once, at the end of the results list');
     });
 });

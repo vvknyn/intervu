@@ -190,11 +190,11 @@ test("a stamp the caller couldn't resolve (null) omits the clause, string stays 
 // beside "111,151 roles from the last 30 days"). `liveCountLine` gives the
 // masthead its own honestly-scoped wording instead of a bare number.
 test("liveCountLine: states its own scope, parallel to searchResultLine's window clause", () => {
-    assert.equal(liveCountLine({ kind: "exact", value: 2_339_946 }), "2,339,946 live roles from any time");
+    assert.equal(liveCountLine({ kind: "exact", value: 2_339_946 }), "2,339,946 live roles tracked, all posting dates");
 });
 
 test("liveCountLine: a capped count still renders through formatCorpusCount, never a bare number", () => {
-    assert.equal(liveCountLine({ kind: "floor", value: 100_000 }), "100,000+ live roles from any time");
+    assert.equal(liveCountLine({ kind: "floor", value: 100_000 }), "100,000+ live roles tracked, all posting dates");
 });
 
 test("liveCountLine: null (the marketing-stats probe came back empty) omits the line entirely — never a fabricated 0", () => {

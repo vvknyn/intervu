@@ -54,7 +54,7 @@ describe("for-you mobile chrome", () => {
 
     it("jobs page wires ForYouHome replace-resume props", () => {
         const src = readFileSync(APP, "utf8");
-        assert.match(src, /onReplaceResume=\{handleUploadClick\}/);
+        assert.match(src, /onReplaceResume=\{\(\) => handleUploadClick\(\)\}/);
         assert.match(src, /hasUsableResume=\{hasUsableResume\}/);
     });
 });
