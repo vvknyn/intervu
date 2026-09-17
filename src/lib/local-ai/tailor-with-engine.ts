@@ -20,11 +20,13 @@ import {
     type TailorJobInput,
 } from "./tailor-resume";
 import { ENGINE_LABELS } from "./engines/types";
-import type { ResumeData } from "@/types/resume";
+import type { ResumeData, ResumeExperience } from "@/types/resume";
+
+type ModelBullet = { experienceId?: string; text?: string };
 
 type ModelTailorOutput = {
     summary?: string;
-    bullets?: Array<{ experienceId?: string; text?: string }>;
+    bullets?: ModelBullet[];
 };
 
 export const TAILOR_VOICE_RULES = `Voice rules (still truthful — no invented employers, titles, dates, or metrics):
@@ -46,15 +48,24 @@ function tryParseModelJson(text: string): ModelTailorOutput | null {
     }
 }
 
-export function buildModelPrompt(resume: ResumeData, job: TailorJobInput): string {
-    const snippets = resume.experience
+/** Snippet lines for one résumé section (experience or projects — same
+ *  `ResumeExperience` shape) — shared so the model prompt offers both
+ *  sections' ids as equally valid bullet targets. */
+function buildEntrySnippets(entries: ResumeExperience[], max: number): string {
+    return entries
         .filter((e) => e.description?.trim())
-        .slice(0, 4)
+        .slice(0, max)
         .map((e) => {
             const firstBullet = e.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8) ?? "";
             return `- id: ${e.id}, role: ${e.role}, company: ${e.company}, bullet: ${firstBullet.slice(0, 200)}`;
         })
         .join("\n");
+}
+
+export function buildModelPrompt(resume: ResumeData, job: TailorJobInput): string {
+    const experienceSnippets = buildEntrySnippets(resume.experience, 4);
+    const projectSnippets = buildEntrySnippets(resume.projects ?? [], 4);
+    const projectSection = projectSnippets ? `\n\nPROJECT SNIPPETS:\n${projectSnippets}` : "";
 
     const desc = (job.description ?? "").slice(0, 800);
 
@@ -75,13 +86,72 @@ CURRENT SUMMARY:
 ${resume.generatedSummary || resume.profile.profession}
 
 EXPERIENCE SNIPPETS:
-${snippets}
+${experienceSnippets}${projectSection}
 
-Return JSON only:
+Return JSON only — "experienceId" may be an id from either EXPERIENCE or PROJECT snippets:
 {"summary":"...","bullets":[{"experienceId":"...","text":"..."}]}`;
 }
 
-function applyModelTailor(
+/** Matches model-produced bullets against one résumé section — experience or
+ *  projects, which share the `ResumeExperience` shape — patching
+ *  `tailoredList` in place and returning one `TailorBulletDiff` per accepted
+ *  match. Shared by both the experience and project passes in
+ *  `applyModelTailor` so a project bullet from the engine is matched,
+ *  cross-checked and diffed exactly like an experience bullet; `source` is
+ *  set by the caller and never read from model output. */
+function applyModelBulletsForEntries(
+    entries: ResumeExperience[],
+    tailoredList: ResumeExperience[],
+    source: TailorBulletDiff["source"],
+    modelBullets: ModelBullet[],
+    allEntries: ResumeExperience[],
+): TailorBulletDiff[] {
+    const bullets: TailorBulletDiff[] = [];
+
+    for (const b of modelBullets) {
+        const entryId = b.experienceId?.trim();
+        const text = b.text?.trim();
+        if (!entryId || !text) continue;
+
+        const idx = entries.findIndex((e) => e.id === entryId);
+        if (idx < 0) continue;
+
+        const entry = entries[idx];
+        const hit = entry.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8);
+        if (!hit) continue;
+
+        if (text.toLowerCase().includes(entry.company.toLowerCase()) === false && /\b(at|for)\s+[A-Z]/.test(text)) {
+            const origCompany = entry.company.toLowerCase();
+            const mentioned = allEntries.some(
+                (e) => e.id !== entryId && text.toLowerCase().includes(e.company.toLowerCase()),
+            );
+            if (mentioned && !text.toLowerCase().includes(origCompany)) continue;
+        }
+
+        const lines = entry.description.split(/\n|•/).map((l) => l.replace(/^[\s\-*]+/, "").trim()).filter(Boolean);
+        const lineIdx = lines.findIndex((l) => l === hit || l.includes(hit.slice(0, 20)));
+        if (lineIdx >= 0) {
+            lines[lineIdx] = text;
+            tailoredList[idx] = {
+                ...tailoredList[idx],
+                description: lines.join("\n"),
+            };
+        }
+
+        bullets.push({
+            experienceId: entry.id,
+            source,
+            company: entry.company,
+            role: entry.role,
+            before: hit,
+            after: text,
+        });
+    }
+
+    return bullets;
+}
+
+export function applyModelTailor(
     resume: ResumeData,
     job: TailorJobInput,
     parsed: ModelTailorOutput,
@@ -96,48 +166,12 @@ function applyModelTailor(
 
     tailored.generatedSummary = parsed.summary.trim();
 
-    const bullets: TailorDraft["bullets"] = [];
     const modelBullets = parsed.bullets ?? [];
-
-    for (const b of modelBullets) {
-        const expId = b.experienceId?.trim();
-        const text = b.text?.trim();
-        if (!expId || !text) continue;
-
-        const expIdx = resume.experience.findIndex((e) => e.id === expId);
-        if (expIdx < 0) continue;
-
-        const exp = resume.experience[expIdx];
-        const hit = exp.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8);
-        if (!hit) continue;
-
-        if (text.toLowerCase().includes(exp.company.toLowerCase()) === false && /\b(at|for)\s+[A-Z]/.test(text)) {
-            const origCompany = exp.company.toLowerCase();
-            const mentioned = resume.experience.some(
-                (e) => e.id !== expId && text.toLowerCase().includes(e.company.toLowerCase()),
-            );
-            if (mentioned && !text.toLowerCase().includes(origCompany)) continue;
-        }
-
-        const lines = exp.description.split(/\n|•/).map((l) => l.replace(/^[\s\-*]+/, "").trim()).filter(Boolean);
-        const lineIdx = lines.findIndex((l) => l === hit || l.includes(hit.slice(0, 20)));
-        if (lineIdx >= 0) {
-            lines[lineIdx] = text;
-            tailored.experience[expIdx] = {
-                ...tailored.experience[expIdx],
-                description: lines.join("\n"),
-            };
-        }
-
-        bullets.push({
-            experienceId: exp.id,
-            source: "experience",
-            company: exp.company,
-            role: exp.role,
-            before: hit,
-            after: text,
-        });
-    }
+    const allEntries = [...resume.experience, ...(resume.projects ?? [])];
+    const bullets: TailorBulletDiff[] = [
+        ...applyModelBulletsForEntries(resume.experience, tailored.experience, "experience", modelBullets, allEntries),
+        ...applyModelBulletsForEntries(resume.projects ?? [], tailored.projects ?? [], "project", modelBullets, allEntries),
+    ];
 
     if (bullets.length === 0) return null;
 

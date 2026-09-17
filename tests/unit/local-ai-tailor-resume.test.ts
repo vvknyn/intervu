@@ -9,6 +9,7 @@ import {
     type TailorDraft,
 } from "../../src/lib/local-ai/tailor-resume";
 import {
+    applyModelTailor,
     buildModelPrompt,
     ENGINE_LABELS,
     groundDraft,
@@ -349,5 +350,102 @@ describe("groundDraft", () => {
         const description = grounded.tailored.projects!.find((p) => p.id === "proj-1")!.description;
         assert.ok(description.includes(before));
         assert.ok(!description.includes(after));
+    });
+});
+
+describe("applyModelTailor (model lane)", () => {
+    const PM_RESUME_WITH_PROJECT: ResumeData = {
+        ...PM_RESUME,
+        projects: [
+            {
+                id: "proj-1",
+                company: "Side Project",
+                role: "Creator",
+                dates: "2022",
+                description: "Built a roadmap planning tool for internal agile teams",
+            },
+        ],
+    };
+
+    it("drops a project bullet from a fake engine that introduces a skill word absent from the résumé", () => {
+        const fakeEngineOutput = {
+            summary: PM_RESUME.generatedSummary,
+            bullets: [
+                {
+                    experienceId: "proj-1",
+                    text: "Built a roadmap planning tool using Kubernetes for internal agile teams",
+                },
+            ],
+        };
+        const draft = applyModelTailor(PM_RESUME_WITH_PROJECT, { title: "Product Manager" }, fakeEngineOutput, "webllm");
+        assert.ok(draft, "expected a draft (bullet matched before grounding)");
+
+        const grounded = groundDraft(resumeFullText(PM_RESUME_WITH_PROJECT), draft!);
+        assert.equal(grounded.bullets.length, 0);
+
+        const description = grounded.tailored.projects!.find((p) => p.id === "proj-1")!.description;
+        assert.ok(description.includes("Built a roadmap planning tool for internal agile teams"));
+        assert.ok(!description.includes("Kubernetes"));
+    });
+
+    it("accepts a grounded project bullet from a fake engine with source: project", () => {
+        const fakeEngineOutput = {
+            summary: PM_RESUME.generatedSummary,
+            bullets: [
+                {
+                    experienceId: "proj-1",
+                    text: "Built a roadmap planning tool for internal agile delivery",
+                },
+            ],
+        };
+        const draft = applyModelTailor(PM_RESUME_WITH_PROJECT, { title: "Product Manager" }, fakeEngineOutput, "webllm");
+        assert.ok(draft);
+
+        const grounded = groundDraft(resumeFullText(PM_RESUME_WITH_PROJECT), draft!);
+        assert.equal(grounded.bullets.length, 1);
+        assert.equal(grounded.bullets[0].source, "project");
+        assert.equal(grounded.bullets[0].experienceId, "proj-1");
+        assert.ok(
+            grounded.tailored.projects!.find((p) => p.id === "proj-1")!.description.includes("agile delivery"),
+        );
+    });
+
+    it("generic-fix: an experience bullet through the same shared step is unaffected, and a projects-only résumé still yields project diffs", () => {
+        const expOutput = {
+            summary: PM_RESUME.generatedSummary,
+            bullets: [
+                { experienceId: "exp-1", text: "Led product planning across the B2B SaaS platform and mobile app." },
+            ],
+        };
+        const draft = applyModelTailor(PM_RESUME, { title: "Product Manager" }, expOutput, "webllm");
+        assert.ok(draft);
+        assert.equal(draft!.bullets.length, 1);
+        assert.equal(draft!.bullets[0].source, "experience");
+        assert.equal(draft!.bullets[0].experienceId, "exp-1");
+        assert.equal(draft!.bullets[0].company, "Acme Corp");
+
+        const projectsOnlyResume: ResumeData = {
+            ...mkResume({ profession: "Product Manager", yearsOfExperience: 3 }, [], []),
+            projects: [
+                {
+                    id: "proj-2",
+                    company: "Open Source",
+                    role: "Maintainer",
+                    dates: "2023",
+                    description: "Maintains a roadmap planning tool for agile teams",
+                },
+            ],
+        };
+        const projectOutput = {
+            summary: projectsOnlyResume.generatedSummary,
+            bullets: [
+                { experienceId: "proj-2", text: "Maintains a roadmap planning tool for distributed agile teams" },
+            ],
+        };
+        const noExpDraft = applyModelTailor(projectsOnlyResume, { title: "Product Manager" }, projectOutput, "webllm");
+        assert.ok(noExpDraft, "expected project diffs even with an empty experience array");
+        assert.equal(noExpDraft!.bullets.length, 1);
+        assert.equal(noExpDraft!.bullets[0].source, "project");
+        assert.equal(noExpDraft!.bullets[0].experienceId, "proj-2");
     });
 });
