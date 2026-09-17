@@ -48,7 +48,7 @@ test.describe("COLD-VISITOR-ORIENTATION — orientation banner introduces two pa
         // Auth popover should open with the fit reason (not tracker sync)
         const authPopover = page.getByRole("dialog");
         await expect(authPopover).toBeVisible({ timeout: 5000 });
-        await expect(authPopover.getByText("match roles to your résumé", { exact: false })).toBeVisible();
+        await expect(authPopover.getByText("rank every result by fit", { exact: false })).toBeVisible();
         await expect(authPopover.getByText("sync your tracker", { exact: false })).toHaveCount(0);
     });
 });

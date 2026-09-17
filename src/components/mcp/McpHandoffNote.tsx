@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
  *  a screen; the same variant must not. A variant may add a short heading
  *  above its sentence (e.g. naming the AI assistants this hands off to);
  *  most don't need one. */
-const VARIANT_COPY: Record<"intelligence" | "prep", { heading?: string; sentence: string }> = {
+export const VARIANT_COPY: Record<"intelligence" | "prep", { heading?: string; sentence: string }> = {
     intelligence: {
         heading: "Check your fit in Claude, ChatGPT or Cursor",
         sentence: "Connect your AI assistant and it can read this posting and your résumé.",

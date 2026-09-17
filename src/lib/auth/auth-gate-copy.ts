@@ -43,10 +43,12 @@ const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
     apply: "Create a free account to track this application across devices.",
     generic: "Sign in to sync your tracker across devices.",
     save: "Sign in to keep your list across devices and get alerts when new roles match.",
-    // Fit scoring and tailoring run client-side (src/lib/match/score.ts,
-    // src/lib/local-ai/tailor-with-engine.ts) — an honest privacy line, not
-    // a claim about the résumé file itself (extraction is server-side).
-    fit: "Sign in to match roles to your résumé and get personalized recommendations. Fit scoring and tailoring run in your browser.",
+    // Only-facts copy (Fable design pass, 2026-09-17): no "personalized
+    // recommendations" claim and no on-device claim — fit scoring's
+    // client-vs-server split (src/lib/match/score.ts,
+    // src/lib/local-ai/tailor-with-engine.ts) isn't something the user needs
+    // to know to decide whether to sign in, so it's not asserted here.
+    fit: "Sign in to upload your résumé and rank every result by fit.",
     report: "Sign in to report an issue with this listing.",
     tailor: "Create a free account to tailor your résumé with on-device AI and export customized applications.",
     resume: "Create a free account to edit, export, and sync your résumé across devices.",

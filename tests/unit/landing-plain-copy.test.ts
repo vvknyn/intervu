@@ -232,9 +232,13 @@ describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
         assert.doesNotMatch(src, /export function LandingUspSection/);
     });
 
-    it('renders the tested headline and provenance line when showLandingMarketing, with no live count (A3: count moved to end of list)', () => {
+    it('renders the tested headline and provenance line when at rest, with no hero count and no live count (D1 + A3: both counts stay off the masthead)', () => {
         const src = readFileSync(JOBS_PAGE, 'utf8');
-        const start = src.indexOf('{showLandingMarketing ? (');
+        // Front-door redesign requirement 1a: the masthead's gate broadened
+        // from the pristine-only `showLandingMarketing` to `atRest` (a
+        // visitor who has only toggled a filter still gets the centered
+        // hero) — see `isAtRest`, lib/jobs/front-door-state.ts.
+        const start = src.indexOf('{atRest && showSearchHome ? (');
         const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
         assert.notStrictEqual(start, -1, 'masthead ternary anchor moved — update this test');
         assert.notStrictEqual(end, -1, 'sr-only fallback h1 anchor moved — update this test');
@@ -244,11 +248,15 @@ describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
         // The claim text itself, not just the symbol reference — same fact
         // the deleted LandingMasthead's own test asserted.
         assert.match(JOBS_USP.searchDescription, /screened for stale postings/);
-        // A3 (front-door redesign): the corpus count no longer renders in the
-        // masthead at all — it renders exactly once, at the end of the
-        // results list, guarded by the same `{liveCountEl}` symbol elsewhere
-        // in the file.
+        // Design pass D1 (2026-09-17, Fable): the at-rest hero's own
+        // display-size count line was CUT — it duplicated the identical
+        // windowed `resultCountLine` already heading the results list below
+        // (still rendered exactly once there). `liveCountEl`, a different,
+        // unwindowed stat, was already absent from the masthead (A3) and
+        // still renders exactly once, at the end of the results list.
+        assert.doesNotMatch(branch, /\{resultCountLine\}/);
         assert.doesNotMatch(branch, /\{liveCountEl\}/);
+        assert.match(src.slice(end), /\{resultCountLine\}/, 'resultCountLine must still head the results list exactly once');
         assert.match(src.slice(end), /\{liveCountEl\}/, 'liveCountEl no longer rendered anywhere — A3 requires it once, at the end of the results list');
     });
 });

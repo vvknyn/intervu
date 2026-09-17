@@ -111,7 +111,7 @@ import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
-import { LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
+import { indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
@@ -153,6 +153,10 @@ import { derivePostedTs, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
 import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
+import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
+import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
+import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
+import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { isSameOpenJob } from "@/lib/jobs/is-same-open-job";
@@ -169,7 +173,6 @@ import {
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
-    shouldSuppressLandingAmbientPreview,
     degradedResultsNote,
     unmatchedPlaceNote,
     buildZeroResultPayload,
@@ -2142,9 +2145,17 @@ function JobsContent() {
     // this?" — every OTHER reader of that question (chips, clear, clear-all)
     // asked `activeFilterEntries` and got "no".
     const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !searchParams.get("job");
+    // "At rest" (front-door redesign): broader than `isPristineLanding` —
+    // only asks whether there's a typed query or a selected job, not
+    // whether filters/fit are untouched. A visitor who has only toggled a
+    // filter chip hasn't searched for anything yet, so the centered hero
+    // still makes sense; `isPristineLanding` keeps its own narrower job
+    // (the masthead's marketing content specifically wants zero filters
+    // too). See `isAtRest` (lib/jobs/front-door-state.ts) for the pure rule.
+    const atRest = isAtRest({ query, jobParam: searchParams.get("job") });
     // Single gate for "the header owns this search now" — lg+ always docks,
-    // including the pristine default browse; mobile keeps the in-page well.
-    const headerDockActive = isLgUp && showSearchHome;
+    // EXCEPT at rest, where the centered hero (not the header) owns search.
+    const headerDockActive = isLgUp && showSearchHome && !atRest;
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
@@ -2338,9 +2349,15 @@ function JobsContent() {
                 // used that default branch, so a deliberate selection (deep
                 // link, or one carried over from a real search) is never
                 // suppressed here — only the bare default is, and only when
-                // `shouldSuppressLandingAmbientPreview` says so.
+                // `shouldSuppressLandingAmbientPreview` says so. Front-door
+                // redesign: `atRest` now decides this instead of the
+                // function call directly — `isPristineLanding` (that
+                // function's first argument) is always a subset of `atRest`,
+                // so `atRest` alone is the broader, still-correct condition
+                // (a filter-only visitor is at rest too, and the detail pane
+                // should pitch rather than ambient-preview for them as well).
                 setSelectedId(
-                    shouldSuppressLandingAmbientPreview(isPristineLanding, isXlUp) && !selection.preserveDeliberateDetail
+                    atRest && !selection.preserveDeliberateDetail
                         ? null
                         : selection.selectedId,
                 );
@@ -2912,15 +2929,16 @@ function JobsContent() {
     // 2026-08-21; xl+ lift 2026-08-31): `hits[0]` there is a zero-intent
     // visitor's own first page-1 row, not a result of anything they did, so
     // defaulting to it reads as an arbitrary pick — the fetch effect above
-    // already keeps `selectedId` null for exactly this case via
-    // `shouldSuppressLandingAmbientPreview`, this mirrors that same gate so
+    // already keeps `selectedId` null for exactly this case via `atRest`
+    // (front-door redesign — broader than the old `isPristineLanding`-only
+    // gate, see the fetch effect above), this mirrors that same gate so
     // the two can't drift into disagreeing about what "no selection" renders.
     const selected = useMemo(() => {
         if (!selectedId) {
-            return shouldSuppressLandingAmbientPreview(isPristineLanding, isXlUp) ? null : (hits[0] ?? null);
+            return atRest ? null : (hits[0] ?? null);
         }
         return hits.find((h) => h.id === selectedId) ?? null;
-    }, [hits, selectedId, isPristineLanding, isXlUp]);
+    }, [hits, selectedId, atRest]);
 
     // Task 11 — dead-link EXISTENCE-CHECK CANDIDATE: a deliberate URL
     // selection that the CURRENT search's first page has already resolved
@@ -4221,7 +4239,12 @@ function JobsContent() {
     const beginResumeUpload = () => {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
-        if (!user && !readLocalAiEnabled()) {
+        // Sign-in is unconditional here — a signed-out visitor never reaches
+        // the importer, even with local-AI (on-device) parsing enabled. That
+        // flag only changes WHERE parsing happens once a session exists; it
+        // was never meant to bypass the account gate itself (product ruling,
+        // 2026-09-17: résumé upload requires sign-in to grow signups).
+        if (!user) {
             setAuthGateReason("fit");
             setAuthTrigger("auto");
             gate({ kind: "upload", payload: true });
@@ -4248,13 +4271,15 @@ function JobsContent() {
         setResumeUpdatedAt(updatedAt);
         setResumeSourceLabel(sourceLabel);
         setImportOpen(false);
-        if (user) {
-            void saveResumeData(data, source, confidence)
-                .then(() => captureEvent("resume_uploaded", {}))
-                .catch(() => {});
-        } else if (readLocalAiEnabled()) {
-            writeLocalAiResume(data, updatedAt, sourceLabel);
-        }
+        // `handleImport` only ever fires once `<ResumeImportModal>` is open,
+        // which — since `beginResumeUpload` above gates unconditionally on
+        // sign-in — means `user` is always truthy here (P2 review fix,
+        // 2026-09-17: the `else if (readLocalAiEnabled())` local-storage
+        // fallback this used to have was dead code for a signed-out saver
+        // that could no longer be reached).
+        void saveResumeData(data, source, confidence)
+            .then(() => captureEvent("resume_uploaded", {}))
+            .catch(() => {});
         // `handleUploadClick` queued this because no usable résumé was on
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
@@ -5016,8 +5041,14 @@ function JobsContent() {
      * mobile moves it inside the results list after the 3rd row (`lg:hidden`,
      * in the results `flatMap` below). One component, two mounts, hoisted
      * here so the two can't drift onto different conditions.
+     *
+     * Requirement 2 (front-door redesign): at rest, `FrontDoorResumeBand`
+     * takes over this same job (signed-out AND signed-in visitors without a
+     * résumé on file), so both mount sites additionally gate on `!atRest` —
+     * this component now only ever shows once a search is actually running.
      */
     const showColdOrientation = !user && resumeOnFile !== true && !hasUsableResume;
+    const frontDoorBandVisible = showsFrontDoorBand({ atRest, signedIn: !!user, resumeOnFile, fitActive });
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -5064,29 +5095,32 @@ function JobsContent() {
                         : "flex-1 overflow-hidden pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-3",
                 )}
             >
-                {/* Landing masthead — mounts only for a zero-intent pristine
-                    visitor (`showLandingMarketing`), at every width, not just
-                    mobile: the header's docked search took over the box on
-                    lg+ but never stated what the corpus IS or where it's
+                {/* Landing masthead — mounts whenever the front door is "at
+                    rest" (`atRest`, broader than the old `showLandingMarketing`-
+                    only pristine gate: a visitor who has only toggled a
+                    filter still gets the centered hero), at every width, not
+                    just mobile: the header's docked search took over the box
+                    on lg+ but never stated what the corpus IS or where it's
                     from. Was authored (`LandingMasthead`) but never mounted
                     anywhere on this route (2026-08-21 front-door audit, item
-                    2; frozen front-door redesign, 2026-08-26). Once a search
-                    runs, this unmounts in favor of the sr-only heading so the
-                    page still carries exactly one h1. */}
-                {showLandingMarketing ? (
+                    2; frozen front-door redesign, 2026-08-26; recentered at
+                    rest, requirement 1a). Once a search runs, this unmounts
+                    in favor of the sr-only heading so the page still carries
+                    exactly one h1. */}
+                {atRest && showSearchHome ? (
                     <div className="pb-2">
-                        <div className="border-b border-border py-2 sm:py-3">
+                        <div className="mx-auto max-w-[960px] border-b border-border py-4 text-center sm:py-6">
                             <p className="mb-2 text-xs font-semibold text-brand">
                                 Live from employer career pages
                             </p>
-                            <h1 className="text-xl sm:text-2xl font-semibold text-foreground">
+                            <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
                                 {JOBS_USP.mastheadTitle}
                             </h1>
-                            {/* A1 (front-door redesign): mobile masthead is eyebrow +
-                                H1 only — no paragraph, no count. Desktop keeps the
-                                paragraph; the live count now renders once, at the end
-                                of the results list (`liveCountEl` below), not here. */}
-                            <p className="mt-2 hidden max-w-2xl text-sm text-muted-foreground lg:block">
+                            {/* Provenance (what the corpus is) stays a distinct
+                                sentence from the count below (how many there
+                                are right now) — dropping it would conflate two
+                                different jobs into one line. */}
+                            <p className="mx-auto mt-2 hidden max-w-2xl text-sm text-muted-foreground lg:block">
                                 {JOBS_USP.searchDescription}
                             </p>
                         </div>
@@ -5101,7 +5135,7 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                {showColdOrientation && (
+                {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
                         <ColdVisitorOrientation compact onRankByFit={() => handleUploadClick()} />
                     </div>
@@ -5120,7 +5154,24 @@ function JobsContent() {
                     `fieldDirectoryMenu`. */}
                 {!headerDockActive && showSearchHome && (
                 <section
-                    className="rounded-none border border-border bg-card p-2 sm:p-2.5 transition-colors"
+                    className={cn(
+                        "rounded-none transition-colors",
+                        // Requirement 1c (front-door redesign): at rest the
+                        // search field is re-housed inside the same centered
+                        // 960px column as the masthead and `FrontDoorFieldLinks`,
+                        // and drops the outer "raised well" (border + bg-card +
+                        // padding) that used to set it off from the page — the
+                        // inner search-line box below (its own border/bg-card)
+                        // is now the only visible frame, so a query result
+                        // doesn't snap from a boxed-within-a-box well to a
+                        // plain one once it runs.
+                        // Requirement D2 (2026-09-17 design pass): at rest, the search
+                        // form itself widens past the masthead's shared 960px column at
+                        // lg+ — max-w-7xl, the widest named container token already used
+                        // site-wide (resume/page.tsx, settings, connect, etc.), not a new
+                        // arbitrary value. Below lg, unchanged.
+                        atRest ? "mx-auto max-w-[960px] lg:max-w-7xl" : "border border-border bg-card p-2 sm:p-2.5",
+                    )}
                 >
                     {/* A3 (front-door redesign): the live count renders once,
                         at the end of the results list (`liveCountEl` below) —
@@ -5168,7 +5219,14 @@ function JobsContent() {
                                     seeds={searchSeeds}
                                     placeholder={SEARCH_PLACEHOLDER}
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
-                                    className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0"
+                                    className={cn(
+                                        // Requirement D2 (2026-09-17 design pass): at rest, search is
+                                        // the largest element on the page — lg+ jumps to the tallest
+                                        // existing control-height token (h-14) instead of the
+                                        // mid-search state's h-[56px]. Below lg, unchanged.
+                                        atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                        "w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0",
+                                    )}
                                     containerClassName="min-w-0 w-full"
                                 />
                             </div>
@@ -5205,7 +5263,10 @@ function JobsContent() {
                                     onCommit={addLocation}
                                     selected={chosenLocations}
                                     containerClassName="hidden lg:flex"
-                                    className="h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 sm:h-[56px]"
+                                    className={cn(
+                                        atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                        "min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0",
+                                    )}
                                 />
                                 {/* Location's own one-tap clear, matching the query
                                     field's `search-input-clear`. The toolbar's "✕ clear
@@ -5244,10 +5305,23 @@ function JobsContent() {
                             // lg — pristine landing, mid-search, and post-results states.
                             // Show inline Search only at lg+ so the two CTAs never coexist.
                             "lg:flex",
-                        )}>                            <Button
+                        )}>                            {/* Requirement 5 (one filled action per screen at
+                                rest): the front door's only filled button is
+                                the résumé band's "Upload resume"
+                                (FrontDoorResumeBand.tsx) — this one switches
+                                to the shared `outline` variant (button.tsx's
+                                `TERTIARY_BUTTON_CLASSES`, the rulebook's one
+                                hairline shape) at rest instead of a second,
+                                bespoke hairline style. */}
+                            <Button
                                 type="button"
                                 onClick={() => submitSearch(queryDraft)}
-                                className="h-11 sm:h-[56px] w-full rounded-none bg-primary px-6 text-xs font-semibold text-primary-foreground hover:bg-primary sm:w-auto transition-colors"
+                                variant={atRest ? "outline" : "default"}
+                                className={cn(
+                                    atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                    "w-full rounded-none px-6 text-xs font-semibold sm:w-auto transition-colors",
+                                    !atRest && "bg-primary text-primary-foreground hover:bg-primary",
+                                )}
                             >
                                 Search
                             </Button>
@@ -5267,7 +5341,7 @@ function JobsContent() {
                         work post-search — this only drops the one-tap
                         shortcut's permanent screen space on a phone.
                         Desktop keeps it; vertical space isn't scarce there. */}
-                    {!showLandingMarketing && isLgUp && (
+                    {!showLandingMarketing && !atRest && isLgUp && (
                         <div className="mt-2.5 flex items-center gap-2 border-t border-border pt-2 lg:mt-2 lg:pt-1.5">
                             {/* Field dropdown — radio-like, REPLACE query on click */}
                             {fieldDirectoryMenu}
@@ -5342,7 +5416,17 @@ function JobsContent() {
                     data-testid="jobs-toolbar"
                     className={cn(
                         showJobsToolbarRow &&
-                            "mt-3 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5",
+                            (
+                                // Requirement 1d (front-door redesign): at rest
+                                // the toolbar becomes a centered hairline strip
+                                // in the same 960px column as the masthead and
+                                // search field — top/bottom rule only, no filled
+                                // `bg-muted` band — instead of the full-bleed,
+                                // filled strip a live query still gets.
+                                atRest
+                                    ? "mx-auto mt-3 max-w-[960px] border-y border-border py-2"
+                                    : "mt-3 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5"
+                            ),
                     )}
                 >
                     {showJobsToolbarRow && (
@@ -5371,7 +5455,7 @@ function JobsContent() {
                             {filtersOpen ? <CaretUp size={16} weight="bold" aria-hidden /> : <CaretDown size={16} weight="bold" aria-hidden />}
                         </button>
                         )}
-                        {!showLandingMarketing && !headerDockActive && fieldDirectoryMenu}
+                        {!showLandingMarketing && !atRest && !headerDockActive && fieldDirectoryMenu}
                         {!headerDockActive && facetBarEl}
                         {showToolbarFilters && (
                         <>
@@ -5453,15 +5537,39 @@ function JobsContent() {
                 )}
 
                 {/* Browse entry points for a zero-intent visitor — field
-                    directory + "start with a filter" shortcuts. Was authored
-                    but never mounted anywhere (2026-08-21 front-door audit,
-                    item 3): the pristine landing had no browse affordance
-                    on first paint at all, only after a search ran. Now
-                    mounts at every width (frozen front-door redesign,
-                    2026-08-26) — standard flow is search → refine filters →
-                    browse shortcuts → results; sits below the filter toolbar. */}
-                {showLandingMarketing && (
-                    <LandingMarketingShowcase onSelectQuery={submitSearch} />
+                    directory, plain text links. Was authored but never
+                    mounted anywhere (2026-08-21 front-door audit, item 3):
+                    the pristine landing had no browse affordance on first
+                    paint at all, only after a search ran. Now mounts at
+                    every width — standard flow is search → refine filters →
+                    browse shortcuts → results; sits below the filter
+                    toolbar. Requirement 1e (front-door redesign): plain text
+                    links (`FrontDoorFieldLinks`) instead of the boxed chip
+                    row (`LandingMarketingShowcase`, left mounted nowhere so
+                    the directory renders exactly once), and gated on `atRest`
+                    — broader than the old `showLandingMarketing`-only
+                    pristine gate — so the rest of the centered hero can't
+                    disagree with this piece about whether it's showing. */}
+                {atRest && showSearchHome && (
+                    <FrontDoorFieldLinks onSelectQuery={submitSearch} />
+                )}
+
+                {/* Requirement 2 (front-door redesign): the résumé-upload
+                    band replaces `ColdVisitorOrientation` at rest (that
+                    component's two mounts each gained `!atRest &&` instead —
+                    see `showColdOrientation` above and its mobile-flatMap
+                    mount below). One gate, hoisted in `showsFrontDoorBand`,
+                    reused nowhere else so the desktop and mobile renders of
+                    this SAME band can't drift onto different conditions —
+                    but unlike `ColdVisitorOrientation`, this band itself
+                    only needs one mount: it's a full-bleed block, not a row
+                    inside the results list, so it works at every width from
+                    a single call site. */}
+                {frontDoorBandVisible && (
+                    <FrontDoorResumeBand
+                        onUploadClick={() => handleUploadClick()}
+                        onSignInClick={() => openAuth("generic", "user")}
+                    />
                 )}
 
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
@@ -5560,6 +5668,8 @@ function JobsContent() {
                                 <div className="p-4">
                                     <JobDetailSkeleton />
                                 </div>
+                            ) : atRest ? (
+                                <FrontDoorDetailPitch onSignInClick={() => openAuth("generic", "user")} />
                             ) : (
                                 <p className="p-6 text-xs text-muted-foreground" data-testid="detail-pane-placeholder">
                                     Select a role to read it here.
@@ -5993,7 +6103,7 @@ function JobsContent() {
                                             // (`lg:hidden` here, that one `lg:block`), own
                                             // dismiss state (ColdVisitorOrientation.tsx),
                                             // one component, two mounts.
-                                            if (showColdOrientation && i === 2) {
+                                            if (!atRest && showColdOrientation && i === 2) {
                                                 rows.push(
                                                     <div key="cold-orientation-mobile" className={cn("mt-2 lg:hidden", cappedContentClass)}>
                                                         <ColdVisitorOrientation onRankByFit={() => handleUploadClick()} />

@@ -5,12 +5,14 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
+import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { AUTH_CTA_LABEL, formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -43,16 +45,10 @@ function SignedOutEmptyState({
 }) {
     return (
         <div className="mx-auto max-w-[480px] space-y-4 rounded-none border border-border bg-card p-8 text-center">
-            <div className="inline-flex items-center gap-1.5 border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-brand">
-                <ShieldCheck size={16} />
-                <span>100% On-Device AI</span>
-            </div>
             <FileText size={24} className="mx-auto text-muted-foreground" />
             <div className="space-y-1">
                 <h2 className="text-base font-semibold text-foreground">Add your base resume</h2>
-                <p className="text-sm text-muted-foreground">
-                    Upload a PDF or Word document. We parse it locally in your browser so your data never touches cloud servers.
-                </p>
+                <p className="text-sm text-muted-foreground">{RESUME_UPLOAD_PROMISE}</p>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
                 <Button size="sm" onClick={onUploadClick} className="w-full sm:w-auto rounded-none font-semibold">
@@ -70,7 +66,6 @@ function SignedOutEmptyState({
 function ResumeContent() {
     const [user, setUser] = useState<User | null>(() => getCurrentUser());
     const [authReady, setAuthReady] = useState(() => getCurrentUser() !== null);
-    const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [localResume, setLocalResume] = useState<ResumeData | null>(null);
@@ -83,6 +78,26 @@ function ResumeContent() {
         });
         return () => unsubscribe();
     }, []);
+
+    // The one auth gate (`use-auth-gate.ts`), same mechanism /jobs uses: signed
+    // in → run the handler now; signed out → persist the action (survives both
+    // in-place login and a hard OAuth/passkey navigation away and back) and
+    // open the popover. `apply`/`gate`/`report` are never queued from this
+    // page — `PendingAction`'s kinds are shared with /jobs, and
+    // `takePersistedPendingAction` is path-scoped (pending-actions.ts), so a
+    // /jobs-queued action can never replay here — but the hook's handler map
+    // is total over every kind, so they're still typed, inert no-ops.
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<never, never, never>({
+        handlers: {
+            apply: () => {},
+            gate: () => {},
+            upload: () => {
+                setImportModalOpen(true);
+            },
+            report: () => {},
+        },
+        user,
+    });
 
     useEffect(() => {
         if (!user && authReady) {
@@ -97,13 +112,35 @@ function ResumeContent() {
     // below render nothing but a sign-in affordance — user.
     const openAuth = (trigger: AuthGateTrigger) => {
         setAuthTrigger(trigger);
-        setAuthPopoverOpen(true);
+        setAuthOpen(true);
     };
 
     const handleImportResume = (data: ResumeData) => {
         writeLocalAiResume(data);
         setLocalResume(data);
         setImportModalOpen(false);
+    };
+
+    // THE single entry point for opening the résumé importer on this page —
+    // both the empty-state "Upload resume" button and the local-résumé
+    // "Replace" button go through this, not `setImportModalOpen(true)`
+    // directly, mirroring `beginResumeUpload` on /jobs (same shape: guard +
+    // `gate()` in the signed-out branch, direct open when already signed
+    // in). Sign-in is unconditional: a signed-out visitor never reaches the
+    // importer, even to replace a résumé that's already on this device
+    // (product ruling, 2026-09-17: résumé upload requires sign-in to grow
+    // signups). Review fix (2026-09-17): was a bare `openAuth("auto")` with
+    // no post-auth replay — the importer never opened after sign-in. Now
+    // routes through `gate({ kind: "upload" })`, the same pending-actions
+    // mechanism /jobs uses, so `handlers.upload` above reopens it exactly
+    // once, whichever way the user authenticates.
+    const beginResumeUpload = () => {
+        if (!user) {
+            setAuthTrigger("auto");
+            gate({ kind: "upload", payload: true });
+            return;
+        }
+        setImportModalOpen(true);
     };
 
     return (
@@ -138,7 +175,7 @@ function ResumeContent() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setImportModalOpen(true)}
+                                        onClick={() => beginResumeUpload()}
                                         className="rounded-none text-xs font-semibold"
                                     >
                                         Replace
@@ -175,7 +212,7 @@ function ResumeContent() {
                     ) : (
                         <SignedOutEmptyState
                             onLoginClick={() => openAuth("user")}
-                            onUploadClick={() => setImportModalOpen(true)}
+                            onUploadClick={() => beginResumeUpload()}
                         />
                     )
                 ) : (
@@ -196,8 +233,9 @@ function ResumeContent() {
                 />
 
                 <AuthPopover
-                    open={authPopoverOpen}
-                    onOpenChange={setAuthPopoverOpen}
+                    open={authOpen}
+                    onOpenChange={setAuthOpen}
+                    onAuthed={onAuthed}
                     showTrigger={false}
                     trigger={authTrigger}
                     defaultTab="signup"
