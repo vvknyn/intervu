@@ -320,6 +320,20 @@ export function decodeText(s: string | null | undefined): string {
     }
 }
 
+/**
+ * Decodes, trims, and drops blank entries from a raw string-list field —
+ * the one chokepoint every "flowing tag line" section (must-have skills,
+ * keywords from the posting, ...) filters through before deciding whether
+ * it has anything to show. A raw array can pass `.length > 0` while every
+ * entry decodes to an empty/whitespace string (garbage or blank source
+ * data), which would otherwise render a heading over nothing — callers
+ * must gate on THIS result's length, never the raw field's.
+ */
+export function visibleTags(raw: string[] | null | undefined, limit: number): string[] {
+    if (!raw) return [];
+    return raw.map(decodeText).map((t) => t.trim()).filter(Boolean).slice(0, limit);
+}
+
 /** Tokenizer shared by `cleanCompany`'s subset check and the relevance-seam
  *  matchers below — lowercase, split on anything that isn't alnum/+/#/.
  *  (keeps "c++" and ".net" intact as single tokens). */

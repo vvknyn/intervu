@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
+import os from "node:os";
 
 /**
  * Guards the three rules in docs/design/DESIGN-LANGUAGE.md that this repo had
@@ -758,7 +759,7 @@ test("shimmer classifier: catches a sweep and an animated gradient under any nam
 // tags imported from @phosphor-icons/react are inspected, never a `size` prop
 // on some other component. Same `require` reasoning as banned-classes above.
 const { scanSource: scanIconSizes, findIconSizeOffenders } = require("../../scripts/design/icon-sizes.cjs") as {
-    scanSource: (src: string) => { offenders: { line: number; tag: string; detail: string }[]; rewritten: string };
+    scanSource: (src: string, filePath?: string) => { offenders: { line: number; tag: string; detail: string }[]; rewritten: string };
     findIconSizeOffenders: (dir: string) => string[];
 };
 
@@ -793,6 +794,37 @@ test("icon-size classifier: an ssr-entry icon gets the explicit 16px + bold that
     const { offenders, rewritten } = scanIconSizes(fixture);
     assert.deepEqual(offenders.map((o) => o.detail), ['size 14→16 (ssr entry, explicit); ssr entry: weight="bold" added']);
     assert.match(rewritten, /<House size=\{16\} weight="bold" \/>/);
+});
+
+test("icon-size classifier: follows one level of local indirection through an icon lookup map (fact-chip-icons.tsx's own shape), catching both a member-expression tag and a computed-lookup local var — not just a bare imported tag name", () => {
+    // A minimal stand-in for src/components/jobs/fact-chip-icons.tsx: an
+    // object literal whose every value is a name imported from the phosphor
+    // package. The classifier must recognize this SHAPE, not this file's name.
+    const mapModuleSrc = [
+        'import { MapPin, House } from "@phosphor-icons/react";',
+        "export const TEST_ICON_MAP = { a: MapPin, b: House };",
+    ].join("\n");
+    const dir = mkdtempSync(path.join(os.tmpdir(), "icon-map-fixture-"));
+    const mapFile = path.join(dir, "icon-map.tsx");
+    writeFileSync(mapFile, mapModuleSrc);
+    try {
+        const consumerSrc = [
+            'import { TEST_ICON_MAP } from "./icon-map";',
+            "export const X = () => (<>",
+            "  <TEST_ICON_MAP.a size={12} />",
+            "  {(() => { const Icon = TEST_ICON_MAP[chip.kind]; return <Icon size={18} />; })()}",
+            "</>);",
+        ].join("\n");
+        const consumerFile = path.join(dir, "consumer.tsx");
+        writeFileSync(consumerFile, consumerSrc);
+        const { offenders } = scanIconSizes(consumerSrc, consumerFile);
+        assert.deepEqual(offenders.map((o) => `${o.line} ${o.tag} ${o.detail}`), [
+            "3 TEST_ICON_MAP.a size 12→default(16)",
+            "4 Icon size 18→default(16)",
+        ]);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 });
 
 // ─── Gradient paints (rulebook: depth = tint step or hairline, zero gradients) ──

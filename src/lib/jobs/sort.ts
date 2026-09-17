@@ -31,6 +31,25 @@ export function coerceSortToSupported(mode: JobSortMode, postedDateSupported: bo
     return mode === "newest" && !postedDateSupported ? "relevance" : mode;
 }
 
+/**
+ * The one label source for a `JobSortMode`, shared by every surface that
+ * names a sort option (desktop's "Sort: {label}" trigger + its
+ * DropdownMenuItems, the mobile filter sheet's ToolbarSegment tabs) so a
+ * casing/wording fix made in one place can't drift out of sync with a
+ * re-typed copy elsewhere — the mobile-tabs-were-lowercase defect was
+ * exactly that: a second, hand-typed set of these strings.
+ */
+export function sortOptionLabel(mode: JobSortMode, resumeOnFile: boolean | null): string {
+    switch (mode) {
+        case "newest":
+            return "Freshest";
+        case "salary_desc":
+            return "Top pay";
+        case "relevance":
+            return resumeOnFile === true ? "Best match" : "Relevance";
+    }
+}
+
 export function buildMeiliSort(p: JobSearchParams, legacy = false): string[] | undefined {
     const mode = resolveEffectiveSort(p);
     const tsField = legacy ? "posted_at" : "posted_ts";

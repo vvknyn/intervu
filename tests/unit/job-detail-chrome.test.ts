@@ -80,4 +80,22 @@ describe("JobDetail guest chrome", () => {
         assert.match(doc, /\{closed && <div[^>]*>\{relatedEl\}<\/div>\}/, "one relatedEl use must be gated on closed");
         assert.match(doc, /\{!closed && <div[^>]*>\{relatedEl\}<\/div>\}/, "the other relatedEl use must be gated on !closed");
     });
+
+    it("every flowing-tag-list section (must-have skills, keywords) gates on visibleTags, not a raw array's .length", () => {
+        // Was: `job.tags && job.tags.length > 0` — true even when every entry
+        // decodes to a blank string, which rendered "Keywords from the
+        // posting" (or "Must-have skills") as a heading over nothing. One
+        // guard (`visibleTags(...).length > 0`) now covers every sibling
+        // section instead of each one re-deriving its own raw-array check.
+        const doc = readFileSync(JOB_DOCUMENT, "utf8");
+        assert.doesNotMatch(doc, /job\.tags\s*&&\s*job\.tags\.length/, "keywords section must not gate on the raw array");
+        assert.doesNotMatch(doc, /job\.must_have_skills\s*&&\s*job\.must_have_skills\.length/, "must-have-skills section must not gate on the raw array");
+        const docVisibleTagsUses = doc.match(/visibleTags\(/g) ?? [];
+        assert.ok(docVisibleTagsUses.length >= 4, `JobDetailDocument.tsx: expected both sections to gate AND render via visibleTags, found ${docVisibleTagsUses.length} call(s)`);
+
+        const detail = readFileSync(JOB_DETAIL, "utf8");
+        assert.doesNotMatch(detail, /job\.tags\s*&&\s*job\.tags\.length/, "JobDetail's keywords section must not gate on the raw array either");
+        const detailVisibleTagsUses = detail.match(/visibleTags\(/g) ?? [];
+        assert.ok(detailVisibleTagsUses.length >= 2, `JobDetail.tsx: expected the keywords section to gate AND render via visibleTags, found ${detailVisibleTagsUses.length} call(s)`);
+    });
 });
