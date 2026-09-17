@@ -7,19 +7,24 @@ import { facetValueLabel } from '../../src/components/jobs/FilterPanel';
 /**
  * "Ghost job" is industry jargon. A nurse reading a results page has very
  * likely never heard it, so the product says "Possibly stale" / "Worth
- * verifying" / "Actively posted" instead. The term survives in exactly two
- * places, both deliberate: the research explainer that ranks for the search
- * (`src/app/research/ghost-jobs`), and the SEO layer (`src/lib/seo`) — meta
+ * verifying" / "Actively posted" instead. The term survives in exactly three
+ * places, all deliberate: the research explainer that ranks for the search
+ * (`src/app/research/ghost-jobs`), the SEO layer (`src/lib/seo`) — meta
  * descriptions, keyword lists, JSON-LD, and the `GHOST_JOB_TERM` constant that
- * every search-facing string elsewhere interpolates from.
+ * every search-facing string elsewhere interpolates from — and the job-search
+ * FAQ (`src/lib/faq.ts`), which answers "what is a ghost job" by name for the
+ * same reason the research page does: that is the literal query it's built to
+ * rank for (it feeds the FAQPage JSON-LD too), and a glossary entry that won't
+ * say the word it's defining isn't plain language, it's evasive.
  *
- * That is the whole exemption rule — a ROUTE and a LAYER, each of which speaks
- * to search engines rather than to somebody using the product, and neither of
- * which renders body copy. There is deliberately no list of file names here:
- * the previous rename went half-done precisely because the labels were
- * restated in files nobody remembered, and a guard that has to be told which
- * files to skip decays exactly the way that rename did. Any new file that puts
- * the jargon in front of a user fails this test on the day it is written.
+ * That is the whole exemption rule — a ROUTE, a LAYER, and one FILE, each of
+ * which speaks to search engines or explicitly defines the term rather than
+ * assuming a reader already knows it. There is deliberately no broader list of
+ * file names here: the previous rename went half-done precisely because the
+ * labels were restated in files nobody remembered, and a guard that has to be
+ * told which files to skip decays exactly the way that rename did. Any new
+ * file that puts the jargon in front of a user fails this test on the day it
+ * is written.
  *
  * The DATA is untouched and always will be: `ghost_badge` is a live Meili
  * facet, `ghost_job` a stored report reason, `ghosts` a URL param and
@@ -30,6 +35,7 @@ import { facetValueLabel } from '../../src/components/jobs/FilterPanel';
 const SRC = join(__dirname, '..', '..', 'src');
 const EXEMPT_SUBJECT_ROUTE = join('app', 'research', 'ghost-jobs');
 const EXEMPT_SEO_LAYER = join('lib', 'seo');
+const EXEMPT_SEARCH_FAQ = join('lib', 'faq.ts');
 
 /**
  * Whole-word only, and that word boundary is doing real work in three ways:
@@ -110,7 +116,7 @@ describe('plain language: the product does not say "ghost job"', () => {
         const offenders: string[] = [];
         for (const file of sourceFiles(SRC)) {
             const rel = relative(SRC, file);
-            if (rel.startsWith(EXEMPT_SUBJECT_ROUTE) || rel.startsWith(EXEMPT_SEO_LAYER)) continue;
+            if (rel.startsWith(EXEMPT_SUBJECT_ROUTE) || rel.startsWith(EXEMPT_SEO_LAYER) || rel === EXEMPT_SEARCH_FAQ) continue;
             for (const prose of proseIn(readFileSync(file, 'utf8'))) {
                 if (JARGON.test(prose)) offenders.push(`${rel}: ${prose.trim().slice(0, 90)}`);
             }

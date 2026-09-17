@@ -19,7 +19,7 @@ describe("pairedKpiChips", () => {
         const chips = pairedKpiChips({ opened90d: 14, closed90d: 3 });
         assert.deepEqual(chips, [
             { value: "14", label: "Opened, 90d" },
-            { value: "3", label: "Closed, 90d" },
+            { value: "3", label: "Closures observed, 90d" },
         ]);
         for (const chip of chips) {
             assert.equal(chip.value.includes("/"), false, `chip value "${chip.value}" must never contain a "/" — that is the fraction-look bug`);
@@ -30,7 +30,7 @@ describe("pairedKpiChips", () => {
         const chips = pairedKpiChips({ opened90d: 0, closed90d: 0 });
         assert.deepEqual(chips, [
             { value: "0", label: "Opened, 90d" },
-            { value: "0", label: "Closed, 90d" },
+            { value: "0", label: "Closures observed, 90d" },
         ]);
     });
 
