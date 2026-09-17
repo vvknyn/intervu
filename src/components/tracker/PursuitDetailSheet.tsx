@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHandle, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +34,7 @@ interface PursuitDetailSheetProps {
 }
 
 const fieldClass =
-    "border-transparent bg-muted focus-visible:border-[#c5ccd6] focus-visible:bg-background";
+    "border-transparent bg-muted focus-visible:border-border-strong focus-visible:bg-background";
 
 export function PursuitDetailSheet({
     pursuit,
@@ -151,7 +151,7 @@ function PursuitDetailBody({
         <>
             <div className="shrink-0 border-b border-border">
                 <div className="flex justify-center pb-1 pt-2.5">
-                    <span className="h-1 w-9 rounded-none bg-[#d0d6de]" aria-hidden="true" />
+                    <SheetHandle className="h-1 w-9" />
                 </div>
                 <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
                     <SheetHeader className="min-w-0 flex-1 space-y-0 text-left">

@@ -17,6 +17,7 @@ import { StarStory, SourceItem } from "@/types";
 import { fetchProfile } from "@/actions/profile";
 import { LOGIN_REQUIRED, pickRandom } from "@/lib/copy";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
+import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
 function StoriesLoading() {
     return (
@@ -150,7 +151,7 @@ function StoriesContent() {
                         onClick={() => setAuthPopoverOpen(true)}
                         className="min-w-[120px]"
                     >
-                        Sign in
+                        {AUTH_CTA_LABEL}
                     </Button>
                     <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} trigger="user" />
                 </div>

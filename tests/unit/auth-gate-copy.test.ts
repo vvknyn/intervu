@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+    AUTH_CTA_LABEL,
     authCardCopy,
     formatAuthGateValueLine,
     guestKeepLine,
@@ -82,7 +83,7 @@ test("authCardCopy: tab label, title, and submit label are identical per tab", (
     const login = authCardCopy("login");
     assert.equal(login.tabLabel, login.title);
     assert.equal(login.tabLabel, login.submitLabel);
-    assert.equal(login.title, "Sign in");
+    assert.equal(login.title, AUTH_CTA_LABEL);
 
     const signup = authCardCopy("signup");
     assert.equal(signup.tabLabel, signup.title);

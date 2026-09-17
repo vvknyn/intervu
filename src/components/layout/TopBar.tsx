@@ -25,6 +25,7 @@ import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrom
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
+import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
 /**
  * Frozen coherent chrome:
@@ -262,7 +263,7 @@ export function TopBar() {
                             }}
                             className="whitespace-nowrap px-1 text-sm text-foreground transition-opacity hover:opacity-80"
                         >
-                            Sign in
+                            {AUTH_CTA_LABEL}
                         </button>
                         {/* Ghost, not filled — the header carries zero filled
                             controls (round-7 canvas correction). */}

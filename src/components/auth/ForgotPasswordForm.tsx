@@ -56,7 +56,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                     onClick={onBack}
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                    Back to login
+                    Back to sign in
                 </button>
             </div>
         );

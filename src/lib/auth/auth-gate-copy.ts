@@ -67,6 +67,11 @@ export function formatAuthGateValueLine(reason: AuthGateReason, guestPursuitCoun
     return keep ? `${keep} ${lead}` : lead;
 }
 
+/** Canonical label for every sign-in control site-wide — control-names-the-
+ *  action, single spelling so it cannot drift per surface (reviewer round 1
+ *  fix-up, 2026-09-17: two sites had drifted to "Log In"). */
+export const AUTH_CTA_LABEL = "Sign in";
+
 export type AuthCardTab = "login" | "signup";
 
 export interface AuthCardCopy {
@@ -81,7 +86,7 @@ export interface AuthCardCopy {
  *  of three call sites each picking their own string is what makes them
  *  incapable of drifting apart. */
 export function authCardCopy(tab: AuthCardTab): AuthCardCopy {
-    const label = tab === "signup" ? "Create account" : "Sign in";
+    const label = tab === "signup" ? "Create account" : AUTH_CTA_LABEL;
     return {
         title: label,
         tabLabel: label,

@@ -574,24 +574,6 @@ h3,
 h4 {
 }
 
-/* Detail pane at xl+ — outer drop shadow that lifts it above the list
-   column beside it, so the two columns read as foreground vs. tray rather
-   than two equal sheets. Inset top highlight from the old inline shadow
-   is preserved and strengthened. */
-.detail-pane-raised {
-  box-shadow:
-    0 0 0 1px rgba(10, 10, 10, 0.06),
-    0 4px 28px -6px rgba(10, 10, 10, 0.18),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.60);
-}
-
-.dark .detail-pane-raised {
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 4px 32px -6px rgba(0, 0, 0, 0.65),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.10);
-}
-
 /* Minimalist Animation */
 @keyframes fadeIn {
   from {
@@ -669,6 +651,14 @@ h4 {
 
 .line-enter {
   animation: panel-enter var(--transition-fast) ease-out both;
+}
+
+/* Composes --topbar-h + --jobs-sticky-gap for any surface that sits below
+   the fixed header with the same clearance the jobs list uses — a single
+   chokepoint so the two tokens can move without hunting down every site
+   that used to hardcode their sum as a pixel literal. */
+.below-topbar {
+  padding-top: calc(var(--topbar-h) + var(--jobs-sticky-gap));
 }
 
 /* Selection colors tied to brand */

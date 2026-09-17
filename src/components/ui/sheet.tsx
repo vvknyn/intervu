@@ -247,6 +247,15 @@ const SheetOverlay = React.forwardRef<
 ))
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
+/** The grab handle on a bottom sheet — token classes only (bg-border, no
+ *  border, radius 0), sized h-1.5 w-10 by default. Pass `className` to pick
+ *  a site's existing size (e.g. the tracker sheets' h-1 w-9) rather than
+ *  hand-copying a hex fill on every sheet that needs one. */
+const SheetHandle = ({ className }: { className?: string }) => (
+    <span aria-hidden="true" className={cn("h-1.5 w-10 rounded-none bg-border", className)} />
+)
+SheetHandle.displayName = "SheetHandle"
+
 const sheetVariants = cva(
     "fixed z-[150] gap-4 bg-background border border-border text-foreground p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
     {
@@ -372,6 +381,7 @@ export {
     SheetTrigger,
     SheetClose,
     SheetContent,
+    SheetHandle,
     SheetHeader,
     SheetFooter,
     SheetTitle,
