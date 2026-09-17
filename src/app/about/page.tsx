@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BoardComparisonTable } from "@/components/marketing/BoardComparisonTable";
+import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
 import { JOB_SEARCH_FAQ } from "@/lib/faq";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
@@ -54,7 +55,8 @@ export default function AboutPage() {
           long it&apos;s been open, whether it&apos;s been updated recently, and whether it looks like the kind of
           listing that quietly goes nowhere. None of this is a guess dressed up as certainty — see our{" "}
           <Link href="/terms">terms</Link> for how we frame these signals — but it&apos;s a lot more than a bare
-          listing gives you.
+          listing gives you. Read how we{" "}
+          <Link href={GHOST_RESEARCH_HREF}>screen for stale postings</Link>.
         </p>
 
         <h2 className={ASEC}>Compared to Indeed and LinkedIn</h2>

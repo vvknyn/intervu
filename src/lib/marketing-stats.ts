@@ -1,5 +1,16 @@
 import { type CorpusCount } from "@/lib/jobs/corpus-count";
 
+/** Single source of truth for every user-visible "screened for ghost jobs /
+ *  postings that aren't really hiring" claim — link the claim, don't just
+ *  assert it (front-door E1). */
+export const GHOST_RESEARCH_HREF = "/research/ghost-jobs";
+
+/** The screening clause of the provenance claim — its own export (front-door
+ *  E1) so a renderer can split `CORPUS_SOURCE_DESCRIPTOR`-derived text on
+ *  this exact substring and wrap it in a link to `GHOST_RESEARCH_HREF`,
+ *  instead of a second, independently-typed copy of the phrase. */
+export const GHOST_SCREENING_CLAUSE = "screened for stale postings";
+
 /**
  * The honest-market claim's factual core — source provenance + ghost
  * screening. Single source of truth: the landing claim sentence and the
@@ -11,7 +22,7 @@ import { type CorpusCount } from "@/lib/jobs/corpus-count";
  * companies' own career pages" states the same fact from the seeker's side.
  */
 export const CORPUS_SOURCE_DESCRIPTOR =
-    "from companies' own career pages across the US, Canada and remote, screened for stale postings";
+    `from companies' own career pages across the US, Canada and remote, ${GHOST_SCREENING_CLAUSE}`;
 
 /**
  * Numbers the landing claim can render when available. Sourced from the same

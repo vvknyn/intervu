@@ -14,6 +14,8 @@ import { locationText } from "@/lib/jobs/presentation";
 import {
     heuristicTailorResume,
     introducesNewNumbers,
+    resumeFullText,
+    type TailorBulletDiff,
     type TailorDraft,
     type TailorJobInput,
 } from "./tailor-resume";
@@ -109,7 +111,6 @@ function applyModelTailor(
         const hit = exp.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8);
         if (!hit) continue;
 
-        if (introducesNewNumbers(hit, text)) continue;
         if (text.toLowerCase().includes(exp.company.toLowerCase()) === false && /\b(at|for)\s+[A-Z]/.test(text)) {
             const origCompany = exp.company.toLowerCase();
             const mentioned = resume.experience.some(
@@ -150,40 +151,102 @@ function applyModelTailor(
     };
 }
 
+const GROUNDED_WORD_MIN_LENGTH = 4;
+const GROUNDED_WORD_RE = new RegExp(`[a-z]{${GROUNDED_WORD_MIN_LENGTH},}`, "g");
+
+/** Raw (unfiltered) word membership for `resumeText` — deliberately not the
+ *  stopword-filtered `resumeVocabulary` used for JD-overlap scoring in
+ *  tailor-resume.ts: ordinary words like "team" or "company" are fine for a
+ *  rewrite to reuse, only words absent from the résumé altogether are
+ *  invented claims. */
+function resumeWordSet(resumeText: string): Set<string> {
+    return new Set(resumeText.toLowerCase().match(GROUNDED_WORD_RE) ?? []);
+}
+
+/** True when `text` contains a word of `GROUNDED_WORD_MIN_LENGTH`+ letters
+ *  that never appears anywhere in the résumé's own text. */
+function introducesUngroundedWord(vocabulary: Set<string>, text: string): boolean {
+    const words = text.toLowerCase().match(GROUNDED_WORD_RE) ?? [];
+    return words.some((w) => !vocabulary.has(w));
+}
+
+function isGrounded(vocabulary: Set<string>, before: string, after: string): boolean {
+    return !introducesNewNumbers(before, after) && !introducesUngroundedWord(vocabulary, after);
+}
+
+function revertBulletInResume(resume: ResumeData, bullet: TailorBulletDiff): ResumeData {
+    const expIdx = resume.experience.findIndex((e) => e.id === bullet.experienceId);
+    if (expIdx < 0) return resume;
+    resume.experience[expIdx] = {
+        ...resume.experience[expIdx],
+        description: resume.experience[expIdx].description.replace(bullet.after, bullet.before),
+    };
+    return resume;
+}
+
+/**
+ * The tailor's truthfulness gate (front-door C1) — applied to every accepted
+ * draft, heuristic or model, at draft-acceptance time. Drops any bullet or
+ * summary edit that (a) introduces a number absent from its original, or (b)
+ * introduces a word of `GROUNDED_WORD_MIN_LENGTH`+ letters absent from the
+ * résumé's own text (an unconditional class guard — it runs on every draft,
+ * not just the one that surfaced the bug). A dropped bullet is reverted to
+ * its original text in `tailored`, not merely excluded from the diff list,
+ * so the returned résumé never carries an ungrounded claim.
+ */
+export function groundDraft(resumeText: string, draft: TailorDraft): TailorDraft {
+    const vocabulary = resumeWordSet(resumeText);
+
+    let tailored = draft.tailored;
+    const bullets = draft.bullets.filter((b) => {
+        if (isGrounded(vocabulary, b.before, b.after)) return true;
+        tailored = revertBulletInResume(tailored, b);
+        return false;
+    });
+
+    const summaryGrounded = isGrounded(vocabulary, draft.summaryBefore, draft.summaryAfter);
+    const summaryAfter = summaryGrounded ? draft.summaryAfter : draft.summaryBefore;
+    tailored.generatedSummary = summaryAfter;
+
+    return { ...draft, tailored, bullets, summaryAfter };
+}
+
 export async function tailorResumeForJob(
     resume: ResumeData,
     job: TailorJobInput,
     opts?: { allowModel?: boolean },
 ): Promise<TailorDraft> {
     const allowModel = opts?.allowModel ?? false;
+    const resumeText = resumeFullText(resume);
+    const heuristicFallback = () => groundDraft(resumeText, heuristicTailorResume(resume, job));
 
     if (!allowModel || !readLocalAiConsent()) {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
     await initLocalAiLadder();
     const engineId = getActiveEngineId();
 
     if (engineId === "heuristic") {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
     const raw = await generateWithActiveEngine(buildModelPrompt(resume, job));
     if (!raw) {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
     const parsed = tryParseModelJson(raw);
     if (!parsed) {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
     const modelDraft = applyModelTailor(resume, job, parsed, engineId);
     if (!modelDraft) {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
-    return modelDraft;
+    return groundDraft(resumeText, modelDraft);
 }
 
 /** PublicJob → TailorJobInput adapter for UI callers. */

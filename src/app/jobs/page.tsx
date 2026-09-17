@@ -1372,15 +1372,12 @@ function JobsContent() {
     // The chips row renders every chosen place and can remove any one.
     const [locationDraft, setLocationDraft] = useState("");
     const [locationSheetOpen, setLocationSheetOpen] = useState(false);
-    const [mobileResultsEngaged, setMobileResultsEngaged] = useState(false);
-    // Item 7a (2026-08-21 front-door audit): narrower and earlier than
-    // `mobileResultsEngaged` — that one flips on SUBMIT, this one flips on
-    // FOCUS, so the masthead gets out of the way the moment a mobile visitor
-    // starts typing rather than after they finish. Same one-way-ratchet
-    // shape (set once, never reset) as `mobileResultsEngaged` above, for the
-    // same reason: a blur mid-edit (e.g. tapping the location field next to
-    // it) must not un-collapse the masthead under a query the visitor is
-    // still composing.
+    // Item 7a (2026-08-21 front-door audit): flips on FOCUS (not submit), so
+    // the masthead gets out of the way the moment a mobile visitor starts
+    // typing rather than after they finish. One-way ratchet (set once, never
+    // reset): a blur mid-edit (e.g. tapping the location field next to it)
+    // must not un-collapse the masthead under a query the visitor is still
+    // composing.
     const [mobileSearchFocused, setMobileSearchFocused] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -1492,7 +1489,6 @@ function JobsContent() {
         searchAutocompleteRef.current?.close();
         setQueryDraft(q);
         setQuery(q);
-        setMobileResultsEngaged(true);
         recordRecentSearch(q);
         applyUrlState(buildUrlState({ q }), "push");
         // Step 1 of the funnel (docs/analytics/FUNNEL.md). Placed at this one
@@ -2135,7 +2131,7 @@ function JobsContent() {
     // Single gate for "the header owns this search now" — lg+ always docks,
     // including the pristine default browse; mobile keeps the in-page well.
     const headerDockActive = isLgUp && showSearchHome;
-    const showLandingMarketing = isPristineLanding && !mobileResultsEngaged && showSearchHome;
+    const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
@@ -3390,9 +3386,8 @@ function JobsContent() {
     // keyed on `[flushSearchIntent]`, so it can hold a `buildUrlState` from an
     // earlier render and write a stale `sort`/`job` back into the URL. The
     // intent bookends are spelled out here for the same reason they were
-    // before — this mutator engages mobile results and flushes a typed draft.
+    // before — this mutator flushes a typed draft.
     const onBoardChange = (next: BoardId | null) => {
-        setMobileResultsEngaged(true);
         applyFilterState({ ...filterState, board: next });
         flushSearchIntent();
     };
@@ -3454,7 +3449,6 @@ function JobsContent() {
 
     const applyFilterStateWithIntent = useCallback(
         (next: FilterState) => {
-            setMobileResultsEngaged(true);
             applyFilterState(next);
             flushSearchIntent();
         },
@@ -4336,13 +4330,12 @@ function JobsContent() {
                     c.q.toLowerCase() === queryDraft.toLowerCase(),
             ) ?? null,
         [query, queryDraft],
-    );    const mobilePrimaryCtaLabel = showLandingMarketing && !query.trim() ? "Show jobs" : "Search";
+    );
 
+    // A1 (front-door redesign): the mobile primary CTA is always "Search" and
+    // always submits — no separate "just engage the results view" tap-through
+    // for an empty draft.
     const handleMobilePrimaryCta = () => {
-        if (showLandingMarketing && !queryDraft.trim()) {
-            setMobileResultsEngaged(true);
-            return;
-        }
         submitSearch(queryDraft);
     };
 
@@ -4929,6 +4922,16 @@ function JobsContent() {
         !isLgUp && showSearchHome && !detailSheetOpen && !locationSheetOpen && !authOpen && !importOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
 
     /**
+     * Single source of truth for whether `ColdVisitorOrientation` renders at
+     * all — same visibility condition at both mount sites (A1, front-door
+     * redesign): desktop keeps its position under the masthead (`lg:block`),
+     * mobile moves it inside the results list after the 3rd row (`lg:hidden`,
+     * in the results `flatMap` below). One component, two mounts, hoisted
+     * here so the two can't drift onto different conditions.
+     */
+    const showColdOrientation = !user && resumeOnFile !== true && !hasUsableResume;
+
+    /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
      * and result count stay mounted whether the query is empty
      * (`isSerpAsk` — tappable search seeds, chrome preserved) or has
@@ -4991,10 +4994,13 @@ function JobsContent() {
                             <h1 className="text-xl sm:text-2xl font-semibold text-foreground">
                                 {JOBS_USP.mastheadTitle}
                             </h1>
-                            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                            {/* A1 (front-door redesign): mobile masthead is eyebrow +
+                                H1 only — no paragraph, no count. Desktop keeps the
+                                paragraph; the live count now renders once, at the end
+                                of the results list (`liveCountEl` below), not here. */}
+                            <p className="mt-2 hidden max-w-2xl text-sm text-muted-foreground lg:block">
                                 {JOBS_USP.searchDescription}
                             </p>
-                            {liveCountEl}
                         </div>
                     </div>
                 ) : (
@@ -5007,9 +5013,9 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                {!user && resumeOnFile !== true && !hasUsableResume && (
-                    <div className={cn("mt-2", cappedContentClass)}>
-                        <ColdVisitorOrientation onRankByFit={handleUploadClick} />
+                {showColdOrientation && (
+                    <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
+                        <ColdVisitorOrientation onRankByFit={() => handleUploadClick()} />
                     </div>
                 )}
 
@@ -5028,13 +5034,9 @@ function JobsContent() {
                 <section
                     className="rounded-none border border-border bg-card p-2 sm:p-2.5 transition-colors"
                 >
-                    {/* The live count, moved here off the TopBar. Same /trends
-                        destination it always had — it is a way into the report,
-                        not a badge. Absent until a real count resolves.
-                        Suppressed during the landing masthead, which already
-                        renders this same `liveCountEl` itself — otherwise a
-                        mobile pristine visitor would see the count twice. */}
-                    {!showLandingMarketing && liveCountEl}
+                    {/* A3 (front-door redesign): the live count renders once,
+                        at the end of the results list (`liveCountEl` below) —
+                        not here, so it can't appear twice on screen. */}
                     {/* Collapses once the header carries a live copy of this
                         search (`headerDockActive`, lg+ only) — the reclaimed
                         height goes straight to results instead of two typing
@@ -5418,7 +5420,7 @@ function JobsContent() {
                             homeView="for-you"
                             onHomeViewChange={setJobsHomeView}
                             showToggle={resumeOnFile === true}
-                            onReplaceResume={handleUploadClick}
+                            onReplaceResume={() => handleUploadClick()}
                             hasUsableResume={hasUsableResume}
                         />
                     </div>
@@ -5484,8 +5486,8 @@ function JobsContent() {
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
                         {/* Mobile cold visitors already get a seeded default browse
                             (overlay-ask); hiding the results column forced an extra
-                            typed query / "Show jobs" tap before result_clicked /
-                            job_viewed, dropping the funnel at pageview. */}
+                            typed query before result_clicked / job_viewed, dropping
+                            the funnel at pageview. */}
                         <div className="flex min-h-0 flex-1 flex-col">
                             <>
                                 <BoardVisitBanner />
@@ -5896,6 +5898,20 @@ function JobsContent() {
                                                 ),
                                                 ...(expanded ? cluster.variants.map((v) => renderJobRow(v)) : []),
                                             ];
+                                            // A1 (front-door redesign): mobile-only
+                                            // ColdVisitorOrientation mount, after the 3rd
+                                            // row — same `showColdOrientation` condition as
+                                            // the desktop mount under the masthead
+                                            // (`lg:hidden` here, that one `lg:block`), own
+                                            // dismiss state (ColdVisitorOrientation.tsx),
+                                            // one component, two mounts.
+                                            if (showColdOrientation && i === 2) {
+                                                rows.push(
+                                                    <div key="cold-orientation-mobile" className={cn("mt-2 lg:hidden", cappedContentClass)}>
+                                                        <ColdVisitorOrientation onRankByFit={() => handleUploadClick()} />
+                                                    </div>,
+                                                );
+                                            }
                                             // Under `fitActive` the visible order is the
                                             // match-score resort above, not relevance —
                                             // the "titled it vs mentions it" seam text no
@@ -6000,6 +6016,12 @@ function JobsContent() {
                                         seeds={searchSeeds}
                                         onSubmitSeed={submitSearch}
                                     />
+                                    {/* A3 (front-door redesign): the corpus count renders
+                                        exactly once, here at the end of the results list —
+                                        not in the masthead, not in the search well. */}
+                                    {liveCountEl && (
+                                        <div className="border-t border-border pt-4 pb-1">{liveCountEl}</div>
+                                    )}
                                 </div>
                                 </>
                             )}
@@ -6044,7 +6066,7 @@ function JobsContent() {
                         onClick={handleMobilePrimaryCta}
                         className="h-11 w-full rounded-none bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
                     >
-                        {mobilePrimaryCtaLabel}
+                        Search
                     </Button>
                 </div>
             )}

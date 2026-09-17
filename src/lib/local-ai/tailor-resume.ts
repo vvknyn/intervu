@@ -76,14 +76,25 @@ function uniqueTokens(text: string): string[] {
     return [...new Set(tokenize(text))];
 }
 
-function resumeVocabulary(resume: ResumeData): Set<string> {
-    const parts = [
+/**
+ * Every field of the résumé that counts as "the résumé's own text" — single
+ * source for both keyword-overlap scoring (`resumeVocabulary`, stopword-
+ * filtered, below) and the grounding truthfulness check
+ * (`tailor-with-engine.ts`'s `groundDraft`, which needs the raw, unfiltered
+ * text — stopwords like "team"/"company" are ordinary words a rewrite is
+ * allowed to reuse, not fabricated claims).
+ */
+export function resumeFullText(resume: ResumeData): string {
+    return [
         resume.profile.profession,
         resume.generatedSummary,
         ...resume.competencies.flatMap((c) => [c.category, ...c.skills]),
         ...resume.experience.flatMap((e) => [e.role, e.company, e.description]),
-    ];
-    return new Set(tokenize(parts.join(" ")));
+    ].join(" ");
+}
+
+function resumeVocabulary(resume: ResumeData): Set<string> {
+    return new Set(tokenize(resumeFullText(resume)));
 }
 
 function extractJdKeywords(job: TailorJobInput): string[] {
@@ -144,15 +155,6 @@ function replaceBulletLine(description: string, index: number, newLine: string, 
     return rebuilt.join("\n");
 }
 
-function titleAlreadyInSummary(summary: string, title: string): boolean {
-    const summaryLower = summary.toLowerCase();
-    const titleLower = title.toLowerCase().trim();
-    if (!titleLower) return true;
-    if (summaryLower.includes(titleLower)) return true;
-    const titleTokens = tokenize(title).filter((t) => t.length >= 4);
-    return titleTokens.some((t) => summaryLower.includes(t));
-}
-
 function termAlreadyPresent(text: string, term: string): boolean {
     return text.toLowerCase().includes(term.toLowerCase());
 }
@@ -167,19 +169,17 @@ function composeBaseSummary(resume: ResumeData): string {
     return [prof, yoePhrase].filter(Boolean).join(" — ") + skillPhrase + ".";
 }
 
+// Used to append a fabricated "Recent focus includes <title> work." clause
+// whenever the job title wasn't already reflected in the summary — a claim
+// about what the candidate has recently been doing that the résumé itself
+// never made. Deleted (front-door C1): a tailor that cannot invent leaves
+// the summary alone instead of inventing a sentence to cover the gap.
 function rewriteSummary(
     base: string,
-    job: TailorJobInput,
     overlapTerms: string[],
 ): string {
     let result = base.trim();
     if (!result.endsWith(".")) result += ".";
-
-    const title = job.title.trim();
-    if (title && !titleAlreadyInSummary(result, title)) {
-        const clause = `Recent focus includes ${title.toLowerCase()} work.`;
-        result = `${result.replace(/\.$/, "")}. ${clause}`;
-    }
 
     const freshTerms = overlapTerms.filter((t) => !termAlreadyPresent(result, t)).slice(0, 2);
     if (freshTerms.length > 0) {
@@ -267,7 +267,7 @@ export function heuristicTailorResume(resume: ResumeData, job: TailorJobInput): 
     const overlapTerms = jdKeywordsWithResumeOverlap(jdKeywords, resumeTokens);
 
     const summaryBefore = composeBaseSummary(resume);
-    const summaryAfter = rewriteSummary(summaryBefore, job, overlapTerms);
+    const summaryAfter = rewriteSummary(summaryBefore, overlapTerms);
     tailored.generatedSummary = summaryAfter;
 
     const bullets: TailorBulletDiff[] = [];

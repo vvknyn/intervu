@@ -5,8 +5,15 @@ import {
     heuristicTailorResume,
     introducesNewNumbers,
     looksRoboticTailor,
+    resumeFullText,
+    type TailorDraft,
 } from "../../src/lib/local-ai/tailor-resume";
-import { buildModelPrompt, TAILOR_VOICE_RULES } from "../../src/lib/local-ai/tailor-with-engine";
+import {
+    buildModelPrompt,
+    ENGINE_LABELS,
+    groundDraft,
+    TAILOR_VOICE_RULES,
+} from "../../src/lib/local-ai/tailor-with-engine";
 import type { ResumeData } from "../../src/types/resume";
 
 function mkResume(
@@ -173,6 +180,18 @@ describe("heuristicTailorResume", () => {
             assert.equal(introducesNewNumbers(b.before, b.after), false);
         }
     });
+
+    it("summary unchanged when the job title has no overlap with the résumé (no fabricated claim)", () => {
+        const draft = heuristicTailorResume(PM_RESUME, {
+            title: "Welding Technician",
+            tags: ["welding", "metal", "fabrication"],
+            description: "Weld and fabricate metal components using MIG and TIG welding techniques.",
+        });
+
+        assert.equal(draft.summaryAfter, draft.summaryBefore);
+        assert.doesNotMatch(draft.summaryAfter, /recent focus/i);
+        assert.doesNotMatch(draft.summaryAfter, /welding/i);
+    });
 });
 
 describe("buildModelPrompt voice rules", () => {
@@ -192,5 +211,49 @@ describe("introducesNewNumbers", () => {
         assert.equal(introducesNewNumbers("Increased revenue 20%", "Increased revenue 35%"), true);
         assert.equal(introducesNewNumbers("Team of 5 engineers", "Team of 5 engineers"), false);
         assert.equal(extractDigitRuns("20% and 3 teams").length, 2);
+    });
+});
+
+describe("groundDraft", () => {
+    function draftWithBullet(before: string, after: string): TailorDraft {
+        const tailored = JSON.parse(JSON.stringify(PM_RESUME)) as ResumeData;
+        const expIdx = tailored.experience.findIndex((e) => e.id === "exp-1");
+        tailored.experience[expIdx] = {
+            ...tailored.experience[expIdx],
+            description: tailored.experience[expIdx].description.replace(before, after),
+        };
+        return {
+            engineId: "heuristic",
+            engineLabel: ENGINE_LABELS.heuristic,
+            usedDescription: true,
+            summaryBefore: PM_RESUME.generatedSummary,
+            summaryAfter: PM_RESUME.generatedSummary,
+            bullets: [
+                { experienceId: "exp-1", company: "Acme Corp", role: "Senior Product Manager", before, after },
+            ],
+            tailored,
+        };
+    }
+
+    it("drops a heuristic-style bullet that introduces a digit absent from the original", () => {
+        const before = "Led product planning for B2B SaaS platform";
+        const after = "Led product planning for B2B SaaS platform 5";
+        const draft = groundDraft(resumeFullText(PM_RESUME), draftWithBullet(before, after));
+
+        assert.equal(draft.bullets.length, 0);
+        const description = draft.tailored.experience.find((e) => e.id === "exp-1")!.description;
+        assert.ok(description.includes(before));
+        assert.ok(!description.includes(after));
+    });
+
+    it("drops a model-branch-style bullet that introduces a skill word absent from the résumé", () => {
+        const before = "Managed roadmap prioritization with engineering";
+        const after = "Managed roadmap prioritization with Kubernetes";
+        const draft = groundDraft(resumeFullText(PM_RESUME), draftWithBullet(before, after));
+
+        assert.equal(draft.bullets.length, 0);
+        const description = draft.tailored.experience.find((e) => e.id === "exp-1")!.description;
+        assert.ok(description.includes(before));
+        assert.ok(!description.includes(after));
     });
 });
