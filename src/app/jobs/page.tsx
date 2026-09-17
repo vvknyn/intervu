@@ -408,7 +408,7 @@ function ToolbarSegment({
  * `remoteAnywhere` (`result.remoteAnywhere`, search.ts) names the scope via
  * `locationDefaultScope` (location-default-preference.ts) instead of a bare
  * country name — the applied place filter also OR's in every remote role
- * with no country tag (`REMOTE_ANYWHERE_CLAUSE`), so "near {country}" alone
+ * with no country tag (`REMOTE_ANYWHERE_CLAUSE`), so a bare country scope alone
  * used to read as a promise the query didn't keep (results included e.g.
  * Sydney/Dubai remote listings under a "near Canada" chip).
  */
@@ -429,7 +429,7 @@ function DefaultLocationChip({
             className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
         >
             {flag && <span aria-hidden>{flag}</span>}
-            near {scope}
+            {scope}
             <ChipDismiss label={`Stop defaulting to ${scope}`} onClick={onClear} />
         </span>
     );
@@ -1764,7 +1764,6 @@ function JobsContent() {
         setSearchAlertSubmitted(isSearchAlertSubmitted());
         setSearchInteractions(getOnboardingInteractionCount());
     }, []);
-    const searchAlertVerifiedRef = useRef(false);
     // The masthead's provenance sentence is a constant now
     // (`LANDING_PROVENANCE_LINE`) — it holds no number, so it needs no fetch
     // and no state, and it renders on the server instead of appearing a beat
@@ -4307,17 +4306,12 @@ function JobsContent() {
         setManualAlertOpen(false);
     }, []);
 
-    useEffect(() => {
-        if (searchParams.get("search_alert") !== "1") return;
-        if (searchAlertVerifiedRef.current) return;
-        searchAlertVerifiedRef.current = true;
-        captureEvent("search_alert_verified", {
-            surface: resultsPanel === "empty" ? "zero_results" : "results",
-            query_length: searchAlertQueryLength,
-            filter_count: searchAlertFilterCount,
-            has_results: resultsPanel !== "empty",
-        });
-    }, [searchParams, resultsPanel, searchAlertQueryLength, searchAlertFilterCount]);
+    // `search_alert_verified` is captured server-side now (POST /api/
+    // search-alerts/verify's GET handler, on successful token consumption) —
+    // that request happens between the click and this page ever painting, so
+    // it is the one place this event can't be dropped by a redirect the
+    // client-side effect below would race. See `src/lib/analytics/
+    // server-capture.ts`.
 
     // SERP-ask's tappable seeds — recent searches first, then the curated
     // fallback list, deduped to ~8 (lib/jobs/recent-searches.ts,
@@ -4655,6 +4649,40 @@ function JobsContent() {
         </DropdownMenu>
     );
 
+    // A2 (desktop first screen): the SAME `indexCategories`/`submitSearch`
+    // field-directory data as a suggestion-chip row instead of a dropdown —
+    // portaled into the docked toolbar's field-directory slot ONLY while
+    // `showLandingMarketing` (query empty, nothing applied yet), directly
+    // under the docked search input. `fieldDirectoryMenu` above still owns
+    // every post-interaction mount (search well, toolbar row, and the same
+    // docked slot once the query isn't empty) on both mobile and desktop —
+    // this is an additive empty-query variant, not a replacement, so mobile
+    // (which never sets `headerDockActive`) is untouched.
+    const fieldDirectorySuggestionChips = (
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="field-directory-chips">
+            {indexCategories.map((cat) => {
+                const isMatch =
+                    query.toLowerCase() === cat.q.toLowerCase() &&
+                    queryDraft.toLowerCase() === cat.q.toLowerCase();
+                return (
+                    <button
+                        key={cat.q}
+                        type="button"
+                        data-testid="field-directory-chip"
+                        onClick={() => submitSearch(cat.q)}
+                        className={cn(
+                            chipVariants({ active: isMatch, interactive: true }),
+                            toolbarControlHeight,
+                            "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap px-3 text-xs font-semibold leading-none transition-colors",
+                        )}
+                    >
+                        {cat.title}
+                    </button>
+                );
+            })}
+        </div>
+    );
+
     const savedSearchControl = canSaveSearch ? (
         <SavedSearchesPanel
             saved={savedSearches}
@@ -4720,6 +4748,41 @@ function JobsContent() {
                 )}
             </>
         ) : null;
+
+    // E3 (save-this-search, 2026-09-17): a second, compact save/alert entry
+    // point mounted at the results-count line — the highest-visibility real
+    // estate on the page, directly above the first result row — because
+    // PostHog showed `search_alert_impressed` firing (76/30d) but
+    // `search_alert_submitted` and `search_alert_verified` never following
+    // through from the toolbar's existing, easy-to-miss
+    // `jobs-create-alert-trigger`. Reuses the SAME two mechanisms rather than
+    // inventing a third: `SavedSearchesPanel`'s signed-in save path (guest
+    // save is intentionally NOT offered here — a signed-out visitor gets the
+    // email-capture path instead, since a local-only bookmark does nothing
+    // for the north-star signup metric) and the existing `manualAlertOpen`
+    // toggle that already renders `SearchAlertCapture` below.
+    const resultLineActionEl = canSaveSearch ? (
+        user ? (
+            <SavedSearchesPanel
+                saved={savedSearches}
+                urlState={buildUrlState()}
+                canSave={canSaveSearch}
+                onApply={applySavedSearch}
+                label="Save this search"
+                hideList
+                compact
+            />
+        ) : (
+            <button
+                type="button"
+                data-testid="result-line-get-alerts"
+                onClick={() => setManualAlertOpen((prev) => !prev)}
+                className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
+            >
+                Get new matches by email
+            </button>
+        )
+    ) : null;
 
     const clearFiltersEl = activeCount > 0 ? (
         <button
@@ -5030,7 +5093,7 @@ function JobsContent() {
 
                 {showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
-                        <ColdVisitorOrientation onRankByFit={() => handleUploadClick()} />
+                        <ColdVisitorOrientation compact onRankByFit={() => handleUploadClick()} />
                     </div>
                 )}
 
@@ -5388,16 +5451,13 @@ function JobsContent() {
                     2026-08-26) — standard flow is search → refine filters →
                     browse shortcuts → results; sits below the filter toolbar. */}
                 {showLandingMarketing && (
-                    <LandingMarketingShowcase
-                        onSelectQuery={submitSearch}
-                        onSelectRemote={onSelectRemote}
-                        onSelectSalaryMin={panelSalaryMin}
-                        onSelectBoard={onBoardChange}
-                    />
+                    <LandingMarketingShowcase onSelectQuery={submitSearch} />
                 )}
 
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
                     createPortal(fieldDirectoryMenu, dockedFieldDirectoryMount)}
+                {headerDockActive && showLandingMarketing && dockedFieldDirectoryMount &&
+                    createPortal(fieldDirectorySuggestionChips, dockedFieldDirectoryMount)}
                 {headerDockActive && dockedQueryMount && createPortal(dockedQueryEl, dockedQueryMount)}
                 {headerDockActive && dockedLocationMount && createPortal(dockedLocationEl, dockedLocationMount)}
                 {headerDockActive && dockedFacetsMount && createPortal(facetBarEl, dockedFacetsMount)}
@@ -5763,7 +5823,7 @@ function JobsContent() {
                                     locationDefault={
                                         shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
                                             ? {
-                                                  label: `near ${locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere)}`,
+                                                  label: locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere),
                                                   onClear: suppressLocationDefault,
                                               }
                                             : undefined
@@ -5826,23 +5886,26 @@ function JobsContent() {
                                                     applies — not a display name derived from the hits,
                                                     which would be absent in the one state where this
                                                     disclosure matters most (zero results). */}
-                                                {companyDomain && (
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <span data-testid="company-scope-chip" className="flex items-center gap-2">
-                                                            <span className="whitespace-nowrap font-semibold text-foreground">
-                                                                employer
+                                                {(companyDomain || resultLineActionEl) && (
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        {companyDomain && (
+                                                            <span data-testid="company-scope-chip" className="flex items-center gap-2">
+                                                                <span className="whitespace-nowrap font-semibold text-foreground">
+                                                                    employer
+                                                                </span>
+                                                                <span className="text-foreground">{companyDomain}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    data-testid="company-scope-clear"
+                                                                    aria-label={`Show roles from all employers, not just ${companyDomain}`}
+                                                                    onClick={clearCompanyScope}
+                                                                    className="text-muted-foreground transition-colors hover:text-foreground"
+                                                                >
+                                                                    ✕
+                                                                </button>
                                                             </span>
-                                                            <span className="text-foreground">{companyDomain}</span>
-                                                            <button
-                                                                type="button"
-                                                                data-testid="company-scope-clear"
-                                                                aria-label={`Show roles from all employers, not just ${companyDomain}`}
-                                                                onClick={clearCompanyScope}
-                                                                className="text-muted-foreground transition-colors hover:text-foreground"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        </span>
+                                                        )}
+                                                        {resultLineActionEl}
                                                     </div>
                                                 )}
                                                 {/* 2026-08-17, Vivek: "too much happening in that small

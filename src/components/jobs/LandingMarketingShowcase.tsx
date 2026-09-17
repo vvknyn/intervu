@@ -6,9 +6,6 @@ import { cn } from "@/lib/utils";
 
 interface LandingMarketingShowcaseProps {
   onSelectQuery: (q: string) => void;
-  onSelectRemote: () => void;
-  onSelectSalaryMin: (min: number) => void;
-  onSelectBoard: (board: "elite") => void;
 }
 
 /**
@@ -54,9 +51,6 @@ export const indexCategories = [
 
 export function LandingMarketingShowcase({
   onSelectQuery,
-  onSelectRemote,
-  onSelectSalaryMin,
-  onSelectBoard,
 }: LandingMarketingShowcaseProps) {
   return (
     <div className="w-full space-y-4 pt-2 pb-1">
@@ -80,39 +74,6 @@ export function LandingMarketingShowcase({
               {cat.title}
             </button>
           ))}
-        </div>
-      </div>
-
-      {/* Mobile (A1): hidden — "Or start with a filter" is a desktop-only shortcut trio. */}
-      <div className="hidden lg:block">
-        <div className="border-b border-foreground pb-1.5 text-sm font-semibold text-foreground">
-          <span>Or start with a filter</span>
-        </div>
-
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => onSelectBoard("elite")}
-            className={cn(chipVariants({ active: false, interactive: true }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
-          >
-            Top companies
-          </button>
-
-          <button
-            type="button"
-            onClick={onSelectRemote}
-            className={cn(chipVariants({ active: false, interactive: true }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
-          >
-            Remote jobs only
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onSelectSalaryMin(150000)}
-            className={cn(chipVariants({ active: false, interactive: true }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
-          >
-            Pays $150k or more
-          </button>
         </div>
       </div>
     </div>

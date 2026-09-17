@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MOBILE_ACCOUNT_TAB, NAV_TABS } from "@/components/layout/nav-tabs";
+import { MOBILE_ACCOUNT_TAB, NAV_TABS, mobilePrimaryTabs } from "@/components/layout/nav-tabs";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { cn } from "@/lib/utils";
 
-const MOBILE_TABS = [...NAV_TABS, MOBILE_ACCOUNT_TAB];
+// `mobilePrimary: false` (nav-tabs.tsx) opts a tab OUT of this bar while it
+// stays in the desktop nav — filtered on that one declarative field via
+// `mobilePrimaryTabs`, never on a tab's name/href, so a future opt-out never
+// needs a second change here.
+const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
 
-/** HIG tab bar in house paint: 48px + the safe-area inset, five hit areas
+/** HIG tab bar in house paint: 48px + the safe-area inset, hit areas
  *  stretched to the bar's full height (HIG/Material minimum touch target is
  *  44px — a bar-height tab clears that with room to spare), 20px icons (the
  *  one documented "icon sits in a stretched control" exception to the 16px

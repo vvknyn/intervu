@@ -1,6 +1,6 @@
 /**
  * Primary nav — frozen coherent chrome:
- * Jobs · Resume · Tracker · Agents · (avatar → Account)
+ * Jobs · Resume · Tracker · Connect AI · (avatar → Account)
  * Research / Trends live in the footer.
  */
 import type { ComponentType } from "react";
@@ -29,6 +29,11 @@ export type NavTab = {
     variant?: "cta";
     badge?: NavBadge;
     title?: string;
+    /** Set `false` to keep a tab out of MobileTabBar's fixed bottom bar while
+     *  it stays in the desktop nav — the bar filters on this field alone
+     *  (never on href/label), so a new tab is on the bar by default and has
+     *  to opt out explicitly. Omitted/`true` means "show on the bar". */
+    mobilePrimary?: boolean;
 };
 
 /** Desktop TopBar: label for the clustered Jobs/Resume/Tracker dropdown. */
@@ -39,6 +44,15 @@ export function menuNavTriggerLabel(pathname: string, tabs: readonly NavTab[]): 
 
 export function menuNavActive(pathname: string, tabs: readonly NavTab[]): boolean {
     return tabs.some((t) => t.placement === "menu" && t.match(pathname));
+}
+
+/** MobileTabBar's own filter, pulled out so it's one pure decision testable
+ *  without rendering the bar: `mobilePrimary: false` opts a tab out, every
+ *  other tab (field unset or `true`) stays in — matches the desktop bar's
+ *  `NAV_TABS`/`barTabs` unfiltered by this field, so only THIS predicate
+ *  ever decides mobile-bar membership. */
+export function mobilePrimaryTabs(tabs: readonly NavTab[]): NavTab[] {
+    return tabs.filter((t) => t.mobilePrimary !== false);
 }
 
 function JobsIcon() {
@@ -83,6 +97,26 @@ function AccountIcon() {
     );
 }
 
+/** The MCP/agent-pairing tab — named so the footer can link the SAME entry
+ *  (label, href, icon) rather than re-typing "Connect AI"/"/connect" as a
+ *  second copy, the way `TRENDS_TAB` below is shared with FOOTER_EXTRA_TABS.
+ *  `mobilePrimary: false` keeps it off MobileTabBar's fixed bottom bar (a
+ *  pairing flow isn't a top-5 daily action on a phone); it stays reachable
+ *  from the footer and from Settings (AgentAccessSection.tsx already links
+ *  `/connect`), and desktop's `barTabs` still renders it every time. */
+export const CONNECT_TAB: NavTab = {
+    label: "Connect AI",
+    shortLabel: "Connect AI",
+    href: "/connect",
+    testId: "topbar-connect",
+    match: (p) => p.startsWith("/connect"),
+    placement: "bar",
+    tourSelector: "nav-connect",
+    icon: ConnectIcon,
+    title: "Optional: Pair your AI assistant (Claude, Cursor, Gemini) via MCP",
+    mobilePrimary: false,
+};
+
 export const NAV_TABS: NavTab[] = [
     {
         label: "Jobs",
@@ -115,17 +149,7 @@ export const NAV_TABS: NavTab[] = [
         // now rides on the destination it was already pointing at.
         badge: "pursuits",
     },
-    {
-        label: "Agents",
-        shortLabel: "Agents",
-        href: "/connect",
-        testId: "topbar-connect",
-        match: (p) => p.startsWith("/connect"),
-        placement: "bar",
-        tourSelector: "nav-connect",
-        icon: ConnectIcon,
-        title: "Optional: Pair your AI assistant (Claude, Cursor, Gemini) via MCP",
-    },
+    CONNECT_TAB,
 ];
 
 /** Mobile-only: Account as fourth tab (desktop uses DP avatar). */
@@ -158,4 +182,5 @@ export const FOOTER_EXTRA_TABS: NavTab[] = [
         placement: "bar",
     },
     TRENDS_TAB,
+    CONNECT_TAB,
 ];
