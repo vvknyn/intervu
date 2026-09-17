@@ -11,6 +11,7 @@ import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -43,16 +44,10 @@ function SignedOutEmptyState({
 }) {
     return (
         <div className="mx-auto max-w-[480px] space-y-4 rounded-none border border-border bg-card p-8 text-center">
-            <div className="inline-flex items-center gap-1.5 border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-brand">
-                <ShieldCheck size={16} />
-                <span>100% On-Device AI</span>
-            </div>
             <FileText size={24} className="mx-auto text-muted-foreground" />
             <div className="space-y-1">
                 <h2 className="text-base font-semibold text-foreground">Add your base resume</h2>
-                <p className="text-sm text-muted-foreground">
-                    Upload a PDF or Word document. We parse it locally in your browser so your data never touches cloud servers.
-                </p>
+                <p className="text-sm text-muted-foreground">{RESUME_UPLOAD_PROMISE}</p>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
                 <Button size="sm" onClick={onUploadClick} className="w-full sm:w-auto rounded-none font-semibold">

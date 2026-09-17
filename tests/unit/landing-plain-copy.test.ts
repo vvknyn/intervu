@@ -232,9 +232,13 @@ describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
         assert.doesNotMatch(src, /export function LandingUspSection/);
     });
 
-    it('renders the tested headline and provenance line when showLandingMarketing, with no live count (A3: count moved to end of list)', () => {
+    it('renders the tested headline, provenance line and windowed count when at rest, with no live count (A3: liveCountEl stays at end of list)', () => {
         const src = readFileSync(JOBS_PAGE, 'utf8');
-        const start = src.indexOf('{showLandingMarketing ? (');
+        // Front-door redesign requirement 1a: the masthead's gate broadened
+        // from the pristine-only `showLandingMarketing` to `atRest` (a
+        // visitor who has only toggled a filter still gets the centered
+        // hero) — see `isAtRest`, lib/jobs/front-door-state.ts.
+        const start = src.indexOf('{atRest && showSearchHome ? (');
         const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
         assert.notStrictEqual(start, -1, 'masthead ternary anchor moved — update this test');
         assert.notStrictEqual(end, -1, 'sr-only fallback h1 anchor moved — update this test');
@@ -244,10 +248,13 @@ describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
         // The claim text itself, not just the symbol reference — same fact
         // the deleted LandingMasthead's own test asserted.
         assert.match(JOBS_USP.searchDescription, /screened for stale postings/);
-        // A3 (front-door redesign): the corpus count no longer renders in the
-        // masthead at all — it renders exactly once, at the end of the
+        // Requirement 1b: the at-rest hero's own display-size count line,
+        // built from the SAME windowed `resultCountLine` the results list's
+        // own smaller count line reads — not `liveCountEl`, a different,
+        // unwindowed stat that still renders exactly once, at the end of the
         // results list, guarded by the same `{liveCountEl}` symbol elsewhere
         // in the file.
+        assert.match(branch, /\{resultCountLine\}/);
         assert.doesNotMatch(branch, /\{liveCountEl\}/);
         assert.match(src.slice(end), /\{liveCountEl\}/, 'liveCountEl no longer rendered anywhere — A3 requires it once, at the end of the results list');
     });

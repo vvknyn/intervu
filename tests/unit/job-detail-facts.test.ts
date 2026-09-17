@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alsoInLabel, assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText } from "../../src/components/jobs/job-detail-facts";
+import { alsoInLabel, assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, REPRESENTATIVE_GHOST_SIGNALS } from "../../src/components/jobs/job-detail-facts";
 import type { PostingFreshness } from "../../src/lib/jobs/posting-freshness";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -202,6 +202,32 @@ test("deriveGhostSignals: no description at all omits the substance signal inste
         NOW,
     );
     assert.ok(!signals.some((s) => /\bsubstance\b|\bthin\b/.test(s.text)));
+});
+
+/**
+ * Front-door redesign requirement 3: the at-rest detail pane
+ * (FrontDoorDetailPitch.tsx) previews the "posting check" with
+ * `REPRESENTATIVE_GHOST_SIGNALS` — a hand-picked sample rather than a real
+ * job's derived signals, since no job is selected there. This is the test
+ * that sample's own doc comment promises: prove every one of its 4 lines is
+ * a LITERAL substring of what `deriveGhostSignals` actually emits for a
+ * typical fresh, substantive, undisclosed-salary posting — so the preview
+ * can't drift into a fabricated claim about what the real check does.
+ */
+test("REPRESENTATIVE_GHOST_SIGNALS is a literal subset of a real deriveGhostSignals output", () => {
+    const signals = deriveGhostSignals(
+        job({ description: "x".repeat(250), salary_min: null, salary_max: null }),
+        freshness({ kind: "fresh", firstSeenMs: NOW - 2 * 86_400_000 }),
+        3,
+        NOW,
+    );
+    assert.equal(REPRESENTATIVE_GHOST_SIGNALS.length, 4);
+    for (const rep of REPRESENTATIVE_GHOST_SIGNALS) {
+        assert.ok(
+            signals.some((s) => s.text === rep.text && s.status === rep.status && s.kind === rep.kind),
+            `REPRESENTATIVE_GHOST_SIGNALS entry not found verbatim in a real deriveGhostSignals output: ${JSON.stringify(rep)}`,
+        );
+    }
 });
 
 /* --------------------------- deriveExposureBadges ---------------------------- */
