@@ -27,11 +27,18 @@ import { cn } from "@/lib/utils";
  */
 /** Copy lives HERE per variant — call sites choose a purpose, never write
  *  their own line, so surfaces can't drift. Two different variants may share
- *  a screen; the same variant must not. */
-const VARIANT_COPY = {
-    intelligence: "Fit, gaps, tailoring — your AI does this.",
-    prep: "Interviewing? Your AI can prep you with this job's context.",
-} as const;
+ *  a screen; the same variant must not. A variant may add a short heading
+ *  above its sentence (e.g. naming the AI assistants this hands off to);
+ *  most don't need one. */
+const VARIANT_COPY: Record<"intelligence" | "prep", { heading?: string; sentence: string }> = {
+    intelligence: {
+        heading: "Check your fit in Claude, ChatGPT or Cursor",
+        sentence: "Connect your AI assistant and it can read this posting and your résumé.",
+    },
+    prep: {
+        sentence: "Interviewing? Your AI can prep you with this job's context.",
+    },
+};
 
 export function McpHandoffNote({
     variant = "intelligence",
@@ -42,10 +49,13 @@ export function McpHandoffNote({
     job?: JobHandoffInput;
     className?: string;
 }) {
+    const copy = VARIANT_COPY[variant];
+
     if (!job) {
         return (
             <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
-                {VARIANT_COPY[variant]}{" "}
+                {copy.heading && <p className="mb-1 font-semibold text-foreground">{copy.heading}</p>}
+                {copy.sentence}{" "}
                 <Link href="/connect" className="font-semibold text-brand underline underline-offset-4 hover:text-brand">
                     Connect it once
                 </Link>
@@ -56,7 +66,10 @@ export function McpHandoffNote({
     return (
         <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <p className="min-w-[16ch] flex-1">{VARIANT_COPY[variant]}</p>
+                <p className="min-w-[16ch] flex-1">
+                    {copy.heading && <span className="block font-semibold text-foreground">{copy.heading}</span>}
+                    {copy.sentence}
+                </p>
                 <McpHandoffActions job={job} />
             </div>
         </div>

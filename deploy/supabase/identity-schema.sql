@@ -79,6 +79,25 @@ CREATE TABLE IF NOT EXISTS intervu.company_read_budgets (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Idempotent send log for one-off marketing/product-update campaigns
+-- (scripts/send-marketing-update.ts, src/lib/marketing/send-log.ts). Keyed
+-- by (campaign, user_id) — the WorkOS uid (externalId || id, see
+-- toServerUser in workos-identity.ts) — so re-running a campaign's send
+-- script is a no-op for anyone it already reached rather than a duplicate
+-- send. Suppression (opt-out) is NOT tracked here — that stays the
+-- existing Firestore `email_suppressions` collection (src/lib/email/
+-- suppression.ts), scoped by the "marketing_update" EmailKind, same as
+-- every other suppressible email kind. This table only ever answers "did
+-- THIS campaign already reach this user."
+CREATE TABLE IF NOT EXISTS intervu.marketing_sends (
+  campaign text NOT NULL,
+  user_id text NOT NULL,
+  email text NOT NULL,
+  sent_at timestamptz NOT NULL DEFAULT now(),
+  message_id text,
+  PRIMARY KEY (campaign, user_id)
+);
+
 -- ROLE SETUP — run manually as postgres, password set interactively, never committed:
 --   CREATE ROLE intervu_web LOGIN PASSWORD '<set interactively>';
 -- Schema/table grants for intervu_web are executable SQL at the end of this

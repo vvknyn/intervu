@@ -3,6 +3,7 @@ import { locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PostingFreshness } from "@/lib/jobs/posting-freshness";
 import type { GhostChecked, PublicJob } from "@/lib/jobs/types";
 import type { TrackRecord } from "@/lib/companies/aggregates";
+import { formatCount } from "@/lib/format";
 
 /**
  * Pure data→chips mapping for JobDetail's structured facts row (2026-08-01
@@ -287,8 +288,8 @@ export function jobTrackRecord(job: PublicJob): TrackRecord | null {
  */
 export function pairedKpiChips(record: TrackRecord): KpiStatChip[] {
     return [
-        { value: record.opened90d.toLocaleString(), label: "Opened, 90d" },
-        { value: record.closed90d.toLocaleString(), label: "Closed, 90d" },
+        { value: formatCount(record.opened90d), label: "Opened, 90d" },
+        { value: formatCount(record.closed90d), label: "Closures observed, 90d" },
     ];
 }
 

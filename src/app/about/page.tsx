@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BoardComparisonTable } from "@/components/marketing/BoardComparisonTable";
 import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
+import { JOB_SEARCH_FAQ } from "@/lib/faq";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 const TITLE = "About velai";
@@ -90,6 +91,16 @@ export default function AboutPage() {
         <p>
           Questions or feedback: use the <Link href="/contact">contact page</Link>.
         </p>
+      </article>
+
+      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+        <h2 className={ASEC}>Questions</h2>
+        {JOB_SEARCH_FAQ.map((item) => (
+          <details key={item.question} className="mt-3 border-b border-border pb-3 last:border-b-0">
+            <summary className="cursor-pointer font-semibold text-foreground">{item.question}</summary>
+            <p className="mt-2 text-muted-foreground">{item.answer}</p>
+          </details>
+        ))}
       </article>
     </div>
   );

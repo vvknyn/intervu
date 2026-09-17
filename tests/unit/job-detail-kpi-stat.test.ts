@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { jobTrackRecord, pairedKpiChips } from "@/components/jobs/job-detail-facts";
+import { formatCount } from "@/lib/format";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -19,7 +20,7 @@ describe("pairedKpiChips", () => {
         const chips = pairedKpiChips({ opened90d: 14, closed90d: 3 });
         assert.deepEqual(chips, [
             { value: "14", label: "Opened, 90d" },
-            { value: "3", label: "Closed, 90d" },
+            { value: "3", label: "Closures observed, 90d" },
         ]);
         for (const chip of chips) {
             assert.equal(chip.value.includes("/"), false, `chip value "${chip.value}" must never contain a "/" — that is the fraction-look bug`);
@@ -30,7 +31,7 @@ describe("pairedKpiChips", () => {
         const chips = pairedKpiChips({ opened90d: 0, closed90d: 0 });
         assert.deepEqual(chips, [
             { value: "0", label: "Opened, 90d" },
-            { value: "0", label: "Closed, 90d" },
+            { value: "0", label: "Closures observed, 90d" },
         ]);
     });
 
@@ -38,6 +39,10 @@ describe("pairedKpiChips", () => {
         const chips = pairedKpiChips({ opened90d: 1234, closed90d: 56 });
         assert.equal(chips[0]!.value, (1234).toLocaleString());
         assert.equal(chips[1]!.value, (56).toLocaleString());
+    });
+
+    it("formatCount pins en-US grouping so server and client render identically", () => {
+        assert.equal(formatCount(1234567), "1,234,567");
     });
 });
 
