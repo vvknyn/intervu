@@ -10,7 +10,7 @@ import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -341,12 +341,11 @@ export function CompanyRoleSearch({
         <SheetContent
           side="bottom"
           hideCloseButton
-          overlayClassName="bg-[rgba(18,21,26,0.42)]"
           className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
         >
           <div className="shrink-0 border-b border-border">
             <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-              <span className="h-1.5 w-10 rounded-none bg-border" />
+              <SheetHandle />
             </div>
             <div className="flex items-center gap-2 px-4 pb-3">
               <div className="min-w-0 flex-1">
@@ -381,6 +380,8 @@ export function CompanyRoleSearch({
           <div
             ref={detailScrollRef}
             data-testid="mobile-detail-scroller"
+            // design-lint-allow: env(safe-area-inset-bottom) is a live
+            // iOS inset, not a literal.
             className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar"
           >
             {selectedJob && (

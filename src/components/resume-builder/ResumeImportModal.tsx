@@ -750,6 +750,8 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     {step === 'review' && renderReviewStep()}
                 </div>
 
+                {/* design-lint-allow: max() floors the live env(safe-area-inset-bottom)
+                    inset at 1rem — a computed value, not a literal. */}
                 <div className="flex justify-between gap-3 border-t pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {step === 'review' ? (
                         <>

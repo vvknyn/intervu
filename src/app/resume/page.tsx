@@ -112,7 +112,9 @@ function ResumeContent() {
                 className={cn(
                     "mx-auto transition-all",
                     editorOpen
-                        ? "max-w-6xl px-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
+                        ? // design-lint-allow: composes the existing --mobile-tabbar-h
+                          // token with env(safe-area-inset-bottom) — not a literal.
+                          "max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
                         : "max-w-6xl px-4 pb-16 pt-6 sm:px-8 xl:max-w-7xl xl:px-10",
                 )}
             >

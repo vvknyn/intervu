@@ -147,6 +147,8 @@ export function ContactForm() {
 
                 {/* Honeypot — visually hidden but present in the DOM/tab order for
                     bots that autofill every field. Real users never see or fill it. */}
+                {/* design-lint-allow: 9999px is a deliberately-huge off-screen
+                    offset for a honeypot, not a spacing literal on a rung. */}
                 <div className="absolute -left-[9999px] top-0 h-px w-px overflow-hidden" aria-hidden="true">
                     <input
                         type="text"

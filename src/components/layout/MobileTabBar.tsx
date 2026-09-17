@@ -30,6 +30,8 @@ export function MobileTabBar() {
             data-testid="mobile-tabbar"
             aria-label="Primary"
             style={{ gridTemplateColumns: `repeat(${MOBILE_TABS.length}, minmax(0, 1fr))` }}
+            // design-lint-allow: env(safe-area-inset-bottom) is a live
+            // iOS inset, not a literal.
             className="fixed inset-x-0 bottom-0 z-50 grid h-[calc(var(--mobile-tabbar-h,56px)+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] items-center border-t border-border bg-background px-1 lg:hidden"
         >
             {MOBILE_TABS.map((tab) => {

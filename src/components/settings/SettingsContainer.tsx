@@ -152,7 +152,9 @@ export function SettingsContainer() {
                 className={cn(
                     "mx-auto transition-all",
                     resumeEditorOpen
-                        ? "max-w-6xl px-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
+                        ? // design-lint-allow: composes the existing --mobile-tabbar-h
+                          // token with env(safe-area-inset-bottom) — not a literal.
+                          "max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
                         : cn("px-4 pb-16 pt-6 sm:px-8 xl:px-10", tab === "resume" ? "max-w-6xl xl:max-w-7xl" : "max-w-[760px]"),
                 )}
             >

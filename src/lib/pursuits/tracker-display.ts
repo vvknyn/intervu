@@ -110,6 +110,8 @@ export function matchesTrackerSearch(p: Pursuit, query: string): boolean {
 }
 
 /** Bottom offset for fixed sheets so they sit above MobileTabBar on small screens. */
+// design-lint-allow: composes the existing --mobile-tabbar-h token with
+// env(safe-area-inset-bottom) — not a literal.
 export const TRACKER_SHEET_BOTTOM =
     "bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px))] lg:bottom-0";
 

@@ -5058,10 +5058,16 @@ function JobsContent() {
                           cn(
                               "lg:pb-20",
                               showMobileSearchCta
-                                  ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))]"
-                                  : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))]",
+                                  ? // design-lint-allow: composes the existing --mobile-tabbar-h/
+                                    // --mobile-search-cta-h tokens with env(safe-area-inset-bottom) —
+                                    // not a literal (see the block comment above).
+                                    "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))]"
+                                  : // design-lint-allow: same token+env composition, one fewer term.
+                                    "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))]",
                           )
-                        : "flex-1 overflow-hidden pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-3",
+                        : // design-lint-allow: same token+env composition as the cn() branch above,
+                          // for the non-showSearchHome layout.
+                          "flex-1 overflow-hidden pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-3",
                 )}
             >
                 {/* Landing masthead — mounts only for a zero-intent pristine
@@ -5436,6 +5442,8 @@ function JobsContent() {
                                 <div
                                     id="filters-panel"
                                     data-testid="filters-panel"
+                                    // design-lint-allow: env(safe-area-inset-bottom) is a live
+                                    // iOS inset, not a literal — no static scale rung expresses it.
                                     className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-card p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
                                 >
                                     {renderFiltersPanel()}
@@ -6147,6 +6155,9 @@ function JobsContent() {
                     // bottom padding (above) clears for, so the two can't
                     // drift apart the way a padding guess and this bar's
                     // real height already had.
+                    // design-lint-allow: composes env(safe-area-inset-bottom) with the
+                    // 3.25rem clearance above the --mobile-search-cta-h bar — a computed
+                    // offset, not a duplicated literal; no token names 3.25rem alone.
                     className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-card px-4 lg:hidden"
                 >
                     <Button
@@ -6290,6 +6301,8 @@ function JobsContent() {
                         must not scroll while the sheet is open" requires. */}
                     <div
                         data-testid="mobile-detail-scroller"
+                        // design-lint-allow: env(safe-area-inset-bottom) is a live
+                        // iOS inset, not a literal.
                         className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar"
                     >
                         {/* `undefined`, not `() => router.back()` — the sheet chrome

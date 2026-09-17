@@ -556,6 +556,8 @@ const {
     ALLOW_WINDOW_LINES,
     EXCLUDED_DIRS,
     FILE_EXEMPTIONS,
+    arbitrarySpacingLiteral,
+    arbitraryColorLiteral,
     walkTsxFiles,
     stripComments,
     isFileAllowed,
@@ -567,6 +569,8 @@ const {
     ALLOW_WINDOW_LINES: number;
     EXCLUDED_DIRS: Set<string>;
     FILE_EXEMPTIONS: { file: string; why: string }[];
+    arbitrarySpacingLiteral: RegExp;
+    arbitraryColorLiteral: RegExp;
     walkTsxFiles: (dir: string) => string[];
     stripComments: (src: string) => string;
     isFileAllowed: (raw: string) => boolean;
@@ -680,32 +684,39 @@ test("no arbitrary rounded-[...] radius survives (rounded-[inherit] is exempt by
     );
 });
 
-/** Matches on the SHAPE of an arbitrary px spacing value (any of the padding/
- *  margin/gap/space utilities followed by -[Npx]), not on any specific
- *  number — so a future off-scale literal is caught by construction instead
- *  of needing its own entry. Design decision: spacing rounds to the nearest
- *  4px scale rung (16px for the two-value cases this rule was written
- *  against), or composes existing tokens (see .below-topbar in globals.css)
- *  when the value is really a sum of two chokepoints. */
-const arbitrarySpacingPx =
-    /\b(?:p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|space-x|space-y)-\[[0-9.]+px\]/;
+// `.test()` on a shared global-flagged RegExp mutates `lastIndex` across
+// calls (both exported classifiers carry `g`, needed by findOffenders'
+// `.match()` scan, which is stateless); `String.match()` isn't, so fixture
+// checks below go through it instead of `.test()` directly.
+const flags = (re: RegExp, s: string): boolean => s.match(re) !== null;
 
-test("arbitrary spacing-px classifier: shape-based, proven on a fixture other than the real 18px/72px sites", () => {
-    assert.equal(arbitrarySpacingPx.test('<div className="mt-[13px]">'), true, "an unrelated px-literal arbitrary spacing value must be flagged");
-    assert.equal(arbitrarySpacingPx.test('<div className="mt-3">'), false, "a scale rung must not be flagged");
-    assert.equal(arbitrarySpacingPx.test('<div className="p-[1.5rem]">'), false, "a non-px arbitrary unit is out of this rule's scope");
-    assert.equal(arbitrarySpacingPx.test('<div className="max-w-[13px]">'), false, "a non-spacing prefix sharing the -[Npx] shape must not be flagged");
+test("arbitrary spacing literal classifier: shape-based, proven on fixtures other than the real sites", () => {
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="pl-[calc(0.875rem+0.5rem)]">'), true, "a calc() literal re-spelling a banned value must still be flagged");
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="ml-[1.375rem]">'), true, "a rem literal must be flagged");
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="gap-[2px]">'), true, "a px literal must be flagged");
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="-mt-[3px]">'), true, "a negative-prefix spacing literal must be flagged");
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="pt-[var(--topbar-h)]">'), false, "a bracket value composing an existing CSS custom property is a token reference, not a literal");
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="pl-6">'), false, "a scale rung must not be flagged");
+    assert.equal(flags(arbitrarySpacingLiteral, '<div className="grid-cols-[auto_1fr]">'), false, "a non-spacing prefix sharing the -[...] shape must not be flagged");
 });
 
-test("no arbitrary spacing utility with a px literal survives outside an allow marker", () => {
-    const offenders = findOffenders(path.join(ROOT, "src"), arbitrarySpacingPx);
+test("no arbitrary spacing utility with a literal value survives outside an allow marker", () => {
+    const offenders = findOffenders(path.join(ROOT, "src"), arbitrarySpacingLiteral);
     assert.deepEqual(
         offenders,
         [],
-        `arbitrary spacing px literal(s): ${offenders.join("; ")}. Round to the nearest 4px scale rung ` +
-            `(Design decision: 16px), or compose existing tokens (see .below-topbar in globals.css) when ` +
-            `the value is a sum of two chokepoints.`,
+        `arbitrary spacing literal(s): ${offenders.join("; ")}. Round to the nearest 4px scale rung, compose ` +
+            `an existing CSS custom property (pt-[var(--topbar-h)]), or restructure the markup so no literal is ` +
+            `needed at all.`,
     );
+});
+
+test("arbitrary colour literal classifier: shape-based, proven on fixtures other than the real sites", () => {
+    assert.equal(flags(arbitraryColorLiteral, '<div className="bg-[rgba(18,21,26,0.42)]">'), true, "an rgba() literal must be flagged");
+    assert.equal(flags(arbitraryColorLiteral, '<div className="text-[#c5ccd6]">'), true, "a hex literal must be flagged");
+    assert.equal(flags(arbitraryColorLiteral, '<div className="border-[hsl(210,10%,50%)]">'), true, "an hsl() literal must be flagged");
+    assert.equal(flags(arbitraryColorLiteral, '<div className="bg-[var(--scrim)]">'), false, "a bracket value composing an existing CSS custom property is a token reference, not a literal");
+    assert.equal(flags(arbitraryColorLiteral, '<div className="bg-border">'), false, "a semantic token class must not be flagged");
 });
 
 test("scrim/allow classifiers: shape-based, proven on fixtures other than the real sites", () => {
