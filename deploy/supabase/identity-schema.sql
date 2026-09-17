@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS intervu.auth_tokens (
   intent_name text,
   intent_href text,
   intent_search_hash text,
+  intent_distinct_id text,
+  intent_analytics jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz
@@ -109,6 +111,14 @@ CREATE TABLE IF NOT EXISTS intervu.marketing_sends (
 ALTER TABLE intervu.auth_tokens ADD COLUMN IF NOT EXISTS intent_name text;
 ALTER TABLE intervu.auth_tokens ADD COLUMN IF NOT EXISTS intent_href text;
 ALTER TABLE intervu.auth_tokens ADD COLUMN IF NOT EXISTS intent_search_hash text;
+-- Existing deployments: round-trip the submitter's PostHog distinct_id and
+-- the search-alert event payload (surface/query_length/filter_count/
+-- has_results) from submit through to verify, so `search_alert_verified`
+-- (captured server-side — see src/lib/analytics/server-capture.ts) can carry
+-- the same properties `search_alert_submitted` did, without re-deriving them
+-- from a bare token-consume request that has no live search context.
+ALTER TABLE intervu.auth_tokens ADD COLUMN IF NOT EXISTS intent_distinct_id text;
+ALTER TABLE intervu.auth_tokens ADD COLUMN IF NOT EXISTS intent_analytics jsonb;
 ALTER TABLE intervu.auth_tokens DROP CONSTRAINT IF EXISTS auth_tokens_purpose_check;
 ALTER TABLE intervu.auth_tokens ADD CONSTRAINT auth_tokens_purpose_check
   CHECK (purpose IN ('verify_email','login','verify_search_alert'));

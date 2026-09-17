@@ -9,6 +9,7 @@ import {
   upsertIdentityForEmail,
   countRecentVerifyTokensForPurpose,
   createSearchAlertVerifyToken,
+  type SearchAlertAnalytics,
 } from "./store";
 import { validateSearchAlertHref } from "./validate-search-href";
 
@@ -39,6 +40,8 @@ export async function submitSearchAlert(
     redirectPath: string;
     turnstileToken: string | null;
     requestIp?: string;
+    distinctId: string | null;
+    analytics: SearchAlertAnalytics;
   },
 ): Promise<SubmitSearchAlertResult> {
   const parsedEmail = emailSchema.safeParse(input.email);
@@ -74,6 +77,8 @@ export async function submitSearchAlert(
     name: trimmedName,
     href: hrefCheck.href,
     searchHash: hrefCheck.searchHash,
+    distinctId: input.distinctId,
+    analytics: input.analytics,
   });
   const verifyUrl = `${deps.baseUrl}/api/search-alerts/verify?token=${rawToken}`;
 

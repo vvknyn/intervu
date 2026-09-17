@@ -143,7 +143,7 @@ describe('landing marketing showcase: compact first-viewport layout', () => {
 
     it('renders field entry points as a compact wrap row of indexCategories titles', () => {
         const src = readFileSync(TARGET, 'utf8');
-        assert.match(src, /flex flex-wrap/);
+        assert.match(src, /flex-wrap/);
         assert.match(src, /indexCategories\.map/);
         for (const cat of indexCategories) {
             assert.match(src, new RegExp(cat.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -151,13 +151,16 @@ describe('landing marketing showcase: compact first-viewport layout', () => {
         assert.doesNotMatch(src, /\{cat\.desc\}/, 'descriptions must not render as block rows on landing');
     });
 
-    it('renders filter shortcuts as a compact single row, not p-4 cards in a 3-col grid', () => {
+    // A2 (desktop first screen, 2026-09-17): the "Or start with a filter"
+    // trio pushed the first result row below 420px on desktop and duplicated
+    // controls the filter toolbar already offers, so it was removed outright
+    // rather than further compacted. Guards against it quietly coming back.
+    it('does not render the "Or start with a filter" shortcut trio', () => {
         const src = readFileSync(TARGET, 'utf8');
-        assert.doesNotMatch(src, /grid grid-cols-1 gap-4 sm:grid-cols-3/);
-        assert.doesNotMatch(src, /border border-border p-4/);
-        assert.match(src, /Top companies/);
-        assert.match(src, /Remote jobs only/);
-        assert.match(src, /Pays \$150k or more/);
+        assert.doesNotMatch(src, /Or start with a filter/);
+        assert.doesNotMatch(src, /Top companies/);
+        assert.doesNotMatch(src, /Remote jobs only/);
+        assert.doesNotMatch(src, /Pays \$150k or more/);
     });
 });
 
