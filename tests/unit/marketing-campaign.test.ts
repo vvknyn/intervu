@@ -1,0 +1,92 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+import { parseFrontMatter, loadCampaign, renderCampaign, type CampaignRecipient, type CampaignSender } from "@/lib/marketing/campaign";
+
+const SITE_URL = "https://velai.app";
+
+const RECIPIENT: CampaignRecipient = {
+  email: "person@example.com",
+  firstName: "Riley",
+  unsubscribeUrl: `${SITE_URL}/unsubscribe?token=abc.def`,
+};
+
+const SENDER: CampaignSender = {
+  name: "velai",
+  postalAddress: "123 Main St, Springfield",
+};
+
+describe("parseFrontMatter", () => {
+  it("splits a --- delimited block from the markdown body", () => {
+    const { data, body } = parseFrontMatter("---\nsubject: Hi\npreheader: There\n---\n\n## Body\n\ntext");
+    assert.deepEqual(data, { subject: "Hi", preheader: "There" });
+    assert.equal(body, "## Body\n\ntext");
+  });
+
+  it("treats content with no front matter as pure body", () => {
+    const { data, body } = parseFrontMatter("just some text\nmore text");
+    assert.deepEqual(data, {});
+    assert.equal(body, "just some text\nmore text");
+  });
+});
+
+describe("loadCampaign", () => {
+  it("loads the real 2026-09-updates content file with required fields", () => {
+    const campaign = loadCampaign("2026-09-updates");
+    assert.equal(campaign.name, "2026-09-updates");
+    assert.ok(campaign.subject.length > 0);
+    assert.ok(campaign.preheader.length > 0);
+    assert.match(campaign.bodyMarkdown, /\{\{firstName\}\}/);
+  });
+
+  it("throws a loud error for a campaign file that doesn't exist, never returns a fake campaign", () => {
+    assert.throws(() => loadCampaign("does-not-exist"));
+  });
+});
+
+describe("renderCampaign", () => {
+  const campaign = {
+    name: "test",
+    subject: "Hi {{firstName}}",
+    preheader: "For you, {{firstName}}",
+    bodyMarkdown: "Hello {{firstName}}, here's what's new.\n\n[Link](https://velai.app/jobs)",
+  };
+
+  it("substitutes {{firstName}} in subject, preheader and body — no unrendered tokens remain", () => {
+    const result = renderCampaign(campaign, RECIPIENT, SENDER, SITE_URL);
+    assert.equal(result.subject, "Hi Riley");
+    assert.ok(result.html.includes("Hello Riley"));
+    assert.ok(result.text.includes("Hello Riley"));
+    assert.ok(!result.html.includes("{{"));
+    assert.ok(!result.text.includes("{{"));
+  });
+
+  it("falls back to 'there' when firstName is null (not a blank or the literal token)", () => {
+    const anonymous: CampaignRecipient = { ...RECIPIENT, firstName: null };
+    const result = renderCampaign(campaign, anonymous, SENDER, SITE_URL);
+    assert.equal(result.subject, "Hi there");
+    assert.ok(!result.html.includes("{{"));
+  });
+
+  it("carries the unsubscribe URL into both html and text", () => {
+    const result = renderCampaign(campaign, RECIPIENT, SENDER, SITE_URL);
+    assert.ok(result.html.includes(RECIPIENT.unsubscribeUrl));
+    assert.ok(result.text.includes(RECIPIENT.unsubscribeUrl));
+  });
+
+  it("renders the configured sender name + postal address in the CAN-SPAM footer", () => {
+    const result = renderCampaign(campaign, RECIPIENT, SENDER, SITE_URL);
+    assert.ok(result.html.includes("velai"));
+    assert.ok(result.html.includes("123 Main St, Springfield"));
+    assert.ok(!result.html.includes("not configured"));
+  });
+
+  it("renders a visible placeholder instead of silently omitting a missing sender identity", () => {
+    const noSender: CampaignSender = { name: null, postalAddress: null };
+    const result = renderCampaign(campaign, RECIPIENT, noSender, SITE_URL);
+    assert.ok(result.html.includes("[sender name not configured]"));
+    assert.ok(result.html.includes("[sender address not configured]"));
+    assert.ok(result.text.includes("[sender name not configured]"));
+    assert.ok(result.text.includes("[sender address not configured]"));
+  });
+});
