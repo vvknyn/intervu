@@ -6,7 +6,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { captureEvent } from "@/lib/analytics/events";
-import { type AuthGateReason, shouldCaptureAuthStarted } from "@/lib/auth/auth-gate-copy";
+import {
+    type AuthGateReason,
+    type AuthGateTrigger,
+    resolveAuthOpenEvent,
+    shouldCaptureAuthStarted,
+} from "@/lib/auth/auth-gate-copy";
+import { recordNudgeDismissed, shouldShowAutoNudge } from "@/lib/auth/nudge-cap";
 
 interface AuthPopoverProps {
     open: boolean;
@@ -32,19 +38,51 @@ interface AuthPopoverProps {
     defaultTab?: "login" | "signup";
     /** Auth-gate reason class for auth_started telemetry — omit for generic. */
     reason?: AuthGateReason;
+    /**
+     * Who is opening this popover — required, no default, so every call
+     * site has to state its intent (a stray auto-open can't silently pass
+     * as a real funnel start again). "user": a deliberate sign-in click
+     * (Log In button, a banner's "sign in" link, a method button).
+     * "auto": the product opened it as a side effect of a gated action
+     * (guest Apply, a second guest Save, ...). "user" fires `auth_started`;
+     * "auto" fires `auth_nudge_shown` instead, and is subject to the
+     * once-per-session / 7-day-after-dismiss cap in `nudge-cap.ts`.
+     */
+    trigger: AuthGateTrigger;
 }
 
-export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine, defaultTab = "login", reason }: AuthPopoverProps) {
+export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine, defaultTab = "login", reason, trigger }: AuthPopoverProps) {
     const wasOpenRef = useRef(false);
+    const succeededRef = useRef(false);
+    const effectiveReason = reason ?? "generic";
+
+    // An auto-triggered open is capped — see nudge-cap.ts. A suppressed
+    // nudge never reaches the DOM: the gated action it followed (e.g.
+    // opening the ATS tab) already ran, so silently not showing the
+    // popover on top of it is correct, not a broken UI.
+    const suppressed = trigger === "auto" && open && !shouldShowAutoNudge(effectiveReason);
+    const effectiveOpen = open && !suppressed;
 
     useEffect(() => {
-        if (shouldCaptureAuthStarted(wasOpenRef.current, open)) {
-            captureEvent("auth_started", { reason: reason ?? "generic" });
+        if (suppressed) {
+            onOpenChange(false);
+            return;
         }
-        wasOpenRef.current = open;
-    }, [open, reason]);
+        if (shouldCaptureAuthStarted(wasOpenRef.current, effectiveOpen)) {
+            captureEvent(resolveAuthOpenEvent(trigger), { reason: effectiveReason });
+        }
+        // Closing without a preceding success is a dismiss — only counts
+        // toward the auto-nudge cap; a user who opened this themselves and
+        // backed out isn't "nudge fatigue".
+        if (wasOpenRef.current && !effectiveOpen && trigger === "auto" && !succeededRef.current) {
+            recordNudgeDismissed(effectiveReason);
+        }
+        if (!effectiveOpen) succeededRef.current = false;
+        wasOpenRef.current = effectiveOpen;
+    }, [effectiveOpen, suppressed, trigger, effectiveReason, onOpenChange]);
 
     const handleSuccess = () => {
+        succeededRef.current = true;
         onAuthed?.();
         onOpenChange(false);
     };
@@ -56,7 +94,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     // When no trigger, use a Dialog instead (e.g. programmatic open from buttons)
     if (!showTrigger) {
         return (
-            <Dialog open={open} onOpenChange={onOpenChange}>
+            <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
                 <DialogContent className="sm:max-w-[420px] max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-none border border-border bg-card">
                     <DialogTitle className="sr-only">Authentication</DialogTitle>
                     {valueLineNode}
@@ -67,7 +105,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     }
 
     return (
-        <Popover open={open} onOpenChange={onOpenChange}>
+        <Popover open={effectiveOpen} onOpenChange={onOpenChange}>
             <PopoverTrigger asChild>
                 <Button size="sm" variant="outline" className="h-9">
                     Log In

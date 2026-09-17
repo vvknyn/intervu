@@ -36,6 +36,13 @@ test('formatAuthGateValueLine for reason "fit" mentions matching roles to résum
     assert.match(line, /recommendations/i);
 });
 
+// Facts only (verified true from src/lib/match/score.ts and
+// src/lib/local-ai/tailor-with-engine.ts, both client-side modules) — not a
+// claim about the résumé file itself, which is extracted server-side.
+test('formatAuthGateValueLine for reason "fit" states scoring/tailoring run in the browser', () => {
+    assert.match(formatAuthGateValueLine("fit", 0), /Fit scoring and tailoring run in your browser\./);
+});
+
 test('formatAuthGateValueLine for reason "report" mentions reporting issue', () => {
     const line = formatAuthGateValueLine("report", 0);
     assert.match(line, /report an issue/i);

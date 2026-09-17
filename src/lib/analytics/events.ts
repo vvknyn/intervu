@@ -63,6 +63,12 @@ export interface EventPayloads {
   auth_started: {
     reason: AuthGateReason;
   };
+  auth_nudge_shown: {
+    reason: AuthGateReason;
+  };
+  auth_method_selected: {
+    method: SignupMethod;
+  };
   signup_completed: {
     method: SignupMethod;
   };

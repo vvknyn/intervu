@@ -13,6 +13,18 @@ export function shouldCaptureAuthStarted(wasOpen: boolean, nowOpen: boolean): bo
     return !wasOpen && nowOpen;
 }
 
+/** Who opened the popover: "user" clicked a sign-in affordance themselves;
+ *  "auto" is the product opening it as a side effect of a gated action
+ *  (guest Apply, a second guest Save, ...) — never a click on "Sign In".
+ *  Only a real "user" open is a funnel start; an "auto" open is a nudge,
+ *  not an attempt, so it gets its own honest event name. Pure mapping,
+ *  kept next to AuthGateReason so AuthPopover and tests share one rule. */
+export type AuthGateTrigger = "user" | "auto";
+
+export function resolveAuthOpenEvent(trigger: AuthGateTrigger): "auth_started" | "auth_nudge_shown" {
+    return trigger === "user" ? "auth_started" : "auth_nudge_shown";
+}
+
 export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 
 /** Shown on LoginForm's own signup-tab header, on every AuthPopover surface
@@ -27,7 +39,10 @@ const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
     apply: "Create a free account to track this application across devices.",
     generic: "Sign in to sync your tracker across devices.",
     save: "Sign in to keep your list across devices and get alerts when new roles match.",
-    fit: "Sign in to match roles to your résumé and get personalized recommendations.",
+    // Fit scoring and tailoring run client-side (src/lib/match/score.ts,
+    // src/lib/local-ai/tailor-with-engine.ts) — an honest privacy line, not
+    // a claim about the résumé file itself (extraction is server-side).
+    fit: "Sign in to match roles to your résumé and get personalized recommendations. Fit scoring and tailoring run in your browser.",
     report: "Sign in to report an issue with this listing.",
     tailor: "Create a free account to tailor your résumé with on-device AI and export customized applications.",
     resume: "Create a free account to edit, export, and sync your résumé across devices.",

@@ -18,6 +18,11 @@ export const ANALYTICS_EVENTS = {
   job_saved: "job_saved",
   company_followed: "company_followed",
   auth_started: "auth_started",
+  // A gated action (guest Apply, a second guest Save, ...) auto-opened the
+  // auth popover — the honest counterpart to auth_started for an open the
+  // user did NOT click "Sign In" to trigger. See resolveAuthOpenEvent.
+  auth_nudge_shown: "auth_nudge_shown",
+  auth_method_selected: "auth_method_selected",
   signup_completed: "signup_completed",
 
   // Job entity

@@ -370,6 +370,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                 open={authOpen}
                 onOpenChange={setAuthOpen}
                 showTrigger={false}
+                trigger="auto"
                 defaultTab="signup"
                 reason="tailor"
                 valueLine={formatAuthGateValueLine("tailor", listGuestPursuits().length)}
