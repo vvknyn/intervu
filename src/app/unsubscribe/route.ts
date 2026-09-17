@@ -44,6 +44,7 @@ const SCOPE_LABEL: Record<UnsubscribeScope, string> = {
     // and its send never signs an unsubscribe token (see password-reset.ts's
     // doc comment) — kept so this Record stays exhaustive over EmailKind.
     password_reset: "password reset messages",
+    marketing_update: "product update emails",
     all: "all velai emails",
 };
 
@@ -57,12 +58,13 @@ export async function GET(request: Request): Promise<NextResponse> {
                 title: "Unsubscribe",
                 message: "This link is missing its token. Use the unsubscribe link from the email itself, or contact us.",
             }),
+            400,
         );
     }
 
     const result = forget ? await processForgetAction(token) : await processUnsubscribeAction(token);
     if (!result.ok) {
-        return htmlPageResponse(renderUnsubscribeStatusPage({ title: "Unsubscribe", message: result.error }));
+        return htmlPageResponse(renderUnsubscribeStatusPage({ title: "Unsubscribe", message: result.error }), 400);
     }
     after(() => recordFollowFunnelStep({ step: "unsubscribed" }));
 
