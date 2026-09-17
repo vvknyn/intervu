@@ -21,4 +21,4 @@ fi
 docker compose pull caddy
 docker compose up -d --build --remove-orphans
 docker compose ps
-echo "OK — check https://intervu.cc (DNS must point at this host first)."
+echo "OK — check https://velai.app (DNS must point at this host first)."
