@@ -42,6 +42,7 @@ import {
     locationText,
     salaryText,
     titleCaseDisplay,
+    visibleTags,
 } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
@@ -419,14 +420,14 @@ export function JobDetailDocument({
                 />
             </div>
 
-            {job.must_have_skills && job.must_have_skills.length > 0 && (
+            {visibleTags(job.must_have_skills, 12).length > 0 && (
                 <div className="mt-4 border-t border-border pt-4">
                     {/* Rulebook item c's pattern applied to this chip list too:
                         a sentence-case label + one flowing secondary line, no
                         bordered chips. */}
                     <div className="mb-1 text-sm font-semibold text-foreground">Must-have skills</div>
                     <div className="mono-data text-sm text-muted-foreground">
-                        {job.must_have_skills.slice(0, 12).map(decodeText).join(" · ")}
+                        {visibleTags(job.must_have_skills, 12).join(" · ")}
                     </div>
                 </div>
             )}
@@ -514,7 +515,7 @@ export function JobDetailDocument({
                     {job.apply_url ? `Use ${APPLY_BUTTON_LABEL} to read the full details on the employer's site.` : "Try the original posting for full details."}
                 </p>
             )}
-            {job.tags && job.tags.length > 0 && (
+            {visibleTags(job.tags, 16).length > 0 && (
                 <div className="mt-5 border-t border-border pt-4">
                     {/* Rulebook item c: label + one flowing secondary line, no
                         bordered chips. Label stays visible; only the tag list
@@ -525,7 +526,7 @@ export function JobDetailDocument({
                         <summary className="cursor-pointer text-xs text-brand hover:underline lg:hidden">Show details</summary>
                         <div className="hidden group-open:block lg:!block">
                             <div className="mono-data text-sm text-muted-foreground">
-                                {job.tags.slice(0, 16).map(decodeText).join(" · ")}
+                                {visibleTags(job.tags, 16).join(" · ")}
                             </div>
                         </div>
                     </details>

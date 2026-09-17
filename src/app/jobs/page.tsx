@@ -198,7 +198,7 @@ import { SearchAlertCapture } from "@/components/jobs/SearchAlertCapture";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { useApplyReturnPrompt, ApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
-import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
+import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel } from "@/lib/jobs/sort";
 import {
     type FacetKey,
     type JobSearchParams,
@@ -686,7 +686,13 @@ export function JobCard({
                         href={jobPath(job)}
                         data-testid="job-title"
                         className={cn(
-                            "text-lg leading-snug hover:underline",
+                            "text-lg leading-snug",
+                            // Selected row (`active`) freezes `:hover` in some
+                            // browsers because the pointer never truly leaves —
+                            // so the row that's already selected must not carry
+                            // the hover-underline affordance at all; every other
+                            // row still underlines on hover as usual.
+                            !active && "hover:underline",
                             opened ? "text-muted-foreground" : "font-semibold text-foreground",
                         )}
                         onClick={(e) => {
@@ -760,7 +766,7 @@ export function JobCard({
                         at the end of the company line above it. */}
                     {locationKnown && (
                         <span data-rulebook-exempt className="inline-flex items-center gap-1">
-                            <FACT_CHIP_ICON.location size={14} className="shrink-0" aria-hidden />
+                            <FACT_CHIP_ICON.location size={16} className="shrink-0" aria-hidden />
                             {presented.location}
                         </span>
                     )}
@@ -4568,18 +4574,18 @@ function JobsContent() {
                 <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
                     {postedDateSupported && (
                         <ToolbarSegment
-                            label="freshest"
+                            label={sortOptionLabel("newest", resumeOnFile)}
                             pressed={!fitActive && effectiveSort === "newest"}
                             onClick={() => chooseSort("newest")}
                         />
                     )}
                     <ToolbarSegment
-                        label="top pay"
+                        label={sortOptionLabel("salary_desc", resumeOnFile)}
                         pressed={!fitActive && effectiveSort === "salary_desc"}
                         onClick={() => chooseSort("salary_desc")}
                     />
                     <ToolbarSegment
-                        label={resumeOnFile === true ? "best match" : "relevance"}
+                        label={sortOptionLabel("relevance", resumeOnFile)}
                         title={resumeOnFile === true ? "Matched by your résumé" : undefined}
                         pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
                         onClick={chooseBestMatch}
@@ -4881,13 +4887,8 @@ function JobsContent() {
     // primitive (rulebook: a menu, not a segmented/pressed control — a
     // segmented group always has exactly one filled segment, which reads as
     // a filled button living in a region required to carry zero).
-    const relevanceLabel = resumeOnFile === true ? "Best match" : "Relevance";
-    const sortLabel =
-        !fitActive && effectiveSort === "newest"
-            ? "Freshest"
-            : !fitActive && effectiveSort === "salary_desc"
-              ? "Top pay"
-              : relevanceLabel;
+    const relevanceLabel = sortOptionLabel("relevance", resumeOnFile);
+    const sortLabel = fitActive ? relevanceLabel : sortOptionLabel(effectiveSort, resumeOnFile);
     const sortEl = result?.configured ? (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -4912,7 +4913,7 @@ function JobsContent() {
                         onSelect={() => chooseSort("newest")}
                         className="flex items-center justify-between gap-3 text-sm"
                     >
-                        <span>Freshest</span>
+                        <span>{sortOptionLabel("newest", resumeOnFile)}</span>
                         {!fitActive && effectiveSort === "newest" && <Check weight="bold" aria-hidden />}
                     </DropdownMenuItem>
                 )}
@@ -4921,7 +4922,7 @@ function JobsContent() {
                     onSelect={() => chooseSort("salary_desc")}
                     className="flex items-center justify-between gap-3 text-sm"
                 >
-                    <span>Top pay</span>
+                    <span>{sortOptionLabel("salary_desc", resumeOnFile)}</span>
                     {!fitActive && effectiveSort === "salary_desc" && <Check weight="bold" aria-hidden />}
                 </DropdownMenuItem>
                 <DropdownMenuItem

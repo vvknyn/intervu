@@ -190,7 +190,7 @@ export function ForYouPack({
                                 return (
                                     <span key={chip.kind} className={cn(STATED_CHIP_CLASS, "gap-1.5")}>
                                         {Icon && (
-                                            <Icon size={14} weight="bold" className="shrink-0" aria-hidden />
+                                            <Icon size={16} weight="bold" className="shrink-0" aria-hidden />
                                         )}
                                         {chip.label}
                                     </span>
