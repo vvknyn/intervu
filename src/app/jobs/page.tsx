@@ -5486,8 +5486,8 @@ function JobsContent() {
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
                         {/* Mobile cold visitors already get a seeded default browse
                             (overlay-ask); hiding the results column forced an extra
-                            typed query / "Show jobs" tap before result_clicked /
-                            job_viewed, dropping the funnel at pageview. */}
+                            typed query before result_clicked / job_viewed, dropping
+                            the funnel at pageview. */}
                         <div className="flex min-h-0 flex-1 flex-col">
                             <>
                                 <BoardVisitBanner />
