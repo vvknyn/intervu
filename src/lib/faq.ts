@@ -22,12 +22,12 @@ export const JOB_SEARCH_FAQ: FaqItem[] = [
   {
     question: "Are remote jobs in Canada and the United States verified on Velai?",
     answer:
-      "Yes, every remote listing is verified directly against the hiring company's live career portal. Velai checks hiring activity, location eligibility, and compensation bands so Canadian, American, and international candidates apply only to genuine openings.",
+      "Yes, every remote listing is checked directly against the hiring company's live career portal. Velai records the posting's first-seen date, whether the employer's own page still lists the role, and the location and pay stated on the posting, and marks the role closed once it disappears from that page.",
   },
   {
     question: "What is a ghost job and how does Velai screen for them?",
     answer:
-      "A ghost job is a listing that remains posted indefinitely even when the company is not actively hiring. Velai monitors posting duration, company hiring velocity, ATS update frequencies, and listing freshness to flag stale or low-signal roles before you waste time applying.",
+      "A ghost job is a listing that remains posted indefinitely even when the company is not actively hiring. Every posting on Velai shows how long it has been open and when it was last seen live on the employer's career page.",
   },
   {
     question: "Is Velai free to search for jobs?",
@@ -37,6 +37,6 @@ export const JOB_SEARCH_FAQ: FaqItem[] = [
   {
     question: "How fresh are the job listings on Velai?",
     answer:
-      "Velai updates listings directly from company career sites continuously. When an employer closes a role on their career page, it is marked closed on Velai within 24 hours.",
+      "Velai re-checks listings directly against company career sites on an ongoing basis. A role is marked closed once the re-check no longer finds it on the employer's site.",
   },
 ];

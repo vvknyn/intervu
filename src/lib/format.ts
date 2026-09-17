@@ -4,5 +4,5 @@
  * each call site hand-rolling its own `.toLocaleString()`.
  */
 export function formatCount(n: number): string {
-    return n.toLocaleString();
+    return n.toLocaleString("en-US");
 }

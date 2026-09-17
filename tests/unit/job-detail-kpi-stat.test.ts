@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { jobTrackRecord, pairedKpiChips } from "@/components/jobs/job-detail-facts";
+import { formatCount } from "@/lib/format";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -38,6 +39,10 @@ describe("pairedKpiChips", () => {
         const chips = pairedKpiChips({ opened90d: 1234, closed90d: 56 });
         assert.equal(chips[0]!.value, (1234).toLocaleString());
         assert.equal(chips[1]!.value, (56).toLocaleString());
+    });
+
+    it("formatCount pins en-US grouping so server and client render identically", () => {
+        assert.equal(formatCount(1234567), "1,234,567");
     });
 });
 
