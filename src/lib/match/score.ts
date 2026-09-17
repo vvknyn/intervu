@@ -35,7 +35,8 @@
  * component whose denominator is the JOB's own vocabulary (title + tags +
  * occupation + hydrated description when present, rank words stripped), not
  * the résumé's. The résumé side compares skills, profession, role titles, and
- * responsibility text (experience bullets + summary). That fixes both bugs
+ * responsibility text (experience/project bullets + summary + skills, via
+ * resumeDutyTokens). That fixes both bugs
  * at once: coverage is always "how much of what this role asks for is in
  * your résumé" — a longer résumé can only help (more terms to match against
  * the same fixed job vocabulary) — and it's now REQUIRED, so a pair with no
@@ -147,9 +148,10 @@ function jobVocabulary(job: PublicJob): Set<string> {
 
 /**
  * A résumé's topical vocabulary: skills, profession, role titles, and
- * responsibility tokens from experience bullets + generated summary.
- * `topSkills(resume, Infinity)` (not the default cap of 8) so a long, real
- * skill list is never truncated out of contention.
+ * responsibility tokens from resumeDutyTokens (summary + experience/project
+ * bullets + skills — see resumeMatchText). `topSkills(resume, Infinity)`
+ * (not the default cap of 8) so a long, real skill list is never truncated
+ * out of contention.
  */
 function resumeVocabulary(resume: ResumeData): Set<string> {
     const tokens = [

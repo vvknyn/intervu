@@ -316,6 +316,7 @@ export function PublicJobDetail({
                 onOpenChange={setAuthOpen}
                 onAuthed={onAuthed}
                 showTrigger={false}
+                trigger="auto"
                 valueLine={
                     authGateReason
                         ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length)

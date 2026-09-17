@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
 import type { FacetDistribution } from "@/lib/jobs/types";
 
 /**
@@ -24,8 +26,11 @@ export function GhostRadarCard({
             <span className="text-xs text-muted-foreground">Posting check</span>
             <p className="mt-2 text-xs leading-relaxed text-foreground">
                 Of {formatCorpusCount(total)} matches for this search, {flagged.toLocaleString()} carry ghost-risk
-                flags. We flag postings that look stale or not actively hiring, so you don&apos;t waste an
-                application on one.
+                flags. We{" "}
+                <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
+                    flag postings that look stale or not actively hiring
+                </Link>
+                , so you don&apos;t waste an application on one.
             </p>
         </div>
     );

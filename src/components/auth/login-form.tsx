@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
-import { captureEvent } from '@/lib/analytics/events'
+import { captureEvent, type SignupMethod } from '@/lib/analytics/events'
 import { clearSignupSignalCookieFromDocument } from '@/lib/auth/authkit-signup-signal'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
@@ -51,6 +51,12 @@ function GoogleGlyph() {
             />
         </svg>
     );
+}
+
+/** Which `auth_method_selected` method a click on the AuthKit buttons
+ *  below maps to — pure so it's testable without mounting the form. */
+export function resolveAuthKitMethod(provider?: string): SignupMethod {
+    return provider === 'GoogleOAuth' ? 'google' : 'passkey'
 }
 
 export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: LoginFormProps = {}) {
@@ -105,6 +111,10 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
      * fresh.
      */
     const startAuthKit = (provider?: string) => {
+        // One capture for both method buttons below — Google passes its
+        // provider id, the passkey/email-code button passes none, so the
+        // two branches can't drift into different event names.
+        captureEvent('auth_method_selected', { method: resolveAuthKitMethod(provider) })
         setAuthKitPending(provider ?? 'passkey')
         const params = new URLSearchParams()
         // `next` already on this URL (e.g. middleware bounced here from a
@@ -246,7 +256,14 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                 </div>
 
                 <div className="grid gap-3 sm:gap-4">
-                    <form onSubmit={activeTab === "login" ? handleLogin : handleSignUp}>
+                    <form
+                        onSubmit={(e) => {
+                            // One call site for both tabs — a third tab
+                            // wouldn't need a new capture call either.
+                            captureEvent('auth_method_selected', { method: 'username' })
+                            void (activeTab === "login" ? handleLogin(e) : handleSignUp(e))
+                        }}
+                    >
                         <div className="grid gap-3 sm:gap-4">
                             {activeTab === "signup" && (
                                 <Field label="Email" htmlFor="email">

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { NAV_TABS, TRENDS_TAB } from "../../src/components/layout/nav-tabs";
+import { CONNECT_TAB, NAV_TABS, TRENDS_TAB, mobilePrimaryTabs } from "../../src/components/layout/nav-tabs";
 
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
 const ADMIN = join(__dirname, "..", "..", "src", "app", "admin", "page.tsx");
@@ -25,8 +25,8 @@ test("TRENDS_TAB is a footer-only /trends entry", () => {
 test("Agents tab is present with its own icon and no cta variant", () => {
     const connect = NAV_TABS.find((t) => t.href === "/connect");
     assert.ok(connect);
-    assert.equal(connect?.label, "Agents");
-    assert.equal(connect?.shortLabel, "Agents");
+    assert.equal(connect?.label, "Connect AI");
+    assert.equal(connect?.shortLabel, "Connect AI");
     assert.ok(connect?.icon);
     assert.equal(connect?.variant, undefined);
 });
@@ -36,6 +36,29 @@ test("NAV_TABS no longer markets /prep or /resume-builder as top-level nav", () 
         assert.notEqual(tab.href, "/prep");
         assert.notEqual(tab.href, "/resume-builder");
     }
+});
+
+test("mobilePrimaryTabs: mobilePrimary:false is excluded; a tab without the field is included", () => {
+    const optedOut: import("../../src/components/layout/nav-tabs").NavTab = {
+        ...NAV_TABS[0],
+        href: "/opted-out",
+        testId: "opted-out",
+        mobilePrimary: false,
+    };
+    const unset: import("../../src/components/layout/nav-tabs").NavTab = {
+        ...NAV_TABS[0],
+        href: "/unset",
+        testId: "unset",
+    };
+    const result = mobilePrimaryTabs([optedOut, unset]);
+    assert.deepEqual(result.map((t) => t.href), ["/unset"]);
+});
+
+test("Connect AI tab opts out of the mobile bar but stays a desktop bar tab", () => {
+    assert.equal(CONNECT_TAB.mobilePrimary, false);
+    assert.equal(CONNECT_TAB.placement, "bar");
+    assert.ok(NAV_TABS.includes(CONNECT_TAB), "must still be in the desktop-rendered NAV_TABS");
+    assert.ok(!mobilePrimaryTabs(NAV_TABS).includes(CONNECT_TAB), "must be filtered out of the mobile bar's tab list");
 });
 
 test("Connect nav is not active on /openclaw", () => {

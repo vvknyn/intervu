@@ -143,7 +143,7 @@ describe('landing marketing showcase: compact first-viewport layout', () => {
 
     it('renders field entry points as a compact wrap row of indexCategories titles', () => {
         const src = readFileSync(TARGET, 'utf8');
-        assert.match(src, /flex flex-wrap/);
+        assert.match(src, /flex-wrap/);
         assert.match(src, /indexCategories\.map/);
         for (const cat of indexCategories) {
             assert.match(src, new RegExp(cat.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -151,13 +151,16 @@ describe('landing marketing showcase: compact first-viewport layout', () => {
         assert.doesNotMatch(src, /\{cat\.desc\}/, 'descriptions must not render as block rows on landing');
     });
 
-    it('renders filter shortcuts as a compact single row, not p-4 cards in a 3-col grid', () => {
+    // A2 (desktop first screen, 2026-09-17): the "Or start with a filter"
+    // trio pushed the first result row below 420px on desktop and duplicated
+    // controls the filter toolbar already offers, so it was removed outright
+    // rather than further compacted. Guards against it quietly coming back.
+    it('does not render the "Or start with a filter" shortcut trio', () => {
         const src = readFileSync(TARGET, 'utf8');
-        assert.doesNotMatch(src, /grid grid-cols-1 gap-4 sm:grid-cols-3/);
-        assert.doesNotMatch(src, /border border-border p-4/);
-        assert.match(src, /Top companies/);
-        assert.match(src, /Remote jobs only/);
-        assert.match(src, /Pays \$150k or more/);
+        assert.doesNotMatch(src, /Or start with a filter/);
+        assert.doesNotMatch(src, /Top companies/);
+        assert.doesNotMatch(src, /Remote jobs only/);
+        assert.doesNotMatch(src, /Pays \$150k or more/);
     });
 });
 
@@ -229,7 +232,7 @@ describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
         assert.doesNotMatch(src, /export function LandingUspSection/);
     });
 
-    it('renders the tested headline, provenance line, and live count when showLandingMarketing', () => {
+    it('renders the tested headline and provenance line when showLandingMarketing, with no live count (A3: count moved to end of list)', () => {
         const src = readFileSync(JOBS_PAGE, 'utf8');
         const start = src.indexOf('{showLandingMarketing ? (');
         const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
@@ -238,9 +241,14 @@ describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
         const branch = src.slice(start, end);
         assert.match(branch, /\{JOBS_USP\.mastheadTitle\}/);
         assert.match(branch, /\{JOBS_USP\.searchDescription\}/);
-        assert.match(branch, /\{liveCountEl\}/);
         // The claim text itself, not just the symbol reference — same fact
         // the deleted LandingMasthead's own test asserted.
         assert.match(JOBS_USP.searchDescription, /screened for stale postings/);
+        // A3 (front-door redesign): the corpus count no longer renders in the
+        // masthead at all — it renders exactly once, at the end of the
+        // results list, guarded by the same `{liveCountEl}` symbol elsewhere
+        // in the file.
+        assert.doesNotMatch(branch, /\{liveCountEl\}/);
+        assert.match(src.slice(end), /\{liveCountEl\}/, 'liveCountEl no longer rendered anywhere — A3 requires it once, at the end of the results list');
     });
 });

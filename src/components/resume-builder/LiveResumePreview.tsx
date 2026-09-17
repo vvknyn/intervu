@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { ResumeData, ResumeSection, detectProfessionType, getSectionOrder } from "@/types/resume";
+import { ResumeData, ResumeSection, getSectionOrder } from "@/types/resume";
 import { PencilSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
@@ -106,14 +106,11 @@ export function LiveResumePreview({
 }: LiveResumePreviewProps) {
     const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
-    // Section ordering (custom or auto-detected)
-    const sectionOrder = useMemo(() => {
-        if (data.sectionOrder && data.sectionOrder.length > 0) {
-            return data.sectionOrder;
-        }
-        const professionType = detectProfessionType(data.profile?.profession || "");
-        return getSectionOrder(data.profile?.yearsOfExperience || 0, professionType);
-    }, [data.sectionOrder, data.profile?.profession, data.profile?.yearsOfExperience]);
+    // Section ordering (custom or auto-detected; merges in any section a saved order predates)
+    const sectionOrder = useMemo(
+        () => getSectionOrder(data),
+        [data.sectionOrder, data.profile?.profession, data.profile?.yearsOfExperience],
+    );
 
     // Diff calculation helpers
     const getChangeStatus = (section: string, itemId?: string): "modified" | "new" | "removed" | null => {
@@ -167,7 +164,25 @@ export function LiveResumePreview({
             const changed =
                 clean(currentEdu.degree) !== clean(origEdu.degree) ||
                 clean(currentEdu.institution) !== clean(origEdu.institution) ||
-                clean(currentEdu.year) !== clean(origEdu.year);
+                clean(currentEdu.year) !== clean(origEdu.year) ||
+                clean(currentEdu.gpa) !== clean(origEdu.gpa) ||
+                clean((currentEdu.honours || []).join(",")) !== clean((origEdu.honours || []).join(",")) ||
+                clean((currentEdu.coursework || []).join(",")) !== clean((origEdu.coursework || []).join(",")) ||
+                clean((currentEdu.activities || []).join(",")) !== clean((origEdu.activities || []).join(","));
+            return changed ? "modified" : null;
+        }
+
+        if (section === "projects" && itemId) {
+            const currentProj = data.projects?.find((e) => e.id === itemId);
+            const origProj = originalData.projects?.find((e) => e.id === itemId);
+            if (!origProj) return "new";
+            if (!currentProj) return "removed";
+            const clean = (s?: string) => (s || "").trim().replace(/\s+/g, " ");
+            const changed =
+                clean(currentProj.role) !== clean(origProj.role) ||
+                clean(currentProj.company) !== clean(origProj.company) ||
+                clean(currentProj.dates) !== clean(origProj.dates) ||
+                clean(currentProj.description) !== clean(origProj.description);
             return changed ? "modified" : null;
         }
 
@@ -187,6 +202,13 @@ export function LiveResumePreview({
             (orig) => !data.education?.some((curr) => curr.id === orig.id),
         );
     }, [data.education, originalData, showDiffs, printMode]);
+
+    const removedProjects = useMemo(() => {
+        if (!originalData || !showDiffs || printMode) return [];
+        return (originalData.projects || []).filter(
+            (orig) => !data.projects?.some((curr) => curr.id === orig.id),
+        );
+    }, [data.projects, originalData, showDiffs, printMode]);
 
     // Gathered here because `SectionWrapper` sits at module scope (see its
     // comment) and can no longer close over these.
@@ -373,6 +395,18 @@ export function LiveResumePreview({
                                                 New
                                             </span>
                                         )}
+                                        {edu.gpa && (
+                                            <div className="text-xs text-muted-foreground">GPA: {edu.gpa}</div>
+                                        )}
+                                        {edu.honours?.length ? (
+                                            <div className="text-xs text-muted-foreground">Honours: {edu.honours.join(", ")}</div>
+                                        ) : null}
+                                        {edu.coursework?.length ? (
+                                            <div className="text-xs text-muted-foreground">Relevant coursework: {edu.coursework.join(", ")}</div>
+                                        ) : null}
+                                        {edu.activities?.length ? (
+                                            <div className="text-xs text-muted-foreground">Activities: {edu.activities.join(", ")}</div>
+                                        ) : null}
                                     </div>
                                     {edu.year && <span className="text-xs italic text-muted-foreground">({edu.year})</span>}
                                 </div>
@@ -404,12 +438,112 @@ export function LiveResumePreview({
         );
     };
 
+    const renderProjects = () => {
+        const hasProj = data.projects && data.projects.length > 0;
+        if (!hasProj && !onEdit && removedProjects.length === 0) return null;
+        return (
+            <SectionWrapper id="projects" className="mb-2.5" ctx={ctx}>
+                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
+                    Projects
+                </h2>
+                {hasProj || removedProjects.length > 0 ? (
+                    <div className="space-y-2 text-foreground dark:text-muted-foreground">
+                        {(data.projects ?? []).map((proj, index) => {
+                            const itemStatus = getChangeStatus("projects", proj.id);
+                            return (
+                                <div
+                                    key={proj.id || index}
+                                    className={cn(
+                                        "space-y-0.5 relative transition-colors rounded-none",
+                                        itemStatus === "modified" &&
+                                            "bg-muted border-l-2 border-warn pl-1 -ml-1",
+                                        itemStatus === "new" &&
+                                            "bg-muted border-l-2 border-live pl-1 -ml-1",
+                                    )}
+                                >
+                                    <div className="flex justify-between items-baseline text-xs">
+                                        <div>
+                                            <span className="font-semibold">{proj.role || "Project Name"}</span>
+                                            {proj.company && (
+                                                <>
+                                                    <span className="mx-1 text-placeholder-text">|</span>
+                                                    <span className="">{proj.company}</span>
+                                                </>
+                                            )}
+                                            {itemStatus === "modified" && (
+                                                <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded-none font-semibold">
+                                                    Edited
+                                                </span>
+                                            )}
+                                            {itemStatus === "new" && (
+                                                <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded-none font-semibold">
+                                                    New
+                                                </span>
+                                            )}
+                                        </div>
+                                        {proj.dates && (
+                                            <span className="text-xs italic text-muted-foreground dark:text-border whitespace-nowrap ml-2">
+                                                {proj.dates}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {proj.description && (
+                                        <ul className="text-xs space-y-0.5 pl-0">
+                                            {proj.description
+                                                .split("\n")
+                                                .filter((line) => line.trim())
+                                                .map((line, i) => (
+                                                    <li key={i} className="flex leading-snug">
+                                                        <span className="mr-1.5 text-muted-foreground shrink-0">•</span>
+                                                        <span className="text-justify">{line.replace(/^[•\-\*]\s*/, "")}</span>
+                                                    </li>
+                                                ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {removedProjects.map((proj, index) => (
+                            <div
+                                key={`removed-${proj.id || index}`}
+                                className="space-y-0.5 opacity-50 bg-muted border-l-2 border-danger-text pl-1 -ml-1 line-through"
+                            >
+                                <div className="flex justify-between items-baseline text-xs">
+                                    <div>
+                                        <span className="font-semibold">{proj.role || "Project Name"}</span>
+                                        {proj.company && (
+                                            <>
+                                                <span className="mx-1">|</span>
+                                                <span>{proj.company}</span>
+                                            </>
+                                        )}
+                                        <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded-none font-semibold not-italic no-underline inline-block">
+                                            Removed
+                                        </span>
+                                    </div>
+                                    <span className="text-xs italic whitespace-nowrap ml-2">
+                                        {proj.dates}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-placeholder-text italic text-xs text-center py-1">
+                        Click to add a project
+                    </p>
+                )}
+            </SectionWrapper>
+        );
+    };
+
     const sectionComponents: Record<ResumeSection, () => React.ReactNode> = {
         summary: renderSummary,
         skills: renderSkills,
         experience: renderExperience,
         education: renderEducation,
-        projects: () => null,
+        projects: renderProjects,
     };
 
     const contactItems = [

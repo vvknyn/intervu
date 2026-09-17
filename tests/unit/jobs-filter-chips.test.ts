@@ -48,8 +48,8 @@ test("returns undefined when the facet distribution hasn't loaded yet", () => {
 // specific number.
 
 test("steps to the next preset above an exact preset value", () => {
-    assert.equal(nextSalaryPreset(0), 50_000);
-    assert.equal(nextSalaryPreset(50_000), 100_000);
+    assert.equal(nextSalaryPreset(0), 30_000);
+    assert.equal(nextSalaryPreset(50_000), 75_000);
 });
 
 test("wraps from the top preset back to Any", () => {
@@ -57,9 +57,9 @@ test("wraps from the top preset back to Any", () => {
 });
 
 test("steps UP from an off-ladder value instead of clearing", () => {
-    // 75,000 sits between the $50k and $100k presets — the regression
-    // returned "Any" (0) here.
-    assert.equal(nextSalaryPreset(75_000), 100_000);
+    // 60,000 sits between the $50k and $75k presets (G1 added $30k/$75k
+    // rungs to this ladder) — the regression returned "Any" (0) here.
+    assert.equal(nextSalaryPreset(60_000), 75_000);
 });
 
 test("wraps an off-ladder value above every preset back to Any", () => {

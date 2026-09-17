@@ -19,7 +19,7 @@ describe("follow alerts bell relocation", () => {
         assert.match(src, /FollowAlertsBell/);
         const cluster = src.slice(src.indexOf('className="flex shrink-0 items-center gap-3"'));
         const bellIdx = cluster.indexOf("FollowAlertsBell");
-        const accountIdx = cluster.indexOf("{user ?");
+        const accountIdx = cluster.indexOf('authChrome === "authenticated" && user ?');
         assert.ok(bellIdx > -1 && accountIdx > bellIdx, "bell sits left of account chrome");
     });
 

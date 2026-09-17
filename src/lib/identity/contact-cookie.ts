@@ -14,7 +14,13 @@
  */
 import { cookies } from "next/headers";
 import type { Queryable } from "../pg/pool";
-import { consumeVerifyToken, addEmailFollow, consumeSearchAlertToken, upsertEmailSavedSearch } from "./store";
+import {
+  consumeVerifyToken,
+  addEmailFollow,
+  consumeSearchAlertToken,
+  upsertEmailSavedSearch,
+  type SearchAlertAnalytics,
+} from "./store";
 
 export const CONTACT_COOKIE_NAME = "intervu_contact";
 const CONTACT_COOKIE_MAX_AGE_DAYS = 180;
@@ -64,7 +70,12 @@ export async function consumeAndFollow(
 export async function consumeAndSaveSearchAlert(
   q: Queryable,
   rawToken: string,
-): Promise<{ redirectPath: string; contactToken: string } | null> {
+): Promise<{
+  redirectPath: string;
+  contactToken: string;
+  distinctId: string | null;
+  analytics: SearchAlertAnalytics | null;
+} | null> {
   const consumed = await consumeSearchAlertToken(q, rawToken);
   if (!consumed) return null;
 
@@ -75,5 +86,10 @@ export async function consumeAndSaveSearchAlert(
     href: consumed.href,
   });
 
-  return { redirectPath: consumed.redirectPath, contactToken: consumed.contactToken };
+  return {
+    redirectPath: consumed.redirectPath,
+    contactToken: consumed.contactToken,
+    distinctId: consumed.distinctId,
+    analytics: consumed.analytics,
+  };
 }

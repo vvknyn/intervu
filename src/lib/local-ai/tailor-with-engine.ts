@@ -14,15 +14,19 @@ import { locationText } from "@/lib/jobs/presentation";
 import {
     heuristicTailorResume,
     introducesNewNumbers,
+    resumeFullText,
+    type TailorBulletDiff,
     type TailorDraft,
     type TailorJobInput,
 } from "./tailor-resume";
 import { ENGINE_LABELS } from "./engines/types";
-import type { ResumeData } from "@/types/resume";
+import type { ResumeData, ResumeExperience } from "@/types/resume";
+
+type ModelBullet = { experienceId?: string; text?: string };
 
 type ModelTailorOutput = {
     summary?: string;
-    bullets?: Array<{ experienceId?: string; text?: string }>;
+    bullets?: ModelBullet[];
 };
 
 export const TAILOR_VOICE_RULES = `Voice rules (still truthful — no invented employers, titles, dates, or metrics):
@@ -44,15 +48,24 @@ function tryParseModelJson(text: string): ModelTailorOutput | null {
     }
 }
 
-export function buildModelPrompt(resume: ResumeData, job: TailorJobInput): string {
-    const snippets = resume.experience
+/** Snippet lines for one résumé section (experience or projects — same
+ *  `ResumeExperience` shape) — shared so the model prompt offers both
+ *  sections' ids as equally valid bullet targets. */
+function buildEntrySnippets(entries: ResumeExperience[], max: number): string {
+    return entries
         .filter((e) => e.description?.trim())
-        .slice(0, 4)
+        .slice(0, max)
         .map((e) => {
             const firstBullet = e.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8) ?? "";
             return `- id: ${e.id}, role: ${e.role}, company: ${e.company}, bullet: ${firstBullet.slice(0, 200)}`;
         })
         .join("\n");
+}
+
+export function buildModelPrompt(resume: ResumeData, job: TailorJobInput): string {
+    const experienceSnippets = buildEntrySnippets(resume.experience, 4);
+    const projectSnippets = buildEntrySnippets(resume.projects ?? [], 4);
+    const projectSection = projectSnippets ? `\n\nPROJECT SNIPPETS:\n${projectSnippets}` : "";
 
     const desc = (job.description ?? "").slice(0, 800);
 
@@ -73,13 +86,72 @@ CURRENT SUMMARY:
 ${resume.generatedSummary || resume.profile.profession}
 
 EXPERIENCE SNIPPETS:
-${snippets}
+${experienceSnippets}${projectSection}
 
-Return JSON only:
+Return JSON only — "experienceId" may be an id from either EXPERIENCE or PROJECT snippets:
 {"summary":"...","bullets":[{"experienceId":"...","text":"..."}]}`;
 }
 
-function applyModelTailor(
+/** Matches model-produced bullets against one résumé section — experience or
+ *  projects, which share the `ResumeExperience` shape — patching
+ *  `tailoredList` in place and returning one `TailorBulletDiff` per accepted
+ *  match. Shared by both the experience and project passes in
+ *  `applyModelTailor` so a project bullet from the engine is matched,
+ *  cross-checked and diffed exactly like an experience bullet; `source` is
+ *  set by the caller and never read from model output. */
+function applyModelBulletsForEntries(
+    entries: ResumeExperience[],
+    tailoredList: ResumeExperience[],
+    source: TailorBulletDiff["source"],
+    modelBullets: ModelBullet[],
+    allEntries: ResumeExperience[],
+): TailorBulletDiff[] {
+    const bullets: TailorBulletDiff[] = [];
+
+    for (const b of modelBullets) {
+        const entryId = b.experienceId?.trim();
+        const text = b.text?.trim();
+        if (!entryId || !text) continue;
+
+        const idx = entries.findIndex((e) => e.id === entryId);
+        if (idx < 0) continue;
+
+        const entry = entries[idx];
+        const hit = entry.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8);
+        if (!hit) continue;
+
+        if (text.toLowerCase().includes(entry.company.toLowerCase()) === false && /\b(at|for)\s+[A-Z]/.test(text)) {
+            const origCompany = entry.company.toLowerCase();
+            const mentioned = allEntries.some(
+                (e) => e.id !== entryId && text.toLowerCase().includes(e.company.toLowerCase()),
+            );
+            if (mentioned && !text.toLowerCase().includes(origCompany)) continue;
+        }
+
+        const lines = entry.description.split(/\n|•/).map((l) => l.replace(/^[\s\-*]+/, "").trim()).filter(Boolean);
+        const lineIdx = lines.findIndex((l) => l === hit || l.includes(hit.slice(0, 20)));
+        if (lineIdx >= 0) {
+            lines[lineIdx] = text;
+            tailoredList[idx] = {
+                ...tailoredList[idx],
+                description: lines.join("\n"),
+            };
+        }
+
+        bullets.push({
+            experienceId: entry.id,
+            source,
+            company: entry.company,
+            role: entry.role,
+            before: hit,
+            after: text,
+        });
+    }
+
+    return bullets;
+}
+
+export function applyModelTailor(
     resume: ResumeData,
     job: TailorJobInput,
     parsed: ModelTailorOutput,
@@ -94,48 +166,12 @@ function applyModelTailor(
 
     tailored.generatedSummary = parsed.summary.trim();
 
-    const bullets: TailorDraft["bullets"] = [];
     const modelBullets = parsed.bullets ?? [];
-
-    for (const b of modelBullets) {
-        const expId = b.experienceId?.trim();
-        const text = b.text?.trim();
-        if (!expId || !text) continue;
-
-        const expIdx = resume.experience.findIndex((e) => e.id === expId);
-        if (expIdx < 0) continue;
-
-        const exp = resume.experience[expIdx];
-        const hit = exp.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8);
-        if (!hit) continue;
-
-        if (introducesNewNumbers(hit, text)) continue;
-        if (text.toLowerCase().includes(exp.company.toLowerCase()) === false && /\b(at|for)\s+[A-Z]/.test(text)) {
-            const origCompany = exp.company.toLowerCase();
-            const mentioned = resume.experience.some(
-                (e) => e.id !== expId && text.toLowerCase().includes(e.company.toLowerCase()),
-            );
-            if (mentioned && !text.toLowerCase().includes(origCompany)) continue;
-        }
-
-        const lines = exp.description.split(/\n|•/).map((l) => l.replace(/^[\s\-*]+/, "").trim()).filter(Boolean);
-        const lineIdx = lines.findIndex((l) => l === hit || l.includes(hit.slice(0, 20)));
-        if (lineIdx >= 0) {
-            lines[lineIdx] = text;
-            tailored.experience[expIdx] = {
-                ...tailored.experience[expIdx],
-                description: lines.join("\n"),
-            };
-        }
-
-        bullets.push({
-            experienceId: exp.id,
-            company: exp.company,
-            role: exp.role,
-            before: hit,
-            after: text,
-        });
-    }
+    const allEntries = [...resume.experience, ...(resume.projects ?? [])];
+    const bullets: TailorBulletDiff[] = [
+        ...applyModelBulletsForEntries(resume.experience, tailored.experience, "experience", modelBullets, allEntries),
+        ...applyModelBulletsForEntries(resume.projects ?? [], tailored.projects ?? [], "project", modelBullets, allEntries),
+    ];
 
     if (bullets.length === 0) return null;
 
@@ -150,40 +186,104 @@ function applyModelTailor(
     };
 }
 
+const GROUNDED_WORD_MIN_LENGTH = 4;
+const GROUNDED_WORD_RE = new RegExp(`[a-z]{${GROUNDED_WORD_MIN_LENGTH},}`, "g");
+
+/** Raw (unfiltered) word membership for `resumeText` — deliberately not the
+ *  stopword-filtered `resumeVocabulary` used for JD-overlap scoring in
+ *  tailor-resume.ts: ordinary words like "team" or "company" are fine for a
+ *  rewrite to reuse, only words absent from the résumé altogether are
+ *  invented claims. */
+function resumeWordSet(resumeText: string): Set<string> {
+    return new Set(resumeText.toLowerCase().match(GROUNDED_WORD_RE) ?? []);
+}
+
+/** True when `text` contains a word of `GROUNDED_WORD_MIN_LENGTH`+ letters
+ *  that never appears anywhere in the résumé's own text. */
+function introducesUngroundedWord(vocabulary: Set<string>, text: string): boolean {
+    const words = text.toLowerCase().match(GROUNDED_WORD_RE) ?? [];
+    return words.some((w) => !vocabulary.has(w));
+}
+
+function isGrounded(vocabulary: Set<string>, before: string, after: string): boolean {
+    return !introducesNewNumbers(before, after) && !introducesUngroundedWord(vocabulary, after);
+}
+
+function revertBulletInResume(resume: ResumeData, bullet: TailorBulletDiff): ResumeData {
+    const list = bullet.source === "project" ? resume.projects : resume.experience;
+    if (!list) return resume;
+    const idx = list.findIndex((e) => e.id === bullet.experienceId);
+    if (idx < 0) return resume;
+    list[idx] = {
+        ...list[idx],
+        description: list[idx].description.replace(bullet.after, bullet.before),
+    };
+    return resume;
+}
+
+/**
+ * The tailor's truthfulness gate (front-door C1) — applied to every accepted
+ * draft, heuristic or model, at draft-acceptance time. Drops any bullet or
+ * summary edit that (a) introduces a number absent from its original, or (b)
+ * introduces a word of `GROUNDED_WORD_MIN_LENGTH`+ letters absent from the
+ * résumé's own text (an unconditional class guard — it runs on every draft,
+ * not just the one that surfaced the bug). A dropped bullet is reverted to
+ * its original text in `tailored`, not merely excluded from the diff list,
+ * so the returned résumé never carries an ungrounded claim.
+ */
+export function groundDraft(resumeText: string, draft: TailorDraft): TailorDraft {
+    const vocabulary = resumeWordSet(resumeText);
+
+    let tailored = draft.tailored;
+    const bullets = draft.bullets.filter((b) => {
+        if (isGrounded(vocabulary, b.before, b.after)) return true;
+        tailored = revertBulletInResume(tailored, b);
+        return false;
+    });
+
+    const summaryGrounded = isGrounded(vocabulary, draft.summaryBefore, draft.summaryAfter);
+    const summaryAfter = summaryGrounded ? draft.summaryAfter : draft.summaryBefore;
+    tailored.generatedSummary = summaryAfter;
+
+    return { ...draft, tailored, bullets, summaryAfter };
+}
+
 export async function tailorResumeForJob(
     resume: ResumeData,
     job: TailorJobInput,
     opts?: { allowModel?: boolean },
 ): Promise<TailorDraft> {
     const allowModel = opts?.allowModel ?? false;
+    const resumeText = resumeFullText(resume);
+    const heuristicFallback = () => groundDraft(resumeText, heuristicTailorResume(resume, job));
 
     if (!allowModel || !readLocalAiConsent()) {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
     await initLocalAiLadder();
     const engineId = getActiveEngineId();
 
     if (engineId === "heuristic") {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
     const raw = await generateWithActiveEngine(buildModelPrompt(resume, job));
     if (!raw) {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
     const parsed = tryParseModelJson(raw);
     if (!parsed) {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
     const modelDraft = applyModelTailor(resume, job, parsed, engineId);
     if (!modelDraft) {
-        return heuristicTailorResume(resume, job);
+        return heuristicFallback();
     }
 
-    return modelDraft;
+    return groundDraft(resumeText, modelDraft);
 }
 
 /** PublicJob → TailorJobInput adapter for UI callers. */

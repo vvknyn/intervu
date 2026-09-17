@@ -54,9 +54,10 @@ test("events.ts re-exports the exact same ANALYTICS_EVENTS map as event-names.ts
  * Two call shapes elsewhere in src/ legitimately contain a matching quoted
  * literal without being a second declaration, because TypeScript — not this
  * scan — already ties them back to ANALYTICS_EVENTS:
- *   - `captureEvent("name", ...)` (events.ts): `K extends AnalyticsEventKey`
- *     means a rename in ANALYTICS_EVENTS breaks every such call site at
- *     compile time, so the literal here can't silently drift from the map.
+ *   - `captureEvent("name", ...)` (events.ts) and `captureServerEvent("name",
+ *     ...)` (server-capture.ts): both are `K extends AnalyticsEventKey`, so
+ *     a rename in ANALYTICS_EVENTS breaks every such call site at compile
+ *     time and the literal here can't silently drift from the map.
  *   - `EventPayloads["name"]` (events.ts): a TypeScript indexed-access TYPE
  *     position, erased before anything runs — no runtime string exists here
  *     to drift.
@@ -81,6 +82,7 @@ function declaresWireNameLiteral(src: string, name: string): boolean {
   while ((m = re.exec(stripped))) {
     const before = stripped.slice(Math.max(0, m.index - 80), m.index);
     if (/\bcaptureEvent\(\s*$/.test(before)) continue;
+    if (/\bcaptureServerEvent\(\s*$/.test(before)) continue;
     if (/\bEventPayloads\[\s*$/.test(before)) continue;
     return true;
   }

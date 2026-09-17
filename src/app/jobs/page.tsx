@@ -155,6 +155,7 @@ import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
 import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
+import { isSameOpenJob } from "@/lib/jobs/is-same-open-job";
 import {
     isUnavailableJobsResult,
     resolveSelectionAfterRefresh,
@@ -244,6 +245,7 @@ import {
     GUEST_SAVE_TOAST,
     SIGNUP_SUBCOPY,
     type AuthGateReason,
+    type AuthGateTrigger,
 } from "@/lib/auth/auth-gate-copy";
 import {
     getGuestSaveCount,
@@ -407,7 +409,7 @@ function ToolbarSegment({
  * `remoteAnywhere` (`result.remoteAnywhere`, search.ts) names the scope via
  * `locationDefaultScope` (location-default-preference.ts) instead of a bare
  * country name — the applied place filter also OR's in every remote role
- * with no country tag (`REMOTE_ANYWHERE_CLAUSE`), so "near {country}" alone
+ * with no country tag (`REMOTE_ANYWHERE_CLAUSE`), so a bare country scope alone
  * used to read as a promise the query didn't keep (results included e.g.
  * Sydney/Dubai remote listings under a "near Canada" chip).
  */
@@ -428,7 +430,7 @@ function DefaultLocationChip({
             className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
         >
             {flag && <span aria-hidden>{flag}</span>}
-            near {scope}
+            {scope}
             <ChipDismiss label={`Stop defaulting to ${scope}`} onClick={onClear} />
         </span>
     );
@@ -1372,15 +1374,12 @@ function JobsContent() {
     // The chips row renders every chosen place and can remove any one.
     const [locationDraft, setLocationDraft] = useState("");
     const [locationSheetOpen, setLocationSheetOpen] = useState(false);
-    const [mobileResultsEngaged, setMobileResultsEngaged] = useState(false);
-    // Item 7a (2026-08-21 front-door audit): narrower and earlier than
-    // `mobileResultsEngaged` — that one flips on SUBMIT, this one flips on
-    // FOCUS, so the masthead gets out of the way the moment a mobile visitor
-    // starts typing rather than after they finish. Same one-way-ratchet
-    // shape (set once, never reset) as `mobileResultsEngaged` above, for the
-    // same reason: a blur mid-edit (e.g. tapping the location field next to
-    // it) must not un-collapse the masthead under a query the visitor is
-    // still composing.
+    // Item 7a (2026-08-21 front-door audit): flips on FOCUS (not submit), so
+    // the masthead gets out of the way the moment a mobile visitor starts
+    // typing rather than after they finish. One-way ratchet (set once, never
+    // reset): a blur mid-edit (e.g. tapping the location field next to it)
+    // must not un-collapse the masthead under a query the visitor is still
+    // composing.
     const [mobileSearchFocused, setMobileSearchFocused] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -1492,7 +1491,6 @@ function JobsContent() {
         searchAutocompleteRef.current?.close();
         setQueryDraft(q);
         setQuery(q);
-        setMobileResultsEngaged(true);
         recordRecentSearch(q);
         applyUrlState(buildUrlState({ q }), "push");
         // Step 1 of the funnel (docs/analytics/FUNNEL.md). Placed at this one
@@ -1767,7 +1765,6 @@ function JobsContent() {
         setSearchAlertSubmitted(isSearchAlertSubmitted());
         setSearchInteractions(getOnboardingInteractionCount());
     }, []);
-    const searchAlertVerifiedRef = useRef(false);
     // The masthead's provenance sentence is a constant now
     // (`LANDING_PROVENANCE_LINE`) — it holds no number, so it needs no fetch
     // and no state, and it renders on the server instead of appearing a beat
@@ -1854,6 +1851,12 @@ function JobsContent() {
     // Which auth value-line reason class to show (apply / generic).
     // Set by the call site that opened the popover; null = no value line.
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
+    // Was this open a deliberate "sign in" click (a banner's `sign in` link)
+    // or a side effect of some OTHER action — Apply, the 2nd guest Save, a
+    // session expiring mid-write? Read by the single `<AuthPopover>` mount
+    // below; every `openAuth`/`gate()`/`setAuthOpen(true)` call site sets it
+    // right before opening, same pattern as `authGateReason`.
+    const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
     // Controls the report dialog from outside `ReportJobButton` so a
     // post-auth replay (see `useAuthGate` below) can reopen the exact
     // dialog the user was filling out before sign-in.
@@ -2135,7 +2138,7 @@ function JobsContent() {
     // Single gate for "the header owns this search now" — lg+ always docks,
     // including the pristine default browse; mobile keeps the in-page well.
     const headerDockActive = isLgUp && showSearchHome;
-    const showLandingMarketing = isPristineLanding && !mobileResultsEngaged && showSearchHome;
+    const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
@@ -2587,6 +2590,13 @@ function JobsContent() {
     // Deliberate job open: pushes `?job=<id>` so back-button + refresh both
     // work (picked back up by the URL-derived-selection effect below).
     const openJob = (id: string) => {
+        // Re-click chokepoint: a click on the row that's already the
+        // deliberately-open job is a no-op — every side effect below
+        // (fetch, recordJobOpenedAction, captureEvent, recordJobViewAction)
+        // already ran for this id. One guard here, not one per call site —
+        // see `isSameOpenJob`'s doc comment (lib/jobs/is-same-open-job.ts)
+        // for why `detailSheetOpen`, not just an id match, gates it.
+        if (isSameOpenJob(selectedId, id, detailSheetOpen)) return;
         // Prime the description fetch FIRST, before any telemetry dispatch
         // below — Next's client action queue runs server actions strictly
         // serially (app-router-instance.js runAction/runRemainingActions), so
@@ -3390,9 +3400,8 @@ function JobsContent() {
     // keyed on `[flushSearchIntent]`, so it can hold a `buildUrlState` from an
     // earlier render and write a stale `sort`/`job` back into the URL. The
     // intent bookends are spelled out here for the same reason they were
-    // before — this mutator engages mobile results and flushes a typed draft.
+    // before — this mutator flushes a typed draft.
     const onBoardChange = (next: BoardId | null) => {
-        setMobileResultsEngaged(true);
         applyFilterState({ ...filterState, board: next });
         flushSearchIntent();
     };
@@ -3454,7 +3463,6 @@ function JobsContent() {
 
     const applyFilterStateWithIntent = useCallback(
         (next: FilterState) => {
-            setMobileResultsEngaged(true);
             applyFilterState(next);
             flushSearchIntent();
         },
@@ -3765,6 +3773,7 @@ function JobsContent() {
             // after only marks applied (no second navigation).
             if (job.apply_url) openPostingNow(job);
             setAuthGateReason("apply");
+            setAuthTrigger("auto");
             gate({ kind: "apply", payload: job });
             return;
         }
@@ -3789,6 +3798,7 @@ function JobsContent() {
             if (res.error) {
                 // Session may have expired between login and save → reopen auth.
                 if (classifySentinel(res.error) === "auth") {
+                    setAuthTrigger("auto");
                     setAuthOpen(true);
                 } else {
                     toast.error(`Could not save: ${res.error}`);
@@ -3800,6 +3810,7 @@ function JobsContent() {
             toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
+                setAuthTrigger("auto");
                 setAuthOpen(true);
             } else {
                 toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
@@ -3845,7 +3856,7 @@ function JobsContent() {
     const handleGoAfter = (job: PublicJob) => {
         if (!user) {
             if (getGuestSaveCount() >= 1) {
-                openAuth("save");
+                openAuth("save", "auto");
                 return;
             }
             addGuestPursuit(job);
@@ -3866,6 +3877,7 @@ function JobsContent() {
                 if (res.error) {
                     // Session may have expired between login and save → reopen auth.
                     if (classifySentinel(res.error) === "auth") {
+                        setAuthTrigger("auto");
                         setAuthOpen(true);
                     } else {
                         toast.error(`Could not save: ${res.error}`);
@@ -3880,6 +3892,7 @@ function JobsContent() {
                 captureEvent("job_saved", { job_id: job.id });
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
+                    setAuthTrigger("auto");
                     setAuthOpen(true);
                 } else {
                     toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
@@ -3895,7 +3908,7 @@ function JobsContent() {
     // "first save free, second requires sign-in" rule with one counter.
     const handleBeforeGuestSavedSearch = (): "proceed" | "block" => {
         if (getGuestSaveCount() >= 1) {
-            openAuth("save");
+            openAuth("save", "auto");
             return "block";
         }
         const newCount = recordGuestSave();
@@ -3909,8 +3922,9 @@ function JobsContent() {
     // (see `handleOpenPosting`'s guest branch, `beginResumeUpload`, the report
     // gate below),
     // which persists the action itself; this just opens the popover.
-    const openAuth = (reason: AuthGateReason | null = null) => {
+    const openAuth = (reason: AuthGateReason | null, trigger: AuthGateTrigger) => {
         setAuthGateReason(reason);
+        setAuthTrigger(trigger);
         setAuthOpen(true);
     };
 
@@ -4202,6 +4216,7 @@ function JobsContent() {
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         if (!user && !readLocalAiEnabled()) {
             setAuthGateReason("fit");
+            setAuthTrigger("auto");
             gate({ kind: "upload", payload: true });
             return;
         }
@@ -4299,17 +4314,12 @@ function JobsContent() {
         setManualAlertOpen(false);
     }, []);
 
-    useEffect(() => {
-        if (searchParams.get("search_alert") !== "1") return;
-        if (searchAlertVerifiedRef.current) return;
-        searchAlertVerifiedRef.current = true;
-        captureEvent("search_alert_verified", {
-            surface: resultsPanel === "empty" ? "zero_results" : "results",
-            query_length: searchAlertQueryLength,
-            filter_count: searchAlertFilterCount,
-            has_results: resultsPanel !== "empty",
-        });
-    }, [searchParams, resultsPanel, searchAlertQueryLength, searchAlertFilterCount]);
+    // `search_alert_verified` is captured server-side now (POST /api/
+    // search-alerts/verify's GET handler, on successful token consumption) —
+    // that request happens between the click and this page ever painting, so
+    // it is the one place this event can't be dropped by a redirect the
+    // client-side effect below would race. See `src/lib/analytics/
+    // server-capture.ts`.
 
     // SERP-ask's tappable seeds — recent searches first, then the curated
     // fallback list, deduped to ~8 (lib/jobs/recent-searches.ts,
@@ -4336,13 +4346,12 @@ function JobsContent() {
                     c.q.toLowerCase() === queryDraft.toLowerCase(),
             ) ?? null,
         [query, queryDraft],
-    );    const mobilePrimaryCtaLabel = showLandingMarketing && !query.trim() ? "Show jobs" : "Search";
+    );
 
+    // A1 (front-door redesign): the mobile primary CTA is always "Search" and
+    // always submits — no separate "just engage the results view" tap-through
+    // for an empty draft.
     const handleMobilePrimaryCta = () => {
-        if (showLandingMarketing && !queryDraft.trim()) {
-            setMobileResultsEngaged(true);
-            return;
-        }
         submitSearch(queryDraft);
     };
 
@@ -4494,6 +4503,7 @@ function JobsContent() {
                     signedIn={Boolean(user)}
                     onRequestSignIn={() => {
                         setAuthGateReason("report");
+                        setAuthTrigger("auto");
                         gate({ kind: "report", payload: detailJob });
                     }}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
@@ -4647,6 +4657,40 @@ function JobsContent() {
         </DropdownMenu>
     );
 
+    // A2 (desktop first screen): the SAME `indexCategories`/`submitSearch`
+    // field-directory data as a suggestion-chip row instead of a dropdown —
+    // portaled into the docked toolbar's field-directory slot ONLY while
+    // `showLandingMarketing` (query empty, nothing applied yet), directly
+    // under the docked search input. `fieldDirectoryMenu` above still owns
+    // every post-interaction mount (search well, toolbar row, and the same
+    // docked slot once the query isn't empty) on both mobile and desktop —
+    // this is an additive empty-query variant, not a replacement, so mobile
+    // (which never sets `headerDockActive`) is untouched.
+    const fieldDirectorySuggestionChips = (
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="field-directory-chips">
+            {indexCategories.map((cat) => {
+                const isMatch =
+                    query.toLowerCase() === cat.q.toLowerCase() &&
+                    queryDraft.toLowerCase() === cat.q.toLowerCase();
+                return (
+                    <button
+                        key={cat.q}
+                        type="button"
+                        data-testid="field-directory-chip"
+                        onClick={() => submitSearch(cat.q)}
+                        className={cn(
+                            chipVariants({ active: isMatch, interactive: true }),
+                            toolbarControlHeight,
+                            "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap px-3 text-xs font-semibold leading-none transition-colors",
+                        )}
+                    >
+                        {cat.title}
+                    </button>
+                );
+            })}
+        </div>
+    );
+
     const savedSearchControl = canSaveSearch ? (
         <SavedSearchesPanel
             saved={savedSearches}
@@ -4712,6 +4756,41 @@ function JobsContent() {
                 )}
             </>
         ) : null;
+
+    // E3 (save-this-search, 2026-09-17): a second, compact save/alert entry
+    // point mounted at the results-count line — the highest-visibility real
+    // estate on the page, directly above the first result row — because
+    // PostHog showed `search_alert_impressed` firing (76/30d) but
+    // `search_alert_submitted` and `search_alert_verified` never following
+    // through from the toolbar's existing, easy-to-miss
+    // `jobs-create-alert-trigger`. Reuses the SAME two mechanisms rather than
+    // inventing a third: `SavedSearchesPanel`'s signed-in save path (guest
+    // save is intentionally NOT offered here — a signed-out visitor gets the
+    // email-capture path instead, since a local-only bookmark does nothing
+    // for the north-star signup metric) and the existing `manualAlertOpen`
+    // toggle that already renders `SearchAlertCapture` below.
+    const resultLineActionEl = canSaveSearch ? (
+        user ? (
+            <SavedSearchesPanel
+                saved={savedSearches}
+                urlState={buildUrlState()}
+                canSave={canSaveSearch}
+                onApply={applySavedSearch}
+                label="Save this search"
+                hideList
+                compact
+            />
+        ) : (
+            <button
+                type="button"
+                data-testid="result-line-get-alerts"
+                onClick={() => setManualAlertOpen((prev) => !prev)}
+                className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
+            >
+                Get new matches by email
+            </button>
+        )
+    ) : null;
 
     const clearFiltersEl = activeCount > 0 ? (
         <button
@@ -4929,6 +5008,16 @@ function JobsContent() {
         !isLgUp && showSearchHome && !detailSheetOpen && !locationSheetOpen && !authOpen && !importOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
 
     /**
+     * Single source of truth for whether `ColdVisitorOrientation` renders at
+     * all — same visibility condition at both mount sites (A1, front-door
+     * redesign): desktop keeps its position under the masthead (`lg:block`),
+     * mobile moves it inside the results list after the 3rd row (`lg:hidden`,
+     * in the results `flatMap` below). One component, two mounts, hoisted
+     * here so the two can't drift onto different conditions.
+     */
+    const showColdOrientation = !user && resumeOnFile !== true && !hasUsableResume;
+
+    /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
      * and result count stay mounted whether the query is empty
      * (`isSerpAsk` — tappable search seeds, chrome preserved) or has
@@ -4991,10 +5080,13 @@ function JobsContent() {
                             <h1 className="text-xl sm:text-2xl font-semibold text-foreground">
                                 {JOBS_USP.mastheadTitle}
                             </h1>
-                            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                            {/* A1 (front-door redesign): mobile masthead is eyebrow +
+                                H1 only — no paragraph, no count. Desktop keeps the
+                                paragraph; the live count now renders once, at the end
+                                of the results list (`liveCountEl` below), not here. */}
+                            <p className="mt-2 hidden max-w-2xl text-sm text-muted-foreground lg:block">
                                 {JOBS_USP.searchDescription}
                             </p>
-                            {liveCountEl}
                         </div>
                     </div>
                 ) : (
@@ -5007,9 +5099,9 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                {!user && resumeOnFile !== true && !hasUsableResume && (
-                    <div className={cn("mt-2", cappedContentClass)}>
-                        <ColdVisitorOrientation onRankByFit={handleUploadClick} />
+                {showColdOrientation && (
+                    <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
+                        <ColdVisitorOrientation compact onRankByFit={() => handleUploadClick()} />
                     </div>
                 )}
 
@@ -5028,13 +5120,9 @@ function JobsContent() {
                 <section
                     className="rounded-none border border-border bg-card p-2 sm:p-2.5 transition-colors"
                 >
-                    {/* The live count, moved here off the TopBar. Same /trends
-                        destination it always had — it is a way into the report,
-                        not a badge. Absent until a real count resolves.
-                        Suppressed during the landing masthead, which already
-                        renders this same `liveCountEl` itself — otherwise a
-                        mobile pristine visitor would see the count twice. */}
-                    {!showLandingMarketing && liveCountEl}
+                    {/* A3 (front-door redesign): the live count renders once,
+                        at the end of the results list (`liveCountEl` below) —
+                        not here, so it can't appear twice on screen. */}
                     {/* Collapses once the header carries a live copy of this
                         search (`headerDockActive`, lg+ only) — the reclaimed
                         height goes straight to results instead of two typing
@@ -5371,16 +5459,13 @@ function JobsContent() {
                     2026-08-26) — standard flow is search → refine filters →
                     browse shortcuts → results; sits below the filter toolbar. */}
                 {showLandingMarketing && (
-                    <LandingMarketingShowcase
-                        onSelectQuery={submitSearch}
-                        onSelectRemote={onSelectRemote}
-                        onSelectSalaryMin={panelSalaryMin}
-                        onSelectBoard={onBoardChange}
-                    />
+                    <LandingMarketingShowcase onSelectQuery={submitSearch} />
                 )}
 
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
                     createPortal(fieldDirectoryMenu, dockedFieldDirectoryMount)}
+                {headerDockActive && showLandingMarketing && dockedFieldDirectoryMount &&
+                    createPortal(fieldDirectorySuggestionChips, dockedFieldDirectoryMount)}
                 {headerDockActive && dockedQueryMount && createPortal(dockedQueryEl, dockedQueryMount)}
                 {headerDockActive && dockedLocationMount && createPortal(dockedLocationEl, dockedLocationMount)}
                 {headerDockActive && dockedFacetsMount && createPortal(facetBarEl, dockedFacetsMount)}
@@ -5418,7 +5503,7 @@ function JobsContent() {
                             homeView="for-you"
                             onHomeViewChange={setJobsHomeView}
                             showToggle={resumeOnFile === true}
-                            onReplaceResume={handleUploadClick}
+                            onReplaceResume={() => handleUploadClick()}
                             hasUsableResume={hasUsableResume}
                         />
                     </div>
@@ -5484,8 +5569,8 @@ function JobsContent() {
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
                         {/* Mobile cold visitors already get a seeded default browse
                             (overlay-ask); hiding the results column forced an extra
-                            typed query / "Show jobs" tap before result_clicked /
-                            job_viewed, dropping the funnel at pageview. */}
+                            typed query before result_clicked / job_viewed, dropping
+                            the funnel at pageview. */}
                         <div className="flex min-h-0 flex-1 flex-col">
                             <>
                                 <BoardVisitBanner />
@@ -5495,7 +5580,7 @@ function JobsContent() {
                                         data-testid="local-ai-guest-banner"
                                         className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
-                                        <span>R&D local mode — résumé stays in this browser until you sign in.</span>
+                                        <span>Local mode: your résumé is read and structured in this browser.</span>
                                         {showResumeReplace && (
                                             <button
                                                 type="button"
@@ -5523,7 +5608,7 @@ function JobsContent() {
                                         <span>Sign in to keep this list across devices and get alerts when new roles match —</span>
                                         <button
                                             type="button"
-                                            onClick={() => openAuth("save")}
+                                            onClick={() => openAuth("save", "user")}
                                             className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
                                             sign in
@@ -5546,7 +5631,7 @@ function JobsContent() {
                                         <span>{SIGNUP_SUBCOPY} —</span>
                                         <button
                                             type="button"
-                                            onClick={() => openAuth("generic")}
+                                            onClick={() => openAuth("generic", "user")}
                                             className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
                                             sign in
@@ -5746,7 +5831,7 @@ function JobsContent() {
                                     locationDefault={
                                         shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
                                             ? {
-                                                  label: `near ${locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere)}`,
+                                                  label: locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere),
                                                   onClear: suppressLocationDefault,
                                               }
                                             : undefined
@@ -5809,23 +5894,26 @@ function JobsContent() {
                                                     applies — not a display name derived from the hits,
                                                     which would be absent in the one state where this
                                                     disclosure matters most (zero results). */}
-                                                {companyDomain && (
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <span data-testid="company-scope-chip" className="flex items-center gap-2">
-                                                            <span className="whitespace-nowrap font-semibold text-foreground">
-                                                                employer
+                                                {(companyDomain || resultLineActionEl) && (
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        {companyDomain && (
+                                                            <span data-testid="company-scope-chip" className="flex items-center gap-2">
+                                                                <span className="whitespace-nowrap font-semibold text-foreground">
+                                                                    employer
+                                                                </span>
+                                                                <span className="text-foreground">{companyDomain}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    data-testid="company-scope-clear"
+                                                                    aria-label={`Show roles from all employers, not just ${companyDomain}`}
+                                                                    onClick={clearCompanyScope}
+                                                                    className="text-muted-foreground transition-colors hover:text-foreground"
+                                                                >
+                                                                    ✕
+                                                                </button>
                                                             </span>
-                                                            <span className="text-foreground">{companyDomain}</span>
-                                                            <button
-                                                                type="button"
-                                                                data-testid="company-scope-clear"
-                                                                aria-label={`Show roles from all employers, not just ${companyDomain}`}
-                                                                onClick={clearCompanyScope}
-                                                                className="text-muted-foreground transition-colors hover:text-foreground"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        </span>
+                                                        )}
+                                                        {resultLineActionEl}
                                                     </div>
                                                 )}
                                                 {/* 2026-08-17, Vivek: "too much happening in that small
@@ -5896,6 +5984,20 @@ function JobsContent() {
                                                 ),
                                                 ...(expanded ? cluster.variants.map((v) => renderJobRow(v)) : []),
                                             ];
+                                            // A1 (front-door redesign): mobile-only
+                                            // ColdVisitorOrientation mount, after the 3rd
+                                            // row — same `showColdOrientation` condition as
+                                            // the desktop mount under the masthead
+                                            // (`lg:hidden` here, that one `lg:block`), own
+                                            // dismiss state (ColdVisitorOrientation.tsx),
+                                            // one component, two mounts.
+                                            if (showColdOrientation && i === 2) {
+                                                rows.push(
+                                                    <div key="cold-orientation-mobile" className={cn("mt-2 lg:hidden", cappedContentClass)}>
+                                                        <ColdVisitorOrientation onRankByFit={() => handleUploadClick()} />
+                                                    </div>,
+                                                );
+                                            }
                                             // Under `fitActive` the visible order is the
                                             // match-score resort above, not relevance —
                                             // the "titled it vs mentions it" seam text no
@@ -6000,6 +6102,12 @@ function JobsContent() {
                                         seeds={searchSeeds}
                                         onSubmitSeed={submitSearch}
                                     />
+                                    {/* A3 (front-door redesign): the corpus count renders
+                                        exactly once, here at the end of the results list —
+                                        not in the masthead, not in the search well. */}
+                                    {liveCountEl && (
+                                        <div className="border-t border-border pt-4 pb-1">{liveCountEl}</div>
+                                    )}
                                 </div>
                                 </>
                             )}
@@ -6044,7 +6152,7 @@ function JobsContent() {
                         onClick={handleMobilePrimaryCta}
                         className="h-11 w-full rounded-none bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
                     >
-                        {mobilePrimaryCtaLabel}
+                        Search
                     </Button>
                 </div>
             )}
@@ -6080,6 +6188,7 @@ function JobsContent() {
                     onAuthed();
                 }}
                 showTrigger={false}
+                trigger={authTrigger}
                 valueLine={
                     authGateReason
                         ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length)

@@ -122,11 +122,13 @@
 # method-sensitive agent paths are served here directly; everything else
 # keeps the redirect to velai.app. /oauth/authorize stays on the redirect on
 # purpose — it is a browser GET and the user's session cookies live on
-# velai.app now.
+# velai.app now. (The blanket redirect below is now 308, so a POST outside
+# this carve-out survives too — the carve-out stays for direct serving
+# without the extra hop, not because a redirect still drops the method.)
 intervu.cc, www.intervu.cc {
 	import agent_carveout
 	handle {
-		redir https://velai.app{uri} permanent
+		redir https://velai.app{uri} 308
 	}
 }
 
@@ -137,7 +139,7 @@ intervu.cc, www.intervu.cc {
 intervuhq.com, www.intervuhq.com {
 	import agent_carveout
 	handle {
-		redir https://velai.app{uri} permanent
+		redir https://velai.app{uri} 308
 	}
 }
 
@@ -150,7 +152,7 @@ velai.app {
 }
 
 www.velai.app {
-	redir https://velai.app{uri} permanent
+	redir https://velai.app{uri} 308
 }
 
 thesubspace.io, www.thesubspace.io {

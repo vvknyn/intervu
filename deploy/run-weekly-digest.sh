@@ -19,7 +19,12 @@
 set -uo pipefail
 
 ENV_FILE="${INTERVU_ENV_FILE:-/opt/interview-os/deploy/contabo-web/intervu.env}"
-ENDPOINT="${INTERVU_DIGEST_URL:-https://intervuhq.com/api/email/digest}"
+# Default is the CURRENT site domain, overridable so a future move never
+# needs a code change here — only the env var. intervuhq.com 301-redirected
+# here from 2026-09-01 to 2026-09-17 (dead cron: curl below didn't follow
+# redirects), so the default must track deploy/Caddyfile's live vhost, not
+# a retired one.
+ENDPOINT="${INTERVU_DIGEST_URL:-https://velai.app/api/email/digest}"
 LOG="${INTERVU_DIGEST_LOG:-$HOME/logs/intervu-digest.log}"
 
 log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >>"$LOG"; }
@@ -47,7 +52,12 @@ for arg in "$@"; do
     esac
 done
 
+# --post301/302/303 -L: if ENDPOINT ever again points at a domain that
+# redirects (the exact way this job died silently for three weeks), follow
+# it as the SAME POST instead of curl's default of dropping to GET, or of
+# not following at all. One documented hop, not a repeat of the outage.
 response="$(curl -sS -m 900 -w '\n%{http_code}' \
+    --post301 --post302 --post303 -L \
     -X POST "$ENDPOINT" \
     -H "Authorization: Bearer ${SECRET}" \
     -H 'Content-Type: application/json' \

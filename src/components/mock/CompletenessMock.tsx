@@ -969,6 +969,7 @@ export function CompletenessMock() {
                 open={authOpen}
                 onOpenChange={setAuthOpen}
                 showTrigger={false}
+                trigger="user"
                 valueLine={
                     <>
                         <b className="text-foreground">Create a free account</b> — save roles to your tracker and sync across

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { inferReasons } from "../../src/lib/jobs/for-you/infer-reasons";
+import { inferReasons, noScoreReason } from "../../src/lib/jobs/for-you/infer-reasons";
 import type { MatchScore } from "../../src/lib/match/score";
 import type { PublicJob } from "../../src/lib/jobs/types";
 import type { ResumeData } from "../../src/types/resume";
@@ -125,5 +125,21 @@ describe("inferReasons", () => {
         const result = inferReasons(job, null, mkResume());
         assert.ok(result.chips.some((chip) => chip.toLowerCase() === "javascript" || chip.toLowerCase() === "react"));
         assert.ok(!result.chips.some((chip) => chip.toLowerCase().includes("onsite")));
+    });
+});
+
+/**
+ * C2: rows without a fit score must say WHY — no résumé to compare, vs a
+ * usable résumé but nothing on the job side to compare it against — never
+ * an omitted chip. `noScoreReason` is the pure classifier ForYouPack's Fit
+ * header/breakdown and this file's own bullet fallback both read from.
+ */
+describe("noScoreReason", () => {
+    it("blames the résumé when there is none (or it has no matchable text)", () => {
+        assert.equal(noScoreReason(null), "no-resume");
+    });
+
+    it("blames the missing posting description once the résumé is usable — a null score with a usable résumé can only be the job side", () => {
+        assert.equal(noScoreReason(mkResume()), "no-description");
     });
 });

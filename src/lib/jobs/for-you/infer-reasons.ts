@@ -1,12 +1,38 @@
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import type { MatchScore } from "@/lib/match/score";
 import { topSkills } from "@/lib/jobs/resume-match";
+import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
 export interface InferReasonsResult {
     bullets: string[];
     chips: string[];
+}
+
+export type NoScoreReason = "no-resume" | "no-description";
+
+/**
+ * Single source for the copy shown wherever a row has no fit score at all
+ * (`matchScore === null`) — the Fit header/breakdown in ForYouPack AND the
+ * bullets fallback below both read from this instead of each writing its
+ * own guess at why the score is missing.
+ */
+export const NO_SCORE_MESSAGES: Record<NoScoreReason, string> = {
+    "no-resume": "Add résumé text to see fit",
+    "no-description": "No description captured for this posting yet",
+};
+
+/**
+ * Why a row has no fit score: `scoreJobAgainstResume` (score.ts) returns
+ * null exactly when either the job's or the résumé's vocabulary is empty.
+ * `resumeIsUsable` is the existing single source of truth for "does this
+ * résumé have any matchable text" — when it's usable, a null score can only
+ * mean the job side had nothing to compare (no description/tags/title
+ * tokens), never a résumé problem.
+ */
+export function noScoreReason(resume: ResumeData | null): NoScoreReason {
+    return resumeIsUsable(resume ?? undefined) ? "no-description" : "no-resume";
 }
 
 const MAX_BULLETS = 3;
@@ -83,7 +109,7 @@ export function inferReasons(
             bullets.push("Limited overlap we could compare — review the role details below.");
         }
     } else if (bullets.length === 0) {
-        bullets.push("Add or refresh your résumé to see more specific match reasons.");
+        bullets.push(NO_SCORE_MESSAGES[noScoreReason(resume)]);
     }
 
     return {

@@ -11,7 +11,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { displayCompanyBrand, locationText, placeWithWorkMode } from "@/lib/jobs/presentation";
-import { inferReasons } from "@/lib/jobs/for-you/infer-reasons";
+import { inferReasons, noScoreReason, NO_SCORE_MESSAGES, type NoScoreReason } from "@/lib/jobs/for-you/infer-reasons";
 import { descriptionPaneState } from "@/lib/jobs/for-you/description-pane-state";
 import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
 import { MATCH_CHIP_BRAND_THRESHOLD, type MatchScore } from "@/lib/match/score";
@@ -72,6 +72,18 @@ function FitReadout({ score, strong }: { score: MatchScore; strong: boolean }) {
     );
 }
 
+/** Explicit stand-in for `FitReadout` when there is no fit score at all —
+ *  never an omitted chip, always says why (no résumé text vs. no posting
+ *  description to compare against). */
+function NoScoreReadout({ reason }: { reason: NoScoreReason }) {
+    return (
+        <div className="shrink-0 max-w-[9rem] text-right">
+            <p className={SECTION_LABEL}>Fit</p>
+            <p className="mt-1 text-xs text-muted-foreground">{NO_SCORE_MESSAGES[reason]}</p>
+        </div>
+    );
+}
+
 /** Per-component detail only — the total lives once, in the header's
  *  `FitReadout`, so this does not repeat it. */
 function FitBreakdown({ score }: { score: MatchScore }) {
@@ -87,6 +99,16 @@ function FitBreakdown({ score }: { score: MatchScore }) {
                     </div>
                 ))}
             </div>
+        </div>
+    );
+}
+
+/** Explicit stand-in for `FitBreakdown` when there is no fit score at all. */
+function NoScoreBreakdown({ reason }: { reason: NoScoreReason }) {
+    return (
+        <div>
+            <p className={SECTION_LABEL}>Fit breakdown</p>
+            <p className="mt-2 text-sm text-muted-foreground">{NO_SCORE_MESSAGES[reason]}</p>
         </div>
     );
 }
@@ -127,6 +149,7 @@ export function ForYouPack({
     const company = displayCompanyBrand(displayJob.company, displayJob.company_domain, displayJob.title);
     const place = placeWithWorkMode(locationText(displayJob), displayJob.work_type);
     const strongFit = matchScore != null && matchScore.total >= MATCH_CHIP_BRAND_THRESHOLD;
+    const noScore = matchScore == null ? noScoreReason(resume) : null;
     const paneState = descriptionPaneState(descriptionPending, sections);
     const hasAside = matchScore != null || reasons.bullets.length > 0 || reasons.chips.length > 0;
 
@@ -154,7 +177,11 @@ export function ForYouPack({
                                 {place && <p className="mt-0.5 text-sm text-muted-foreground">{place}</p>}
                             </div>
                         </div>
-                        {matchScore && <FitReadout score={matchScore} strong={strongFit} />}
+                        {matchScore ? (
+                            <FitReadout score={matchScore} strong={strongFit} />
+                        ) : (
+                            <NoScoreReadout reason={noScore!} />
+                        )}
                     </div>
                     {factChips.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -210,7 +237,11 @@ export function ForYouPack({
 
                     {hasAside && (
                         <aside className="min-w-0 space-y-6 border border-border bg-muted p-4">
-                            {matchScore && <FitBreakdown score={matchScore} />}
+                            {matchScore ? (
+                                <FitBreakdown score={matchScore} />
+                            ) : (
+                                <NoScoreBreakdown reason={noScore!} />
+                            )}
                             {(reasons.bullets.length > 0 || reasons.chips.length > 0) && (
                                 <div>
                                     <h3 className={SECTION_LABEL}>What we inferred</h3>

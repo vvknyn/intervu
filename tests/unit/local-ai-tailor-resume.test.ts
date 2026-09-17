@@ -5,8 +5,16 @@ import {
     heuristicTailorResume,
     introducesNewNumbers,
     looksRoboticTailor,
+    resumeFullText,
+    type TailorDraft,
 } from "../../src/lib/local-ai/tailor-resume";
-import { buildModelPrompt, TAILOR_VOICE_RULES } from "../../src/lib/local-ai/tailor-with-engine";
+import {
+    applyModelTailor,
+    buildModelPrompt,
+    ENGINE_LABELS,
+    groundDraft,
+    TAILOR_VOICE_RULES,
+} from "../../src/lib/local-ai/tailor-with-engine";
 import type { ResumeData } from "../../src/types/resume";
 
 function mkResume(
@@ -173,6 +181,70 @@ describe("heuristicTailorResume", () => {
             assert.equal(introducesNewNumbers(b.before, b.after), false);
         }
     });
+
+    it("summary unchanged when the job title has no overlap with the résumé (no fabricated claim)", () => {
+        const draft = heuristicTailorResume(PM_RESUME, {
+            title: "Welding Technician",
+            tags: ["welding", "metal", "fabrication"],
+            description: "Weld and fabricate metal components using MIG and TIG welding techniques.",
+        });
+
+        assert.equal(draft.summaryAfter, draft.summaryBefore);
+        assert.doesNotMatch(draft.summaryAfter, /recent focus/i);
+        assert.doesNotMatch(draft.summaryAfter, /welding/i);
+    });
+
+    it("also tailors project bullets (source: project), same rules as experience, without inventing numbers", () => {
+        const resumeWithProject: ResumeData = {
+            ...PM_RESUME,
+            projects: [
+                {
+                    id: "proj-1",
+                    company: "Side Project",
+                    role: "Creator",
+                    dates: "2022",
+                    description: "Built a roadmap planning tool for internal agile teams",
+                },
+            ],
+        };
+        const draft = heuristicTailorResume(resumeWithProject, {
+            title: "Product Manager",
+            tags: ["roadmap", "agile"],
+            description: "Own the product roadmap. Lead agile delivery with engineering partners.",
+        });
+
+        const projectBullet = draft.bullets.find((b) => b.source === "project");
+        assert.ok(projectBullet, "expected a project bullet diff");
+        assert.equal(projectBullet!.experienceId, "proj-1");
+        assert.equal(introducesNewNumbers(projectBullet!.before, projectBullet!.after), false);
+
+        const tailoredProject = draft.tailored.projects?.find((p) => p.id === "proj-1");
+        assert.ok(tailoredProject);
+        assert.ok(tailoredProject!.description.includes(projectBullet!.after));
+
+        // Class-wide: experience bullets are tagged too, not just project ones.
+        assert.ok(draft.bullets.every((b) => b.source === "experience" || b.source === "project"));
+        assert.ok(draft.bullets.some((b) => b.source === "experience"));
+    });
+});
+
+describe("resumeFullText", () => {
+    it("includes project description text, so a projects-only résumé still builds a matchable vocabulary", () => {
+        const projectsOnlyResume: ResumeData = {
+            ...mkResume({}, [], []),
+            projects: [
+                {
+                    id: "proj-1",
+                    company: "",
+                    role: "Creator",
+                    dates: "2023",
+                    description: "Built a Kubernetes deployment pipeline for a personal project",
+                },
+            ],
+        };
+        const text = resumeFullText(projectsOnlyResume).toLowerCase();
+        assert.ok(text.includes("kubernetes"), `expected project text in résumé full text, got: ${text}`);
+    });
 });
 
 describe("buildModelPrompt voice rules", () => {
@@ -192,5 +264,188 @@ describe("introducesNewNumbers", () => {
         assert.equal(introducesNewNumbers("Increased revenue 20%", "Increased revenue 35%"), true);
         assert.equal(introducesNewNumbers("Team of 5 engineers", "Team of 5 engineers"), false);
         assert.equal(extractDigitRuns("20% and 3 teams").length, 2);
+    });
+});
+
+describe("groundDraft", () => {
+    function draftWithBullet(before: string, after: string): TailorDraft {
+        const tailored = JSON.parse(JSON.stringify(PM_RESUME)) as ResumeData;
+        const expIdx = tailored.experience.findIndex((e) => e.id === "exp-1");
+        tailored.experience[expIdx] = {
+            ...tailored.experience[expIdx],
+            description: tailored.experience[expIdx].description.replace(before, after),
+        };
+        return {
+            engineId: "heuristic",
+            engineLabel: ENGINE_LABELS.heuristic,
+            usedDescription: true,
+            summaryBefore: PM_RESUME.generatedSummary,
+            summaryAfter: PM_RESUME.generatedSummary,
+            bullets: [
+                {
+                    experienceId: "exp-1",
+                    source: "experience",
+                    company: "Acme Corp",
+                    role: "Senior Product Manager",
+                    before,
+                    after,
+                },
+            ],
+            tailored,
+        };
+    }
+
+    it("drops a heuristic-style bullet that introduces a digit absent from the original", () => {
+        const before = "Led product planning for B2B SaaS platform";
+        const after = "Led product planning for B2B SaaS platform 5";
+        const draft = groundDraft(resumeFullText(PM_RESUME), draftWithBullet(before, after));
+
+        assert.equal(draft.bullets.length, 0);
+        const description = draft.tailored.experience.find((e) => e.id === "exp-1")!.description;
+        assert.ok(description.includes(before));
+        assert.ok(!description.includes(after));
+    });
+
+    it("drops a model-branch-style bullet that introduces a skill word absent from the résumé", () => {
+        const before = "Managed roadmap prioritization with engineering";
+        const after = "Managed roadmap prioritization with Kubernetes";
+        const draft = groundDraft(resumeFullText(PM_RESUME), draftWithBullet(before, after));
+
+        assert.equal(draft.bullets.length, 0);
+        const description = draft.tailored.experience.find((e) => e.id === "exp-1")!.description;
+        assert.ok(description.includes(before));
+        assert.ok(!description.includes(after));
+    });
+
+    function draftWithProjectBullet(before: string, after: string): { resume: ResumeData; draft: TailorDraft } {
+        const resume: ResumeData = {
+            ...PM_RESUME,
+            projects: [{ id: "proj-1", company: "Side Project", role: "Creator", dates: "2022", description: before }],
+        };
+        const tailored = JSON.parse(JSON.stringify(resume)) as ResumeData;
+        tailored.projects = [{ ...tailored.projects![0], description: after }];
+        return {
+            resume,
+            draft: {
+                engineId: "heuristic",
+                engineLabel: ENGINE_LABELS.heuristic,
+                usedDescription: true,
+                summaryBefore: resume.generatedSummary,
+                summaryAfter: resume.generatedSummary,
+                bullets: [
+                    { experienceId: "proj-1", source: "project", company: "Side Project", role: "Creator", before, after },
+                ],
+                tailored,
+            },
+        };
+    }
+
+    it("drops a project bullet that introduces a fabricated skill word absent from the résumé (same gate as experience)", () => {
+        const before = "Built a roadmap planning tool for internal agile teams";
+        const after = "Built a roadmap planning tool using Kubernetes for internal agile teams";
+        const { resume, draft } = draftWithProjectBullet(before, after);
+        const grounded = groundDraft(resumeFullText(resume), draft);
+
+        assert.equal(grounded.bullets.length, 0);
+        const description = grounded.tailored.projects!.find((p) => p.id === "proj-1")!.description;
+        assert.ok(description.includes(before));
+        assert.ok(!description.includes(after));
+    });
+});
+
+describe("applyModelTailor (model lane)", () => {
+    const PM_RESUME_WITH_PROJECT: ResumeData = {
+        ...PM_RESUME,
+        projects: [
+            {
+                id: "proj-1",
+                company: "Side Project",
+                role: "Creator",
+                dates: "2022",
+                description: "Built a roadmap planning tool for internal agile teams",
+            },
+        ],
+    };
+
+    it("drops a project bullet from a fake engine that introduces a skill word absent from the résumé", () => {
+        const fakeEngineOutput = {
+            summary: PM_RESUME.generatedSummary,
+            bullets: [
+                {
+                    experienceId: "proj-1",
+                    text: "Built a roadmap planning tool using Kubernetes for internal agile teams",
+                },
+            ],
+        };
+        const draft = applyModelTailor(PM_RESUME_WITH_PROJECT, { title: "Product Manager" }, fakeEngineOutput, "webllm");
+        assert.ok(draft, "expected a draft (bullet matched before grounding)");
+
+        const grounded = groundDraft(resumeFullText(PM_RESUME_WITH_PROJECT), draft!);
+        assert.equal(grounded.bullets.length, 0);
+
+        const description = grounded.tailored.projects!.find((p) => p.id === "proj-1")!.description;
+        assert.ok(description.includes("Built a roadmap planning tool for internal agile teams"));
+        assert.ok(!description.includes("Kubernetes"));
+    });
+
+    it("accepts a grounded project bullet from a fake engine with source: project", () => {
+        const fakeEngineOutput = {
+            summary: PM_RESUME.generatedSummary,
+            bullets: [
+                {
+                    experienceId: "proj-1",
+                    text: "Built a roadmap planning tool for internal agile delivery",
+                },
+            ],
+        };
+        const draft = applyModelTailor(PM_RESUME_WITH_PROJECT, { title: "Product Manager" }, fakeEngineOutput, "webllm");
+        assert.ok(draft);
+
+        const grounded = groundDraft(resumeFullText(PM_RESUME_WITH_PROJECT), draft!);
+        assert.equal(grounded.bullets.length, 1);
+        assert.equal(grounded.bullets[0].source, "project");
+        assert.equal(grounded.bullets[0].experienceId, "proj-1");
+        assert.ok(
+            grounded.tailored.projects!.find((p) => p.id === "proj-1")!.description.includes("agile delivery"),
+        );
+    });
+
+    it("generic-fix: an experience bullet through the same shared step is unaffected, and a projects-only résumé still yields project diffs", () => {
+        const expOutput = {
+            summary: PM_RESUME.generatedSummary,
+            bullets: [
+                { experienceId: "exp-1", text: "Led product planning across the B2B SaaS platform and mobile app." },
+            ],
+        };
+        const draft = applyModelTailor(PM_RESUME, { title: "Product Manager" }, expOutput, "webllm");
+        assert.ok(draft);
+        assert.equal(draft!.bullets.length, 1);
+        assert.equal(draft!.bullets[0].source, "experience");
+        assert.equal(draft!.bullets[0].experienceId, "exp-1");
+        assert.equal(draft!.bullets[0].company, "Acme Corp");
+
+        const projectsOnlyResume: ResumeData = {
+            ...mkResume({ profession: "Product Manager", yearsOfExperience: 3 }, [], []),
+            projects: [
+                {
+                    id: "proj-2",
+                    company: "Open Source",
+                    role: "Maintainer",
+                    dates: "2023",
+                    description: "Maintains a roadmap planning tool for agile teams",
+                },
+            ],
+        };
+        const projectOutput = {
+            summary: projectsOnlyResume.generatedSummary,
+            bullets: [
+                { experienceId: "proj-2", text: "Maintains a roadmap planning tool for distributed agile teams" },
+            ],
+        };
+        const noExpDraft = applyModelTailor(projectsOnlyResume, { title: "Product Manager" }, projectOutput, "webllm");
+        assert.ok(noExpDraft, "expected project diffs even with an empty experience array");
+        assert.equal(noExpDraft!.bullets.length, 1);
+        assert.equal(noExpDraft!.bullets[0].source, "project");
+        assert.equal(noExpDraft!.bullets[0].experienceId, "proj-2");
     });
 });

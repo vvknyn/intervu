@@ -17,6 +17,7 @@ import { rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/countr
 import { toValueArray, type PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
+import { formatCount } from "@/lib/format";
 
 /**
  * The open-role count as a string, everywhere the page shows it.
@@ -47,7 +48,7 @@ export function hasCompanyKpiContent(
 export function openCountText(
   data: Pick<CompanyPageData, "openCount" | "openCountIsLowerBound">,
 ): string {
-  return data.openCountIsLowerBound ? `${data.openCount}+` : String(data.openCount);
+  return data.openCountIsLowerBound ? `${formatCount(data.openCount)}+` : formatCount(data.openCount);
 }
 
 /**

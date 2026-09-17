@@ -6,9 +6,6 @@ import { cn } from "@/lib/utils";
 
 interface LandingMarketingShowcaseProps {
   onSelectQuery: (q: string) => void;
-  onSelectRemote: () => void;
-  onSelectSalaryMin: (min: number) => void;
-  onSelectBoard: (board: "elite") => void;
 }
 
 /**
@@ -54,62 +51,29 @@ export const indexCategories = [
 
 export function LandingMarketingShowcase({
   onSelectQuery,
-  onSelectRemote,
-  onSelectSalaryMin,
-  onSelectBoard,
 }: LandingMarketingShowcaseProps) {
   return (
     <div className="w-full space-y-4 pt-2 pb-1">
 
       <div>
-        <div className="flex items-center justify-between border-b border-foreground pb-1.5 text-sm font-semibold text-foreground">
+        {/* Mobile (A1): no heading, chips scroll horizontally in one row.
+            Desktop (lg+): unchanged heading + wrapping grid. */}
+        <div className="hidden items-center justify-between border-b border-foreground pb-1.5 text-sm font-semibold text-foreground lg:flex">
           <span>Browse by field</span>
           <span className="text-xs font-normal text-muted-foreground">Pick one to start searching</span>
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain lg:mt-2 lg:flex-wrap lg:overflow-visible">
           {indexCategories.map((cat) => (
             <button
               key={cat.q}
               type="button"
               onClick={() => onSelectQuery(cat.q)}
-              className={cn(chipVariants({ active: false, interactive: true }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
+              className={cn(chipVariants({ active: false, interactive: true }), "h-auto min-h-7 shrink-0 px-2.5 py-1 text-foreground")}
             >
               {cat.title}
             </button>
           ))}
-        </div>
-      </div>
-
-      <div>
-        <div className="border-b border-foreground pb-1.5 text-sm font-semibold text-foreground">
-          <span>Or start with a filter</span>
-        </div>
-
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => onSelectBoard("elite")}
-            className={cn(chipVariants({ active: false, interactive: true }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
-          >
-            Top companies
-          </button>
-
-          <button
-            type="button"
-            onClick={onSelectRemote}
-            className={cn(chipVariants({ active: false, interactive: true }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
-          >
-            Remote jobs only
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onSelectSalaryMin(150000)}
-            className={cn(chipVariants({ active: false, interactive: true }), "h-auto min-h-7 px-2.5 py-1 text-foreground")}
-          >
-            Pays $150k or more
-          </button>
         </div>
       </div>
     </div>

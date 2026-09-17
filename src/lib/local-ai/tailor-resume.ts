@@ -5,6 +5,7 @@
 
 import type { LocalAiEngineId } from "./engines/types";
 import { ENGINE_LABELS } from "./engines/types";
+import { resumeMatchText } from "@/lib/resume/match-text";
 import type { ResumeData, ResumeExperience } from "@/types/resume";
 
 export type TailorJobInput = {
@@ -18,6 +19,11 @@ export type TailorJobInput = {
 
 export type TailorBulletDiff = {
     experienceId: string;
+    /** Which array on `ResumeData` this bullet's `experienceId` indexes into
+     *  — `experience` and `projects` share the same id-bearing shape, so a
+     *  diff must say which one a revert (tailor-with-engine.ts) should
+     *  patch. */
+    source: "experience" | "project";
     company: string;
     role: string;
     before: string;
@@ -76,14 +82,33 @@ function uniqueTokens(text: string): string[] {
     return [...new Set(tokenize(text))];
 }
 
-function resumeVocabulary(resume: ResumeData): Set<string> {
-    const parts = [
+/**
+ * Every field of the résumé that counts as "the résumé's own text" — single
+ * source for both keyword-overlap scoring (`resumeVocabulary`, stopword-
+ * filtered, below) and the grounding truthfulness check
+ * (`tailor-with-engine.ts`'s `groundDraft`, which needs the raw, unfiltered
+ * text — stopwords like "team"/"company" are ordinary words a rewrite is
+ * allowed to reuse, not fabricated claims).
+ *
+ * Builds on `resumeMatchText` (match-text.ts) — the one place that owns
+ * "what free text counts as the résumé's own" (summary, experience
+ * descriptions, project descriptions, skills) — layering on the structural
+ * fields match-text.ts intentionally omits (profession, competency category
+ * labels, experience/project role & company) so a bullet rewrite is free to
+ * reuse a job title or employer name without tripping the grounding gate.
+ */
+export function resumeFullText(resume: ResumeData): string {
+    return [
         resume.profile.profession,
-        resume.generatedSummary,
-        ...resume.competencies.flatMap((c) => [c.category, ...c.skills]),
-        ...resume.experience.flatMap((e) => [e.role, e.company, e.description]),
-    ];
-    return new Set(tokenize(parts.join(" ")));
+        resumeMatchText(resume),
+        ...resume.competencies.map((c) => c.category),
+        ...resume.experience.flatMap((e) => [e.role, e.company]),
+        ...(resume.projects ?? []).flatMap((p) => [p.role, p.company]),
+    ].join(" ");
+}
+
+function resumeVocabulary(resume: ResumeData): Set<string> {
+    return new Set(tokenize(resumeFullText(resume)));
 }
 
 function extractJdKeywords(job: TailorJobInput): string[] {
@@ -144,15 +169,6 @@ function replaceBulletLine(description: string, index: number, newLine: string, 
     return rebuilt.join("\n");
 }
 
-function titleAlreadyInSummary(summary: string, title: string): boolean {
-    const summaryLower = summary.toLowerCase();
-    const titleLower = title.toLowerCase().trim();
-    if (!titleLower) return true;
-    if (summaryLower.includes(titleLower)) return true;
-    const titleTokens = tokenize(title).filter((t) => t.length >= 4);
-    return titleTokens.some((t) => summaryLower.includes(t));
-}
-
 function termAlreadyPresent(text: string, term: string): boolean {
     return text.toLowerCase().includes(term.toLowerCase());
 }
@@ -167,19 +183,17 @@ function composeBaseSummary(resume: ResumeData): string {
     return [prof, yoePhrase].filter(Boolean).join(" — ") + skillPhrase + ".";
 }
 
+// Used to append a fabricated "Recent focus includes <title> work." clause
+// whenever the job title wasn't already reflected in the summary — a claim
+// about what the candidate has recently been doing that the résumé itself
+// never made. Deleted (front-door C1): a tailor that cannot invent leaves
+// the summary alone instead of inventing a sentence to cover the gap.
 function rewriteSummary(
     base: string,
-    job: TailorJobInput,
     overlapTerms: string[],
 ): string {
     let result = base.trim();
     if (!result.endsWith(".")) result += ".";
-
-    const title = job.title.trim();
-    if (title && !titleAlreadyInSummary(result, title)) {
-        const clause = `Recent focus includes ${title.toLowerCase()} work.`;
-        result = `${result.replace(/\.$/, "")}. ${clause}`;
-    }
 
     const freshTerms = overlapTerms.filter((t) => !termAlreadyPresent(result, t)).slice(0, 2);
     if (freshTerms.length > 0) {
@@ -241,8 +255,50 @@ function rewriteBullet(
     return substituteJdSynonym(cleaned, jdKeywords);
 }
 
-function selectExperiences(experience: ResumeExperience[], max = 4): ResumeExperience[] {
-    return experience.filter((e) => e.description?.trim()).slice(0, max);
+/** Shared by both experience and project bullets — `ResumeData.projects`
+ *  entries reuse the exact `ResumeExperience` shape, so one selector serves
+ *  both. */
+function selectBulletSources(entries: ResumeExperience[], max = 4): ResumeExperience[] {
+    return entries.filter((e) => e.description?.trim()).slice(0, max);
+}
+
+/** Rewrites the first meaningful bullet of every eligible entry in `entries`
+ *  (experience OR projects — same shape), patching the matching entry in
+ *  `tailoredList` in place and returning one `TailorBulletDiff` per rewrite,
+ *  tagged with `source` so a later revert patches the right array. */
+function tailorBulletsForEntries(
+    entries: ResumeExperience[],
+    tailoredList: ResumeExperience[],
+    source: TailorBulletDiff["source"],
+    job: TailorJobInput,
+    jdKeywords: string[],
+    overlapTerms: string[],
+    max: number,
+): TailorBulletDiff[] {
+    const bullets: TailorBulletDiff[] = [];
+    for (const entry of selectBulletSources(entries, max)) {
+        const hit = firstMeaningfulBullet(entry.description);
+        if (!hit) continue;
+
+        const after = rewriteBullet(hit.line, job.title, jdKeywords, overlapTerms);
+        const idx = tailoredList.findIndex((e) => e.id === entry.id);
+        if (idx >= 0) {
+            tailoredList[idx] = {
+                ...tailoredList[idx],
+                description: replaceBulletLine(entry.description, hit.index, after, hit.lines),
+            };
+        }
+
+        bullets.push({
+            experienceId: entry.id,
+            source,
+            company: entry.company,
+            role: entry.role,
+            before: hit.line,
+            after,
+        });
+    }
+    return bullets;
 }
 
 function cloneResume(resume: ResumeData): ResumeData {
@@ -267,33 +323,13 @@ export function heuristicTailorResume(resume: ResumeData, job: TailorJobInput): 
     const overlapTerms = jdKeywordsWithResumeOverlap(jdKeywords, resumeTokens);
 
     const summaryBefore = composeBaseSummary(resume);
-    const summaryAfter = rewriteSummary(summaryBefore, job, overlapTerms);
+    const summaryAfter = rewriteSummary(summaryBefore, overlapTerms);
     tailored.generatedSummary = summaryAfter;
 
-    const bullets: TailorBulletDiff[] = [];
-    const targets = selectExperiences(resume.experience, 4);
-
-    for (const exp of targets) {
-        const hit = firstMeaningfulBullet(exp.description);
-        if (!hit) continue;
-
-        const after = rewriteBullet(hit.line, job.title, jdKeywords, overlapTerms);
-        const expIdx = tailored.experience.findIndex((e) => e.id === exp.id);
-        if (expIdx >= 0) {
-            tailored.experience[expIdx] = {
-                ...tailored.experience[expIdx],
-                description: replaceBulletLine(exp.description, hit.index, after, hit.lines),
-            };
-        }
-
-        bullets.push({
-            experienceId: exp.id,
-            company: exp.company,
-            role: exp.role,
-            before: hit.line,
-            after,
-        });
-    }
+    const bullets: TailorBulletDiff[] = [
+        ...tailorBulletsForEntries(resume.experience, tailored.experience, "experience", job, jdKeywords, overlapTerms, 4),
+        ...tailorBulletsForEntries(resume.projects ?? [], tailored.projects ?? [], "project", job, jdKeywords, overlapTerms, 4),
+    ];
 
     return {
         engineId: "heuristic",

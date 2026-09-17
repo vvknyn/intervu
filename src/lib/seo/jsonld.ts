@@ -8,6 +8,7 @@
  * inside a `<script type="application/ld+json">` tag.
  */
 import { companyLogoUrl } from "@/lib/companies/logo";
+import { JOB_SEARCH_FAQ } from "@/lib/faq";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 import { getSiteUrl, SITE_NAME } from "./constants";
@@ -112,41 +113,12 @@ export function buildFaqPageJsonLd(items: FaqItem[]): FaqPageJsonLd | null {
 /**
  * High-intent FAQ schema graph answering searcher questions about how Intervu
  * compares to traditional boards (Indeed, LinkedIn), how ghost job screening works,
- * and listing verification.
+ * and listing verification. Q/A content lives in `JOB_SEARCH_FAQ`
+ * (`lib/faq.ts`) — the same array also feeds the visible "Questions" section
+ * on the about page, so this is a thin JSON-LD wrapper, not a second copy.
  */
 export function buildJobSearchFaqJsonLd(): FaqPageJsonLd | null {
-  return buildFaqPageJsonLd([
-    {
-      question: "How is Velai different from Indeed and LinkedIn?",
-      answer:
-        "Unlike Indeed and LinkedIn which allow sponsored reposts, stale third-party feeds, and unmonitored listings, Velai indexes live jobs directly from employer applicant tracking systems (Greenhouse, Lever, Ashby, Workday, etc.) and actively screens every posting for freshness, salary transparency, and ghost-job risk.",
-    },
-    {
-      question: "How do I find the best remote and work-from-home jobs on Velai?",
-      answer:
-        "Velai features a dedicated Remote filter and verified work-mode badges. Simply search for your desired role or tech stack (e.g. 'Software Engineer', 'AI Specialist', 'Data Analyst') and select the Remote filter to browse live, vetted work-from-home opportunities across Canada, the US, and worldwide.",
-    },
-    {
-      question: "Are remote jobs in Canada and the United States verified on Velai?",
-      answer:
-        "Yes, every remote listing is verified directly against the hiring company's live career portal. Velai checks hiring activity, location eligibility, and compensation bands so Canadian, American, and international candidates apply only to genuine openings.",
-    },
-    {
-      question: "What is a ghost job and how does Velai screen for them?",
-      answer:
-        "A ghost job is a listing that remains posted indefinitely even when the company is not actively hiring. Velai monitors posting duration, company hiring velocity, ATS update frequencies, and listing freshness to flag stale or low-signal roles before you waste time applying.",
-    },
-    {
-      question: "Is Velai free to search for jobs?",
-      answer:
-        "Yes, searching live jobs, filtering by remote or salary, viewing verified employer track records, and exploring market trends on Velai is completely free for job seekers.",
-    },
-    {
-      question: "How fresh are the job listings on Velai?",
-      answer:
-        "Velai updates listings directly from company career sites continuously. When an employer closes a role on their career page, it is marked closed on Velai within 24 hours.",
-    },
-  ]);
+  return buildFaqPageJsonLd(JOB_SEARCH_FAQ);
 }
 
 export interface CompanyFaqInput {

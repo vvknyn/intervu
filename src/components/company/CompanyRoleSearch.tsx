@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { companyRowMetaSegments } from "@/lib/presentation";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
@@ -320,7 +321,11 @@ export function CompanyRoleSearch({
               Explore all open roles at {companyName}
             </h3>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-              Screened for postings that aren&apos;t really hiring, plus freshness and verified salary transparency.
+              Screened for{" "}
+              <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
+                postings that aren&apos;t really hiring
+              </Link>
+              , plus freshness and verified salary transparency.
             </p>
           </div>
           <Button asChild variant="brand" size="lg" className="shrink-0">

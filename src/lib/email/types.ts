@@ -16,7 +16,8 @@ export type EmailKind =
   | "verify_follow"
   | "verify_search_alert"
   | "verify_email"
-  | "password_reset";
+  | "password_reset"
+  | "marketing_update";
 
 export interface EmailKindPolicy {
   /** Checked against `email_suppressions` before every send. False only for
@@ -64,6 +65,11 @@ const EMAIL_KIND_POLICY: Record<EmailKind, EmailKindPolicy> = {
   // someone unsubscribed from "all" must not be able to use that to block a
   // legitimate password-reset link from reaching the account owner.
   password_reset: { suppressible: false, requiresUnsubscribeHeader: false },
+  // One-off product-update broadcasts (scripts/send-marketing-update.ts,
+  // src/lib/marketing/*). Commercial content by definition, so same shape
+  // as `welcome`/`digest`: suppressible, and every send must carry a
+  // List-Unsubscribe header.
+  marketing_update: { suppressible: true, requiresUnsubscribeHeader: true },
 };
 
 export function emailKindPolicy(kind: EmailKind): EmailKindPolicy {

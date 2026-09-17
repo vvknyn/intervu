@@ -4,6 +4,8 @@
  * prepends an honest keep-line; never fabricates a count.
  */
 
+import { ANALYTICS_EVENTS } from "@/lib/analytics/event-names";
+
 export type AuthGateReason = "apply" | "generic" | "save" | "fit" | "report" | "tailor" | "resume";
 
 /** Pure guard for auth_started — fire only on false→true, not on close or
@@ -11,6 +13,20 @@ export type AuthGateReason = "apply" | "generic" | "save" | "fit" | "report" | "
  *  tests share one rule without mounting the modal. */
 export function shouldCaptureAuthStarted(wasOpen: boolean, nowOpen: boolean): boolean {
     return !wasOpen && nowOpen;
+}
+
+/** Who opened the popover: "user" clicked a sign-in affordance themselves;
+ *  "auto" is the product opening it as a side effect of a gated action
+ *  (guest Apply, a second guest Save, ...) — never a click on "Sign In".
+ *  Only a real "user" open is a funnel start; an "auto" open is a nudge,
+ *  not an attempt, so it gets its own honest event name. Pure mapping,
+ *  kept next to AuthGateReason so AuthPopover and tests share one rule. */
+export type AuthGateTrigger = "user" | "auto";
+
+export function resolveAuthOpenEvent(
+    trigger: AuthGateTrigger,
+): typeof ANALYTICS_EVENTS.auth_started | typeof ANALYTICS_EVENTS.auth_nudge_shown {
+    return trigger === "user" ? ANALYTICS_EVENTS.auth_started : ANALYTICS_EVENTS.auth_nudge_shown;
 }
 
 export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
@@ -27,7 +43,10 @@ const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
     apply: "Create a free account to track this application across devices.",
     generic: "Sign in to sync your tracker across devices.",
     save: "Sign in to keep your list across devices and get alerts when new roles match.",
-    fit: "Sign in to match roles to your résumé and get personalized recommendations.",
+    // Fit scoring and tailoring run client-side (src/lib/match/score.ts,
+    // src/lib/local-ai/tailor-with-engine.ts) — an honest privacy line, not
+    // a claim about the résumé file itself (extraction is server-side).
+    fit: "Sign in to match roles to your résumé and get personalized recommendations. Fit scoring and tailoring run in your browser.",
     report: "Sign in to report an issue with this listing.",
     tailor: "Create a free account to tailor your résumé with on-device AI and export customized applications.",
     resume: "Create a free account to edit, export, and sync your résumé across devices.",

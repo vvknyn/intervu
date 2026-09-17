@@ -160,6 +160,7 @@ export default function HistoryPage() {
                 open={authPopoverOpen}
                 onOpenChange={setAuthPopoverOpen}
                 showTrigger={false}
+                trigger="user"
                 valueLine={!user ? formatAuthGateValueLine("generic") : undefined}
             />
         </PageLayout>

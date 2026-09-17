@@ -395,6 +395,7 @@ function YoursContent() {
                 open={authPopoverOpen}
                 onOpenChange={setAuthPopoverOpen}
                 showTrigger={false}
+                trigger="user"
                 valueLine={
                     !user
                         ? formatAuthGateValueLine("generic", listGuestPursuits().length)

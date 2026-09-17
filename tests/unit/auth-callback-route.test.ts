@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
-import { isDirectCallbackHit, withDirectHitGuard } from "../../src/lib/auth/callback-guard";
+import { buildCallbackRetryRedirect, isDirectCallbackHit, withDirectHitGuard } from "../../src/lib/auth/callback-guard";
 
 // getSiteUrl() (src/lib/seo/constants.ts) throws when this is unset — it
 // deliberately has no fallback domain. withDirectHitGuard's redirect path
@@ -25,7 +25,7 @@ test("isDirectCallbackHit is not fooled by an unrelated param name", () => {
     assert.equal(isDirectCallbackHit(new URLSearchParams("token=abc")), true);
 });
 
-test("withDirectHitGuard: no params redirects to /login on the canonical origin, without calling the WorkOS handler", async () => {
+test("withDirectHitGuard: no params redirects to /auth/retry?reason=direct_hit on the canonical origin, without calling the WorkOS handler", async () => {
     let called = false;
     const stub = async () => {
         called = true;
@@ -36,7 +36,7 @@ test("withDirectHitGuard: no params redirects to /login on the canonical origin,
 
     assert.equal(called, false);
     assert.equal(response.status, 307);
-    assert.equal(response.headers.get("location"), "https://velai.app/login");
+    assert.equal(response.headers.get("location"), "https://velai.app/auth/retry?reason=direct_hit");
 });
 
 test("withDirectHitGuard: ?code=abc delegates to the WorkOS handler untouched", async () => {
@@ -64,4 +64,47 @@ test("withDirectHitGuard: ?error=access_denied delegates to the WorkOS handler, 
 
     assert.equal(called, true);
     assert.equal(response.status, 500);
+});
+
+// buildCallbackRetryRedirect is the one redirect builder both failure
+// classes route through (the guard above for "direct_hit", `onError` in
+// app/auth/callback/route.ts for "exchange_failed") — covering both here
+// proves neither class can drift from the other's shape.
+test("buildCallbackRetryRedirect: direct_hit lands on /auth/retry with reason=direct_hit, no next", () => {
+    const response = buildCallbackRetryRedirect(new NextRequest("https://velai.app/auth/callback"), "direct_hit");
+    assert.equal(response.status, 307);
+    const location = new URL(response.headers.get("location")!);
+    assert.equal(location.pathname, "/auth/retry");
+    assert.equal(location.searchParams.get("reason"), "direct_hit");
+    assert.equal(location.searchParams.has("next"), false);
+});
+
+test("buildCallbackRetryRedirect: exchange_failed lands on /auth/retry with reason=exchange_failed", () => {
+    const response = buildCallbackRetryRedirect(
+        new NextRequest("https://velai.app/auth/callback?code=abc&state=xyz"),
+        "exchange_failed",
+    );
+    const location = new URL(response.headers.get("location")!);
+    assert.equal(location.pathname, "/auth/retry");
+    assert.equal(location.searchParams.get("reason"), "exchange_failed");
+});
+
+test("buildCallbackRetryRedirect: preserves a valid next param, for either failure class", () => {
+    for (const failureClass of ["direct_hit", "exchange_failed"] as const) {
+        const response = buildCallbackRetryRedirect(
+            new NextRequest(`https://velai.app/auth/callback?next=${encodeURIComponent("/jobs?job=abc")}`),
+            failureClass,
+        );
+        const location = new URL(response.headers.get("location")!);
+        assert.equal(location.searchParams.get("next"), "/jobs?job=abc", failureClass);
+    }
+});
+
+test("buildCallbackRetryRedirect: drops an unsafe (open-redirect) next param", () => {
+    const response = buildCallbackRetryRedirect(
+        new NextRequest("https://velai.app/auth/callback?next=https://evil.example.com"),
+        "direct_hit",
+    );
+    const location = new URL(response.headers.get("location")!);
+    assert.equal(location.searchParams.has("next"), false);
 });

@@ -54,3 +54,59 @@ test("respects a custom sectionOrder when present", () => {
     assert.ok(educationIndex >= 0 && summaryIndex >= 0);
     assert.ok(educationIndex < summaryIndex, "education (listed first in sectionOrder) should render before summary");
 });
+
+test("a typed project round-trips into the markdown export", () => {
+    const md = resumeDataToMarkdown(
+        makeResume({
+            sectionOrder: ["projects"],
+            projects: [
+                {
+                    id: "p1",
+                    company: "github.com/jane/chat-app",
+                    role: "Real-time Chat App",
+                    dates: "Fall 2024",
+                    description: "• Built a WebSocket server handling 500 concurrent users",
+                },
+            ],
+        }),
+    );
+    assert.match(md, /## Projects/);
+    assert.match(md, /### Real-time Chat App — github\.com\/jane\/chat-app/);
+    assert.match(md, /Fall 2024/);
+    assert.match(md, /Built a WebSocket server handling 500 concurrent users/);
+});
+
+test("education renders honours when present, and no empty Honours label when absent", () => {
+    const withHonours = resumeDataToMarkdown(
+        makeResume({
+            sectionOrder: ["education"],
+            education: [
+                {
+                    id: "e1",
+                    degree: "B.S. Computer Science",
+                    institution: "State U",
+                    year: "2026",
+                    gpa: "3.8 / 4.0",
+                    honours: ["Dean's List", "Magna Cum Laude"],
+                    coursework: ["Data Structures", "Distributed Systems"],
+                    activities: ["Robotics Club"],
+                },
+            ],
+        }),
+    );
+    assert.match(withHonours, /GPA: 3\.8 \/ 4\.0/);
+    assert.match(withHonours, /Honours: Dean's List, Magna Cum Laude/);
+    assert.match(withHonours, /Relevant coursework: Data Structures, Distributed Systems/);
+    assert.match(withHonours, /Activities: Robotics Club/);
+
+    const withoutHonours = resumeDataToMarkdown(
+        makeResume({
+            sectionOrder: ["education"],
+            education: [{ id: "e2", degree: "B.A. History", institution: "Other College", year: "2025" }],
+        }),
+    );
+    assert.doesNotMatch(withoutHonours, /Honours:/);
+    assert.doesNotMatch(withoutHonours, /GPA:/);
+    assert.doesNotMatch(withoutHonours, /Relevant coursework:/);
+    assert.doesNotMatch(withoutHonours, /Activities:/);
+});

@@ -353,6 +353,7 @@ export function TopBar() {
                 open={authPopoverOpen}
                 onOpenChange={setAuthPopoverOpen}
                 showTrigger={false}
+                trigger="user"
                 defaultTab={authTab}
             />
         </header>

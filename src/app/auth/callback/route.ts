@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { cookies } from "next/headers";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisioning";
-import { withDirectHitGuard } from "@/lib/auth/callback-guard";
+import { buildCallbackRetryRedirect, withDirectHitGuard } from "@/lib/auth/callback-guard";
 import {
     resolveAuthKitSignupSignal,
     SIGNUP_SIGNAL_COOKIE_NAME,
@@ -55,12 +55,23 @@ import {
  * they fire from `login-form.tsx` directly.
  *
  * `withDirectHitGuard` (src/lib/auth/callback-guard.ts) redirects a request
- * that carries neither `code` nor `error` straight to /login instead of
- * letting it fall into handleAuth's generic 500 — see that file for why.
+ * that carries neither `code` nor `error` straight to /auth/retry instead
+ * of letting it fall into handleAuth's generic 500 — see that file for why.
+ *
+ * `onError` below covers every OTHER way the exchange can fail (expired
+ * PKCE, state mismatch, a denied authorization, `authenticateWithCode`
+ * throwing) — handleAuth catches all of them internally and would
+ * otherwise answer with a raw 500 JSON body (`{"error":{"message":"Something
+ * went wrong"}}`) that a visitor just sees as a broken page. The real error
+ * is logged here, server-side only, and never reaches the response.
  */
 export const GET = withDirectHitGuard(
     handleAuth({
         baseURL: getSiteUrl(),
+        onError: async ({ error, request }) => {
+            console.error("[Auth] callback exchange failed:", error);
+            return buildCallbackRetryRedirect(request, "exchange_failed");
+        },
         onSuccess: async ({ user, authenticationMethod }) => {
             const signal = resolveAuthKitSignupSignal({
                 apps: user.metadata?.apps,

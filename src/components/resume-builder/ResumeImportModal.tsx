@@ -19,6 +19,7 @@ import { parseResumeWithAI, extractPDFText, extractDocxText } from "@/actions/re
 import { readLocalAiEnabled, writeLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
+import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
 import {
     canAcceptLocalParse,
     LOCAL_PARSE_ACCEPT_MIN,
@@ -158,26 +159,23 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         if (extension === 'txt') {
             return await file.text();
         }
+        if (extension !== 'pdf' && extension !== 'docx' && extension !== 'doc') {
+            throw new Error("Unsupported file type");
+        }
 
-        // Convert file to base64 for server-side processing (browser-compatible)
         const arrayBuffer = await file.arrayBuffer();
-        const base64 = arrayBufferToBase64(arrayBuffer);
+        const isDocx = extension === 'docx' || extension === 'doc';
 
-        console.log(`[ResumeImport] Processing ${extension} file, base64 length: ${base64.length}`);
+        // Local mode: extract in-browser (unpdf/mammoth) — the résumé never
+        // leaves the browser. Otherwise unchanged: base64 + server action.
+        const result = localAiEnabled
+            ? await (isDocx ? extractDocxTextInBrowser(arrayBuffer) : extractPDFTextInBrowser(arrayBuffer))
+            : await (isDocx
+                  ? extractDocxText(arrayBufferToBase64(arrayBuffer))
+                  : extractPDFText(arrayBufferToBase64(arrayBuffer)));
 
-        if (extension === 'pdf') {
-            const result = await extractPDFText(base64);
-            if (result.error) throw new Error(result.error);
-            return result.text || "";
-        }
-
-        if (extension === 'docx' || extension === 'doc') {
-            const result = await extractDocxText(base64);
-            if (result.error) throw new Error(result.error);
-            return result.text || "";
-        }
-
-        throw new Error("Unsupported file type");
+        if (result.error) throw new Error(result.error);
+        return result.text || "";
     };
 
     const runParse = async (textContent: string) => {

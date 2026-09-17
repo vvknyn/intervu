@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BoardComparisonTable } from "@/components/marketing/BoardComparisonTable";
+import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
+import { JOB_SEARCH_FAQ } from "@/lib/faq";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 const TITLE = "About velai";
@@ -53,7 +55,8 @@ export default function AboutPage() {
           long it&apos;s been open, whether it&apos;s been updated recently, and whether it looks like the kind of
           listing that quietly goes nowhere. None of this is a guess dressed up as certainty — see our{" "}
           <Link href="/terms">terms</Link> for how we frame these signals — but it&apos;s a lot more than a bare
-          listing gives you.
+          listing gives you. Read how we{" "}
+          <Link href={GHOST_RESEARCH_HREF}>screen for stale postings</Link>.
         </p>
 
         <h2 className={ASEC}>Compared to Indeed and LinkedIn</h2>
@@ -88,6 +91,16 @@ export default function AboutPage() {
         <p>
           Questions or feedback: use the <Link href="/contact">contact page</Link>.
         </p>
+      </article>
+
+      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+        <h2 className={ASEC}>Questions</h2>
+        {JOB_SEARCH_FAQ.map((item) => (
+          <details key={item.question} className="mt-3 border-b border-border pb-3 last:border-b-0">
+            <summary className="cursor-pointer font-semibold text-foreground">{item.question}</summary>
+            <p className="mt-2 text-muted-foreground">{item.answer}</p>
+          </details>
+        ))}
       </article>
     </div>
   );

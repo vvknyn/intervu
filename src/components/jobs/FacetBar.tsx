@@ -18,6 +18,7 @@ import {
     Affordance,
     DATE_POSTED_SHORT_LABELS,
     facetOptions,
+    SalaryCustomMinInput,
 } from "@/components/jobs/SerpFilters";
 
 /**
@@ -209,7 +210,8 @@ export function FacetBar({
                     label="Salary"
                     activeValue={
                         state.salaryMin > 0
-                            ? (SALARY_PRESETS.find((s) => s.value === state.salaryMin)?.label ?? null)
+                            ? (SALARY_PRESETS.find((s) => s.value === state.salaryMin)?.label ??
+                              `$${Math.round(state.salaryMin / 1000)}k+`)
                             : null
                     }
                     testId="facet-chip-salary"
@@ -224,6 +226,7 @@ export function FacetBar({
                             {s.label}
                         </Affordance>
                     ))}
+                    <SalaryCustomMinInput salaryMin={state.salaryMin} onSalaryMin={onSalaryMin} />
                 </FacetChip>
             )}
             {FACET_BAR_FACETS.map((f) =>
