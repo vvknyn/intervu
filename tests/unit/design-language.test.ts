@@ -827,6 +827,28 @@ test("icon-size classifier: follows one level of local indirection through an ic
     }
 });
 
+test("icon-size classifier: also catches the destructured-lookup form `const { key: Icon } = Map`", () => {
+    const mapModuleSrc = [
+        'import { MapPin, House } from "@phosphor-icons/react";',
+        "export const TEST_ICON_MAP = { a: MapPin, b: House };",
+    ].join("\n");
+    const dir = mkdtempSync(path.join(os.tmpdir(), "icon-map-destructure-fixture-"));
+    writeFileSync(path.join(dir, "icon-map.tsx"), mapModuleSrc);
+    try {
+        const consumerSrc = [
+            'import { TEST_ICON_MAP } from "./icon-map";',
+            "const { a: Icon } = TEST_ICON_MAP;",
+            "export const X = () => <Icon size={12} />;",
+        ].join("\n");
+        const consumerFile = path.join(dir, "consumer.tsx");
+        writeFileSync(consumerFile, consumerSrc);
+        const { offenders } = scanIconSizes(consumerSrc, consumerFile);
+        assert.deepEqual(offenders.map((o) => `${o.line} ${o.tag} ${o.detail}`), ["3 Icon size 12→default(16)"]);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 // ─── Gradient paints (rulebook: depth = tint step or hairline, zero gradients) ──
 // Guards the gap the /jobs results-page wash slipped through: the class
 // sweep above reads Tailwind CLASS NAMES and the computed-style probe (run

@@ -8,6 +8,25 @@ const JOB_DETAIL = join(__dirname, "..", "..", "src", "components", "jobs", "Job
 const JOB_PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "[slug]", "page.tsx");
 const JOB_DOCUMENT = join(__dirname, "..", "..", "src", "components", "jobs", "JobDetailDocument.tsx");
 
+/**
+ * Finds every `job.<field>.length > 0` gate in `src` — the shape a
+ * flowing-tag-list section uses to decide whether it has anything to
+ * render — whether the field is named directly (`job.tags.length > 0`,
+ * the pre-fix bug) or via the shared guard (`visibleTags(job.tags, 16)
+ * .length > 0`, the fix). Matches on the SHAPE (any `job.<field>`, any
+ * field name) rather than enumerating known section names, so a new
+ * sibling section on a different job field is covered automatically.
+ */
+function findJobArrayLengthGates(src: string): Array<{ raw: string; wrapped: boolean }> {
+    const re = /(visibleTags\(job\.\w+(?:,\s*[^)]*)?\)|job\.\w+)\.length\s*>\s*0/g;
+    const gates: Array<{ raw: string; wrapped: boolean }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src)) !== null) {
+        gates.push({ raw: m[0], wrapped: m[1].startsWith("visibleTags(") });
+    }
+    return gates;
+}
+
 describe("JobDetail guest chrome", () => {
     it("uses one shared Apply label for guests and signed-in users alike", () => {
         // Was: a bare ">Apply<" on the desktop split pane vs. a separately
@@ -81,21 +100,43 @@ describe("JobDetail guest chrome", () => {
         assert.match(doc, /\{!closed && <div[^>]*>\{relatedEl\}<\/div>\}/, "the other relatedEl use must be gated on !closed");
     });
 
-    it("every flowing-tag-list section (must-have skills, keywords) gates on visibleTags, not a raw array's .length", () => {
+    it("every flowing-tag-list section gates on visibleTags, not a raw array's .length", () => {
         // Was: `job.tags && job.tags.length > 0` — true even when every entry
         // decodes to a blank string, which rendered "Keywords from the
         // posting" (or "Must-have skills") as a heading over nothing. One
         // guard (`visibleTags(...).length > 0`) now covers every sibling
         // section instead of each one re-deriving its own raw-array check.
-        const doc = readFileSync(JOB_DOCUMENT, "utf8");
-        assert.doesNotMatch(doc, /job\.tags\s*&&\s*job\.tags\.length/, "keywords section must not gate on the raw array");
-        assert.doesNotMatch(doc, /job\.must_have_skills\s*&&\s*job\.must_have_skills\.length/, "must-have-skills section must not gate on the raw array");
-        const docVisibleTagsUses = doc.match(/visibleTags\(/g) ?? [];
-        assert.ok(docVisibleTagsUses.length >= 4, `JobDetailDocument.tsx: expected both sections to gate AND render via visibleTags, found ${docVisibleTagsUses.length} call(s)`);
+        //
+        // Detection is by SHAPE, not by naming "tags"/"must_have_skills": any
+        // `job.<field>.length > 0` gate (bare or visibleTags-wrapped) is a
+        // flowing-tag-list render, whatever the field is called — so a third
+        // sibling section added later, on a different job field, is covered
+        // by construction instead of needing this test updated by hand.
+        for (const [label, file] of [
+            ["JobDetailDocument.tsx", JOB_DOCUMENT],
+            ["JobDetail.tsx", JOB_DETAIL],
+        ] as const) {
+            const src = readFileSync(file, "utf8");
+            const gates = findJobArrayLengthGates(src);
+            assert.ok(gates.length > 0, `${label}: expected at least one job.<field>.length gate, found none — is the scanner still matching this file's shape?`);
+            for (const gate of gates) {
+                assert.ok(gate.wrapped, `${label}: unwrapped raw-array gate found (must route through visibleTags): ${gate.raw}`);
+            }
+        }
+    });
 
-        const detail = readFileSync(JOB_DETAIL, "utf8");
-        assert.doesNotMatch(detail, /job\.tags\s*&&\s*job\.tags\.length/, "JobDetail's keywords section must not gate on the raw array either");
-        const detailVisibleTagsUses = detail.match(/visibleTags\(/g) ?? [];
-        assert.ok(detailVisibleTagsUses.length >= 2, `JobDetail.tsx: expected the keywords section to gate AND render via visibleTags, found ${detailVisibleTagsUses.length} call(s)`);
+    it("negative fixture: the same gate-shape scan flags an unwrapped tag section, proving it isn't vacuously true", () => {
+        const unwrapped = `
+            {job.certifications && job.certifications.length > 0 && (
+                <div>{job.certifications.join(" · ")}</div>
+            )}
+        `;
+        const gates = findJobArrayLengthGates(unwrapped);
+        assert.equal(gates.length, 1);
+        assert.throws(() => {
+            for (const gate of gates) {
+                assert.ok(gate.wrapped, `unwrapped raw-array gate found: ${gate.raw}`);
+            }
+        }, /unwrapped raw-array gate found/);
     });
 });

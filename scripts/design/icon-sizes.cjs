@@ -165,11 +165,20 @@ function scanSource(src, filePath) {
     const mapNames = filePath ? resolveIconMapNames(src, filePath) : new Set();
     // Pattern (b): `const Icon = MapName[key]` / `const Icon = MapName.key`
     // binds a local name that is then used as an ordinary bare tag.
+    // Pattern (c): `const { key: Icon } = MapName` (or shorthand `{ key }`)
+    // destructures one or more entries into local names the same way.
     const localVarNames = [];
     for (const mapName of mapNames) {
         const escaped = mapName.replace(/[$]/g, "\\$&");
         const varRe = new RegExp(`const\\s+(\\w+)\\s*=\\s*${escaped}\\s*(?:\\[[^\\]]+\\]|\\.[A-Za-z_$][\\w$]*)`, "g");
         for (const m of src.matchAll(varRe)) localVarNames.push(m[1]);
+        const destructureRe = new RegExp(`const\\s*\\{([^}]*)\\}\\s*=\\s*${escaped}\\b`, "g");
+        for (const m of src.matchAll(destructureRe)) {
+            for (const part of m[1].split(",")) {
+                const local = part.trim().split(/\s*:\s*/).pop()?.trim().split(/\s*=\s*/)[0];
+                if (local) localVarNames.push(local);
+            }
+        }
     }
     const bareNames = [...new Set([...importedNames, ...localVarNames])];
     // Pattern (a): `<MapName.someKey ...>` — a member-expression JSX tag.
