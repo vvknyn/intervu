@@ -349,6 +349,35 @@ export type ExistenceCheckStatus =
     | { status: "unknown" };
 
 /**
+ * True only when `result` is a COMPLETE, trustworthy envelope from the full
+ * corpus — the single predicate every caller that needs to trust a
+ * `JobSearchResult` (not just its hits) must go through, so the existence
+ * check and any cache/no-cache decision over the same result can never
+ * drift apart. Requires ALL of: a known-COMPLETE backend (`"meilisearch"` —
+ * never `"snapshot-preview"`, a CAPPED SUBSET per lib/jobs/snapshot-preview.ts's
+ * own header comment, or `"unconfigured"`), no error note (`search.ts`'s
+ * outer `catch` is the only `JobSearchResult` constructor that ever sets one
+ * on a `configured:true, backend:"meilisearch"` result — see
+ * `classifyExistenceCheck`'s git history for the full trace), no
+ * `unavailable` flag (a Meili-outage envelope with zero hits and no cached
+ * fallback), and no `meta.degraded` (a served-from-cache response — stale by
+ * construction, so "complete" but not "current"). Reads `meta` through
+ * `servedMeta` (this file's one authorized cast past `JobSearchResult`'s
+ * currently-declared shape) so a response with no `meta` at all — today's
+ * live shape — reads as not-degraded, same default `degradedResultsNote`
+ * uses.
+ */
+export function isAuthoritativeResult(result: JobSearchResult): boolean {
+    return (
+        result.configured &&
+        result.backend === "meilisearch" &&
+        !result.note &&
+        !result.unavailable &&
+        !servedMeta(result)?.degraded
+    );
+}
+
+/**
  * Classifies a `searchJobsAction({ id, limit: 1 })` response for the
  * dead-link existence check (jobs/page.tsx). Extracted as a pure function —
  * the riskiest branch in the Task 11 review-fix diff — so it's directly
@@ -364,32 +393,11 @@ export type ExistenceCheckStatus =
  * `backend` entirely: `snapshot-preview` is a CAPPED SUBSET of the corpus
  * (see lib/jobs/snapshot-preview.ts's own header comment — "NOT the full
  * corpus and NOT scalable"), so an id absent from it is not evidence of
- * anything. `not_found` now requires ALL of: a known-COMPLETE backend
- * (`"meilisearch"` — never `"snapshot-preview"` or `"unconfigured"`), no
- * error/degraded note of ANY kind (not just the "temporarily unavailable"
- * shape), and zero hits. Every other combination — including a `found`
- * check's own preconditions failing — falls through to `unknown` by
- * construction (the function's LAST line, not a special-cased branch),
- * so a future new failure mode can't silently reintroduce this bug by
- * being routed to the wrong default again.
- *
- * `!result.note` enumerated (review fix — is this check load-bearing today,
- * and will it stay correct once the id-filterable reindex lands?): traced
- * every `JobSearchResult` constructor across lib/jobs/{search,meilisearch,
- * snapshot-preview}.ts. A `configured:true, backend:"meilisearch"` result
- * carries a `.note` in exactly ONE case — `search.ts`'s outer `catch`, when
- * `searchMeili` throws (e.g. TODAY's `id`-not-filterable 400, or any other
- * request failure) — never on ANY successful return, including the
- * `posted_ts` legacy-retry success path (`searchMeili`'s success object has
- * no `note` field at all; the retry's `console.warn` is server-side only,
- * never reaches the client). So `!result.note` is doing real, necessary
- * work RIGHT NOW (it's what keeps today's live 400 from being misread as
- * proof of absence) and imposes no dormancy risk after the reindex: a
- * successful post-reindex response is exactly as note-free as every
- * successful response today. `getJobsBackendStatus()`'s own "Meilisearch
- * index" string (search.ts) is a red herring — that function is never
- * called by `searchJobs`'s meilisearch path, so its note never reaches a
- * `JobSearchResult` at all.
+ * anything. `not_found` now requires `isAuthoritativeResult` PLUS zero hits.
+ * Every other combination — including a `found` check's own preconditions
+ * failing — falls through to `unknown` by construction (the function's LAST
+ * line, not a special-cased branch), so a future new failure mode can't
+ * silently reintroduce this bug by being routed to the wrong default again.
  */
 export function classifyExistenceCheck(
     id: string,
@@ -397,13 +405,7 @@ export function classifyExistenceCheck(
 ): ExistenceCheckStatus {
     const job = result.hits.find((h) => h.id === id) ?? null;
     if (job) return { status: "found", job, descriptionPending: Boolean(result.descriptionPending) };
-    const isCompleteAndClean =
-        result.configured &&
-        result.backend === "meilisearch" &&
-        !result.note &&
-        !result.unavailable &&
-        result.hits.length === 0;
-    if (isCompleteAndClean) return { status: "not_found" };
+    if (isAuthoritativeResult(result) && result.hits.length === 0) return { status: "not_found" };
     return { status: "unknown" };
 }
 
