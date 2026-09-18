@@ -39,10 +39,15 @@ const HIDDEN: BeyondWindowDecision = { show: false, extra: null };
 export function resolveBeyondWindow(
     activeBucket: PostedBucket | undefined,
     currentCount: CorpusCount | null,
-    beyondCount: CorpusCount | null,
+    // `undefined` (the probe hasn't resolved for the CURRENT search yet)
+    // is treated the same as `null` (resolved, not applicable) for this
+    // show/extra decision — page.tsx's `beyondWindowPending` is what tells
+    // the two apart for the "reserve height while we wait" render concern;
+    // this function only ever needs to know "is there a decidable number".
+    beyondCount: CorpusCount | null | undefined,
 ): BeyondWindowDecision {
     if (activeBucket !== "30d") return HIDDEN;
-    if (currentCount === null || beyondCount === null) return HIDDEN;
+    if (currentCount === null || beyondCount == null) return HIDDEN;
     if (currentCount.kind === "floor" || beyondCount.kind === "floor") {
         // Either side hit the corpus-count cap — `beyondCount` is always a
         // superset of `currentCount` (same query, wider window), so a floor
@@ -53,4 +58,31 @@ export function resolveBeyondWindow(
     const extra = beyondCount.value - currentCount.value;
     if (extra <= 0) return HIDDEN;
     return { show: true, extra };
+}
+
+/**
+ * Text for the "N more roles beyond 30 days" affordance, from an already-
+ * resolved `BeyondWindowDecision.extra`. A sentence that names a count
+ * must never render without the count (Vivek, 2026-09-17) — this is the
+ * ONE place that turns `extra` into words, so page.tsx never interpolates
+ * around a hole itself:
+ *  - `undefined` — the probe for this search hasn't resolved yet; render
+ *    nothing (the caller reserves one line of height instead, so the row
+ *    doesn't jump the list below it the moment this resolves).
+ *  - `null` — resolved, but `resolveBeyondWindow` hit the corpus-count cap
+ *    on either side with no exact number to report (`floor`) — e.g. the
+ *    unqueried landing search, whose "beyond 30 days" population is the
+ *    whole corpus and blows past the cap with no facet sum to recover an
+ *    exact figure from. The affordance still needs an honest sentence,
+ *    just not a fabricated number — phrased to read naturally next to the
+ *    "· Show all" the render site appends after it, same as the counted form.
+ *  - a number — the exact count. `resolveBeyondWindow` already excludes
+ *    zero/negative before ever returning `show: true`, but this stays
+ *    defensive rather than trusting the caller to have done that.
+ */
+export function formatBeyondWindowText(extra: number | null | undefined): string | null {
+    if (extra === undefined) return null;
+    if (extra === null) return "More roles beyond 30 days";
+    if (extra <= 0) return null;
+    return `${extra.toLocaleString()} more beyond 30 days`;
 }

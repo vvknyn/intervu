@@ -3,6 +3,7 @@
 import React from "react";
 import { MagnifyingGlass, MapPin } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
 
 /**
  * The /jobs search line, reduced to static markup. Every class on the field
@@ -18,7 +19,7 @@ function SearchLine({ invert = false, tall = false }: { invert?: boolean; tall?:
                 <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                     <MagnifyingGlass size={16} weight="bold" className="ml-3 shrink-0 text-muted-foreground" />
                     <div className={cn(h, "flex flex-1 items-center px-3 text-sm text-muted-foreground")}>
-                        Job title, skill, or company
+                        {SEARCH_PLACEHOLDER}
                     </div>
                 </div>
                 <div className="relative flex min-w-0 w-full items-center sm:w-[300px]">

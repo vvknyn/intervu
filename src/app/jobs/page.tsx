@@ -149,7 +149,8 @@ import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-sto
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
-import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
+import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
+import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
 import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
 import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
@@ -345,10 +346,6 @@ function modeToUrlSort(mode: JobSortMode): UrlSort {
  * losing their place on the return sweep.
  */
 const cappedContentClass = "mx-auto w-full max-w-[1600px]";
-
-/** Shared by the hero search box and its docked copy in the header (see the
- *  dock effect below) — one string, so the two can never read differently. */
-const SEARCH_PLACEHOLDER = "Job title, skill, or company";
 
 function ToolbarSegment({
     label,
@@ -1631,8 +1628,11 @@ function JobsContent() {
     // means "not applicable right now" (bucket isn't 30d, probe unresolved,
     // or the probe failed) and `resolveBeyondWindow` (lib/jobs/beyond-
     // window.ts) is the single place that turns this + the visible
-    // `totalCount` into the show/hide + number decision.
-    const [beyondWindowCount, setBeyondWindowCount] = useState<CorpusCount | null>(null);
+    // `totalCount` into the show/hide + number decision. `undefined` (the
+    // initial value, and what it's reset to right before each new probe
+    // fires — same idiom as `lastUpdated` below) means "not resolved yet
+    // for the CURRENT search"; `null` means "resolved, not applicable".
+    const [beyondWindowCount, setBeyondWindowCount] = useState<CorpusCount | null | undefined>(undefined);
 
     // Freshness stamp ("updated 3h ago") for the population the CURRENT
     // search matches — refetched alongside every search below (same
@@ -2467,6 +2467,12 @@ function JobsContent() {
                 // this search's "N more" would be exactly the fabricated
                 // number the spec forbids.
                 if (appliedPosted === "30d") {
+                    // Reset to "not resolved yet" before firing — same
+                    // reason as `setLastUpdated(undefined)` below: a PRIOR
+                    // generation's resolved count (or its floor/hidden
+                    // verdict) must never linger under this generation's
+                    // search while this one is in flight.
+                    setBeyondWindowCount(undefined);
                     searchJobsAction({
                         ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                         postedBucket: undefined,
@@ -4411,10 +4417,21 @@ function JobsContent() {
     const beyondWindow = resultCountLine
         ? resolveBeyondWindow(appliedPosted, totalCount, beyondWindowCount)
         : { show: false, extra: null };
-    const beyondWindowText =
-        beyondWindow.extra !== null
-            ? `${beyondWindow.extra.toLocaleString()} more beyond 30 days`
-            : "more roles beyond 30 days";
+    // A sentence that names a count must never render without the count
+    // (Vivek, 2026-09-17) — `formatBeyondWindowText` (lib/jobs/beyond-
+    // window.ts) is the single place deciding the words; `null` here means
+    // "resolved, nothing to show" so it's never passed a bare `undefined`.
+    const beyondWindowText = beyondWindow.show ? formatBeyondWindowText(beyondWindow.extra) : null;
+    // True only while the probe for the ACTIVE 30d bucket hasn't resolved
+    // yet for THIS search — distinct from "resolved, not applicable"
+    // (`beyondWindow.show === false` for any other reason). Lets the row
+    // reserve one line of height below so the list doesn't jump the moment
+    // `beyondWindowText` lands (the prod bug: the unqueried landing's probe
+    // resolves to a `floor` with no exact number — see `resolveCorpusCount`
+    // — so it painted a numberless "more roles beyond 30 days" instead of
+    // ever having reserved space for an honest answer).
+    const beyondWindowPending =
+        !beyondWindow.show && !!resultCountLine && appliedPosted === "30d" && beyondWindowCount === undefined;
 
     // Deliverable 1 — results render normally on a degraded (served-from-cache)
     // response; this is just the honest caption for it. See
@@ -5169,7 +5186,10 @@ function JobsContent() {
                         // rounded-none (at rest): PR #534's own flat front-door frame,
                         // out of this pass's scope — the raised well below is the
                         // soft-surfaces panel this pass owns.
-                        atRest ? "rounded-none mx-auto max-w-[960px] lg:max-w-7xl" : "rounded-panel border border-border bg-card p-2 sm:p-2.5",
+                        // w-full (2026-09-17): mx-auto on a flex item suppresses
+                        // cross-axis stretch (Flexbox spec) — the same defect PR
+                        // #540 fixed on the toolbar section, same fix here.
+                        atRest ? "rounded-none mx-auto w-full max-w-[960px] lg:max-w-7xl" : "rounded-panel border border-border bg-card p-2 sm:p-2.5",
                     )}
                 >
                     {/* A3 (front-door redesign): the live count renders once,
@@ -5182,8 +5202,13 @@ function JobsContent() {
                         `headerDockActive` is always false (the header dock
                         never shows there — see TopBar), so this row stays
                         put and the sticky mobile CTA keeps owning search. */}
+                    {/* sm:justify-center (on the row below): now that the section
+                        above stretches to its real max-width, the pill's own
+                        sm:max-w-[42rem] cap can leave room in this row unfilled —
+                        center the pill+button pair in it instead of pinning them
+                        to the start. */}
                     {!headerDockActive && (
-                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
+                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5 sm:justify-center">
                         {/* `bg-card`, not `bg-background`: inside the raised well
                             the field has to be the brightest thing on the page,
                             which is the only direction contrast can go on a
@@ -5196,7 +5221,18 @@ function JobsContent() {
                             // one handler here covers both without changing
                             // `SearchAutocomplete`'s own props.
                             onFocus={() => setMobileSearchFocused(true)}
-                            className="flex flex-col rounded-pill border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
+                            className={cn(
+                                "flex flex-col rounded-pill border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x",
+                                // Mechanism: the ancestor <section> above used to
+                                // shrink-wrap (mx-auto suppressing stretch), so this
+                                // sm:flex-1 (basis 0%) had no real room to fill.
+                                // Precedent: PR #540 fixed the identical defect on
+                                // the toolbar section with w-full; fixed there, not
+                                // here — see the section's className above.
+                                // Cap: sm:max-w-[42rem] bounds how wide flex-1 may
+                                // grow now that the row actually has room to give.
+                                "sm:max-w-[42rem]",
+                            )}>
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
                                     ref={searchAutocompleteRef}
@@ -5984,13 +6020,25 @@ function JobsContent() {
                                                     >
                                                         {resultCountLine}
                                                     </span>
-                                                    {beyondWindow.show && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            {beyondWindowText}
+                                                    {(beyondWindow.show || beyondWindowPending) && (
+                                                        <span
+                                                            className={cn(
+                                                                "flex items-center gap-1.5",
+                                                                // Pending: reserve this line's height (and
+                                                                // roughly its width, so the row wraps the
+                                                                // same way it will once resolved) so the
+                                                                // list below doesn't jump when the real text
+                                                                // lands — never actually shown.
+                                                                !beyondWindow.show && "invisible",
+                                                            )}
+                                                            aria-hidden={beyondWindow.show ? undefined : true}
+                                                        >
+                                                            {beyondWindow.show ? beyondWindowText : formatBeyondWindowText(null)}
                                                             <span aria-hidden>·</span>
                                                             <button
                                                                 type="button"
                                                                 data-testid="beyond-window-show-all"
+                                                                tabIndex={beyondWindow.show ? undefined : -1}
                                                                 onClick={() => panelPostedBucket(undefined)}
                                                                 className="text-foreground underline-offset-2 hover:underline"
                                                             >
