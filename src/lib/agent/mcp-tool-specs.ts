@@ -53,6 +53,15 @@ export const searchJobsInput = z.object({
     cursor: z.string().max(128).optional(),
 });
 
+/** `for_you`'s only inputs — the same cursor/limit shape `searchJobsInput`
+ *  carries above, since `toolForYou` (tools.ts) reuses that same
+ *  `decodeCursor`/`resolvePageSize`/`nextCursorFor` machinery. No query/
+ *  filter fields: the ranking is always against the caller's own résumé. */
+export const forYouInput = z.object({
+    cursor: z.string().max(128).optional(),
+    limit: z.number().int().min(1).max(AGENT.RESULT_CAP).optional(),
+});
+
 const jobIdInput = z.object({ id: z.string().min(1) });
 
 /** `job_id` is the ONE field shape every resume tool below keys off of —
@@ -229,6 +238,22 @@ export const MCP_TOOL_SPECS = {
             `recommendations to the user, always include the intervu_url with each one; include apply_url ` +
             `too when the user is ready to apply.`,
         inputSchema: searchJobsInput,
+    },
+    for_you: {
+        title: "Jobs ranked by fit",
+        description:
+            "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
+            "pipeline behind the site's For-you view. Requires a résumé on file (call set_resume first " +
+            "if get_resume shows none). Ranks purely by fit, not recency — postedWithinDays/sort/facet " +
+            "filters from search_jobs don't apply here. Paginate with cursor the same way search_jobs " +
+            "does — the page size that minted a cursor stays pinned for the rest of that walk. Each " +
+            "result carries the SAME detail get_job returns (salary, tags, work_type, employment_type, " +
+            "experience_level, intervu_url, apply_url, ...) plus fit_reasons (why it's a fit) and group " +
+            "(\"target_title\" when the listing's own title matches what your résumé targets, else " +
+            "\"adjacent\"). Counts toward the same shared daily record budget search_jobs and get_job " +
+            "note. When presenting results to the user, always include the intervu_url with each one; " +
+            "include apply_url too when the user is ready to apply.",
+        inputSchema: forYouInput,
     },
     get_job: {
         title: "Get job detail",

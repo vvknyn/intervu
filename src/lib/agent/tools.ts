@@ -14,7 +14,11 @@ import type {
 } from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
 import { canonicalFacetValues } from "../jobs/meilisearch";
-import { scoreJobAgainstResume, type MatchScore } from "../match/score";
+import type { MatchScore } from "../match/score";
+import { fitFor } from "../jobs/for-you/fit";
+import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
+import { rankForYou } from "../jobs/for-you/ranked";
+import { resumeIsUsable } from "../resume/resume-usable";
 import type { ResumeData } from "../../types/resume";
 import type { CompanyPageData } from "../companies/types";
 import type { CompanyExhaust } from "../companies/exhaust";
@@ -217,6 +221,9 @@ export type JobDetailFields = Pick<
    *  Derived, not a raw `PublicJob` pass-through, so it sits outside the
    *  `Pick` above rather than widening the wire allowlist it documents. */
   match?: MatchScore;
+  /** The SAME `fitFor` chokepoint's reasons half (jobs/for-you/fit.ts) —
+   *  present exactly when `match` is, omitted otherwise. */
+  fit_reasons?: InferReasonsResult;
 };
 
 export function toJobDetailFields(job: PublicJob, resume: ResumeData | null = null): JobDetailFields {
@@ -227,7 +234,7 @@ export function toJobDetailFields(job: PublicJob, resume: ResumeData | null = nu
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
   } = job;
-  const match = resume ? scoreJobAgainstResume(resume, job) : null;
+  const fit = fitFor(resume, job);
   return {
     id, title,
     // The index carries the ATS-stated raw name (intervu owns display-time
@@ -241,7 +248,7 @@ export function toJobDetailFields(job: PublicJob, resume: ResumeData | null = nu
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
     intervu_url: jobShareUrl(getSiteUrl(), job),
-    ...(match ? { match } : {}),
+    ...(fit ? { match: fit.match, fit_reasons: fit.fit_reasons } : {}),
   };
 }
 
@@ -577,6 +584,81 @@ export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise
     ...toJobDetailFields(lookup.job, resume),
     description: { untrusted: true, text: lookup.job.description },
     content_note: CONTENT_NOTE,
+  };
+}
+
+/** Reused verbatim by `for_you` — the one tool that needs a stored,
+ *  matchable résumé before it can do anything useful (search_jobs/get_job
+ *  degrade gracefully instead: an honestly omitted `match`/`fit_reasons`).
+ *  Single source of truth for this message so a second résumé-gated tool
+ *  never invents its own wording. */
+export const NO_RESUME_ERROR = "no résumé on file — call set_resume first, then retry for_you";
+
+export interface ForYouInput {
+  cursor?: string;
+  limit?: number;
+}
+
+export interface ForYouHit extends JobDetailFields {
+  group: "target_title" | "adjacent";
+}
+
+export interface ForYouOut {
+  hits: ForYouHit[];
+  query_used: string;
+  next_cursor?: string;
+  resume_source: BaseResume["source"];
+  unavailable?: boolean;
+  note?: string;
+}
+
+/**
+ * Jobs ranked against the caller's own résumé — the SAME `rankForYou`
+ * pipeline (jobs/for-you/ranked.ts) a future web caller could adopt, fed
+ * this MCP session's own `search`/`getBaseResume` deps. Reuses
+ * `decodeCursor`/`resolvePageSize`/`nextCursorFor` exactly as
+ * `toolSearchJobs` does, but pages the already-ranked list in memory rather
+ * than re-querying per page — `rankForYou` ranks the whole
+ * `AGENT.SEARCH_DEPTH_CAP`-sized candidate set in one call.
+ */
+export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<ForYouOut | { error: string }> {
+  const decoded = decodeCursor(input.cursor);
+  if ("error" in decoded) return decoded;
+  const offset = decoded.offset;
+  const requestedLimit = Math.min(input.limit ?? AGENT.SEARCH_DEFAULT_LIMIT, AGENT.RESULT_CAP);
+  const { limit, note: limitNote } = resolvePageSize(decoded, input.limit, requestedLimit);
+
+  const base = await deps.getBaseResume(deps.uid);
+  const resume = structuredResume(base);
+  if (!resume || !resumeIsUsable(resume)) return { error: NO_RESUME_ERROR };
+
+  const ranked = await rankForYou({ resume, search: deps.search, candidateDepth: AGENT.SEARCH_DEPTH_CAP });
+  if (ranked.unavailable) {
+    return {
+      hits: [],
+      query_used: ranked.query_used,
+      unavailable: true,
+      note: ranked.note ?? "search backend unavailable — treat as an error, not as zero matches",
+      resume_source: base.source,
+    };
+  }
+
+  const page = ranked.hits.slice(offset, offset + limit);
+  const hits: ForYouHit[] = page.map((h) => ({ ...toJobDetailFields(h.job, resume), group: h.group }));
+
+  // Corpus-harvesting guardrail — same daily record budget search_jobs/
+  // get_job meter against, so for_you can't be used to route around it.
+  const budget = await deps.consumeRecordBudget(hits.length);
+  if (!budget.ok) return { error: budget.error };
+
+  const nextCursor = nextCursorFor(offset, hits.length, ranked.hits.length, limit);
+  const note = joinNotes(limitNote);
+  return {
+    hits,
+    query_used: ranked.query_used,
+    ...(note ? { note } : {}),
+    ...(nextCursor ? { next_cursor: nextCursor } : {}),
+    resume_source: base.source,
   };
 }
 
