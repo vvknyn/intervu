@@ -34,7 +34,6 @@ function ShareVelaiMenuItem() {
                 e.preventDefault();
                 trigger({ title: SITE_NAME, text: SHARE_APP_TEXT, url: withShareRef(getSiteUrl(), "app") });
             }}
-            className="rounded-none"
         >
             {label}
         </DropdownMenuItem>
@@ -82,7 +81,7 @@ export function AccountMenu({ user, active, signingOut, onSignOut, mode, mounted
                     <UserAvatar name={user.displayName} email={user.email} pictureUrl={user.pictureUrl} size={32} />
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-56 rounded-panel border-border bg-card">
                 <DropdownMenuItem asChild>
                     <Link href="/settings">Account</Link>
                 </DropdownMenuItem>

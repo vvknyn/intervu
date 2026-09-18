@@ -49,8 +49,8 @@ export function MobileTabBar() {
                         data-tour={tab.tourSelector}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                            "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap text-xs font-normal transition-colors duration-100 [&_svg]:size-5",
-                            active ? "text-brand" : "text-muted-foreground",
+                            "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap text-xs transition-colors duration-100",
+                            active ? "text-foreground font-semibold" : "text-muted-foreground font-normal",
                         )}
                     >
                         {Icon && <Icon />}
