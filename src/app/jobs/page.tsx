@@ -348,7 +348,7 @@ const cappedContentClass = "mx-auto w-full max-w-[1600px]";
 
 /** Shared by the hero search box and its docked copy in the header (see the
  *  dock effect below) — one string, so the two can never read differently. */
-const SEARCH_PLACEHOLDER = "What kind of work are you looking for?";
+const SEARCH_PLACEHOLDER = "Job title, skill, or company";
 
 function ToolbarSegment({
     label,
@@ -5423,13 +5423,13 @@ function JobsContent() {
                                 // `bg-muted` band — instead of the full-bleed,
                                 // filled strip a live query still gets.
                                 atRest
-                                    ? "mx-auto mt-3 max-w-[960px] border-y border-border py-2"
+                                    ? "mx-auto mt-3 w-full max-w-[960px] border-y border-border py-2"
                                     : "mt-3 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5"
                             ),
                     )}
                 >
                     {showJobsToolbarRow && (
-                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain lg:gap-3">
+                    <div className="no-scrollbar flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain lg:gap-3">
                         {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
                         <button
                             type="button"
@@ -5482,7 +5482,7 @@ function JobsContent() {
                     {!headerDockActive && unnamedEntries.length > 0 && (
                         <div
                             data-testid="active-filter-row"
-                            className="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain border-t border-border pt-2"
+                            className="no-scrollbar mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain border-t border-border pt-2"
                         >
                             {!headerDockActive && unnamedEntries.map((entry) => (
                                 <span

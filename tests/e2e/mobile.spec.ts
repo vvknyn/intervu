@@ -105,7 +105,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     await expect(page.locator('text=Intervu').first()).toBeVisible();
 
     // The board's own search input, not a waitlist email form.
-    await expect(page.getByPlaceholder(/What kind of work/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/Job title/i)).toBeVisible();
 
     await expectNoHorizontalScroll(page, '/');
   });

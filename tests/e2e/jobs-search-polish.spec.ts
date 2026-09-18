@@ -141,7 +141,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'Corpus carries no posted_ts — freshest segment hidden');
         }
 
-        const searchInput = page.getByPlaceholder(/What kind of work/i);
+        const searchInput = page.getByPlaceholder(/Job title/i);
         await searchInput.fill('engineer');
         await expect(page).toHaveURL(/q=engineer/);
 
@@ -210,7 +210,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'No job rows — cannot verify background refresh feedback');
         }
 
-        await page.getByPlaceholder(/What kind of work/i).fill('engineer');
+        await page.getByPlaceholder(/Job title/i).fill('engineer');
         await expect(page.getByText('Updating…', { exact: true })).toBeVisible({ timeout: 2000 });
         await expect(firstResult).toBeVisible();
         await expect(page.getByText('Finding live roles…', { exact: true })).toHaveCount(0);
@@ -465,7 +465,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
 
         // Schedule a zero-result refresh, then deliberately open a still-visible
         // result during the debounce window.
-        await page.getByPlaceholder(/What kind of work/i).fill('zzqxvbnmnevermatches');
+        await page.getByPlaceholder(/Job title/i).fill('zzqxvbnmnevermatches');
         await options.first().click();
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible({ timeout: 10000 });

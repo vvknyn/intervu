@@ -31,7 +31,7 @@ test.describe('JOBS-RENAMED-CITY', () => {
 
     test('"material science" + location box "bangalore" surfaces real materials-science roles (Waters Corporation), not unrelated postings', async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await page.getByPlaceholder(/What kind of work/i).fill('material science');
+        await page.getByPlaceholder(/Job title/i).fill('material science');
         const locationBox = page.getByTestId('location-input');
         await locationBox.fill('bangalore');
         await locationBox.press('Enter');
@@ -43,8 +43,8 @@ test.describe('JOBS-RENAMED-CITY', () => {
 
     test('typed free-text "material science bangalore" (place parsed from the query box) matches the location-box gate exactly', async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await page.getByPlaceholder(/What kind of work/i).fill('material science bangalore');
-        await page.getByPlaceholder(/What kind of work/i).press('Enter');
+        await page.getByPlaceholder(/Job title/i).fill('material science bangalore');
+        await page.getByPlaceholder(/Job title/i).press('Enter');
 
         const firstTitle = page.getByTestId('job-title').first();
         await expect(firstTitle).toBeVisible({ timeout: 15_000 });

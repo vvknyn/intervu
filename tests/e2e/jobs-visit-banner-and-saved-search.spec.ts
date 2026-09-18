@@ -117,7 +117,7 @@ test.describe('saved searches — guest path', () => {
      */
     test('saving a search adds it to the saved-search list', async ({ page }) => {
         await page.goto('/jobs?q=engineer&posted=any');
-        await expect(page.getByPlaceholder(/What kind of work/i)).toHaveValue('engineer');
+        await expect(page.getByPlaceholder(/Job title/i)).toHaveValue('engineer');
 
         const trigger = page.getByTestId('save-search-trigger');
         await expect(trigger).toBeVisible();
