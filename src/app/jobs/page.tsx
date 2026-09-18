@@ -114,7 +114,9 @@ import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
+import { useOverflowEdges } from "@/hooks/use-overflow-edges";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
+import { edgeFadeMaskImage } from "@/lib/jobs/edge-fade";
 import { captureEvent } from "@/lib/analytics/events";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
@@ -674,7 +676,7 @@ export function JobCard({
                 // grid carries no border or bottom margin of its own — rows
                 // touch, the line between them starts at the title's x, not
                 // the tile's.
-                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-card text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand gap-x-3 px-4 pt-4",
+                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-card text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand gap-x-3 px-[var(--list-inset)] pt-4",
                 // A2 (soft-surfaces): selected row gets the same soft `bg-muted`
                 // fill as hover, no brand-colored left border/text.
                 active && "bg-muted",
@@ -3263,6 +3265,11 @@ function JobsContent() {
     // #jobs-results-list container — the one mount point `useResultImpressions`
     // watches for rows crossing 50% visible (see the ref attached below).
     const resultsListRef = useRef<HTMLDivElement | null>(null);
+    // Horizontal-scroll toolbar row — feeds `useOverflowEdges` so the edge
+    // fade renders only on a side that actually hides content.
+    const toolbarScrollerRef = useRef<HTMLDivElement | null>(null);
+    const toolbarOverflowEdges = useOverflowEdges(toolbarScrollerRef);
+    const toolbarEdgeFadeMask = edgeFadeMaskImage(toolbarOverflowEdges);
     // `result?.searchId`, not `lastSearchId`: this is the id `loadMore`
     // leaves untouched when it appends a page (`setResult` spreads `...prev`
     // without overwriting `searchId` — see `loadMore` below), so it stays
@@ -5214,6 +5221,7 @@ function JobsContent() {
                             light ground. */}
                         <div
                             data-tour="jobs-search"
+                            data-testid="jobs-search-dock"
                             // Item 7a: React's `onFocus` listens on `focusin`
                             // under the hood (unlike the native DOM `focus`
                             // event), so it bubbles from either child input —
@@ -5221,7 +5229,14 @@ function JobsContent() {
                             // `SearchAutocomplete`'s own props.
                             onFocus={() => setMobileSearchFocused(true)}
                             className={cn(
-                                "flex flex-col rounded-pill border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x",
+                                // Below `sm` this container holds two STACKED rows
+                                // (query, then location) — a pill shape on a tall
+                                // two-row box reads as an oversized capsule, so it
+                                // takes the same 16px `rounded-panel` every other
+                                // stacked surface uses. From `sm` the rows go
+                                // side-by-side and it becomes the single pill it
+                                // always was (mobile layout audit, 2026-09-18).
+                                "flex flex-col rounded-panel border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-pill",
                                 // Mechanism: the ancestor <section> above used to
                                 // shrink-wrap (mx-auto suppressing stretch), so this
                                 // sm:flex-1 (basis 0%) had no real room to fill.
@@ -5464,7 +5479,18 @@ function JobsContent() {
                     )}
                 >
                     {showJobsToolbarRow && (
-                    <div className="no-scrollbar flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain lg:gap-3">
+                    <div
+                        ref={toolbarScrollerRef}
+                        data-testid="jobs-toolbar-scroller"
+                        data-fade-left={toolbarOverflowEdges.left || undefined}
+                        data-fade-right={toolbarOverflowEdges.right || undefined}
+                        className="no-scrollbar flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain px-[var(--list-inset)] [scroll-padding-inline:var(--list-inset)] lg:gap-3"
+                        style={
+                            toolbarEdgeFadeMask
+                                ? { WebkitMaskImage: toolbarEdgeFadeMask, maskImage: toolbarEdgeFadeMask }
+                                : undefined
+                        }
+                    >
                         {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
                         <button
                             type="button"
@@ -6011,7 +6037,7 @@ function JobsContent() {
                                         <>
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 py-2 text-sm text-muted-foreground">
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] py-2 text-sm text-muted-foreground">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
