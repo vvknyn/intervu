@@ -74,14 +74,15 @@ export function resolveBeyondWindow(
  *    unqueried landing search, whose "beyond 30 days" population is the
  *    whole corpus and blows past the cap with no facet sum to recover an
  *    exact figure from. The affordance still needs an honest sentence,
- *    just not a fabricated number.
+ *    just not a fabricated number — phrased to read naturally next to the
+ *    "· Show all" the render site appends after it, same as the counted form.
  *  - a number — the exact count. `resolveBeyondWindow` already excludes
  *    zero/negative before ever returning `show: true`, but this stays
  *    defensive rather than trusting the caller to have done that.
  */
 export function formatBeyondWindowText(extra: number | null | undefined): string | null {
     if (extra === undefined) return null;
-    if (extra === null) return "Show roles older than 30 days";
+    if (extra === null) return "More roles beyond 30 days";
     if (extra <= 0) return null;
     return `${extra.toLocaleString()} more beyond 30 days`;
 }

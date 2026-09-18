@@ -77,8 +77,8 @@ describe('formatBeyondWindowText', () => {
         assert.equal(formatBeyondWindowText(-3), null);
     });
 
-    it('the surfaced case — resolved but uncountable (floor on either side) — an honest sentence, never a hole', () => {
-        assert.equal(formatBeyondWindowText(null), 'Show roles older than 30 days');
+    it('the surfaced case — resolved but uncountable (floor on either side) — an honest sentence, never a hole, parallel to the counted form', () => {
+        assert.equal(formatBeyondWindowText(null), 'More roles beyond 30 days');
     });
 
     it('a resolved exact count — the counted sentence', () => {

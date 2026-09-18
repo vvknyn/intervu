@@ -5213,8 +5213,27 @@ function JobsContent() {
                             // one handler here covers both without changing
                             // `SearchAutocomplete`'s own props.
                             onFocus={() => setMobileSearchFocused(true)}
-                            className="flex flex-col rounded-pill border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
-                            <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
+                            className={cn(
+                                "flex flex-col rounded-pill border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x",
+                                // 2026-09-17 (Vivek): at 1440 the placeholder measured
+                                // wider than the room the pill actually had — the row
+                                // that hosts it (`data-search-line`) sits inside a flex
+                                // column whose `mx-auto` suppresses stretch (the same
+                                // mechanism documented in
+                                // tests/e2e/no-horizontal-overflow.spec.ts), so it
+                                // shrink-wraps to content instead of the section's own
+                                // max-w-7xl. `sm:flex-1` has `flex-basis: 0%`, which
+                                // contributes nothing to that shrink-to-fit measurement,
+                                // so the pill only ever got as wide as its own content
+                                // needed (415px) rather than the 42rem this pass wants.
+                                // `lg:flex-initial` (basis: auto, grow: 0) makes the
+                                // width below the real, definite size ancestors size
+                                // around, and `lg:w-[42rem]` is that size — `flex-shrink`
+                                // stays on so a narrower lg viewport still protects
+                                // against overflow. Below lg, `sm:flex-1` is untouched.
+                                "lg:w-[42rem] lg:flex-initial",
+                            )}>
+                            <div className="relative flex min-w-0 w-full sm:flex-1 items-center lg:flex-[3]">
                                 <SearchAutocomplete
                                     ref={searchAutocompleteRef}
                                     value={queryDraft}
@@ -5251,7 +5270,7 @@ function JobsContent() {
                                 SearchAutocomplete's (see its doc comment): padding
                                 is a shared tailwind-merge axis and an overlay only
                                 stays clear of the text while nobody touches it. */}
-                            <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
+                            <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px] lg:max-w-none lg:flex-[2]">
                                 <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
                                     <MapPin size={16} weight="bold" />
                                 </span>
@@ -6014,7 +6033,7 @@ function JobsContent() {
                                                             )}
                                                             aria-hidden={beyondWindow.show ? undefined : true}
                                                         >
-                                                            {beyondWindow.show ? beyondWindowText : "Show roles older than 30 days"}
+                                                            {beyondWindow.show ? beyondWindowText : formatBeyondWindowText(null)}
                                                             <span aria-hidden>·</span>
                                                             <button
                                                                 type="button"
