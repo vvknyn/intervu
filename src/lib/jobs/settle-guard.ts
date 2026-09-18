@@ -1,5 +1,3 @@
-import { DESCRIPTION_FILL_VISIBLE_DEADLINE_MS } from "./fill-description";
-
 /**
  * Client-side timeout for a `/jobs` server-action call. Guards against a
  * Next.js Server Action POST that never settles — observed in prod as an
@@ -11,26 +9,20 @@ import { DESCRIPTION_FILL_VISIBLE_DEADLINE_MS } from "./fill-description";
  * that — the action invocation itself never resolving or rejecting, which
  * would otherwise leave the page's `loading` state (and its spinner) stuck
  * forever.
+ *
+ * (2026-09-18: id-scoped detail lookups no longer use this file at all —
+ * they moved off the Server Action queue onto a plain `fetch` to `GET
+ * /api/jobs/[id]/description`, which owns its own `DETAIL_FETCH_TIMEOUT_MS`
+ * deadline in lib/jobs/detail-fetch.ts. This guard's own doc history is
+ * why: a detail lookup invoked at 5.4s, dispatched at 8.1s behind 14 queued
+ * actions, server-answered at 10.2s, landed at 18.3s — Next's client action
+ * queue is strictly serial FIFO, and queue wait counted against whatever
+ * budget this guard gave that call. A route handler has its own connection
+ * and no such queue to wait behind, so that failure mode no longer applies
+ * to this call site — this guard now only wraps the general list-search
+ * actions below, which never carried that problem.)
  */
 export const ACTION_SETTLE_TIMEOUT_MS = 15_000;
-
-/**
- * Budget for an id-scoped DETAIL lookup (jobs/page.tsx's dead-job check +
- * on-demand hydrate, yours/[id]/page.tsx's open + retry) — never the plain
- * `ACTION_SETTLE_TIMEOUT_MS`. Server-side, that lookup may legitimately
- * block for the FULL `DESCRIPTION_FILL_VISIBLE_DEADLINE_MS` fill deadline
- * ON TOP OF the never-settles budget above, which exists for a request that
- * hangs for an unrelated reason. Worse: `withSettleGuard`'s clock starts at
- * INVOCATION, and Next's client action queue is strictly serial FIFO — the
- * POST doesn't leave the browser until every earlier-queued action settles,
- * so queue wait counts against the budget too. Measured on prod: a detail
- * lookup invoked at 5.4s, dispatched at 8.1s behind 14 queued actions,
- * server-answered at 10.2s, landed at 18.3s — the plain 15s list-search
- * budget discarded a valid, slow-filling answer as "unknown". Adding the
- * two deadlines gives this lookup room for both the queue wait and the full
- * server-side fill before it gives up.
- */
-export const DETAIL_SETTLE_TIMEOUT_MS = ACTION_SETTLE_TIMEOUT_MS + DESCRIPTION_FILL_VISIBLE_DEADLINE_MS;
 
 /**
  * Race any promise against `timeoutMs`; on timeout, REJECTS (never

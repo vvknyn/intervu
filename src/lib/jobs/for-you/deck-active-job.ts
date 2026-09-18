@@ -48,3 +48,19 @@ export function nextActiveIdAfterSkip(
 export function fallbackActiveId(visiblePacks: Pick<{ id: string }, "id">[]): string | null {
     return visiblePacks[0]?.id ?? null;
 }
+
+/**
+ * The deck indexes to prefetch descriptions for, given the active index:
+ * `activeIndex + 1` through `activeIndex + ahead`, bounded at the end of
+ * the deck (never an out-of-range index). Used by `ForYouDeck`
+ * (`FOR_YOU_PREFETCH_AHEAD`, ForYouDeck.tsx) to fire lookahead fetches —
+ * pulled out as a pure function so the bound is directly unit-testable
+ * without mounting the component (no jsdom/testing-library in this repo).
+ */
+export function prefetchIndexesAhead(activeIndex: number, deckLength: number, ahead: number): number[] {
+    const indexes: number[] = [];
+    for (let i = activeIndex + 1; i <= activeIndex + ahead && i < deckLength; i++) {
+        indexes.push(i);
+    }
+    return indexes;
+}
