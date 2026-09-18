@@ -9,7 +9,7 @@ export const toolbarControlHeight = "h-11 lg:h-8";
 
 /** Peers of the Filters control on the toolbar row. */
 export const toolbarChipClass =
-    `inline-flex box-border items-center justify-center whitespace-nowrap ${toolbarControlHeight} px-3 text-xs rounded-none lg:px-2`;
+    `inline-flex box-border items-center justify-center whitespace-nowrap ${toolbarControlHeight} px-3 text-xs lg:px-2`;
 
 /** Docked header search form + its trailing CTA peer. */
 export const topbarDockedSearchHeight = "h-10";

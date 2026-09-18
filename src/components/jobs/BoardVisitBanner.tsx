@@ -77,10 +77,10 @@ export function BoardVisitBanner() {
             // those bars size themselves from — never a restated px guess.
             // lg+ has neither bar (both `lg:hidden`), so `lg:bottom-6`
             // restores the plain corner-toast position there.
-            className="fixed bottom-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px)+1rem)] right-4 z-50 flex max-w-sm items-center justify-between gap-3 rounded-none bg-card border border-border px-4 py-3 animate-in fade-in slide-in-from-bottom-4 duration-300 lg:bottom-6 lg:right-6"
+            className="fixed bottom-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px)+1rem)] right-4 z-50 flex max-w-sm items-center justify-between gap-3 rounded-panel bg-card border border-border px-4 py-3 animate-in fade-in slide-in-from-bottom-4 duration-300 lg:bottom-6 lg:right-6"
         >
             <div className="flex items-center gap-2.5">
-                <span className="h-2 w-2 rounded-none bg-brand" aria-hidden />
+                <span className="h-2 w-2 rounded-pill bg-brand" aria-hidden />
                 <p className="text-xs text-foreground">
                     <span className="font-semibold text-brand tabular-nums">{formatCorpusCount(count)}</span> new role{count.value === 1 ? "" : "s"} posted since your last visit
                 </p>
@@ -89,7 +89,7 @@ export function BoardVisitBanner() {
                 type="button"
                 onClick={() => setDismissed(true)}
                 aria-label="Dismiss"
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:text-foreground"
             >
                 <X aria-hidden />
             </button>

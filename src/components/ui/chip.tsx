@@ -4,19 +4,20 @@ import { cva } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /**
- * Carbon field chip — sharp 0px geometry, 1px hairline border. Active state
- * mirrors job-row selection: 3px brand blade + tinted fill + brand text
- * (brand is a sparing accent, not a filled loud control).
+ * Soft-surfaces pill chip (A1). Selected/unselected both carry `text-foreground`
+ * — the only difference is border weight (`border-foreground` vs `border-border`),
+ * never brand color: brand navy is reserved for the 3 named filled controls
+ * elsewhere on the page (header Sign in, Search, résumé Upload), not chips.
  */
 export const chipVariants = cva(
   // A chip carries a label, never code, so it takes the sans — with tabular
   // figures, since chips routinely hold counts that sit in a row and should
   // not jitter as the numbers change.
-  "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-none border border-border bg-background px-3 text-sm tabular-nums text-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-pill border border-border bg-background px-3 text-sm tabular-nums text-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
-        true: "border-brand border-l-[3px] border-l-brand bg-brand/[0.06] pl-2.5 text-brand",
+        true: "border-foreground text-foreground",
         false: "",
       },
       /**
@@ -35,9 +36,11 @@ export const chipVariants = cva(
   },
 )
 
-/** Shared count badge for filter toolbars — squared, brand-accented. */
+/** Shared count badge for filter toolbars — neutral, not brand-accented
+ *  (ACCENT DISCIPLINE: brand navy is reserved for the 3 named filled
+ *  controls, not a filter count badge). */
 export const filterCountBadgeClass =
-  "inline-flex min-w-4 items-center justify-center rounded-none border border-brand bg-muted px-1 text-xs font-semibold tabular-nums text-brand"
+  "inline-flex min-w-4 items-center justify-center rounded-pill border border-border bg-muted px-1 text-xs font-semibold tabular-nums text-foreground"
 
 /** The chip's own dismiss icon — shared so every chip's remove affordance is
  *  the same tap target/hover treatment instead of an inline one-off button. */

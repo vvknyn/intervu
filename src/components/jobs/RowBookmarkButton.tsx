@@ -32,7 +32,7 @@ export function RowBookmarkButton({
                 href={`/yours/${pursuit.id}`}
                 aria-label="Saved — view in Yours"
                 title="Saved"
-                className={buttonVariants({ variant: "ghost", size: "icon-lg", className: cn("text-brand", className) })}
+                className={buttonVariants({ variant: "ghost", size: "icon-lg", className: cn("text-foreground", className) })}
             >
                 <BookmarkSimple size={20} weight="fill" />
             </Link>

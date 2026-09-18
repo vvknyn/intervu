@@ -45,7 +45,7 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
         <div
             data-rulebook-exempt
             className={cn(
-                "flex shrink-0 items-center justify-center rounded-none font-display text-lg font-semibold",
+                "flex shrink-0 items-center justify-center rounded-panel font-display text-lg font-semibold",
                 className,
             )}
             style={{ background: pair.bg, color: pair.fg }}
@@ -56,12 +56,12 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
 }
 
 const SIZE_CLS: Record<"xs" | "sm" | "md" | "lg", string> = {
-    xs: "h-7 w-7 rounded-none text-xs",
-    sm: "h-9 w-9 rounded-none text-sm",
-    // SERP job-card tile size — restored to h-12/rounded-xl to match the
+    xs: "h-7 w-7 rounded-panel text-xs",
+    sm: "h-9 w-9 rounded-panel text-sm",
+    // SERP job-card tile size — restored to h-12/rounded-panel to match the
     // JobCardSkeleton slot so loading → loaded doesn't shift the row.
-    md: "h-12 w-12 rounded-none text-base",
-    lg: "h-14 w-14 rounded-none text-xl",
+    md: "h-12 w-12 rounded-panel text-base",
+    lg: "h-14 w-14 rounded-panel text-xl",
 };
 
 /**

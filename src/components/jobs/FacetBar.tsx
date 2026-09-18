@@ -120,7 +120,7 @@ function FacetChip({
                 className={cn(
                     chipVariants({ active: activeValue != null, interactive: true }),
                     toolbarControlHeight,
-                    "inline-flex box-border items-center justify-center text-xs leading-none rounded-none px-3 lg:px-2",
+                    "inline-flex box-border items-center justify-center text-xs leading-none px-3 lg:px-2",
                 )}
             >
                 {activeValue ? `${label} · ${activeValue}` : label}
@@ -129,7 +129,7 @@ function FacetChip({
             <PopoverContent
                 align="start"
                 sideOffset={6}
-                className="flex w-56 flex-col gap-0.5 rounded-none border border-border bg-card p-2"
+                className="flex w-56 flex-col gap-0.5 rounded-panel border border-border bg-card p-2"
             >
                 {children}
             </PopoverContent>
