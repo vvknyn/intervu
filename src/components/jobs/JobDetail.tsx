@@ -765,8 +765,7 @@ export function JobDetail({
                                             "job",
                                         )}
                                         jobId={job.id}
-                                        // design-lint-allow: v2 mock's round icon button — a real circle, not a --radius-* relic
-                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                     />
                                 </TooltipTrigger>
                                 <TooltipContent className="text-xs">Copy link</TooltipContent>
@@ -777,8 +776,7 @@ export function JobDetail({
                                 type="button"
                                 aria-label="Close"
                                 onClick={onClose}
-                                // design-lint-allow: v2 mock's round icon button — a real circle, not a --radius-* relic
-                                className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
+                                className="flex h-10 w-10 items-center justify-center rounded-ctl bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
                             >
                                 ×
                             </button>
@@ -832,14 +830,13 @@ export function JobDetail({
                         {/* House attention system (docs/design/ATTENTION.md,
                             channel 2): exactly one inverted-ink block per
                             view. Apply is the primary action this pane
-                            exists for — an ink pill (bg-foreground/text-
-                            background), not the quietest element on the
-                            page. Save is the secondary action: an outlined
-                            control. design-lint-allow: the ink pill's
-                            rounded-full is the one deliberate real circle
-                            this button asks for, not a --radius-* relic. */}
+                            exists for — an inverted-ink fill (bg-foreground/
+                            text-background), not the quietest element on
+                            the page. Save is the secondary action: an
+                            outlined control. rounded-ctl on both, same as
+                            every other control in this row. */}
                         {job.apply_url && (
-                            <Button onClick={onOpenPosting} className="gap-2 h-10 px-4 rounded-full bg-foreground text-background text-sm font-semibold transition-colors">
+                            <Button onClick={onOpenPosting} className="gap-2 h-10 px-4 rounded-ctl bg-foreground text-background text-sm font-semibold transition-colors">
                                 <ArrowSquareOut size={16} />
                                 {APPLY_BUTTON_LABEL}
                             </Button>
@@ -850,16 +847,15 @@ export function JobDetail({
                             onAccept={onAcceptLocalTailor}
                         />
                         {/* RowBookmarkButton is a fixed-size icon-only square
-                            control (no text-label prop) — `rounded-full` plus
-                            an outline is the closest approximation this call
-                            site can make to an "outlined pill" without
-                            editing that shared component. */}
+                            control (no text-label prop) — `rounded-ctl` plus
+                            an outline matches every other control in this
+                            row (Apply, Share, Close) rather than a bespoke
+                            shape. */}
                         <RowBookmarkButton
                             pursuit={pursuit}
                             onGoAfter={onGoAfter}
                             goingAfter={goingAfter}
-                            // design-lint-allow: same deliberate rounded-full as Apply/Close, not a --radius-* relic
-                            className="rounded-full border border-border bg-card"
+                            className="rounded-ctl border border-border bg-card"
                         />
                         {/* ReportJobButton hardcodes its own trigger content
                             (flag icon + "Report listing" text, ReportJobButton.tsx)
@@ -988,11 +984,10 @@ export function JobDetail({
                     ledger renders below, never a second, independently
                     derived guess at whether pay is shown. White fill: this
                     card sits on the panel's own grey background (surfaces
-                    PR, jobs/page.tsx), not on white. design-lint-allow:
-                    radius 14 per the v2 mock — every --radius-* token is 0
-                    today, so this is a no-visual-op until that token lands. */}
+                    PR, jobs/page.tsx), not on white. rounded-panel (16px)
+                    per the semantic radius tokens (surfaces PR #537). */}
                 {payDisclosed && salary && (
-                    <div data-tour="jobs-pay" className="mb-4 rounded-xl bg-card px-4 py-3.5">
+                    <div data-tour="jobs-pay" className="mb-4 rounded-panel bg-card px-4 py-3.5">
                         <div className="flex flex-wrap items-baseline gap-3">
                             <span className="text-sm font-semibold text-muted-foreground">Pay</span>
                             <span className="font-display text-xl font-semibold tabular-nums text-foreground">{salary}</span>
@@ -1002,12 +997,11 @@ export function JobDetail({
                 )}
 
                 {/* Posting check (rulebook item e): white card on the panel's
-                    grey fill (radius 14, no border) — same header/signals-
-                    grid/footer as before, only the container gained a fill.
-                    design-lint-allow: radius 14 per the v2 mock — a
-                    no-visual-op today since every --radius-* token is 0. */}
+                    grey fill (rounded-panel, no border) — same header/
+                    signals-grid/footer as before, only the container gained
+                    a fill. Same 16px token as the Pay card above. */}
                 {ghost && (
-                    <div data-tour="jobs-posting-check" className="mb-6 rounded-xl bg-card p-4">
+                    <div data-tour="jobs-posting-check" className="mb-6 rounded-panel bg-card p-4">
                         <PostingCheckHeader
                             favorableCount={favorableSignalCount}
                             assessedCount={ghostSignals.length > 0 ? assessedSignals.length : 0}
