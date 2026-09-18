@@ -9,7 +9,7 @@ interface ProgressBarProps extends React.HTMLAttributes<HTMLDivElement> {
 export function ProgressBar({ progress, className, ...props }: ProgressBarProps) {
     return (
         <div className={cn("w-full", className)} {...props}>
-            <div className="h-1 w-full rounded-none bg-border overflow-hidden">
+            <div className="h-1 w-full rounded-pill bg-border overflow-hidden">
                 <div
                     className="h-full bg-brand transition-all duration-500 ease-out"
                     style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
