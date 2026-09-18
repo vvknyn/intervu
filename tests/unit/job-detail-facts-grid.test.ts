@@ -3,7 +3,16 @@ import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JobDetail } from "../../src/components/jobs/JobDetail";
+import { salaryText } from "../../src/lib/jobs/presentation";
+import { alsoInLabel } from "../../src/components/jobs/job-detail-facts";
 import type { PublicJob } from "../../src/lib/jobs/types";
+
+/** Local to this test file only — `presentation.ts`'s own `escapeRegExp`
+ *  isn't exported and that file is out of scope for this change; this is
+ *  test infra, not a second copy of any domain formatting rule. */
+function escapeRegExp(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /**
  * Component-level proof for the "facts only, no new claims" rule behind the
@@ -47,10 +56,11 @@ function baseJob(overrides: Partial<PublicJob> = {}): PublicJob {
 
 const noop = () => {};
 
-function renderDetail(job: PublicJob): string {
+function renderDetail(job: PublicJob, variants: PublicJob[] = []): string {
     return renderToStaticMarkup(
         React.createElement(JobDetail, {
             job,
+            variants,
             now: Date.now(),
             source: "direct",
             onOpenPosting: noop,
@@ -69,9 +79,22 @@ test("no salary on the record omits the Pay card entirely", () => {
 });
 
 test("a disclosed salary renders the Pay card with that exact figure", () => {
-    const html = renderDetail(baseJob({ salary_min: 120000, salary_max: 150000, salary_currency: "USD", salary_period: "year" }));
+    const job = baseJob({ salary_min: 120000, salary_max: 150000, salary_currency: "USD", salary_period: "year" });
+    const html = renderDetail(job);
     assert.match(html, /data-tour="jobs-pay"/, "the Pay card must mount once the job discloses a salary");
     assert.match(html, /disclosed in the posting/);
+    const figure = salaryText(job);
+    assert.ok(figure, "salaryText must derive a figure from the fixture's salary fields");
+    assert.match(html, new RegExp(escapeRegExp(figure!)), "the rendered Pay card must carry the exact salaryText figure, not just its wrapper");
+});
+
+test("a one-bound salary (min only) still renders its exact figure", () => {
+    const job = baseJob({ salary_min: 90000, salary_max: null, salary_currency: "USD", salary_period: "year" });
+    const html = renderDetail(job);
+    assert.match(html, /data-tour="jobs-pay"/);
+    const figure = salaryText(job);
+    assert.ok(figure);
+    assert.match(html, new RegExp(escapeRegExp(figure!)), "a min-only salary must still render its formatted figure, not a range placeholder");
 });
 
 test("a work_type of \"unknown\" omits its facts-grid cell, leaving other cells intact", () => {
@@ -91,4 +114,31 @@ test("employment_type AND experience_level both \"unknown\" together omit that w
     const html = renderDetail(baseJob({ employment_type: "unknown", experience_level: "unknown" }));
     assert.doesNotMatch(html, /Full time/i);
     assert.doesNotMatch(html, /Mid\b/i);
+});
+
+test("other cluster variants in a different place render an \"also in\" line under location", () => {
+    const job = baseJob({ location: "Seattle, WA", location_city: "Seattle", location_state: "WA" });
+    const variants = [
+        baseJob({ id: "job-2", location: "Redmond, WA", location_city: "Redmond", location_state: "WA" }),
+        baseJob({ id: "job-3", location: "Dublin, Ireland", location_city: "Dublin", location_state: null, location_country: "IE" }),
+    ];
+    const html = renderDetail(job, variants);
+    const label = alsoInLabel(job, variants);
+    assert.ok(label, "fixture must produce a non-empty also-in label");
+    assert.match(html, new RegExp(`also in ${escapeRegExp(label!)}`), "the also-in line must reuse alsoInLabel's own text verbatim");
+});
+
+test("no cluster variants omit the \"also in\" line entirely", () => {
+    const html = renderDetail(baseJob({ location: "Seattle, WA", location_city: "Seattle", location_state: "WA" }), []);
+    assert.doesNotMatch(html, /also in/i, "no variants means nothing to say — no also-in line should render");
+});
+
+test("report_count of 0 omits the reported-by line", () => {
+    const html = renderDetail(baseJob({ report_count: 0 }));
+    assert.doesNotMatch(html, /reported/i);
+});
+
+test("a report_count of 3 renders the exact reported-by wording", () => {
+    const html = renderDetail(baseJob({ report_count: 3 }));
+    assert.match(html, /reported 3 users/);
 });

@@ -13,7 +13,7 @@ import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, jobTrackRecord, pairedKpiChips, APPLY_BUTTON_LABEL, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
+import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, APPLY_BUTTON_LABEL, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
@@ -587,6 +587,10 @@ export function JobDetail({
     const employmentTypeChip = chips.find((c) => c.kind === "employment_type");
     const experienceLevelChip = chips.find((c) => c.kind === "experience_level");
     const postedChip = chips.find((c) => c.kind === "posted");
+    const firstSeenChip = chips.find((c) => c.kind === "first_seen");
+    // Same `clusters`-derived variants prop the SERP row's own "also in"
+    // chip reads (page.tsx's `detailVariants`) — not a second lookup.
+    const alsoIn = alsoInLabel(job, variants);
     const salary = salaryText(job);
     // `cleanedCompany` keeps its legal suffix (e.g. "Qualys, Inc.") — it
     // feeds `jobCompanyHref` below, which uses it to build the `/companies/`
@@ -893,25 +897,39 @@ export function JobDetail({
                     {location && (
                         <div className="flex items-start gap-2 text-foreground">
                             <FACT_CHIP_ICON.location size={16} weight="bold" className="relative top-0.5 shrink-0 text-muted-foreground" aria-hidden />
-                            {locationClamped ? (
-                                <span className="inline-flex flex-col">
-                                    {(locationExpanded
-                                        ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
-                                        : locationDisclosure.visible
-                                    ).map((segment, i) => (
-                                        <span key={i}>{segment}</span>
-                                    ))}
-                                    <button
-                                        type="button"
-                                        onClick={() => setLocationExpanded((v) => !v)}
-                                        className="mt-0.5 text-left text-xs text-brand hover:underline cursor-pointer"
-                                    >
-                                        {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
-                                    </button>
-                                </span>
-                            ) : (
-                                <span>{locationDisplay}</span>
-                            )}
+                            <span className="inline-flex flex-col">
+                                {locationClamped ? (
+                                    <>
+                                        {(locationExpanded
+                                            ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
+                                            : locationDisclosure.visible
+                                        ).map((segment, i) => (
+                                            <span key={i}>{segment}</span>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => setLocationExpanded((v) => !v)}
+                                            className="mt-0.5 text-left text-xs text-brand hover:underline cursor-pointer"
+                                        >
+                                            {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <span>{locationDisplay}</span>
+                                )}
+                                {/* Review fix: `variants` (page.tsx's
+                                    `detailVariants`, same clusters the SERP
+                                    row groups on) went unread once the old
+                                    dotted meta line was removed — restored
+                                    as its own line under location via the
+                                    shared MetaLine seam, rather than a raw
+                                    span, per reuse-before-write. */}
+                                {alsoIn && (
+                                    <span className="mt-0.5 text-xs text-muted-foreground">
+                                        <MetaLine items={[`also in ${alsoIn}`]} />
+                                    </span>
+                                )}
+                            </span>
                         </div>
                     )}
                     {workTypeChip && (
@@ -931,25 +949,37 @@ export function JobDetail({
                             />
                         </div>
                     )}
-                    {(postedChip || firstSeenRelative) && (
+                    {(postedChip || firstSeenChip) && (
                         <div className="flex items-center gap-2 text-foreground">
                             <FACT_CHIP_ICON.posted size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
                             <span>
                                 {postedChip && (
                                     <span className={freshness.kind === "relisted" ? LISTING_STATE_TEXT.relisted : undefined}>{postedChip.label}</span>
                                 )}
-                                {firstSeenRelative && (
+                                {firstSeenChip && (
                                     <span className="text-xs text-muted-foreground">
-                                        {postedChip ? " · " : ""}first seen by us {firstSeenRelative}
+                                        {postedChip ? " · " : ""}{firstSeenChip.label}
                                     </span>
                                 )}
                             </span>
-                            {postedChip && firstSeenRelative && (
+                            {postedChip && firstSeenChip && (
                                 <ContextHelp
                                     content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
                                     className="self-center"
                                 />
                             )}
+                        </div>
+                    )}
+                    {/* Review fix: report_count is a retrieved Meili
+                        attribute (meilisearch.ts's fetch fields), not a
+                        buildFactChips kind — rowExceptionMark doesn't cover
+                        it either. Same gate + wording as the pre-restyle
+                        line, reused verbatim rather than rephrased. */}
+                    {typeof job.report_count === "number" && job.report_count > 0 && (
+                        <div className="flex items-center gap-2 text-warn">
+                            <span>
+                                reported {job.report_count} {job.report_count === 1 ? "user" : "users"}
+                            </span>
                         </div>
                     )}
                 </div>
