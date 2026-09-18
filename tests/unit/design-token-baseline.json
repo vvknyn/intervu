@@ -3,10 +3,10 @@
     "rounded-none": 0,
     "rounded-size": 0,
     "rounded-arbitrary": 0,
-    "text-arbitrary": 2,
+    "text-arbitrary": 0,
     "leading-arbitrary": 0,
-    "size-arbitrary": 1,
-    "padding-arbitrary": 0,
+    "size-arbitrary": 3,
+    "padding-arbitrary": 2,
     "hex-literal": 0,
     "shadow-utility": 0,
     "inline-style": 0
