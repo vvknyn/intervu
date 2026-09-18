@@ -24,13 +24,13 @@
     "inline-style": 2
   },
   "yours": {
-    "rounded-none": 12,
+    "rounded-none": 4,
     "rounded-size": 0,
     "rounded-arbitrary": 0,
     "text-arbitrary": 0,
     "leading-arbitrary": 0,
-    "size-arbitrary": 6,
-    "padding-arbitrary": 0,
+    "size-arbitrary": 1,
+    "padding-arbitrary": 2,
     "hex-literal": 0,
     "shadow-utility": 0,
     "inline-style": 0
@@ -48,13 +48,13 @@
     "inline-style": 2
   },
   "tracker": {
-    "rounded-none": 5,
+    "rounded-none": 1,
     "rounded-size": 0,
     "rounded-arbitrary": 0,
     "text-arbitrary": 0,
     "leading-arbitrary": 0,
-    "size-arbitrary": 5,
-    "padding-arbitrary": 0,
+    "size-arbitrary": 4,
+    "padding-arbitrary": 2,
     "hex-literal": 0,
     "shadow-utility": 0,
     "inline-style": 0

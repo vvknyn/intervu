@@ -54,7 +54,7 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
                             key={column}
                             id={laneAnchor(column)}
                             aria-label={label}
-                            className="flex w-5/6 max-w-80 shrink-0 scroll-ml-0 snap-start flex-col rounded-panel border border-border bg-background md:w-auto md:min-w-0"
+                            className="flex w-80 shrink-0 scroll-ml-0 snap-start flex-col rounded-panel border border-border bg-background md:w-auto md:min-w-0"
                         >
                             <header className="border-b border-border px-[var(--list-inset)] py-2">
                                 <h3 className="text-sm text-muted-foreground">
