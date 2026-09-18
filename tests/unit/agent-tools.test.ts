@@ -1,8 +1,9 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import {
-  toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
+  toolSearchJobs, toolGetJob, toolForYou, toolSaveJob, toolMarkApplied,
   toolGetResume, toolSaveResumeVariant, toolGetResumeVariant, toolSetResume,
   toolGetPreferences, toolSetPreferences, toolGetApplications,
+  NO_RESUME_ERROR,
   type ToolDeps, type SaveResumeVariantInput,
 } from '../../src/lib/agent/tools';
 import { AGENT } from '../../src/lib/agent/config';
@@ -418,6 +419,7 @@ describe('toolSearchJobs', () => {
     const out = await toolSearchJobs(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');
     assert.ok(!('match' in out.hits[0]));
+    assert.ok(!('fit_reasons' in out.hits[0]));
   });
 
   it('MC3 — omits match when a resume is on file but shares no comparable field with the job', async () => {
@@ -425,6 +427,7 @@ describe('toolSearchJobs', () => {
     const out = await toolSearchJobs(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');
     assert.ok(!('match' in out.hits[0]));
+    assert.ok(!('fit_reasons' in out.hits[0]));
   });
 
   it('MC3 — includes an honestly-computed match on every hit when the resume and job overlap', async () => {
@@ -434,6 +437,11 @@ describe('toolSearchJobs', () => {
     assert.ok(out.hits[0].match);
     assert.equal(typeof out.hits[0].match?.total, 'number');
     assert.ok(out.hits[0].match?.components.some((c) => c.key === 'relevance'));
+    // fit_reasons goes through the SAME `fitFor` chokepoint as match — must
+    // land alongside it, never independently.
+    assert.ok(out.hits[0].fit_reasons);
+    assert.ok(Array.isArray(out.hits[0].fit_reasons?.bullets));
+    assert.ok(Array.isArray(out.hits[0].fit_reasons?.chips));
   });
 });
 
@@ -523,6 +531,7 @@ describe('toolGetJob', () => {
     assert.equal('error' in out, false);
     if ('error' in out) return;
     assert.ok(!('match' in out));
+    assert.ok(!('fit_reasons' in out));
   });
 
   it('MC3 — omits match when a resume is on file but shares no comparable field with the job', async () => {
@@ -531,6 +540,7 @@ describe('toolGetJob', () => {
     assert.equal('error' in out, false);
     if ('error' in out) return;
     assert.ok(!('match' in out));
+    assert.ok(!('fit_reasons' in out));
   });
 
   it('MC3 — includes an honestly-computed match, never a fabricated zero, when the resume and job overlap', async () => {
@@ -541,6 +551,79 @@ describe('toolGetJob', () => {
     assert.ok(out.match);
     assert.equal(typeof out.match?.total, 'number');
     assert.ok(out.match?.components.some((c) => c.key === 'relevance'));
+    // fit_reasons goes through the SAME `fitFor` chokepoint as match — must
+    // land alongside it on get_job too, not just search_jobs (class coverage
+    // across both attach sites).
+    assert.ok(out.fit_reasons);
+    assert.ok(Array.isArray(out.fit_reasons?.bullets));
+    assert.ok(Array.isArray(out.fit_reasons?.chips));
+  });
+});
+
+describe('toolForYou', () => {
+  it('orders hits by match.total desc (unscored last), carries fit_reasons alongside every scored hit, and tags every hit with a group', async () => {
+    // jobHigh/jobLow share the SAME title/tags/description as makeJob()'s
+    // defaults — identical relevance component — and differ ONLY in
+    // experience_level (senior vs entry), which score.ts's scoreSeniority
+    // scores 1 ("fits" MATCHING_RESUME's 6y/senior tier) vs 0.65 ("exceeds
+    // ask"). That 0.35-point gap on the seniority component (weight 0.25)
+    // deterministically outweighs rounding, so jobHigh's total always beats
+    // jobLow's without hand-computing either exact total. jobUnscored has an
+    // empty title/tags/description — an empty job vocabulary — so
+    // `scoreRelevance` (REQUIRED) returns null and the whole match is null.
+    const jobHigh = makeJob({ id: 'job-high', experience_level: 'senior' });
+    const jobLow = makeJob({ id: 'job-low', experience_level: 'entry' });
+    const jobUnscored = makeJob({ id: 'job-unscored', title: '', tags: [], description: '' });
+    // Seeded out of rank order on purpose — the assertion below is on
+    // rankForYou's own ordering, not an accident of input order.
+    const { deps } = stubDeps([jobLow, jobUnscored, jobHigh], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const out = await toolForYou(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.deepEqual(out.hits.map((h) => h.id), ['job-high', 'job-low', 'job-unscored']);
+    assert.ok(out.hits[0].match && out.hits[1].match);
+    assert.ok((out.hits[0].match?.total ?? -1) > (out.hits[1].match?.total ?? -1));
+    assert.ok(out.hits[0].fit_reasons);
+    assert.ok(out.hits[1].fit_reasons);
+    assert.ok(!('match' in out.hits[2]));
+    assert.ok(!('fit_reasons' in out.hits[2]));
+    for (const h of out.hits) assert.ok(h.group === 'target_title' || h.group === 'adjacent');
+  });
+
+  it('pages the already-ranked candidate list via cursor with no overlap between pages', async () => {
+    const hits = Array.from({ length: 5 }, (_, i) => makeJob({ id: `job-${i}` }));
+    const { deps: deps1 } = stubDeps(hits, undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const page1 = await toolForYou(deps1, { limit: 2 });
+    if ('error' in page1) throw new Error('unexpected error shape');
+    assert.equal(page1.hits.length, 2);
+    assert.equal(typeof page1.next_cursor, 'string');
+
+    const { deps: deps2 } = stubDeps(hits, undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const page2 = await toolForYou(deps2, { limit: 2, cursor: page1.next_cursor });
+    if ('error' in page2) throw new Error('unexpected error shape');
+    assert.equal(page2.hits.length, 2);
+
+    const ids1 = page1.hits.map((h) => h.id);
+    const ids2 = page2.hits.map((h) => h.id);
+    assert.equal(new Set([...ids1, ...ids2]).size, 4);
+  });
+
+  it('returns the structured NO_RESUME_ERROR when the credential has no stored resume', async () => {
+    const { deps } = stubDeps([makeJob()]);
+    const out = await toolForYou(deps, {});
+    assert.deepEqual(out, { error: NO_RESUME_ERROR });
+  });
+
+  it('returns the structured NO_RESUME_ERROR when the stored resume shares no comparable field with any job (not just an empty search result)', async () => {
+    const { deps } = stubDeps([makeJob()], undefined, {}, TEST_VOCAB, { baseResume: NO_OVERLAP_RESUME });
+    const out = await toolForYou(deps, {});
+    assert.deepEqual(out, { error: NO_RESUME_ERROR });
+  });
+
+  it('resume_source echoes the stored resume\'s own source discriminant', async () => {
+    const { deps } = stubDeps([makeJob()], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const out = await toolForYou(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.resume_source, 'resume_data');
   });
 });
 

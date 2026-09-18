@@ -195,3 +195,41 @@ memory, not shared/persisted — this credential's budget resets on dev-server
 restart, or naturally after the sliding 1-hour window clears. No action
 needed before Tasks 9–11 reuse the same smoke-test account, since a fresh
 `npm run dev` process starts with an empty rate-limit map.
+
+## 7. `tools/call for_you` (2026-09, `for_you` tool)
+
+`for_you` ranks the corpus against the caller's OWN stored résumé (`set_resume`
+first — a credential with no résumé, or one with no comparable field, gets
+back `{"error":"no résumé on file — call set_resume first, then retry
+for_you"}` rather than an empty/degraded ranked list). Template command —
+same `query` argument as `search_jobs` doesn't apply here; only `cursor`/
+`limit`:
+
+```bash
+curl -sS -i http://localhost:3000/api/mcp \
+  -X POST \
+  -H "Authorization: Bearer ${AGENT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"for_you","arguments":{"limit":5}}}'
+```
+
+Expected shape (`200 OK`, `isError` unset on success) — one `hits[]` entry
+per ranked job, each carrying the same detail fields `get_job` returns plus
+`match`/`fit_reasons` (via the shared `fitFor` chokepoint, `jobs/for-you/fit.ts`)
+and `group` (`"target_title"` or `"adjacent"`), ordered by `match.total`
+descending with unscored hits last, plus `query_used`/`resume_source` and an
+optional `next_cursor` for paging the same way `search_jobs` does:
+
+```
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"hits\":[{\"id\":\"...\",\"title\":\"...\",\"match\":{\"total\":91,\"components\":[...]},\"fit_reasons\":{\"bullets\":[...],\"chips\":[...]},\"group\":\"target_title\",...}],\"query_used\":\"...\",\"resume_source\":\"resume_data\"}"}]},"jsonrpc":"2.0","id":4}
+```
+
+This section documents the request/response SHAPE, not a live-server
+transcript (unlike steps 1–6 above, this wasn't run against a live `npm run
+dev` as part of adding the tool) — the wire contract (ordering, the
+résumé-gated error, `fit_reasons` alongside `match` on every scored hit,
+cursor pagination) is proven with injected fake deps in
+`tests/unit/agent-tools.test.ts`'s `toolForYou` suite and the catalog/schema
+checks in `tests/unit/agent-mcp-route.test.ts`.
