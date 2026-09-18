@@ -18,6 +18,7 @@ import {
     type AgentPreferencesPatch,
 } from "@/actions/agent-preferences";
 import { CircleNotch, Trash } from "@phosphor-icons/react";
+import { Switch } from "@/components/settings/Switch";
 
 /** Sentinel Select value for "no preference" — Radix's `Select.Item` can't
  *  take an empty-string value, and `experienceLevel`/`employmentType`/
@@ -203,11 +204,11 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
     if (!user) {
         return (
             <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-                <h2 className={embedded ? "text-sm font-semibold mb-1" : "text-base font-semibold mb-1"}>
+                <h2 className="text-base font-semibold leading-snug mb-1">
                     {embedded ? "Job search" : "Your agent's answers"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
+                    <button onClick={onLoginClick} className="text-foreground underline underline-offset-2 hover:underline">
                         {AUTH_CTA_LABEL}
                     </button>{" "}
                     to see and edit what your AI fills into applications for you.
@@ -220,7 +221,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
         <section className={embedded ? undefined : "pt-6 border-t border-border"}>
             {!embedded && (
                 <>
-                    <h2 className="text-base font-semibold mb-1">Your agent&apos;s answers</h2>
+                    <h2 className="text-base font-semibold leading-snug mb-1">Your agent&apos;s answers</h2>
                     <p className="text-sm text-muted-foreground mb-4">
                         What your AI fills into applications for you. It learns these when you first talk to it — or set
                         them here.
@@ -264,11 +265,21 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Roles</Label>
-                                <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. backend engineer" />
+                                <Input
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder="e.g. backend engineer"
+                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label>Location</Label>
-                                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Remote, New York" />
+                                <Input
+                                    value={location}
+                                    onChange={(e) => setLocation(e.target.value)}
+                                    placeholder="e.g. Remote, New York"
+                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label>Experience level</Label>
@@ -276,8 +287,8 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={experienceLevel ?? ANY}
                                     onValueChange={(v) => setExperienceLevel(v === ANY ? undefined : (v as ExperienceLevel))}
                                 >
-                                    <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                                    <SelectContent className="bg-popover">
+                                    <SelectTrigger className="h-11 rounded-ctl border border-border bg-card px-3 text-base"><SelectValue /></SelectTrigger>
+                                    <SelectContent className="rounded-panel">
                                         <SelectItem value={ANY}>Any</SelectItem>
                                         {EXPERIENCE_LEVELS.map((lvl) => (
                                             <SelectItem key={lvl} value={lvl}>{facetValueLabel("experience_level", lvl)}</SelectItem>
@@ -291,8 +302,8 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={employmentType ?? ANY}
                                     onValueChange={(v) => setEmploymentType(v === ANY ? undefined : (v as EmploymentType))}
                                 >
-                                    <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                                    <SelectContent className="bg-popover">
+                                    <SelectTrigger className="h-11 rounded-ctl border border-border bg-card px-3 text-base"><SelectValue /></SelectTrigger>
+                                    <SelectContent className="rounded-panel">
                                         <SelectItem value={ANY}>Any</SelectItem>
                                         {EMPLOYMENT_TYPES.map((t) => (
                                             <SelectItem key={t} value={t}>{facetValueLabel("employment_type", t)}</SelectItem>
@@ -308,6 +319,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={salaryMin}
                                     onChange={(e) => setSalaryMin(e.target.value)}
                                     placeholder="e.g. 120000"
+                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -316,8 +328,8 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={postedWithinDays !== undefined ? String(postedWithinDays) : ANY}
                                     onValueChange={(v) => setPostedWithinDays(v === ANY ? undefined : (Number(v) as PostedWithinDays))}
                                 >
-                                    <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                                    <SelectContent className="bg-popover">
+                                    <SelectTrigger className="h-11 rounded-ctl border border-border bg-card px-3 text-base"><SelectValue /></SelectTrigger>
+                                    <SelectContent className="rounded-panel">
                                         <SelectItem value={ANY}>Any time</SelectItem>
                                         {POSTED_WITHIN_DAYS_OPTIONS.map((d) => (
                                             <SelectItem key={d} value={String(d)}>{d} days</SelectItem>
@@ -329,15 +341,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
 
                         <div className="flex items-center justify-between gap-4">
                             <p className="text-sm">Remote only</p>
-                            <button
-                                type="button"
-                                onClick={() => setRemoteOnly((v) => !v)}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-none border border-border transition-colors ${remoteOnly ? "bg-brand text-brand-foreground" : "bg-muted"}`}
-                                role="switch"
-                                aria-checked={remoteOnly}
-                            >
-                                <span className={`inline-block h-4 w-4 rounded-none border border-border bg-card transition-transform ${remoteOnly ? "translate-x-[23px]" : "translate-x-[3px]"}`} />
-                            </button>
+                            <Switch checked={remoteOnly} onChange={() => setRemoteOnly((v) => !v)} aria-label="Remote only" />
                         </div>
                     </div>
 
@@ -358,6 +362,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setWorkAuthorization(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. US citizen"
+                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -367,6 +372,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setRelocation(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. open to relocating"
+                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -376,6 +382,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setNoticePeriod(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. 2 weeks"
+                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -385,6 +392,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setStartDate(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. Immediately available"
+                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -394,6 +402,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setSalaryExpectation(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. $150k+"
+                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                         </div>
@@ -413,7 +422,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                         placeholder="Question (e.g. How did you hear about us?)"
                                         maxLength={200}
                                         spellCheck={false}
-                                        className="min-w-0 w-full sm:flex-1"
+                                        className="h-11 min-w-0 w-full rounded-ctl border border-border bg-card px-3 text-base sm:flex-1"
                                     />
                                     <div className="flex min-w-0 w-full items-center gap-2 sm:flex-1">
                                         <Input
@@ -421,7 +430,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                             onChange={(e) => updateCustomRow(row.id, { value: e.target.value })}
                                             placeholder="Answer"
                                             maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
-                                            className="min-w-0 w-full flex-1"
+                                            className="h-11 min-w-0 w-full rounded-ctl border border-border bg-card px-3 text-base flex-1"
                                         />
                                         <Button
                                             type="button"
@@ -441,7 +450,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="w-full rounded-none sm:w-auto"
+                            className="w-full rounded-ctl sm:w-auto"
                             onClick={addCustomRow}
                             disabled={customRows.length >= AGENT.PREFERENCES_CUSTOM_ANSWERS_MAX}
                         >
@@ -450,7 +459,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                     </div>
 
                     <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
-                        <Button onClick={handleSave} disabled={saving} className="w-full rounded-none sm:w-auto">
+                        <Button onClick={handleSave} disabled={saving} className="h-11 w-full rounded-ctl sm:w-auto">
                             {saving ? "Saving…" : "Save"}
                         </Button>
                     </div>

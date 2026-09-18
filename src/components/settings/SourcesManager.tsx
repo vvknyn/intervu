@@ -273,7 +273,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                 if (v === 'community') loadCommunity();
             }}>
                 <div className="flex justify-between items-center">
-                    <h2 className="text-base font-semibold">Knowledge Sources</h2>
+                    <h2 className="text-base font-semibold leading-snug">Knowledge Sources</h2>
                     <TabsList>
                         <TabsTrigger value="my-sources">My Sources</TabsTrigger>
                         <TabsTrigger value="community">Community</TabsTrigger>
@@ -288,7 +288,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                     </div>
 
                     {isAdding && (
-                        <div className="border border-border rounded-none p-4 bg-muted animate-in slide-in-from-top-2">
+                        <div className="border border-border rounded-panel p-4 bg-muted animate-in slide-in-from-top-2">
                             <div className="flex gap-4 mb-4">
                                 <Button variant={addType === 'text' ? "default" : "ghost"} size="sm" onClick={() => setAddType('text')}>
                                     <Note className="mr-2" /> Text
@@ -317,14 +317,14 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                             </div>
 
                             {error && (
-                                <div className="text-danger-text text-sm mb-4 bg-muted p-2 rounded-none">
+                                <div className="text-danger-text text-sm mb-4 bg-muted p-2 rounded-ctl">
                                     {error}
                                 </div>
                             )}
 
                             <div className="space-y-4">
                                 {addType === 'file' ? (
-                                    <div className="border border-border rounded-none p-8 text-center hover:bg-muted transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                    <div className="border border-border rounded-panel p-8 text-center hover:bg-muted transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                                         <input
                                             type="file"
                                             className="hidden"
@@ -353,6 +353,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                     placeholder="https://example.com/article"
                                                     value={url}
                                                     onChange={(e) => setUrl(e.target.value)}
+                                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                                 />
                                                 <Button onClick={handleFetchUrl} disabled={isLoading || !url} variant="secondary">
                                                     {isLoading ? <Spinner className="animate-spin" /> : "Fetch"}
@@ -364,18 +365,19 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                             placeholder="Title (e.g., Project X Details)"
                                             value={title}
                                             onChange={(e) => setTitle(e.target.value)}
+                                            className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                         />
 
                                         <Textarea
                                             placeholder="Paste content here..."
                                             value={content}
                                             onChange={(e) => setContent(e.target.value)}
-                                            className="min-h-[200px] text-base md:text-sm"
+                                            className="min-h-48 rounded-ctl border border-border bg-card px-3 py-2 text-base"
                                         />
 
                                         {/* Discovered links section */}
                                         {(isDiscovering || discoveredLinks.length > 0) && (
-                                            <div className="border border-border rounded-none p-3 bg-muted">
+                                            <div className="border border-border rounded-panel p-3 bg-muted">
                                                 <button
                                                     onClick={() => setShowDiscovered(v => !v)}
                                                     className="flex items-center gap-2 w-full text-sm text-left"
@@ -388,7 +390,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                 {showDiscovered && discoveredLinks.length > 0 && (
                                                     <div className="mt-3 space-y-2">
                                                         <div className="flex items-center gap-2 mb-2">
-                                                            <Button variant="ghost" size="sm" onClick={selectAllLinks} className="text-xs h-7">
+                                                            <Button variant="ghost" size="sm" onClick={selectAllLinks} className="text-xs rounded-ctl">
                                                                 {discoveredLinks.every(l => l.selected) ? 'Deselect All' : 'Select All'}
                                                             </Button>
                                                             {selectedCount > 0 && (
@@ -397,7 +399,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                                     size="sm"
                                                                     onClick={handleFetchSelected}
                                                                     disabled={isFetchingSelected}
-                                                                    className="text-xs h-7"
+                                                                    className="text-xs rounded-ctl"
                                                                 >
                                                                     {isFetchingSelected
                                                                         ? <><Spinner className="animate-spin mr-1" /> Fetching...</>
@@ -407,18 +409,18 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                             )}
                                                         </div>
 
-                                                        <div className="max-h-[200px] overflow-y-auto space-y-1">
+                                                        <div className="max-h-48 overflow-y-auto space-y-1">
                                                             {discoveredLinks.map((link, i) => (
                                                                 <label
                                                                     key={link.url}
-                                                                    className="flex items-center gap-2 p-2 rounded-none hover:bg-muted cursor-pointer text-sm"
+                                                                    className="flex items-center gap-2 p-2 rounded-ctl hover:bg-muted cursor-pointer text-sm"
                                                                 >
                                                                     <input
                                                                         type="checkbox"
                                                                         checked={link.selected}
                                                                         onChange={() => toggleLinkSelection(i)}
                                                                         disabled={link.status === 'success'}
-                                                                        className="rounded-none"
+                                                                        className="rounded-ctl"
                                                                     />
                                                                     <div className="flex-1 min-w-0">
                                                                         <p className="truncate text-xs">{link.title}</p>
@@ -451,15 +453,15 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {sources.map((source) => (
-                            <div key={source.id} className="group border border-border rounded-none p-4 hover:border-foreground transition-colors relative bg-card">
+                            <div key={source.id} className="group border border-border rounded-panel p-4 hover:border-foreground transition-colors relative bg-card">
                                 <div className="flex items-start justify-between mb-2">
                                     <div className="flex items-center gap-2">
                                         {source.type === 'url' && <LinkIcon className="text-brand" />}
                                         {source.type === 'file' && <FileText className="text-warn" />}
                                         {source.type === 'text' && <Note className="text-live" />}
-                                        <h3 className="truncate max-w-[200px]" title={source.title}>{source.title}</h3>
+                                        <h3 className="truncate max-w-48" title={source.title}>{source.title}</h3>
                                         {source.visibility === 'public' && (
-                                            <Badge variant="brand" className="text-xs px-1.5 py-0">Public</Badge>
+                                            <Badge variant="brand">Public</Badge>
                                         )}
                                     </div>
                                     <Button
@@ -471,7 +473,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         <Trash />
                                     </Button>
                                 </div>
-                                <p className="text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded-none">
+                                <p className="text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded-ctl">
                                     {source.content}
                                 </p>
                                 <div className="mt-2 text-xs text-muted-foreground flex justify-end">
@@ -481,9 +483,14 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                         ))}
 
                         {sources.length === 0 && !isAdding && (
-                            <div className="col-span-full py-12 text-center text-muted-foreground border border-border rounded-none">
-                                <p>No sources added yet.</p>
-                                <p className="text-sm">Add documents, URLs, or notes to give more context to the AI.</p>
+                            <div className="col-span-full space-y-3 py-12 text-center text-muted-foreground border border-border rounded-panel">
+                                <div>
+                                    <p>No sources added yet.</p>
+                                    <p className="text-sm">Add documents, URLs, or notes to give more context to the AI.</p>
+                                </div>
+                                <Button onClick={() => setIsAdding(true)} variant="outline" size="sm" className="rounded-ctl">
+                                    <Plus className="mr-2" /> Add Source
+                                </Button>
                             </div>
                         )}
                     </div>
@@ -498,7 +505,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                 value={communitySearch}
                                 onChange={(e) => setCommunitySearch(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') loadCommunity(communitySearch); }}
-                                className="pl-9"
+                                className="h-11 rounded-ctl border border-border bg-card pl-9 pr-3 text-base"
                             />
                         </div>
                         <Button variant="secondary" onClick={() => loadCommunity(communitySearch)} disabled={communityLoading}>
@@ -511,26 +518,40 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                             <Spinner className="animate-spin mr-2" /> Loading community sources...
                         </div>
                     ) : communitySources.length === 0 ? (
-                        <div className="py-12 text-center text-muted-foreground border border-border rounded-none">
-                            <Globe size={24} className="mx-auto mb-2 opacity-50" />
-                            <p>No public sources found.</p>
-                            <p className="text-sm">Share your sources with the community by setting visibility to Public.</p>
+                        <div className="space-y-3 py-12 text-center text-muted-foreground border border-border rounded-panel">
+                            <div>
+                                <Globe size={24} className="mx-auto mb-2 opacity-50" />
+                                <p>No public sources found.</p>
+                                <p className="text-sm">Share your sources with the community by setting visibility to Public.</p>
+                            </div>
+                            {communitySearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setCommunitySearch("");
+                                        loadCommunity();
+                                    }}
+                                    className="text-sm text-foreground underline underline-offset-2 hover:underline"
+                                >
+                                    Clear search
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {communitySources.map((source) => (
-                                <div key={source.id} className="border border-border rounded-none p-4 bg-card">
+                                <div key={source.id} className="border border-border rounded-panel p-4 bg-card">
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex items-center gap-2">
                                             {source.type === 'url' && <LinkIcon className="text-brand" />}
                                             {source.type === 'file' && <FileText className="text-warn" />}
                                             {source.type === 'text' && <Note className="text-live" />}
-                                            <h3 className="truncate max-w-[200px]" title={source.title}>{source.title}</h3>
+                                            <h3 className="truncate max-w-48" title={source.title}>{source.title}</h3>
                                         </div>
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="text-xs h-7 shrink-0"
+                                            className="text-xs shrink-0 rounded-ctl"
                                             disabled={addingSourceId === source.id}
                                             onClick={() => handleAddFromCommunity(source.id)}
                                         >
@@ -541,7 +562,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                             )}
                                         </Button>
                                     </div>
-                                    <p className="text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded-none">
+                                    <p className="text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded-ctl">
                                         {source.content}
                                     </p>
                                     <div className="mt-2 text-xs text-muted-foreground flex justify-end">
