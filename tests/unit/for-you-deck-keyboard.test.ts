@@ -37,13 +37,18 @@ describe("resolveDeckShortcut", () => {
         assert.equal(resolveDeckShortcut(event({ key: "K" }), readFakeTarget(PLAIN_TARGET)), "previous");
     });
 
+    it("maps ArrowUp/ArrowDown to previous/next, mirroring Left/Right", () => {
+        assert.equal(resolveDeckShortcut(event({ key: "ArrowDown" }), readFakeTarget(PLAIN_TARGET)), "next");
+        assert.equal(resolveDeckShortcut(event({ key: "ArrowUp" }), readFakeTarget(PLAIN_TARGET)), "previous");
+    });
+
     it("maps S (either case) to skip", () => {
         assert.equal(resolveDeckShortcut(event({ key: "s" }), readFakeTarget(PLAIN_TARGET)), "skip");
         assert.equal(resolveDeckShortcut(event({ key: "S" }), readFakeTarget(PLAIN_TARGET)), "skip");
     });
 
     it("is an allowlist: keys reserved for native scrolling are never handled", () => {
-        for (const key of ["ArrowUp", "ArrowDown", " ", "PageDown"]) {
+        for (const key of [" ", "PageDown"]) {
             assert.equal(resolveDeckShortcut(event({ key }), readFakeTarget(PLAIN_TARGET)), null, key);
         }
     });

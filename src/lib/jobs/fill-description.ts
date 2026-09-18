@@ -8,7 +8,9 @@ export const TEASER_MAX_LEN = 220;
 
 /** The awaited id-hydrate fill (searchJobsAction's "await" plan). 10 s is the
  *  attention limit for a wait with progress feedback — the "About this role"
- *  section shows a status line after `DESCRIPTION_SLOW_HINT_MS`. The scrape
+ *  section shows a status line after `DESCRIPTION_WAIT_COPY_MS`
+ *  (lib/jobs/for-you/description-wait-copy.ts, via `DescriptionLoadingStatus`).
+ *  The scrape
  *  continues server-side and is persisted past this deadline, so a later
  *  reopen/"Try again" gets it cheaply rather than re-running the ladder. */
 export const DESCRIPTION_FILL_VISIBLE_DEADLINE_MS = 10_000;

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { JobCard } from "../../src/app/jobs/page";
+import { JobCard } from "../../src/components/jobs/JobCard";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 /**

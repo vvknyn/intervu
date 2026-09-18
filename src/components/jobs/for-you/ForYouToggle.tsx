@@ -1,5 +1,6 @@
 "use client";
 
+import { chipVariants } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 import type { JobsHomeView } from "@/lib/jobs/for-you/home-view";
 
@@ -9,16 +10,20 @@ export interface ForYouToggleProps {
     className?: string;
 }
 
+/**
+ * For you ⇄ Search mode control (mock B5): a pill segmented control built
+ * directly on `chipVariants` — the same pill primitive as every other chip
+ * in the results toolbar (chip.tsx), not a parallel tab-strip treatment.
+ * `active` marks the selected segment (filled surface + border), and both
+ * segments carry `interactive` since either is always clickable.
+ */
 export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) {
     return (
         <div
             role="tablist"
             aria-label="Jobs home view"
             data-testid="jobs-home-toggle"
-            className={cn(
-                "inline-flex border border-border bg-background",
-                className,
-            )}
+            className={cn("inline-flex min-h-11 gap-1 rounded-pill border border-border bg-muted p-1", className)}
         >
             {(["for-you", "search"] as const).map((tab) => {
                 const active = value === tab;
@@ -31,10 +36,9 @@ export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) 
                         aria-selected={active}
                         onClick={() => onChange(tab)}
                         className={cn(
-                            "inline-flex min-h-11 items-center px-4 text-xs font-semibold transition-colors motion-reduce:transition-none",
-                            active
-                                ? "border-b-2 border-foreground text-foreground"
-                                : "border-b-2 border-transparent text-muted-foreground hover:text-foreground",
+                            chipVariants({ active, interactive: true }),
+                            "min-h-11 justify-center border-transparent px-4 font-semibold",
+                            active ? "bg-background" : "bg-transparent text-muted-foreground",
                         )}
                     >
                         {label}
