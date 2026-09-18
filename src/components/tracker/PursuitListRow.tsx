@@ -3,14 +3,8 @@
 import { cn } from "@/lib/utils";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import type { Pursuit } from "@/lib/pursuits/types";
-import {
-    daysInTracker,
-    daysSinceUpdate,
-    hasResumeLinked,
-    isStalePursuit,
-    trackerStatusColorClass,
-    trackerStatusLabel,
-} from "@/lib/pursuits/tracker-display";
+import { daysInTracker, daysSinceUpdate, hasResumeLinked, isStalePursuit } from "@/lib/pursuits/tracker-display";
+import { StageBadge } from "@/components/tracker/StageBadge";
 
 interface PursuitListRowProps {
     pursuit: Pursuit;
@@ -18,6 +12,10 @@ interface PursuitListRowProps {
     onClick: () => void;
 }
 
+/** design-language.md §4 row anatomy, no leading tile (tracker rows have no
+ *  avatar/logo column, so the outer grid-cols-[auto_minmax] split collapses
+ *  to a single content column) — selected/hover both read `bg-muted` only
+ *  (§2: "selected = hover tint, nothing else"), no brand-colored edge. */
 export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps) {
     const days = daysInTracker(pursuit);
     const resumeLinked = hasResumeLinked(pursuit);
@@ -30,26 +28,26 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
             data-testid="pursuit-row"
             onClick={onClick}
             className={cn(
-                "grid w-full cursor-pointer grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 px-3 py-4 text-left transition-colors hover:bg-muted",
-                active && "border-l-[3px] border-l-brand bg-muted",
+                "grid w-full cursor-pointer rounded-none bg-card px-[var(--list-inset)] pt-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
+                active && "bg-muted",
             )}
         >
-            <div className="min-w-0">
-                <div className="truncate text-base font-semibold">{pursuit.position}</div>
-                <div className="truncate text-sm text-muted-foreground">{pursuit.company_name}</div>
-            </div>
-            <span className={cn("h-fit text-sm", trackerStatusColorClass(pursuit.status))}>
-                {trackerStatusLabel(pursuit.status)}
-            </span>
-            <div className="col-span-2 text-sm text-muted-foreground">
-                <DotSeparated
-                    items={[
-                        `${days}d in tracker`,
-                        resumeLinked ? "resume linked" : "no resume",
-                        stale && `no update in ${daysSinceUpdate(pursuit)}d`,
-                        note,
-                    ]}
-                />
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-4">
+                <div className="min-w-0">
+                    <div className="truncate text-base font-semibold leading-snug text-foreground">{pursuit.position}</div>
+                    <div className="mt-1 truncate text-sm text-muted-foreground">{pursuit.company_name}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                        <DotSeparated
+                            items={[
+                                `${days}d in tracker`,
+                                resumeLinked ? "resume linked" : "no resume",
+                                stale && `no update in ${daysSinceUpdate(pursuit)}d`,
+                                note,
+                            ]}
+                        />
+                    </div>
+                </div>
+                <StageBadge status={pursuit.status} className="self-start" />
             </div>
         </button>
     );

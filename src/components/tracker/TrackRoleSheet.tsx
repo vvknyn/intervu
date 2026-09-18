@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CircleNotch } from "@phosphor-icons/react";
 import type { PursuitStage } from "@/lib/pursuits/types";
 import { TRACKER_LANE_STAGES, TRACKER_SHEET_BOTTOM } from "@/lib/pursuits/tracker-display";
+import { TRACKER_FIELD_CLASS } from "@/components/tracker/field-class";
 
 export interface TrackRoleDraft {
     company: string;
@@ -26,9 +27,6 @@ interface TrackRoleSheetProps {
     onSave: (draft: TrackRoleDraft) => Promise<void>;
     saving?: boolean;
 }
-
-const fieldClass =
-    "border-transparent bg-muted focus-visible:border-border-strong focus-visible:bg-background";
 
 export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRoleSheetProps) {
     const [company, setCompany] = useState("");
@@ -69,7 +67,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                 side="bottom"
                 hideCloseButton
                 className={cn(
-                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-none border-b-0 p-0",
+                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-t-panel border-b-0 p-0",
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
@@ -91,20 +89,20 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                 <div className="space-y-3 px-5 py-4 pb-7">
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Company</Label>
-                        <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" className={fieldClass} />
+                        <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" className={TRACKER_FIELD_CLASS} />
                     </div>
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Role</Label>
-                        <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Staff Software Engineer" className={fieldClass} />
+                        <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Staff Software Engineer" className={TRACKER_FIELD_CLASS} />
                     </div>
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Job URL</Label>
-                        <Input value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://boards.greenhouse.io/…" className={fieldClass} />
+                        <Input value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://boards.greenhouse.io/…" className={TRACKER_FIELD_CLASS} />
                     </div>
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Status</Label>
                         <Select value={status} onValueChange={(v) => setStatus(v as PursuitStage)}>
-                            <SelectTrigger className={fieldClass}>
+                            <SelectTrigger className={TRACKER_FIELD_CLASS}>
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -123,15 +121,15 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                             onChange={(e) => setNote(e.target.value)}
                             rows={2}
                             placeholder="Recruiter name, referral…"
-                            className={fieldClass}
+                            className={TRACKER_FIELD_CLASS}
                         />
                     </div>
                     <div className="flex flex-wrap gap-2 pt-1">
-                        <Button onClick={() => void handleSave()} disabled={saving || !company.trim() || !position.trim()}>
+                        <Button className="rounded-ctl" onClick={() => void handleSave()} disabled={saving || !company.trim() || !position.trim()}>
                             {saving && <CircleNotch className="mr-2 animate-spin" />}
                             {saving ? "Saving…" : "Save to tracker"}
                         </Button>
-                        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                        <Button variant="outline" className="rounded-ctl" onClick={() => onOpenChange(false)} disabled={saving}>
                             Cancel
                         </Button>
                     </div>

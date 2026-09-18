@@ -21,6 +21,7 @@ import {
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 import { NoteAutosave } from "@/lib/pursuits/note-autosave";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
+import { TRACKER_FIELD_CLASS } from "@/components/tracker/field-class";
 
 interface PursuitDetailSheetProps {
     pursuit: Pursuit | null;
@@ -32,9 +33,6 @@ interface PursuitDetailSheetProps {
     onRemove: () => Promise<void>;
     saving?: boolean;
 }
-
-const fieldClass =
-    "border-transparent bg-muted focus-visible:border-border-strong focus-visible:bg-background";
 
 export function PursuitDetailSheet({
     pursuit,
@@ -54,7 +52,7 @@ export function PursuitDetailSheet({
                 side="bottom"
                 hideCloseButton
                 className={cn(
-                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-none border-b-0 p-0",
+                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-t-panel border-b-0 p-0",
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
@@ -176,8 +174,8 @@ function PursuitDetailBody({
                                 disabled={saving}
                                 onClick={() => void onStatusChange(stage)}
                                 className={cn(
-                                    "whitespace-nowrap rounded-none border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors",
-                                    pressed && "border-primary bg-primary text-primary-foreground",
+                                    "min-h-6 whitespace-nowrap rounded-ctl px-3 text-sm font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground",
+                                    pressed && "text-foreground underline underline-offset-2",
                                 )}
                             >
                                 {label}
@@ -186,10 +184,10 @@ function PursuitDetailBody({
                     })}
                 </div>
 
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-none bg-muted p-3.5">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-panel bg-muted p-3.5">
                     <div>
                         <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">In tracker</dt>
-                        <dd className="text-meta">{days}d</dd>
+                        <dd className="text-xl font-semibold tabular-nums">{days}d</dd>
                     </div>
                     <div>
                         <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">Resume</dt>
@@ -219,7 +217,7 @@ function PursuitDetailBody({
                             noteAutosaveRef.current?.edit(e.target.value);
                         }}
                         rows={2}
-                        className={fieldClass}
+                        className={TRACKER_FIELD_CLASS}
                     />
                 </div>
 
@@ -232,11 +230,12 @@ function PursuitDetailBody({
                             type="date"
                             value={interviewDate}
                             onChange={(e) => setInterviewDate(e.target.value)}
-                            className={cn("w-auto", fieldClass)}
+                            className={cn("w-auto", TRACKER_FIELD_CLASS)}
                             aria-label="Interview date"
                         />
                         <Button
                             variant="outline"
+                            className="rounded-ctl"
                             disabled={saving || !interviewDate}
                             onClick={() => void onInterviewDateSave(interviewDate)}
                         >
@@ -247,7 +246,7 @@ function PursuitDetailBody({
 
                 <div className="flex flex-wrap gap-2">
                     {pursuit.job_url && (
-                        <Button asChild>
+                        <Button asChild className="rounded-ctl">
                             <a href={pursuit.job_url} target="_blank" rel="noopener noreferrer">
                                 Open posting
                             </a>
@@ -255,6 +254,7 @@ function PursuitDetailBody({
                     )}
                     <Button
                         variant="outline"
+                        className="rounded-ctl"
                         disabled={!latestResume}
                         onClick={() => latestResume && void downloadResumeVersion(latestResume, pursuit)}
                     >
@@ -264,7 +264,7 @@ function PursuitDetailBody({
                         <Button
                             variant="outline"
                             disabled={saving}
-                            className="text-muted-foreground hover:text-destructive"
+                            className="rounded-ctl text-muted-foreground hover:text-destructive"
                             onClick={() => setConfirmingRemove(true)}
                         >
                             Remove

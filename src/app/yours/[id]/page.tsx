@@ -37,7 +37,7 @@ import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
     const versions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
     return (
-        <div className="border border-border bg-card p-6">
+        <div className="rounded-panel border border-border bg-card p-6">
             <div className="mb-3 text-xs text-muted-foreground">Resume used</div>
             {versions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No resume version on file for this application.</p>
@@ -59,6 +59,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                                 <Button
                                     variant="ghost"
                                     size="sm"
+                                    className="rounded-ctl"
                                     onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
                                 >
                                     Download
@@ -241,7 +242,7 @@ export default function PursuitDetailPage() {
     if (loading) {
         return (
             <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
-                <div className="h-40 animate-pulse rounded-none bg-card" />
+                <div className="h-40 animate-pulse rounded-panel bg-card" />
             </PageLayout>
         );
     }
@@ -281,7 +282,7 @@ export default function PursuitDetailPage() {
     return (
         <PageLayout header={<PageHeader title={companyName} description={pursuit.position} actions={backLink} />}>
             <div className="space-y-6">
-                <div className="rounded-none border border-border bg-card p-6">
+                <div className="rounded-panel border border-border bg-card p-6">
                     {/* Clickable only when a live posting is actually linked. A
                         manual pursuit has no `job_id`, so it renders as plain
                         text — offering a click that could only open an apology
@@ -312,7 +313,7 @@ export default function PursuitDetailPage() {
 
                 <ResumeUsedCard pursuit={pursuit} />
 
-                <div className="rounded-none border border-border bg-card p-6">
+                <div className="rounded-panel border border-border bg-card p-6">
                     {/* Tailoring moved to MCP 2026-08-02 — the in-app
                         /resume-tailor link is gone; the quiet handoff note
                         replaces it (same pattern as the "prep" note below). */}
@@ -324,13 +325,17 @@ export default function PursuitDetailPage() {
                                 <Button
                                     variant="outline"
                                     onClick={() => window.open(pursuit.job_url, "_blank", "noopener,noreferrer")}
-                                    className="gap-2"
+                                    className="gap-2 rounded-ctl"
                                 >
                                     <ArrowSquareOut size={16} />
                                     Open posting
                                 </Button>
                             )}
-                            <Button disabled={saving} onClick={() => mutate({ status: "applied", applied_at: new Date().toISOString() })}>
+                            <Button
+                                disabled={saving}
+                                onClick={() => mutate({ status: "applied", applied_at: new Date().toISOString() })}
+                                className="rounded-ctl"
+                            >
                                 {saving ? "Saving…" : "I applied"}
                             </Button>
                         </div>
@@ -342,7 +347,7 @@ export default function PursuitDetailPage() {
                                 type="date"
                                 value={interviewDate}
                                 onChange={(e) => setInterviewDate(e.target.value)}
-                                className="w-auto"
+                                className="h-11 w-auto rounded-ctl border-border bg-card text-base"
                                 aria-label="Interview date"
                             />
                             <Button
@@ -350,7 +355,7 @@ export default function PursuitDetailPage() {
                                 onClick={() =>
                                     mutate({ status: "interviewing", interview_date: new Date(interviewDate).toISOString() })
                                 }
-                                className="gap-2"
+                                className="gap-2 rounded-ctl"
                             >
                                 <CalendarBlank size={16} />
                                 {saving ? "Saving…" : "Set interview date"}
@@ -367,9 +372,9 @@ export default function PursuitDetailPage() {
                 </div>
 
                 {snapshot?.description && (
-                    <div className="rounded-none border border-border bg-card p-6">
+                    <div className="rounded-panel border border-border bg-card p-6">
                         <div className="mb-2 text-xs font-semibold">About this role</div>
-                        <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                        <p className="whitespace-pre-line text-base leading-relaxed text-muted-foreground">
                             {snapshot.description}
                         </p>
                     </div>
@@ -377,7 +382,7 @@ export default function PursuitDetailPage() {
             </div>
 
             <Sheet open={detail.open} onOpenChange={(open) => setDetail((d) => ({ ...d, open }))}>
-                <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-none p-0">
+                <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-panel p-0">
                     <SheetTitle className="sr-only">
                         {pursuit.position} at {companyName}
                     </SheetTitle>
