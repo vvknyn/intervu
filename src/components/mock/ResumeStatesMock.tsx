@@ -130,7 +130,7 @@ export function ResumeStatesMock() {
                             <div className="flex-1 overflow-hidden py-4">
                                 <ResumeParsingStep localAiEnabled={false} />
                             </div>
-                            <div className="flex justify-between gap-3 border-t pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                            <div className="flex justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                                 <Button variant="outline" className="h-11 min-h-11" disabled>
                                     Cancel
                                 </Button>
