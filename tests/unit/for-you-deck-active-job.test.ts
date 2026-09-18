@@ -4,6 +4,7 @@ import {
     fallbackActiveId,
     findActiveIndexById,
     nextActiveIdAfterSkip,
+    prefetchIndexesAhead,
 } from "../../src/lib/jobs/for-you/deck-active-job";
 
 function jobs(ids: string[]) {
@@ -61,5 +62,32 @@ describe("nextActiveIdAfterSkip", () => {
 
     it("is null when skipping the only remaining card empties the deck", () => {
         assert.equal(nextActiveIdAfterSkip([], 0), null);
+    });
+});
+
+describe("prefetchIndexesAhead", () => {
+    it("card k triggers prefetch of k+1..k+3 for ahead=3", () => {
+        assert.deepEqual(prefetchIndexesAhead(2, 10, 3), [3, 4, 5]);
+    });
+
+    it("bounds at the end of the deck — no out-of-range index", () => {
+        // 6-card deck (indexes 0-5), active at 4: only index 5 exists ahead.
+        assert.deepEqual(prefetchIndexesAhead(4, 6, 3), [5]);
+    });
+
+    it("is empty when the active card is already the last one", () => {
+        assert.deepEqual(prefetchIndexesAhead(5, 6, 3), []);
+    });
+
+    it("is empty for an empty deck", () => {
+        assert.deepEqual(prefetchIndexesAhead(0, 0, 3), []);
+    });
+
+    it("never includes the active index itself", () => {
+        assert.ok(!prefetchIndexesAhead(2, 10, 3).includes(2));
+    });
+
+    it("respects a smaller `ahead` bound too — not hardcoded to 3", () => {
+        assert.deepEqual(prefetchIndexesAhead(0, 10, 1), [1]);
     });
 });

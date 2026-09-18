@@ -2624,15 +2624,15 @@ function JobsContent() {
         // for why `detailSheetOpen`, not just an id match, gates it.
         if (isSameOpenJob(selectedId, id, detailSheetOpen)) return;
         // Prime the description fetch FIRST, before any telemetry dispatch
-        // below — Next's client action queue runs server actions strictly
-        // serially (app-router-instance.js runAction/runRemainingActions), so
-        // whichever POST is dispatched first is the one that lands first.
-        // `detailFetcher` (lib/jobs/detail-fetch.ts) dedupes by id, so the
+        // below — a plain `fetch` to `GET /api/jobs/[id]/description`
+        // (lib/jobs/detail-fetch.ts), so starting it early means it's
+        // already in flight while the telemetry calls below run rather than
+        // waiting behind them. `detailFetcher` dedupes by id, so the
         // hydration effect further down just joins this same in-flight
-        // request instead of queuing a second one behind the telemetry below.
+        // request instead of firing a second one.
         const hit = resultRef.current?.hits.find((h) => h.id === id);
         if (hit?.description === undefined && hydratedDetail?.id !== id) {
-            void detailFetcher.fetch(id, searchJobsActionRaw);
+            void detailFetcher.fetch(id);
         }
         // Telemetry before navigation: the rank is only knowable against the
         // result set currently on screen. A miss yields -1, which the action
@@ -2979,17 +2979,18 @@ function JobsContent() {
         const token = deadJobGuardRef.current!.begin();
         setDeadJobCheck({ id, status: "checking" });
         void (async () => {
-            // `detailFetcher.fetch` (lib/jobs/detail-fetch.ts) wraps
-            // `runExistenceCheck` (lib/jobs/result-state.ts, unit-tested),
-            // which owns the query shape (including why `hideGhosts` stays
-            // false) and the found/not_found/unknown classification,
-            // including a thrown request — see its doc comment. "unknown" is
-            // not hypothetical: verified live that `id = ...` currently 400s
-            // against production until the index picks up the
-            // `filterableAttributes` addition in meilisearch.ts. Going
-            // through `detailFetcher` here means a same-id fetch already
-            // primed by `openJob` is joined rather than re-dispatched.
-            const check = await detailFetcher.fetch(id, searchJobsActionRaw);
+            // `detailFetcher.fetch` (lib/jobs/detail-fetch.ts) fetches
+            // `GET /api/jobs/[id]/description` and classifies the response
+            // with `classifyExistenceCheck` (lib/jobs/result-state.ts,
+            // unit-tested) — the same found/not_found/unknown classification
+            // `runExistenceCheck` uses server-side, including a thrown
+            // request. "unknown" is not hypothetical: verified live that
+            // `id = ...` currently 400s against production until the index
+            // picks up the `filterableAttributes` addition in
+            // meilisearch.ts. Going through `detailFetcher` here means a
+            // same-id fetch already primed by `openJob` is joined rather
+            // than re-dispatched.
+            const check = await detailFetcher.fetch(id);
             if (!deadJobGuardRef.current!.isCurrent(token)) return;
             setDeadJobCheck({ id, ...check });
         })();
@@ -3058,9 +3059,8 @@ function JobsContent() {
         void (async () => {
             // Joins the in-flight fetch `openJob`/`retryDescription` already
             // primed for this id (`detailFetcher`, lib/jobs/detail-fetch.ts)
-            // instead of dispatching a second POST behind it in Next's
-            // serial client-action queue.
-            const check = await detailFetcher.fetch(id, searchJobsActionRaw);
+            // instead of firing a second GET for the same id.
+            const check = await detailFetcher.fetch(id);
             if (!detailHydrationGuardRef.current!.isCurrent(token)) return;
             if (check.status === "found") {
                 setHydratedDetail({ id, job: check.job, descriptionPending: check.descriptionPending });
@@ -3106,7 +3106,7 @@ function JobsContent() {
         if (forYouHydrateStartedRef.current.has(id)) return;
         forYouHydrateStartedRef.current.add(id);
         void (async () => {
-            const check = await detailFetcher.fetch(id, searchJobsActionRaw);
+            const check = await detailFetcher.fetch(id);
             if (check.status === "found") {
                 setForYouHydrated((prev) => {
                     const next = new Map(prev);
@@ -3135,10 +3135,9 @@ function JobsContent() {
         if (!id) return;
         // Prime the retry fetch FIRST, before the state updates below queue
         // any re-render work — same reasoning as `openJob`'s priming call:
-        // Next's client action queue is strictly serial, so this POST must
-        // be the one dispatched first. The hydration effect's own
+        // start the GET as early as possible. The hydration effect's own
         // `detailFetcher.fetch` call joins this same in-flight request.
-        void detailFetcher.fetch(id, searchJobsActionRaw);
+        void detailFetcher.fetch(id);
         setHydratedDetail(null);
         setRetryRequest((prev) => ({ id, nonce: (prev?.nonce ?? 0) + 1 }));
     }, [detailJob?.id]);
