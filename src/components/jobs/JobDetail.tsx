@@ -70,7 +70,7 @@ import type { ResumeData } from "@/types/resume";
 export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; headingLevel: 3 | 4 }) {
     const HeadingTag = `h${headingLevel}` as const;
     return (
-        <div className="text-base leading-normal text-foreground">
+        <div className="text-base leading-relaxed text-foreground">
             {blocks.map((b, i) => {
                 if (b.type === "heading") {
                     return (
@@ -578,21 +578,19 @@ export function JobDetail({
     // (default true) is the seam that turns this off for mount sites that
     // already provide their own scroller — see its doc comment above.
     const collapsible = collapseDescription && (job.description?.length ?? 0) > 700;
-    // Structured facts row (Deliverable 1, 2026-08-01) — consolidates what
-    // used to be a separate "Posted X · First seen by us Y" prose line plus
-    // this chip row into ONE scannable row; see buildFactChips for the
-    // per-field include/omit decision (kept pure + unit-tested there).
+    // Structured facts grid (cards pass, 2026-09-17) — each cell renders only
+    // when buildFactChips already decided the underlying field is present;
+    // see that function's own per-field include/omit decision (kept pure +
+    // unit-tested there) rather than re-deriving presence in this component.
     const chips = buildFactChips(job, postedRelative, firstSeenRelative);
-    // Pay now renders as its own header stat (Task 3, squared design-system
-    // pass) rather than a chip among chips — filtered out here so it never
-    // appears twice.
-    const nonSalaryChips = chips.filter((c) => c.kind !== "salary");
-    // Meta-line ordering (rulebook item a: "location · work mode · level ·
-    // pay · posted · first seen") — split around where `salary` (rendered
-    // separately, see above) sits, rather than reordering `buildFactChips`'
-    // own field order.
-    const preSalaryChips = nonSalaryChips.filter((c) => c.kind !== "posted" && c.kind !== "first_seen");
-    const postSalaryChips = nonSalaryChips.filter((c) => c.kind === "posted" || c.kind === "first_seen");
+    const workTypeChip = chips.find((c) => c.kind === "work_type");
+    const employmentTypeChip = chips.find((c) => c.kind === "employment_type");
+    const experienceLevelChip = chips.find((c) => c.kind === "experience_level");
+    const postedChip = chips.find((c) => c.kind === "posted");
+    const firstSeenChip = chips.find((c) => c.kind === "first_seen");
+    // Same `clusters`-derived variants prop the SERP row's own "also in"
+    // chip reads (page.tsx's `detailVariants`) — not a second lookup.
+    const alsoIn = alsoInLabel(job, variants);
     const salary = salaryText(job);
     // `cleanedCompany` keeps its legal suffix (e.g. "Qualys, Inc.") — it
     // feeds `jobCompanyHref` below, which uses it to build the `/companies/`
@@ -610,11 +608,14 @@ export function JobDetail({
         () => extractCompanyAboutLine([job], companyBrand || cleanedCompany || job.company || ""),
         [job, companyBrand, cleanedCompany],
     );
-    const alsoIn = alsoInLabel(job, variants);
     // EXPANDED ghost module (docs-mockup.html Comp B2) — honest, derived
     // signal list; see deriveGhostSignals's doc comment for why each line
     // reuses an existing single source instead of new inferred logic.
     const ghostSignals = deriveGhostSignals(job, freshness, blocks.length, now);
+    // Pay card visibility reuses the SAME pay signal the posting-check card
+    // renders below — one disclosure boolean, not a second, independently
+    // derived `Boolean(salary)` guess that could disagree with the ledger.
+    const payDisclosed = ghostSignals.find((s) => s.kind === "pay")?.status === "favorable";
     // Denominator is the ASSESSED signals, not every line rendered: an
     // untracked repost history and an undisclosed salary are absences of
     // data, and counting them as failed checks made ordinary postings read
@@ -725,185 +726,117 @@ export function JobDetail({
         >
             {/* Identity block — pinned outside the scroll subtree when the pane
                 owns scrolling (flex split); the mobile sheet keeps everything
-                in one flow and passes collapseDescription={false}. Rulebook item d:
-                this used to be its own bordered/filled panel; it now sits on page
-                bg like every other section — the border-t below the identity
-                content is the only divider it draws. */}
+                in one flow and passes collapseDescription={false}. Cards pass
+                (2026-09-17): company row / title / actions each get their own
+                row instead of one dense identity paragraph. The panel's own
+                grey fill and radius belong to the surfaces PR (jobs/page.tsx)
+                — this div and everything under it stays a plain flex column
+                on that background, no card of its own. */}
             <div className="shrink-0">
-                {/* Identity header */}
-                <div className="px-4 pb-4 pt-4 sm:px-6 sm:pb-4">
-                    <div className="flex items-start gap-3">
-                        {/* CompanyLogo's "lg" (56px) tile exceeds the rulebook's
-                            48px card-size floor by construction (it's a fixed-size
-                            avatar, not an authored panel) — exempted the same way
-                            the SERP row exempts its own logo tile. */}
-                        <div data-rulebook-exempt>
-                            <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <h2 className="text-xl sm:text-lg font-semibold leading-snug sm:leading-tight text-foreground">{jobTitle}</h2>
-                            {matchScore && (
-                                <div className="mt-2">
-                                    <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
-                                </div>
-                            )}
-                            <div className="mt-1 text-sm text-muted-foreground">
-                                {cleanedCompany ? (
-                                    <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
-                                        {companyBrand}
-                                    </Link>
-                                ) : (
-                                    "Unknown company"
-                                )}
-                            </div>
-                            {exceptionMark && (
-                                // Rulebook: status reads as a plain colored WORD, not a
-                                // bordered/bg pill — each part already carries its own
-                                // tone via `part.className` (row-exception.ts), so the
-                                // wrapper needs no border/background of its own.
-                                <div data-tour="row-exception" data-exception={exceptionMark.kind} className="mt-2 text-xs font-semibold">
-                                    <ContextHelp content={exceptionMark.explain} side="right">
-                                        <span className="inline-flex flex-wrap items-center gap-x-1">
-                                            {exceptionMark.parts.map((part, i) => (
-                                                <span key={part.text} className="inline-flex items-center">
-                                                    {i > 0 && (
-                                                        <span className="mx-1 text-muted-foreground" aria-hidden>
-                                                            ·
-                                                        </span>
-                                                    )}
-                                                    <span className={part.className}>{part.text}</span>
-                                                </span>
-                                            ))}
-                                        </span>
-                                    </ContextHelp>
-                                    {(exceptionMark.kind === "relisted" || exceptionMark.kind === "both") &&
-                                        freshness.postedMs != null &&
-                                        firstSeenRelative && (
-                                            <p className="mt-1 font-normal text-muted-foreground">
-                                                Listed as new on {shortDate(freshness.postedMs)}, but this role first appeared{" "}
-                                                {firstSeenRelative} — often a relist.
-                                            </p>
+                {/* Company row — logo, name, domain-as-link only; every other
+                    fact (location, work type, pay, dates) lives in the facts
+                    grid below, not here. A "‹ 1 of N ›" pager belongs on this
+                    row's right side per the mock, but JobDetail receives no
+                    selected-index/count/prev-next props to drive one — see
+                    the PR description for that follow-up; rendering a pager
+                    with no working prev/next would be a dead control. */}
+                <div className="flex items-center gap-3 px-4 pt-4 sm:px-6">
+                    <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
+                    <div className="min-w-0 flex-1">
+                        <div className="truncate font-semibold text-foreground">{companyBrand || "Unknown company"}</div>
+                        {cleanedCompany && job.company_domain && (
+                            <Link
+                                href={jobCompanyHref(cleanedCompany, job.company_domain)}
+                                className="block truncate text-sm text-muted-foreground hover:underline"
+                            >
+                                {job.company_domain}
+                            </Link>
+                        )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                        <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <ShareAction
+                                        title={`${jobTitle} at ${companyBrand}`}
+                                        text={SHARE_JOB_TEXT}
+                                        url={withShareRef(
+                                            jobShareUrl(typeof window !== "undefined" ? window.location.origin : "", job),
+                                            "job",
                                         )}
-                                </div>
-                            )}
-
-                            {/* Meta line (rulebook item a): every fact JobCard's row
-                                already renders as flowing text — location, work type,
-                                employment type, level, pay, posted, first seen, plus
-                                the also-in/reported notes — joined by the shared
-                                `MetaLine` "· " seam (job-detail-facts.ts's sibling in
-                                this file), no per-fact icon or box. The one exception
-                                is the leading location pin (item b): at most one 16px
-                                HIG prefix glyph, never a second icon after it.
-                                `preSalaryChips`/`postSalaryChips` place `salary`
-                                between level and posted per the rulebook's stated
-                                order without reordering `buildFactChips`' own list. */}
-                            <div className="mt-2 flex flex-wrap items-baseline text-sm text-muted-foreground">
-                                <MetaLine
-                                    items={[
-                                        location && (
-                                            <span className="inline-flex items-baseline gap-1" data-rulebook-exempt>
-                                                <FACT_CHIP_ICON.location size={16} weight="bold" className="relative top-0.5 shrink-0" aria-hidden />
-                                                {locationClamped ? (
-                                                    <span className="inline-flex flex-col">
-                                                        {(locationExpanded
-                                                            ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
-                                                            : locationDisclosure.visible
-                                                        ).map((segment, i) => (
-                                                            <span key={i}>{segment}</span>
-                                                        ))}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setLocationExpanded((v) => !v)}
-                                                            className="mt-0.5 text-left text-xs text-brand hover:underline cursor-pointer"
-                                                        >
-                                                            {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
-                                                        </button>
-                                                    </span>
-                                                ) : (
-                                                    <span>{locationDisplay}</span>
-                                                )}
-                                            </span>
-                                        ),
-                                        ...preSalaryChips.map((c) => <span key={c.kind}>{c.label}</span>),
-                                        salary && (
-                                            <span data-tour="jobs-pay" className="font-semibold text-foreground">
-                                                {salary}
-                                            </span>
-                                        ),
-                                        ...postSalaryChips.map((c) => {
-                                            const caution = c.kind === "posted" && freshness.kind === "relisted";
-                                            return (
-                                                <span key={c.kind} className={caution ? LISTING_STATE_TEXT.relisted : undefined}>
-                                                    {c.label}
-                                                </span>
-                                            );
-                                        }),
-                                        alsoIn && <span>also in {alsoIn}</span>,
-                                        typeof job.report_count === "number" && job.report_count > 0 && (
-                                            <span className="text-warn">
-                                                reported {job.report_count} {job.report_count === 1 ? "user" : "users"}
-                                            </span>
-                                        ),
-                                    ]}
-                                />
-                                {nonSalaryChips.some((c) => c.kind === "posted") && nonSalaryChips.some((c) => c.kind === "first_seen") && (
-                                    <ContextHelp
-                                        content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
-                                        className="ml-1 self-center"
+                                        jobId={job.id}
+                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                     />
-                                )}
-                            </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                            {/* Rulebook item f: these were hairline-boxed 44px
-                                squares — ghost 40px icon-only controls, no border.
-                                Report is a detail-only action (GROUP-C, standard
-                                one-entry-point-per-listing) — it lives in the
-                                action row below (ReportJobButton), not here. */}
-                            <TooltipProvider delayDuration={300}>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <ShareAction
-                                            title={`${jobTitle} at ${companyBrand}`}
-                                            text={SHARE_JOB_TEXT}
-                                            url={withShareRef(
-                                                jobShareUrl(typeof window !== "undefined" ? window.location.origin : "", job),
-                                                "job",
-                                            )}
-                                            jobId={job.id}
-                                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                                        />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="text-xs">Copy link</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                            {onClose && (
-                                <button
-                                    type="button"
-                                    aria-label="Close"
-                                    onClick={onClose}
-                                    className="flex h-10 w-10 items-center justify-center rounded-none bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
-                                >
-                                    ×
-                                </button>
-                            )}
-                        </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="text-xs">Copy link</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                        {onClose && (
+                            <button
+                                type="button"
+                                aria-label="Close"
+                                onClick={onClose}
+                                className="flex h-10 w-10 items-center justify-center rounded-ctl bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                ×
+                            </button>
+                        )}
                     </div>
                 </div>
 
+                {/* Title row */}
+                <div className="px-4 pb-3 pt-3 sm:px-6">
+                    <h2 className="font-display text-title-lg font-semibold leading-tight text-balance text-foreground">{jobTitle}</h2>
+                    {matchScore && (
+                        <div className="mt-2">
+                            <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
+                        </div>
+                    )}
+                    {exceptionMark && (
+                        // Rulebook: status reads as a plain colored WORD, not a
+                        // bordered/bg pill — each part already carries its own
+                        // tone via `part.className` (row-exception.ts), so the
+                        // wrapper needs no border/background of its own.
+                        <div data-tour="row-exception" data-exception={exceptionMark.kind} className="mt-2 text-xs font-semibold">
+                            <ContextHelp content={exceptionMark.explain} side="right">
+                                <span className="inline-flex flex-wrap items-center gap-x-1">
+                                    {exceptionMark.parts.map((part, i) => (
+                                        <span key={part.text} className="inline-flex items-center">
+                                            {i > 0 && (
+                                                <span className="mx-1 text-muted-foreground" aria-hidden>
+                                                    ·
+                                                </span>
+                                            )}
+                                            <span className={part.className}>{part.text}</span>
+                                        </span>
+                                    ))}
+                                </span>
+                            </ContextHelp>
+                            {(exceptionMark.kind === "relisted" || exceptionMark.kind === "both") &&
+                                freshness.postedMs != null &&
+                                firstSeenRelative && (
+                                    <p className="mt-1 font-normal text-muted-foreground">
+                                        Listed as new on {shortDate(freshness.postedMs)}, but this role first appeared{" "}
+                                        {firstSeenRelative} — often a relist.
+                                    </p>
+                                )}
+                        </div>
+                    )}
+                </div>
+
                 {/* Action row */}
-                <div className="border-t border-border px-4 py-3 sm:px-6 sm:py-3">
+                <div className="px-4 pb-4 sm:px-6">
                     <div className="flex flex-wrap items-center gap-2">
                         {/* House attention system (docs/design/ATTENTION.md,
                             channel 2): exactly one inverted-ink block per
                             view. Apply is the primary action this pane
-                            exists for — same solid-foreground/background-text
-                            treatment as the SERP's own Search button — not
-                            the quietest element on the page. Save is the
-                            secondary action: a plain 1px outline. */}
+                            exists for — an inverted-ink fill (bg-foreground/
+                            text-background), not the quietest element on
+                            the page. Save is the secondary action: an
+                            outlined control. rounded-ctl on both, same as
+                            every other control in this row. */}
                         {job.apply_url && (
-                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-4 rounded-none bg-brand text-brand-foreground hover:bg-brand text-xs font-semibold transition-colors">
+                            <Button onClick={onOpenPosting} className="gap-2 h-10 px-4 rounded-ctl bg-foreground text-background text-sm font-semibold transition-colors">
                                 <ArrowSquareOut size={16} />
                                 {APPLY_BUTTON_LABEL}
                             </Button>
@@ -913,15 +846,24 @@ export function JobDetail({
                             resume={resume}
                             onAccept={onAcceptLocalTailor}
                         />
-                        {/* Bookmark: 40px icon-only ghost control (rulebook — icon
-                            carries the state, no label chrome competing with Apply's
-                            one inverted-ink block above). Klein-filled glyph + link to
-                            the saved record when `pursuit` exists; muted outline glyph
-                            + the existing `onGoAfter` handler otherwise. Same
-                            `pursuit`/`goingAfter`/`onGoAfter` contract every caller
-                            already threads for the row-level equivalent — no new
-                            plumbing, only the restyle. */}
-                        <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
+                        {/* RowBookmarkButton is a fixed-size icon-only square
+                            control (no text-label prop) — `rounded-ctl` plus
+                            an outline matches every other control in this
+                            row (Apply, Share, Close) rather than a bespoke
+                            shape. */}
+                        <RowBookmarkButton
+                            pursuit={pursuit}
+                            onGoAfter={onGoAfter}
+                            goingAfter={goingAfter}
+                            className="rounded-ctl border border-border bg-card"
+                        />
+                        {/* ReportJobButton hardcodes its own trigger content
+                            (flag icon + "Report listing" text, ReportJobButton.tsx)
+                            with no prop to swap in a "···" overflow glyph — that
+                            restyle would require editing that shared,
+                            out-of-scope component, so this keeps its existing
+                            rendered form, still pinned to the far right via its
+                            own `ml-auto`. */}
                         {reportJobEnabled && job.apply_url && (
                             <ReportJobButton
                                 jobUrl={job.apply_url}
@@ -942,13 +884,124 @@ export function JobDetail({
                     collapseDescription && "min-h-0 flex-1 overflow-y-auto custom-scrollbar",
                 )}
             >
-                {/* Posting check (rulebook item e): plain flowing text, no
-                    card/panel and no segmented progress bar — the ratio and
-                    per-signal rows carry the same facts as sentence-case
-                    text instead. First section in this scroll body, so it
-                    draws no leading divider of its own. */}
+                {/* Facts grid (cards pass, 2026-09-17) — one cell per fact
+                    buildFactChips already decided is present, replacing the
+                    old single dotted meta line. Icons reuse the same
+                    FACT_CHIP_ICON map the SERP row's own chips use, so a
+                    fact never gets a second, diverging glyph here. */}
+                <div className="grid grid-cols-1 gap-x-6 gap-y-2 pb-4 text-sm sm:grid-cols-2">
+                    {location && (
+                        <div className="flex items-start gap-2 text-foreground">
+                            <FACT_CHIP_ICON.location size={16} weight="bold" className="relative top-0.5 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="inline-flex flex-col">
+                                {locationClamped ? (
+                                    <>
+                                        {(locationExpanded
+                                            ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
+                                            : locationDisclosure.visible
+                                        ).map((segment, i) => (
+                                            <span key={i}>{segment}</span>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => setLocationExpanded((v) => !v)}
+                                            className="mt-0.5 text-left text-xs text-brand hover:underline cursor-pointer"
+                                        >
+                                            {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <span>{locationDisplay}</span>
+                                )}
+                                {/* Review fix: `variants` (page.tsx's
+                                    `detailVariants`, same clusters the SERP
+                                    row groups on) went unread once the old
+                                    dotted meta line was removed — restored
+                                    as its own line under location via the
+                                    shared MetaLine seam, rather than a raw
+                                    span, per reuse-before-write. */}
+                                {alsoIn && (
+                                    <span className="mt-0.5 text-xs text-muted-foreground">
+                                        <MetaLine items={[`also in ${alsoIn}`]} />
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+                    )}
+                    {workTypeChip && (
+                        <div className="flex items-center gap-2 text-foreground">
+                            <FACT_CHIP_ICON.work_type size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
+                            <span>{workTypeChip.label}</span>
+                        </div>
+                    )}
+                    {(employmentTypeChip || experienceLevelChip) && (
+                        <div className="flex items-center gap-2 text-foreground">
+                            <FACT_CHIP_ICON.employment_type size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
+                            <MetaLine
+                                items={[
+                                    employmentTypeChip && <span>{employmentTypeChip.label}</span>,
+                                    experienceLevelChip && <span>{experienceLevelChip.label}</span>,
+                                ]}
+                            />
+                        </div>
+                    )}
+                    {(postedChip || firstSeenChip) && (
+                        <div className="flex items-center gap-2 text-foreground">
+                            <FACT_CHIP_ICON.posted size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
+                            <span>
+                                {postedChip && (
+                                    <span className={freshness.kind === "relisted" ? LISTING_STATE_TEXT.relisted : undefined}>{postedChip.label}</span>
+                                )}
+                                {firstSeenChip && (
+                                    <span className="text-xs text-muted-foreground">
+                                        {postedChip ? " · " : ""}{firstSeenChip.label}
+                                    </span>
+                                )}
+                            </span>
+                            {postedChip && firstSeenChip && (
+                                <ContextHelp
+                                    content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
+                                    className="self-center"
+                                />
+                            )}
+                        </div>
+                    )}
+                    {/* Review fix: report_count is a retrieved Meili
+                        attribute (meilisearch.ts's fetch fields), not a
+                        buildFactChips kind — rowExceptionMark doesn't cover
+                        it either. Same gate + wording as the pre-restyle
+                        line, reused verbatim rather than rephrased. */}
+                    {typeof job.report_count === "number" && job.report_count > 0 && (
+                        <div className="flex items-center gap-2 text-warn">
+                            <span>
+                                reported {job.report_count} {job.report_count === 1 ? "user" : "users"}
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Pay card — gated on the SAME pay signal the posting-check
+                    ledger renders below, never a second, independently
+                    derived guess at whether pay is shown. White fill: this
+                    card sits on the panel's own grey background (surfaces
+                    PR, jobs/page.tsx), not on white. rounded-panel (16px)
+                    per the semantic radius tokens (surfaces PR #537). */}
+                {payDisclosed && salary && (
+                    <div data-tour="jobs-pay" className="mb-4 rounded-panel bg-card px-4 py-3.5">
+                        <div className="flex flex-wrap items-baseline gap-3">
+                            <span className="text-sm font-semibold text-muted-foreground">Pay</span>
+                            <span className="font-display text-xl font-semibold tabular-nums text-foreground">{salary}</span>
+                            <span className="text-xs text-muted-foreground">disclosed in the posting</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Posting check (rulebook item e): white card on the panel's
+                    grey fill (rounded-panel, no border) — same header/
+                    signals-grid/footer as before, only the container gained
+                    a fill. Same 16px token as the Pay card above. */}
                 {ghost && (
-                    <div data-tour="jobs-posting-check" className="pb-6">
+                    <div data-tour="jobs-posting-check" className="mb-6 rounded-panel bg-card p-4">
                         <PostingCheckHeader
                             favorableCount={favorableSignalCount}
                             assessedCount={ghostSignals.length > 0 ? assessedSignals.length : 0}
@@ -1046,7 +1099,7 @@ export function JobDetail({
                     everyone — posting text is public; Apply stays gated. */}
                 {/* Rulebook item d: sections stack on page bg, separated by a
                     hairline top border + 24px vertical padding — no card/panel
-                    per section. Body copy sits at a 640px reading measure. */}
+                    per section. Body copy sits at a max-w-prose reading measure. */}
                 <div className="border-t border-border py-6">
                     <h3 className="mb-2 text-sm font-semibold text-foreground">About this role</h3>
                     {(() => {
@@ -1056,7 +1109,7 @@ export function JobDetail({
                         // with a conditional lead sentence rather than two near-
                         // identical paragraphs.
                         const pendingNote = (previewLead: boolean) => (
-                            <p className="max-w-[640px] text-base leading-normal text-foreground">
+                            <p className="max-w-prose text-base leading-relaxed text-foreground">
                                 {previewLead && "This is only a preview. "}
                                 The employer&apos;s site is taking a while to answer, so the full description isn&apos;t here yet.
                                 {job.apply_url ? " Open the posting to read it there, or " : " "}
@@ -1081,7 +1134,7 @@ export function JobDetail({
                                     <>
                                         <div
                                             data-testid="job-detail-description"
-                                            className={cn("relative max-w-[640px]", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
+                                            className={cn("relative max-w-prose", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
                                         >
                                             <JobDescription blocks={blocks} headingLevel={4} />
                                             {collapsible && !descExpanded && (
@@ -1092,7 +1145,7 @@ export function JobDetail({
                                             <button
                                                 type="button"
                                                 onClick={() => setDescExpanded((v) => !v)}
-                                                className="mt-2 text-sm text-brand hover:underline cursor-pointer"
+                                                className="mt-2 text-sm text-foreground underline underline-offset-2 cursor-pointer"
                                             >
                                                 {descExpanded ? "Show less" : "Show full description"}
                                             </button>
@@ -1130,7 +1183,7 @@ export function JobDetail({
                             case "empty":
                             default:
                                 return (
-                                    <p className="max-w-[640px] text-base leading-normal text-foreground">
+                                    <p className="max-w-prose text-base leading-relaxed text-foreground">
                                         No description was captured for this role.{" "}
                                         {job.apply_url ? (
                                             <>
