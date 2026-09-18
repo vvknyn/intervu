@@ -1292,23 +1292,37 @@ function JobsContent() {
 
     // Honest count for the rail's "Hide likely-ghost" toggle (Task 7) — how
     // many likely_ghost postings the CURRENT filters are hiding right now.
-    // `null` = not resolved yet, or not applicable (ghosts shown) — either
-    // way FilterPanel only renders the count suffix when non-null and > 0.
-    const [ghostHiddenCount, setGhostHiddenCount] = useState<number | null>(null);
+    // `null` = not resolved (ghosts shown, or the probe failed) — either way
+    // FilterPanel only renders the count suffix when non-null and > 0.
+    //
+    // Server-folded (perf first-paint, 2026-09-18): this used to be its own
+    // client-fired probe request, tracked in its own `useState` and reset by
+    // the search effect below. `runJobsSearch` (lib/jobs/run-search.ts) now
+    // computes it server-side, in parallel with the main query, as a field
+    // on the SAME response `searchJobsAction`/`getDefaultBrowseActionGuarded`
+    // already returns — so it's derived straight off `result` instead of
+    // its own round trip. One POST per search instead of two.
+    const ghostHiddenCount = result?.ghostHiddenCount ?? null;
 
     // Beyond-window probe (2026-08-12): the honest corpus count with the
     // 30d posted-bucket filter lifted, for the results line's "N more
     // beyond 30 days — show all" affordance. The 30d default hides real
     // inventory (measured: 2,294 shown vs 7,199 matching roles, ~68%
     // hidden) — this surfaces the gap rather than fabricating one; `null`
-    // means "not applicable right now" (bucket isn't 30d, probe unresolved,
-    // or the probe failed) and `resolveBeyondWindow` (lib/jobs/beyond-
-    // window.ts) is the single place that turns this + the visible
-    // `totalCount` into the show/hide + number decision. `undefined` (the
-    // initial value, and what it's reset to right before each new probe
-    // fires — same idiom as `lastUpdated` below) means "not resolved yet
-    // for the CURRENT search"; `null` means "resolved, not applicable".
-    const [beyondWindowCount, setBeyondWindowCount] = useState<CorpusCount | null | undefined>(undefined);
+    // means "not applicable right now" (bucket isn't 30d, or the probe
+    // failed) and `resolveBeyondWindow` (lib/jobs/beyond-window.ts) is the
+    // single place that turns this + the visible `totalCount` into the
+    // show/hide + number decision.
+    //
+    // Server-folded (perf first-paint, 2026-09-18) — same as `ghostHiddenCount`
+    // above: this landed as its OWN client-fired probe, with a separate
+    // `undefined` "not resolved yet for the current search" state the render
+    // below reserved a placeholder line for. `runJobsSearch` now resolves it
+    // in parallel with the main query, in the SAME response, so there is no
+    // longer a gap between "the result landed" and "the probe landed" for
+    // this render to paper over — see the deleted `beyondWindowPending`
+    // below.
+    const beyondWindowCount = result?.beyondWindowCount ?? null;
 
     // Freshness stamp ("updated 3h ago") for the population the CURRENT
     // search matches — refetched alongside every search below (same
@@ -2095,80 +2109,15 @@ function JobsContent() {
                         "replace",
                     );
                 }
-                // Honest hidden-ghost count for the rail's toggle row (Task 7): one
-                // extra limit-1, facets-only request with hideGhosts flipped off and
-                // any explicit `ghost_badge` facet stripped, so it's counting against
-                // the SAME other filters rather than a legacy-facet-narrowed set (see
-                // controller resolution #2). Skipped entirely when ghosts are already
-                // shown. Fire-and-forget — it must not block `loading`/`finally` below
-                // — and reuses this closure's own `cancelled` flag plus the pagination
-                // generation as its staleness guard (the same precedent
-                // JobsPaginationGeneration/FitIntentGuard set elsewhere in this file),
-                // rather than a bespoke guard class.
-                if (hideGhosts) {
-                    searchJobsAction({
-                        ...buildJobSearchPayload(
-                            { ...filterState, facets: { ...filterState.facets, ghost_badge: undefined }, hideGhosts: false },
-                            query,
-                            backendSort,
-                            postedDateSupported,
-                            locationDefaultSuppressed,
-                        ),
-                        withFacets: true,
-                        limit: 1,
-                        offset: 0,
-                    })
-                        .then((gr) => {
-                            if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
-                            if (isUnavailableJobsResult(gr)) return;
-                            setGhostHiddenCount(gr.facetDistribution?.ghost_badge?.["likely_ghost"] ?? 0);
-                        })
-                        .catch(() => {
-                            /* best-effort — the toggle row just omits the count suffix */
-                        });
-                } else {
-                    setGhostHiddenCount(null);
-                }
-                // Beyond-window probe: same shape as the ghost-hidden-count
-                // probe above (fire-and-forget, same `cancelled`/generation
-                // staleness guard), but only when the 30d default is the
-                // ACTIVE bucket — any other bucket (including "Any") has
-                // nothing further to reveal, so `resolveBeyondWindow` would
-                // hide the affordance anyway and the request would be
-                // wasted. `postedBucket: undefined` lifts the filter to
-                // measure the corpus this same query/facets would match
-                // with no date window; `limit: 0` because only `total` is
-                // needed. Unlike the ghost probe, failure explicitly clears
-                // to `null` — a stale prior-search count masquerading as
-                // this search's "N more" would be exactly the fabricated
-                // number the spec forbids.
-                if (appliedPosted === "30d") {
-                    // Reset to "not resolved yet" before firing — same
-                    // reason as `setLastUpdated(undefined)` below: a PRIOR
-                    // generation's resolved count (or its floor/hidden
-                    // verdict) must never linger under this generation's
-                    // search while this one is in flight.
-                    setBeyondWindowCount(undefined);
-                    searchJobsAction({
-                        ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                        postedBucket: undefined,
-                        limit: 0,
-                        offset: 0,
-                    })
-                        .then((br) => {
-                            if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
-                            if (isUnavailableJobsResult(br)) {
-                                setBeyondWindowCount(null);
-                                return;
-                            }
-                            setBeyondWindowCount(resolveCorpusCount(br, MAX_REACHABLE));
-                        })
-                        .catch(() => {
-                            if (!cancelled) setBeyondWindowCount(null);
-                        });
-                } else {
-                    setBeyondWindowCount(null);
-                }
+                // Ghost-hidden-count and beyond-30d-window probes used to
+                // fire here as two extra client round trips (Task 7 /
+                // 2026-08-12). Perf first-paint (2026-09-18): both are now
+                // computed server-side, in parallel with the main query, by
+                // `runJobsSearch` (lib/jobs/run-search.ts) — `r.ghostHiddenCount`/
+                // `r.beyondWindowCount` above already carry them, and
+                // `ghostHiddenCount`/`beyondWindowCount` (derived consts near
+                // `result`'s declaration) read them straight off `result`.
+                // One POST per search instead of three.
                 // Freshness probe: same fire-and-forget/generation-guard
                 // shape as the ghost-hidden-count and beyond-window probes
                 // above, scoped by the SAME payload the results search just
@@ -4102,16 +4051,13 @@ function JobsContent() {
     // window.ts) is the single place deciding the words; `null` here means
     // "resolved, nothing to show" so it's never passed a bare `undefined`.
     const beyondWindowText = beyondWindow.show ? formatBeyondWindowText(beyondWindow.extra) : null;
-    // True only while the probe for the ACTIVE 30d bucket hasn't resolved
-    // yet for THIS search — distinct from "resolved, not applicable"
-    // (`beyondWindow.show === false` for any other reason). Lets the row
-    // reserve one line of height below so the list doesn't jump the moment
-    // `beyondWindowText` lands (the prod bug: the unqueried landing's probe
-    // resolves to a `floor` with no exact number — see `resolveCorpusCount`
-    // — so it painted a numberless "more roles beyond 30 days" instead of
-    // ever having reserved space for an honest answer).
-    const beyondWindowPending =
-        !beyondWindow.show && !!resultCountLine && appliedPosted === "30d" && beyondWindowCount === undefined;
+    // `beyondWindowPending` (a reserved-height placeholder row for the
+    // window between "the result landed" and "the probe landed") is gone as
+    // of perf first-paint (2026-09-18): `beyondWindowCount` now arrives on
+    // the SAME response as the result itself (`runJobsSearch`,
+    // lib/jobs/run-search.ts), so that gap no longer exists — it can never
+    // be `undefined` here (see its derivation above), only a resolved value
+    // or `null`.
 
     // Deliverable 1 — results render normally on a degraded (served-from-cache)
     // response; this is just the honest caption for it. See
@@ -5735,25 +5681,13 @@ function JobsContent() {
                                                     >
                                                         {resultCountLine}
                                                     </span>
-                                                    {(beyondWindow.show || beyondWindowPending) && (
-                                                        <span
-                                                            className={cn(
-                                                                "flex items-center gap-1.5",
-                                                                // Pending: reserve this line's height (and
-                                                                // roughly its width, so the row wraps the
-                                                                // same way it will once resolved) so the
-                                                                // list below doesn't jump when the real text
-                                                                // lands — never actually shown.
-                                                                !beyondWindow.show && "invisible",
-                                                            )}
-                                                            aria-hidden={beyondWindow.show ? undefined : true}
-                                                        >
-                                                            {beyondWindow.show ? beyondWindowText : formatBeyondWindowText(null)}
+                                                    {beyondWindow.show && (
+                                                        <span className="flex items-center gap-1.5">
+                                                            {beyondWindowText}
                                                             <span aria-hidden>·</span>
                                                             <button
                                                                 type="button"
                                                                 data-testid="beyond-window-show-all"
-                                                                tabIndex={beyondWindow.show ? undefined : -1}
                                                                 onClick={() => panelPostedBucket(undefined)}
                                                                 className="text-foreground underline-offset-2 hover:underline"
                                                             >
