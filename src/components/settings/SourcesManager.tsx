@@ -353,7 +353,6 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                     placeholder="https://example.com/article"
                                                     value={url}
                                                     onChange={(e) => setUrl(e.target.value)}
-                                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                                 />
                                                 <Button onClick={handleFetchUrl} disabled={isLoading || !url} variant="secondary">
                                                     {isLoading ? <Spinner className="animate-spin" /> : "Fetch"}
@@ -365,14 +364,13 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                             placeholder="Title (e.g., Project X Details)"
                                             value={title}
                                             onChange={(e) => setTitle(e.target.value)}
-                                            className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                         />
 
                                         <Textarea
                                             placeholder="Paste content here..."
                                             value={content}
                                             onChange={(e) => setContent(e.target.value)}
-                                            className="min-h-48 rounded-ctl border border-border bg-card px-3 py-2 text-base"
+                                            className="min-h-48"
                                         />
 
                                         {/* Discovered links section */}
@@ -505,7 +503,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                 value={communitySearch}
                                 onChange={(e) => setCommunitySearch(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') loadCommunity(communitySearch); }}
-                                className="h-11 rounded-ctl border border-border bg-card pl-9 pr-3 text-base"
+                                className="h-11 pl-9"
                             />
                         </div>
                         <Button variant="secondary" onClick={() => loadCommunity(communitySearch)} disabled={communityLoading}>

@@ -472,7 +472,7 @@ function ResumeUploadForm({
                     setFileName(null);
                 }}
                 placeholder="Paste your resume text here, or choose a file below…"
-                className="min-h-40 rounded-ctl border border-border bg-card px-3 py-2 font-sans text-base"
+                className="min-h-40 font-sans"
                 disabled={busy}
             />
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">

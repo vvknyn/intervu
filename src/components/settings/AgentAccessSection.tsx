@@ -222,7 +222,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         aria-label="Token label"
                         maxLength={AGENT.MAX_TOKEN_LABEL_LENGTH}
                         disabled={generating}
-                        className="h-11 max-w-64 rounded-ctl border border-border bg-card px-3 text-base"
+                        className="max-w-64"
                     />
                     <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating} className="shrink-0">
                         {generating ? <CircleNotch className="animate-spin" /> : null}

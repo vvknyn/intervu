@@ -269,7 +269,6 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     placeholder="e.g. backend engineer"
-                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -278,7 +277,6 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={location}
                                     onChange={(e) => setLocation(e.target.value)}
                                     placeholder="e.g. Remote, New York"
-                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -287,7 +285,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={experienceLevel ?? ANY}
                                     onValueChange={(v) => setExperienceLevel(v === ANY ? undefined : (v as ExperienceLevel))}
                                 >
-                                    <SelectTrigger className="h-11 rounded-ctl border border-border bg-card px-3 text-base"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                                     <SelectContent className="rounded-panel">
                                         <SelectItem value={ANY}>Any</SelectItem>
                                         {EXPERIENCE_LEVELS.map((lvl) => (
@@ -302,7 +300,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={employmentType ?? ANY}
                                     onValueChange={(v) => setEmploymentType(v === ANY ? undefined : (v as EmploymentType))}
                                 >
-                                    <SelectTrigger className="h-11 rounded-ctl border border-border bg-card px-3 text-base"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                                     <SelectContent className="rounded-panel">
                                         <SelectItem value={ANY}>Any</SelectItem>
                                         {EMPLOYMENT_TYPES.map((t) => (
@@ -319,7 +317,6 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={salaryMin}
                                     onChange={(e) => setSalaryMin(e.target.value)}
                                     placeholder="e.g. 120000"
-                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -328,7 +325,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={postedWithinDays !== undefined ? String(postedWithinDays) : ANY}
                                     onValueChange={(v) => setPostedWithinDays(v === ANY ? undefined : (Number(v) as PostedWithinDays))}
                                 >
-                                    <SelectTrigger className="h-11 rounded-ctl border border-border bg-card px-3 text-base"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                                     <SelectContent className="rounded-panel">
                                         <SelectItem value={ANY}>Any time</SelectItem>
                                         {POSTED_WITHIN_DAYS_OPTIONS.map((d) => (
@@ -362,7 +359,6 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setWorkAuthorization(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. US citizen"
-                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -372,7 +368,6 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setRelocation(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. open to relocating"
-                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -382,7 +377,6 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setNoticePeriod(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. 2 weeks"
-                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -392,7 +386,6 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setStartDate(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. Immediately available"
-                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -402,7 +395,6 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onChange={(e) => setSalaryExpectation(e.target.value)}
                                     maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
                                     placeholder="e.g. $150k+"
-                                    className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                                 />
                             </div>
                         </div>
@@ -422,7 +414,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                         placeholder="Question (e.g. How did you hear about us?)"
                                         maxLength={200}
                                         spellCheck={false}
-                                        className="h-11 min-w-0 w-full rounded-ctl border border-border bg-card px-3 text-base sm:flex-1"
+                                        className="min-w-0 w-full sm:flex-1"
                                     />
                                     <div className="flex min-w-0 w-full items-center gap-2 sm:flex-1">
                                         <Input
@@ -430,7 +422,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                             onChange={(e) => updateCustomRow(row.id, { value: e.target.value })}
                                             placeholder="Answer"
                                             maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
-                                            className="h-11 min-w-0 w-full rounded-ctl border border-border bg-card px-3 text-base flex-1"
+                                            className="min-w-0 w-full flex-1"
                                         />
                                         <Button
                                             type="button"

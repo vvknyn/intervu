@@ -275,7 +275,6 @@ export function SettingsContainer() {
                                 value={deleteConfirmText}
                                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                                 placeholder="Type DELETE to confirm"
-                                className="h-11 rounded-ctl border border-border bg-card px-3 text-base"
                             />
                         </div>
                         <DialogFooter>
