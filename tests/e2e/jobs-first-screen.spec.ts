@@ -95,7 +95,7 @@ test.beforeAll(async ({ browser }) => {
  * `mobile` describe block share this one measurement.
  */
 const searchLineFields = (page: import('@playwright/test').Page) => [
-    { name: "search query", box: page.getByPlaceholder(/What kind of work/i) },
+    { name: "search query", box: page.getByPlaceholder(/Job title/i) },
     { name: "location", box: page.getByTestId("location-input") },
 ];
 
@@ -225,7 +225,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
                 .first(),
         ).toBeVisible({ timeout: 20_000 });
 
-        await page.getByPlaceholder(/What kind of work/i).fill('engineer');
+        await page.getByPlaceholder(/Job title/i).fill('engineer');
 
         await expect(page).toHaveURL(/q=engineer/);
         await expect(
@@ -287,11 +287,11 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     /**
      * TASK 6 — Trust toolbar: corpus-count placeholder, freshness stamp, fit sort.
      */
-    test("placeholder asks what kind of work the user wants", async ({ page }) => {
+    test("placeholder names what to search by", async ({ page }) => {
         await page.goto('/jobs?posted=any');
         await expect(page.getByRole("textbox").first()).toHaveAttribute(
             "placeholder",
-            /What kind of work/i,
+            /Job title/i,
         );
     });
 
@@ -626,7 +626,7 @@ test.describe("mobile", () => {
 
     test("search query and location inputs do not overlap on mobile", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        const queryBox = page.getByPlaceholder(/What kind of work/i);
+        const queryBox = page.getByPlaceholder(/Job title/i);
         const locationBox = page.getByTestId("location-input");
         await expect(queryBox).toBeVisible();
         await expect(locationBox).toBeVisible();

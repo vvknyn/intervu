@@ -314,7 +314,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     aria-label={ariaLabel}
                     placeholder={placeholder}
                     className={cn(
-                        "relative z-20 transition-all",
+                        "relative z-20 overflow-hidden text-ellipsis transition-all",
                         leadingIcon && "min-w-0 flex-1",
                         // Must clear the button's own footprint (inset + size),
                         // which differs per breakpoint below: mobile needs
