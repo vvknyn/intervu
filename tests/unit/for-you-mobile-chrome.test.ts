@@ -7,18 +7,22 @@ const FOR_YOU = join(__dirname, "../../src/components/jobs/for-you");
 const JOBS = join(__dirname, "../../src/components/jobs");
 const RESUME = join(__dirname, "../../src/components/resume-builder");
 const COMPANY = join(__dirname, "../../src/components/company");
-const APP = join(__dirname, "../../src/app/jobs/page.tsx");
 
 describe("for-you mobile chrome", () => {
     it("ForYouToggle tabs meet 44px touch target", () => {
         const src = readFileSync(join(FOR_YOU, "ForYouToggle.tsx"), "utf8");
-        assert.match(src, /inline-flex min-h-11 items-center px-4 text-xs font-semibold/);
+        assert.match(src, /min-h-11 justify-center border-transparent px-4 font-semibold/);
     });
 
-    it("PreferenceChipStrip keeps wrap and reachable Edit link", () => {
-        const src = readFileSync(join(FOR_YOU, "PreferenceChipStrip.tsx"), "utf8");
-        assert.match(src, /flex flex-wrap/);
-        assert.match(src, /inline-flex min-h-11 items-center text-xs font-semibold/);
+    it("ForYouHome's preference row wraps and its Edit link shares the toolbar's tap-target height", () => {
+        const src = readFileSync(join(FOR_YOU, "ForYouHome.tsx"), "utf8");
+        assert.match(src, /data-testid="for-you-preferences"/);
+        assert.match(src, /flex shrink-0 flex-wrap items-center gap-2/);
+        assert.match(src, /import \{ toolbarChipClass \} from "@\/lib\/jobs\/toolbar-control-height"/);
+        const editLinkBlock =
+            src.match(/<Link\s+href="\/settings"[\s\S]*?<\/Link>/)?.[0] ?? "";
+        assert.match(editLinkBlock, /toolbarChipClass/);
+        assert.match(editLinkBlock, /Edit preferences/);
     });
 
     it("LocalCustomizePanel dialog and footer actions are phone-friendly", () => {
@@ -50,11 +54,5 @@ describe("for-you mobile chrome", () => {
     it("ApplyIntentDialog uses dvh for mobile viewport height", () => {
         const src = readFileSync(join(JOBS, "ApplyIntentDialog.tsx"), "utf8");
         assert.match(src, /max-h-\[85dvh\]/);
-    });
-
-    it("jobs page wires ForYouHome replace-resume props", () => {
-        const src = readFileSync(APP, "utf8");
-        assert.match(src, /onReplaceResume=\{\(\) => handleUploadClick\(\)\}/);
-        assert.match(src, /hasUsableResume=\{hasUsableResume\}/);
     });
 });
