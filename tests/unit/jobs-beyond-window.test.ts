@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveBeyondWindow } from '../../src/lib/jobs/beyond-window';
+import { resolveBeyondWindow, formatBeyondWindowText } from '../../src/lib/jobs/beyond-window';
 import type { CorpusCount } from '../../src/lib/jobs/corpus-count';
 
 const exact = (value: number): CorpusCount => ({ kind: 'exact', value });
@@ -52,5 +52,36 @@ describe('resolveBeyondWindow', () => {
             show: true,
             extra: null,
         });
+    });
+
+    it('probe not yet resolved (undefined) — same hidden decision as null, for the show/extra call', () => {
+        assert.deepEqual(resolveBeyondWindow('30d', exact(2_294), undefined), { show: false, extra: null });
+    });
+});
+
+// Prod regression, 2026-09-17: the anonymous /jobs landing (no query — the
+// "beyond 30 days" population is the WHOLE corpus, no facets requested on
+// that probe — see page.tsx's beyond-window probe) rendered the bare
+// fragment "more roles beyond 30 days · Show all" with no number, because
+// `resolveBeyondWindow`'s legitimate `{ show: true, extra: null }` floor
+// case and its `undefined` (not-yet-resolved) case both used to collapse
+// into the same blank spot. A sentence naming a count must never render
+// without the count.
+describe('formatBeyondWindowText', () => {
+    it('not resolved yet for this search — renders nothing (caller reserves the line height)', () => {
+        assert.equal(formatBeyondWindowText(undefined), null);
+    });
+
+    it('a legitimate zero (or negative) — renders nothing, there is nothing beyond', () => {
+        assert.equal(formatBeyondWindowText(0), null);
+        assert.equal(formatBeyondWindowText(-3), null);
+    });
+
+    it('the surfaced case — resolved but uncountable (floor on either side) — an honest sentence, never a hole, parallel to the counted form', () => {
+        assert.equal(formatBeyondWindowText(null), 'More roles beyond 30 days');
+    });
+
+    it('a resolved exact count — the counted sentence', () => {
+        assert.equal(formatBeyondWindowText(6_977), '6,977 more beyond 30 days');
     });
 });
