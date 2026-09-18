@@ -278,20 +278,19 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             </div>
           </div>
 
-          {/* Rail: the hiring record and list health, named and gated —
-              same follower-only boundary as the main column's intel gate
-              (Section 05: "the proposal changes only the locked state's
-              form ... never which facts are locked"), one lock row shared by
-              both named boxes, no button (the header's Follow control above
-              is this page's one primary CTA). */}
+          {/* Rail: the hiring record and list health — same follower-only
+              boundary as the main column's intel gate, but a locked visitor
+              already sees that gate's one lock card, so this instance's
+              fallback prop is set to null and it renders nothing rather
+              than a second, near-duplicate card. Unlocked, its content
+              renders normally. */}
           <aside className="space-y-4">
             <CompanyIntelGate
               domain={data.domain}
               slug={data.slug}
               displayName={data.name}
               testId="company-intel-gate-record"
-              description={`The hiring record and list health for ${data.name} — visible once you follow.`}
-              showFollowButton={false}
+              fallback={null}
             >
               <div className="space-y-4">
                 {/* Plain-language hiring record — same figures the old
