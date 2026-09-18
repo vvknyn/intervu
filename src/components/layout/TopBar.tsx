@@ -176,7 +176,7 @@ export function TopBar() {
                                 <span className={cn(menuActive && "border-b-2 border-brand")}>{menuTriggerLabel}</span>
                                 <CaretDown aria-hidden />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="min-w-[9rem]">
+                            <DropdownMenuContent align="start" className="min-w-[9rem] rounded-panel border-border bg-card">
                                 {menuTabs.map((tab) => {
                                     const active = tab.match(pathname);
                                     return (
