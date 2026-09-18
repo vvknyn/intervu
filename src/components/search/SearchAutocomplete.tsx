@@ -366,7 +366,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         // of what a mousedown handler does.
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onClear?.()}
-                        className="absolute right-1.5 z-30 flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5 lg:h-6 lg:w-6"
+                        className="absolute right-1.5 z-30 flex h-10 w-10 items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5 lg:h-6 lg:w-6"
                     >
                         <X size={20} aria-hidden />
                     </button>

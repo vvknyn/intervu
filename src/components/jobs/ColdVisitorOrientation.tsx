@@ -85,7 +85,7 @@ export function ColdVisitorOrientation({
                 data-testid="cold-visitor-orientation"
                 data-compact="true"
                 className={cn(
-                    "flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground",
+                    "flex items-center gap-3 rounded-panel border border-border bg-card px-3 py-2 text-sm text-foreground",
                     className,
                 )}
             >
@@ -99,7 +99,7 @@ export function ColdVisitorOrientation({
                     size="sm"
                     onClick={onRankByFit}
                     data-testid="orientation-rank-by-fit"
-                    className="shrink-0 text-xs font-semibold rounded-lg"
+                    className="shrink-0 text-xs font-semibold rounded-ctl"
                 >
                     Rank by fit
                 </Button>
@@ -107,7 +107,7 @@ export function ColdVisitorOrientation({
                     type="button"
                     onClick={handleDismiss}
                     aria-label="Dismiss welcome guide"
-                    className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-ctl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 >
                     <X size={16} weight="bold" aria-hidden />
                 </button>
@@ -119,7 +119,7 @@ export function ColdVisitorOrientation({
         <div
             data-testid="cold-visitor-orientation"
             className={cn(
-                "relative mb-4 rounded-xl border border-border bg-card p-4 sm:p-5 transition-all",
+                "relative mb-4 rounded-panel border border-border bg-card p-4 sm:p-5 transition-all",
                 className,
             )}
         >
@@ -127,7 +127,7 @@ export function ColdVisitorOrientation({
                 type="button"
                 onClick={handleDismiss}
                 aria-label="Dismiss welcome guide"
-                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-ctl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
                 <X size={16} weight="bold" aria-hidden />
             </button>
@@ -146,8 +146,8 @@ export function ColdVisitorOrientation({
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="flex items-start gap-3 rounded-xl border border-border bg-muted p-3">
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-background text-foreground border border-border">
+                <div className="flex items-start gap-3 rounded-panel border border-border bg-muted p-3">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-panel bg-background text-foreground border border-border">
                         <MagnifyingGlass size={16} weight="bold" aria-hidden />
                     </div>
                     <div className="min-w-0">
@@ -158,9 +158,9 @@ export function ColdVisitorOrientation({
                     </div>
                 </div>
 
-                <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-muted p-3">
+                <div className="flex items-start justify-between gap-3 rounded-panel border border-border bg-muted p-3">
                     <div className="flex items-start gap-3 min-w-0">
-                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-background text-foreground border border-border">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-panel bg-background text-foreground border border-border">
                             <Sparkle size={16} weight="bold" aria-hidden />
                         </div>
                         <div className="min-w-0">
@@ -176,7 +176,7 @@ export function ColdVisitorOrientation({
                         size="sm"
                         onClick={onRankByFit}
                         data-testid="orientation-rank-by-fit"
-                        className="shrink-0 text-xs font-semibold rounded-lg"
+                        className="shrink-0 text-xs font-semibold rounded-ctl"
                     >
                         Rank by fit
                     </Button>

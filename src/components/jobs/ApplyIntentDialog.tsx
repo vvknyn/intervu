@@ -29,7 +29,7 @@ const CLIENT_LABEL: Record<McpHandoffClient, string> = {
 };
 
 const outlineButtonCls =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border-strong px-4 text-xs font-semibold transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60";
+    "inline-flex h-11 items-center justify-center gap-2 rounded-ctl border border-border-strong px-4 text-xs font-semibold transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60";
 
 /**
  * Shown once, at the moment someone commits to applying. Handing the role to
@@ -99,7 +99,7 @@ export function ApplyIntentDialog({
                 growing the whole dialog past `max-h` and pushing the footer
                 off screen — that was the bug: the exit lived inside the same
                 scrolling block as content that can run long. */}
-            <DialogContent className="flex max-h-[85dvh] flex-col rounded-xl sm:max-w-lg">
+            <DialogContent className="flex max-h-[85dvh] flex-col rounded-panel sm:max-w-lg">
                 <DialogHeader className="shrink-0">
                     <DialogTitle className="text-title">Tailor your résumé — free, bring your own agent</DialogTitle>
                     <DialogDescription className="text-sm leading-relaxed">

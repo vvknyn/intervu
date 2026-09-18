@@ -134,7 +134,7 @@ export function TopBar() {
                             }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="hidden h-8 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-full border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="hidden h-8 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
                                 <MagnifyingGlass className="shrink-0 self-center text-foreground" />
@@ -167,7 +167,7 @@ export function TopBar() {
                         <DropdownMenu>
                             <DropdownMenuTrigger
                                 className={cn(
-                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1 text-sm transition-colors outline-none",
+                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors outline-none",
                                     menuActive
                                         ? "font-semibold text-foreground"
                                         : "font-normal text-muted-foreground hover:text-foreground",
@@ -217,7 +217,7 @@ export function TopBar() {
                                     aria-current={active ? "page" : undefined}
                                     data-nav-current={active ? "true" : undefined}
                                     className={cn(
-                                        "whitespace-nowrap rounded-lg px-3 py-1 text-sm transition-colors",
+                                        "whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors",
                                         active
                                             ? "font-semibold text-foreground"
                                             : "font-normal text-muted-foreground hover:text-foreground",
@@ -267,7 +267,7 @@ export function TopBar() {
                                 setAuthTab("login");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="rounded-lg"
+                            className="rounded-ctl"
                         >
                             {AUTH_CTA_LABEL}
                         </Button>

@@ -46,7 +46,7 @@ export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps)
             <span
                 data-testid="match-chip"
                 className={cn(
-                    "mono-data inline-block rounded-full border px-2 py-0.5 text-xs font-semibold leading-none",
+                    "mono-data inline-block rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none",
                     strong ? "border-brand bg-card text-brand" : "border-border bg-chip text-foreground",
                     className,
                 )}

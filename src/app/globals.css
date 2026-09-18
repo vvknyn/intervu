@@ -455,12 +455,16 @@
   --shadow-2xl: none;
   --shadow-inner: none;
 
-  /* Soft-surfaces radius scale (2026-09-17, was strict 0px Carbon). Roles
-     are assigned at each call site (see DESIGN-LANGUAGE.md / the T3 mapping
-     in the soft-surfaces PR): pills = rounded-full, buttons = rounded-lg,
-     panels/cards = rounded-xl, logo tiles = rounded-xl, bottom sheet =
-     rounded-t-2xl. --radius-2xs/--radius-xs have no assigned role; left at
-     0px rather than guessed. */
+  /* Soft-surfaces radius scale (2026-09-17, was strict 0px Carbon). The
+     named sizes below (--radius-lg, --radius-xl, ...) stay at their
+     pre-soft-surfaces values (most at 0px) — nothing outside this PR
+     changes. Soft-surfaces call sites instead use the SEMANTIC tokens
+     below (ruling 2026-09-17: named-size classes are a banned-classes.cjs
+     lie; a role name is not): --radius-ctl (buttons, inputs, square
+     chips), --radius-panel (cards, sheets, dialogs, popovers, logo
+     tiles), --radius-pill (search pill, pill chips, avatars, status
+     dots). --radius-2xs/--radius-xs have no assigned role; left at 0px
+     rather than guessed. */
   --radius: 8px;
   --radius-2xs: 0px;
   --radius-xs: 0px;
@@ -471,6 +475,9 @@
   --radius-2xl: 20px;
   --radius-3xl: 24px;
   --radius-4xl: 32px;
+  --radius-ctl: 12px;
+  --radius-panel: 16px;
+  --radius-pill: 9999px;
   --color-sidebar: rgb(var(--sidebar));
   --color-sidebar-foreground: rgb(var(--sidebar-foreground));
   --color-sidebar-primary: rgb(var(--sidebar-primary));

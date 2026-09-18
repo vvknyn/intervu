@@ -13,7 +13,7 @@ export const chipVariants = cva(
   // A chip carries a label, never code, so it takes the sans — with tabular
   // figures, since chips routinely hold counts that sit in a row and should
   // not jitter as the numbers change.
-  "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-border bg-background px-3 text-sm tabular-nums text-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-pill border border-border bg-background px-3 text-sm tabular-nums text-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
@@ -40,7 +40,7 @@ export const chipVariants = cva(
  *  (ACCENT DISCIPLINE: brand navy is reserved for the 3 named filled
  *  controls, not a filter count badge). */
 export const filterCountBadgeClass =
-  "inline-flex min-w-4 items-center justify-center rounded-full border border-border bg-muted px-1 text-xs font-semibold tabular-nums text-foreground"
+  "inline-flex min-w-4 items-center justify-center rounded-pill border border-border bg-muted px-1 text-xs font-semibold tabular-nums text-foreground"
 
 /** The chip's own dismiss icon — shared so every chip's remove affordance is
  *  the same tap target/hover treatment instead of an inline one-off button. */
