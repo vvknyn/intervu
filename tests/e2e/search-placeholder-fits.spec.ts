@@ -20,14 +20,15 @@ import { SEARCH_PLACEHOLDER } from '../../src/lib/jobs/search-copy';
  * bug: it measures the ACTUAL rendered placeholder text against the
  * input's actual usable width (via canvas `measureText` on the input's own
  * computed font, so it tracks whatever copy `SEARCH_PLACEHOLDER` holds
- * rather than a hard-coded string), at three viewports spanning the
+ * rather than a hard-coded string), at five viewports spanning the
  * responsive range this pill renders at — 390 (mobile, unaffected by the
- * lg-only width fix), 1024 (the `lg` breakpoint itself), and 1440 (the
- * viewport the bug was measured at) — so a fix scoped to only 1440 would
- * still be caught here at 1024.
+ * fix), 640 and 768 (the `sm` row-layout range, where the original
+ * `lg`-only fix left the placeholder clipped), 1024 (the `lg` breakpoint
+ * itself), and 1440 (the viewport the bug was measured at) — so a fix
+ * scoped to only one breakpoint would still be caught at the others.
  */
 
-const VIEWPORTS = [390, 1024, 1440] as const;
+const VIEWPORTS = [390, 640, 768, 1024, 1440] as const;
 
 /** `atRest` (page.tsx) starts false and flips true once a mount effect
  *  confirms scroll position — until it does, the search section briefly

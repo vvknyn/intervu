@@ -5186,7 +5186,10 @@ function JobsContent() {
                         // rounded-none (at rest): PR #534's own flat front-door frame,
                         // out of this pass's scope — the raised well below is the
                         // soft-surfaces panel this pass owns.
-                        atRest ? "rounded-none mx-auto max-w-[960px] lg:max-w-7xl" : "rounded-panel border border-border bg-card p-2 sm:p-2.5",
+                        // w-full (2026-09-17): mx-auto on a flex item suppresses
+                        // cross-axis stretch (Flexbox spec) — the same defect PR
+                        // #540 fixed on the toolbar section, same fix here.
+                        atRest ? "rounded-none mx-auto w-full max-w-[960px] lg:max-w-7xl" : "rounded-panel border border-border bg-card p-2 sm:p-2.5",
                     )}
                 >
                     {/* A3 (front-door redesign): the live count renders once,
@@ -5199,8 +5202,13 @@ function JobsContent() {
                         `headerDockActive` is always false (the header dock
                         never shows there — see TopBar), so this row stays
                         put and the sticky mobile CTA keeps owning search. */}
+                    {/* sm:justify-center (on the row below): now that the section
+                        above stretches to its real max-width, the pill's own
+                        sm:max-w-[42rem] cap can leave room in this row unfilled —
+                        center the pill+button pair in it instead of pinning them
+                        to the start. */}
                     {!headerDockActive && (
-                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
+                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5 sm:justify-center">
                         {/* `bg-card`, not `bg-background`: inside the raised well
                             the field has to be the brightest thing on the page,
                             which is the only direction contrast can go on a
@@ -5215,25 +5223,17 @@ function JobsContent() {
                             onFocus={() => setMobileSearchFocused(true)}
                             className={cn(
                                 "flex flex-col rounded-pill border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x",
-                                // 2026-09-17 (Vivek): at 1440 the placeholder measured
-                                // wider than the room the pill actually had — the row
-                                // that hosts it (`data-search-line`) sits inside a flex
-                                // column whose `mx-auto` suppresses stretch (the same
-                                // mechanism documented in
-                                // tests/e2e/no-horizontal-overflow.spec.ts), so it
-                                // shrink-wraps to content instead of the section's own
-                                // max-w-7xl. `sm:flex-1` has `flex-basis: 0%`, which
-                                // contributes nothing to that shrink-to-fit measurement,
-                                // so the pill only ever got as wide as its own content
-                                // needed (415px) rather than the 42rem this pass wants.
-                                // `lg:flex-initial` (basis: auto, grow: 0) makes the
-                                // width below the real, definite size ancestors size
-                                // around, and `lg:w-[42rem]` is that size — `flex-shrink`
-                                // stays on so a narrower lg viewport still protects
-                                // against overflow. Below lg, `sm:flex-1` is untouched.
-                                "lg:w-[42rem] lg:flex-initial",
+                                // Mechanism: the ancestor <section> above used to
+                                // shrink-wrap (mx-auto suppressing stretch), so this
+                                // sm:flex-1 (basis 0%) had no real room to fill.
+                                // Precedent: PR #540 fixed the identical defect on
+                                // the toolbar section with w-full; fixed there, not
+                                // here — see the section's className above.
+                                // Cap: sm:max-w-[42rem] bounds how wide flex-1 may
+                                // grow now that the row actually has room to give.
+                                "sm:max-w-[42rem]",
                             )}>
-                            <div className="relative flex min-w-0 w-full sm:flex-1 items-center lg:flex-[3]">
+                            <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
                                     ref={searchAutocompleteRef}
                                     value={queryDraft}
@@ -5270,7 +5270,7 @@ function JobsContent() {
                                 SearchAutocomplete's (see its doc comment): padding
                                 is a shared tailwind-merge axis and an overlay only
                                 stays clear of the text while nobody touches it. */}
-                            <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px] lg:max-w-none lg:flex-[2]">
+                            <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
                                 <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
                                     <MapPin size={16} weight="bold" />
                                 </span>
