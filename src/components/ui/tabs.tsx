@@ -26,7 +26,7 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  "rounded-none group/tabs-list group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
+  "group/tabs-list group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
   {
     variants: {
       variant: {
@@ -35,7 +35,7 @@ const tabsListVariants = cva(
         line: "flex border-b border-border gap-0 bg-transparent p-0",
         // Segmented control, not a nav-tab pattern — kept for login-form.tsx's
         // sign-in/create-account toggle, outside this pass's line-tabs scope.
-        block: "gap-0 rounded-none border border-border bg-muted p-0.5 inline-flex w-fit items-center justify-center group-data-[orientation=horizontal]/tabs:h-auto",
+        block: "gap-0 rounded-ctl border border-border bg-muted p-0.5 inline-flex w-fit items-center justify-center group-data-[orientation=horizontal]/tabs:h-auto",
       },
     },
     defaultVariants: {
@@ -68,7 +68,7 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "inline-flex h-10 items-center justify-center gap-1.5 rounded-none px-4 text-sm font-normal whitespace-nowrap text-muted-foreground transition-colors focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex h-11 items-center justify-center gap-1.5 rounded-ctl px-4 text-sm font-normal whitespace-nowrap text-muted-foreground transition-colors focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
         "-mb-px border-b-2 border-transparent hover:text-foreground",
         "data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:",
         "group-data-[variant=block]/tabs-list:h-8 group-data-[variant=block]/tabs-list:border-b-0 group-data-[variant=block]/tabs-list:data-[state=active]:bg-primary group-data-[variant=block]/tabs-list:data-[state=active]:text-primary-foreground",

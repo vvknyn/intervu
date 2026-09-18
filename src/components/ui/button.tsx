@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 const TERTIARY_BUTTON_CLASSES = "border border-brand bg-transparent text-brand hover:bg-muted"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-none text-sm font-normal transition-colors focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-ctl text-sm font-normal transition-colors focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -32,7 +32,7 @@ const buttonVariants = cva(
         default: "h-8 px-3",
         xs: "h-8 px-2",
         sm: "h-8 px-3",
-        lg: "h-10 px-4 [&_svg]:size-5",
+        lg: "h-11 px-4 [&_svg]:size-5",
         icon: "size-8",
         "icon-lg": "size-10 [&_svg]:size-5",
       },

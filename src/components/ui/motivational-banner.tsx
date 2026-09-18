@@ -57,7 +57,7 @@ export function MotivationalBanner() {
             </p>
             <button
                 onClick={dismiss}
-                className="opacity-0 group-hover/banner:opacity-100 p-0.5 rounded-none text-muted-foreground hover:text-muted-foreground transition-opacity duration-200"
+                className="opacity-0 group-hover/banner:opacity-100 p-0.5 rounded-ctl text-muted-foreground hover:text-muted-foreground transition-opacity duration-200"
                 aria-label="Dismiss"
             >
                 <X />
