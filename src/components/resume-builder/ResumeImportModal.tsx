@@ -58,6 +58,37 @@ interface ResumeImportModalProps {
 type ImportStep = 'input' | 'parsing' | 'review';
 type InputMethod = 'file' | 'paste';
 
+/**
+ * The modal's "parsing" step markup, extracted to a standalone export so the
+ * design-conformance mock route (src/app/mock/resume) can render this exact
+ * state without duplicating it or reaching into the modal's internal step
+ * machinery — single source of truth for what "parsing" looks like.
+ */
+export function ResumeParsingStep({ localAiEnabled }: { localAiEnabled: boolean }) {
+    return (
+        <div className="py-12 text-center space-y-4">
+            <div className="w-16 h-16 rounded-pill bg-muted flex items-center justify-center mx-auto animate-pulse">
+                {localAiEnabled ? (
+                    <Cpu size={24} weight="fill" className="text-brand" />
+                ) : (
+                    <Sparkle size={24} weight="fill" className="text-brand" />
+                )}
+            </div>
+            <div>
+                <p className="text-foreground">Parsing your resume...</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                    {localAiEnabled
+                        ? "Structuring on this device — no cloud LLM"
+                        : "AI is extracting structured information"}
+                </p>
+            </div>
+            <div className="w-48 h-1 rounded-pill bg-secondary mx-auto overflow-hidden">
+                <div className="h-full w-full rounded-pill bg-primary animate-pulse" />
+            </div>
+        </div>
+    );
+}
+
 export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
@@ -290,7 +321,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     const renderLocalAiConsent = () => {
         return (
-            <div className="p-3.5 border border-border bg-muted space-y-2.5">
+            <div className="rounded-panel p-3.5 border border-border bg-muted space-y-2.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm font-semibold">
                         <Cpu size={16} className="text-brand shrink-0" />
@@ -303,10 +334,10 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                 setLocalAiEnabled(true);
                                 writeLocalAiEnabled(true);
                             }}
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-none border transition-colors ${
+                            className={`min-h-6 rounded-ctl px-3 text-xs font-semibold leading-none transition-colors ${
                                 localAiEnabled
-                                    ? "border-border bg-card text-foreground"
-                                    : "border-transparent text-muted-foreground hover:text-foreground"
+                                    ? "text-foreground underline underline-offset-2"
+                                    : "text-muted-foreground hover:text-foreground"
                             }`}
                         >
                             On-Device AI
@@ -317,10 +348,10 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                 setLocalAiEnabled(false);
                                 writeLocalAiEnabled(false);
                             }}
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-none border transition-colors ${
+                            className={`min-h-6 rounded-ctl px-3 text-xs font-semibold leading-none transition-colors ${
                                 !localAiEnabled
-                                    ? "border-border bg-card text-foreground"
-                                    : "border-transparent text-muted-foreground hover:text-foreground"
+                                    ? "text-foreground underline underline-offset-2"
+                                    : "text-muted-foreground hover:text-foreground"
                             }`}
                         >
                             Standard (No AI)
@@ -380,7 +411,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onClick={() => fileInputRef.current?.click()}
-                    className="border border-border rounded-none p-8 text-center cursor-pointer hover:border-brand hover:bg-muted transition-colors"
+                    className="rounded-panel border border-border p-8 text-center cursor-pointer hover:border-brand hover:bg-muted transition-colors"
                 >
                     <input
                         ref={fileInputRef}
@@ -391,7 +422,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     />
                     {selectedFile ? (
                         <div className="space-y-2">
-                            <div className="w-12 h-12 rounded-none bg-muted flex items-center justify-center mx-auto">
+                            <div className="w-12 h-12 rounded-pill bg-muted flex items-center justify-center mx-auto">
                                 <FileText size={24} weight="duotone" className="text-brand" />
                             </div>
                             <p className="text-foreground">{selectedFile.name}</p>
@@ -410,7 +441,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            <div className="w-12 h-12 rounded-none bg-secondary flex items-center justify-center mx-auto">
+                            <div className="w-12 h-12 rounded-pill bg-secondary flex items-center justify-center mx-auto">
                                 <Upload size={24} weight="duotone" className="text-muted-foreground" />
                             </div>
                             <div>
@@ -431,7 +462,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                         value={pastedText}
                         onChange={(e) => setPastedText(e.target.value)}
                         placeholder="Copy and paste your resume content here..."
-                        className="min-h-[250px] text-base md:text-sm resize-none"
+                        className="min-h-64 text-base md:text-sm resize-none"
                     />
                     <p className="text-xs text-muted-foreground">
                         {pastedText.length > 0 && `${pastedText.length} characters`}
@@ -440,34 +471,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             )}
 
             {error && (
-                <div className="p-3 rounded-none bg-muted border border-danger-text text-danger-text text-sm flex items-center gap-2">
+                <div className="rounded-panel p-3 bg-muted border border-danger-text text-danger-text text-sm flex items-center gap-2">
                     <Warning size={16} weight="bold" />
                     {error}
                 </div>
             )}
-        </div>
-    );
-
-    const renderParsingStep = () => (
-        <div className="py-12 text-center space-y-4">
-            <div className="w-16 h-16 rounded-none bg-muted flex items-center justify-center mx-auto animate-pulse">
-                {localAiEnabled ? (
-                    <Cpu size={24} weight="fill" className="text-brand" />
-                ) : (
-                    <Sparkle size={24} weight="fill" className="text-brand" />
-                )}
-            </div>
-            <div>
-                <p className="text-foreground">Parsing your resume...</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                    {localAiEnabled
-                        ? "Structuring on this device — no cloud LLM"
-                        : "AI is extracting structured information"}
-                </p>
-            </div>
-            <div className="w-48 h-1 bg-secondary rounded-none mx-auto overflow-hidden">
-                <div className="h-full bg-primary rounded-none animate-[progress_2s_ease-in-out_infinite]" style={{ width: '60%' }} />
-            </div>
         </div>
     );
 
@@ -500,7 +508,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
                 {localParseBlocked && (
                     <div className="px-6">
-                        <div className="p-3 rounded-none bg-muted border border-warn text-warn text-sm flex items-start gap-2">
+                        <div className="rounded-panel p-3 bg-muted border border-warn text-warn text-sm flex items-start gap-2">
                             <Warning size={16} weight="bold" className="shrink-0 mt-0.5" />
                             <span>
                                 Confidence is {reviewConfidence.overall}% — needs to be above{" "}
@@ -592,7 +600,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </div>
                             <div className="space-y-4">
                                 {editedData.experience.map((exp, idx) => (
-                                    <div key={exp.id} className="p-3 bg-muted rounded-none space-y-2">
+                                    <div key={exp.id} className="rounded-panel p-3 bg-muted space-y-2">
                                         <div className="grid grid-cols-2 gap-2">
                                             <Input
                                                 value={exp.company}
@@ -617,7 +625,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                             value={exp.description}
                                             onChange={(e) => updateExperience(idx, 'description', e.target.value)}
                                             placeholder="Description"
-                                            className="min-h-[60px] text-base md:text-xs"
+                                            className="min-h-16 text-base md:text-xs"
                                         />
                                     </div>
                                 ))}
@@ -657,7 +665,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </div>
                             <div className="space-y-3">
                                 {editedData.education.map((edu, idx) => (
-                                    <div key={edu.id} className="p-3 bg-muted rounded-none space-y-2">
+                                    <div key={edu.id} className="rounded-panel p-3 bg-muted space-y-2">
                                         <Input
                                             value={edu.degree}
                                             onChange={(e) => updateEducation(idx, 'degree', e.target.value)}
@@ -695,7 +703,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                 value={editedData.generatedSummary}
                                 onChange={(e) => setEditedData({ ...editedData, generatedSummary: e.target.value })}
                                 placeholder="Professional summary"
-                                className="min-h-[80px] text-base md:text-sm"
+                                className="min-h-20 text-base md:text-sm"
                             />
                         </div>
                     </div>
@@ -719,14 +727,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="flex w-full max-w-[calc(100%-1rem)] flex-col overflow-hidden bg-white max-h-[90dvh] dark:bg-muted sm:max-w-[600px]">
+            <DialogContent className="flex w-full max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-panel bg-white max-h-[90dvh] dark:bg-muted sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         {title ? (
                             title
                         ) : (
                             <>
-                                <div className="w-8 h-8 rounded-none bg-muted flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-panel bg-muted flex items-center justify-center">
                                     <Upload weight="bold" className="text-brand" />
                                 </div>
                                 Import Resume
@@ -746,7 +754,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
                 <div className="flex-1 overflow-hidden py-4">
                     {step === 'input' && renderInputStep()}
-                    {step === 'parsing' && renderParsingStep()}
+                    {step === 'parsing' && <ResumeParsingStep localAiEnabled={localAiEnabled} />}
                     {step === 'review' && renderReviewStep()}
                 </div>
 
@@ -770,7 +778,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             <Button className="h-11 min-h-11" onClick={handleParse} disabled={!canProceed() || isProcessing}>
                                 {isProcessing ? (
                                     <>
-                                        <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-none animate-spin mr-2" />
+                                        <div className="w-4 h-4 rounded-pill border-2 border-background border-t-transparent animate-spin mr-2" />
                                         Processing...
                                     </>
                                 ) : (
