@@ -149,7 +149,8 @@ import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-sto
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
-import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
+import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
+import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
 import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
 import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
@@ -345,10 +346,6 @@ function modeToUrlSort(mode: JobSortMode): UrlSort {
  * losing their place on the return sweep.
  */
 const cappedContentClass = "mx-auto w-full max-w-[1600px]";
-
-/** Shared by the hero search box and its docked copy in the header (see the
- *  dock effect below) — one string, so the two can never read differently. */
-const SEARCH_PLACEHOLDER = "Job title, skill, or company";
 
 function ToolbarSegment({
     label,
@@ -1631,8 +1628,11 @@ function JobsContent() {
     // means "not applicable right now" (bucket isn't 30d, probe unresolved,
     // or the probe failed) and `resolveBeyondWindow` (lib/jobs/beyond-
     // window.ts) is the single place that turns this + the visible
-    // `totalCount` into the show/hide + number decision.
-    const [beyondWindowCount, setBeyondWindowCount] = useState<CorpusCount | null>(null);
+    // `totalCount` into the show/hide + number decision. `undefined` (the
+    // initial value, and what it's reset to right before each new probe
+    // fires — same idiom as `lastUpdated` below) means "not resolved yet
+    // for the CURRENT search"; `null` means "resolved, not applicable".
+    const [beyondWindowCount, setBeyondWindowCount] = useState<CorpusCount | null | undefined>(undefined);
 
     // Freshness stamp ("updated 3h ago") for the population the CURRENT
     // search matches — refetched alongside every search below (same
@@ -2467,6 +2467,12 @@ function JobsContent() {
                 // this search's "N more" would be exactly the fabricated
                 // number the spec forbids.
                 if (appliedPosted === "30d") {
+                    // Reset to "not resolved yet" before firing — same
+                    // reason as `setLastUpdated(undefined)` below: a PRIOR
+                    // generation's resolved count (or its floor/hidden
+                    // verdict) must never linger under this generation's
+                    // search while this one is in flight.
+                    setBeyondWindowCount(undefined);
                     searchJobsAction({
                         ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                         postedBucket: undefined,
@@ -4411,10 +4417,21 @@ function JobsContent() {
     const beyondWindow = resultCountLine
         ? resolveBeyondWindow(appliedPosted, totalCount, beyondWindowCount)
         : { show: false, extra: null };
-    const beyondWindowText =
-        beyondWindow.extra !== null
-            ? `${beyondWindow.extra.toLocaleString()} more beyond 30 days`
-            : "more roles beyond 30 days";
+    // A sentence that names a count must never render without the count
+    // (Vivek, 2026-09-17) — `formatBeyondWindowText` (lib/jobs/beyond-
+    // window.ts) is the single place deciding the words; `null` here means
+    // "resolved, nothing to show" so it's never passed a bare `undefined`.
+    const beyondWindowText = beyondWindow.show ? formatBeyondWindowText(beyondWindow.extra) : null;
+    // True only while the probe for the ACTIVE 30d bucket hasn't resolved
+    // yet for THIS search — distinct from "resolved, not applicable"
+    // (`beyondWindow.show === false` for any other reason). Lets the row
+    // reserve one line of height below so the list doesn't jump the moment
+    // `beyondWindowText` lands (the prod bug: the unqueried landing's probe
+    // resolves to a `floor` with no exact number — see `resolveCorpusCount`
+    // — so it painted a numberless "more roles beyond 30 days" instead of
+    // ever having reserved space for an honest answer).
+    const beyondWindowPending =
+        !beyondWindow.show && !!resultCountLine && appliedPosted === "30d" && beyondWindowCount === undefined;
 
     // Deliverable 1 — results render normally on a degraded (served-from-cache)
     // response; this is just the honest caption for it. See
@@ -5984,13 +6001,25 @@ function JobsContent() {
                                                     >
                                                         {resultCountLine}
                                                     </span>
-                                                    {beyondWindow.show && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            {beyondWindowText}
+                                                    {(beyondWindow.show || beyondWindowPending) && (
+                                                        <span
+                                                            className={cn(
+                                                                "flex items-center gap-1.5",
+                                                                // Pending: reserve this line's height (and
+                                                                // roughly its width, so the row wraps the
+                                                                // same way it will once resolved) so the
+                                                                // list below doesn't jump when the real text
+                                                                // lands — never actually shown.
+                                                                !beyondWindow.show && "invisible",
+                                                            )}
+                                                            aria-hidden={beyondWindow.show ? undefined : true}
+                                                        >
+                                                            {beyondWindow.show ? beyondWindowText : "Show roles older than 30 days"}
                                                             <span aria-hidden>·</span>
                                                             <button
                                                                 type="button"
                                                                 data-testid="beyond-window-show-all"
+                                                                tabIndex={beyondWindow.show ? undefined : -1}
                                                                 onClick={() => panelPostedBucket(undefined)}
                                                                 className="text-foreground underline-offset-2 hover:underline"
                                                             >

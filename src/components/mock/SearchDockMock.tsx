@@ -3,6 +3,7 @@
 import React from "react";
 import { MagnifyingGlass, MapPin, Moon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
 
 /**
  * Mockup for docking the /jobs search line into the header on scroll.
@@ -31,7 +32,7 @@ function Field({ compact = false, queryOnly = false }: { compact?: boolean; quer
                 <MagnifyingGlass weight="bold" className="ml-2.5 shrink-0 text-muted-foreground" />
                 <div className={cn(h, "flex min-w-0 flex-1 items-center px-2.5")}>
                     <span className="truncate text-xs text-muted-foreground">
-                        {compact ? "Software Engineer" : "What kind of work are you looking for?"}
+                        {compact ? "Software Engineer" : SEARCH_PLACEHOLDER}
                     </span>
                 </div>
             </div>
