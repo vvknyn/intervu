@@ -15,9 +15,9 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
     return (
         <div
             data-testid="launch-banner"
-            className="mb-2.5 grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none bg-card border border-border p-4 text-left border-l-4 border-l-brand transition-all"
+            className="mb-2.5 grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-panel bg-card border border-border p-4 text-left border-l-4 border-l-brand transition-all"
         >
-            <div className="flex h-9 w-9 items-center justify-center rounded-none bg-muted text-brand font-semibold text-xs">
+            <div className="flex h-9 w-9 items-center justify-center rounded-panel bg-muted text-brand font-semibold text-xs">
                 AI
             </div>
             <div className="min-w-0 flex flex-col justify-center">
@@ -30,7 +30,7 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
                 <div className="mt-2.5 flex items-center gap-2">
                     <Link
                         href="/connect"
-                        className="inline-flex items-center gap-1.5 rounded-none bg-muted text-live px-3 py-1 text-xs font-semibold hover:underline"
+                        className="inline-flex items-center gap-1.5 rounded-pill bg-muted text-live px-3 py-1 text-xs font-semibold hover:underline"
                     >
                         Connect your AI
                     </Link>
@@ -40,7 +40,7 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
                 type="button"
                 onClick={onDismiss}
                 aria-label="Dismiss launch banner"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:text-foreground"
             >
                 <X aria-hidden />
             </button>

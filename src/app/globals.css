@@ -137,14 +137,15 @@
   --jobs-sticky-gap: 24px;
 
   /* Swiss Modernist Index — Cool Paper (#F6F8FC) × Pure Ink Black (#0A0A0A) × International Klein Blue (#002FA7) */
-  /* The ground carries a few degrees of the brand blue rather than being a
-     neutral grey. Vivek's read of the old #FAFAFA was "a little dull white"
-     (2026-08-24) — and it was: neutral-50 is the same hue as the white cards
-     sitting on it, so cards and page differed only in lightness and the page
-     read as a slightly dirty card. Biasing the ground toward the accent gives
-     it a temperature, and `--card` (pure 255) now reads as genuinely white
-     against it. Picked from /mock/surface at true scale. */
-  --background: 255 255 255; /* rulebook page colour #FFFFFF (was a blue-tinted 246 248 252) */
+  /* Soft-surfaces pass (2026-09-17): canvas goes back to a cool grey so
+     `--card` white panels read as distinct surfaces floating on the page
+     (simplify.jobs reference — grey page, white 16px-radius cards). This is
+     a *different* grey from the 2026-08-24 blue-tinted #FAFAFA that was
+     reverted for reading as "dull" against pure-white cards: this pass
+     depends on the page/card contrast that reversion removed, so the two
+     decisions aren't in tension — the earlier one was made when there was
+     no white card to contrast against. */
+  --background: 246 247 250; /* cool grey canvas, brand is navy (was pure #FFFFFF) */
   --foreground: 10 10 10;
   --card: 255 255 255;
   --card-foreground: var(--foreground);
@@ -454,17 +455,29 @@
   --shadow-2xl: none;
   --shadow-inner: none;
 
-  /* Strict 0px Carbon radius scale */
-  --radius: 0px;
+  /* Soft-surfaces radius scale (2026-09-17, was strict 0px Carbon). The
+     named sizes below (--radius-lg, --radius-xl, ...) stay at their
+     pre-soft-surfaces values (most at 0px) — nothing outside this PR
+     changes. Soft-surfaces call sites instead use the SEMANTIC tokens
+     below (ruling 2026-09-17: named-size classes are a banned-classes.cjs
+     lie; a role name is not): --radius-ctl (buttons, inputs, square
+     chips), --radius-panel (cards, sheets, dialogs, popovers, logo
+     tiles), --radius-pill (search pill, pill chips, avatars, status
+     dots). --radius-2xs/--radius-xs have no assigned role; left at 0px
+     rather than guessed. */
+  --radius: 8px;
   --radius-2xs: 0px;
   --radius-xs: 0px;
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --radius-2xl: 0px;
-  --radius-3xl: 0px;
-  --radius-4xl: 0px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-4xl: 32px;
+  --radius-ctl: 12px;
+  --radius-panel: 16px;
+  --radius-pill: 9999px;
   --color-sidebar: rgb(var(--sidebar));
   --color-sidebar-foreground: rgb(var(--sidebar-foreground));
   --color-sidebar-primary: rgb(var(--sidebar-primary));
