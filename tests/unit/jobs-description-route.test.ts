@@ -97,6 +97,39 @@ describe("describeResponseInit — Cache-Control only when complete", () => {
         const init = describeResponseInit(stubResult({ descriptionPending: true }));
         assert.equal(init, undefined);
     });
+
+    // Failure scenario this predicate closes: search.ts's outer catch
+    // returns a Meili-outage envelope as a 200 (`unavailable: true`, hits:
+    // []) — before `isAuthoritativeResult`, `descriptionPending` was the
+    // ONLY gate, so this envelope was `complete` by that definition and got
+    // cached for 60s. A retry within the window (jobs/page.tsx,
+    // yours/[id]/page.tsx) would then silently replay the outage instead of
+    // re-checking.
+    it("an unavailable (Meili-outage) envelope is never cached, even though descriptionPending is unset", () => {
+        const init = describeResponseInit(stubResult({ hits: [], unavailable: true, note: "outage" }));
+        assert.equal(init, undefined);
+    });
+
+    // A served-from-cache degraded response (`meta.degraded`) is stale by
+    // construction — `unavailable`/`note` are both unset for this shape (see
+    // search.ts's `getDegradedServe` branch), so only the `meta.degraded`
+    // check in `isAuthoritativeResult` catches it.
+    it("a degraded (served-from-cache) envelope is never cached", () => {
+        const init = describeResponseInit({
+            ...stubResult(),
+            meta: { degraded: true, servedFrom: "cache" },
+        } as HydrateDescriptionResult);
+        assert.equal(init, undefined);
+    });
+
+    // A case OTHER than the unavailable instance that surfaced the bug — any
+    // note at all withholds cacheability, not just the "temporarily
+    // unavailable" shape (mirrors classifyExistenceCheck's own "unrecognized
+    // note" case in jobs-result-state.test.ts).
+    it("a note present without the unavailable flag is also never cached", () => {
+        const init = describeResponseInit(stubResult({ note: "Some other degraded-mode note" }));
+        assert.equal(init, undefined);
+    });
 });
 
 describe("GET /api/jobs/[id]/description — invalid id short-circuit", () => {
