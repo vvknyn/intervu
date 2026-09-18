@@ -1343,8 +1343,21 @@ function JobsContent() {
     // population (regression guard); `null` (probe failed — unknown) keeps
     // the optimistic default rather than stripping the filter exactly when
     // the box is degraded (Jul 24 incident).
+    // Perf first-paint (2026-09-18): the search itself must be the FIRST
+    // action this page dispatches on mount — see the main search effect
+    // below, which now fires immediately (no debounce) on its own very
+    // first run. `firstSearchSettled` gates every secondary mount probe
+    // (posted-date support here, report-listing flag, masthead live-count
+    // — none of them gate the results themselves) so none can race the
+    // search for the same in-flight request budget on a pure client mount.
+    // Set once, in the search effect's own `finally`, and never reset —
+    // "settled" means that FIRST attempt completed (success or failure),
+    // not that every later search has to be waited on too.
+    const [firstSearchSettled, setFirstSearchSettled] = useState(false);
+
     const [postedDateSupported, setPostedDateSupported] = useState(true);
     useEffect(() => {
+        if (!firstSearchSettled) return;
         let cancelled = false;
         getPostedDateFilterSupportAction()
             .then((ok) => {
@@ -1356,7 +1369,7 @@ function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [firstSearchSettled]);
 
     // ITEM O-FE (2026-08-15) — the flags endpoint isn't deployed yet.
     // Defaults to hidden (unlike postedDateSupported's optimistic default
@@ -1364,6 +1377,7 @@ function JobsContent() {
     // probe is in flight or fails.
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
+        if (!firstSearchSettled) return;
         let cancelled = false;
         reportJobEnabledAction()
             .then((ok) => {
@@ -1375,7 +1389,7 @@ function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [firstSearchSettled]);
 
     // Effective sort: shared resolver normalizes relevance-without-query to
     // newest, then the support coercion drops "newest" when the corpus carries
@@ -1396,6 +1410,15 @@ function JobsContent() {
     // reversible A→B→A query changes where signatures alone are insufficient.
     const paginationRef = useRef<JobsPaginationGeneration | null>(null);
     if (!paginationRef.current) paginationRef.current = new JobsPaginationGeneration();
+
+    // Perf first-paint (2026-09-18): the search effect below debounces
+    // every run behind 250ms EXCEPT its own very first (mount) run, which
+    // is seeded straight from the URL and must be the first action this
+    // page dispatches — see `firstSearchSettled` above. A ref (not state):
+    // flipping it must happen synchronously, in the same tick the effect
+    // body runs, before anything async — a state flag wouldn't be readable
+    // that soon and would itself trigger a needless extra render.
+    const isFirstSearchRunRef = useRef(true);
 
     const [user, setUser] = useState<User | null>(null);
     // Session cookie is httpOnly — first paint is "not yet known", not signed
@@ -1476,6 +1499,7 @@ function JobsContent() {
     // a precise-looking claim.
     const [liveJobsCount, setLiveJobsCount] = useState<CorpusCount | null>(null);
     useEffect(() => {
+        if (!firstSearchSettled) return;
         let cancelled = false;
         getMarketingStatsAction()
             .then((stats) => {
@@ -1486,7 +1510,7 @@ function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [firstSearchSettled]);
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
     const { byJobId: pursuitsByJobId } = usePursuits();
@@ -1900,6 +1924,16 @@ function JobsContent() {
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
         setLoading(true);
+        // First run (mount, URL-seeded) fires immediately — search must be
+        // the first action this page dispatches, ahead of the secondary
+        // probe effects gated on `firstSearchSettled` above. Every later
+        // run (typing, a filter change) keeps the 250ms debounce. Flipped
+        // synchronously here, not inside the timeout body, so a second
+        // effect run scheduled before this one's timeout even fires still
+        // sees it as no longer the first.
+        const isFirstRun = isFirstSearchRunRef.current;
+        isFirstSearchRunRef.current = false;
+        const debounceMs = isFirstRun ? 0 : 250;
         const t = setTimeout(async () => {
             try {
                 // Browse-by-default (2026-08-07): the pristine zero-query
@@ -2158,6 +2192,12 @@ function JobsContent() {
                     }
                 }
             } finally {
+                // The search has settled (succeeded, failed, or was
+                // rate/depth-gated) — unconditionally, regardless of
+                // `autoRetryScheduled`: the FIRST attempt already
+                // dispatched, and the secondary probe effects above should
+                // not wait on an eventual retry to succeed before firing.
+                if (!cancelled) setFirstSearchSettled(true);
                 if (
                     !cancelled &&
                     !autoRetryScheduled &&
@@ -2166,7 +2206,7 @@ function JobsContent() {
                     setLoading(false);
                 }
             }
-        }, 250);
+        }, debounceMs);
         return () => {
             cancelled = true;
             clearTimeout(t);
