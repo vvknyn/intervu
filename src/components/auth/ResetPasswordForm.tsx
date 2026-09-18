@@ -68,7 +68,7 @@ export function ResetPasswordForm() {
     if (success) {
         return (
             <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 below-topbar">
-                <div className="w-full max-w-[400px] border border-border bg-card p-8 text-center">
+                <div className="w-full max-w-100 rounded-panel border border-border bg-card p-8 text-center">
                     <div className="mb-6 flex justify-center">
                         <CheckCircle size={24} weight="fill" className="text-live" />
                     </div>
@@ -85,7 +85,7 @@ export function ResetPasswordForm() {
 
     return (
         <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 below-topbar">
-            <div className="w-full max-w-[400px] border border-border bg-card p-8">
+            <div className="w-full max-w-100 rounded-panel border border-border bg-card p-8">
                 <div className="mb-8 text-center">
                     <h1 className="text-xl font-semibold text-foreground">
                         Set new password
@@ -112,7 +112,7 @@ export function ResetPasswordForm() {
                                 autoComplete="new-password"
                                 required
                                 minLength={6}
-                                className="pr-14"
+                                className="rounded-ctl border border-border bg-card h-11 px-3 pr-14 text-base"
                             />
                             <button
                                 type="button"
@@ -135,7 +135,7 @@ export function ResetPasswordForm() {
                                 autoComplete="new-password"
                                 required
                                 minLength={6}
-                                className="pr-14"
+                                className="rounded-ctl border border-border bg-card h-11 px-3 pr-14 text-base"
                             />
                             <button
                                 type="button"

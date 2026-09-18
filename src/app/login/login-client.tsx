@@ -34,7 +34,7 @@ export function LoginClient() {
 
     return (
         <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 below-topbar">
-            <div className="w-full max-w-[400px] border border-border bg-card p-8">
+            <div className="w-full max-w-100 rounded-panel border border-border bg-card p-8">
                 <LoginForm onSuccess={redirectAfterAuth} />
             </div>
         </div>

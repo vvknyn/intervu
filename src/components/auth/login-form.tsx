@@ -210,7 +210,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         the dashboard — not an app-side name, and not validated
                         here, because WorkOS is the authority on which
                         providers an environment actually has. */}
-                    <Button variant="outline" type="button" className="w-full h-10 sm:h-11" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                    <Button variant="outline" type="button" className="w-full h-11" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
                         {authKitPending === "GoogleOAuth" ? (
                             <CircleNotch size={16} className="mr-2 animate-spin" />
                         ) : (
@@ -226,7 +226,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     <Button
                         variant="outline"
                         type="button"
-                        className="w-full h-10 sm:h-11"
+                        className="w-full h-11"
                         disabled={isPending || authKitPending !== null}
                         onClick={() => startAuthKit()}
                     >
@@ -238,7 +238,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         Use a passkey or email code
                     </Button>
                     {onGuestAccess && (
-                        <Button variant="outline" type="button" className="w-full h-10 sm:h-11" disabled={isPending} onClick={onGuestAccess}>
+                        <Button variant="outline" type="button" className="w-full h-11" disabled={isPending} onClick={onGuestAccess}>
                             Continue as Guest
                         </Button>
                     )}
@@ -275,6 +275,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+                                        className="rounded-ctl border border-border bg-card h-11 px-3 text-base"
                                     />
                                 </Field>
                             )}
@@ -289,6 +290,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+                                    className="rounded-ctl border border-border bg-card h-11 px-3 text-base"
                                 />
                             </Field>
                             <Field label="Password" htmlFor="password">
@@ -302,7 +304,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
-                                        className="pr-14"
+                                        className="rounded-ctl border border-border bg-card h-11 px-3 pr-14 text-base"
                                     />
                                     <button
                                         type="button"
@@ -325,7 +327,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                 type="submit"
                                 data-testid="auth-submit-button"
                                 disabled={isPending}
-                                className="w-full h-10 sm:h-11 font-semibold"
+                                className="w-full h-11 font-semibold"
                             >
                                 {isPending && (
                                     <CircleNotch size={16} className="mr-2 animate-spin" />

@@ -191,7 +191,7 @@ export function CompanyRoleSearch({
 
   return (
     <section data-testid="company-role-search">
-      <h2 className="mb-4 flex items-baseline justify-between font-display text-lg font-semibold">
+      <h2 className="mb-4 flex items-baseline justify-between font-display text-xl font-semibold">
         Open roles
         {jobs.length > 0 && (
           <span className="text-sm font-normal text-muted-foreground" aria-live="polite">
@@ -220,7 +220,7 @@ export function CompanyRoleSearch({
                 if (e.key === "Escape") setQuery("");
               }}
               placeholder={`Search ${companyName}'s open roles…`}
-              className="h-10 pl-9"
+              className="rounded-ctl border border-border bg-card h-11 pl-9 text-base"
             />
           </div>
           {searchesPartialWindow && hasQuery && (
@@ -237,7 +237,7 @@ export function CompanyRoleSearch({
 
       {displayed.length === 0 ? (
         hasQuery ? (
-          <div className="border border-border bg-card px-5 py-8 text-center">
+          <div className="rounded-panel border border-dashed border-border bg-card px-6 py-16 text-center">
             <p className="text-sm text-muted-foreground">
               No open roles match &ldquo;{trimmedQuery}&rdquo;.
             </p>
@@ -249,8 +249,9 @@ export function CompanyRoleSearch({
           // No live roles at all (not just no search matches) — a dead-end
           // sentence with nothing to do next is strictly worse than turning
           // the visitor into a follower, since that's the one action this
-          // page can actually offer them right now.
-          <div className="border border-border bg-card px-5 py-8 text-center">
+          // page can actually offer them right now. §6 empty state: one
+          // next action, "Follow this company".
+          <div className="rounded-panel border border-dashed border-border bg-card px-6 py-16 text-center">
             <p className="text-sm text-muted-foreground">
               No open roles right now. Follow {companyName} — we&apos;ll email you when they post.
             </p>
@@ -260,7 +261,17 @@ export function CompanyRoleSearch({
           </div>
         )
       ) : (
-        <ul className="divide-y divide-border border-t border-border">
+        // Row anatomy (design-language.md §4), reduced to a single grid
+        // level — every row here belongs to the ONE company already shown
+        // in the page header, so (unlike /jobs) there's no per-row logo to
+        // put in a leading `auto` tile. Dropping that tile also means the
+        // divider has nothing to inset past, so `border-b` runs full-width
+        // on the row itself rather than on an inner wrapper. This section
+        // sits inside the page's own padded content column (not a
+        // full-bleed list surface like /jobs), so rows take their
+        // horizontal margin from that ambient padding — `--list-inset`
+        // would double it here, not conform to it.
+        <ul>
           {displayed.map((job) => {
             const meta = companyRowMetaSegments(job);
             // Exception-only status: the routine "clear, currently checked"
@@ -273,19 +284,15 @@ export function CompanyRoleSearch({
                 <button
                   type="button"
                   onClick={() => setSelectedJob(job)}
-                  className="w-full text-left flex items-center gap-4 px-3 py-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
+                  className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 border-b border-border pt-4 pb-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand cursor-pointer"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <div className="min-w-0 truncate text-base font-semibold text-foreground transition-colors group-hover:text-brand">
+                  <div className="min-w-0">
+                    <span className="inline-flex flex-wrap items-baseline gap-x-2">
+                      <span className="min-w-0 text-base font-semibold leading-snug text-foreground transition-colors group-hover:text-brand line-clamp-2">
                         {titleCaseDisplay(decodeText(job.title))}
-                      </div>
-                      {matchScore && (
-                        <span className="shrink-0">
-                          <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />
-                        </span>
-                      )}
-                    </div>
+                      </span>
+                      {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />}
+                    </span>
                     {meta.length > 0 && (
                       // Pay leads this line same as everywhere else it's
                       // sourced from `companyRowMetaSegments`, but a role row
@@ -304,8 +311,8 @@ export function CompanyRoleSearch({
                       <div className="mt-1.5 text-xs text-muted-foreground">{exception.label}</div>
                     )}
                   </div>
-                  <span className="shrink-0 text-sm text-brand" aria-hidden>
-                    View role
+                  <span className="mono-data shrink-0 self-start text-xs leading-none text-muted-foreground" aria-hidden>
+                    View
                   </span>
                 </button>
               </li>
@@ -315,7 +322,7 @@ export function CompanyRoleSearch({
       )}
 
       {displayed.length > 0 && (
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-border bg-card p-6">
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-panel border border-border bg-card p-6">
           <div>
             <h3 className="font-display text-base font-semibold text-foreground">
               Explore all open roles at {companyName}
@@ -341,7 +348,7 @@ export function CompanyRoleSearch({
         <SheetContent
           side="bottom"
           hideCloseButton
-          className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+          className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-180 -translate-x-1/2 flex-col overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
         >
           <div className="shrink-0 border-b border-border">
             <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">

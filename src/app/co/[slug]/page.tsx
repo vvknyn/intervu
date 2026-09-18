@@ -183,7 +183,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           <div className="flex min-w-0 gap-5">
             <CompanyLogo domain={data.domain} name={data.name} size="lg" />
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-3xl font-semibold">{data.name}</h1>
+              <h1 className="font-display text-2xl font-semibold">{data.name}</h1>
               {data.oneLiner && (
                 <p className="mt-1.5 text-sm sm:text-base leading-snug text-muted-foreground">
                   {data.oneLiner}
@@ -191,7 +191,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
               )}
               <p className="mt-3 flex items-center gap-2 text-base leading-snug text-foreground">
                 {hiring.hasOpenRoles && (
-                  <span className="h-2 w-2 shrink-0 rounded-none bg-live" aria-hidden />
+                  <span className="h-2 w-2 shrink-0 rounded-pill bg-live" aria-hidden />
                 )}
                 {humanizeProjectorHeadline(hiring.headline)}
               </p>
@@ -297,7 +297,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {/* Plain-language hiring record — same figures the old
                     "Hiring activity" section drew from, now its own named
                     rail box instead of a shared block with the intel grid. */}
-                <section data-testid="company-hiring-activity" className="border border-border bg-card p-6">
+                <section data-testid="company-hiring-activity" className="rounded-panel border border-border bg-card p-6">
                   <h2 className="text-xs font-semibold text-muted-foreground">
                     The hiring record — last 90 days
                   </h2>
@@ -323,7 +323,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {/* List health — the ghost-flagged share restated as a count
                     instead of a bare, jargon-labelled percentage tile. */}
                 {staleShare && (
-                  <section className="border border-border bg-card p-6">
+                  <section className="rounded-panel border border-border bg-card p-6">
                     <h2 className="text-xs font-semibold text-muted-foreground">
                       List health
                     </h2>

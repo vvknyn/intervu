@@ -49,7 +49,7 @@ export async function CompanyExhaustGate({
   return (
     <section
       data-testid="company-exhaust-gate"
-      className="border border-border-strong bg-card px-6 py-7 sm:px-8"
+      className="rounded-panel border border-border-strong bg-card px-6 py-7 sm:px-8"
     >
       <h2 className="text-xs font-semibold text-muted-foreground">
         The full record

@@ -27,9 +27,9 @@ export function AuthRetryClient() {
     const retryHref = `/auth/start${next ? `?next=${encodeURIComponent(next)}` : ""}`;
 
     return (
-        <div className="mx-auto flex min-h-[70vh] max-w-[480px] flex-col items-center justify-center px-6 text-center">
+        <div className="mx-auto flex min-h-dvh max-w-120 flex-col items-center justify-center px-6 text-center">
             <BrandLockup />
-            <h1 className="mt-4 text-lg font-semibold text-foreground">That sign-in link expired</h1>
+            <h1 className="mt-4 text-xl font-semibold text-foreground">That sign-in link expired</h1>
             <p className="mt-2 text-sm text-muted-foreground">Try again.</p>
             <Button asChild size="sm" className="mt-8">
                 <Link href={retryHref}>Try again</Link>

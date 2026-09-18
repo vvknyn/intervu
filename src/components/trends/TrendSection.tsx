@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { TREND_CAUTION } from "./chart-palette";
 
 /**
  * Shared /trends section grammar (data-surfaces redesign proposal, §02 +
@@ -34,7 +33,7 @@ export function TrendSection({
   return (
     <section
       data-testid={testId}
-      className="rounded-none border border-border bg-card p-6 transition-colors"
+      className="rounded-panel border border-border bg-card p-6 transition-colors"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border pb-2">
         <span className="text-base font-semibold text-foreground">
@@ -61,22 +60,14 @@ export type BarRowTone = "good" | "warn" | "neutral";
 
 const DOT_TONE: Record<BarRowTone, string> = {
   good: "bg-st-offer",
-  warn: "",
+  warn: "bg-warn",
   neutral: "bg-muted-foreground",
 };
 
 const FILL_TONE: Record<BarRowTone, string> = {
   good: "bg-st-offer",
-  warn: "",
+  warn: "bg-warn",
   neutral: "bg-muted-foreground",
-};
-
-/** Inline-style companion to `DOT_TONE`/`FILL_TONE` for tones whose color
- *  isn't reachable through a Tailwind token — `warn` resolves through
- *  `--warn`, which doesn't match the rulebook's caution color (see
- *  `chart-palette.ts`), so it's applied as a literal instead. */
-const TONE_BG_STYLE: Partial<Record<BarRowTone, CSSProperties>> = {
-  warn: { backgroundColor: TREND_CAUTION },
 };
 
 /**
@@ -130,20 +121,19 @@ export function BarRow({
         )}
         {tone && (
           <span
-            className={cn("h-2 w-2 shrink-0 rounded-none", DOT_TONE[tone])}
-            style={TONE_BG_STYLE[tone]}
+            className={cn("h-2 w-2 shrink-0 rounded-pill", DOT_TONE[tone])}
             aria-hidden
           />
         )}
         <span className={cn("truncate", href && "group-hover:text-brand")}>{label}</span>
       </span>
-      <span className="h-1.5 overflow-hidden rounded-none bg-muted">
+      <span className="h-1.5 overflow-hidden rounded-pill bg-muted">
         <span
           className={cn(
-            "block h-full rounded-none transition-all",
+            "block h-full rounded-pill transition-all",
             tone ? FILL_TONE[tone] : "bg-foreground dark:bg-foreground",
           )}
-          style={{ width: `${pct}%`, ...(tone ? TONE_BG_STYLE[tone] : undefined) }}
+          style={{ width: `${pct}%` }}
         />
       </span>
       <span className="mono-data text-right text-xs text-muted-foreground">{pctLabel ?? `${pct}%`}</span>
