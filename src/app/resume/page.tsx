@@ -11,7 +11,7 @@ import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
-import { AUTH_CTA_LABEL, formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
@@ -25,7 +25,7 @@ function ResumeHeader() {
 
 function ResumeAuthSkeleton() {
     return (
-        <div className="space-y-4 rounded-none border border-border bg-card p-8" role="status" aria-busy="true">
+        <div className="space-y-4 rounded-panel border border-border bg-card p-8" role="status" aria-busy="true">
             <span className="sr-only">Loading resume</span>
             <div aria-hidden className="mx-auto max-w-sm space-y-3">
                 <div className="skeleton-bar mx-auto h-12 w-12" />
@@ -36,29 +36,20 @@ function ResumeAuthSkeleton() {
     );
 }
 
-function SignedOutEmptyState({
-    onLoginClick,
-    onUploadClick,
-}: {
-    onLoginClick: () => void;
-    onUploadClick: () => void;
-}) {
+// Empty state (§6): left-aligned, py-8, text-sm text-foreground, exactly ONE
+// next action. "Sign in" is deliberately not a second action here —
+// `beginResumeUpload` already gates the upload behind sign-in (see below),
+// so the one button covers both intents; a separate login affordance would
+// be a sideways tangent the conveyor rule forbids.
+export function SignedOutEmptyState({ onUploadClick }: { onUploadClick: () => void }) {
     return (
-        <div className="mx-auto max-w-[480px] space-y-4 rounded-none border border-border bg-card p-8 text-center">
-            <FileText size={24} className="mx-auto text-muted-foreground" />
-            <div className="space-y-1">
-                <h2 className="text-base font-semibold text-foreground">Add your base resume</h2>
-                <p className="text-sm text-muted-foreground">{RESUME_UPLOAD_PROMISE}</p>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
-                <Button size="sm" onClick={onUploadClick} className="w-full sm:w-auto rounded-none font-semibold">
-                    <UploadSimple size={16} className="mr-1.5" aria-hidden />
-                    Upload resume
-                </Button>
-                <Button variant="outline" size="sm" onClick={onLoginClick} className="w-full sm:w-auto rounded-none font-semibold">
-                    {AUTH_CTA_LABEL}
-                </Button>
-            </div>
+        <div className="py-8 text-left">
+            <h2 className="text-base font-semibold text-foreground">Add your base resume</h2>
+            <p className="mt-1 text-sm text-foreground">{RESUME_UPLOAD_PROMISE}</p>
+            <Button size="sm" onClick={onUploadClick} className="mt-4 rounded-ctl font-semibold">
+                <UploadSimple size={16} className="mr-1.5" aria-hidden />
+                Upload resume
+            </Button>
         </div>
     );
 }
@@ -158,12 +149,12 @@ function ResumeContent() {
                 ) : !user ? (
                     localResume ? (
                         <div className="space-y-4">
-                            <div className="flex items-center gap-2 border border-border bg-muted px-4 py-2.5 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2 rounded-panel border border-border bg-muted px-4 py-2.5 text-xs text-muted-foreground">
                                 <ShieldCheck size={16} className="text-brand shrink-0" />
                                 <span className="font-semibold text-foreground">100% On-Device AI</span>
                                 <span>— Parsed privately in your browser. Never stored in the cloud without an account.</span>
                             </div>
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-none border border-border bg-card p-4">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-panel border border-border bg-card p-4">
                                 <div className="flex items-center gap-2.5">
                                     <FileText size={20} className="text-brand shrink-0" />
                                     <div>
@@ -176,7 +167,7 @@ function ResumeContent() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => beginResumeUpload()}
-                                        className="rounded-none text-xs font-semibold"
+                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         Replace
                                     </Button>
@@ -184,7 +175,7 @@ function ResumeContent() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => openAuth("auto")}
-                                        className="rounded-none text-xs font-semibold"
+                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         <PencilSimple size={16} className="mr-1" />
                                         Edit
@@ -193,7 +184,7 @@ function ResumeContent() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => openAuth("auto")}
-                                        className="rounded-none text-xs font-semibold"
+                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         <DownloadSimple size={16} className="mr-1" />
                                         PDF
@@ -201,7 +192,7 @@ function ResumeContent() {
                                     <Button
                                         size="sm"
                                         onClick={() => openAuth("user")}
-                                        className="rounded-none text-xs font-semibold"
+                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         Sign up to sync
                                     </Button>
@@ -210,10 +201,7 @@ function ResumeContent() {
                             <LiveResumePreview data={localResume} />
                         </div>
                     ) : (
-                        <SignedOutEmptyState
-                            onLoginClick={() => openAuth("user")}
-                            onUploadClick={() => beginResumeUpload()}
-                        />
+                        <SignedOutEmptyState onUploadClick={() => beginResumeUpload()} />
                     )
                 ) : (
                     <YourResumeSection

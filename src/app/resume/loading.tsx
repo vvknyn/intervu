@@ -7,7 +7,7 @@ export default function Loading() {
             <div aria-hidden className="space-y-6">
                 <Skeleton className="h-7 w-32" />
                 <Skeleton className="h-5 w-full max-w-md" />
-                <div className="border border-border bg-card p-8">
+                <div className="rounded-panel border border-border bg-card p-8">
                     <div className="mx-auto max-w-sm space-y-3">
                         <Skeleton className="mx-auto h-12 w-12" />
                         <Skeleton className="mx-auto h-4 w-48" />

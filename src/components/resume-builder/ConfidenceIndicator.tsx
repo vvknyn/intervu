@@ -33,14 +33,14 @@ export function ConfidenceIndicator({ score, showLabel = true, size = 'md', clas
     return (
         <div
             className={cn(
-                "inline-flex items-center gap-1.5 rounded-none border",
+                "inline-flex items-center gap-1.5 rounded-pill border",
                 bgColor,
                 borderColor,
                 sizeClasses[size].badge,
                 className
             )}
         >
-            <span className={cn("rounded-none shrink-0", color, sizeClasses[size].dot)} />
+            <span className={cn("rounded-pill shrink-0", color, sizeClasses[size].dot)} />
             {showLabel && (
                 <span className={cn("whitespace-nowrap", textColor)}>
                     {label}
@@ -80,7 +80,7 @@ export function ConfidenceBadge({ score, section, className }: ConfidenceBadgePr
             className={cn("inline-flex items-center gap-1 text-xs", getColor(score), className)}
             title={`${section}: ${score}% confidence`}
         >
-            <span className={cn("w-1.5 h-1.5 rounded-none", getDot(score))} />
+            <span className={cn("w-1.5 h-1.5 rounded-pill", getDot(score))} />
             {score}%
         </span>
     );
@@ -101,7 +101,7 @@ export function WarningBanner({ warnings, className, onDismiss }: WarningBannerP
     return (
         <div
             className={cn(
-                "relative w-full rounded-none border-0 border-l-[3px] border-l-warn bg-muted p-4",
+                "relative w-full rounded-panel border-0 border-l-2 border-l-warn bg-muted p-4",
                 className
             )}
         >
