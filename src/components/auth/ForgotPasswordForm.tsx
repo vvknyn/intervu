@@ -42,11 +42,11 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         return (
             <div className="w-full max-w-xs mx-auto text-center">
                 <div className="mb-6 flex justify-center">
-                    <div className="w-12 h-12 rounded-none bg-muted flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-pill bg-muted flex items-center justify-center">
                         <EnvelopeSimple size={24} className="text-foreground" />
                     </div>
                 </div>
-                <h2 className="text-lg font-semibold text-foreground mb-2">
+                <h2 className="text-xl font-semibold text-foreground mb-2">
                     Check your email
                 </h2>
                 <p className="text-sm text-muted-foreground mb-6">
@@ -72,7 +72,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                     <ArrowLeft />
                     Back
                 </button>
-                <h2 className="text-lg font-semibold text-foreground text-center">
+                <h2 className="text-xl font-semibold text-foreground text-center">
                     Reset password
                 </h2>
                 <p className="text-xs text-muted-foreground text-center mt-1">
@@ -90,6 +90,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                        className="rounded-ctl border border-border bg-card h-11 px-3 text-base"
                     />
                 </Field>
 

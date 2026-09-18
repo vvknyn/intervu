@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties } from "react";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { cn } from "@/lib/utils";
-import { TREND_CAUTION } from "./chart-palette";
 
 export function TrendsHero({
   liveJobs,
@@ -22,7 +20,6 @@ export function TrendsHero({
     value: CorpusCount;
     testId: string;
     indicator: string;
-    indicatorStyle?: CSSProperties;
     href?: string;
   }[] = [
     {
@@ -45,10 +42,7 @@ export function TrendsHero({
       subtitle: "Failed the same posting check shown on the job page",
       value: ghostFlaggedLive,
       testId: "trends-stat-ghost",
-      // `--warn` doesn't match the rulebook's caution color — literal value
-      // from chart-palette instead (see TrendSection.tsx's TONE_BG_STYLE).
-      indicator: "",
-      indicatorStyle: { backgroundColor: TREND_CAUTION },
+      indicator: "bg-warn",
     },
   ];
 
@@ -59,22 +53,21 @@ export function TrendsHero({
           <div
             data-testid={tile.testId}
             className={cn(
-              "flex h-full flex-col justify-between rounded-none border border-border bg-card p-6 transition-colors",
+              "flex h-full flex-col justify-between rounded-panel border border-border bg-card p-6 transition-colors",
               tile.href && "hover:bg-muted",
             )}
           >
             <div>
               <div className="flex items-center gap-2">
                 <span
-                  className={cn("h-1.5 w-1.5 rounded-none", tile.indicator)}
-                  style={tile.indicatorStyle}
+                  className={cn("h-1.5 w-1.5 rounded-pill", tile.indicator)}
                   aria-hidden
                 />
                 <span className="text-xs font-semibold text-muted-foreground">
                   {tile.label}
                 </span>
               </div>
-              <p className="mt-3 text-lg font-semibold text-foreground tabular-nums">
+              <p className="mt-3 text-xl font-semibold text-foreground tabular-nums">
                 {formatCorpusCount(tile.value)}
               </p>
             </div>

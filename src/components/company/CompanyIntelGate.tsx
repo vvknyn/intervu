@@ -79,7 +79,7 @@ function CompanyIntelGateInner({
       // past the wrapper into whatever sits below it on the page. A floor
       // tall enough for the taller (with-button) card variant keeps the
       // overlay self-contained regardless of what's behind it.
-      className={cn("relative", !unlocked && "min-h-[320px]")}
+      className={cn("relative", !unlocked && "min-h-80")}
     >
       <div
         className={cn(!unlocked && "pointer-events-none select-none")}
@@ -89,7 +89,7 @@ function CompanyIntelGateInner({
       </div>
       {!unlocked && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background px-6 py-10 text-center">
-          <div className="flex w-full max-w-sm flex-col items-center gap-4 border border-border bg-card px-6 py-6">
+          <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-panel border border-border bg-card px-6 py-6">
             <p className="text-sm font-semibold text-foreground">Follow this company to see its hiring history</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               {description ?? `Recent hiring changes, funding, tech stack, and news for ${displayName} — visible once you follow.`}

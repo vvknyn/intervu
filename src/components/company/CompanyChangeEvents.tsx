@@ -66,7 +66,7 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
         <dl className="space-y-1.5">
           {evidence.metrics.map((m) => (
             <div key={m.label} className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-              <dt className="min-w-[84px] text-xs text-muted-foreground">
+              <dt className="min-w-21 text-xs text-muted-foreground">
                 {m.label}
               </dt>
               <dd className="text-xs tabular-nums text-foreground">{m.value}</dd>
@@ -155,7 +155,7 @@ export function CompanyChangeEvents({
 
   return (
     <section data-testid="company-change-events" className="mb-8">
-      <h2 className="mb-1 font-display text-lg font-semibold">Recent changes</h2>
+      <h2 className="mb-1 font-display text-xl font-semibold">Recent changes</h2>
       <p className="mb-4 text-xs text-muted-foreground">
         Observed shifts in {companyName}&apos;s hiring, from postings we track over time.
       </p>
@@ -171,7 +171,7 @@ export function CompanyChangeEvents({
             // folded in — the list is server-rendered and never reordered.
             <li
               key={`${event.event_type}-${event.occurred_at}-${idx}`}
-              className="flex items-start gap-3.5 border border-border bg-card px-5 py-4"
+              className="flex items-start gap-3.5 rounded-panel border border-border bg-card px-5 py-4"
             >
               <Icon size={18} weight="bold" className={cn("mt-0.5 shrink-0", icon)} aria-hidden />
               <div className="min-w-0 flex-1">

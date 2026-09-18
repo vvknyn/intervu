@@ -67,9 +67,9 @@ export function MarketPulse({
             <span className="mono-data w-12 shrink-0 text-xs text-muted-foreground">
               {shortDayLabel(date)}
             </span>
-            <span className="h-1.5 flex-1 overflow-hidden rounded-none bg-muted">
+            <span className="h-1.5 flex-1 overflow-hidden rounded-pill bg-muted">
               <span
-                className="block h-full rounded-none bg-foreground dark:bg-foreground transition-all"
+                className="block h-full rounded-pill bg-foreground dark:bg-foreground transition-all"
                 style={{ width: `${(count.value / maxValue) * 100}%` }}
               />
             </span>
@@ -81,7 +81,7 @@ export function MarketPulse({
       </ol>
 
       {sourceCoverage.length > 0 && (
-        <div className="mt-4 rounded-none border border-border bg-muted p-3">
+        <div className="mt-4 rounded-panel border border-border bg-muted p-3">
           <p data-testid="trends-pulse-coverage" className="text-xs leading-relaxed text-muted-foreground">
             <span className="mr-1 font-semibold text-foreground">
               Where these postings come from:

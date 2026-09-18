@@ -33,7 +33,7 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
   const delta = computeLatestDelta(snapshots);
 
   return (
-    <div className="rounded-none border border-border bg-muted px-3 py-2">
+    <div className="rounded-panel border border-border bg-muted px-3 py-2">
       {delta && (
         <p data-testid="trends-pulse-delta" className="text-xs text-foreground">
           <span className="text-muted-foreground">Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}: </span>

@@ -32,7 +32,7 @@ export function WorkArrangementDistribution({
     <TrendSection testId="trends-work-types" label="Workplace flexibility">
       {/* High-contrast multi-segment visual breakdown — a proportion picture
           the row grammar below can't replace, kept as its own shape. */}
-      <div className="flex h-2 w-full overflow-hidden rounded-none bg-muted">
+      <div className="flex h-2 w-full overflow-hidden rounded-pill bg-muted">
         {workTypes.map((item, i) => (
           <div
             key={item.key}
@@ -46,7 +46,7 @@ export function WorkArrangementDistribution({
         {workTypes.map((item, i) => (
           <li key={`legend-${item.key}`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <span
-              className="h-2 w-2 shrink-0 rounded-none"
+              className="h-2 w-2 shrink-0 rounded-pill"
               style={{ backgroundColor: segmentColor(i) }}
               aria-hidden
             />
@@ -68,7 +68,7 @@ export function WorkArrangementDistribution({
       ))}
 
       {visaSponsorship && visaSponsorship.sponsoredCount > 0 && (
-        <div className="mt-4 flex items-center justify-between rounded-none border border-border bg-muted p-3">
+        <div className="mt-4 flex items-center justify-between rounded-panel border border-border bg-muted p-3">
           <span className="text-xs text-foreground">Visa sponsorship verified</span>
           <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
             <Check size={16} weight="bold" className="text-live dark:text-live" />
