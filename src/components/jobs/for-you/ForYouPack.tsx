@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { CircleNotch } from "@phosphor-icons/react";
 import { JobDescription } from "@/components/jobs/JobDetail";
+import { DescriptionLoadingStatus } from "@/components/jobs/for-you/DescriptionLoadingStatus";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
@@ -203,10 +203,7 @@ export function ForYouPack({
                 <div className={cn("grid gap-6 p-4 lg:p-6", hasAside && "lg:grid-cols-[1fr_280px]")}>
                     <div className="min-w-0">
                         {paneState === "loading" ? (
-                            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <CircleNotch size={16} className="animate-spin" aria-hidden />
-                                Loading description…
-                            </p>
+                            <DescriptionLoadingStatus />
                         ) : paneState === "empty" ? (
                             <p className="text-sm text-muted-foreground">
                                 No description available for this role.

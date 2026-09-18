@@ -29,7 +29,6 @@ import {
 } from "@/lib/jobs/search-log";
 import { validate, markJobAppliedSchema } from "@/lib/validation";
 import { getClientIp } from "@/lib/shield/client-ip";
-import { createMmdbCountryLookup } from "@/lib/geo/ip-country";
 import { loadGazetteer } from "@/lib/geo/gazetteer";
 import { placesForCountry } from "@/lib/geo/ip-default";
 import { allowSearchRequest } from "@/lib/shield/rate-limit";
@@ -37,13 +36,9 @@ import { ANONYMOUS_DEPTH_GATE_MESSAGE, resolveDepthCap } from "@/lib/shield/dept
 import { getServerUser } from "@/lib/auth/server-user";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
-import {
-  DESCRIPTION_FILL_PREFETCH_DEADLINE_MS,
-  DESCRIPTION_FILL_VISIBLE_DEADLINE_MS,
-  mergeDescriptionFills,
-  planDescriptionFill,
-} from "@/lib/jobs/fill-description";
-import { fillVisibleDescriptions, hasSubspaceApiKey, isSubspaceTimeout } from "@/lib/jobs/subspaceJobs";
+import { DESCRIPTION_FILL_PREFETCH_DEADLINE_MS, planDescriptionFill } from "@/lib/jobs/fill-description";
+import { fillVisibleDescriptions, hasSubspaceApiKey } from "@/lib/jobs/subspaceJobs";
+import { countryLookup, hydrateJobDescription } from "@/lib/jobs/hydrate-description";
 
 /**
  * `meta` is additive by convention (see `SearchServedMeta` in
@@ -58,15 +53,6 @@ type ShieldSearchServeMeta = SearchServeMeta & {
    *  than actually searched — hits/total are not the real result set. */
   gated?: boolean;
 };
-
-/**
- * Built here, not inside `searchJobs` (search.ts) — this file is a Server
- * Action, always Node runtime, so it's safe to hold the mmdb reader (see
- * `createMmdbCountryLookup`'s own doc comment). `search.ts` also backs
- * `/co/[slug]`'s edge-runtime OG image route, which has no filesystem at
- * all, so it can only ever take this as an optional injected dependency.
- */
-const countryLookup = createMmdbCountryLookup();
 
 /**
  * Search the jobs corpus (dispatches to whichever backend is configured).
@@ -139,42 +125,35 @@ export async function searchJobsAction(
     };
   }
 
+  // Id-scoped lookup: delegate entirely to the shared hydrate seam (also
+  // used by `GET /api/jobs/[id]/description`) rather than duplicating its
+  // Meili-lookup-then-await-fill logic here. Every gate above this line
+  // (rate limit, depth cap) still runs first, exactly as it did before this
+  // extraction — only the id-specific search + fill logic moved.
+  if (params.id) {
+    return hydrateJobDescription(params.id, ip);
+  }
+
   const result = await runSearch({ ...params, limit: depthDecision.effectiveLimit }, { clientIp: ip, countryLookup });
 
+  // Only the "prefetch" plan is reachable here — `planDescriptionFill`
+  // returns "await" only when `params.id` is set, and that path returned
+  // above already.
   const fillPlan = planDescriptionFill(params, result.hits, result.unavailable);
-  let hits = result.hits;
-  let descriptionPending = false;
-  if (hasSubspaceApiKey() && fillPlan.mode !== "none") {
-    if (fillPlan.mode === "prefetch") {
-      after(() => {
-        void fillVisibleDescriptions(fillPlan.ids, { timeoutMs: DESCRIPTION_FILL_PREFETCH_DEADLINE_MS }).catch((e) =>
-          console.error("[jobs-desc-fill] prefetch failed:", e),
-        );
-      });
-    } else {
-      try {
-        const fills = await fillVisibleDescriptions(fillPlan.ids, {
-          mode: "visible",
-          timeoutMs: DESCRIPTION_FILL_VISIBLE_DEADLINE_MS,
-        });
-        hits = mergeDescriptionFills(hits, fills);
-      } catch (e) {
-        if (isSubspaceTimeout(e)) {
-          descriptionPending = true;
-          console.warn("[jobs-desc-fill] visible fill hit the deadline", { searchId, ids: fillPlan.ids });
-        } else {
-          console.error("[jobs-desc-fill] await fill failed:", e);
-        }
-      }
-    }
+  if (hasSubspaceApiKey() && fillPlan.mode === "prefetch") {
+    after(() => {
+      void fillVisibleDescriptions(fillPlan.ids, { timeoutMs: DESCRIPTION_FILL_PREFETCH_DEADLINE_MS }).catch((e) =>
+        console.error("[jobs-desc-fill] prefetch failed:", e),
+      );
+    });
   }
 
   if (shouldLogSearch(params)) {
-    const entry = buildSearchLogEntry(params, { ...result, hits }, { searchId, now: Date.now() });
+    const entry = buildSearchLogEntry(params, result, { searchId, now: Date.now() });
     after(() => recordSearch(entry));
   }
 
-  return { ...result, hits, searchId, ...(descriptionPending ? { descriptionPending: true as const } : {}) };
+  return { ...result, searchId };
 }
 
 /** How many related jobs the detail panel's "More like this" shows. */
