@@ -49,9 +49,10 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /max-h-\[min\(50dvh,400px\)\]/);
     });
 
-    it("CompanyRoleSearch title truncates on narrow viewports", () => {
+    it("CompanyRoleSearch title clamps instead of overflowing on narrow viewports", () => {
         const src = readFileSync(join(COMPANY, "CompanyRoleSearch.tsx"), "utf8");
-        assert.match(src, /min-w-0 truncate text-base font-semibold/);
+        assert.match(src, /min-w-0 text-base font-semibold/);
+        assert.match(src, /line-clamp-2/, "title must clamp rather than overflow unbounded");
     });
 
     it("ApplyIntentDialog uses dvh for mobile viewport height", () => {
