@@ -18,9 +18,11 @@ import { CompanyTechStackBand } from "@/components/company/CompanyTechStackBand"
 import { CompanyVerdictBand } from "@/components/company/CompanyVerdictBand";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { DotSeparated } from "@/components/ui/dot-separated";
+import { getServerUser } from "@/lib/auth/server-user";
 import type { CompanyChangeEvent } from "@/lib/companies/types";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import { getCompanyPageData } from "@/lib/companies/get-company";
+import { companyUnlockStep } from "@/lib/company/unlock-step";
 import {
   buildCompanyFacts,
   buildCompanyHiringAnswer,
@@ -46,6 +48,20 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const data = await getCompanyPageData(slug);
   if (!data) notFound();
+  // Same `getServerUser()` `CompanyExhaustGate` uses for its own sign-in
+  // check, read once here to decide whether the main column's
+  // `CompanyIntelGate` may show its own "Follow" card. An anonymous visitor
+  // already gets a single combined ask from `CompanyExhaustGate`'s sign-in
+  // card below (full record + hiring history); this gate's own card would
+  // stack a second, near-duplicate one, so it renders nothing instead.
+  // `following` is never known here — that's client-only state
+  // (Firestore/localStorage) — so this only ever answers "if not yet
+  // following, what's the next step?"; `CompanyIntelGate`'s own
+  // client-computed `unlocked` flag independently suppresses its card
+  // regardless of this once the visitor really is following.
+  const signedIn = !!(await getServerUser());
+  const mainIntelGateFallback =
+    companyUnlockStep({ signedIn, following: false }) === "sign-in" ? null : undefined;
   // One clock read for the whole page, taken here rather than inside JSX so
   // every staleness decision below is measured against a single instant.
   // The purity rule fires on any Date.now() in a component body and can't
@@ -271,7 +287,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             <div data-testid="company-secondary" className="mt-10 space-y-8">
               <CompanyChangeEventTeaser event={data.changeEvents[0] ?? null} />
 
-              <CompanyIntelGate domain={data.domain} slug={data.slug} displayName={data.name}>
+              <CompanyIntelGate
+                domain={data.domain}
+                slug={data.slug}
+                displayName={data.name}
+                fallback={mainIntelGateFallback}
+              >
                 <CompanyChangeEvents events={changeEvents} companyName={data.name} />
                 <CompanyIntelligenceGrid intelligence={data.intelligence} companyName={data.name} />
               </CompanyIntelGate>
@@ -280,10 +301,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
 
           {/* Rail: the hiring record and list health — same follower-only
               boundary as the main column's intel gate, but a locked visitor
-              already sees that gate's one lock card, so this instance's
-              fallback prop is set to null and it renders nothing rather
-              than a second, near-duplicate card. Unlocked, its content
-              renders normally. */}
+              would already see the page's one card (this gate's own, or
+              CompanyExhaustGate's sign-in card below — see
+              `mainIntelGateFallback`), so this instance's fallback prop is
+              set to null unconditionally and it renders nothing rather than
+              a second, near-duplicate card. Unlocked, its content renders
+              normally. */}
           <aside className="space-y-4">
             <CompanyIntelGate
               domain={data.domain}
