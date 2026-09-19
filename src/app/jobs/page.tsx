@@ -107,6 +107,7 @@ import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
+import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { useOverflowEdges } from "@/hooks/use-overflow-edges";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { edgeFadeMaskImage } from "@/lib/jobs/edge-fade";
@@ -624,7 +625,7 @@ const RESUME_MOMENT_OPENS = 3;
  */
 function JobCardSkeleton() {
     return (
-        // rounded-none: mirrors the real row's flush shape (JobCard below).
+        // rounded-none: KEEP — mirrors the real row's flush shape (JobCard below).
         <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-card pt-4">
             <div className="self-start">
                 <div className="skeleton-bar h-12 w-12 rounded-panel" />
@@ -1917,59 +1918,21 @@ function JobsContent() {
     }, [homeViewDockActive, setHomeViewDocked]);
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
-    const [dockedFacetsMount, setDockedFacetsMount] = useState<HTMLElement | null>(null);
-    const [dockedFieldDirectoryMount, setDockedFieldDirectoryMount] = useState<HTMLElement | null>(null);
-    const [dockedQueryMount, setDockedQueryMount] = useState<HTMLElement | null>(null);
-    const [dockedLocationMount, setDockedLocationMount] = useState<HTMLElement | null>(null);
-    const [dockedSortMount, setDockedSortMount] = useState<HTMLElement | null>(null);
-    const [dockedExtrasMount, setDockedExtrasMount] = useState<HTMLElement | null>(null);
-    const [dockedClearFiltersMount, setDockedClearFiltersMount] = useState<HTMLElement | null>(null);
-    const [dockedSaveSearchMount, setDockedSaveSearchMount] = useState<HTMLElement | null>(null);
-    const [dockedHomeViewMount, setDockedHomeViewMount] = useState<HTMLElement | null>(null);
-
-    useLayoutEffect(() => {
-        if (!headerDockActive) {
-            setDockedFacetsMount(null);
-            setDockedFieldDirectoryMount(null);
-            setDockedQueryMount(null);
-            setDockedLocationMount(null);
-            setDockedSortMount(null);
-            setDockedExtrasMount(null);
-            setDockedClearFiltersMount(null);
-            setDockedSaveSearchMount(null);
-            return;
-        }
-        const sync = () => {
-            setDockedFacetsMount(document.querySelector('[data-testid="topbar-docked-facets"]') as HTMLElement | null);
-            setDockedFieldDirectoryMount(document.querySelector('[data-testid="topbar-docked-field-directory"]') as HTMLElement | null);
-            setDockedQueryMount(document.querySelector('[data-testid="topbar-docked-query"]') as HTMLElement | null);
-            setDockedLocationMount(document.querySelector('[data-testid="topbar-docked-location"]') as HTMLElement | null);
-            setDockedSortMount(document.querySelector('[data-testid="topbar-docked-sort"]') as HTMLElement | null);
-            setDockedExtrasMount(document.querySelector('[data-testid="topbar-docked-extras"]') as HTMLElement | null);
-            setDockedClearFiltersMount(document.querySelector('[data-testid="topbar-docked-clear-filters"]') as HTMLElement | null);
-            setDockedSaveSearchMount(document.querySelector('[data-testid="topbar-docked-save-search"]') as HTMLElement | null);
-        };
-        sync();
-        const id = requestAnimationFrame(sync);
-        return () => cancelAnimationFrame(id);
-    }, [headerDockActive]);
-
-    // Own effect, own gate — `homeViewDockActive` is true in states where
-    // `headerDockActive` is false (see its definition above), so this can't
-    // share the effect above without re-widening that gate for every
-    // search-only mount too.
-    useLayoutEffect(() => {
-        if (!homeViewDockActive) {
-            setDockedHomeViewMount(null);
-            return;
-        }
-        const sync = () => {
-            setDockedHomeViewMount(document.querySelector('[data-testid="topbar-docked-home-view"]') as HTMLElement | null);
-        };
-        sync();
-        const id = requestAnimationFrame(sync);
-        return () => cancelAnimationFrame(id);
-    }, [homeViewDockActive]);
+    // One hook per docked slot, gated by whichever flag governs it —
+    // `headerDockActive` for the search-only slots, `homeViewDockActive` for
+    // the toggle's slot alone. Distinct gates on purpose: `homeViewDockActive`
+    // is true in states where `headerDockActive` is false (see its
+    // definition above), so folding the toggle's slot into the search-only
+    // gate would re-widen that gate for every search-only mount too.
+    const dockedFacetsMount = useDockedSlotMount(headerDockActive, "topbar-docked-facets");
+    const dockedFieldDirectoryMount = useDockedSlotMount(headerDockActive, "topbar-docked-field-directory");
+    const dockedQueryMount = useDockedSlotMount(headerDockActive, "topbar-docked-query");
+    const dockedLocationMount = useDockedSlotMount(headerDockActive, "topbar-docked-location");
+    const dockedSortMount = useDockedSlotMount(headerDockActive, "topbar-docked-sort");
+    const dockedExtrasMount = useDockedSlotMount(headerDockActive, "topbar-docked-extras");
+    const dockedClearFiltersMount = useDockedSlotMount(headerDockActive, "topbar-docked-clear-filters");
+    const dockedSaveSearchMount = useDockedSlotMount(headerDockActive, "topbar-docked-save-search");
+    const dockedHomeViewMount = useDockedSlotMount(homeViewDockActive, "topbar-docked-home-view");
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -4943,9 +4906,10 @@ function JobsContent() {
                         // lg+ — max-w-7xl, the widest named container token already used
                         // site-wide (resume/page.tsx, settings, connect, etc.), not a new
                         // arbitrary value. Below lg, unchanged.
-                        // rounded-none (at rest): PR #534's own flat front-door frame,
-                        // out of this pass's scope — the raised well below is the
-                        // soft-surfaces panel this pass owns.
+                        // rounded-none: KEEP — at rest this section has no border or
+                        // background (dropped above for the front-door redesign), so
+                        // there's no visible corner to round; rounded-panel would wrongly
+                        // imply a panel surface that isn't drawn here.
                         // w-full (2026-09-17): mx-auto on a flex item suppresses
                         // cross-axis stretch (Flexbox spec) — the same defect PR
                         // #540 fixed on the toolbar section, same fix here.
@@ -5427,7 +5391,7 @@ function JobsContent() {
                             onActivePackChange={handleForYouActivePackChange}
                             onOpenPosting={handleOpenPosting}
                             onHomeViewChange={setJobsHomeView}
-                            showToggle={resumeOnFile === true}
+                            showSearchCta={resumeOnFile === true}
                             signedIn={Boolean(user)}
                             onRequestSignIn={() => {
                                 setAuthGateReason("report");

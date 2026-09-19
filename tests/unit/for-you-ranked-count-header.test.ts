@@ -83,7 +83,7 @@ function baseProps(visiblePacks: PublicJob[]): ForYouHomeProps {
         onActivePackChange: noop,
         onOpenPosting: noop,
         onHomeViewChange: noop,
-        showToggle: true,
+        showSearchCta: true,
         signedIn: true,
         onRequestSignIn: noop,
         pursuitsByJobId: new Map(),

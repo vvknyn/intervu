@@ -19,6 +19,33 @@ function walk(dir: string): string[] {
     return out;
 }
 
+const ROUNDED_NONE_KEEP_MARKER = /rounded-none:\s*KEEP\s*—/;
+
+/**
+ * Every physical line containing `rounded-none` needs the KEEP marker
+ * either on itself or somewhere in the contiguous run of `//` comment lines
+ * immediately above it. Returns "<line>: <text>" for each occurrence that
+ * has no marker in reach, pure and file-content-only so it's testable
+ * without touching disk.
+ */
+function findUnjustifiedRoundedNone(src: string): string[] {
+    const lines = src.split("\n");
+    const violations: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (!lines[i].includes("rounded-none")) continue;
+        if (ROUNDED_NONE_KEEP_MARKER.test(lines[i])) continue;
+        let justified = false;
+        for (let j = i - 1; j >= 0 && lines[j].trim().startsWith("//"); j--) {
+            if (ROUNDED_NONE_KEEP_MARKER.test(lines[j])) {
+                justified = true;
+                break;
+            }
+        }
+        if (!justified) violations.push(`${i + 1}: ${lines[i].trim()}`);
+    }
+    return violations;
+}
+
 describe("jobs sheet action-bar soft corners", () => {
     it("JobDetailActionBar's Apply button reads rounded-ctl, not rounded-none", () => {
         const src = readFileSync(JOB_DETAIL, "utf8");
@@ -29,32 +56,28 @@ describe("jobs sheet action-bar soft corners", () => {
     });
 
     /**
-     * Class-wide guard (not just the one reported Apply button): nothing under
-     * src/app/jobs or src/components/jobs may pair a brand-filled CTA
-     * (`bg-brand`) with a square corner (`rounded-none`) in the same
-     * className string. A future brand button that copies this pattern is
-     * caught here instead of shipping another flat corner.
+     * Class-wide guard, not scoped to any one control or class combination:
+     * every `rounded-none` under src/app/jobs or src/components/jobs must
+     * carry a `rounded-none: KEEP — <reason>` marker, either on its own line
+     * or in the `//` comment block directly above it (comments wrap across
+     * multiple lines, so "directly above" means the whole contiguous run,
+     * not just the one physical line touching the code). An unmarked
+     * `rounded-none` fails, listing every offending file:line. Supersedes
+     * the old bg-brand-only pairing check, which only caught a brand-filled
+     * control left square — any other unannotated control (input, chip,
+     * secondary button) slipped through it silently.
      */
-    it("no className string in src/app/jobs or src/components/jobs pairs bg-brand with rounded-none", () => {
+    it("every rounded-none under src/app/jobs and src/components/jobs carries a KEEP marker", () => {
         const roots = [join(SRC, "app/jobs"), join(SRC, "components/jobs")];
+        const failures: string[] = [];
         for (const root of roots) {
             for (const file of walk(root)) {
-                const src = readFileSync(file, "utf8");
-                // Every quoted string in the file, not just single-literal
-                // `className="..."` — this also catches each individual
-                // string argument inside a `cn("a", "b")` call, where the
-                // two classes could otherwise hide in different arguments.
-                for (const literal of src.match(/"[^"\n]*"/g) ?? []) {
-                    if (literal.includes("bg-brand")) {
-                        assert.doesNotMatch(
-                            literal,
-                            /rounded-none/,
-                            `${file} pairs bg-brand with rounded-none: ${literal}`,
-                        );
-                    }
+                for (const hit of findUnjustifiedRoundedNone(readFileSync(file, "utf8"))) {
+                    failures.push(`${file}:${hit}`);
                 }
             }
         }
+        assert.deepEqual(failures, [], `unjustified rounded-none (no KEEP marker):\n${failures.join("\n")}`);
     });
 });
 
@@ -78,9 +101,20 @@ describe("For-you/Search toggle — one mount, one shape", () => {
 
     it("page.tsx wires a docked mount for topbar-docked-home-view and portals the same toggle element there", () => {
         const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /setDockedHomeViewMount\(document\.querySelector\('\[data-testid="topbar-docked-home-view"\]'\)/);
+        assert.match(
+            src,
+            /useDockedSlotMount\(homeViewDockActive, "topbar-docked-home-view"\)/,
+            "the toggle's slot must be wired through the shared useDockedSlotMount hook, not a bespoke effect",
+        );
         assert.match(src, /createPortal\(homeViewToggleEl, dockedHomeViewMount\)/);
         assert.match(src, /!homeViewDockActive && showHomeViewToggle/, "the same toggle must also render inline when not docked (mobile / below lg)");
+
+        const hookSrc = readFileSync(join(SRC, "hooks/use-docked-slot-mount.ts"), "utf8");
+        assert.match(
+            hookSrc,
+            /document\.querySelector\(`\[data-testid="\$\{testId\}"\]`\)/,
+            "the shared hook must actually look up the slot by the testId it was given",
+        );
     });
 
     /**

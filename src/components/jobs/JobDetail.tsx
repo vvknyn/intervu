@@ -398,7 +398,7 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
                 e.stopPropagation();
                 onClick();
             }}
-            // rounded-none: flush full-width row (px-0), mirrors JobCard's
+            // rounded-none: KEEP — flush full-width row (px-0), mirrors JobCard's
             // hairline-separated list treatment — not a discrete control.
             className="flex w-full flex-col gap-0.5 rounded-none px-0 py-3 text-left transition-colors hover:bg-muted cursor-pointer group"
         >
@@ -726,7 +726,7 @@ export function JobDetail({
         <div
             data-region="detail"
             className={cn(
-                // rounded-none: edge-to-edge content region nested inside
+                // rounded-none: KEEP — edge-to-edge content region nested inside
                 // already-rounded ancestors (detail-pane wrapper / Sheet).
                 "relative rounded-none bg-card",
                 collapseDescription && "flex min-h-0 flex-1 flex-col overflow-hidden",

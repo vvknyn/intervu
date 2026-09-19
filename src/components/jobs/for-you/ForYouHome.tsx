@@ -69,7 +69,7 @@ export interface ForYouHomeProps {
     onActivePackChange: (jobId: string) => void;
     onOpenPosting: (job: PublicJob) => void;
     onHomeViewChange: (view: JobsHomeView) => void;
-    showToggle: boolean;
+    showSearchCta: boolean;
     signedIn: boolean;
     onRequestSignIn: () => void;
     pursuitsByJobId: Map<string, Pursuit>;
@@ -133,7 +133,7 @@ export function ForYouHome({
     onActivePackChange,
     onOpenPosting,
     onHomeViewChange,
-    showToggle,
+    showSearchCta,
     signedIn,
     onRequestSignIn,
     pursuitsByJobId,
@@ -286,7 +286,7 @@ export function ForYouHome({
                     <p className="text-sm text-muted-foreground">
                         No ranked roles to show right now. Try Search to browse the full list.
                     </p>
-                    {showToggle && (
+                    {showSearchCta && (
                         <Button type="button" variant="default" onClick={() => onHomeViewChange("search")}>
                             Go to Search
                         </Button>
