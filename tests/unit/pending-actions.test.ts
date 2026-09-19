@@ -12,8 +12,8 @@ import {
 import { validateNextParam } from '../../src/lib/auth/product-routes';
 
 describe('resolveApplyClickDecision — signed-in vs guest Apply click', () => {
-    it('signed out opens ATS first then auth for tracking', () => {
-        assert.equal(resolveApplyClickDecision(false), 'open-then-auth');
+    it('signed out gates on auth before the ATS ever opens', () => {
+        assert.equal(resolveApplyClickDecision(false), 'auth-first');
     });
 
     it('signed in performs the action immediately, no auth interstitial', () => {

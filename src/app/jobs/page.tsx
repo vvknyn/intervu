@@ -1594,13 +1594,21 @@ function JobsContent() {
     // The one auth gate (`use-auth-gate.ts`): signed in → run the handler
     // now; signed out → persist the action (survives both in-place login and
     // a hard OAuth/passkey navigation away and back) and open the popover.
-    // Handlers below reference `doMarkApplied`/`replayApplyGate`, declared
-    // later in this component — safe because these are arrow functions, not
-    // calls: the reference resolves only when the auth gate invokes them,
-    // long after this component has finished its first render.
+    // Handlers below reference `setApplyIntentJob`/`replayApplyGate`,
+    // declared later in this component — safe because these are arrow
+    // functions, not calls: the reference resolves only when the auth gate
+    // invokes them, long after this component has finished its first render.
     const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob, PublicJob>({
         handlers: {
-            apply: (action) => void doMarkApplied(action.payload),
+            // A guest's Apply click never reached the ATS (auth-first gate
+            // above) — so the replay isn't "mark applied", it's the same
+            // apply-intent/departure step a signed-in click takes. It can't
+            // call `openPostingNow` itself: `window.open` outside this
+            // click's own gesture (we're deep in an auth callback, not a
+            // click handler) is exactly what popup blockers stop. Opening
+            // the dialog instead means the user's own next click —
+            // "Continue to the posting" — is a fresh, real gesture.
+            apply: (action) => setApplyIntentJob(action.payload),
             gate: (action) => void replayApplyGate(action.payload),
             upload: () => {
                 setImportOpen(true);
@@ -3512,10 +3520,10 @@ function JobsContent() {
             ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
         });
         const decision = resolveApplyClickDecision(Boolean(user));
-        if (decision === "open-then-auth") {
-            // ATS first — must stay synchronous in the click gesture; auth
-            // after only marks applied (no second navigation).
-            if (job.apply_url) openPostingNow(job);
+        if (decision === "auth-first") {
+            // Gate before anything opens — a guest must sign up/in before
+            // the ATS ever sees this click. `onAuthed`'s "apply" handler
+            // resumes the same perform path below once they're back.
             setAuthGateReason("apply");
             setAuthTrigger("auto");
             gate({ kind: "apply", payload: job });

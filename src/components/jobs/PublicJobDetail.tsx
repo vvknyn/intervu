@@ -146,13 +146,22 @@ export function PublicJobDetail({
     // The one auth gate (`use-auth-gate.ts`): signed in → run the handler
     // now; signed out → persist the action (survives both in-place login and
     // a hard OAuth/passkey navigation away and back) and open the popover.
-    // `apply`/`gate` reference `doMarkApplied`/`replayApplyGate`, declared
-    // later in this component — safe because these are arrow functions, not
-    // calls: the reference resolves only when the auth gate invokes them,
-    // long after this component has finished its first render.
+    // `gate` references `replayApplyGate`, declared later in this component
+    // — safe because these are arrow functions, not calls: the reference
+    // resolves only when the auth gate invokes them, long after this
+    // component has finished its first render.
     const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob, PublicJob>({
         handlers: {
-            apply: (action) => void doMarkApplied(action.payload),
+            // Same reasoning as jobs/page.tsx's sibling handler: a guest's
+            // Apply click never reached the ATS (auth-first gate), so the
+            // replay opens the apply-intent dialog rather than calling
+            // `window.open` outside a click gesture. Guard on job id like
+            // `report` below — this route only ever shows one job, but a
+            // stale/foreign persisted record must never pop the dialog for
+            // it.
+            apply: (action) => {
+                if (action.payload?.id === job.id) setApplyIntentOpen(true);
+            },
             gate: (action) => void replayApplyGate(action.payload),
             // This surface has no résumé importer — nothing here ever calls
             // `gate({ kind: "upload", ... })`, so this is unreachable. Still
@@ -231,8 +240,10 @@ export function PublicJobDetail({
 
     const handleOpenPosting = (target: PublicJob) => {
         const decision = resolveApplyClickDecision(Boolean(user));
-        if (decision === "open-then-auth") {
-            if (target.apply_url) openPostingNow(target);
+        if (decision === "auth-first") {
+            // Gate before anything opens — see jobs/page.tsx's sibling
+            // comment. `onAuthed`'s "apply" handler resumes the perform
+            // path below once the user is back.
             setAuthGateReason("apply");
             gate({ kind: "apply", payload: target });
             return;

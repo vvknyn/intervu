@@ -4,12 +4,17 @@
  *
  * On /jobs a logged-out user can trigger four actions that require sign-in:
  *
- *   - apply   — "Mark as applied"  → write an application after login
+ *   - apply   — guest Apply click → after login, resume the exact signed-in
+ *               apply flow (apply-intent prompt, then departure) rather than
+ *               a second, narrower "just mark it applied" path. (2026-09-18:
+ *               guests no longer open the ATS before auth at all — see
+ *               `resolveApplyClickDecision` below.)
  *   - gate    — legacy replay kind: after login, open the posting and write
- *               the tracker application. Guest Apply no longer queues this
- *               (2026-09-10: open ATS first, then auth with kind `"apply"` to
- *               track only). Stale persisted `"gate"` records still replay via
- *               the handler map; new guest apply clicks use `"apply"`.
+ *               the tracker application. Superseded 2026-09-10, then fully
+ *               retired 2026-09-18 when guest Apply started gating on auth
+ *               before ever opening the ATS. Stale persisted `"gate"`
+ *               records from before either change still replay via the
+ *               handler map; new guest apply clicks always use `"apply"`.
  *   - upload  — gate: open the resume-import modal
  *   - report  — flag/report a job → after login, reopen the report dialog
  *               for that job and let the user resubmit
@@ -232,11 +237,13 @@ export function takePersistedPendingAction<Apply, Gate, Report>(
 }
 
 /** Signed-in vs guest Apply click — one function so both entry points share
- *  the same branch without each repeating `if (!user)`. Guests open the ATS
- *  synchronously in the click gesture, then auth tracks the application;
- *  signed-in users go straight to apply-intent / departure. */
-export type ApplyClickDecision = "perform" | "open-then-auth";
+ *  the same branch without each repeating `if (!user)`. Guests never reach
+ *  the employer's site before they sign up: the click gates on auth first,
+ *  and only after that succeeds does the click's own next gesture (inside
+ *  the apply-intent dialog) open the ATS. Signed-in users go straight to
+ *  apply-intent / departure — unchanged. */
+export type ApplyClickDecision = "perform" | "auth-first";
 
 export function resolveApplyClickDecision(signedIn: boolean): ApplyClickDecision {
-    return signedIn ? "perform" : "open-then-auth";
+    return signedIn ? "perform" : "auth-first";
 }

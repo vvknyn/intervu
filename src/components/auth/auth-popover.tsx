@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { captureEvent } from "@/lib/analytics/events";
-import { AUTH_CTA_LABEL, type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { AUTH_CTA_LABEL, authGateTitle, type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { canShowAutoNudge, markAutoNudgeShown, recordNudgeDismissed } from "@/lib/auth/nudge-cap";
 import { type NudgeDecision, type NudgeGateState, decideNudgeOnce, nudgeGateNext, shouldRecordDismiss } from "@/lib/auth/nudge-gate";
 
@@ -128,13 +128,27 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     const valueLineNode = valueLine && (
         <p className="mb-4 text-sm leading-normal text-muted-foreground">{valueLine}</p>
     );
+    // Most reasons have no title of their own — the login/signup form's own
+    // heading (authCardCopy) already names the action. A reason like "apply"
+    // that gates BEFORE anything the user asked for has happened needs its
+    // own headline explaining that, so it opts in via authGateTitle.
+    const gateTitle = authGateTitle(effectiveReason);
+    const titleNode = gateTitle && (
+        <p className="mb-1 text-base font-semibold text-foreground">{gateTitle}</p>
+    );
 
     // When no trigger, use a Dialog instead (e.g. programmatic open from buttons)
     if (!showTrigger) {
         return (
             <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
                 <DialogContent className="sm:max-w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-panel border border-border bg-card">
-                    <DialogTitle className="sr-only">Authentication</DialogTitle>
+                    {gateTitle ? (
+                        <DialogTitle className="mb-1 text-base font-semibold text-foreground">
+                            {gateTitle}
+                        </DialogTitle>
+                    ) : (
+                        <DialogTitle className="sr-only">Authentication</DialogTitle>
+                    )}
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
                 </DialogContent>
@@ -151,6 +165,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
             </PopoverTrigger>
             <PopoverContent align="end" className="w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-panel border border-border bg-card">
                 <div>
+                    {titleNode}
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
                 </div>
