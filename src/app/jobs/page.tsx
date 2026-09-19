@@ -146,6 +146,7 @@ import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-w
 import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
 import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
 import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
+import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
@@ -1157,10 +1158,19 @@ function JobsContent() {
     // person onto /resume or /trends and offer to edit a search they left.
     useEffect(() => () => setDocked(null), [setDocked]);
 
+    // Perf first-paint (2026-09-18): the one piece of state `hasSearchIntent`
+    // (lib/jobs/search-intent.ts) needs beyond derived query/filter/sort/URL
+    // signals — sticky for the page session, set inside `submitSearch` below
+    // (the single chokepoint every explicit-submit path funnels through,
+    // `submitSearch("")` "browse all" included) and never cleared by this
+    // page; only a fresh mount resets it.
+    const [explicitlySubmitted, setExplicitlySubmitted] = useState(false);
+
     // Single chokepoint for a SUBMITTED (not per-keystroke) search — the
     // search box's Enter/suggestion-pick and a recent-search chip click both
     // route through here, so both record the query the same way.
     const submitSearch = (q: string) => {
+        setExplicitlySubmitted(true);
         // Every submit path funnels through here (the box's own Enter/
         // suggestion-pick already self-closes; this covers the ones that
         // don't — the external "Search" button, category chips, seed
@@ -1292,23 +1302,37 @@ function JobsContent() {
 
     // Honest count for the rail's "Hide likely-ghost" toggle (Task 7) — how
     // many likely_ghost postings the CURRENT filters are hiding right now.
-    // `null` = not resolved yet, or not applicable (ghosts shown) — either
-    // way FilterPanel only renders the count suffix when non-null and > 0.
-    const [ghostHiddenCount, setGhostHiddenCount] = useState<number | null>(null);
+    // `null` = not resolved (ghosts shown, or the probe failed) — either way
+    // FilterPanel only renders the count suffix when non-null and > 0.
+    //
+    // Server-folded (perf first-paint, 2026-09-18): this used to be its own
+    // client-fired probe request, tracked in its own `useState` and reset by
+    // the search effect below. `runJobsSearch` (lib/jobs/run-search.ts) now
+    // computes it server-side, in parallel with the main query, as a field
+    // on the SAME response `searchJobsAction`/`getDefaultBrowseActionGuarded`
+    // already returns — so it's derived straight off `result` instead of
+    // its own round trip. One POST per search instead of two.
+    const ghostHiddenCount = result?.ghostHiddenCount ?? null;
 
     // Beyond-window probe (2026-08-12): the honest corpus count with the
     // 30d posted-bucket filter lifted, for the results line's "N more
     // beyond 30 days — show all" affordance. The 30d default hides real
     // inventory (measured: 2,294 shown vs 7,199 matching roles, ~68%
     // hidden) — this surfaces the gap rather than fabricating one; `null`
-    // means "not applicable right now" (bucket isn't 30d, probe unresolved,
-    // or the probe failed) and `resolveBeyondWindow` (lib/jobs/beyond-
-    // window.ts) is the single place that turns this + the visible
-    // `totalCount` into the show/hide + number decision. `undefined` (the
-    // initial value, and what it's reset to right before each new probe
-    // fires — same idiom as `lastUpdated` below) means "not resolved yet
-    // for the CURRENT search"; `null` means "resolved, not applicable".
-    const [beyondWindowCount, setBeyondWindowCount] = useState<CorpusCount | null | undefined>(undefined);
+    // means "not applicable right now" (bucket isn't 30d, or the probe
+    // failed) and `resolveBeyondWindow` (lib/jobs/beyond-window.ts) is the
+    // single place that turns this + the visible `totalCount` into the
+    // show/hide + number decision.
+    //
+    // Server-folded (perf first-paint, 2026-09-18) — same as `ghostHiddenCount`
+    // above: this landed as its OWN client-fired probe, with a separate
+    // `undefined` "not resolved yet for the current search" state the render
+    // below reserved a placeholder line for. `runJobsSearch` now resolves it
+    // in parallel with the main query, in the SAME response, so there is no
+    // longer a gap between "the result landed" and "the probe landed" for
+    // this render to paper over — see the deleted `beyondWindowPending`
+    // below.
+    const beyondWindowCount = result?.beyondWindowCount ?? null;
 
     // Freshness stamp ("updated 3h ago") for the population the CURRENT
     // search matches — refetched alongside every search below (same
@@ -1329,8 +1353,21 @@ function JobsContent() {
     // population (regression guard); `null` (probe failed — unknown) keeps
     // the optimistic default rather than stripping the filter exactly when
     // the box is degraded (Jul 24 incident).
+    // Perf first-paint (2026-09-18): the search itself must be the FIRST
+    // action this page dispatches on mount — see the main search effect
+    // below, which now fires immediately (no debounce) on its own very
+    // first run. `firstSearchSettled` gates every secondary mount probe
+    // (posted-date support here, report-listing flag, masthead live-count
+    // — none of them gate the results themselves) so none can race the
+    // search for the same in-flight request budget on a pure client mount.
+    // Set once, in the search effect's own `finally`, and never reset —
+    // "settled" means that FIRST attempt completed (success or failure),
+    // not that every later search has to be waited on too.
+    const [firstSearchSettled, setFirstSearchSettled] = useState(false);
+
     const [postedDateSupported, setPostedDateSupported] = useState(true);
     useEffect(() => {
+        if (!firstSearchSettled) return;
         let cancelled = false;
         getPostedDateFilterSupportAction()
             .then((ok) => {
@@ -1342,7 +1379,7 @@ function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [firstSearchSettled]);
 
     // ITEM O-FE (2026-08-15) — the flags endpoint isn't deployed yet.
     // Defaults to hidden (unlike postedDateSupported's optimistic default
@@ -1350,6 +1387,7 @@ function JobsContent() {
     // probe is in flight or fails.
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
+        if (!firstSearchSettled) return;
         let cancelled = false;
         reportJobEnabledAction()
             .then((ok) => {
@@ -1361,7 +1399,7 @@ function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [firstSearchSettled]);
 
     // Effective sort: shared resolver normalizes relevance-without-query to
     // newest, then the support coercion drops "newest" when the corpus carries
@@ -1382,6 +1420,15 @@ function JobsContent() {
     // reversible A→B→A query changes where signatures alone are insufficient.
     const paginationRef = useRef<JobsPaginationGeneration | null>(null);
     if (!paginationRef.current) paginationRef.current = new JobsPaginationGeneration();
+
+    // Perf first-paint (2026-09-18): the search effect below debounces
+    // every run behind 250ms EXCEPT its own very first (mount) run, which
+    // is seeded straight from the URL and must be the first action this
+    // page dispatches — see `firstSearchSettled` above. A ref (not state):
+    // flipping it must happen synchronously, in the same tick the effect
+    // body runs, before anything async — a state flag wouldn't be readable
+    // that soon and would itself trigger a needless extra render.
+    const isFirstSearchRunRef = useRef(true);
 
     const [user, setUser] = useState<User | null>(null);
     // Session cookie is httpOnly — first paint is "not yet known", not signed
@@ -1462,6 +1509,7 @@ function JobsContent() {
     // a precise-looking claim.
     const [liveJobsCount, setLiveJobsCount] = useState<CorpusCount | null>(null);
     useEffect(() => {
+        if (!firstSearchSettled) return;
         let cancelled = false;
         getMarketingStatsAction()
             .then((stats) => {
@@ -1472,7 +1520,7 @@ function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [firstSearchSettled]);
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
     const { byJobId: pursuitsByJobId } = usePursuits();
@@ -1825,6 +1873,25 @@ function JobsContent() {
     // (the masthead's marketing content specifically wants zero filters
     // too). See `isAtRest` (lib/jobs/front-door-state.ts) for the pure rule.
     const atRest = isAtRest({ query, jobParam: searchParams.get("job") });
+    // Perf first-paint (2026-09-18), product decision (Vivek): the at-rest
+    // page must never render or fetch results — "it's confusing the user."
+    // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the
+    // ONE gate between the at-rest front door and the results surface (the
+    // results list, its skeleton rows, the result-count line, and the fetch
+    // that populates all three — see the search-fetch effect and the results
+    // div below, both of which read this same value). `activeEntries`/
+    // `sortOverride` reuse the existing "what's active" chokepoints above
+    // rather than a second default-comparator; `jobOpen` is the raw URL
+    // param (a deliberate deep link/row click), not `selectedId` (whose
+    // ambient default-browse auto-selection is not deliberate intent — see
+    // `atRest`'s own comment above for the same distinction).
+    const searchIntent = hasSearchIntent({
+        query,
+        filtersAwayFromDefault: activeEntries.length > 0 || sortOverride !== null,
+        explicitlySubmitted,
+        jobOpen: Boolean(searchParams.get("job")),
+        forYouActive: showForYouHome,
+    });
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
@@ -1870,7 +1937,22 @@ function JobsContent() {
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
+    //
+    // Perf first-paint (2026-09-18): NO search intent (`searchIntent` above)
+    // now DOES skip this — the at-rest page must never fetch results at all,
+    // not merely render around a fetch already in flight. `firstSearchSettled`
+    // is still flipped true immediately so the secondary mount probes gated
+    // on it (posted-date support, report-job-enabled, live-jobs-count for the
+    // at-rest masthead) aren't left waiting on a fetch that will never fire;
+    // `loading` is flipped false so the results div (hidden at rest anyway,
+    // see below) never carries a stuck "still loading" flag into the moment
+    // intent later appears.
     useEffect(() => {
+        if (!searchIntent) {
+            setFirstSearchSettled(true);
+            setLoading(false);
+            return;
+        }
         let cancelled = false;
         let firstPageSucceeded = false;
         // Deliverable 1 — set when this run schedules the one automatic
@@ -1886,6 +1968,16 @@ function JobsContent() {
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
         setLoading(true);
+        // First run (mount, URL-seeded) fires immediately — search must be
+        // the first action this page dispatches, ahead of the secondary
+        // probe effects gated on `firstSearchSettled` above. Every later
+        // run (typing, a filter change) keeps the 250ms debounce. Flipped
+        // synchronously here, not inside the timeout body, so a second
+        // effect run scheduled before this one's timeout even fires still
+        // sees it as no longer the first.
+        const isFirstRun = isFirstSearchRunRef.current;
+        isFirstSearchRunRef.current = false;
+        const debounceMs = isFirstRun ? 0 : 250;
         const t = setTimeout(async () => {
             try {
                 // Browse-by-default (2026-08-07): the pristine zero-query
@@ -2095,80 +2187,15 @@ function JobsContent() {
                         "replace",
                     );
                 }
-                // Honest hidden-ghost count for the rail's toggle row (Task 7): one
-                // extra limit-1, facets-only request with hideGhosts flipped off and
-                // any explicit `ghost_badge` facet stripped, so it's counting against
-                // the SAME other filters rather than a legacy-facet-narrowed set (see
-                // controller resolution #2). Skipped entirely when ghosts are already
-                // shown. Fire-and-forget — it must not block `loading`/`finally` below
-                // — and reuses this closure's own `cancelled` flag plus the pagination
-                // generation as its staleness guard (the same precedent
-                // JobsPaginationGeneration/FitIntentGuard set elsewhere in this file),
-                // rather than a bespoke guard class.
-                if (hideGhosts) {
-                    searchJobsAction({
-                        ...buildJobSearchPayload(
-                            { ...filterState, facets: { ...filterState.facets, ghost_badge: undefined }, hideGhosts: false },
-                            query,
-                            backendSort,
-                            postedDateSupported,
-                            locationDefaultSuppressed,
-                        ),
-                        withFacets: true,
-                        limit: 1,
-                        offset: 0,
-                    })
-                        .then((gr) => {
-                            if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
-                            if (isUnavailableJobsResult(gr)) return;
-                            setGhostHiddenCount(gr.facetDistribution?.ghost_badge?.["likely_ghost"] ?? 0);
-                        })
-                        .catch(() => {
-                            /* best-effort — the toggle row just omits the count suffix */
-                        });
-                } else {
-                    setGhostHiddenCount(null);
-                }
-                // Beyond-window probe: same shape as the ghost-hidden-count
-                // probe above (fire-and-forget, same `cancelled`/generation
-                // staleness guard), but only when the 30d default is the
-                // ACTIVE bucket — any other bucket (including "Any") has
-                // nothing further to reveal, so `resolveBeyondWindow` would
-                // hide the affordance anyway and the request would be
-                // wasted. `postedBucket: undefined` lifts the filter to
-                // measure the corpus this same query/facets would match
-                // with no date window; `limit: 0` because only `total` is
-                // needed. Unlike the ghost probe, failure explicitly clears
-                // to `null` — a stale prior-search count masquerading as
-                // this search's "N more" would be exactly the fabricated
-                // number the spec forbids.
-                if (appliedPosted === "30d") {
-                    // Reset to "not resolved yet" before firing — same
-                    // reason as `setLastUpdated(undefined)` below: a PRIOR
-                    // generation's resolved count (or its floor/hidden
-                    // verdict) must never linger under this generation's
-                    // search while this one is in flight.
-                    setBeyondWindowCount(undefined);
-                    searchJobsAction({
-                        ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                        postedBucket: undefined,
-                        limit: 0,
-                        offset: 0,
-                    })
-                        .then((br) => {
-                            if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
-                            if (isUnavailableJobsResult(br)) {
-                                setBeyondWindowCount(null);
-                                return;
-                            }
-                            setBeyondWindowCount(resolveCorpusCount(br, MAX_REACHABLE));
-                        })
-                        .catch(() => {
-                            if (!cancelled) setBeyondWindowCount(null);
-                        });
-                } else {
-                    setBeyondWindowCount(null);
-                }
+                // Ghost-hidden-count and beyond-30d-window probes used to
+                // fire here as two extra client round trips (Task 7 /
+                // 2026-08-12). Perf first-paint (2026-09-18): both are now
+                // computed server-side, in parallel with the main query, by
+                // `runJobsSearch` (lib/jobs/run-search.ts) — `r.ghostHiddenCount`/
+                // `r.beyondWindowCount` above already carry them, and
+                // `ghostHiddenCount`/`beyondWindowCount` (derived consts near
+                // `result`'s declaration) read them straight off `result`.
+                // One POST per search instead of three.
                 // Freshness probe: same fire-and-forget/generation-guard
                 // shape as the ghost-hidden-count and beyond-window probes
                 // above, scoped by the SAME payload the results search just
@@ -2209,6 +2236,12 @@ function JobsContent() {
                     }
                 }
             } finally {
+                // The search has settled (succeeded, failed, or was
+                // rate/depth-gated) — unconditionally, regardless of
+                // `autoRetryScheduled`: the FIRST attempt already
+                // dispatched, and the secondary probe effects above should
+                // not wait on an eventual retry to succeed before firing.
+                if (!cancelled) setFirstSearchSettled(true);
                 if (
                     !cancelled &&
                     !autoRetryScheduled &&
@@ -2217,7 +2250,7 @@ function JobsContent() {
                     setLoading(false);
                 }
             }
-        }, 250);
+        }, debounceMs);
         return () => {
             cancelled = true;
             clearTimeout(t);
@@ -2232,8 +2265,12 @@ function JobsContent() {
         // covered transitively by `searchKey`, so this never fires an extra
         // run on its own; it's here so the effect is never accused of
         // reading a value outside its own dependency list.
+        // `searchIntent` is listed explicitly (perf first-paint, 2026-09-18):
+        // an explicit empty-query submit ("browse all") flips
+        // `explicitlySubmitted` without changing `query`, so `searchKey`
+        // alone would not re-run this effect for that transition.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchKey, searchRetry, emptySearchState, locationDefaultSuppressed]);
+    }, [searchKey, searchRetry, emptySearchState, locationDefaultSuppressed, searchIntent]);
 
     // Sort-reset (approved product change, 2026-08-13): an explicit sort is
     // sticky across query edits now — the only remaining reset is the
@@ -4102,16 +4139,13 @@ function JobsContent() {
     // window.ts) is the single place deciding the words; `null` here means
     // "resolved, nothing to show" so it's never passed a bare `undefined`.
     const beyondWindowText = beyondWindow.show ? formatBeyondWindowText(beyondWindow.extra) : null;
-    // True only while the probe for the ACTIVE 30d bucket hasn't resolved
-    // yet for THIS search — distinct from "resolved, not applicable"
-    // (`beyondWindow.show === false` for any other reason). Lets the row
-    // reserve one line of height below so the list doesn't jump the moment
-    // `beyondWindowText` lands (the prod bug: the unqueried landing's probe
-    // resolves to a `floor` with no exact number — see `resolveCorpusCount`
-    // — so it painted a numberless "more roles beyond 30 days" instead of
-    // ever having reserved space for an honest answer).
-    const beyondWindowPending =
-        !beyondWindow.show && !!resultCountLine && appliedPosted === "30d" && beyondWindowCount === undefined;
+    // `beyondWindowPending` (a reserved-height placeholder row for the
+    // window between "the result landed" and "the probe landed") is gone as
+    // of perf first-paint (2026-09-18): `beyondWindowCount` now arrives on
+    // the SAME response as the result itself (`runJobsSearch`,
+    // lib/jobs/run-search.ts), so that gap no longer exists — it can never
+    // be `undefined` here (see its derivation above), only a resolved value
+    // or `null`.
 
     // Deliverable 1 — results render normally on a degraded (served-from-cache)
     // response; this is just the honest caption for it. See
@@ -5378,6 +5412,16 @@ function JobsContent() {
                         <ForYouToggle value="search" onChange={setJobsHomeView} />
                     </div>
                 )}
+                {/* Perf first-paint (2026-09-18), product decision (Vivek):
+                    the results surface — detail pane, list column, result-
+                    count line, skeleton rows — never renders at rest. This is
+                    the one gate: `searchIntent` above is false exactly when
+                    the search-fetch effect also skipped its fetch, so there
+                    is never a rendered results surface with no fetch behind
+                    it, and never a fetch whose results this doesn't show. The
+                    `ForYouToggle` just above stays outside this gate — it's
+                    navigation chrome, not a result. */}
+                {searchIntent && (
                 <div className={cn(
                     headerDockActive
                         ? "pt-[var(--jobs-bar-content-gap)] pb-[var(--jobs-bar-content-gap)]"
@@ -5735,25 +5779,13 @@ function JobsContent() {
                                                     >
                                                         {resultCountLine}
                                                     </span>
-                                                    {(beyondWindow.show || beyondWindowPending) && (
-                                                        <span
-                                                            className={cn(
-                                                                "flex items-center gap-1.5",
-                                                                // Pending: reserve this line's height (and
-                                                                // roughly its width, so the row wraps the
-                                                                // same way it will once resolved) so the
-                                                                // list below doesn't jump when the real text
-                                                                // lands — never actually shown.
-                                                                !beyondWindow.show && "invisible",
-                                                            )}
-                                                            aria-hidden={beyondWindow.show ? undefined : true}
-                                                        >
-                                                            {beyondWindow.show ? beyondWindowText : formatBeyondWindowText(null)}
+                                                    {beyondWindow.show && (
+                                                        <span className="flex items-center gap-1.5">
+                                                            {beyondWindowText}
                                                             <span aria-hidden>·</span>
                                                             <button
                                                                 type="button"
                                                                 data-testid="beyond-window-show-all"
-                                                                tabIndex={beyondWindow.show ? undefined : -1}
                                                                 onClick={() => panelPostedBucket(undefined)}
                                                                 className="text-foreground underline-offset-2 hover:underline"
                                                             >
@@ -5995,6 +6027,7 @@ function JobsContent() {
                         </div>
                     </div>
                 </div>
+                )}
                 </>
                 )}
             </div>
