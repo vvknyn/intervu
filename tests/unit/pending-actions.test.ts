@@ -65,7 +65,7 @@ describe('persistPendingAction / takePersistedPendingAction — survives a hard-
             createdAt: 1000,
         });
 
-        const record = takePersistedPendingAction<string, string, string>(storage, {
+        const record = takePersistedPendingAction<string, string>(storage, {
             currentPath: '/jobs/job-A',
             now: 1500,
         });
@@ -86,7 +86,7 @@ describe('persistPendingAction / takePersistedPendingAction — survives a hard-
             createdAt: 1000,
         });
 
-        const record = takePersistedPendingAction<string, string, string>(storage, {
+        const record = takePersistedPendingAction<string, string>(storage, {
             currentPath: '/jobs/job-R',
             now: 1000,
         });
@@ -230,7 +230,7 @@ describe('takePersistedPendingAction — malformed records never reach the calle
             createdAt: 1000,
         });
 
-        const record = takePersistedPendingAction<string, string, string>(storage, {
+        const record = takePersistedPendingAction<string, string>(storage, {
             currentPath: '/jobs',
             now: 1000,
         });

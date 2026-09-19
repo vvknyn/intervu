@@ -10,8 +10,12 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { toast } from "@/lib/toast";
-import { getCurrentUser } from "@/lib/firebase/client-auth";
+import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { updateApplication } from "@/actions/application";
+import { AuthPopover } from "@/components/auth/auth-popover";
+import { useAuthGate } from "@/components/auth/use-auth-gate";
+import { useGatedApply } from "@/components/jobs/use-gated-apply";
+import { formatAuthGateValueLine, type AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { JobDetail } from "@/components/jobs/JobDetail";
@@ -19,7 +23,7 @@ import { ReceiptShell } from "@/components/jobs/receipt-shell";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { PublicJob } from "@/lib/jobs/types";
-import { updateGuestPursuit } from "@/lib/pursuits/guest-store";
+import { listGuestPursuits, updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
 import {
     nextAction,
@@ -213,6 +217,45 @@ export default function PursuitDetailPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [retryNonce]);
 
+    const [user, setUser] = useState<User | null>(() => getCurrentUser());
+    useEffect(() => onAuthChange(setUser), []);
+
+    // Job 2 gate (2026-09-18): `/yours` is explicitly public (guest
+    // tracker — see this page's own doc comment), so every control below
+    // that can open the employer's posting routes through the same
+    // chokepoint every other job surface uses (`use-gated-apply.ts`).
+    // Unlike jobs/page.tsx and PublicJobDetail.tsx, none of this page's
+    // three controls reliably has a full `PublicJob` at click time — two
+    // only ever carry `pursuit.job_url`, a bare string — so `Job` here is
+    // that URL, and the post-auth replay can't reopen `ApplyIntentDialog`
+    // (it needs a full `PublicJob`). The honest floor instead: reopen the
+    // job sheet via a REAL fetch (`openDetail`) so the user's own next
+    // click on ITS "Open posting" button is a fresh gesture; a manually-
+    // added pursuit (job_url but no job_id — no sheet exists at all) has
+    // nothing further to surface and is simply left on the tracker.
+    const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<string>({
+        handlers: {
+            apply: () => {
+                if (pursuit?.job_id) void openDetail(pursuit.job_id);
+            },
+            // This page has no résumé importer or report flow — nothing
+            // here ever calls `gate({ kind: "upload"/"report", ... })`.
+            // Still required: `AuthGateHandlers` is a mapped type over
+            // every `PendingAction` kind, so every caller supplies all
+            // three.
+            upload: () => {},
+            report: () => {},
+        },
+        user,
+    });
+    const gatedOpenPosting = useGatedApply<string>({
+        user,
+        gate,
+        setAuthGateReason,
+        perform: (url) => window.open(url, "_blank", "noopener,noreferrer"),
+    });
+
     const mutate = async (patch: Partial<Pursuit>) => {
         setSaving(true);
         try {
@@ -324,7 +367,7 @@ export default function PursuitDetailPage() {
                             {pursuit.job_url && (
                                 <Button
                                     variant="outline"
-                                    onClick={() => window.open(pursuit.job_url, "_blank", "noopener,noreferrer")}
+                                    onClick={() => gatedOpenPosting(pursuit.job_url!)}
                                     className="gap-2 rounded-ctl"
                                 >
                                     <ArrowSquareOut size={16} />
@@ -410,7 +453,7 @@ export default function PursuitDetailPage() {
                             onGoAfter={() => {}}
                             onOpenPosting={() => {
                                 const href = pursuit.job_url ?? detail.job?.apply_url;
-                                if (href) window.open(href, "_blank", "noopener,noreferrer");
+                                if (href) gatedOpenPosting(href);
                             }}
                             descriptionPending={detail.descriptionPending}
                             onRetryDescription={retryDescription}
@@ -443,7 +486,7 @@ export default function PursuitDetailPage() {
                                 {pursuit.job_url && (
                                     <button
                                         type="button"
-                                        onClick={() => window.open(pursuit.job_url, "_blank", "noopener,noreferrer")}
+                                        onClick={() => gatedOpenPosting(pursuit.job_url!)}
                                         className="mt-3 text-sm text-brand underline underline-offset-2"
                                     >
                                         Open posting
@@ -454,6 +497,20 @@ export default function PursuitDetailPage() {
                     )}
                 </SheetContent>
             </Sheet>
+
+            {/* Same auth-gate popover jobs/page.tsx and PublicJobDetail.tsx
+                mount — "auto" (not "user"): every open here is a side effect
+                of a gated Apply click, never a deliberate sign-in click. */}
+            <AuthPopover
+                open={authOpen}
+                onOpenChange={setAuthOpen}
+                onAuthed={onAuthed}
+                showTrigger={false}
+                trigger="auto"
+                valueLine={authGateReason ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length) : undefined}
+                defaultTab={authGateReason === "apply" ? "signup" : "login"}
+                reason={authGateReason ?? undefined}
+            />
         </PageLayout>
     );
 }

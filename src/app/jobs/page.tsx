@@ -132,6 +132,7 @@ import { LocationCombobox } from "@/components/jobs/LocationCombobox";
 import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { useGatedApply } from "@/components/jobs/use-gated-apply";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
@@ -229,7 +230,6 @@ import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
-import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
@@ -1594,11 +1594,11 @@ function JobsContent() {
     // The one auth gate (`use-auth-gate.ts`): signed in → run the handler
     // now; signed out → persist the action (survives both in-place login and
     // a hard OAuth/passkey navigation away and back) and open the popover.
-    // Handlers below reference `setApplyIntentJob`/`replayApplyGate`,
-    // declared later in this component — safe because these are arrow
-    // functions, not calls: the reference resolves only when the auth gate
-    // invokes them, long after this component has finished its first render.
-    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob, PublicJob>({
+    // Handlers below reference `setApplyIntentJob`/`openJob`, declared later
+    // in this component — safe because these are arrow functions, not
+    // calls: the reference resolves only when the auth gate invokes them,
+    // long after this component has finished its first render.
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob>({
         handlers: {
             // A guest's Apply click never reached the ATS (auth-first gate
             // above) — so the replay isn't "mark applied", it's the same
@@ -1609,7 +1609,6 @@ function JobsContent() {
             // the dialog instead means the user's own next click —
             // "Continue to the posting" — is a fresh, real gesture.
             apply: (action) => setApplyIntentJob(action.payload),
-            gate: (action) => void replayApplyGate(action.payload),
             upload: () => {
                 setImportOpen(true);
             },
@@ -1618,8 +1617,8 @@ function JobsContent() {
             // reported (browser back/forward while the auth popover was
             // open). Re-select the reported job by id via the same `openJob`
             // every SERP row/permalink uses (declared below — safe for the
-            // same closure reason as `doMarkApplied`/`replayApplyGate`
-            // above), and skip the dialog entirely if it can't be identified.
+            // same closure reason as `doMarkApplied` above), and skip the
+            // dialog entirely if it can't be identified.
             report: (action) => {
                 if (!action.payload?.id) return;
                 openJob(action.payload.id);
@@ -3504,6 +3503,25 @@ function JobsContent() {
         window.open(job.apply_url, "_blank", "noopener,noreferrer");
     };
 
+    // Job 2 gate: signed in → perform (offer the AI hand-off once, at the
+    // only moment it is worth anything — guests skip this path entirely,
+    // hollow without a résumé — else depart); guest → auth-first via the one
+    // shared gate (`use-gated-apply.ts`), same chokepoint every job surface
+    // uses.
+    const gatedOpenPosting = useGatedApply<PublicJob>({
+        user,
+        gate,
+        setAuthGateReason,
+        setAuthTrigger,
+        perform: (job) => {
+            if (job.apply_url && shouldPromptApplyIntent()) {
+                setApplyIntentJob(job);
+                return;
+            }
+            openPostingNow(job);
+        },
+    });
+
     const handleOpenPosting = (job: PublicJob) => {
         // Fired BEFORE the auth gate and the AI hand-off prompt, because the
         // event means "clicked Apply", not "reached the posting". Counting only
@@ -3519,24 +3537,7 @@ function JobsContent() {
             // armed with for the currently-rendered result set (SPEC §5).
             ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
         });
-        const decision = resolveApplyClickDecision(Boolean(user));
-        if (decision === "auth-first") {
-            // Gate before anything opens — a guest must sign up/in before
-            // the ATS ever sees this click. `onAuthed`'s "apply" handler
-            // resumes the same perform path below once they're back.
-            setAuthGateReason("apply");
-            setAuthTrigger("auto");
-            gate({ kind: "apply", payload: job });
-            return;
-        }
-        // Offer the AI hand-off once, at the only moment it is worth anything.
-        // Guests skip this path entirely (hollow without a résumé); signed-in
-        // only.
-        if (job.apply_url && shouldPromptApplyIntent()) {
-            setApplyIntentJob(job);
-            return;
-        }
-        openPostingNow(job);
+        gatedOpenPosting(job);
     };
 
     const doMarkApplied = async (job: ApplyReturnJob) => {
@@ -3585,20 +3586,6 @@ function JobsContent() {
             },
             onMarkApplied: doMarkApplied,
         });
-
-    // Job 2 replay: reuses `doMarkApplied` — the EXACT tracker-write
-    // "Mark as applied" uses, not a second copy of it — then navigates
-    // same-tab to the posting. `window.open` (used by the signed-in
-    // `handleOpenPosting` above) would be popup-blocked here: this runs
-    // asynchronously after the login round-trip completes, outside the
-    // click's own gesture stack, which is exactly the condition browsers
-    // block a new-tab popup under. Awaiting the write first (rather than
-    // firing it and navigating immediately) also means the tab unloading
-    // can't race the request and drop it silently.
-    const replayApplyGate = async (job: PublicJob) => {
-        await doMarkApplied(job);
-        if (job.apply_url) window.location.href = job.apply_url;
-    };
 
     // "Save" — signed out writes to the guest store immediately for the FIRST
     // save; on the second+ guest save, require sign-in so the list isn't
