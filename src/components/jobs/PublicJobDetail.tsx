@@ -8,6 +8,7 @@ import { reportJobEnabledAction } from "@/actions/report-job";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { ApplyReturnPrompt, useApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
 import { fetchResumeData } from "@/actions/resume";
 import { JobDetail, JobDetailActionBar } from "@/components/jobs/JobDetail";
@@ -21,7 +22,6 @@ import {
 import { getGuestSaveCount, recordGuestSave } from "@/lib/auth/guest-save-gate";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { shortDate } from "@/lib/jobs/presentation";
-import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
 import type { PublicJob } from "@/lib/jobs/types";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { classifySentinel } from "@/lib/llm/sentinels";
@@ -146,18 +146,25 @@ export function PublicJobDetail({
     // The one auth gate (`use-auth-gate.ts`): signed in → run the handler
     // now; signed out → persist the action (survives both in-place login and
     // a hard OAuth/passkey navigation away and back) and open the popover.
-    // `apply`/`gate` reference `doMarkApplied`/`replayApplyGate`, declared
-    // later in this component — safe because these are arrow functions, not
-    // calls: the reference resolves only when the auth gate invokes them,
-    // long after this component has finished its first render.
-    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob, PublicJob>({
+    // `gate` references handlers below only by closure, resolved when the
+    // auth gate invokes them, long after this component has finished its
+    // first render.
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob>({
         handlers: {
-            apply: (action) => void doMarkApplied(action.payload),
-            gate: (action) => void replayApplyGate(action.payload),
+            // Same reasoning as jobs/page.tsx's sibling handler: a guest's
+            // Apply click never reached the ATS (auth-first gate), so the
+            // replay opens the apply-intent dialog rather than calling
+            // `window.open` outside a click gesture. Guard on job id like
+            // `report` below — this route only ever shows one job, but a
+            // stale/foreign persisted record must never pop the dialog for
+            // it.
+            apply: (action) => {
+                if (action.payload?.id === job.id) setApplyIntentOpen(true);
+            },
             // This surface has no résumé importer — nothing here ever calls
             // `gate({ kind: "upload", ... })`, so this is unreachable. Still
             // required: `AuthGateHandlers` is a mapped type over every
-            // `PendingAction` kind, so every caller supplies all four.
+            // `PendingAction` kind, so every caller supplies all three.
             upload: () => {},
             // Single-job page: only reopen the dialog when the persisted
             // report actually belongs to THIS job — a stale or foreign
@@ -180,7 +187,7 @@ export function PublicJobDetail({
         // A1 — only a signed-in departure arms the return prompt; guests
         // already left via this same call but auth for tracking is separate.
         if (user) armApplyReturnJob(target);
-        window.open(target.apply_url, "_blank", "noopener,noreferrer");
+        openApplyUrl(target.apply_url);
     };
 
     const doMarkApplied = async (target: ApplyReturnJob) => {
@@ -224,25 +231,21 @@ export function PublicJobDetail({
             onMarkApplied: doMarkApplied,
         });
 
-    const replayApplyGate = async (target: PublicJob) => {
-        await doMarkApplied(target);
-        if (target.apply_url) window.location.href = target.apply_url;
-    };
-
-    const handleOpenPosting = (target: PublicJob) => {
-        const decision = resolveApplyClickDecision(Boolean(user));
-        if (decision === "open-then-auth") {
-            if (target.apply_url) openPostingNow(target);
-            setAuthGateReason("apply");
-            gate({ kind: "apply", payload: target });
-            return;
-        }
-        if (target.apply_url && shouldPromptApplyIntent()) {
-            setApplyIntentOpen(true);
-            return;
-        }
-        openPostingNow(target);
-    };
+    // Job 2 gate — same shared chokepoint as jobs/page.tsx's sibling
+    // (`use-gated-apply.ts`); no `setAuthTrigger` here since this surface's
+    // `<AuthPopover>` mount below hardcodes `trigger="auto"`.
+    const handleOpenPosting = useGatedApply<PublicJob>({
+        user,
+        gate,
+        setAuthGateReason,
+        perform: (target) => {
+            if (target.apply_url && shouldPromptApplyIntent()) {
+                setApplyIntentOpen(true);
+                return;
+            }
+            openPostingNow(target);
+        },
+    });
 
     const handleGoAfter = (target: PublicJob) => {
         if (!user) {

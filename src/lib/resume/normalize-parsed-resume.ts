@@ -61,7 +61,8 @@ export function normalizeDescription(desc: string): string {
 
 /**
  * Validate, sanitize, and compute derived fields on parsed résumé JSON.
- * Used by both `parseResumeWithAI` (server) and `parseResumeLocally` (client).
+ * Used by `parseResumeLocally` (client, on-device — the only résumé-parse
+ * path now; see lib/local-ai/parse-resume.ts).
  */
 export function normalizeParsedResume(
     raw: RawParsedResumeInput,

@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 // We test the unpdf extraction directly (avoids Next.js server action context)
-// This validates the core logic that extractPDFText uses
+// This validates the core logic that extractPDFTextInBrowser (lib/local-ai/extract-in-browser.ts) uses
 
 async function extractPDFText(fileBase64: string): Promise<{ text?: string; error?: string }> {
     try {

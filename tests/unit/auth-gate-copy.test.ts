@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
     AUTH_CTA_LABEL,
     authCardCopy,
+    authGateTitle,
     formatAuthGateValueLine,
     guestKeepLine,
     SIGNUP_SUBCOPY,
@@ -23,6 +24,23 @@ test("guestKeepLine uses plural copy for multiple pursuits", () => {
 test("formatAuthGateValueLine varies by reason class", () => {
     assert.match(formatAuthGateValueLine("apply", 0), /track this application/i);
     assert.match(formatAuthGateValueLine("generic", 0), /sync/);
+});
+
+// apply-behind-signup (2026-09-18): the guest never reaches the ATS before
+// this popover, so both the popover's headline and its body have to say so.
+test('reason "apply" has a visible title and a body that names the next step', () => {
+    assert.equal(authGateTitle("apply"), "Create a free account to apply");
+    assert.equal(
+        formatAuthGateValueLine("apply", 0),
+        "We'll take you to the company's application page next, and track this application across your devices.",
+    );
+});
+
+test("only reason \"apply\" has a title — every other reason keeps the plain card heading", () => {
+    const otherReasons = ["generic", "save", "fit", "report", "tailor", "resume"] as const;
+    for (const reason of otherReasons) {
+        assert.equal(authGateTitle(reason), undefined, `reason "${reason}" should have no title`);
+    }
 });
 
 test('formatAuthGateValueLine for reason "save" mentions keep-across-devices and alerts', () => {

@@ -12,8 +12,8 @@ import {
 import { validateNextParam } from '../../src/lib/auth/product-routes';
 
 describe('resolveApplyClickDecision — signed-in vs guest Apply click', () => {
-    it('signed out opens ATS first then auth for tracking', () => {
-        assert.equal(resolveApplyClickDecision(false), 'open-then-auth');
+    it('signed out gates on auth before the ATS ever opens', () => {
+        assert.equal(resolveApplyClickDecision(false), 'auth-first');
     });
 
     it('signed in performs the action immediately, no auth interstitial', () => {
@@ -65,7 +65,7 @@ describe('persistPendingAction / takePersistedPendingAction — survives a hard-
             createdAt: 1000,
         });
 
-        const record = takePersistedPendingAction<string, string, string>(storage, {
+        const record = takePersistedPendingAction<string, string>(storage, {
             currentPath: '/jobs/job-A',
             now: 1500,
         });
@@ -86,7 +86,7 @@ describe('persistPendingAction / takePersistedPendingAction — survives a hard-
             createdAt: 1000,
         });
 
-        const record = takePersistedPendingAction<string, string, string>(storage, {
+        const record = takePersistedPendingAction<string, string>(storage, {
             currentPath: '/jobs/job-R',
             now: 1000,
         });
@@ -230,7 +230,7 @@ describe('takePersistedPendingAction — malformed records never reach the calle
             createdAt: 1000,
         });
 
-        const record = takePersistedPendingAction<string, string, string>(storage, {
+        const record = takePersistedPendingAction<string, string>(storage, {
             currentPath: '/jobs',
             now: 1000,
         });

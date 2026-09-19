@@ -2,9 +2,10 @@
  * Résumé ↔ job match score — "The Match Receipt".
  *
  * Arithmetic, not oracle: every number here comes from comparing the ONE
- * upload parse (already produced once, at upload, by `parseResumeWithAI` —
- * see actions/resume.ts) against a job's own fields. No LLM call lives in
- * this module or is reachable from it. This is also the single scoring
+ * upload parse (already produced once, at upload, entirely on-device by
+ * `parseResumeLocally` — see lib/local-ai/parse-resume.ts) against a job's
+ * own fields. No LLM call lives in this module or is reachable from it.
+ * This is also the single scoring
  * function — the SERP card chip, the job-detail header chip, and `sort=fit`'s
  * client-side reorder all call `scoreJobAgainstResume` directly, so they can
  * never disagree about a score.

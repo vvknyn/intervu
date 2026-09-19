@@ -64,7 +64,9 @@ export const AVAILABLE_MODELS = {
  * Selection criteria before the latency test, checked live against
  * `openrouter.ai/api/v1/models`: prompt AND completion priced at 0,
  * `response_format` in `supported_parameters` (the prompt asks for
- * `json_object`), and context far above the 8K cap in `parseResumeWithAI`.
+ * `json_object`), and context far above the 8K cap the résumé-parse prompt
+ * used when it still ran server-side (now on-device only, see
+ * `lib/local-ai/parse-resume.ts`).
  *
  * `:free` slugs come and go — OpenRouter withdrew `deepseek-v4-flash:free`
  * once already, gemma above is rate-limited today, and a withdrawn slug is a

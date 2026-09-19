@@ -15,8 +15,6 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConfidenceIndicator, ConfidenceBadge, WarningBanner } from "./ConfidenceIndicator";
 import { ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ParsedResumeResult } from "@/types/resume";
-import { parseResumeWithAI, extractPDFText, extractDocxText } from "@/actions/resume";
-import { readLocalAiEnabled, writeLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
@@ -25,9 +23,8 @@ import {
     LOCAL_PARSE_ACCEPT_MIN,
     scoreLocalParseConfidence,
 } from "@/lib/local-ai/parse-confidence";
-import { getEngineLabel, initLocalAiLadder, probeBestEngine } from "@/lib/local-ai/ladder";
-import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Sparkle, Warning, Cpu } from "@phosphor-icons/react";
-import { sentinelMessage } from "@/lib/llm/sentinels";
+import { initLocalAiLadder } from "@/lib/local-ai/ladder";
+import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Warning, Cpu } from "@phosphor-icons/react";
 
 interface ResumeImportModalProps {
     isOpen: boolean;
@@ -44,15 +41,33 @@ interface ResumeImportModalProps {
      */
     confirmLabel?: string;
     /**
-     * Dialog title/description overrides. Default to today's copy exactly
-     * (the icon + "Import Resume" title, and the step-conditional
-     * description below) — the resume-builder's own mount stays byte-
-     * identical. /jobs (ITEM J, 2026-08-15) passes both: the "best match"
-     * sort tab used to summon this modal with zero explanation, so a caller
-     * that knows WHY it's opening the importer can now say so.
+     * Dialog title override. Defaults to the icon + "Import Resume" — the
+     * resume-builder's own mount stays byte-identical. /jobs (ITEM J,
+     * 2026-08-15) passes its own: the "best match" sort tab used to summon
+     * this modal with zero explanation, so a caller that knows WHY it's
+     * opening the importer can now say so.
      */
     title?: string;
-    description?: string;
+    /**
+     * Dialog description — required, not defaulted. The old per-step
+     * defaults ("100% on-device AI inference" / "On-device AI is
+     * analyzing...") overstated what happens when a caller lets the user
+     * skip the model download (heuristic-only parsing, no AI runs at all),
+     * and both current mounts (/resume, /jobs) already pass their own copy
+     * — a default nothing uses is a defect waiting for the next caller.
+     */
+    description: string;
+    /**
+     * Second half of the consent paragraph's persistence sentence, after
+     * "Your résumé is read on your device, never on our servers." Required,
+     * not defaulted, same reasoning as `description`: the modal doesn't
+     * know where a caller persists the parsed result (a server action vs.
+     * localStorage-only), so it can't state that truthfully on its own —
+     * only the caller can. /jobs saves to the signed-in user's account
+     * (`saveResumeData`); /resume's `handleImportResume` only writes to
+     * this browser (`writeLocalAiResume`), never the server.
+     */
+    storageNote: string;
 }
 
 type ImportStep = 'input' | 'parsing' | 'review';
@@ -62,25 +77,19 @@ type InputMethod = 'file' | 'paste';
  * The modal's "parsing" step markup, extracted to a standalone export so the
  * design-conformance mock route (src/app/mock/resume) can render this exact
  * state without duplicating it or reaching into the modal's internal step
- * machinery — single source of truth for what "parsing" looks like.
+ * machinery — single source of truth for what "parsing" looks like. Parsing
+ * is always on-device now, so this has exactly one rendering — no
+ * `localAiEnabled` branch to pick between.
  */
-export function ResumeParsingStep({ localAiEnabled }: { localAiEnabled: boolean }) {
+export function ResumeParsingStep() {
     return (
         <div className="py-12 text-center space-y-4">
             <div className="w-16 h-16 rounded-pill bg-muted flex items-center justify-center mx-auto animate-pulse">
-                {localAiEnabled ? (
-                    <Cpu size={24} weight="fill" className="text-brand" />
-                ) : (
-                    <Sparkle size={24} weight="fill" className="text-brand" />
-                )}
+                <Cpu size={24} weight="fill" className="text-brand" />
             </div>
             <div>
                 <p className="text-foreground">Parsing your resume...</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                    {localAiEnabled
-                        ? "Structuring on this device — no cloud LLM"
-                        : "AI is extracting structured information"}
-                </p>
+                <p className="text-sm text-muted-foreground mt-1">Structuring on this device — no cloud LLM</p>
             </div>
             <div className="w-48 h-1 rounded-pill bg-secondary mx-auto overflow-hidden">
                 <div className="h-full w-full rounded-pill bg-primary animate-pulse" />
@@ -89,7 +98,7 @@ export function ResumeParsingStep({ localAiEnabled }: { localAiEnabled: boolean 
     );
 }
 
-export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description }: ResumeImportModalProps) {
+export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
     const [pastedText, setPastedText] = useState("");
@@ -101,18 +110,16 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const [contentType, setContentType] = useState<'pdf' | 'docx' | 'text'>('text');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const [localAiEnabled, setLocalAiEnabled] = useState(false);
+    // Founder rule: résumé interpretation never happens on our servers —
+    // parsing always runs on-device (see `parseResumeLocally`). These two
+    // track the download-consent decision only, not a cloud/local choice.
     const [localAiConsent, setLocalAiConsent] = useState(false);
+    const [consentDeclined, setConsentDeclined] = useState(false);
     const [engineLabel, setEngineLabel] = useState<string | null>(null);
-    const [probedEngine, setProbedEngine] = useState<string | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
-        setLocalAiEnabled(readLocalAiEnabled());
         setLocalAiConsent(readLocalAiConsent());
-        if (readLocalAiEnabled()) {
-            void probeBestEngine().then((id) => setProbedEngine(getEngineLabel(id)));
-        }
     }, [isOpen]);
 
     const resetState = () => {
@@ -124,6 +131,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setEditedData(null);
         setIsProcessing(false);
         setEngineLabel(null);
+        setConsentDeclined(false);
     };
 
     const handleClose = () => {
@@ -174,16 +182,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         e.preventDefault();
     };
 
-    // Convert ArrayBuffer to base64 (browser-compatible)
-    const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-        const bytes = new Uint8Array(buffer);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return btoa(binary);
-    };
-
     const processFile = async (file: File): Promise<string> => {
         const extension = file.name.split('.').pop()?.toLowerCase();
 
@@ -197,33 +195,41 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         const arrayBuffer = await file.arrayBuffer();
         const isDocx = extension === 'docx' || extension === 'doc';
 
-        // Local mode: extract in-browser (unpdf/mammoth) — the résumé never
-        // leaves the browser. Otherwise unchanged: base64 + server action.
-        const result = localAiEnabled
-            ? await (isDocx ? extractDocxTextInBrowser(arrayBuffer) : extractPDFTextInBrowser(arrayBuffer))
-            : await (isDocx
-                  ? extractDocxText(arrayBufferToBase64(arrayBuffer))
-                  : extractPDFText(arrayBufferToBase64(arrayBuffer)));
+        // Résumé bytes never leave the browser — unpdf/mammoth run in-page.
+        const result = await (isDocx
+            ? extractDocxTextInBrowser(arrayBuffer)
+            : extractPDFTextInBrowser(arrayBuffer));
 
         if (result.error) throw new Error(result.error);
         return result.text || "";
     };
 
     const runParse = async (textContent: string) => {
-        if (localAiEnabled) {
-            const local = await parseResumeLocally(textContent);
-            setEngineLabel(local.engineLabel);
-            setParseResult(local.data);
-            setEditedData(local.data.parsed);
-        } else {
-            const result = await parseResumeWithAI(textContent, contentType);
-            if (result.error) throw new Error(result.error);
-            if (!result.data) throw new Error("Failed to parse resume");
-            setEngineLabel(null);
-            setParseResult(result.data);
-            setEditedData(result.data.parsed);
-        }
+        const local = await parseResumeLocally(textContent, { skipDownload: consentDeclined });
+        setEngineLabel(local.engineLabel);
+        setParseResult(local.data);
+        setEditedData(local.data.parsed);
         setStep('review');
+    };
+
+    // Shared by handleDownloadAndParse (explicit click) and handleParse
+    // (implicit grant when Parse is hit before a download decision) so the
+    // consent-grant sequence lives in exactly one place.
+    const grantConsent = () => {
+        grantLocalAiConsent();
+        setLocalAiConsent(true);
+    };
+
+    const handleDownloadAndParse = () => {
+        grantConsent();
+        setConsentDeclined(false);
+        // Fire-and-forget warm-up: by the time a file is picked and Parse is
+        // clicked, initLocalAiLadder's singleton is likely already resolved.
+        void initLocalAiLadder();
+    };
+
+    const handleSkipDownload = () => {
+        setConsentDeclined(true);
     };
 
     const handleParse = async () => {
@@ -242,22 +248,18 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 throw new Error("No content provided");
             }
 
-            // Local mode: consent-first — no model download until Enable.
-            if (localAiEnabled && !localAiConsent) {
-                setStep('parsing');
-                grantLocalAiConsent();
-                setLocalAiConsent(true);
+            setStep('parsing');
+
+            // Explicitly declining the download means heuristic rules only —
+            // never trigger a model download the user asked to skip.
+            if (!consentDeclined) {
+                if (!localAiConsent) grantConsent();
                 await initLocalAiLadder();
-            } else if (localAiEnabled) {
-                setStep('parsing');
-                await initLocalAiLadder();
-            } else {
-                setStep('parsing');
             }
 
             await runParse(textContent);
         } catch (e: any) {
-            setError(sentinelMessage(e) || "Failed to parse resume");
+            setError(e instanceof Error ? e.message : "Failed to parse resume");
             setStep('input');
         } finally {
             setIsProcessing(false);
@@ -266,18 +268,15 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     const reviewConfidence = useMemo(() => {
         if (!editedData) return null;
-        if (localAiEnabled) {
-            return scoreLocalParseConfidence(editedData);
-        }
-        return parseResult?.confidence ?? null;
-    }, [editedData, localAiEnabled, parseResult?.confidence]);
+        return scoreLocalParseConfidence(editedData);
+    }, [editedData]);
 
     const localParseBlocked =
-        localAiEnabled && reviewConfidence !== null && !canAcceptLocalParse(reviewConfidence);
+        reviewConfidence !== null && !canAcceptLocalParse(reviewConfidence);
 
     const handleConfirm = () => {
         if (!editedData || !parseResult) return;
-        if (localAiEnabled && reviewConfidence && !canAcceptLocalParse(reviewConfidence)) {
+        if (reviewConfidence && !canAcceptLocalParse(reviewConfidence)) {
             return;
         }
         const overall = reviewConfidence?.overall ?? parseResult.confidence.overall;
@@ -319,54 +318,39 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setEditedData({ ...editedData, education: newEdu });
     };
 
-    const renderLocalAiConsent = () => {
+    // Privacy/consent block — always shown (founder rule: résumé
+    // interpretation never happens on our servers). Before a download
+    // decision is made it offers "Download and parse" (on-device model,
+    // best quality) or "Skip the download" (heuristic rules, no download,
+    // still 100% on-device either way).
+    const renderPrivacyConsent = () => {
+        const decided = localAiConsent || consentDeclined;
         return (
             <div className="rounded-panel p-3.5 border border-border bg-muted space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                        <Cpu size={16} className="text-brand shrink-0" />
-                        <span>On-Device AI Parser</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setLocalAiEnabled(true);
-                                writeLocalAiEnabled(true);
-                            }}
-                            className={`min-h-6 rounded-ctl px-3 text-xs font-semibold leading-none transition-colors ${
-                                localAiEnabled
-                                    ? "text-foreground underline underline-offset-2"
-                                    : "text-muted-foreground hover:text-foreground"
-                            }`}
-                        >
-                            On-Device AI
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setLocalAiEnabled(false);
-                                writeLocalAiEnabled(false);
-                            }}
-                            className={`min-h-6 rounded-ctl px-3 text-xs font-semibold leading-none transition-colors ${
-                                !localAiEnabled
-                                    ? "text-foreground underline underline-offset-2"
-                                    : "text-muted-foreground hover:text-foreground"
-                            }`}
-                        >
-                            Standard (No AI)
-                        </button>
-                    </div>
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Cpu size={16} className="text-brand shrink-0" />
+                    <span>Parsed on your device</span>
                 </div>
-                {localAiEnabled ? (
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                        🔒 100% On-Device AI: Your résumé never leaves this device. Download and run a private model
-                        {probedEngine ? ` (${probedEngine})` : " (e.g. Llama 3.2 3B on WebGPU)"} directly in your browser.
-                    </p>
-                ) : (
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                        Standard rules extraction: Extracts document sections using built-in heuristics without running local AI models.
-                    </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                    To read your résumé, Velai downloads an AI model to this browser once and runs it here.
+                    The download can be large, but it only happens once.
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                    Your résumé is read on your device, never on our servers. {storageNote}
+                </p>
+                {!decided && (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
+                        <Button type="button" size="sm" onClick={handleDownloadAndParse}>
+                            Download and parse
+                        </Button>
+                        <button
+                            type="button"
+                            onClick={handleSkipDownload}
+                            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                        >
+                            Skip the download (basic parsing)
+                        </button>
+                    </div>
                 )}
             </div>
         );
@@ -374,7 +358,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     const renderInputStep = () => (
         <div className="space-y-6">
-            {renderLocalAiConsent()}
+            {renderPrivacyConsent()}
 
             {/* Method Toggle - Segmented Control Style */}
             <div className="flex border-b border-border">
@@ -720,9 +704,9 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     };
 
     const parseButtonLabel = () => {
-        if (localAiEnabled && !localAiConsent) return "Download model & parse";
-        if (localAiEnabled) return "Parse on device";
-        return "Parse with standard rules";
+        if (consentDeclined) return "Parse with basic rules";
+        if (!localAiConsent) return "Download model & parse";
+        return "Parse on device";
     };
 
     return (
@@ -741,20 +725,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </>
                         )}
                     </DialogTitle>
-                    <DialogDescription>
-                        {description ? description : (
-                            <>
-                                {step === 'input' && (localAiEnabled ? "Upload or paste — 100% on-device AI inference" : "Upload a file or paste your resume text")}
-                                {step === 'parsing' && (localAiEnabled ? "On-device AI is analyzing your résumé..." : "Analyzing your resume...")}
-                                {step === 'review' && "Review and edit the extracted information"}
-                            </>
-                        )}
-                    </DialogDescription>
+                    <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-hidden py-4">
                     {step === 'input' && renderInputStep()}
-                    {step === 'parsing' && <ResumeParsingStep localAiEnabled={localAiEnabled} />}
+                    {step === 'parsing' && <ResumeParsingStep />}
                     {step === 'review' && renderReviewStep()}
                 </div>
 
@@ -783,11 +759,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     </>
                                 ) : (
                                     <>
-                                        {localAiEnabled ? (
-                                            <Cpu size={16} weight="fill" className="mr-2" />
-                                        ) : (
-                                            <Sparkle size={16} weight="fill" className="mr-2" />
-                                        )}
+                                        <Cpu size={16} weight="fill" className="mr-2" />
                                         {parseButtonLabel()}
                                         <ArrowRight size={16} className="ml-2" />
                                     </>

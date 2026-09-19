@@ -159,7 +159,7 @@ export function JobCard({
                 }
             }}
             className={cn(
-                // rounded-none: flush — rows are hairline-separated, not
+                // rounded-none: KEEP — flush; rows are hairline-separated, not
                 // bordered cards (rulebook item h): the divider lives on the
                 // content wrapper below, inset past the tile, so this outer
                 // grid carries no border or bottom margin of its own — rows

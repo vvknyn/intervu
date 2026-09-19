@@ -32,6 +32,9 @@
  */
 
 import { useEffect, useState } from "react";
+// PARSE_GATE_EXEMPT: hasUsableResumeOnFile is a boolean existence check only
+// (never résumé bytes/content) — not résumé interpretation, so it's exempt
+// from the server-import ban in tests/unit/local-ai-no-cloud-imports.test.ts.
 import { hasUsableResumeOnFile } from "@/actions/resume";
 
 /** @param uid the signed-in user's id, or null when signed out. */

@@ -1,6 +1,5 @@
 "use client";
 
-import { chipVariants } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 import type { JobsHomeView } from "@/lib/jobs/for-you/home-view";
 
@@ -11,11 +10,10 @@ export interface ForYouToggleProps {
 }
 
 /**
- * For you ⇄ Search mode control (mock B5): a pill segmented control built
- * directly on `chipVariants` — the same pill primitive as every other chip
- * in the results toolbar (chip.tsx), not a parallel tab-strip treatment.
- * `active` marks the selected segment (filled surface + border), and both
- * segments carry `interactive` since either is always clickable.
+ * For you ⇄ Search mode control: an iOS/Material-style pill segmented
+ * control (ui-patterns "Module Tabs") — a filled `rounded-pill` track with
+ * two `rounded-pill` segments, active = raised `bg-card` chip, inactive =
+ * plain text. No underline, no tab-strip treatment.
  */
 export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) {
     return (
@@ -23,7 +21,7 @@ export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) 
             role="tablist"
             aria-label="Jobs home view"
             data-testid="jobs-home-toggle"
-            className={cn("inline-flex min-h-11 gap-1 rounded-pill border border-border bg-muted p-1", className)}
+            className={cn("inline-flex min-h-11 items-center gap-0.5 rounded-pill border border-border bg-muted p-0.5", className)}
         >
             {(["for-you", "search"] as const).map((tab) => {
                 const active = value === tab;
@@ -36,9 +34,8 @@ export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) 
                         aria-selected={active}
                         onClick={() => onChange(tab)}
                         className={cn(
-                            chipVariants({ active, interactive: true }),
-                            "min-h-11 justify-center border-transparent px-4 font-semibold",
-                            active ? "bg-background" : "bg-transparent text-muted-foreground",
+                            "inline-flex min-h-10 items-center rounded-pill px-4 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2",
+                            active ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground",
                         )}
                     >
                         {label}

@@ -133,16 +133,27 @@ export function mergeModelIntoHeuristic(
     return { raw, usedHeuristic: !modelContributed };
 }
 
+export interface ParseResumeLocallyOptions {
+    /**
+     * User declined the model download (the modal's "Skip the download"
+     * link). Stay on the heuristic rung deterministically — never init the
+     * ladder or run a model, even if one happens to already be active from
+     * an unrelated feature (e.g. job-tailoring).
+     */
+    skipDownload?: boolean;
+}
+
 /**
- * Parse résumé text entirely on-device. Call only when local-ai flag is ON.
- * Requires ladder init (after consent) for model paths; rules always work.
+ * Parse résumé text entirely on-device — no cloud LLM, ever. Model paths
+ * (Nano/WebLLM/WASM) require ladder init (after consent); rules always work.
  */
-export async function parseResumeLocally(content: string): Promise<LocalParseResult> {
+export async function parseResumeLocally(
+    content: string,
+    options: ParseResumeLocallyOptions = {},
+): Promise<LocalParseResult> {
     if (!content || content.trim().length < 50) {
         throw new Error("Resume content too short. Please provide more text.");
     }
-
-    await initLocalAiLadder();
 
     const heuristicDraft = structureResumeText(content);
     let raw: RawParsedResumeInput = {
@@ -153,14 +164,19 @@ export async function parseResumeLocally(content: string): Promise<LocalParseRes
         generatedSummary: heuristicDraft.generatedSummary,
     };
 
-    const modelOut = await parseWithActiveEngine(content);
-    const merged = mergeModelIntoHeuristic(raw, modelOut);
-    raw = merged.raw;
-    const usedHeuristic = merged.usedHeuristic;
+    let effectiveEngine: LocalAiEngineId = "heuristic";
+    let usedHeuristic = true;
 
-    const engine = getActiveEngineId();
-    const effectiveEngine: LocalAiEngineId =
-        usedHeuristic || engine === "heuristic" ? "heuristic" : engine;
+    if (!options.skipDownload) {
+        await initLocalAiLadder();
+        const modelOut = await parseWithActiveEngine(content);
+        const merged = mergeModelIntoHeuristic(raw, modelOut);
+        raw = merged.raw;
+        usedHeuristic = merged.usedHeuristic;
+
+        const engine = getActiveEngineId();
+        effectiveEngine = usedHeuristic || engine === "heuristic" ? "heuristic" : engine;
+    }
 
     const confidence = scoreLocalParseConfidence(raw);
 

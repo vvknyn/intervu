@@ -107,6 +107,7 @@ import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
+import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { useOverflowEdges } from "@/hooks/use-overflow-edges";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { edgeFadeMaskImage } from "@/lib/jobs/edge-fade";
@@ -132,6 +133,7 @@ import { LocationCombobox } from "@/components/jobs/LocationCombobox";
 import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
@@ -229,7 +231,6 @@ import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
-import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
@@ -624,7 +625,7 @@ const RESUME_MOMENT_OPENS = 3;
  */
 function JobCardSkeleton() {
     return (
-        // rounded-none: mirrors the real row's flush shape (JobCard below).
+        // rounded-none: KEEP — mirrors the real row's flush shape (JobCard below).
         <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-card pt-4">
             <div className="self-start">
                 <div className="skeleton-bar h-12 w-12 rounded-panel" />
@@ -651,7 +652,7 @@ function JobCardSkeleton() {
  *  arriving" instead of a bare sentence. */
 function JobsListSplash() {
     return (
-        <div>
+        <div className="px-[var(--list-inset)]">
             <p className="pt-8 text-sm text-muted-foreground">
                 Finding live roles… checking each posting is still active.
             </p>
@@ -1152,11 +1153,12 @@ function JobsContent() {
     // active (see the effect near `activeCount`/`filtersOpen` below — it
     // needs both, so it lives after them). `setDocked` is pulled out here so
     // the unmount cleanup can sit next to the rest of this page's setup.
-    const { setDocked } = useSearchDock();
+    const { setDocked, setHomeViewDocked } = useSearchDock();
 
     // The provider outlives this page, so a dock left set would follow the
     // person onto /resume or /trends and offer to edit a search they left.
     useEffect(() => () => setDocked(null), [setDocked]);
+    useEffect(() => () => setHomeViewDocked(false), [setHomeViewDocked]);
 
     // Perf first-paint (2026-09-18): the one piece of state `hasSearchIntent`
     // (lib/jobs/search-intent.ts) needs beyond derived query/filter/sort/URL
@@ -1594,14 +1596,21 @@ function JobsContent() {
     // The one auth gate (`use-auth-gate.ts`): signed in → run the handler
     // now; signed out → persist the action (survives both in-place login and
     // a hard OAuth/passkey navigation away and back) and open the popover.
-    // Handlers below reference `doMarkApplied`/`replayApplyGate`, declared
-    // later in this component — safe because these are arrow functions, not
+    // Handlers below reference `setApplyIntentJob`/`openJob`, declared later
+    // in this component — safe because these are arrow functions, not
     // calls: the reference resolves only when the auth gate invokes them,
     // long after this component has finished its first render.
-    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob, PublicJob>({
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob>({
         handlers: {
-            apply: (action) => void doMarkApplied(action.payload),
-            gate: (action) => void replayApplyGate(action.payload),
+            // A guest's Apply click never reached the ATS (auth-first gate
+            // above) — so the replay isn't "mark applied", it's the same
+            // apply-intent/departure step a signed-in click takes. It can't
+            // call `openPostingNow` itself: `window.open` outside this
+            // click's own gesture (we're deep in an auth callback, not a
+            // click handler) is exactly what popup blockers stop. Opening
+            // the dialog instead means the user's own next click —
+            // "Continue to the posting" — is a fresh, real gesture.
+            apply: (action) => setApplyIntentJob(action.payload),
             upload: () => {
                 setImportOpen(true);
             },
@@ -1610,8 +1619,8 @@ function JobsContent() {
             // reported (browser back/forward while the auth popover was
             // open). Re-select the reported job by id via the same `openJob`
             // every SERP row/permalink uses (declared below — safe for the
-            // same closure reason as `doMarkApplied`/`replayApplyGate`
-            // above), and skip the dialog entirely if it can't be identified.
+            // same closure reason as `doMarkApplied` above), and skip the
+            // dialog entirely if it can't be identified.
             report: (action) => {
                 if (!action.payload?.id) return;
                 openJob(action.payload.id);
@@ -1739,6 +1748,11 @@ function JobsContent() {
     const showForYouHome = resolvedHomeView === "for-you";
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
+    // For-you ⇄ Search toggle: shown whenever there's a For-you home to switch
+    // out of (a resume on file) or while that resolution is still pending —
+    // one value, one mount point, rendered identically across all three states.
+    const showHomeViewToggle = resumeOnFile === true || showJobsHomePending;
+    const homeViewToggleValue: JobsHomeView = resolvedHomeView === "search" ? "search" : "for-you";
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -1895,45 +1909,37 @@ function JobsContent() {
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
+    // Deliberately NOT `headerDockActive`: the For-you/Search toggle has to
+    // sit in the exact same header slot in every state it's visible in,
+    // including the whole For-you view and "Search, no query yet" — both of
+    // which correctly leave `headerDockActive` false (there's no search box
+    // or filters to dock there). Tying the toggle to `headerDockActive`
+    // anyway made it jump between an inline position (in-page) and a docked
+    // one (header band) depending on which of those states it was in.
+    const homeViewDockActive = isLgUp && showHomeViewToggle;
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
-    const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
-    const [dockedFacetsMount, setDockedFacetsMount] = useState<HTMLElement | null>(null);
-    const [dockedFieldDirectoryMount, setDockedFieldDirectoryMount] = useState<HTMLElement | null>(null);
-    const [dockedQueryMount, setDockedQueryMount] = useState<HTMLElement | null>(null);
-    const [dockedLocationMount, setDockedLocationMount] = useState<HTMLElement | null>(null);
-    const [dockedSortMount, setDockedSortMount] = useState<HTMLElement | null>(null);
-    const [dockedExtrasMount, setDockedExtrasMount] = useState<HTMLElement | null>(null);
-    const [dockedClearFiltersMount, setDockedClearFiltersMount] = useState<HTMLElement | null>(null);
-    const [dockedSaveSearchMount, setDockedSaveSearchMount] = useState<HTMLElement | null>(null);
+    useEffect(() => {
+        setHomeViewDocked(homeViewDockActive);
+    }, [homeViewDockActive, setHomeViewDocked]);
 
-    useLayoutEffect(() => {
-        if (!headerDockActive) {
-            setDockedFacetsMount(null);
-            setDockedFieldDirectoryMount(null);
-            setDockedQueryMount(null);
-            setDockedLocationMount(null);
-            setDockedSortMount(null);
-            setDockedExtrasMount(null);
-            setDockedClearFiltersMount(null);
-            setDockedSaveSearchMount(null);
-            return;
-        }
-        const sync = () => {
-            setDockedFacetsMount(document.querySelector('[data-testid="topbar-docked-facets"]') as HTMLElement | null);
-            setDockedFieldDirectoryMount(document.querySelector('[data-testid="topbar-docked-field-directory"]') as HTMLElement | null);
-            setDockedQueryMount(document.querySelector('[data-testid="topbar-docked-query"]') as HTMLElement | null);
-            setDockedLocationMount(document.querySelector('[data-testid="topbar-docked-location"]') as HTMLElement | null);
-            setDockedSortMount(document.querySelector('[data-testid="topbar-docked-sort"]') as HTMLElement | null);
-            setDockedExtrasMount(document.querySelector('[data-testid="topbar-docked-extras"]') as HTMLElement | null);
-            setDockedClearFiltersMount(document.querySelector('[data-testid="topbar-docked-clear-filters"]') as HTMLElement | null);
-            setDockedSaveSearchMount(document.querySelector('[data-testid="topbar-docked-save-search"]') as HTMLElement | null);
-        };
-        sync();
-        const id = requestAnimationFrame(sync);
-        return () => cancelAnimationFrame(id);
-    }, [headerDockActive]);
+    const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
+    // One hook per docked slot, gated by whichever flag governs it —
+    // `headerDockActive` for the search-only slots, `homeViewDockActive` for
+    // the toggle's slot alone. Distinct gates on purpose: `homeViewDockActive`
+    // is true in states where `headerDockActive` is false (see its
+    // definition above), so folding the toggle's slot into the search-only
+    // gate would re-widen that gate for every search-only mount too.
+    const dockedFacetsMount = useDockedSlotMount(headerDockActive, "topbar-docked-facets");
+    const dockedFieldDirectoryMount = useDockedSlotMount(headerDockActive, "topbar-docked-field-directory");
+    const dockedQueryMount = useDockedSlotMount(headerDockActive, "topbar-docked-query");
+    const dockedLocationMount = useDockedSlotMount(headerDockActive, "topbar-docked-location");
+    const dockedSortMount = useDockedSlotMount(headerDockActive, "topbar-docked-sort");
+    const dockedExtrasMount = useDockedSlotMount(headerDockActive, "topbar-docked-extras");
+    const dockedClearFiltersMount = useDockedSlotMount(headerDockActive, "topbar-docked-clear-filters");
+    const dockedSaveSearchMount = useDockedSlotMount(headerDockActive, "topbar-docked-save-search");
+    const dockedHomeViewMount = useDockedSlotMount(homeViewDockActive, "topbar-docked-home-view");
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -3493,8 +3499,27 @@ function JobsContent() {
         // A1 — only a signed-in departure arms the return prompt; guests
         // already left via this same call but auth for tracking is separate.
         if (user) armApplyReturnJob(job);
-        window.open(job.apply_url, "_blank", "noopener,noreferrer");
+        openApplyUrl(job.apply_url);
     };
+
+    // Job 2 gate: signed in → perform (offer the AI hand-off once, at the
+    // only moment it is worth anything — guests skip this path entirely,
+    // hollow without a résumé — else depart); guest → auth-first via the one
+    // shared gate (`use-gated-apply.ts`), same chokepoint every job surface
+    // uses.
+    const gatedOpenPosting = useGatedApply<PublicJob>({
+        user,
+        gate,
+        setAuthGateReason,
+        setAuthTrigger,
+        perform: (job) => {
+            if (job.apply_url && shouldPromptApplyIntent()) {
+                setApplyIntentJob(job);
+                return;
+            }
+            openPostingNow(job);
+        },
+    });
 
     const handleOpenPosting = (job: PublicJob) => {
         // Fired BEFORE the auth gate and the AI hand-off prompt, because the
@@ -3511,24 +3536,7 @@ function JobsContent() {
             // armed with for the currently-rendered result set (SPEC §5).
             ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
         });
-        const decision = resolveApplyClickDecision(Boolean(user));
-        if (decision === "open-then-auth") {
-            // ATS first — must stay synchronous in the click gesture; auth
-            // after only marks applied (no second navigation).
-            if (job.apply_url) openPostingNow(job);
-            setAuthGateReason("apply");
-            setAuthTrigger("auto");
-            gate({ kind: "apply", payload: job });
-            return;
-        }
-        // Offer the AI hand-off once, at the only moment it is worth anything.
-        // Guests skip this path entirely (hollow without a résumé); signed-in
-        // only.
-        if (job.apply_url && shouldPromptApplyIntent()) {
-            setApplyIntentJob(job);
-            return;
-        }
-        openPostingNow(job);
+        gatedOpenPosting(job);
     };
 
     const doMarkApplied = async (job: ApplyReturnJob) => {
@@ -3577,20 +3585,6 @@ function JobsContent() {
             },
             onMarkApplied: doMarkApplied,
         });
-
-    // Job 2 replay: reuses `doMarkApplied` — the EXACT tracker-write
-    // "Mark as applied" uses, not a second copy of it — then navigates
-    // same-tab to the posting. `window.open` (used by the signed-in
-    // `handleOpenPosting` above) would be popup-blocked here: this runs
-    // asynchronously after the login round-trip completes, outside the
-    // click's own gesture stack, which is exactly the condition browsers
-    // block a new-tab popup under. Awaiting the write first (rather than
-    // firing it and navigating immediately) also means the tab unloading
-    // can't race the request and drop it silently.
-    const replayApplyGate = async (job: PublicJob) => {
-        await doMarkApplied(job);
-        if (job.apply_url) window.location.href = job.apply_url;
-    };
 
     // "Save" — signed out writes to the guest store immediately for the FIRST
     // save; on the second+ guest save, require sign-in so the list isn't
@@ -3847,6 +3841,10 @@ function JobsContent() {
         writeLastJobsHomeView(view);
         applyUrlState(buildUrlState({ homeView: view }), "replace");
     };
+
+    const homeViewToggleEl = showHomeViewToggle
+        ? <ForYouToggle value={homeViewToggleValue} onChange={setJobsHomeView} />
+        : null;
 
     useEffect(() => {
         if (resolvedHomeView === "for-you" || resolvedHomeView === "search") {
@@ -4745,7 +4743,7 @@ function JobsContent() {
             data-testid="search-live-count"
             className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-semibold text-brand transition-colors hover:text-brand"
         >
-            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-live" />
+            <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-live" />
             {liveCountText}
         </Link>
     );
@@ -4862,6 +4860,12 @@ function JobsContent() {
                     Skip to results
                 </a>
 
+                {!homeViewDockActive && showHomeViewToggle && (
+                    <div className={cn("mb-3", cappedContentClass)}>{homeViewToggleEl}</div>
+                )}
+                {homeViewDockActive && dockedHomeViewMount && homeViewToggleEl &&
+                    createPortal(homeViewToggleEl, dockedHomeViewMount)}
+
                 {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
                         <ColdVisitorOrientation compact onRankByFit={() => handleUploadClick()} />
@@ -4897,9 +4901,10 @@ function JobsContent() {
                         // lg+ — max-w-7xl, the widest named container token already used
                         // site-wide (resume/page.tsx, settings, connect, etc.), not a new
                         // arbitrary value. Below lg, unchanged.
-                        // rounded-none (at rest): PR #534's own flat front-door frame,
-                        // out of this pass's scope — the raised well below is the
-                        // soft-surfaces panel this pass owns.
+                        // rounded-none: KEEP — at rest this section has no border or
+                        // background (dropped above for the front-door redesign), so
+                        // there's no visible corner to round; rounded-panel would wrongly
+                        // imply a panel surface that isn't drawn here.
                         // w-full (2026-09-17): mx-auto on a flex item suppresses
                         // cross-axis stretch (Flexbox spec) — the same defect PR
                         // #540 fixed on the toolbar section, same fix here.
@@ -5380,9 +5385,8 @@ function JobsContent() {
                             hydratedJobs={forYouHydrated}
                             onActivePackChange={handleForYouActivePackChange}
                             onOpenPosting={handleOpenPosting}
-                            homeView="for-you"
                             onHomeViewChange={setJobsHomeView}
-                            showToggle={resumeOnFile === true}
+                            showSearchCta={resumeOnFile === true}
                             signedIn={Boolean(user)}
                             onRequestSignIn={() => {
                                 setAuthGateReason("report");
@@ -5407,11 +5411,6 @@ function JobsContent() {
                     </div>
                 ) : (
                 <>
-                {resumeOnFile === true && (
-                    <div className={cn("mb-3", cappedContentClass)}>
-                        <ForYouToggle value="search" onChange={setJobsHomeView} />
-                    </div>
-                )}
                 {/* Perf first-paint (2026-09-18), product decision (Vivek):
                     the results surface — detail pane, list column, result-
                     count line, skeleton rows — never renders at rest. This is
@@ -5419,8 +5418,11 @@ function JobsContent() {
                     the search-fetch effect also skipped its fetch, so there
                     is never a rendered results surface with no fetch behind
                     it, and never a fetch whose results this doesn't show. The
-                    `ForYouToggle` just above stays outside this gate — it's
-                    navigation chrome, not a result. */}
+                    For-you/Search toggle (`homeViewToggleEl`, rendered once
+                    above this three-way view branch — see `showHomeViewToggle`)
+                    stays outside this gate: it's navigation chrome, not a
+                    result, and has to show in both views before either one's
+                    results fetch. */}
                 {searchIntent && (
                 <div className={cn(
                     headerDockActive
@@ -5486,6 +5488,12 @@ function JobsContent() {
                             <>
                                 <BoardVisitBanner />
 
+                                {/* Single container for the contiguous guest-nudge / alert
+                                    group below — reads the ONE `--list-inset` token so these
+                                    banners sit flush with the panel's rounded corner instead
+                                    of restating px-4 (see globals.css's `--list-inset`
+                                    comment for the full adopter list). */}
+                                <div className="px-[var(--list-inset)]">
                                 {localAiEnabled && !user && (
                                     <div
                                         data-testid="local-ai-guest-banner"
@@ -5517,20 +5525,22 @@ function JobsContent() {
                                         className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
                                         <span>Sign in to keep this list across devices and get alerts when new roles match —</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => openAuth("save", "user")}
-                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                        >
-                                            {AUTH_CTA_LABEL}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleDismissGuestSaveBanner}
-                                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                        >
-                                            not now
-                                        </button>
+                                        <span className="inline-flex items-baseline gap-3 whitespace-nowrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => openAuth("save", "user")}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                {AUTH_CTA_LABEL}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleDismissGuestSaveBanner}
+                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                not now
+                                            </button>
+                                        </span>
                                     </div>
                                 )}
 
@@ -5540,20 +5550,22 @@ function JobsContent() {
                                         className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
                                         <span>{SIGNUP_SUBCOPY} —</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => openAuth("generic", "user")}
-                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                        >
-                                            {AUTH_CTA_LABEL}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleDismissGuestEngageNudge}
-                                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                        >
-                                            not now
-                                        </button>
+                                        <span className="inline-flex items-baseline gap-3 whitespace-nowrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => openAuth("generic", "user")}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                {AUTH_CTA_LABEL}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleDismissGuestEngageNudge}
+                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                not now
+                                            </button>
+                                        </span>
                                     </div>
                                 )}
 
@@ -5592,6 +5604,7 @@ function JobsContent() {
                                         />
                                     </div>
                                 )}
+                                </div>
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
@@ -6116,6 +6129,7 @@ function JobsContent() {
                 confirmLabel="Rank my jobs"
                 title="Rank jobs by your résumé"
                 description="Upload or paste your résumé — we'll rank this list by how well each role fits."
+                storageNote="Your résumé and the parsed result are then saved to your account so they follow you across devices."
             />
             <Sheet
                 // Two-Panel Selector: gated through `resolveDetailMountSite`

@@ -38,16 +38,16 @@ import {
  * until every caller supplies a handler for it, rather than a silently
  * unhandled case in an enumerated switch.
  */
-export type AuthGateHandlers<Apply, Gate, Report> = {
-    [K in PendingAction<Apply, Gate, Report>["kind"]]: (
-        action: Extract<PendingAction<Apply, Gate, Report>, { kind: K }>,
+export type AuthGateHandlers<Apply, Report> = {
+    [K in PendingAction<Apply, Report>["kind"]]: (
+        action: Extract<PendingAction<Apply, Report>, { kind: K }>,
     ) => void | Promise<void>;
 };
 
-export interface UseAuthGateResult<Apply, Gate, Report> {
+export interface UseAuthGateResult<Apply, Report> {
     /** Signed in → run the action's handler immediately, no dialog. Signed
      *  out → persist the action and open the auth modal. */
-    gate: (action: PendingAction<Apply, Gate, Report>) => void;
+    gate: (action: PendingAction<Apply, Report>) => void;
     authOpen: boolean;
     /** Setting this to `false` also clears any persisted action — covers
      *  both the popover's own dismiss and a page dismissing the gate on an
@@ -58,9 +58,9 @@ export interface UseAuthGateResult<Apply, Gate, Report> {
     onAuthed: () => void;
 }
 
-function runHandler<Apply, Gate, Report>(
-    handlers: AuthGateHandlers<Apply, Gate, Report>,
-    action: PendingAction<Apply, Gate, Report>,
+function runHandler<Apply, Report>(
+    handlers: AuthGateHandlers<Apply, Report>,
+    action: PendingAction<Apply, Report>,
 ): void {
     // One cast at the single dispatch chokepoint: TS can't carry the
     // Extract<...> narrowing through a generic indexed lookup, but the
@@ -70,24 +70,24 @@ function runHandler<Apply, Gate, Report>(
     // kind) must not crash a `useEffect`/event-handler callback — no
     // matching handler is a no-op, not a throw.
     const handler = handlers[action.kind] as
-        | ((a: PendingAction<Apply, Gate, Report>) => void | Promise<void>)
+        | ((a: PendingAction<Apply, Report>) => void | Promise<void>)
         | undefined;
     if (!handler) return;
     void handler(action);
 }
 
-export function useAuthGate<Apply, Gate, Report = Gate>({
+export function useAuthGate<Apply, Report = Apply>({
     handlers,
     user,
 }: {
-    handlers: AuthGateHandlers<Apply, Gate, Report>;
+    handlers: AuthGateHandlers<Apply, Report>;
     /** The page's already-known signed-in state (whatever it fills via its
      *  own `onAuthChange(setUser)` subscription). Truthy here lets `gate()`
      *  run the handler synchronously with no `/api/auth/session` round trip;
      *  falsy falls back to asking the server, since a page's `user` state can
      *  still be null on first paint even when a real session exists. */
     user: unknown;
-}): UseAuthGateResult<Apply, Gate, Report> {
+}): UseAuthGateResult<Apply, Report> {
     const [authOpen, setAuthOpenState] = useState(false);
     // Handlers close over page state (job lists, telemetry, dialogs) that
     // changes every render; a ref keeps the callbacks below stable identities
@@ -106,7 +106,7 @@ export function useAuthGate<Apply, Gate, Report = Gate>({
     }, []);
 
     const replayPersisted = useCallback(() => {
-        const persisted = takePersistedPendingAction<Apply, Gate, Report>(window.sessionStorage, {
+        const persisted = takePersistedPendingAction<Apply, Report>(window.sessionStorage, {
             currentPath: window.location.pathname,
             now: Date.now(),
         });
@@ -127,7 +127,7 @@ export function useAuthGate<Apply, Gate, Report = Gate>({
     }, [replayPersisted]);
 
     const gate = useCallback(
-        (action: PendingAction<Apply, Gate, Report>) => {
+        (action: PendingAction<Apply, Report>) => {
             // Sync fast path: the caller already knows it's signed in (its
             // own `onAuthChange` subscription already resolved), so skip the
             // round trip entirely instead of paying one on every gated click

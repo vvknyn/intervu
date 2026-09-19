@@ -73,15 +73,14 @@ function ResumeContent() {
     // The one auth gate (`use-auth-gate.ts`), same mechanism /jobs uses: signed
     // in → run the handler now; signed out → persist the action (survives both
     // in-place login and a hard OAuth/passkey navigation away and back) and
-    // open the popover. `apply`/`gate`/`report` are never queued from this
-    // page — `PendingAction`'s kinds are shared with /jobs, and
+    // open the popover. `apply`/`report` are never queued from this page —
+    // `PendingAction`'s kinds are shared with /jobs, and
     // `takePersistedPendingAction` is path-scoped (pending-actions.ts), so a
     // /jobs-queued action can never replay here — but the hook's handler map
     // is total over every kind, so they're still typed, inert no-ops.
-    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<never, never, never>({
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<never, never>({
         handlers: {
             apply: () => {},
-            gate: () => {},
             upload: () => {
                 setImportModalOpen(true);
             },
@@ -218,6 +217,7 @@ function ResumeContent() {
                     onImport={handleImportResume}
                     title="Upload your base resume"
                     description="Drop your existing resume to parse into your base profile."
+                    storageNote="Your résumé and the parsed result stay in this browser."
                 />
 
                 <AuthPopover
