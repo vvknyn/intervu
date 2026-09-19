@@ -6,6 +6,7 @@ import { resolveLLMConfig } from "@/lib/llm/resolve-config";
 import { ProviderConfig } from "@/lib/llm/types";
 import { resolveModelLadder, runLadder, type LadderRung } from "@/lib/llm/model-ladder";
 import { FREE_LADDER } from "@/lib/llm/models";
+import { stripProviderPrefix } from "@/lib/llm/strip-provider-prefix";
 
 const getConfig = (override?: Partial<ProviderConfig>) => resolveLLMConfig(override);
 
@@ -50,7 +51,7 @@ const formatError = (e: any) => {
         errorMessage = "The selected AI model isn't available right now. Please try again.";
     } else if (msg && msg.length > 0) {
         // Clean up the error message for display
-        errorMessage = msg.replace(/^\[?\w+\]?\s*:?\s*/i, ''); // Remove provider prefixes like "[Groq]"
+        errorMessage = stripProviderPrefix(msg);
         // Truncate long error messages
         if (errorMessage.length > 200) {
             errorMessage = errorMessage.substring(0, 200) + "...";

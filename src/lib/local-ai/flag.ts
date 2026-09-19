@@ -1,9 +1,12 @@
 /**
- * R&D feature flag: on-device resume parse instead of cloud LLM.
- *
- * Default OFF — production users keep `parseResumeWithAI`. Enable via Settings
- * toggle or `?localAi=1` on any page (persists to localStorage for the session
- * and future visits).
+ * On-device AI inference opt-in — NOT a résumé-parse mode switch. Résumé
+ * import always parses on-device now (founder rule: résumé interpretation
+ * never happens on our servers); this flag instead gates other on-device
+ * features that DO still have a choice: job-tailoring/customization
+ * (LocalCustomizePanel) and guest résumé caching on /jobs and public job
+ * pages. Default OFF. Enable via the Settings toggle (LocalAiSettingsSection)
+ * or `?localAi=1` on any page (persists to localStorage for the session and
+ * future visits).
  */
 
 export const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
