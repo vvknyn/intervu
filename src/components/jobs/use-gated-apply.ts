@@ -21,6 +21,17 @@ import type { AuthGateReason, AuthGateTrigger } from "@/lib/auth/auth-gate-copy"
  * PublicJobDetail.tsx, or a bare apply URL for `/yours`, which can't always
  * resolve a full `PublicJob` at click time (see that page's own comment).
  */
+/**
+ * The one place a gated `perform` callback is allowed to actually leave for
+ * an employer's apply_url — every consumer below calls this instead of
+ * `window.open` directly, so tests/unit/apply-auth-first.test.ts's
+ * call-site scan has exactly one sanctioned navigation site to name instead
+ * of one raw `window.open` duplicated per caller.
+ */
+export function openApplyUrl(url: string): void {
+    window.open(url, "_blank", "noopener,noreferrer");
+}
+
 export function useGatedApply<Job>({
     user,
     gate,

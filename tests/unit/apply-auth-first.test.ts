@@ -57,29 +57,45 @@ describe("apply-behind-signup — class-wide guarantees", () => {
         );
     });
 
-    it("every apply_url/job_url navigation site anywhere in src is routed through the shared apply gate", () => {
-        // Two independent conditions, deliberately not fused into one regex
-        // (the previous version's `window\.open\([^)]*apply_url` missed a
-        // navigation call sitting a few lines below the URL it closed over —
-        // exactly the shape `/yours`'s three offending buttons had): a file
-        // is in scope if it mentions either URL field ANYWHERE, and
-        // separately contains ANY of the three ways this codebase navigates
-        // a tab/window. In scope + no gate import = offender.
+    it("every raw navigation call in a file that handles employer URLs is routed through the shared apply gate", () => {
+        // File-level "does this file import the gate somewhere" (the
+        // previous version of this test) missed a regression where ONE of
+        // several navigation call sites in an already-gate-importing file
+        // reverted to a raw `window.open` while its siblings stayed gated —
+        // the file-level import check can't see which specific call site
+        // it's guarding. The class property is "a raw navigation call in a
+        // file that handles employer URLs" — so every occurrence, not every
+        // file, must clear one of two exemptions: (a) it lives in
+        // use-gated-apply.ts, the single sanctioned site every `perform`
+        // callback now calls through (`openApplyUrl`) instead of duplicating
+        // `window.open` per caller, or (b) it carries an inline
+        // `// not-an-apply-link: <reason>` marker (same line or the line
+        // above) for a genuine non-apply navigation — share, docs, company
+        // site — that happens to sit in a file that also mentions an apply
+        // link. No production call site needs (b) today; it exists so a
+        // future non-apply navigation in one of these files has a sanctioned
+        // path instead of tempting someone to widen the gate check.
         const REFERENCES_APPLY_LINK = /(apply_url|job_url)/;
         const NAVIGATES = /(window\.open\(|location\.href\s*=|location\.assign\()/;
-        const IMPORTS_THE_GATE = /(useGatedApply|resolveApplyClickDecision)/;
+        const EXEMPT_MARKER = /\/\/\s*not-an-apply-link:/;
+        const SANCTIONED_FILE = join(SRC, "components", "jobs", "use-gated-apply.ts");
 
         const offenders: string[] = [];
         for (const file of ALL_SRC_FILES) {
+            if (file === SANCTIONED_FILE) continue;
             const src = readFileSync(file, "utf8");
-            if (!REFERENCES_APPLY_LINK.test(src) || !NAVIGATES.test(src)) continue;
-            if (IMPORTS_THE_GATE.test(src)) continue;
-            offenders.push(file);
+            if (!REFERENCES_APPLY_LINK.test(src)) continue;
+            const lines = src.split("\n");
+            lines.forEach((line, i) => {
+                if (!NAVIGATES.test(line)) return;
+                if (EXEMPT_MARKER.test(line) || (i > 0 && EXEMPT_MARKER.test(lines[i - 1]))) return;
+                offenders.push(`${file}:${i + 1}`);
+            });
         }
         assert.deepEqual(
             offenders,
             [],
-            `apply_url/job_url navigation without the shared apply gate in: ${offenders.join(", ")}`,
+            `raw navigation call not routed through the shared apply gate: ${offenders.join(", ")}`,
         );
     });
 });

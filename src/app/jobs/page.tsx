@@ -132,7 +132,7 @@ import { LocationCombobox } from "@/components/jobs/LocationCombobox";
 import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
-import { useGatedApply } from "@/components/jobs/use-gated-apply";
+import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
@@ -3500,7 +3500,7 @@ function JobsContent() {
         // A1 — only a signed-in departure arms the return prompt; guests
         // already left via this same call but auth for tracking is separate.
         if (user) armApplyReturnJob(job);
-        window.open(job.apply_url, "_blank", "noopener,noreferrer");
+        openApplyUrl(job.apply_url);
     };
 
     // Job 2 gate: signed in → perform (offer the AI hand-off once, at the

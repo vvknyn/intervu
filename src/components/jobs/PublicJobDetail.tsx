@@ -8,7 +8,7 @@ import { reportJobEnabledAction } from "@/actions/report-job";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
-import { useGatedApply } from "@/components/jobs/use-gated-apply";
+import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { ApplyReturnPrompt, useApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
 import { fetchResumeData } from "@/actions/resume";
 import { JobDetail, JobDetailActionBar } from "@/components/jobs/JobDetail";
@@ -187,7 +187,7 @@ export function PublicJobDetail({
         // A1 — only a signed-in departure arms the return prompt; guests
         // already left via this same call but auth for tracking is separate.
         if (user) armApplyReturnJob(target);
-        window.open(target.apply_url, "_blank", "noopener,noreferrer");
+        openApplyUrl(target.apply_url);
     };
 
     const doMarkApplied = async (target: ApplyReturnJob) => {

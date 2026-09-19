@@ -14,7 +14,7 @@ import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-a
 import { updateApplication } from "@/actions/application";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
-import { useGatedApply } from "@/components/jobs/use-gated-apply";
+import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { formatAuthGateValueLine, type AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { displayCompanyName } from "@/lib/jobs/presentation";
@@ -253,7 +253,7 @@ export default function PursuitDetailPage() {
         user,
         gate,
         setAuthGateReason,
-        perform: (url) => window.open(url, "_blank", "noopener,noreferrer"),
+        perform: openApplyUrl,
     });
 
     const mutate = async (patch: Partial<Pursuit>) => {
