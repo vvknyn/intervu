@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { captureEvent } from "@/lib/analytics/events";
-import { AUTH_CTA_LABEL, type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { AUTH_CTA_LABEL, authGateTitle, type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { canShowAutoNudge, markAutoNudgeShown, recordNudgeDismissed } from "@/lib/auth/nudge-cap";
 import { type NudgeDecision, type NudgeGateState, decideNudgeOnce, nudgeGateNext, shouldRecordDismiss } from "@/lib/auth/nudge-gate";
 
@@ -125,7 +125,17 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
         onOpenChange(false);
     };
 
-    const valueLineNode = valueLine && (
+    // Most reasons have no title of their own — the login/signup card's own
+    // heading (authCardCopy) already names the action, and `valueLine`
+    // renders as its own line above the card. A reason like "apply" that
+    // gates BEFORE anything the user asked for has happened needs its own
+    // headline explaining that — it opts in via authGateTitle, and when it
+    // does, that title + `valueLine` REPLACE the card's generic
+    // heading/subcopy (via LoginForm's `headline` prop) instead of stacking
+    // above them, so exactly one heading and one explanatory line ever show.
+    const gateTitle = authGateTitle(effectiveReason);
+    const headline = gateTitle ? { title: gateTitle, body: valueLine } : undefined;
+    const valueLineNode = !gateTitle && valueLine && (
         <p className="mb-4 text-sm leading-normal text-muted-foreground">{valueLine}</p>
     );
 
@@ -134,9 +144,13 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
         return (
             <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
                 <DialogContent className="sm:max-w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-panel border border-border bg-card">
-                    <DialogTitle className="sr-only">Authentication</DialogTitle>
+                    {/* Visible heading now lives inside LoginForm (either its
+                        own per-tab title, or `headline` below) — this stays
+                        screen-reader-only so Radix's required DialogTitle
+                        doesn't duplicate it visibly. */}
+                    <DialogTitle className="sr-only">{gateTitle ?? "Authentication"}</DialogTitle>
                     {valueLineNode}
-                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
+                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />
                 </DialogContent>
             </Dialog>
         );
@@ -152,7 +166,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
             <PopoverContent align="end" className="w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-panel border border-border bg-card">
                 <div>
                     {valueLineNode}
-                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
+                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />
                 </div>
             </PopoverContent>
         </Popover>

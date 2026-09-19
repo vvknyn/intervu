@@ -25,6 +25,15 @@ interface LoginFormProps {
     onGuestAccess?: () => void;
     /** Initial tab when the form mounts — signup for apply gates, login otherwise. */
     defaultTab?: "login" | "signup";
+    /**
+     * Reason-scoped heading + explanatory line that REPLACES the tab's own
+     * generic heading (`authCardCopy(activeTab).title`) and subcopy
+     * (`SIGNUP_SUBCOPY`) — not stacked above them. The brand lockup above
+     * stays put either way. Omit for the plain per-tab heading (unchanged
+     * default). Set by AuthPopover from `authGateTitle`/`valueLine` for a
+     * reason whose gate is a hard stop before the user can act (e.g. apply).
+     */
+    headline?: { title: string; body: React.ReactNode };
 }
 
 /** Standard 4-color Google "G" glyph — no icon library ships a brand mark
@@ -59,7 +68,7 @@ export function resolveAuthKitMethod(provider?: string): SignupMethod {
     return provider === 'GoogleOAuth' ? 'google' : 'passkey'
 }
 
-export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: LoginFormProps = {}) {
+export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", headline }: LoginFormProps = {}) {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab)
     const [username, setUsername] = useState('')
@@ -182,10 +191,14 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     <BrandLockup />
                 </Link>
                 <h1 className="font-semibold text-xl text-foreground">
-                    {copy.title}
+                    {headline?.title ?? copy.title}
                 </h1>
-                {activeTab === "signup" && (
-                    <p className="text-xs text-muted-foreground">{SIGNUP_SUBCOPY}</p>
+                {headline ? (
+                    <p className="text-xs text-muted-foreground">{headline.body}</p>
+                ) : (
+                    activeTab === "signup" && (
+                        <p className="text-xs text-muted-foreground">{SIGNUP_SUBCOPY}</p>
+                    )
                 )}
             </div>
 

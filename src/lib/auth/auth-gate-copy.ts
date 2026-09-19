@@ -39,20 +39,47 @@ export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
  *  header's new "Get job alerts" CTA is selling). */
 export const SIGNUP_SUBCOPY = "Get job alerts, saved searches, and an application tracker — on any device.";
 
-const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
-    apply: "Create a free account to track this application across devices.",
-    generic: "Sign in to sync your tracker across devices.",
-    save: "Sign in to keep your list across devices and get alerts when new roles match.",
+/** A reason's copy — `body` always renders as the popover's value line.
+ *  `title` is optional; when present it REPLACES LoginForm's own generic
+ *  heading and subcopy (see login-form.tsx's `headline` prop) rather than
+ *  stacking above them — one heading, one explanatory line, not both sets.
+ *  Only a reason whose gate is a hard stop before the user can act (apply)
+ *  needs one; the rest keep the plain "Sign in"/"Create account" card
+ *  heading with `body` rendered separately above the card (auth-popover.tsx). */
+interface AuthGateCopy {
+    title?: string;
+    body: string;
+}
+
+const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
+    // 2026-09-18 apply-behind-signup: the guest never reaches the ATS before
+    // this popover, so the title has to say what's about to happen, not just
+    // sell the account.
+    apply: {
+        title: "Create a free account to apply",
+        body: "We'll take you to the company's application page next, and track this application across your devices.",
+    },
+    generic: { body: "Sign in to sync your tracker across devices." },
+    save: { body: "Sign in to keep your list across devices and get alerts when new roles match." },
     // Only-facts copy (Fable design pass, 2026-09-17): no "personalized
     // recommendations" claim and no on-device claim — fit scoring's
     // client-vs-server split (src/lib/match/score.ts,
     // src/lib/local-ai/tailor-with-engine.ts) isn't something the user needs
     // to know to decide whether to sign in, so it's not asserted here.
-    fit: "Sign in to upload your résumé and rank every result by fit.",
-    report: "Sign in to report an issue with this listing.",
-    tailor: "Create a free account to tailor your résumé with on-device AI and export customized applications.",
-    resume: "Create a free account to edit, export, and sync your résumé across devices.",
+    fit: { body: "Sign in to upload your résumé and rank every result by fit." },
+    report: { body: "Sign in to report an issue with this listing." },
+    tailor: {
+        body: "Create a free account to tailor your résumé with on-device AI and export customized applications.",
+    },
+    resume: { body: "Create a free account to edit, export, and sync your résumé across devices." },
 };
+
+/** Visible card heading for reasons that need one, replacing LoginForm's
+ *  generic per-tab heading; undefined otherwise (LoginForm falls back to
+ *  its normal `authCardCopy` heading). */
+export function authGateTitle(reason: AuthGateReason): string | undefined {
+    return AUTH_GATE_COPY[reason].title;
+}
 
 /** Honest keep-line when guest pursuits exist; null when count is zero. */
 export function guestKeepLine(guestPursuitCount: number): string | null {
@@ -65,7 +92,7 @@ export function guestKeepLine(guestPursuitCount: number): string | null {
 /** Value line for AuthPopover — reason class + optional honest guest count. */
 export function formatAuthGateValueLine(reason: AuthGateReason, guestPursuitCount = 0): string {
     const keep = guestKeepLine(guestPursuitCount);
-    const lead = AUTH_GATE_LEAD[reason];
+    const lead = AUTH_GATE_COPY[reason].body;
     return keep ? `${keep} ${lead}` : lead;
 }
 
