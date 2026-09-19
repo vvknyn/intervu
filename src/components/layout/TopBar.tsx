@@ -55,7 +55,7 @@ export function TopBar() {
     // that page already had the same stats in hand, so this also removes a
     // duplicate fetch. This slot now belongs to the docked search below.
     const authChrome = resolveAuthChrome(user);
-    const { docked } = useSearchDock();
+    const { docked, homeViewDocked } = useSearchDock();
     const navBadges = useNavBadgeCounts();
     const menuTabs = NAV_TABS.filter((t) => t.placement === "menu");
     const barTabs = NAV_TABS.filter((t) => t.placement === "bar");
@@ -299,57 +299,70 @@ export function TopBar() {
                 populated on desktop (see jobs/page.tsx), but the class keeps
                 this row from ever appearing below that breakpoint even if
                 that changes. Chip-less (a fresh search, nothing narrowed
-                yet) still renders the row for the "Filters" button alone. */}
-            {docked && (
+                yet) still renders the row for the "Filters" button alone.
+                The row itself also stays up for `homeViewDocked` alone —
+                the For-you/Search toggle needs this same fixed slot on
+                desktop even when there's no active search to dock (the
+                whole For-you view, or Search before a query is typed), so
+                the toggle never jumps between an inline and a docked
+                position depending on which of those it is. Everything below
+                that reads `docked.*` stays gated on `docked` itself, since
+                those fields don't exist when only the toggle is docked. */}
+            {(docked || homeViewDocked) && (
                 <div data-region="band" className="hidden bg-muted lg:block">
                     <div className="shell-row box-border flex h-10 flex-nowrap items-center gap-2 overflow-x-auto border-t border-border">
-                        <button
-                            type="button"
-                            onClick={docked.onOpenFilters}
-                            aria-expanded={docked.filtersExpanded}
-                            aria-controls="filters-panel"
-                            data-testid="topbar-docked-filters-toggle"
-                            className={cn(
-                                chipVariants({ active: docked.filtersExpanded, interactive: true }),
-                                toolbarControlHeight,
-                                "box-border shrink-0 items-center justify-center gap-2 px-3 text-xs font-semibold lg:px-3",
-                            )}
-                        >
-                            Filters
-                            {docked.filterCount > 0 && (
-                                <span className={cn("ml-0.5", filterCountBadgeClass)}>
-                                    {docked.filterCount}
-                                </span>
-                            )}
-                        </button>
-                        <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
-                        <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
-                        {docked.chips.length > 0 && (
+                        <div data-testid="topbar-docked-home-view" className="flex shrink-0 items-center gap-2" />
+                        {docked && (
                             <>
-                                <span aria-hidden className="jobs-instrument-rule" />
-                                <div data-testid="topbar-docked-active-filters" className="flex shrink-0 items-center gap-2">
-                                    {docked.chips.map((chip) => (
-                                        <span
-                                            key={chip.key}
-                                            data-testid="topbar-docked-chip"
-                                            className={cn(
-                                                chipVariants({ active: true, interactive: true }),
-                                                toolbarControlHeight,
-                                                "box-border items-center gap-2 px-3 lg:px-3",
-                                            )}
-                                        >
-                                            {chip.label}
-                                            <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
+                                <button
+                                    type="button"
+                                    onClick={docked.onOpenFilters}
+                                    aria-expanded={docked.filtersExpanded}
+                                    aria-controls="filters-panel"
+                                    data-testid="topbar-docked-filters-toggle"
+                                    className={cn(
+                                        chipVariants({ active: docked.filtersExpanded, interactive: true }),
+                                        toolbarControlHeight,
+                                        "box-border shrink-0 items-center justify-center gap-2 px-3 text-xs font-semibold lg:px-3",
+                                    )}
+                                >
+                                    Filters
+                                    {docked.filterCount > 0 && (
+                                        <span className={cn("ml-0.5", filterCountBadgeClass)}>
+                                            {docked.filterCount}
                                         </span>
-                                    ))}
-                                </div>
+                                    )}
+                                </button>
+                                <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
+                                <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
+                                {docked.chips.length > 0 && (
+                                    <>
+                                        <span aria-hidden className="jobs-instrument-rule" />
+                                        <div data-testid="topbar-docked-active-filters" className="flex shrink-0 items-center gap-2">
+                                            {docked.chips.map((chip) => (
+                                                <span
+                                                    key={chip.key}
+                                                    data-testid="topbar-docked-chip"
+                                                    className={cn(
+                                                        chipVariants({ active: true, interactive: true }),
+                                                        toolbarControlHeight,
+                                                        "box-border items-center gap-2 px-3 lg:px-3",
+                                                    )}
+                                                >
+                                                    {chip.label}
+                                                    <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                                <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />
+                                <div className="min-w-0 flex-1" aria-hidden />
+                                <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-2" />
+                                <div data-testid="topbar-docked-sort" className="flex shrink-0 items-center gap-2" />
+                                <div data-testid="topbar-docked-extras" className="flex shrink-0 items-center gap-2" />
                             </>
                         )}
-                        <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />
-                        <div className="min-w-0 flex-1" aria-hidden />
-                        <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-2" />
-                        <div data-testid="topbar-docked-sort" className="flex shrink-0 items-center gap-2" />
-                        <div data-testid="topbar-docked-extras" className="flex shrink-0 items-center gap-2" />
                     </div>
                 </div>
             )}

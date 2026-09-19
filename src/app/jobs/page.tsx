@@ -651,7 +651,7 @@ function JobCardSkeleton() {
  *  arriving" instead of a bare sentence. */
 function JobsListSplash() {
     return (
-        <div>
+        <div className="px-[var(--list-inset)]">
             <p className="pt-8 text-sm text-muted-foreground">
                 Finding live roles… checking each posting is still active.
             </p>
@@ -1152,11 +1152,12 @@ function JobsContent() {
     // active (see the effect near `activeCount`/`filtersOpen` below — it
     // needs both, so it lives after them). `setDocked` is pulled out here so
     // the unmount cleanup can sit next to the rest of this page's setup.
-    const { setDocked } = useSearchDock();
+    const { setDocked, setHomeViewDocked } = useSearchDock();
 
     // The provider outlives this page, so a dock left set would follow the
     // person onto /resume or /trends and offer to edit a search they left.
     useEffect(() => () => setDocked(null), [setDocked]);
+    useEffect(() => () => setHomeViewDocked(false), [setHomeViewDocked]);
 
     // Perf first-paint (2026-09-18): the one piece of state `hasSearchIntent`
     // (lib/jobs/search-intent.ts) needs beyond derived query/filter/sort/URL
@@ -1739,6 +1740,11 @@ function JobsContent() {
     const showForYouHome = resolvedHomeView === "for-you";
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
+    // For-you ⇄ Search toggle: shown whenever there's a For-you home to switch
+    // out of (a resume on file) or while that resolution is still pending —
+    // one value, one mount point, rendered identically across all three states.
+    const showHomeViewToggle = resumeOnFile === true || showJobsHomePending;
+    const homeViewToggleValue: JobsHomeView = resolvedHomeView === "search" ? "search" : "for-you";
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -1895,8 +1901,20 @@ function JobsContent() {
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
+    // Deliberately NOT `headerDockActive`: the For-you/Search toggle has to
+    // sit in the exact same header slot in every state it's visible in,
+    // including the whole For-you view and "Search, no query yet" — both of
+    // which correctly leave `headerDockActive` false (there's no search box
+    // or filters to dock there). Tying the toggle to `headerDockActive`
+    // anyway made it jump between an inline position (in-page) and a docked
+    // one (header band) depending on which of those states it was in.
+    const homeViewDockActive = isLgUp && showHomeViewToggle;
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
+
+    useEffect(() => {
+        setHomeViewDocked(homeViewDockActive);
+    }, [homeViewDockActive, setHomeViewDocked]);
 
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
     const [dockedFacetsMount, setDockedFacetsMount] = useState<HTMLElement | null>(null);
@@ -1907,6 +1925,7 @@ function JobsContent() {
     const [dockedExtrasMount, setDockedExtrasMount] = useState<HTMLElement | null>(null);
     const [dockedClearFiltersMount, setDockedClearFiltersMount] = useState<HTMLElement | null>(null);
     const [dockedSaveSearchMount, setDockedSaveSearchMount] = useState<HTMLElement | null>(null);
+    const [dockedHomeViewMount, setDockedHomeViewMount] = useState<HTMLElement | null>(null);
 
     useLayoutEffect(() => {
         if (!headerDockActive) {
@@ -1934,6 +1953,23 @@ function JobsContent() {
         const id = requestAnimationFrame(sync);
         return () => cancelAnimationFrame(id);
     }, [headerDockActive]);
+
+    // Own effect, own gate — `homeViewDockActive` is true in states where
+    // `headerDockActive` is false (see its definition above), so this can't
+    // share the effect above without re-widening that gate for every
+    // search-only mount too.
+    useLayoutEffect(() => {
+        if (!homeViewDockActive) {
+            setDockedHomeViewMount(null);
+            return;
+        }
+        const sync = () => {
+            setDockedHomeViewMount(document.querySelector('[data-testid="topbar-docked-home-view"]') as HTMLElement | null);
+        };
+        sync();
+        const id = requestAnimationFrame(sync);
+        return () => cancelAnimationFrame(id);
+    }, [homeViewDockActive]);
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -3848,6 +3884,10 @@ function JobsContent() {
         applyUrlState(buildUrlState({ homeView: view }), "replace");
     };
 
+    const homeViewToggleEl = showHomeViewToggle
+        ? <ForYouToggle value={homeViewToggleValue} onChange={setJobsHomeView} />
+        : null;
+
     useEffect(() => {
         if (resolvedHomeView === "for-you" || resolvedHomeView === "search") {
             writeLastJobsHomeView(resolvedHomeView);
@@ -4745,7 +4785,7 @@ function JobsContent() {
             data-testid="search-live-count"
             className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-semibold text-brand transition-colors hover:text-brand"
         >
-            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-live" />
+            <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-live" />
             {liveCountText}
         </Link>
     );
@@ -4861,6 +4901,12 @@ function JobsContent() {
                 >
                     Skip to results
                 </a>
+
+                {!homeViewDockActive && showHomeViewToggle && (
+                    <div className={cn("mb-3", cappedContentClass)}>{homeViewToggleEl}</div>
+                )}
+                {homeViewDockActive && dockedHomeViewMount && homeViewToggleEl &&
+                    createPortal(homeViewToggleEl, dockedHomeViewMount)}
 
                 {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
@@ -5380,7 +5426,6 @@ function JobsContent() {
                             hydratedJobs={forYouHydrated}
                             onActivePackChange={handleForYouActivePackChange}
                             onOpenPosting={handleOpenPosting}
-                            homeView="for-you"
                             onHomeViewChange={setJobsHomeView}
                             showToggle={resumeOnFile === true}
                             signedIn={Boolean(user)}
@@ -5407,11 +5452,6 @@ function JobsContent() {
                     </div>
                 ) : (
                 <>
-                {resumeOnFile === true && (
-                    <div className={cn("mb-3", cappedContentClass)}>
-                        <ForYouToggle value="search" onChange={setJobsHomeView} />
-                    </div>
-                )}
                 {/* Perf first-paint (2026-09-18), product decision (Vivek):
                     the results surface — detail pane, list column, result-
                     count line, skeleton rows — never renders at rest. This is
@@ -5419,8 +5459,11 @@ function JobsContent() {
                     the search-fetch effect also skipped its fetch, so there
                     is never a rendered results surface with no fetch behind
                     it, and never a fetch whose results this doesn't show. The
-                    `ForYouToggle` just above stays outside this gate — it's
-                    navigation chrome, not a result. */}
+                    For-you/Search toggle (`homeViewToggleEl`, rendered once
+                    above this three-way view branch — see `showHomeViewToggle`)
+                    stays outside this gate: it's navigation chrome, not a
+                    result, and has to show in both views before either one's
+                    results fetch. */}
                 {searchIntent && (
                 <div className={cn(
                     headerDockActive
@@ -5486,6 +5529,12 @@ function JobsContent() {
                             <>
                                 <BoardVisitBanner />
 
+                                {/* Single container for the contiguous guest-nudge / alert
+                                    group below — reads the ONE `--list-inset` token so these
+                                    banners sit flush with the panel's rounded corner instead
+                                    of restating px-4 (see globals.css's `--list-inset`
+                                    comment for the full adopter list). */}
+                                <div className="px-[var(--list-inset)]">
                                 {localAiEnabled && !user && (
                                     <div
                                         data-testid="local-ai-guest-banner"
@@ -5517,20 +5566,22 @@ function JobsContent() {
                                         className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
                                         <span>Sign in to keep this list across devices and get alerts when new roles match —</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => openAuth("save", "user")}
-                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                        >
-                                            {AUTH_CTA_LABEL}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleDismissGuestSaveBanner}
-                                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                        >
-                                            not now
-                                        </button>
+                                        <span className="inline-flex items-baseline gap-3 whitespace-nowrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => openAuth("save", "user")}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                {AUTH_CTA_LABEL}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleDismissGuestSaveBanner}
+                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                not now
+                                            </button>
+                                        </span>
                                     </div>
                                 )}
 
@@ -5540,20 +5591,22 @@ function JobsContent() {
                                         className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
                                         <span>{SIGNUP_SUBCOPY} —</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => openAuth("generic", "user")}
-                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                        >
-                                            {AUTH_CTA_LABEL}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleDismissGuestEngageNudge}
-                                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                        >
-                                            not now
-                                        </button>
+                                        <span className="inline-flex items-baseline gap-3 whitespace-nowrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => openAuth("generic", "user")}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                {AUTH_CTA_LABEL}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleDismissGuestEngageNudge}
+                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                not now
+                                            </button>
+                                        </span>
                                     </div>
                                 )}
 
@@ -5592,6 +5645,7 @@ function JobsContent() {
                                         />
                                     </div>
                                 )}
+                                </div>
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back

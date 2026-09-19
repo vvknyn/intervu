@@ -19,7 +19,6 @@ import { chipVariants } from "@/components/ui/chip";
 import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
 import { JobCard } from "@/components/jobs/JobCard";
 import { JobDetail, JobDetailSkeleton } from "@/components/jobs/JobDetail";
-import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
 import { fetchAgentPreferencesAction } from "@/actions/agent-preferences";
 import { buildPreferenceChips } from "@/lib/jobs/for-you/preference-chips";
 import { resolveDeckShortcut } from "@/lib/jobs/for-you/deck-keyboard";
@@ -69,7 +68,6 @@ export interface ForYouHomeProps {
     hydratedJobs: Map<string, { job: PublicJob; descriptionPending: boolean }>;
     onActivePackChange: (jobId: string) => void;
     onOpenPosting: (job: PublicJob) => void;
-    homeView: JobsHomeView;
     onHomeViewChange: (view: JobsHomeView) => void;
     showToggle: boolean;
     signedIn: boolean;
@@ -134,7 +132,6 @@ export function ForYouHome({
     hydratedJobs,
     onActivePackChange,
     onOpenPosting,
-    homeView,
     onHomeViewChange,
     showToggle,
     signedIn,
@@ -261,10 +258,6 @@ export function ForYouHome({
 
     return (
         <div className={FOR_YOU_HOME_FRAME_CLASS} data-testid="for-you-home">
-            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
-                {showToggle && <ForYouToggle value={homeView} onChange={onHomeViewChange} />}
-            </div>
-
             <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2" data-testid="for-you-preferences">
                 {prefsChips.map((chip) => (
                     <span key={chip.key} className={cn(chipVariants({ active: true }), toolbarChipClass)}>

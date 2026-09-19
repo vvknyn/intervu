@@ -349,7 +349,7 @@ export function JobDetailActionBar({
             className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-card px-4", className)}
         >
             {job.apply_url && (
-                <Button className="h-10 flex-1 gap-2 rounded-none bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
+                <Button className="h-10 flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
                     <ArrowSquareOut weight="bold" />
                     {APPLY_BUTTON_LABEL}
                 </Button>
@@ -398,6 +398,8 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
                 e.stopPropagation();
                 onClick();
             }}
+            // rounded-none: flush full-width row (px-0), mirrors JobCard's
+            // hairline-separated list treatment — not a discrete control.
             className="flex w-full flex-col gap-0.5 rounded-none px-0 py-3 text-left transition-colors hover:bg-muted cursor-pointer group"
         >
             <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
@@ -724,6 +726,8 @@ export function JobDetail({
         <div
             data-region="detail"
             className={cn(
+                // rounded-none: edge-to-edge content region nested inside
+                // already-rounded ancestors (detail-pane wrapper / Sheet).
                 "relative rounded-none bg-card",
                 collapseDescription && "flex min-h-0 flex-1 flex-col overflow-hidden",
                 className,

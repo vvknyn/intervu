@@ -82,7 +82,6 @@ function baseProps(visiblePacks: PublicJob[]): ForYouHomeProps {
         hydratedJobs: new Map(),
         onActivePackChange: noop,
         onOpenPosting: noop,
-        homeView: "for-you",
         onHomeViewChange: noop,
         showToggle: true,
         signedIn: true,
