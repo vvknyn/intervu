@@ -39,11 +39,13 @@ export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
  *  header's new "Get job alerts" CTA is selling). */
 export const SIGNUP_SUBCOPY = "Get job alerts, saved searches, and an application tracker — on any device.";
 
-/** A reason's copy — `body` always renders as the popover's value line;
- *  `title` is optional and, when present, replaces the popover's normally
- *  screen-reader-only heading with a visible one (see auth-popover.tsx). Only
- *  a reason whose gate is a hard stop before the user can act (apply) needs
- *  one; the rest keep the plain "Sign in"/"Create account" card heading. */
+/** A reason's copy — `body` always renders as the popover's value line.
+ *  `title` is optional; when present it REPLACES LoginForm's own generic
+ *  heading and subcopy (see login-form.tsx's `headline` prop) rather than
+ *  stacking above them — one heading, one explanatory line, not both sets.
+ *  Only a reason whose gate is a hard stop before the user can act (apply)
+ *  needs one; the rest keep the plain "Sign in"/"Create account" card
+ *  heading with `body` rendered separately above the card (auth-popover.tsx). */
 interface AuthGateCopy {
     title?: string;
     body: string;
@@ -72,8 +74,9 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
     resume: { body: "Create a free account to edit, export, and sync your résumé across devices." },
 };
 
-/** Visible popover heading for reasons that need one; undefined otherwise
- *  (auth-popover.tsx falls back to its screen-reader-only default). */
+/** Visible card heading for reasons that need one, replacing LoginForm's
+ *  generic per-tab heading; undefined otherwise (LoginForm falls back to
+ *  its normal `authCardCopy` heading). */
 export function authGateTitle(reason: AuthGateReason): string | undefined {
     return AUTH_GATE_COPY[reason].title;
 }
