@@ -146,6 +146,7 @@ import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-w
 import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
 import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
 import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
+import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
@@ -1157,10 +1158,19 @@ function JobsContent() {
     // person onto /resume or /trends and offer to edit a search they left.
     useEffect(() => () => setDocked(null), [setDocked]);
 
+    // Perf first-paint (2026-09-18): the one piece of state `hasSearchIntent`
+    // (lib/jobs/search-intent.ts) needs beyond derived query/filter/sort/URL
+    // signals — sticky for the page session, set inside `submitSearch` below
+    // (the single chokepoint every explicit-submit path funnels through,
+    // `submitSearch("")` "browse all" included) and never cleared by this
+    // page; only a fresh mount resets it.
+    const [explicitlySubmitted, setExplicitlySubmitted] = useState(false);
+
     // Single chokepoint for a SUBMITTED (not per-keystroke) search — the
     // search box's Enter/suggestion-pick and a recent-search chip click both
     // route through here, so both record the query the same way.
     const submitSearch = (q: string) => {
+        setExplicitlySubmitted(true);
         // Every submit path funnels through here (the box's own Enter/
         // suggestion-pick already self-closes; this covers the ones that
         // don't — the external "Search" button, category chips, seed
@@ -1863,6 +1873,25 @@ function JobsContent() {
     // (the masthead's marketing content specifically wants zero filters
     // too). See `isAtRest` (lib/jobs/front-door-state.ts) for the pure rule.
     const atRest = isAtRest({ query, jobParam: searchParams.get("job") });
+    // Perf first-paint (2026-09-18), product decision (Vivek): the at-rest
+    // page must never render or fetch results — "it's confusing the user."
+    // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the
+    // ONE gate between the at-rest front door and the results surface (the
+    // results list, its skeleton rows, the result-count line, and the fetch
+    // that populates all three — see the search-fetch effect and the results
+    // div below, both of which read this same value). `activeEntries`/
+    // `sortOverride` reuse the existing "what's active" chokepoints above
+    // rather than a second default-comparator; `jobOpen` is the raw URL
+    // param (a deliberate deep link/row click), not `selectedId` (whose
+    // ambient default-browse auto-selection is not deliberate intent — see
+    // `atRest`'s own comment above for the same distinction).
+    const searchIntent = hasSearchIntent({
+        query,
+        filtersAwayFromDefault: activeEntries.length > 0 || sortOverride !== null,
+        explicitlySubmitted,
+        jobOpen: Boolean(searchParams.get("job")),
+        forYouActive: showForYouHome,
+    });
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
@@ -1908,7 +1937,22 @@ function JobsContent() {
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
+    //
+    // Perf first-paint (2026-09-18): NO search intent (`searchIntent` above)
+    // now DOES skip this — the at-rest page must never fetch results at all,
+    // not merely render around a fetch already in flight. `firstSearchSettled`
+    // is still flipped true immediately so the secondary mount probes gated
+    // on it (posted-date support, report-job-enabled, live-jobs-count for the
+    // at-rest masthead) aren't left waiting on a fetch that will never fire;
+    // `loading` is flipped false so the results div (hidden at rest anyway,
+    // see below) never carries a stuck "still loading" flag into the moment
+    // intent later appears.
     useEffect(() => {
+        if (!searchIntent) {
+            setFirstSearchSettled(true);
+            setLoading(false);
+            return;
+        }
         let cancelled = false;
         let firstPageSucceeded = false;
         // Deliverable 1 — set when this run schedules the one automatic
@@ -2221,8 +2265,12 @@ function JobsContent() {
         // covered transitively by `searchKey`, so this never fires an extra
         // run on its own; it's here so the effect is never accused of
         // reading a value outside its own dependency list.
+        // `searchIntent` is listed explicitly (perf first-paint, 2026-09-18):
+        // an explicit empty-query submit ("browse all") flips
+        // `explicitlySubmitted` without changing `query`, so `searchKey`
+        // alone would not re-run this effect for that transition.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchKey, searchRetry, emptySearchState, locationDefaultSuppressed]);
+    }, [searchKey, searchRetry, emptySearchState, locationDefaultSuppressed, searchIntent]);
 
     // Sort-reset (approved product change, 2026-08-13): an explicit sort is
     // sticky across query edits now — the only remaining reset is the
@@ -5364,6 +5412,16 @@ function JobsContent() {
                         <ForYouToggle value="search" onChange={setJobsHomeView} />
                     </div>
                 )}
+                {/* Perf first-paint (2026-09-18), product decision (Vivek):
+                    the results surface — detail pane, list column, result-
+                    count line, skeleton rows — never renders at rest. This is
+                    the one gate: `searchIntent` above is false exactly when
+                    the search-fetch effect also skipped its fetch, so there
+                    is never a rendered results surface with no fetch behind
+                    it, and never a fetch whose results this doesn't show. The
+                    `ForYouToggle` just above stays outside this gate — it's
+                    navigation chrome, not a result. */}
+                {searchIntent && (
                 <div className={cn(
                     headerDockActive
                         ? "pt-[var(--jobs-bar-content-gap)] pb-[var(--jobs-bar-content-gap)]"
@@ -5969,6 +6027,7 @@ function JobsContent() {
                         </div>
                     </div>
                 </div>
+                )}
                 </>
                 )}
             </div>

@@ -59,9 +59,27 @@ test("at least 3 mount effects are gated on firstSearchSettled, and every one of
     );
 });
 
-test("exactly one effect (the search effect) ever sets firstSearchSettled — the probes never set it themselves", () => {
+test("firstSearchSettled is only ever set inside the search effect itself — the probes never set it themselves", () => {
+    // Perf first-paint (2026-09-18): the search effect gained a second exit —
+    // an early return when there is no search intent (the at-rest page never
+    // fetches, so nothing else would ever settle the flag for it) — alongside
+    // the original `finally` once a real fetch concludes. Both belong to the
+    // SAME effect, so the property this test guards is "every settle site
+    // lives inside that one effect, and no probe effect settles it itself",
+    // not "the string appears exactly once" (which the second legitimate
+    // exit would now fail on its own).
     const settlers = [...PAGE_SOURCE.matchAll(/setFirstSearchSettled\(true\)/g)];
-    assert.equal(settlers.length, 1, "expected exactly one call site that settles the flag");
+    assert.ok(settlers.length >= 1, "expected at least one call site that settles the flag");
+    const searchEffect = /useEffect\(\(\) => \{\s*if \(!searchIntent\)[\s\S]*?\}, \[searchKey, searchRetry, emptySearchState, locationDefaultSuppressed, searchIntent\]\);/.exec(
+        PAGE_SOURCE,
+    );
+    assert.ok(searchEffect, "expected to find the search effect bounded by its searchIntent guard and its own dependency array");
+    const outsideSearchEffect = PAGE_SOURCE.replace(searchEffect![0], "");
+    assert.doesNotMatch(
+        outsideSearchEffect,
+        /setFirstSearchSettled\(true\)/,
+        "every settling call site must live inside the search effect itself",
+    );
     // Sanity: none of the guarded probe effects are the one setting it —
     // that would be a probe marking its own gate open.
     for (const effect of guardedEffects(PAGE_SOURCE)) {
