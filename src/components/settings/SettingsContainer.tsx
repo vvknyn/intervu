@@ -46,7 +46,7 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
 }
 
 function SettingsCard({ children }: { children: React.ReactNode }) {
-    return <div className="panel-enter mb-3 rounded-none border border-border bg-card p-4">{children}</div>;
+    return <div className="panel-enter mb-3 rounded-panel border border-border bg-card p-4">{children}</div>;
 }
 
 export function SettingsContainer() {
@@ -153,13 +153,13 @@ export function SettingsContainer() {
                     "mx-auto transition-all",
                     resumeEditorOpen
                         ? "max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
-                        : cn("px-4 pb-16 pt-6 sm:px-8 xl:px-10", tab === "resume" ? "max-w-6xl xl:max-w-7xl" : "max-w-[760px]"),
+                        : cn("px-4 pb-16 pt-6 sm:px-8 xl:px-10", tab === "resume" ? "max-w-6xl xl:max-w-7xl" : "max-w-3xl"),
                 )}
             >
                 {!resumeEditorOpen && (
                     <>
                         <div className="mb-5">
-                            <PageHeader title="Settings" description={ACCOUNT_SUBCOPY} bare />
+                            <PageHeader title="Settings" description={ACCOUNT_SUBCOPY} bare size="display" />
                         </div>
                         {message && (
                             <div className={`mb-4 text-sm ${message.type === "success" ? "text-foreground" : "text-danger-text"}`}>
@@ -182,8 +182,8 @@ export function SettingsContainer() {
                 {tab === "prefs" && (
                     <>
                         <SettingsCard>
-                            <h2 className="mb-1 text-sm font-semibold">On-Device AI &amp; Privacy</h2>
-                            <p className="mb-4 text-xs text-muted-foreground">
+                            <h2 className="mb-1 text-base font-semibold leading-snug">On-Device AI &amp; Privacy</h2>
+                            <p className="mb-4 text-sm text-muted-foreground">
                                 Run private AI parsing and tailoring directly in your browser. Zero cloud tracking — your résumé never leaves your device.
                             </p>
                             <LocalAiSettingsSection />
@@ -197,21 +197,25 @@ export function SettingsContainer() {
                 {tab === "account" && (
                     <>
                         <SettingsCard>
-                            <h2 className="mb-1 text-sm font-semibold">{AUTH_CTA_LABEL}</h2>
-                            <p className="mb-4 text-xs text-muted-foreground">
+                            <h2 className="mb-1 text-base font-semibold leading-snug">{AUTH_CTA_LABEL}</h2>
+                            <p className="mb-4 text-sm text-muted-foreground">
                                 Email is how we reach you for resets. Password stays with you.
                             </p>
-                            <dl className="mb-4 grid grid-cols-1 gap-y-2 text-xs sm:grid-cols-[120px_1fr] sm:gap-x-3.5 sm:gap-y-2">
-                                <dt className="text-xs text-muted-foreground">Email</dt>
-                                <dd className="min-w-0 break-words">{user.email}</dd>
-                                <dt className="text-xs text-muted-foreground">Username</dt>
-                                <dd className="min-w-0 break-words">{user.displayName || user.email?.split("@")[0]}</dd>
+                            <dl className="mb-4 space-y-2 text-xs">
+                                <div className="flex gap-3.5">
+                                    <dt className="w-28 shrink-0 text-muted-foreground">Email</dt>
+                                    <dd className="min-w-0 break-words">{user.email}</dd>
+                                </div>
+                                <div className="flex gap-3.5">
+                                    <dt className="w-28 shrink-0 text-muted-foreground">Username</dt>
+                                    <dd className="min-w-0 break-words">{user.displayName || user.email?.split("@")[0]}</dd>
+                                </div>
                             </dl>
                             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                                <Button onClick={() => void handlePasswordReset()} disabled={isResetting} className="w-full sm:w-auto rounded-none">
+                                <Button onClick={() => void handlePasswordReset()} disabled={isResetting} className="h-11 w-full rounded-ctl sm:w-auto">
                                     {isResetting ? "Sending…" : "Send password reset link"}
                                 </Button>
-                                <Button variant="outline" onClick={() => void handleSignOut()} className="w-full sm:w-auto rounded-none">
+                                <Button variant="outline" onClick={() => void handleSignOut()} className="h-11 w-full rounded-ctl sm:w-auto">
                                     Sign out
                                 </Button>
                             </div>
@@ -231,9 +235,13 @@ export function SettingsContainer() {
                         </SettingsCard>
 
                         <SettingsCard>
-                            <h2 className="mb-1 text-sm font-semibold">Danger zone</h2>
-                            <p className="mb-4 text-xs text-muted-foreground">Permanent. No recovery.</p>
-                            <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
+                            <h2 className="mb-1 text-base font-semibold leading-snug">Danger zone</h2>
+                            <p className="mb-4 text-sm text-muted-foreground">Permanent. No recovery.</p>
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowDeleteDialog(true)}
+                                className="h-11 rounded-ctl text-danger-text hover:text-danger-text"
+                            >
                                 Delete account
                             </Button>
                         </SettingsCard>
@@ -249,7 +257,7 @@ export function SettingsContainer() {
                         if (!open) setDeleteConfirmText("");
                     }}
                 >
-                    <DialogContent>
+                    <DialogContent className="rounded-panel">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
                                 <WarningOctagon size={20} className="text-danger-text" />
@@ -267,18 +275,17 @@ export function SettingsContainer() {
                                 value={deleteConfirmText}
                                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                                 placeholder="Type DELETE to confirm"
-                                className=""
                             />
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={isDeleting}>
+                            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={isDeleting} className="h-11 rounded-ctl">
                                 Cancel
                             </Button>
                             <Button
-                                variant="destructive"
+                                variant="outline"
                                 onClick={handleDeleteAccount}
                                 disabled={deleteConfirmText !== "DELETE" || isDeleting}
-                                className="gap-2"
+                                className="h-11 gap-2 rounded-ctl text-danger-text hover:text-danger-text"
                             >
                                 {isDeleting ? <CircleNotch size={16} className="animate-spin" /> : <Trash size={16} />}
                                 {isDeleting ? "Deleting…" : "Delete Forever"}

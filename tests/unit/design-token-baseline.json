@@ -60,12 +60,12 @@
     "inline-style": 0
   },
   "settings": {
-    "rounded-none": 47,
+    "rounded-none": 0,
     "rounded-size": 0,
     "rounded-arbitrary": 0,
     "text-arbitrary": 0,
     "leading-arbitrary": 0,
-    "size-arbitrary": 8,
+    "size-arbitrary": 0,
     "padding-arbitrary": 0,
     "hex-literal": 0,
     "shadow-utility": 0,

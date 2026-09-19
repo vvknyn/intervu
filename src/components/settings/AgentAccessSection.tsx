@@ -42,7 +42,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-7 text-xs gap-1.5 shrink-0"
+            className="gap-1.5 rounded-ctl text-xs shrink-0"
             onClick={async () => {
                 await navigator.clipboard.writeText(value);
                 setCopied(true);
@@ -151,7 +151,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             <section className="pt-6 border-t border-border">
                 <h2 className="text-base font-semibold mb-1">Connected agents</h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
+                    <button onClick={onLoginClick} className="text-foreground underline underline-offset-2 hover:underline">
                         {AUTH_CTA_LABEL}
                     </button>{" "}
                     to connect Claude or another AI agent to your velai account.
@@ -180,13 +180,15 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 )}
 
                 {credentials !== null && credentials.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No agents connected yet.</p>
+                    <p className="py-8 text-sm text-foreground">
+                        No agents connected yet. Generate a token or connect an app below.
+                    </p>
                 )}
 
                 {credentials?.map((c) => (
                     <div
                         key={c.id}
-                        className="flex items-center justify-between gap-4 rounded-none border border-border p-3"
+                        className="flex items-center justify-between gap-4 rounded-panel border border-border p-3"
                     >
                         <div className="min-w-0">
                             <p className="text-sm truncate">{displayName(c)}</p>
@@ -197,7 +199,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs px-2.5 shrink-0 text-muted-foreground hover:text-danger-text"
+                            className="rounded-ctl text-xs px-2.5 shrink-0 text-muted-foreground hover:text-danger-text"
                             disabled={revokingId === c.id}
                             onClick={() => handleRevoke(c)}
                         >
@@ -229,13 +231,13 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 </div>
 
                 {newSecret && (
-                    <div className="mt-3 rounded-none border border-warn bg-muted p-3 space-y-2">
+                    <div className="mt-3 rounded-panel border border-warn bg-muted p-3 space-y-2">
                         <p className="text-xs flex items-center gap-1.5 text-warn dark:text-warn">
                             <WarningCircle weight="fill" />
                             Copy this now — we can&apos;t show it to you again.
                         </p>
                         <div className="flex items-center gap-2">
-                            <code className="flex-1 min-w-0 truncate rounded-none bg-muted px-2.5 py-1.5 text-xs">
+                            <code className="flex-1 min-w-0 truncate rounded-ctl bg-muted px-2.5 py-1.5 text-xs">
                                 {newSecret}
                             </code>
                             <CopyButton value={newSecret} label="Copy" />
@@ -250,10 +252,10 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 )}
             </div>
 
-            <div className="rounded-none border border-border p-4 space-y-3 text-sm">
+            <div className="rounded-panel border border-border p-4 space-y-3 text-sm">
                 <p className="">Connect an agent</p>
                 <div className="flex items-center gap-2">
-                    <code className="flex-1 min-w-0 truncate rounded-none bg-muted px-2.5 py-1.5 text-xs">
+                    <code className="flex-1 min-w-0 truncate rounded-ctl bg-muted px-2.5 py-1.5 text-xs">
                         {mcpUrl}
                     </code>
                     <CopyButton value={mcpUrl} label="Copy URL" />
@@ -268,7 +270,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         {chatAppInstruction.primary} {chatAppInstruction.alternate}
                     </li>
                 </ul>
-                <a href="/connect" className="inline-block text-xs text-brand underline hover:text-brand">
+                <a href="/connect" className="inline-block text-xs text-foreground underline underline-offset-2 hover:underline">
                     Full setup instructions
                 </a>
             </div>
