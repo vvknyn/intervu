@@ -3,14 +3,12 @@
  * /resume's signed-out empty state both invite the same action and must say
  * the exact same thing about what it does, or the two surfaces drift.
  *
- * `RESUME_UPLOAD_PROMISE` makes NO on-device, privacy, or AI claim. The
- * default upload path is server-side: `ResumeImportModal.tsx` imports
- * `parseResumeWithAI`/`extractPDFText`/`extractDocxText` from
- * `@/actions/resume` (server actions) and only switches to local,
- * in-browser extraction when `readLocalAiEnabled()` is true — a default-OFF
- * flag (`src/lib/local-ai/flag.ts`). A "parsed locally, never touches the
- * cloud" claim next to the upload button would therefore be false for the
- * common case; this line states only what's true unconditionally.
+ * `RESUME_UPLOAD_PROMISE` makes NO on-device, privacy, or AI claim, even
+ * though the upload path (`ResumeImportModal.tsx`) now always parses
+ * on-device (founder rule: résumé interpretation never happens on our
+ * servers). Kept conservative here because this copy is unconditional CTA
+ * copy shared across surfaces, not a decision about what to say about
+ * privacy — that's ResumeImportModal's own consent-block copy to own.
  */
 export const RESUME_UPLOAD_PROMISE = "Upload a PDF or Word document.";
 

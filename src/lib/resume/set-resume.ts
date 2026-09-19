@@ -7,9 +7,9 @@
  * `getServerUser()`'s cookie-session mechanism.
  *
  * The agent (an LLM) formats the uploaded résumé into intervu's
- * `ResumeData` shape itself — this module NEVER calls an LLM (no
- * `parseResumeWithAI` import, ever). It only validates the structure the
- * agent already submitted and stores it.
+ * `ResumeData` shape itself — this module NEVER calls an LLM or a résumé
+ * parser of any kind. It only validates the structure the agent already
+ * submitted and stores it.
  *
  * Every non-trivial decision (does the first-call baseline fire, what goes
  * in the new history entry, whether `resume_data` validates or gets

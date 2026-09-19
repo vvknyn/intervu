@@ -1,18 +1,18 @@
 /**
- * Browser-side résumé text extraction for local mode (item 1, browser-side
- * extraction). `ResumeImportModal`'s `processFile` used to call the
- * `extractPDFText`/`extractDocxText` server actions for every PDF/DOCX
- * upload — including in local mode, whose whole premise is that the résumé
- * never leaves the browser. This is the same extraction run client-side
- * instead: `unpdf` and `mammoth` both ship browser-safe builds (no new
- * dependency — `mammoth`'s package.json remaps `lib/unzip.js` to
- * `browser/unzip.js`, which reads an `arrayBuffer` directly; `unpdf` has one
- * isomorphic entry point).
+ * Browser-side résumé text extraction. Founder rule: résumé interpretation
+ * never happens on our servers — extraction and parsing both run entirely
+ * on-device. This is the sole PDF/DOCX extraction path for résumé bytes:
+ * `ResumeImportModal` (resume-builder import) and `extractResumeFileText`
+ * (Settings "Your Resume" upload, `lib/resume/extract-file-text.ts`) both
+ * call these instead of ever sending file bytes to a server action. `unpdf`
+ * and `mammoth` both ship browser-safe builds (no new dependency —
+ * `mammoth`'s package.json remaps `lib/unzip.js` to `browser/unzip.js`,
+ * which reads an `arrayBuffer` directly; `unpdf` has one isomorphic entry
+ * point).
  *
- * Contract mirrors `extractPDFText`/`extractDocxText` in `src/actions/
- * resume.ts` exactly — same length thresholds, same error copy — so
- * `ResumeImportModal`'s error handling and confidence scoring behave
- * identically whichever path ran.
+ * Same length thresholds and error copy as the deleted server-side PDF/DOCX
+ * extraction actions they replaced, so error handling and confidence
+ * scoring behave identically to before.
  *
  * DOCX uses mammoth's own prebuilt browser bundle (`mammoth.browser.js`,
  * shipped in the package for exactly this — script-tag/bundler-agnostic
