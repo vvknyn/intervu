@@ -107,6 +107,7 @@ import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
+import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { useOverflowEdges } from "@/hooks/use-overflow-edges";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { edgeFadeMaskImage } from "@/lib/jobs/edge-fade";
@@ -624,7 +625,7 @@ const RESUME_MOMENT_OPENS = 3;
  */
 function JobCardSkeleton() {
     return (
-        // rounded-none: mirrors the real row's flush shape (JobCard below).
+        // rounded-none: KEEP — mirrors the real row's flush shape (JobCard below).
         <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-card pt-4">
             <div className="self-start">
                 <div className="skeleton-bar h-12 w-12 rounded-panel" />
@@ -651,7 +652,7 @@ function JobCardSkeleton() {
  *  arriving" instead of a bare sentence. */
 function JobsListSplash() {
     return (
-        <div>
+        <div className="px-[var(--list-inset)]">
             <p className="pt-8 text-sm text-muted-foreground">
                 Finding live roles… checking each posting is still active.
             </p>
@@ -1152,11 +1153,12 @@ function JobsContent() {
     // active (see the effect near `activeCount`/`filtersOpen` below — it
     // needs both, so it lives after them). `setDocked` is pulled out here so
     // the unmount cleanup can sit next to the rest of this page's setup.
-    const { setDocked } = useSearchDock();
+    const { setDocked, setHomeViewDocked } = useSearchDock();
 
     // The provider outlives this page, so a dock left set would follow the
     // person onto /resume or /trends and offer to edit a search they left.
     useEffect(() => () => setDocked(null), [setDocked]);
+    useEffect(() => () => setHomeViewDocked(false), [setHomeViewDocked]);
 
     // Perf first-paint (2026-09-18): the one piece of state `hasSearchIntent`
     // (lib/jobs/search-intent.ts) needs beyond derived query/filter/sort/URL
@@ -1746,6 +1748,11 @@ function JobsContent() {
     const showForYouHome = resolvedHomeView === "for-you";
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
+    // For-you ⇄ Search toggle: shown whenever there's a For-you home to switch
+    // out of (a resume on file) or while that resolution is still pending —
+    // one value, one mount point, rendered identically across all three states.
+    const showHomeViewToggle = resumeOnFile === true || showJobsHomePending;
+    const homeViewToggleValue: JobsHomeView = resolvedHomeView === "search" ? "search" : "for-you";
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -1902,45 +1909,37 @@ function JobsContent() {
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
+    // Deliberately NOT `headerDockActive`: the For-you/Search toggle has to
+    // sit in the exact same header slot in every state it's visible in,
+    // including the whole For-you view and "Search, no query yet" — both of
+    // which correctly leave `headerDockActive` false (there's no search box
+    // or filters to dock there). Tying the toggle to `headerDockActive`
+    // anyway made it jump between an inline position (in-page) and a docked
+    // one (header band) depending on which of those states it was in.
+    const homeViewDockActive = isLgUp && showHomeViewToggle;
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
-    const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
-    const [dockedFacetsMount, setDockedFacetsMount] = useState<HTMLElement | null>(null);
-    const [dockedFieldDirectoryMount, setDockedFieldDirectoryMount] = useState<HTMLElement | null>(null);
-    const [dockedQueryMount, setDockedQueryMount] = useState<HTMLElement | null>(null);
-    const [dockedLocationMount, setDockedLocationMount] = useState<HTMLElement | null>(null);
-    const [dockedSortMount, setDockedSortMount] = useState<HTMLElement | null>(null);
-    const [dockedExtrasMount, setDockedExtrasMount] = useState<HTMLElement | null>(null);
-    const [dockedClearFiltersMount, setDockedClearFiltersMount] = useState<HTMLElement | null>(null);
-    const [dockedSaveSearchMount, setDockedSaveSearchMount] = useState<HTMLElement | null>(null);
+    useEffect(() => {
+        setHomeViewDocked(homeViewDockActive);
+    }, [homeViewDockActive, setHomeViewDocked]);
 
-    useLayoutEffect(() => {
-        if (!headerDockActive) {
-            setDockedFacetsMount(null);
-            setDockedFieldDirectoryMount(null);
-            setDockedQueryMount(null);
-            setDockedLocationMount(null);
-            setDockedSortMount(null);
-            setDockedExtrasMount(null);
-            setDockedClearFiltersMount(null);
-            setDockedSaveSearchMount(null);
-            return;
-        }
-        const sync = () => {
-            setDockedFacetsMount(document.querySelector('[data-testid="topbar-docked-facets"]') as HTMLElement | null);
-            setDockedFieldDirectoryMount(document.querySelector('[data-testid="topbar-docked-field-directory"]') as HTMLElement | null);
-            setDockedQueryMount(document.querySelector('[data-testid="topbar-docked-query"]') as HTMLElement | null);
-            setDockedLocationMount(document.querySelector('[data-testid="topbar-docked-location"]') as HTMLElement | null);
-            setDockedSortMount(document.querySelector('[data-testid="topbar-docked-sort"]') as HTMLElement | null);
-            setDockedExtrasMount(document.querySelector('[data-testid="topbar-docked-extras"]') as HTMLElement | null);
-            setDockedClearFiltersMount(document.querySelector('[data-testid="topbar-docked-clear-filters"]') as HTMLElement | null);
-            setDockedSaveSearchMount(document.querySelector('[data-testid="topbar-docked-save-search"]') as HTMLElement | null);
-        };
-        sync();
-        const id = requestAnimationFrame(sync);
-        return () => cancelAnimationFrame(id);
-    }, [headerDockActive]);
+    const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
+    // One hook per docked slot, gated by whichever flag governs it —
+    // `headerDockActive` for the search-only slots, `homeViewDockActive` for
+    // the toggle's slot alone. Distinct gates on purpose: `homeViewDockActive`
+    // is true in states where `headerDockActive` is false (see its
+    // definition above), so folding the toggle's slot into the search-only
+    // gate would re-widen that gate for every search-only mount too.
+    const dockedFacetsMount = useDockedSlotMount(headerDockActive, "topbar-docked-facets");
+    const dockedFieldDirectoryMount = useDockedSlotMount(headerDockActive, "topbar-docked-field-directory");
+    const dockedQueryMount = useDockedSlotMount(headerDockActive, "topbar-docked-query");
+    const dockedLocationMount = useDockedSlotMount(headerDockActive, "topbar-docked-location");
+    const dockedSortMount = useDockedSlotMount(headerDockActive, "topbar-docked-sort");
+    const dockedExtrasMount = useDockedSlotMount(headerDockActive, "topbar-docked-extras");
+    const dockedClearFiltersMount = useDockedSlotMount(headerDockActive, "topbar-docked-clear-filters");
+    const dockedSaveSearchMount = useDockedSlotMount(headerDockActive, "topbar-docked-save-search");
+    const dockedHomeViewMount = useDockedSlotMount(homeViewDockActive, "topbar-docked-home-view");
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -3843,6 +3842,10 @@ function JobsContent() {
         applyUrlState(buildUrlState({ homeView: view }), "replace");
     };
 
+    const homeViewToggleEl = showHomeViewToggle
+        ? <ForYouToggle value={homeViewToggleValue} onChange={setJobsHomeView} />
+        : null;
+
     useEffect(() => {
         if (resolvedHomeView === "for-you" || resolvedHomeView === "search") {
             writeLastJobsHomeView(resolvedHomeView);
@@ -4740,7 +4743,7 @@ function JobsContent() {
             data-testid="search-live-count"
             className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-semibold text-brand transition-colors hover:text-brand"
         >
-            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-live" />
+            <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-live" />
             {liveCountText}
         </Link>
     );
@@ -4857,6 +4860,12 @@ function JobsContent() {
                     Skip to results
                 </a>
 
+                {!homeViewDockActive && showHomeViewToggle && (
+                    <div className={cn("mb-3", cappedContentClass)}>{homeViewToggleEl}</div>
+                )}
+                {homeViewDockActive && dockedHomeViewMount && homeViewToggleEl &&
+                    createPortal(homeViewToggleEl, dockedHomeViewMount)}
+
                 {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
                         <ColdVisitorOrientation compact onRankByFit={() => handleUploadClick()} />
@@ -4892,9 +4901,10 @@ function JobsContent() {
                         // lg+ — max-w-7xl, the widest named container token already used
                         // site-wide (resume/page.tsx, settings, connect, etc.), not a new
                         // arbitrary value. Below lg, unchanged.
-                        // rounded-none (at rest): PR #534's own flat front-door frame,
-                        // out of this pass's scope — the raised well below is the
-                        // soft-surfaces panel this pass owns.
+                        // rounded-none: KEEP — at rest this section has no border or
+                        // background (dropped above for the front-door redesign), so
+                        // there's no visible corner to round; rounded-panel would wrongly
+                        // imply a panel surface that isn't drawn here.
                         // w-full (2026-09-17): mx-auto on a flex item suppresses
                         // cross-axis stretch (Flexbox spec) — the same defect PR
                         // #540 fixed on the toolbar section, same fix here.
@@ -5375,9 +5385,8 @@ function JobsContent() {
                             hydratedJobs={forYouHydrated}
                             onActivePackChange={handleForYouActivePackChange}
                             onOpenPosting={handleOpenPosting}
-                            homeView="for-you"
                             onHomeViewChange={setJobsHomeView}
-                            showToggle={resumeOnFile === true}
+                            showSearchCta={resumeOnFile === true}
                             signedIn={Boolean(user)}
                             onRequestSignIn={() => {
                                 setAuthGateReason("report");
@@ -5402,11 +5411,6 @@ function JobsContent() {
                     </div>
                 ) : (
                 <>
-                {resumeOnFile === true && (
-                    <div className={cn("mb-3", cappedContentClass)}>
-                        <ForYouToggle value="search" onChange={setJobsHomeView} />
-                    </div>
-                )}
                 {/* Perf first-paint (2026-09-18), product decision (Vivek):
                     the results surface — detail pane, list column, result-
                     count line, skeleton rows — never renders at rest. This is
@@ -5414,8 +5418,11 @@ function JobsContent() {
                     the search-fetch effect also skipped its fetch, so there
                     is never a rendered results surface with no fetch behind
                     it, and never a fetch whose results this doesn't show. The
-                    `ForYouToggle` just above stays outside this gate — it's
-                    navigation chrome, not a result. */}
+                    For-you/Search toggle (`homeViewToggleEl`, rendered once
+                    above this three-way view branch — see `showHomeViewToggle`)
+                    stays outside this gate: it's navigation chrome, not a
+                    result, and has to show in both views before either one's
+                    results fetch. */}
                 {searchIntent && (
                 <div className={cn(
                     headerDockActive
@@ -5481,6 +5488,12 @@ function JobsContent() {
                             <>
                                 <BoardVisitBanner />
 
+                                {/* Single container for the contiguous guest-nudge / alert
+                                    group below — reads the ONE `--list-inset` token so these
+                                    banners sit flush with the panel's rounded corner instead
+                                    of restating px-4 (see globals.css's `--list-inset`
+                                    comment for the full adopter list). */}
+                                <div className="px-[var(--list-inset)]">
                                 {localAiEnabled && !user && (
                                     <div
                                         data-testid="local-ai-guest-banner"
@@ -5512,20 +5525,22 @@ function JobsContent() {
                                         className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
                                         <span>Sign in to keep this list across devices and get alerts when new roles match —</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => openAuth("save", "user")}
-                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                        >
-                                            {AUTH_CTA_LABEL}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleDismissGuestSaveBanner}
-                                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                        >
-                                            not now
-                                        </button>
+                                        <span className="inline-flex items-baseline gap-3 whitespace-nowrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => openAuth("save", "user")}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                {AUTH_CTA_LABEL}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleDismissGuestSaveBanner}
+                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                not now
+                                            </button>
+                                        </span>
                                     </div>
                                 )}
 
@@ -5535,20 +5550,22 @@ function JobsContent() {
                                         className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
                                     >
                                         <span>{SIGNUP_SUBCOPY} —</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => openAuth("generic", "user")}
-                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                        >
-                                            {AUTH_CTA_LABEL}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleDismissGuestEngageNudge}
-                                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                        >
-                                            not now
-                                        </button>
+                                        <span className="inline-flex items-baseline gap-3 whitespace-nowrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => openAuth("generic", "user")}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                {AUTH_CTA_LABEL}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleDismissGuestEngageNudge}
+                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                not now
+                                            </button>
+                                        </span>
                                     </div>
                                 )}
 
@@ -5587,6 +5604,7 @@ function JobsContent() {
                                         />
                                     </div>
                                 )}
+                                </div>
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back

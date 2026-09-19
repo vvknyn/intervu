@@ -63,4 +63,36 @@ describe("/jobs list inset — single source of truth", () => {
             `expected page.tsx to reference var(--list-inset) at least twice (JobRow + header row), found ${usages.length}`,
         );
     });
+
+    /**
+     * 2026-09-18 straggler pass: the guest-nudge/alert banner group (local-ai,
+     * guest-save, guest-engage, email-nudge, search-alert) and the
+     * `JobsListSplash` loading state sat flush against the panel's rounded
+     * corner because neither read `--list-inset` — they restated no inset at
+     * all. Both are now wrapped in a container that reads the token, proven
+     * here by source-scan (not just one banner — the whole contiguous group)
+     * so a new banner added to the same block inherits the fix by
+     * construction instead of needing its own px-4.
+     */
+    it("the guest-nudge/alert banner group is wrapped in a var(--list-inset) container, not flush", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const groupStart = page.indexOf("Single container for the contiguous guest-nudge");
+        const groupEnd = page.indexOf("Screen 4 — the relaxed pass", groupStart);
+        assert.ok(groupStart >= 0 && groupEnd > groupStart, "banner-group wrapper markers not found");
+        const group = page.slice(groupStart, groupEnd);
+        // A fresh non-global regex — `USAGE` carries the `g` flag, and
+        // `assert.match`'s repeated `.test()` calls against that shared
+        // instance mutate its `lastIndex`, corrupting later assertions.
+        assert.match(group, /var\(--list-inset\)/, "banner group must open with a var(--list-inset) container");
+        for (const testid of ["local-ai-guest-banner", "guest-save-banner", "guest-engage-banner"]) {
+            assert.match(group, new RegExp(`data-testid="${testid}"`), `${testid} must sit inside the inset banner group`);
+        }
+    });
+
+    it("JobsListSplash's loading line and skeleton rows read var(--list-inset), not flush", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const fn = page.match(/function JobsListSplash\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+        assert.ok(fn.length > 0, "JobsListSplash function not found");
+        assert.match(fn, /var\(--list-inset\)/, "JobsListSplash must read var(--list-inset), not restate px-4");
+    });
 });

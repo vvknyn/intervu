@@ -9,9 +9,12 @@ const RESUME = join(__dirname, "../../src/components/resume-builder");
 const COMPANY = join(__dirname, "../../src/components/company");
 
 describe("for-you mobile chrome", () => {
-    it("ForYouToggle tabs meet 44px touch target", () => {
+    it("ForYouToggle is a pill segmented control (44px track/segments, no underline tabs)", () => {
         const src = readFileSync(join(FOR_YOU, "ForYouToggle.tsx"), "utf8");
-        assert.match(src, /min-h-11 justify-center border-transparent px-4 font-semibold/);
+        assert.match(src, /min-h-11 items-center gap-0\.5 rounded-pill border border-border bg-muted/, "track must be a min-h-11 pill");
+        assert.match(src, /min-h-10 items-center rounded-pill px-4/, "each segment must be a rounded-pill button");
+        assert.doesNotMatch(src, /border-b-2/, "no underline-tab treatment");
+        assert.doesNotMatch(src, /text-xs/, "segments use the chip text size (text-sm), not text-xs");
     });
 
     it("ForYouHome's preference row wraps and its Edit link shares the toolbar's tap-target height", () => {
@@ -46,9 +49,10 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /max-h-\[min\(50dvh,400px\)\]/);
     });
 
-    it("CompanyRoleSearch title truncates on narrow viewports", () => {
+    it("CompanyRoleSearch title clamps instead of overflowing on narrow viewports", () => {
         const src = readFileSync(join(COMPANY, "CompanyRoleSearch.tsx"), "utf8");
-        assert.match(src, /min-w-0 truncate text-base font-semibold/);
+        assert.match(src, /min-w-0 text-base font-semibold/);
+        assert.match(src, /line-clamp-2/, "title must clamp rather than overflow unbounded");
     });
 
     it("ApplyIntentDialog uses dvh for mobile viewport height", () => {

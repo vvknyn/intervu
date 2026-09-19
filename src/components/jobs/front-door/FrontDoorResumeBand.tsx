@@ -48,7 +48,7 @@ export function FrontDoorResumeBand({
                     <button
                         type="button"
                         onClick={onUploadClick}
-                        className="inline-flex h-11 items-center justify-center gap-1.5 rounded-none bg-brand-foreground px-5 text-xs font-semibold text-brand transition-colors hover:opacity-90"
+                        className="inline-flex h-11 items-center justify-center gap-1.5 rounded-ctl bg-brand-foreground px-5 text-xs font-semibold text-brand transition-colors hover:opacity-90"
                     >
                         <UploadSimple size={16} weight="bold" aria-hidden />
                         Upload resume
