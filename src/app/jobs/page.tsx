@@ -6116,6 +6116,7 @@ function JobsContent() {
                 confirmLabel="Rank my jobs"
                 title="Rank jobs by your résumé"
                 description="Upload or paste your résumé — we'll rank this list by how well each role fits."
+                storageNote="Your résumé and the parsed result are then saved to your account so they follow you across devices."
             />
             <Sheet
                 // Two-Panel Selector: gated through `resolveDetailMountSite`

@@ -24,7 +24,7 @@ import {
     scoreLocalParseConfidence,
 } from "@/lib/local-ai/parse-confidence";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
-import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Warning, Cpu, Sparkle } from "@phosphor-icons/react";
+import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Warning, Cpu } from "@phosphor-icons/react";
 
 interface ResumeImportModalProps {
     isOpen: boolean;
@@ -57,6 +57,17 @@ interface ResumeImportModalProps {
      * — a default nothing uses is a defect waiting for the next caller.
      */
     description: string;
+    /**
+     * Second half of the consent paragraph's persistence sentence, after
+     * "Your résumé is read on your device, never on our servers." Required,
+     * not defaulted, same reasoning as `description`: the modal doesn't
+     * know where a caller persists the parsed result (a server action vs.
+     * localStorage-only), so it can't state that truthfully on its own —
+     * only the caller can. /jobs saves to the signed-in user's account
+     * (`saveResumeData`); /resume's `handleImportResume` only writes to
+     * this browser (`writeLocalAiResume`), never the server.
+     */
+    storageNote: string;
 }
 
 type ImportStep = 'input' | 'parsing' | 'review';
@@ -66,25 +77,19 @@ type InputMethod = 'file' | 'paste';
  * The modal's "parsing" step markup, extracted to a standalone export so the
  * design-conformance mock route (src/app/mock/resume) can render this exact
  * state without duplicating it or reaching into the modal's internal step
- * machinery — single source of truth for what "parsing" looks like.
+ * machinery — single source of truth for what "parsing" looks like. Parsing
+ * is always on-device now, so this has exactly one rendering — no
+ * `localAiEnabled` branch to pick between.
  */
-export function ResumeParsingStep({ localAiEnabled }: { localAiEnabled: boolean }) {
+export function ResumeParsingStep() {
     return (
         <div className="py-12 text-center space-y-4">
             <div className="w-16 h-16 rounded-pill bg-muted flex items-center justify-center mx-auto animate-pulse">
-                {localAiEnabled ? (
-                    <Cpu size={24} weight="fill" className="text-brand" />
-                ) : (
-                    <Sparkle size={24} weight="fill" className="text-brand" />
-                )}
+                <Cpu size={24} weight="fill" className="text-brand" />
             </div>
             <div>
                 <p className="text-foreground">Parsing your resume...</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                    {localAiEnabled
-                        ? "Structuring on this device — no cloud LLM"
-                        : "AI is extracting structured information"}
-                </p>
+                <p className="text-sm text-muted-foreground mt-1">Structuring on this device — no cloud LLM</p>
             </div>
             <div className="w-48 h-1 rounded-pill bg-secondary mx-auto overflow-hidden">
                 <div className="h-full w-full rounded-pill bg-primary animate-pulse" />
@@ -93,7 +98,7 @@ export function ResumeParsingStep({ localAiEnabled }: { localAiEnabled: boolean 
     );
 }
 
-export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description }: ResumeImportModalProps) {
+export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
     const [pastedText, setPastedText] = useState("");
@@ -331,8 +336,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     The download can be large, but it only happens once.
                 </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                    Your résumé is read on your device, never on our servers. Your résumé and the parsed
-                    result are then saved to your account so they follow you across devices.
+                    Your résumé is read on your device, never on our servers. {storageNote}
                 </p>
                 {!decided && (
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
@@ -726,7 +730,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
                 <div className="flex-1 overflow-hidden py-4">
                     {step === 'input' && renderInputStep()}
-                    {step === 'parsing' && <ResumeParsingStep localAiEnabled={true} />}
+                    {step === 'parsing' && <ResumeParsingStep />}
                     {step === 'review' && renderReviewStep()}
                 </div>
 

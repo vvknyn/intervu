@@ -218,6 +218,7 @@ function ResumeContent() {
                     onImport={handleImportResume}
                     title="Upload your base resume"
                     description="Drop your existing resume to parse into your base profile."
+                    storageNote="Your résumé and the parsed result stay in this browser."
                 />
 
                 <AuthPopover
