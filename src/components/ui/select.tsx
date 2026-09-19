@@ -4,7 +4,7 @@ import * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check, CaretDown, CaretUp } from "@phosphor-icons/react"
 
-import { cn } from "@/lib/utils"
+import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils"
 
 function Select({
   ...props
@@ -37,7 +37,8 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "border border-border data-[placeholder]:text-placeholder-text [&_svg:not([class*='text-'])]:text-muted-foreground aria-invalid:border-destructive bg-card flex w-full items-center justify-between gap-2 rounded-ctl px-3 text-base whitespace-nowrap transition-colors outline-none focus-visible:border-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-8 data-[size=lg]:h-11 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "border border-border data-[placeholder]:text-placeholder-text [&_svg:not([class*='text-'])]:text-muted-foreground aria-invalid:border-destructive bg-card flex w-full items-center justify-between gap-2 rounded-ctl px-3 text-base whitespace-nowrap transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-8 data-[size=lg]:h-11 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        CONTROL_FOCUS_VISIBLE,
         className
       )}
       {...props}
