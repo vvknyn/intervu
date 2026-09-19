@@ -2,7 +2,7 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
-import { cn } from "@/lib/utils"
+import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils"
 
 // Rulebook (docs/design/rulebook-2026-09/RULEBOOK.md line 15) tertiary shape:
 // a 1px Klein outline on a transparent fill, blue text. `outline`,
@@ -12,7 +12,14 @@ import { cn } from "@/lib/utils"
 const TERTIARY_BUTTON_CLASSES = "border border-brand bg-transparent text-brand hover:bg-muted"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-ctl text-sm font-normal transition-colors focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:size-4 [&_svg]:shrink-0",
+  cn(
+    // `border-transparent` gives every variant (bordered or not) a
+    // border-width for CONTROL_FOCUS_VISIBLE's `focus-visible:border-foreground`
+    // to actually paint against — without it, preflight's 0-width border
+    // means that focus-visible color swap is a silent no-op.
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-ctl border border-transparent text-sm font-normal transition-colors disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:size-4 [&_svg]:shrink-0",
+    CONTROL_FOCUS_VISIBLE,
+  ),
   {
     variants: {
       variant: {

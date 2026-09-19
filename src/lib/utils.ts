@@ -6,6 +6,12 @@ import { extendTailwindMerge } from "tailwind-merge"
 // stays in sync with globals.css — see tests/unit/cn-radius-tokens.test.ts.
 export const RADIUS_TOKENS = ["ctl", "panel", "pill"] as const
 
+// design-language.md §2: "Focus: controls `border-foreground`" — the one
+// focus-visible treatment every control primitive (Input, Select, Textarea,
+// Button, Tabs) applies. One exported constant so a future control can't
+// reintroduce its own ad hoc outline/ring and drift from the others.
+export const CONTROL_FOCUS_VISIBLE = "focus-visible:border-foreground focus-visible:outline-none"
+
 // tailwind-merge's default config only recognizes Tailwind's own T-shirt
 // size suffixes (sm/lg/xl/...) as members of the `rounded-*` conflict
 // group, so it doesn't know our semantic radius tokens conflict with

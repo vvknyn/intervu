@@ -111,7 +111,7 @@
     "rounded-none": 2,
     "rounded-size": 0,
     "rounded-arbitrary": 1,
-    "text-arbitrary": 1,
+    "text-arbitrary": 0,
     "leading-arbitrary": 0,
     "size-arbitrary": 5,
     "padding-arbitrary": 0,

@@ -78,7 +78,6 @@ export function LocalAiSettingsSection() {
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                         Parse résumés and tailor applications directly in your browser using local WebGPU and WASM models.
-                        Zero cloud tracking — your résumé text never leaves your device.
                     </p>
                 </div>
                 <Switch checked={enabled} onChange={toggle} aria-label="Toggle on-device AI inference" />
