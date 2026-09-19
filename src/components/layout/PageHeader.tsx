@@ -44,7 +44,7 @@ export function PageHeader({
         className={
           display
             ? "font-display text-2xl font-semibold"
-            : "truncate text-lg font-semibold"
+            : "truncate text-xl font-semibold"
         }
       >
         {title}

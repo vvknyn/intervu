@@ -10,7 +10,7 @@ import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import { consumeRecordBudget } from "@/lib/agent/record-budget";
 import { consumeCompanyReadBudget } from "@/lib/agent/company-read-budget";
 import {
-    toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
+    toolSearchJobs, toolGetJob, toolForYou, toolSaveJob, toolMarkApplied,
     toolGetResume, toolSaveResumeVariant, toolGetResumeVariant, toolSetResume,
     toolGetPreferences, toolSetPreferences, toolGetApplications, type ToolDeps,
 } from "@/lib/agent/tools";
@@ -132,6 +132,7 @@ function withDeps<In, Out extends object>(
  */
 const handlers: { [K in McpToolName]: ToolCallback<(typeof MCP_TOOL_SPECS)[K]["inputSchema"]> } = {
     search_jobs: withDeps(toolSearchJobs),
+    for_you: withDeps(toolForYou),
     get_job: withDeps(toolGetJob),
     save_job: withDeps(toolSaveJob),
     mark_applied: withDeps(toolMarkApplied),

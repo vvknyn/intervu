@@ -247,12 +247,12 @@ const SheetOverlay = React.forwardRef<
 ))
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
-/** The grab handle on a bottom sheet — token classes only (bg-border, no
- *  border, radius 0), sized h-1.5 w-10 by default. Pass `className` to pick
- *  a site's existing size (e.g. the tracker sheets' h-1 w-9) rather than
+/** The grab handle on a bottom sheet — token classes only (bg-border, pill
+ *  radius), sized h-1.5 w-10 by default. Pass `className` to pick a site's
+ *  existing size (e.g. the tracker sheets' h-1 w-9) rather than
  *  hand-copying a hex fill on every sheet that needs one. */
 const SheetHandle = ({ className }: { className?: string }) => (
-    <span aria-hidden="true" className={cn("h-1.5 w-10 rounded-none bg-border", className)} />
+    <span aria-hidden="true" className={cn("h-1.5 w-10 rounded-pill bg-border", className)} />
 )
 SheetHandle.displayName = "SheetHandle"
 
@@ -261,12 +261,12 @@ const sheetVariants = cva(
     {
         variants: {
             side: {
-                top: "inset-x-0 top-0 data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+                top: "inset-x-0 top-0 rounded-b-panel data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
                 bottom:
-                    "inset-x-0 bottom-0 touch-pan-y data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-                left: "inset-y-0 left-0 h-full w-3/4 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+                    "inset-x-0 bottom-0 touch-pan-y rounded-t-panel data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+                left: "inset-y-0 left-0 h-full w-3/4 rounded-r-panel data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
                 right:
-                    "inset-y-0 right-0 h-full w-full data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-xl lg:max-w-2xl",
+                    "inset-y-0 right-0 h-full w-full rounded-l-panel data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-xl lg:max-w-2xl",
             },
         },
         defaultVariants: {
@@ -311,7 +311,7 @@ const SheetContent = React.forwardRef<
             >
                 {children}
                 {!hideCloseButton && (
-                    <SheetPrimitive.Close className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-none p-0 opacity-80 ring-offset-background transition-all hover:bg-muted hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+                    <SheetPrimitive.Close className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-ctl p-0 opacity-80 ring-offset-background transition-all hover:bg-muted hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
                         <X size={20} />
                         <span className="sr-only">Close</span>
                     </SheetPrimitive.Close>

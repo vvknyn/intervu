@@ -21,12 +21,12 @@ export function CompanyCadenceStrip({
   const last = eventDate(`${weeks[weeks.length - 1].weekStartIso}T00:00:00Z`);
 
   return (
-    <section data-testid="company-cadence-strip" className="border border-border bg-card px-6 py-6 sm:px-8">
+    <section data-testid="company-cadence-strip" className="rounded-panel border border-border bg-card px-6 py-6 sm:px-8">
       <h2 className="text-xs font-semibold text-muted-foreground">
         Their posting rhythm, last {weeks.length} weeks
       </h2>
       <div
-        className="mt-4 flex h-[72px] items-end gap-0.5 overflow-x-auto pb-1"
+        className="mt-4 flex h-18 items-end gap-0.5 overflow-x-auto pb-1"
         role="img"
         aria-label={`Weekly new postings, ${first} through ${last}`}
       >
@@ -37,7 +37,7 @@ export function CompanyCadenceStrip({
             <span
               key={w.weekStartIso}
               title={`${w.newListings} new postings — week of ${w.weekStartIso}`}
-              className={isZero ? "min-w-[10px] flex-1 bg-border" : "min-w-[10px] flex-1 bg-brand opacity-85"}
+              className={isZero ? "min-w-2.5 flex-1 bg-border" : "min-w-2.5 flex-1 bg-brand opacity-85"}
               style={{ height: `${heightPx}px` }}
             />
           );

@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     isUnavailableJobsResult,
+    isAuthoritativeResult,
     resolveSelectionAfterRefresh,
     resolveGhostReveal,
     classifyExistenceCheck,
@@ -575,6 +576,40 @@ describe('degradedResultsNote', () => {
             degradedResultsNote(withMeta({ degraded: true, servedFrom: 'cache' })),
             'Showing recent results — live search is catching up.',
         );
+    });
+});
+
+// The shared "complete AND authoritative" predicate — the one chokepoint
+// `classifyExistenceCheck` (this file) and `describeResponseInit`
+// (app/api/jobs/[id]/description/route.ts, whose own `HydrateDescriptionResult`
+// is a `JobSearchResult` superset) both go through, so the client's existence
+// check and the route's cache-control decision can never classify the same
+// envelope differently.
+describe('isAuthoritativeResult', () => {
+    it('true for a clean, complete meilisearch result', () => {
+        assert.equal(isAuthoritativeResult(result()), true);
+    });
+
+    it('false for a snapshot-preview or unconfigured backend — a capped/absent corpus is never authoritative', () => {
+        assert.equal(isAuthoritativeResult(result({ backend: 'snapshot-preview' })), false);
+        assert.equal(isAuthoritativeResult(result({ backend: 'unconfigured', configured: false })), false);
+    });
+
+    it('false when a note is present, even without the unavailable flag', () => {
+        assert.equal(isAuthoritativeResult(result({ note: 'Some other degraded-mode note' })), false);
+    });
+
+    it('false when unavailable is set — a Meili-outage envelope', () => {
+        assert.equal(isAuthoritativeResult(result({ unavailable: true })), false);
+    });
+
+    it('false when meta.degraded is set — a served-from-cache envelope, stale by construction', () => {
+        assert.equal(isAuthoritativeResult(withMeta({ degraded: true, servedFrom: 'cache' })), false);
+    });
+
+    it('true when meta is present but not degraded, and true when meta is absent entirely', () => {
+        assert.equal(isAuthoritativeResult(withMeta({ degraded: false, servedFrom: 'live' })), true);
+        assert.equal(isAuthoritativeResult(result()), true);
     });
 });
 

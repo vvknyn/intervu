@@ -16,7 +16,7 @@ export function CompanyTechStackBand({
   if (groups.length === 0 && totalLiveTechs == null) return null;
 
   return (
-    <section data-testid="company-tech-stack-band" className="border border-border bg-card px-6 py-6 sm:px-8">
+    <section data-testid="company-tech-stack-band" className="rounded-panel border border-border bg-card px-6 py-6 sm:px-8">
       <h2 className="text-xs font-semibold text-muted-foreground">
         What their site runs on
       </h2>

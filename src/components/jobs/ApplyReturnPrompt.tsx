@@ -104,7 +104,10 @@ export function ApplyReturnPrompt({
         <div
             data-testid="apply-return-prompt"
             role="status"
-            className="fixed bottom-24 right-4 z-40 flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3"
+            // Clears the mobile tab bar via its published height token (0 on
+            // desktop/chrome-hidden routes, see globals.css) instead of the
+            // flat `bottom-24` guess that let it sit on top of the bar.
+            className="fixed right-4 z-40 flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3 bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+1rem)] lg:bottom-24"
         >
             <div className="min-w-0 flex-1">
                 <div className="mono-data whitespace-nowrap text-xs text-muted-foreground">Did you apply?</div>

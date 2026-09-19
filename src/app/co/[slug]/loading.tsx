@@ -50,18 +50,18 @@ export default function Loading() {
                     Follow control's slot on the right. */}
                 <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex min-w-0 gap-5">
-                        <Skeleton className="h-14 w-14 shrink-0" />
+                        <Skeleton className="h-14 w-14 shrink-0 rounded-panel" />
                         <div className="min-w-0 flex-1 space-y-3 pt-1">
-                            {/* page.tsx's <h1> is text-3xl (32/40). */}
-                            <Skeleton className="h-10 w-[220px] max-w-full" />
-                            <Skeleton className="h-5 w-[420px] max-w-full" />
+                            {/* page.tsx's <h1> is text-2xl (24/32). */}
+                            <Skeleton className="h-8 w-55 max-w-full" />
+                            <Skeleton className="h-5 w-105 max-w-full" />
                             <div className="flex gap-2 pt-1">
                                 <Skeleton className="h-6 w-24" />
                                 <Skeleton className="h-6 w-20" />
                             </div>
                         </div>
                     </div>
-                    <Skeleton className="h-10 w-[200px] shrink-0 self-start" />
+                    <Skeleton className="h-10 w-50 shrink-0 self-start" />
                 </header>
 
                 {/* Open roles — the reason someone opened this page, so the
@@ -69,7 +69,7 @@ export default function Loading() {
                 <div className="space-y-2.5">
                     <Skeleton className="mb-4 h-4 w-40" />
                     {[0, 1, 2, 3].map((row) => (
-                        <div key={row} className="border border-border bg-card px-5 py-4">
+                        <div key={row} className="rounded-panel border border-border bg-card px-5 py-4">
                             <Skeleton className="h-5 w-2/3" />
                             <div className="mt-2.5 flex gap-2">
                                 <Skeleton className="h-4 w-24" />
@@ -81,7 +81,7 @@ export default function Loading() {
 
                 {/* Quiet secondary block, matching the real page's `mt-10`. */}
                 <div className="mt-10 space-y-8">
-                    <div className="bg-chip px-5 py-4">
+                    <div className="rounded-panel bg-chip px-5 py-4">
                         <Skeleton className="h-4 w-28" />
                         <Skeleton className="mt-3 h-5 w-3/4" />
                         <Skeleton className="mt-2 h-4 w-1/2" />

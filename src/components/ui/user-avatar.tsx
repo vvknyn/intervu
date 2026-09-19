@@ -32,12 +32,11 @@ export interface UserAvatarProps {
 export function UserAvatar({ name, email, pictureUrl, size = 32, className }: UserAvatarProps) {
     return (
         <span
-            // design-lint-allow: the one deliberate circle in a 0-radius system —
-            // a person's identity mark (Carbon/HIG both render user avatars as
-            // circles even in a square-cornered shell); every other surface
-            // stays rounded-none.
+            // The identity mark uses the pill role (fully round at any size),
+            // same token every avatar/chip/status-dot in the system uses —
+            // not a one-off circle exception.
             className={cn(
-                "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-sm leading-5 font-semibold text-foreground",
+                "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-pill border border-border bg-muted text-sm leading-5 font-semibold text-foreground",
                 className,
             )}
             style={{ width: size, height: size }}

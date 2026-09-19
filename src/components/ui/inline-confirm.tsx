@@ -34,7 +34,7 @@ export function InlineConfirm({
     return (
         <div
             className={cn(
-                "flex w-full flex-col gap-2 rounded-none border border-border bg-muted p-3 sm:w-auto sm:flex-row sm:items-center",
+                "flex w-full flex-col gap-2 rounded-panel border border-border bg-muted p-3 sm:w-auto sm:flex-row sm:items-center",
                 className,
             )}
         >
@@ -46,7 +46,7 @@ export function InlineConfirm({
                     size="sm"
                     disabled={busy}
                     onClick={onConfirm}
-                    className="w-full gap-1.5 rounded-none sm:w-auto"
+                    className="w-full gap-1.5 sm:w-auto"
                 >
                     {busy ? <CircleNotch className="animate-spin" /> : <Trash />}
                     {busy ? busyLabel : confirmLabel}
@@ -57,7 +57,7 @@ export function InlineConfirm({
                     size="sm"
                     onClick={onCancel}
                     disabled={busy}
-                    className="w-full rounded-none sm:w-auto"
+                    className="w-full sm:w-auto"
                 >
                     Cancel
                 </Button>

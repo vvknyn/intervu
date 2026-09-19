@@ -133,7 +133,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     if (!showTrigger) {
         return (
             <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-[420px] max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-none border border-border bg-card">
+                <DialogContent className="sm:max-w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-panel border border-border bg-card">
                     <DialogTitle className="sr-only">Authentication</DialogTitle>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
@@ -145,11 +145,11 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     return (
         <Popover open={effectiveOpen} onOpenChange={onOpenChange}>
             <PopoverTrigger asChild>
-                <Button size="sm" variant="outline" className="h-9">
+                <Button size="sm" variant="outline" className="h-8">
                     {AUTH_CTA_LABEL}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[420px] max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-none border border-border bg-card">
+            <PopoverContent align="end" className="w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-panel border border-border bg-card">
                 <div>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />

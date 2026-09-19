@@ -43,7 +43,7 @@ function YoursLoading() {
                     <div className="skeleton-bar h-9 w-full max-w-md" />
                     <div className="flex gap-3 overflow-hidden">
                         {[0, 1, 2, 3, 4].map((i) => (
-                            <div key={i} className="skeleton-bar h-64 w-[min(85vw,20rem)] shrink-0 md:w-full" />
+                            <div key={i} className="skeleton-bar h-64 w-5/6 max-w-80 shrink-0 md:w-full" />
                         ))}
                     </div>
                 </div>
@@ -76,22 +76,17 @@ function TrackerEmptyState({
 }) {
     const guestCount = listGuestPursuits().length;
     return (
-        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="mx-auto max-w-[480px] rounded-none border border-border bg-card p-8 text-center space-y-6">
-            <BookmarkSimple size={24} weight="duotone" className="mx-auto text-muted-foreground" />
-
-            <div className="space-y-1">
-                <h3 className="text-base font-semibold text-foreground">Your tracker is empty</h3>
-                <p className="text-sm text-muted-foreground">
-                    Save roles while browsing verified jobs, then pick up where you left off here.
-                </p>
-            </div>
-
-            <Button asChild variant="outline" size="sm" className="font-semibold">
+        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="py-8 text-left">
+            <p className="text-sm text-foreground">Your tracker is empty.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+                Save roles while browsing verified jobs, then pick up where you left off here.
+            </p>
+            <Button asChild variant="outline" size="sm" className="mt-3 rounded-ctl font-semibold">
                 <Link href="/jobs">Browse verified roles</Link>
             </Button>
 
             {!user && (
-                <p className="text-xs text-muted-foreground pt-1">
+                <p className="mt-3 text-xs text-muted-foreground">
                     {guestCount > 0 && <>{guestKeepLine(guestCount)} </>}
                     <button
                         type="button"
@@ -281,13 +276,14 @@ function YoursContent() {
                                     type="button"
                                     variant="outline"
                                     size="sm"
+                                    className="rounded-ctl"
                                     data-testid="tracker-export-csv"
                                     onClick={() => downloadTrackerExport(pursuits, "csv")}
                                 >
                                     Export CSV
                                 </Button>
                             )}
-                            <Button size="sm" onClick={openAdd}>
+                            <Button size="sm" className="rounded-ctl" onClick={openAdd}>
                                 Track a role
                             </Button>
                         </div>
@@ -308,7 +304,7 @@ function YoursContent() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search company or role in your tracker..."
-                            className="h-8 rounded-none border-border bg-card pl-9 text-base dark:border-border md:text-xs"
+                            className="h-11 rounded-ctl border-border bg-card pl-9 text-base"
                         />
                     </div>
                     <AppliedThisWeekBadge count={appliedThisWeek} />
@@ -321,9 +317,9 @@ function YoursContent() {
                             onLoginClick={() => setAuthPopoverOpen(true)}
                         />
                     ) : (
-                        <div className="px-2 py-9 text-sm text-muted-foreground">
+                        <div className="py-8 text-left text-sm text-muted-foreground">
                             Nothing in this lane.{" "}
-                            <Button variant="outline" size="sm" className="ml-1.5 h-8" onClick={openAdd}>
+                            <Button variant="outline" size="sm" className="ml-1.5 rounded-ctl" onClick={openAdd}>
                                 Track a role
                             </Button>
                         </div>

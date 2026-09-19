@@ -115,7 +115,14 @@
 
 
 :root {
-  --mobile-tabbar-h: 56px;
+  /* 0 by default; the one place that actually renders the bar (the
+     `@media (max-width: 1023px) { body:has([data-mobile-tabbar]) }` rule
+     below) is the only place that raises it to 56px. Every fixed
+     bottom-anchored control reads this ONE token instead of a duplicated
+     `lg:bottom-*`/hidden-route guess, so a route where the bar doesn't
+     mount (or a desktop viewport, where it's `lg:hidden`) already clears
+     it — not by coincidence of each consumer restating its own escape. */
+  --mobile-tabbar-h: 0px;
   /* `mobile-search-cta` (app/jobs/page.tsx) sets its own height from this —
      border-t (1px) + h-11 button (44px) + 10px top/bottom clearance from
      centering inside it. The landing scroll area's bottom padding reads the
@@ -539,6 +546,7 @@ body {
 
 @media (max-width: 1023px) {
   body:has([data-mobile-tabbar]) {
+    --mobile-tabbar-h: 56px;
     padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
   }
 }

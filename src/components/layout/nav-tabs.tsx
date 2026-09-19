@@ -4,7 +4,7 @@
  * Research / Trends live in the footer.
  */
 import type { ComponentType } from "react";
-import { FileText, Kanban } from "@phosphor-icons/react";
+import { FileText, Kanban, MagnifyingGlass, PlugsConnected, UserCircle } from "@phosphor-icons/react";
 
 /**
  * Live counters a nav tab can carry. A tab DECLARES which counter it wants;
@@ -55,13 +55,13 @@ export function mobilePrimaryTabs(tabs: readonly NavTab[]): NavTab[] {
     return tabs.filter((t) => t.mobilePrimary !== false);
 }
 
+/** `tab.icon` is only ever rendered by MobileTabBar (TopBar's desktop nav
+ *  draws labels, not icons) at the one place the design language allows a
+ *  20px icon instead of the 16px default — so each wrapper below hardcodes
+ *  `size={20}` itself rather than threading a size prop through a call site
+ *  that doesn't exist. */
 function JobsIcon() {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3-3" />
-        </svg>
-    );
+    return <MagnifyingGlass size={20} aria-hidden />;
 }
 
 /** G5f (Grok UX wave) — was three horizontal bars (decreasing width), which
@@ -71,30 +71,19 @@ function JobsIcon() {
  *  @phosphor-icons/react — already used throughout, e.g. JobDetail.tsx)
  *  reads correctly as that. */
 function TrackerIcon() {
-    return <Kanban aria-hidden />;
+    return <Kanban size={20} aria-hidden />;
 }
 
 function ResumeIcon() {
-    return <FileText aria-hidden />;
+    return <FileText size={20} aria-hidden />;
 }
 
 function ConnectIcon() {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <circle cx="7" cy="12" r="3" />
-            <circle cx="17" cy="12" r="3" />
-            <path d="M10 12h4" />
-        </svg>
-    );
+    return <PlugsConnected size={20} aria-hidden />;
 }
 
 function AccountIcon() {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" />
-        </svg>
-    );
+    return <UserCircle size={20} aria-hidden />;
 }
 
 /** The MCP/agent-pairing tab — named so the footer can link the SAME entry

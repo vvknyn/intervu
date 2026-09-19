@@ -9,6 +9,7 @@ import {
   searchJobs as runSearch,
   type SearchServeMeta,
 } from "@/lib/jobs/search";
+import { runJobsSearch, type JobsSearchWithProbes } from "@/lib/jobs/run-search";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
@@ -70,12 +71,9 @@ type ShieldSearchServeMeta = SearchServeMeta & {
 export async function searchJobsAction(
   params: JobSearchParams,
 ): Promise<
-  JobSearchResult & {
+  Omit<JobsSearchWithProbes, "meta"> & {
     searchId: string;
     meta?: ShieldSearchServeMeta;
-    defaultedLocation?: string;
-    remoteAnywhere?: boolean;
-    unmatchedPlaceMentions?: string[];
     /** True when the stored description is still a stub AND the live fill
      *  hit its deadline while this request awaited it — the hit's
      *  `description` is whatever we had at that point, not a final answer. */
@@ -134,7 +132,10 @@ export async function searchJobsAction(
     return hydrateJobDescription(params.id, ip);
   }
 
-  const result = await runSearch({ ...params, limit: depthDecision.effectiveLimit }, { clientIp: ip, countryLookup });
+  const result = await runJobsSearch(
+    { ...params, limit: depthDecision.effectiveLimit },
+    { clientIp: ip, countryLookup },
+  );
 
   // Only the "prefetch" plan is reachable here — `planDescriptionFill`
   // returns "await" only when `params.id` is set, and that path returned
@@ -321,8 +322,20 @@ const DEFAULT_BROWSE_LIMIT = 20;
  * visitor from the same country instead of hitting the corpus per visitor.
  */
 const getCachedDefaultBrowse = unstable_cache(
-  async (places: PlaceClause[] | undefined): Promise<JobSearchResult & { meta?: SearchServeMeta }> =>
-    runSearch(
+  // `postedDateSupported` is a cache-key dimension (an `unstable_cache`d
+  // function's own arguments participate in its key, same as `places`
+  // below) — NOT threaded into the main query itself, which stays the fixed
+  // unwindowed shape this function has always served (see the doc comment
+  // above). It scopes only the beyond-window probe's basis, via
+  // `probeParams`, to match what page.tsx's now-deleted client probe used to
+  // compute for this exact landing state (`buildJobSearchPayload` against
+  // the default `FilterState`, which carries `postedBucket: "30d"` whenever
+  // the corpus can support it) — see `runJobsSearch`'s `probeParams` doc.
+  async (
+    places: PlaceClause[] | undefined,
+    postedDateSupported: boolean,
+  ): Promise<JobsSearchWithProbes> =>
+    runJobsSearch(
       {
         hideGhosts: true,
         sort: "newest",
@@ -331,7 +344,13 @@ const getCachedDefaultBrowse = unstable_cache(
         withFacets: true,
         places,
       },
-      {},
+      {
+        probeParams: {
+          hideGhosts: true,
+          postedBucket: postedDateSupported ? "30d" : undefined,
+          places,
+        },
+      },
     ),
   ["jobs-default-browse", String(DEFAULT_BROWSE_LIMIT)],
   { revalidate: 600 },
@@ -354,10 +373,8 @@ const getCachedDefaultBrowse = unstable_cache(
 export async function getDefaultBrowseAction(
   suppressLocationDefault: boolean,
 ): Promise<
-  JobSearchResult & {
+  JobsSearchWithProbes & {
     searchId: string;
-    meta?: SearchServeMeta;
-    defaultedLocation?: string;
     /** See `LocationDefaultApplication.remoteAnywhere` (lib/geo/ip-default.ts)
      *  — same gate as `defaultedLocation` here too: `placesForCountry` calls
      *  the same `placeClause(..., { country: true })` `resolveLocationDefault`
@@ -370,7 +387,8 @@ export async function getDefaultBrowseAction(
   const iso2 = ip ? await countryLookup(ip) : null;
   const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
   try {
-    const result = await getCachedDefaultBrowse(places);
+    const postedDateSupported = Boolean(await isPostedDateFilterSupported());
+    const result = await getCachedDefaultBrowse(places, postedDateSupported);
     return {
       ...result,
       searchId,

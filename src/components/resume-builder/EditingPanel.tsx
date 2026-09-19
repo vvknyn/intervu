@@ -105,12 +105,12 @@ function SectionHeader({ section, nav }: { section: NavigableSection; nav: Secti
                 <button
                     type="button"
                     onClick={nav.onBack}
-                    className="rounded-none p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="rounded-ctl p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     title="Back to all sections"
                 >
                     <CaretLeft size={20} weight="bold" />
                 </button>
-                <div className="flex h-8 w-8 items-center justify-center rounded-none border border-border bg-muted text-foreground">
+                <div className="flex h-8 w-8 items-center justify-center rounded-panel border border-border bg-muted text-foreground">
                     <Icon size={18} />
                 </div>
                 <div>
@@ -126,7 +126,7 @@ function SectionHeader({ section, nav }: { section: NavigableSection; nav: Secti
                     type="button"
                     onClick={nav.prev}
                     disabled={!nav.hasPrev}
-                    className="rounded-none p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
+                    className="rounded-ctl p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
                     title="Previous section"
                 >
                     <CaretLeft size={16} weight="bold" />
@@ -138,7 +138,7 @@ function SectionHeader({ section, nav }: { section: NavigableSection; nav: Secti
                     type="button"
                     onClick={nav.next}
                     disabled={!nav.hasNext}
-                    className="rounded-none p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
+                    className="rounded-ctl p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
                     title="Next section"
                 >
                     <CaretRight size={16} weight="bold" />
@@ -250,9 +250,9 @@ export function EditingPanel({
                                 key={sec}
                                 type="button"
                                 onClick={() => onNavigateSection(sec)}
-                                className="flex items-start gap-3 rounded-none border border-border bg-card p-3.5 text-left transition-all hover:border-foreground hover:bg-muted"
+                                className="flex items-start gap-3 rounded-panel border border-border bg-card p-3.5 text-left transition-all hover:border-foreground hover:bg-muted"
                             >
-                                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-none border border-border bg-muted text-foreground">
+                                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-panel border border-border bg-muted text-foreground">
                                     <Icon size={16} />
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -269,7 +269,7 @@ export function EditingPanel({
                 </div>
 
                 {/* Section Ordering */}
-                <div className="rounded-none border border-border bg-card p-4 space-y-3">
+                <div className="rounded-panel border border-border bg-card p-4 space-y-3">
                     <div className="flex items-center justify-between border-b border-border pb-2">
                         <div className="flex items-center gap-2">
                             <ListNumbers size={16} className="text-muted-foreground" />
@@ -292,7 +292,7 @@ export function EditingPanel({
                         {currentSectionOrder.map((sec, idx) => (
                             <div
                                 key={sec}
-                                className="flex items-center justify-between rounded-none border border-border bg-background px-3 py-2 text-xs"
+                                className="flex items-center justify-between rounded-ctl border border-border bg-background px-3 py-2 text-xs"
                             >
                                 <span className="text-xs text-foreground">{sec}</span>
                                 <div className="flex items-center gap-1">
@@ -300,7 +300,7 @@ export function EditingPanel({
                                         type="button"
                                         disabled={idx === 0}
                                         onClick={() => moveSection(sec, "up")}
-                                        className="rounded-none p-1 text-muted-foreground hover:bg-muted disabled:opacity-20"
+                                        className="rounded-ctl p-1 text-muted-foreground hover:bg-muted disabled:opacity-20"
                                     >
                                         <ArrowUp />
                                     </button>
@@ -308,7 +308,7 @@ export function EditingPanel({
                                         type="button"
                                         disabled={idx === currentSectionOrder.length - 1}
                                         onClick={() => moveSection(sec, "down")}
-                                        className="rounded-none p-1 text-muted-foreground hover:bg-muted disabled:opacity-20"
+                                        className="rounded-ctl p-1 text-muted-foreground hover:bg-muted disabled:opacity-20"
                                     >
                                         <ArrowDown />
                                     </button>
@@ -413,7 +413,7 @@ export function EditingPanel({
                         value={data.generatedSummary || ""}
                         onChange={(e) => onUpdate({ generatedSummary: e.target.value })}
                         placeholder="Write a focused 2-4 sentence executive summary of your background, core strengths, and impact..."
-                        className="min-h-[220px] font-sans leading-relaxed"
+                        className="min-h-56 font-sans leading-relaxed"
                     />
                     <p className="text-xs text-muted-foreground">
                         Keep it clear and impactful. This section renders directly below your contact info on the template.
@@ -510,7 +510,7 @@ export function EditingPanel({
                         {competencies.map((cat, catIdx) => (
                             <div
                                 key={catIdx}
-                                className="rounded-none border border-border bg-card p-4 space-y-3"
+                                className="rounded-panel border border-border bg-card p-4 space-y-3"
                             >
                                 <div className="flex items-center justify-between gap-2">
                                     <Input
@@ -534,7 +534,7 @@ export function EditingPanel({
                                     {cat.skills.map((skill, skillIdx) => (
                                         <span
                                             key={skillIdx}
-                                            className="inline-flex items-center gap-1 rounded-none border border-border bg-muted px-2 py-0.5 text-xs text-foreground"
+                                            className="inline-flex items-center gap-1 rounded-pill border border-border bg-muted px-2 py-0.5 text-xs text-foreground"
                                         >
                                             {skill}
                                             <button
@@ -635,7 +635,7 @@ export function EditingPanel({
                         {experience.map((exp, idx) => (
                             <div
                                 key={exp.id || idx}
-                                className="rounded-none border border-border bg-card p-4 space-y-3"
+                                className="rounded-panel border border-border bg-card p-4 space-y-3"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
                                     <span className="text-xs font-semibold text-muted-foreground">
@@ -686,7 +686,7 @@ export function EditingPanel({
                                         value={exp.description}
                                         onChange={(e) => updateExpField(exp.id, "description", e.target.value)}
                                         placeholder="• Start each bullet with an action verb (Built, Led, Reduced, Scaled)..."
-                                        className="min-h-[120px]"
+                                        className="min-h-32"
                                     />
                                 </div>
                             </div>
@@ -746,7 +746,7 @@ export function EditingPanel({
                         {projects.map((proj, idx) => (
                             <div
                                 key={proj.id || idx}
-                                className="rounded-none border border-border bg-card p-4 space-y-3"
+                                className="rounded-panel border border-border bg-card p-4 space-y-3"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
                                     <span className="text-xs font-semibold text-muted-foreground">
@@ -797,7 +797,7 @@ export function EditingPanel({
                                         value={proj.description}
                                         onChange={(e) => updateProjField(proj.id, "description", e.target.value)}
                                         placeholder="• Start each bullet with an action verb (Built, Led, Reduced, Scaled)..."
-                                        className="min-h-[120px]"
+                                        className="min-h-32"
                                     />
                                 </div>
                             </div>
@@ -870,7 +870,7 @@ export function EditingPanel({
                         {education.map((edu, idx) => (
                             <div
                                 key={edu.id || idx}
-                                className="rounded-none border border-border bg-card p-4 space-y-3"
+                                className="rounded-panel border border-border bg-card p-4 space-y-3"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
                                     <span className="text-xs font-semibold text-muted-foreground">

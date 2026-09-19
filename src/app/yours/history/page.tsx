@@ -11,7 +11,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ClockCounterClockwise } from "@phosphor-icons/react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -19,18 +18,20 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { AUTH_CTA_LABEL, formatAuthGateValueLine } from "@/lib/auth/auth-gate-copy";
 import { useViewed } from "@/lib/views/use-viewed";
 import { usePursuits } from "@/lib/pursuits/use-pursuits";
-import { stageLabel, type Pursuit } from "@/lib/pursuits/types";
-import { trackerStatusColorClass } from "@/lib/pursuits/tracker-display";
-import { cn } from "@/lib/utils";
+import type { Pursuit } from "@/lib/pursuits/types";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 import { DotSeparated } from "@/components/ui/dot-separated";
+import { StageBadge } from "@/components/tracker/StageBadge";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import type { JobView } from "@/lib/views/types";
 
-function HistoryHeader() {
+/** Exported so `/mock/history` (fixture preview — `useViewed()` has no
+ *  guest fallback, so the real route can't show filled/empty states
+ *  signed-out) renders the identical header instead of a copy. */
+export function HistoryHeader() {
     return (
         <PageHeader
             fullWidth
@@ -43,15 +44,12 @@ function HistoryHeader() {
 
 function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
     return (
-        <div className="mx-auto max-w-[480px] rounded-none border border-border bg-card p-8 text-center space-y-6">
-            <ClockCounterClockwise size={24} weight="duotone" className="mx-auto text-muted-foreground" />
-            <div className="space-y-1">
-                <h3 className="text-base font-semibold text-foreground">Sign in to see your history</h3>
-                <p className="text-sm text-muted-foreground">
-                    We keep track of every job you open so you can find your way back to it.
-                </p>
-            </div>
-            <Button className="font-semibold" onClick={onLoginClick}>
+        <div className="py-8 text-left">
+            <p className="text-sm text-foreground">Sign in to see your history.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+                We keep track of every job you open so you can find your way back to it.
+            </p>
+            <Button className="mt-3 rounded-ctl font-semibold" onClick={onLoginClick}>
                 {AUTH_CTA_LABEL}
             </Button>
         </div>
@@ -60,18 +58,20 @@ function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
 
 function HistoryEmptyState() {
     return (
-        <div data-testid="history-empty" className="mx-auto max-w-[480px] rounded-none border border-border bg-card p-8 text-center space-y-6">
-            <ClockCounterClockwise size={24} weight="duotone" className="mx-auto text-muted-foreground" />
-            <div className="space-y-1">
-                <h3 className="text-base font-semibold text-foreground">Jobs you open will show up here.</h3>
-            </div>
-            <Button asChild className="font-semibold">
+        <div data-testid="history-empty" className="py-8 text-left">
+            <p className="text-sm text-foreground">Jobs you open will show up here.</p>
+            <Button asChild className="mt-3 rounded-ctl font-semibold">
                 <Link href="/jobs">Browse verified roles</Link>
             </Button>
         </div>
     );
 }
 
+/** design-language.md §4 row anatomy (history is explicitly one of the
+ *  named row-anatomy surfaces) — the whole row is the tap target (matches
+ *  PursuitListRow's convention), no leading tile column, stage rendered via
+ *  the shared `StageBadge` pill (single source of truth with the tracker
+ *  list row and the pursuit detail sheet — see StageBadge's doc comment). */
 function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined }) {
     const snapshot = view.job_snapshot;
     const href = jobPath({ id: view.job_id, title: snapshot.title, company: snapshot.company });
@@ -85,38 +85,70 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
     // live search hit.
     const companyName = displayCompanyName(snapshot.company);
     return (
-        <div
+        <Link
+            href={href}
             data-testid="history-row"
-            className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-1.5 px-3 py-4"
+            className="grid rounded-none bg-card px-[var(--list-inset)] pt-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
         >
-            <div className="min-w-0">
-                <Link href={href} className="block truncate text-base font-semibold hover:text-brand">
-                    {snapshot.title}
-                </Link>
-                <div className="truncate text-sm text-muted-foreground">{companyName}</div>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-4">
+                <div className="min-w-0">
+                    <div className="truncate text-base font-semibold leading-snug text-foreground">{snapshot.title}</div>
+                    <div className="mt-1 truncate text-sm text-muted-foreground">{companyName}</div>
+                    <div className="mt-1 font-mono text-sm text-muted-foreground">
+                        <DotSeparated
+                            items={[
+                                formatRelativeAge(view.last_viewed_at, Date.now()),
+                                view.view_count > 1 && `viewed ${view.view_count}×`,
+                            ]}
+                        />
+                    </div>
+                </div>
+                {stage && <StageBadge status={stage.status} className="self-start" />}
             </div>
-            {stage && (
-                <span className={cn("h-fit text-sm", trackerStatusColorClass(stage.status))}>
-                    {stageLabel(stage, Date.now())}
-                </span>
-            )}
-            <div className="col-span-2 font-mono text-sm text-muted-foreground">
-                <DotSeparated
-                    items={[
-                        formatRelativeAge(view.last_viewed_at, Date.now()),
-                        view.view_count > 1 && `viewed ${view.view_count}×`,
-                    ]}
-                />
-            </div>
+        </Link>
+    );
+}
+
+/**
+ * The loading/empty/filled ladder for a resolved (signed-in) viewer — pulled
+ * out of `HistoryPage` so the `/mock/history` fixture route can render the
+ * exact same list markup against fixture data instead of a reimplementation
+ * that could drift from what real viewers see.
+ */
+export function HistoryList({
+    loading,
+    entries,
+    byJobId,
+}: {
+    loading: boolean;
+    entries: JobView[];
+    byJobId: Map<string, Pursuit>;
+}) {
+    if (loading) return <HistoryLoading />;
+    if (entries.length === 0) return <HistoryEmptyState />;
+    return (
+        <div className="divide-y divide-border border-t border-border">
+            {entries.map((view) => (
+                <HistoryRow key={view.id} view={view} stage={byJobId.get(view.job_id)} />
+            ))}
         </div>
     );
 }
 
+/** §6: "skeleton-bar bars shaped like the row anatomy" — decomposed into
+ *  title/company/meta bars (matches the jobs/page.tsx reference skeleton),
+ *  not one flat block standing in for the whole row. */
 function HistoryLoading() {
     return (
-        <div aria-hidden className="space-y-3">
+        <div aria-hidden className="divide-y divide-border border-t border-border">
             {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="skeleton-bar h-[72px] w-full" />
+                <div key={i} className="px-[var(--list-inset)] pt-4">
+                    <div className="space-y-1.5 border-b border-border pb-4">
+                        <div className="skeleton-bar h-4 w-2/3" />
+                        <div className="skeleton-bar h-3 w-1/3" />
+                        <div className="skeleton-bar h-3 w-24" />
+                    </div>
+                </div>
             ))}
             <span className="sr-only">Loading your history…</span>
         </div>
@@ -139,19 +171,9 @@ export default function HistoryPage() {
                     <div className="mt-4">
                         <HistoryGate onLoginClick={() => setAuthPopoverOpen(true)} />
                     </div>
-                ) : loading ? (
-                    <div className="mt-4">
-                        <HistoryLoading />
-                    </div>
-                ) : entries.length === 0 ? (
-                    <div className="mt-4">
-                        <HistoryEmptyState />
-                    </div>
                 ) : (
-                    <div className="mt-4 divide-y divide-border border-t border-border">
-                        {entries.map((view) => (
-                            <HistoryRow key={view.id} view={view} stage={byJobId.get(view.job_id)} />
-                        ))}
+                    <div className="mt-4">
+                        <HistoryList loading={loading} entries={entries} byJobId={byJobId} />
                     </div>
                 )}
             </div>

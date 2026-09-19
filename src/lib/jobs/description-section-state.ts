@@ -5,10 +5,6 @@
  */
 export type DescriptionSectionState = "body" | "loading" | "pending" | "empty";
 
-/** How long the "loading" state must persist before JobDetail shows the
- *  "Fetching the full description…" status line under the skeleton. */
-export const DESCRIPTION_SLOW_HINT_MS = 1_500;
-
 /**
  * hydrated = job.description !== undefined (the SERP list-scope stub has no
  *   `description` key at all — distinct from a hydrated job that genuinely

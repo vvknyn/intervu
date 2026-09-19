@@ -207,9 +207,9 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
     if (!user) {
         const guestContent = (
             <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-                <h2 className="text-sm font-semibold mb-1">Your resume</h2>
+                <h2 className="text-base font-semibold leading-snug mb-1">Your resume</h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="underline text-brand hover:text-brand">
+                    <button onClick={onLoginClick} className="text-foreground underline underline-offset-2 hover:underline">
                         {AUTH_CTA_LABEL}
                     </button>{" "}
                     to see the resume your agent has on file.
@@ -218,7 +218,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
         );
         if (embedded) {
             return (
-                <div className="mb-3 rounded-none border border-border bg-card p-4">
+                <div className="mb-3 rounded-panel border border-border bg-card p-4">
                     {guestContent}
                 </div>
             );
@@ -240,8 +240,8 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
 
     const content = (
         <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-            <h2 className="text-sm font-semibold mb-1">Your resume</h2>
-            <p className="text-xs text-muted-foreground mb-4">
+            <h2 className="text-base font-semibold leading-snug mb-1">Your resume</h2>
+            <p className="text-sm text-muted-foreground mb-4">
                 {embedded
                     ? "One base file. Edit the template in the browser, or upload a PDF or Word file."
                     : "The resume your agent has on file."}
@@ -288,7 +288,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
 
     if (embedded) {
         return (
-            <div className="mb-3 rounded-none border border-border bg-card p-4">
+            <div className="mb-3 rounded-panel border border-border bg-card p-4">
                 {content}
             </div>
         );
@@ -324,8 +324,8 @@ function ResumeSummaryBody({
 
     if (summary.source === "none") {
         return (
-            <div className="space-y-4 rounded-none border border-border bg-card p-6 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-border bg-muted text-foreground">
+            <div className="space-y-4 rounded-panel border border-border bg-card p-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-pill border border-border bg-muted text-foreground">
                     <FileText size={24} />
                 </div>
                 <div className="space-y-1 max-w-sm mx-auto">
@@ -334,13 +334,13 @@ function ResumeSummaryBody({
                         Edit the standard template in your browser, or upload an existing PDF or Word file.
                     </p>
                 </div>
-                <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
-                    <Button size="sm" onClick={onOpenEditor} className="w-full gap-1.5 text-xs font-semibold rounded-none sm:w-auto">
+                <div className="flex flex-col items-center gap-2 pt-1">
+                    <Button size="sm" onClick={onOpenEditor} className="w-full gap-1.5 text-xs font-semibold rounded-ctl sm:w-auto">
                         <PencilSimple /> Edit template
                     </Button>
-                    <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 text-xs rounded-none sm:w-auto">
-                        <Upload /> Upload
-                    </Button>
+                    <button type="button" onClick={onReplace} className="text-xs text-foreground underline underline-offset-2 hover:underline">
+                        or upload a PDF or Word file
+                    </button>
                 </div>
             </div>
         );
@@ -352,11 +352,11 @@ function ResumeSummaryBody({
                 type="button"
                 size="sm"
                 onClick={onOpenEditor}
-                className="w-full gap-1.5 text-xs font-semibold rounded-none sm:w-auto"
+                className="w-full gap-1.5 text-xs font-semibold rounded-ctl sm:w-auto"
             >
                 <PencilSimple /> Edit template
             </Button>
-            <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 text-xs rounded-none sm:w-auto">
+            <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 text-xs rounded-ctl sm:w-auto">
                 <Upload /> Replace
             </Button>
             {confirmingDelete ? (
@@ -372,7 +372,7 @@ function ResumeSummaryBody({
                     variant="outline"
                     size="sm"
                     onClick={() => setConfirmingDelete(true)}
-                    className="w-full gap-1.5 text-xs text-danger-text hover:text-danger-text rounded-none sm:w-auto"
+                    className="w-full gap-1.5 text-xs text-danger-text hover:text-danger-text rounded-ctl sm:w-auto"
                 >
                     <Trash />
                     Delete
@@ -390,11 +390,11 @@ function ResumeSummaryBody({
     return (
         <div className="space-y-3">
             {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
-            <div className="max-h-[32rem] overflow-y-auto bg-muted p-4">
+            <div className="max-h-96 overflow-y-auto bg-muted p-4">
                 <LiveResumePreview data={resumeData} />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => void downloadBaseResumePdf(summary)} className="w-full text-xs rounded-none sm:w-auto">
+                <Button variant="outline" size="sm" onClick={() => void downloadBaseResumePdf(summary)} className="w-full text-xs rounded-ctl sm:w-auto">
                     Download .pdf
                 </Button>
                 <Button
@@ -405,7 +405,7 @@ function ResumeSummaryBody({
                             ? downloadBlob(summary.resume_text, "resume.txt", "text/plain")
                             : downloadBlob(JSON.stringify(summary.resume_data, null, 2), "resume.json", "application/json")
                     }
-                    className="w-full text-xs rounded-none sm:w-auto"
+                    className="w-full text-xs rounded-ctl sm:w-auto"
                 >
                     {summary.source === "resume_text" ? "Download .txt" : "Download .json"}
                 </Button>
@@ -472,7 +472,7 @@ function ResumeUploadForm({
                     setFileName(null);
                 }}
                 placeholder="Paste your resume text here, or choose a file below…"
-                className="min-h-[160px] font-sans text-base md:text-sm"
+                className="min-h-40 font-sans"
                 disabled={busy}
             />
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -486,7 +486,7 @@ function ResumeUploadForm({
                         if (file) void handleFile(file);
                     }}
                 />
-                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={busy} className="w-full gap-1.5 text-xs rounded-none sm:w-auto">
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={busy} className="w-full gap-1.5 text-xs rounded-ctl sm:w-auto">
                     <Upload />
                     {extracting ? "Reading…" : "Choose file"}
                 </Button>
@@ -494,11 +494,11 @@ function ResumeUploadForm({
             </div>
             {error && <p className="text-xs text-danger-text">{error}</p>}
             <div className="flex flex-col gap-2 sm:flex-row">
-                <Button size="sm" disabled={busy || !text.trim()} onClick={handleSave} className="w-full text-xs font-semibold rounded-none sm:w-auto">
+                <Button size="sm" disabled={busy || !text.trim()} onClick={handleSave} className="w-full text-xs font-semibold rounded-ctl sm:w-auto">
                     {pending ? "Saving…" : "Save"}
                 </Button>
                 {showCancel && (
-                    <Button variant="outline" size="sm" onClick={onCancel} disabled={busy} className="w-full text-xs rounded-none sm:w-auto">
+                    <Button variant="outline" size="sm" onClick={onCancel} disabled={busy} className="w-full text-xs rounded-ctl sm:w-auto">
                         Cancel
                     </Button>
                 )}

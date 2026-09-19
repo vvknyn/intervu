@@ -38,9 +38,18 @@ import { shouldSuppressOpenCount, type OpenCount } from "@/lib/companies/open-co
 import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
-import { resolveDescriptionSectionState, DESCRIPTION_SLOW_HINT_MS } from "@/lib/jobs/description-section-state";
+import { resolveDescriptionSectionState } from "@/lib/jobs/description-section-state";
 import { useDescriptionSettled } from "@/components/jobs/use-description-settled";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
+import { DescriptionLoadingStatus } from "@/components/jobs/for-you/DescriptionLoadingStatus";
+import { FitReasons } from "@/components/jobs/for-you/FitReasons";
+import { DotsThree } from "@phosphor-icons/react";
+import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import type { ResumeData } from "@/types/resume";
 
 /**
@@ -426,6 +435,7 @@ export function JobDetail({
     onRetryDescription,
     resume = null,
     onAcceptLocalTailor,
+    onSkip,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -493,6 +503,11 @@ export function JobDetail({
     /** Local-AI guest/signed-in résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
     onAcceptLocalTailor?: (data: ResumeData) => void;
+    /** Wired to the existing skip/hide mechanism (`useForYouDeck`'s
+     *  `handleSkip`) — present only on the For-you ranked-results surface.
+     *  Renders a quiet overflow (⋯) menu next to Close with one "Hide" item;
+     *  omitted entirely (no menu at all) on every other mount site. */
+    onSkip?: () => void;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -563,16 +578,6 @@ export function JobDetail({
     // confirmed empty), flipped in a `useEffect` so it lands strictly after
     // the render that painted the description — see use-description-settled.ts.
     const descriptionSettled = useDescriptionSettled({ description: job.description, descriptionPending });
-    // Delayed progress message for the "loading" state — resets whenever the
-    // job or the state itself changes, so switching jobs (or a retry landing
-    // on "body"/"pending") never leaves a stale hint counting down.
-    const [showSlowHint, setShowSlowHint] = useState(false);
-    useEffect(() => {
-        setShowSlowHint(false);
-        if (descriptionSectionState !== "loading") return;
-        const timer = setTimeout(() => setShowSlowHint(true), DESCRIPTION_SLOW_HINT_MS);
-        return () => clearTimeout(timer);
-    }, [job.id, descriptionSectionState]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
     // detail panel doesn't run thousands of pixels tall. `collapseDescription`
     // (default true) is the seam that turns this off for mount sites that
@@ -771,6 +776,24 @@ export function JobDetail({
                                 <TooltipContent className="text-xs">Copy link</TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
+                        {onSkip && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        aria-label="More actions"
+                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                    >
+                                        <DotsThree size={20} weight="bold" aria-hidden />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem data-testid="job-detail-hide" onSelect={onSkip}>
+                                        Hide
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                         {onClose && (
                             <button
                                 type="button"
@@ -996,6 +1019,13 @@ export function JobDetail({
                     </div>
                 )}
 
+                {/* Why this fits (mock B5) — same MatchChip already mounted in
+                    the title row, reused (never a second "Fit N" pill). Gated
+                    on the same `matchScore` presence check as that chip. */}
+                {matchScore && (
+                    <FitReasons job={job} score={matchScore} asOfDate={matchAsOfDate} resume={resume} jobId={job.id} />
+                )}
+
                 {/* Posting check (rulebook item e): white card on the panel's
                     grey fill (rounded-panel, no border) — same header/
                     signals-grid/footer as before, only the container gained
@@ -1171,11 +1201,9 @@ export function JobDetail({
                                             <div className="skeleton-bar h-3.5 w-full" />
                                             <div className="skeleton-bar h-3.5 w-5/6" />
                                         </div>
-                                        {showSlowHint && (
-                                            <p className="mt-3 text-xs text-muted-foreground" aria-live="polite">
-                                                Fetching the full description from the employer&apos;s site…
-                                            </p>
-                                        )}
+                                        <div className="mt-3">
+                                            <DescriptionLoadingStatus />
+                                        </div>
                                     </>
                                 );
                             case "pending":

@@ -4,16 +4,15 @@ import {
   type ComparisonBoard,
 } from "@/lib/seo/board-comparison";
 
-const TH =
-  "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
-const TD = "border-t border-foreground px-4 py-3 align-top";
+const TH = "px-4 py-3 text-left text-xs font-semibold text-muted-foreground";
+const TD = "border-t border-border px-4 py-3 align-top";
 
 export function BoardComparisonTable({ board }: { board: ComparisonBoard }) {
   return (
     <div className="overflow-x-auto">
       <table
         data-testid={`board-comparison-${board}`}
-        className="w-full border-collapse border border-foreground text-[13.5px]"
+        className="w-full border-collapse border border-border text-sm"
       >
         <thead>
           <tr>

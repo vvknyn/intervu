@@ -29,12 +29,21 @@
  * 0`, it is a no-op for every caller regardless of auth (`ANON_MAX_OFFSET`
  * only gates `offset >= 90`), so skipping it changes nothing observable.
  *
- * `Cache-Control` is set only when the description came back complete — a
- * `descriptionPending` response must never be cached, or a retry within the
- * 60s window would replay the stale pending stub instead of re-checking.
+ * `Cache-Control` is set only when the result is both complete (no
+ * `descriptionPending`, or a retry within the 60s window would replay the
+ * stale pending stub instead of re-checking) AND authoritative
+ * (`isAuthoritativeResult`, lib/jobs/result-state.ts — the SAME predicate
+ * `classifyExistenceCheck` uses, so this route and the client's own
+ * existence-check classifier can never drift on what counts as a trustworthy
+ * envelope). A Meili-outage envelope (`unavailable: true`) or a
+ * served-from-cache degraded envelope (`meta.degraded`) both come back as a
+ * 200 today; without this, the browser would cache and replay that failure
+ * for 60s and the "try again" retry (jobs/page.tsx, yours/[id]/page.tsx)
+ * would silently re-read it instead of re-checking.
  */
 import { NextResponse } from "next/server";
 import { hydrateJobDescription, type HydrateDescriptionResult } from "@/lib/jobs/hydrate-description";
+import { isAuthoritativeResult } from "@/lib/jobs/result-state";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowSearchRequest } from "@/lib/shield/rate-limit";
 
@@ -51,17 +60,16 @@ export function isValidJobId(raw: string | undefined): raw is string {
 
 /**
  * Pure: the `Cache-Control` decision for a hydrate result — set ONLY when
- * the description came back complete (never on a `descriptionPending`
- * response, or a retry within the 60s window would replay the stale
- * pending stub instead of re-checking). Split out so this decision is
+ * the result is both complete (`descriptionPending !== true`) AND
+ * authoritative (`isAuthoritativeResult`). Split out so this decision is
  * directly unit-testable without a real Request/`next/headers()` scope —
  * same posture `resolveCountRouteTotal` (api/jobs/count/route.ts) and
  * `resolveSuggestQuery` (api/jobs/suggest/route.ts) already take for their
  * own routes' pure decisions.
  */
 export function describeResponseInit(result: HydrateDescriptionResult): ResponseInit | undefined {
-  const complete = result.descriptionPending !== true;
-  return complete ? { headers: { "Cache-Control": "private, max-age=60" } } : undefined;
+  const cacheable = isAuthoritativeResult(result) && result.descriptionPending !== true;
+  return cacheable ? { headers: { "Cache-Control": "private, max-age=60" } } : undefined;
 }
 
 export async function GET(

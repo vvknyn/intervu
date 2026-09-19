@@ -7,27 +7,7 @@ import { getEmailPreferencesAction, setDigestPreferenceAction, type EmailPrefere
 import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
-
-/** Same hand-rolled switch idiom `AgentPreferencesSection.tsx` already
- *  uses ("Remote only") — one toggle pattern, not a second one invented
- *  here. */
-function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
-    return (
-        <button
-            type="button"
-            onClick={onChange}
-            disabled={disabled}
-            role="switch"
-            aria-checked={checked}
-            aria-busy={disabled || undefined}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-none border border-border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${checked ? "bg-brand text-brand-foreground" : "bg-muted"}`}
-        >
-            <span
-                className={`inline-block h-4 w-4 rounded-none border border-border bg-card transition-transform ${checked ? "translate-x-[23px]" : "translate-x-[3px]"}`}
-            />
-        </button>
-    );
-}
+import { Switch } from "@/components/settings/Switch";
 
 export function EmailPreferencesSection({ user }: { user: User | null }) {
     const [prefs, setPrefs] = useState<EmailPreferences | null>(null);
@@ -65,8 +45,8 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
 
     return (
         <div>
-            <h2 className="mb-1 text-sm font-semibold">Email</h2>
-            <p className="mb-4 text-xs text-muted-foreground">Which emails velai sends you.</p>
+            <h2 className="mb-1 text-base font-semibold leading-snug">Email</h2>
+            <p className="mb-4 text-sm text-muted-foreground">Which emails velai sends you.</p>
 
             {prefs ? (
                 prefs.needsEmail ? (
@@ -81,7 +61,7 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                             setPendingEmail(email);
                             setEmailState("pending-confirmation");
                         }}
-                        className="rounded-none border border-border p-4"
+                        className="rounded-panel border border-border p-4"
                     />
                 ) : (
                     <div className="flex items-center justify-between gap-4">
@@ -92,7 +72,7 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                                 {prefs.blockedGlobally && " Blocked — you've unsubscribed from all velai emails."}
                             </p>
                         </div>
-                        <Switch checked={prefs.digestEnabled} onChange={() => void toggleDigest()} disabled={saving} />
+                        <Switch checked={prefs.digestEnabled} onChange={() => void toggleDigest()} disabled={saving} aria-label="Weekly digest" />
                     </div>
                 )
             ) : (
