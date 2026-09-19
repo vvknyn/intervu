@@ -49,6 +49,39 @@ export function shouldGateRenderNothing(unlocked: boolean, fallback: ReactNode |
   return !unlocked && fallback === null;
 }
 
+/** The gate's built-in lock card, factored out of `CompanyIntelGateInner` so
+ *  a mock/preview harness can render the exact same markup a locked call
+ *  site would show, without needing a live follow/session state to reach
+ *  it — `CompanyIntelGateInner` (below) still calls this for its default
+ *  `fallback`. */
+export function CompanyIntelLockCard({
+  domain,
+  slug,
+  displayName,
+  description,
+  showFollowButton = true,
+}: Pick<CompanyIntelGateProps, "domain" | "slug" | "displayName" | "description" | "showFollowButton">) {
+  return (
+    <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-panel border border-border bg-card px-6 py-6">
+      <p className="text-sm font-semibold text-foreground">Follow this company to see its hiring history</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {description ?? `Recent hiring changes, funding, tech stack, and news for ${displayName} — visible once you follow.`}
+      </p>
+      <p className="text-xs font-semibold text-muted-foreground">Followers only</p>
+      {showFollowButton && (
+        <CompanyFollowControl
+          domain={domain}
+          slug={slug}
+          displayName={displayName}
+          variant="primary"
+          idleLabel="Follow this company to see its hiring history"
+          className="items-center"
+        />
+      )}
+    </div>
+  );
+}
+
 export function CompanyIntelGate(props: CompanyIntelGateProps) {
   const shared = useCompanyFollowChannel();
   if (shared) {
@@ -88,23 +121,13 @@ function CompanyIntelGateInner({
 
   const lockCard =
     fallback ?? (
-      <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-panel border border-border bg-card px-6 py-6">
-        <p className="text-sm font-semibold text-foreground">Follow this company to see its hiring history</p>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          {description ?? `Recent hiring changes, funding, tech stack, and news for ${displayName} — visible once you follow.`}
-        </p>
-        <p className="text-xs font-semibold text-muted-foreground">Followers only</p>
-        {showFollowButton && (
-          <CompanyFollowControl
-            domain={domain}
-            slug={slug}
-            displayName={displayName}
-            variant="primary"
-            idleLabel="Follow this company to see its hiring history"
-            className="items-center"
-          />
-        )}
-      </div>
+      <CompanyIntelLockCard
+        domain={domain}
+        slug={slug}
+        displayName={displayName}
+        description={description}
+        showFollowButton={showFollowButton}
+      />
     );
 
   return (
