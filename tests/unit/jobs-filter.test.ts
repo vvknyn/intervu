@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildFilter } from "../../src/lib/jobs/meilisearch";
+import { buildFilter, REMOTE_ANYWHERE_CLAUSE } from "../../src/lib/jobs/meilisearch";
 import { resolveLocationFacet } from "../../src/lib/jobs/query-understanding";
 import { buildGazetteerIndex, type GazetteerData } from "../../src/lib/geo/gazetteer";
 import type { CorpusValueChecker } from "../../src/lib/geo/corpus-values";
@@ -165,5 +165,9 @@ test("postedBucket 1d AND a resolved Canada place both reach buildFilter — Pas
     assert.ok(
         f.some((c) => c.includes('location_country = "Canada"')),
         `expected Canada place clause alongside posted_ts: ${JSON.stringify(f)}`,
+    );
+    assert.ok(
+        !f.some((c) => c.includes(REMOTE_ANYWHERE_CLAUSE)),
+        `explicit Canada must not OR untagged remotes: ${JSON.stringify(f)}`,
     );
 });

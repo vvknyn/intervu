@@ -63,7 +63,7 @@ export async function resolveLocationDefault(
   const [any] = await corpusChecker([candidates]);
   if (any.length === 0) return null;
   // A country-level default IS the country — nothing left to further scope.
-  return { places: [placeClause(any, { country: true })], countryCode: iso2 };
+  return { places: [placeClause(any, { country: true, remoteAnywhere: true })], countryCode: iso2 };
 }
 
 /**
@@ -79,7 +79,7 @@ export async function resolveLocationDefault(
  */
 export function placesForCountry(iso2: string, gazetteer: Gazetteer): PlaceClause[] | undefined {
   const candidates = countryPlaceCandidates(iso2, gazetteer);
-  return candidates?.length ? [placeClause(candidates, { country: true })] : undefined;
+  return candidates?.length ? [placeClause(candidates, { country: true, remoteAnywhere: true })] : undefined;
 }
 
 export interface LocationDefaultApplication {
@@ -92,8 +92,8 @@ export interface LocationDefaultApplication {
   /** Whether the applied default's own place clause also OR's in every
    *  remote role with no country tag (`PlaceClause.remoteAnywhere`,
    *  resolve-place.ts) — read off the SAME clause `params.places` now holds,
-   *  never assumed. A country-level default sets it unconditionally today
-   *  (`placeClause(any, { country: true })`), but this derives it rather
+   *  never assumed. A country-level default passes `remoteAnywhere: true`
+   *  into `placeClause`, but this derives it rather
    *  than hardcoding that fact, so a UI label built from it can't go stale
    *  if that ever changes. Present only alongside `defaultedLocation`. */
   remoteAnywhere?: boolean;
