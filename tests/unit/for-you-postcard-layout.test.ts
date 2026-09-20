@@ -57,12 +57,26 @@ describe("for-you postcard layout", () => {
         assert.doesNotMatch(deck, /addEventListener\("wheel"/);
         assert.match(deck, /key=\{activePack\.id\}/, "keyed by job id so a new job starts at scrollTop 0");
         assert.doesNotMatch(deck, /flex-1 overflow-hidden/);
+        assert.doesNotMatch(deck, /min-h-\[min\(72dvh/, "deck must not mimic a viewport-height trap");
     });
 
-    it("keeps the pack ONE native scroller (JD scroll inside the postcard only)", () => {
+    it("JD column only is the inner scroller — header and fit/why stay outside data-pack-scroll", () => {
         const pack = source("ForYouPack.tsx");
         assert.match(pack, /data-pack-scroll/);
-        assert.match(pack, /data-pack-scroll[\s\S]*overflow-y-auto/);
+        assert.match(pack, /JD_SCROLL_CLASS[\s\S]*overflow-y-auto[\s\S]*max-h-\[min\(60dvh,640px\)\]/);
+        assert.match(pack, /data-pack-scroll className=\{JD_SCROLL_CLASS\}/);
+        assert.doesNotMatch(pack, /overscroll-contain/);
+        assert.doesNotMatch(pack, /data-pack-scroll[\s\S]*sticky top-0/, "header must not live inside the JD scroller");
+        assert.match(
+            pack,
+            /lg:grid-cols-\[280px_1fr\]/,
+            "desktop: fit/why column left, JD column right",
+        );
+        const scrollIdx = pack.indexOf("data-pack-scroll");
+        const asideIdx = pack.indexOf("<aside");
+        const headerIdx = pack.indexOf("border-b border-border bg-muted");
+        assert.ok(headerIdx < scrollIdx, "pack header must render before the JD scroller");
+        assert.ok(asideIdx < scrollIdx, "fit/why aside must render before the JD scroller");
         assert.doesNotMatch(pack, /max-h-\[40%\]/);
         assert.doesNotMatch(pack, /data-pack-meta-scroll/);
         assert.doesNotMatch(pack, /lg:min-h-\[420px\]/);

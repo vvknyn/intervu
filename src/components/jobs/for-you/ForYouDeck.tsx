@@ -74,7 +74,7 @@ export function ForYouDeck({
                 matchScore={matchScores?.get(activePack.id) ?? null}
                 resume={resume}
                 nowMs={nowMs}
-                className="fade-in min-h-[min(72dvh,800px)]"
+                className="fade-in"
             />
         </div>
     );

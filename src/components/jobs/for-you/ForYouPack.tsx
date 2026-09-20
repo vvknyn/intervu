@@ -38,6 +38,10 @@ export interface ForYouPackProps {
  */
 const SECTION_LABEL = "text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
 
+/** JD column — the only inner scroller; capped so wheel events chain to the page at the ends. */
+const JD_SCROLL_CLASS =
+    "min-w-0 overflow-y-auto max-h-[min(60dvh,640px)] custom-scrollbar";
+
 /** Employer-stated fact — quiet/neutral, same chip primitive everywhere. */
 const STATED_CHIP_CLASS = cn(chipVariants({ active: false }), "h-7 px-2.5 text-xs");
 
@@ -52,8 +56,8 @@ const DERIVED_CHIP_CLASS = cn(chipVariants({ active: true }), "h-7 px-2.5 text-x
  * The card's headline number: big total + bar, brand tone once the score
  * clears the same threshold the SERP row's Fit chip uses (no new
  * red/amber semantics — at/above brand, below neutral). Lives in the
- * sticky header; the aside's `FitBreakdown` covers the per-component
- * detail below and does not repeat this total.
+ * header; the aside's `FitBreakdown` covers the per-component detail below
+ * and does not repeat this total.
  */
 function FitReadout({ score, strong }: { score: MatchScore; strong: boolean }) {
     return (
@@ -153,115 +157,108 @@ export function ForYouPack({
     const paneState = descriptionPaneState(descriptionPending, sections);
     const hasAside = matchScore != null || reasons.bullets.length > 0 || reasons.chips.length > 0;
 
+    const descriptionPane =
+        paneState === "loading" ? (
+            <DescriptionLoadingStatus />
+        ) : paneState === "empty" ? (
+            <p className="text-sm text-muted-foreground">No description available for this role.</p>
+        ) : (
+            <div className="space-y-6">
+                {sections.about.length > 0 && (
+                    <section>
+                        <h4 className={cn(SECTION_LABEL, "mb-2")}>About</h4>
+                        <JobDescription blocks={sections.about} headingLevel={4} />
+                    </section>
+                )}
+                {sections.responsibilities.length > 0 && (
+                    <section>
+                        <h4 className={cn(SECTION_LABEL, "mb-2")}>Responsibilities</h4>
+                        <JobDescription blocks={sections.responsibilities} headingLevel={4} />
+                    </section>
+                )}
+                {sections.requirements.length > 0 && (
+                    <section>
+                        <h4 className={cn(SECTION_LABEL, "mb-2")}>Requirements</h4>
+                        <JobDescription blocks={sections.requirements} headingLevel={4} />
+                    </section>
+                )}
+            </div>
+        );
+
     return (
         <div
             data-testid="for-you-pack"
-            className={cn(
-                "flex min-h-0 flex-col overflow-hidden border border-border bg-card",
-                className,
-            )}
+            className={cn("flex flex-col border border-border bg-card", className)}
         >
-            <div
-                data-pack-scroll
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar"
-            >
-                <div className="sticky top-0 z-10 border-b border-border bg-muted p-4 lg:p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex min-w-0 flex-1 items-start gap-3">
-                            <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
-                            <div className="min-w-0">
-                                <p className={SECTION_LABEL}>{company}</p>
-                                <h2 className="text-title-sm font-semibold text-foreground lg:text-title">
-                                    {displayJob.title}
-                                </h2>
-                                {place && <p className="mt-0.5 text-sm text-muted-foreground">{place}</p>}
-                            </div>
+            <div className="border-b border-border bg-muted p-4 lg:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
+                        <div className="min-w-0">
+                            <p className={SECTION_LABEL}>{company}</p>
+                            <h2 className="text-title-sm font-semibold text-foreground lg:text-title">
+                                {displayJob.title}
+                            </h2>
+                            {place && <p className="mt-0.5 text-sm text-muted-foreground">{place}</p>}
                         </div>
-                        {matchScore ? (
-                            <FitReadout score={matchScore} strong={strongFit} />
-                        ) : (
-                            <NoScoreReadout reason={noScore!} />
-                        )}
                     </div>
-                    {factChips.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            {factChips.map((chip) => {
-                                const Icon = FACT_CHIP_ICON[chip.kind];
-                                return (
-                                    <span key={chip.kind} className={cn(STATED_CHIP_CLASS, "gap-1.5")}>
-                                        {Icon && (
-                                            <Icon size={16} weight="bold" className="shrink-0" aria-hidden />
-                                        )}
-                                        {chip.label}
-                                    </span>
-                                );
-                            })}
-                        </div>
+                    {matchScore ? (
+                        <FitReadout score={matchScore} strong={strongFit} />
+                    ) : (
+                        <NoScoreReadout reason={noScore!} />
                     )}
                 </div>
+                {factChips.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        {factChips.map((chip) => {
+                            const Icon = FACT_CHIP_ICON[chip.kind];
+                            return (
+                                <span key={chip.kind} className={cn(STATED_CHIP_CLASS, "gap-1.5")}>
+                                    {Icon && (
+                                        <Icon size={16} weight="bold" className="shrink-0" aria-hidden />
+                                    )}
+                                    {chip.label}
+                                </span>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
 
-                <div className={cn("grid gap-6 p-4 lg:p-6", hasAside && "lg:grid-cols-[1fr_280px]")}>
-                    <div className="min-w-0">
-                        {paneState === "loading" ? (
-                            <DescriptionLoadingStatus />
-                        ) : paneState === "empty" ? (
-                            <p className="text-sm text-muted-foreground">
-                                No description available for this role.
-                            </p>
+            <div className={cn("grid gap-6 p-4 lg:p-6", hasAside && "lg:grid-cols-[280px_1fr]")}>
+                {hasAside && (
+                    <aside className="min-w-0 space-y-6 border border-border bg-muted p-4">
+                        {matchScore ? (
+                            <FitBreakdown score={matchScore} />
                         ) : (
-                            <div className="space-y-6">
-                                {sections.about.length > 0 && (
-                                    <section>
-                                        <h4 className={cn(SECTION_LABEL, "mb-2")}>About</h4>
-                                        <JobDescription blocks={sections.about} headingLevel={4} />
-                                    </section>
+                            <NoScoreBreakdown reason={noScore!} />
+                        )}
+                        {(reasons.bullets.length > 0 || reasons.chips.length > 0) && (
+                            <div>
+                                <h3 className={SECTION_LABEL}>What we inferred</h3>
+                                {reasons.bullets.length > 0 && (
+                                    <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-foreground">
+                                        {reasons.bullets.map((bullet) => (
+                                            <li key={bullet}>{bullet}</li>
+                                        ))}
+                                    </ul>
                                 )}
-                                {sections.responsibilities.length > 0 && (
-                                    <section>
-                                        <h4 className={cn(SECTION_LABEL, "mb-2")}>Responsibilities</h4>
-                                        <JobDescription blocks={sections.responsibilities} headingLevel={4} />
-                                    </section>
-                                )}
-                                {sections.requirements.length > 0 && (
-                                    <section>
-                                        <h4 className={cn(SECTION_LABEL, "mb-2")}>Requirements</h4>
-                                        <JobDescription blocks={sections.requirements} headingLevel={4} />
-                                    </section>
+                                {reasons.chips.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {reasons.chips.map((chip) => (
+                                            <span key={chip} className={DERIVED_CHIP_CLASS}>
+                                                {chip}
+                                            </span>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         )}
-                    </div>
+                    </aside>
+                )}
 
-                    {hasAside && (
-                        <aside className="min-w-0 space-y-6 border border-border bg-muted p-4">
-                            {matchScore ? (
-                                <FitBreakdown score={matchScore} />
-                            ) : (
-                                <NoScoreBreakdown reason={noScore!} />
-                            )}
-                            {(reasons.bullets.length > 0 || reasons.chips.length > 0) && (
-                                <div>
-                                    <h3 className={SECTION_LABEL}>What we inferred</h3>
-                                    {reasons.bullets.length > 0 && (
-                                        <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-foreground">
-                                            {reasons.bullets.map((bullet) => (
-                                                <li key={bullet}>{bullet}</li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                    {reasons.chips.length > 0 && (
-                                        <div className="mt-2 flex flex-wrap gap-2">
-                                            {reasons.chips.map((chip) => (
-                                                <span key={chip} className={DERIVED_CHIP_CLASS}>
-                                                    {chip}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </aside>
-                    )}
+                <div data-pack-scroll className={JD_SCROLL_CLASS}>
+                    {descriptionPane}
                 </div>
             </div>
         </div>

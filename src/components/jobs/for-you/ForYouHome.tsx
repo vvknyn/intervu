@@ -58,7 +58,7 @@ export interface ForYouHomeProps {
  *  pre-résumé shell must stay free of both (first-paint spec rule). */
 function ForYouPackSkeleton() {
     return (
-        <div className="flex min-h-[min(72dvh,800px)] flex-col overflow-hidden border border-border bg-card">
+        <div className="flex flex-col border border-border bg-card">
             <div className="border-b border-border bg-muted p-4 lg:p-6">
                 <div className="flex items-start gap-3">
                     <Skeleton className="size-10 shrink-0" />
@@ -74,19 +74,19 @@ function ForYouPackSkeleton() {
                     <Skeleton className="h-7 w-16" />
                 </div>
             </div>
-            <div className="grid flex-1 gap-6 p-4 lg:grid-cols-[1fr_280px] lg:p-6">
-                <div className="space-y-3">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-5/6" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-2/3" />
-                </div>
+            <div className="grid gap-6 p-4 lg:grid-cols-[280px_1fr] lg:p-6">
                 <div className="hidden border border-border bg-muted p-4 lg:block">
                     <Skeleton className="h-3 w-20" />
                     <Skeleton className="mt-3 h-2 w-full" />
                     <Skeleton className="mt-4 h-3 w-24" />
                     <Skeleton className="mt-2 h-2 w-full" />
+                </div>
+                <div className="max-h-[min(60dvh,640px)] space-y-3">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-5/6" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
                 </div>
             </div>
         </div>
