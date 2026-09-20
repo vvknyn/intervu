@@ -50,6 +50,11 @@ test("hasLocationSignal: true with an explicit location_country facet — the pa
   assert.equal(hasLocationSignal({ facets: { location_country: ["Canada"] } }), true);
 });
 
+test("hasLocationSignal: true with an explicit location_city or location_state facet — picked typeahead values count too", () => {
+  assert.equal(hasLocationSignal({ facets: { location_city: ["Toronto"] } }), true);
+  assert.equal(hasLocationSignal({ facets: { location_state: ["Ontario"] } }), true);
+});
+
 test("hasLocationSignal: override precedence — suppressLocationDefault alone (no place, no facet) still suppresses", () => {
   assert.equal(hasLocationSignal({ suppressLocationDefault: true }), true);
   assert.equal(hasLocationSignal({ suppressLocationDefault: false }), false);

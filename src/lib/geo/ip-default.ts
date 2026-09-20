@@ -9,6 +9,7 @@
  * `suppressLocationDefault`) without typing anything — same gate, honored
  * independent of whether a signal happens to be present too.
  */
+import { LOCATION_FACET_FIELDS } from "../jobs/meilisearch";
 import type { JobSearchParams, PlaceClause } from "../jobs/types";
 import type { Gazetteer } from "./gazetteer";
 import { countryPlaceCandidates, placeClause } from "./resolve-place";
@@ -18,7 +19,7 @@ import type { CountryLookup } from "./ip-country";
 /**
  * True when `resolveLocationDefault` must NOT run — either the searcher
  * already said WHERE (a typed/MCP place landed in `places`, or an explicit
- * `location_country` facet click), or they said "don't guess"
+ * location facet click on any location field), or they said "don't guess"
  * (`suppressLocationDefault`, set once and persisted client-side after the
  * default-location chip is dismissed). The two are independent: an explicit
  * place always wins on its own, and the override holds even for a query
@@ -30,7 +31,7 @@ export function hasLocationSignal(
   return (
     Boolean(p.suppressLocationDefault) ||
     Boolean(p.places?.length) ||
-    Boolean(p.facets?.location_country?.length)
+    LOCATION_FACET_FIELDS.some((field) => Boolean(p.facets?.[field]?.length))
   );
 }
 

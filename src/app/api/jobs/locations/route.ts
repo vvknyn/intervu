@@ -28,6 +28,7 @@ import {
     LOCATION_SUGGEST_FIELDS,
     LOCATION_SUGGEST_PER_FIELD,
     planLocationQuery,
+    prioritizeCountryMatch,
 } from "@/lib/jobs/location-suggest";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowJobsLocationRequest } from "@/lib/shield/rate-limit";
@@ -91,9 +92,12 @@ async function buildPlaceGroups(plan: LocationQueryPlan): Promise<LocationSugges
     // into a city/state facet (see misfiled-country.ts) — loaded here, on
     // the server, because the model itself is client-bundled and must not
     // import the gazetteer JSON.
-    return applyLabelPrefix(
-        buildLocationSuggestions(hitsByField, LOCATION_SUGGEST_PER_FIELD, loadGazetteer()),
-        plan.labelPrefix,
+    return prioritizeCountryMatch(
+        applyLabelPrefix(
+            buildLocationSuggestions(hitsByField, LOCATION_SUGGEST_PER_FIELD, loadGazetteer()),
+            plan.labelPrefix,
+        ),
+        plan.facetQuery,
     );
 }
 

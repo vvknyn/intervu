@@ -3267,6 +3267,9 @@ function JobsContent() {
         const current = filterState.facets[targetKey] ?? [];
         const next = addLocationValue(current, trimmed);
         if (next === current) return; // already filtered on this place
+        // Explicit place choice supersedes the IP default — same write path
+        // the location sheet uses when the searcher commits their own place.
+        suppressLocationDefault();
         applyFilterStateWithIntent({
             ...filterState,
             facets: { ...filterState.facets, [targetKey]: next },
@@ -3276,7 +3279,7 @@ function JobsContent() {
                 search: { query: query.trim(), location: next[0]?.trim() || undefined },
             }).catch(() => {});
         }
-    }, [filterState, user, query, applyFilterStateWithIntent]);
+    }, [filterState, user, query, applyFilterStateWithIntent, suppressLocationDefault]);
 
     /** Drop every chosen place — what the field's own "✕ clear location"
      *  means. Removing ONE place is the chips row's job, which already has a
