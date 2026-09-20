@@ -4786,13 +4786,7 @@ function JobsContent() {
      * (`src/app/page.tsx`), not on this route.
      */
     return (
-        <div
-            className={cn(
-                showSearchHome
-                    ? "min-h-screen"
-                    : "flex h-[calc(100dvh-var(--topbar-h))] max-h-[calc(100dvh-var(--topbar-h))] flex-col overflow-hidden",
-            )}
-        >
+        <div className="min-h-screen">
             {/* `data-shell="bleed"` is this page ASKING for the full window;
                 globals.css turns that into `--shell-max: none` for the header
                 and footer too, so all three left edges stay together. Each
@@ -4803,8 +4797,8 @@ function JobsContent() {
             <div
                 data-shell="bleed"
                 className={cn(
-                    "shell-row flex min-h-0 flex-col pt-2 sm:pt-3",
-                    showSearchHome
+                    "shell-row flex flex-col pt-2 sm:pt-3 lg:pb-20",
+                    showSearchHome && showMobileSearchCta
                         ? // Below lg, `mobile-search-cta` and the tab bar are both
                           // FIXED overlays stacked over this scroll area's bottom
                           // edge (z-[180] and z-50) — content there needs bottom
@@ -4814,13 +4808,8 @@ function JobsContent() {
                           // numbers those elements render at, so this can never
                           // under-clear what's really on screen. lg+ has neither
                           // overlay (both `lg:hidden`), hence the flat `lg:pb-20`.
-                          cn(
-                              "lg:pb-20",
-                              showMobileSearchCta
-                                  ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))]"
-                                  : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))]",
-                          )
-                        : "flex-1 overflow-hidden pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-3",
+                          "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))]"
+                        : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))]",
                 )}
             >
                 {/* Landing masthead — mounts whenever the front door is "at
@@ -5370,7 +5359,7 @@ function JobsContent() {
                     )}
 
                 {showForYouHome ? (
-                    <div className={cn("mt-2 flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
+                    <div className={cn("mt-2", cappedContentClass)}>
                         <ForYouHome
                             visiblePacks={forYouDeck.visiblePacks}
                             activeIndex={forYouDeck.activeIndex}
@@ -5378,10 +5367,8 @@ function JobsContent() {
                             activeJob={forYouDeck.activeJob}
                             onSkip={forYouDeck.handleSkip}
                             matchScores={matchScores}
-                            matchAsOfDate={resumeAsOfDate}
                             resume={resume}
                             nowMs={nowMs}
-                            lastUpdated={lastUpdated}
                             fitResolving={fitResolving}
                             loading={loading}
                             fitActive={fitActive}
@@ -5390,26 +5377,12 @@ function JobsContent() {
                             onOpenPosting={handleOpenPosting}
                             onHomeViewChange={setJobsHomeView}
                             showSearchCta={resumeOnFile === true}
-                            signedIn={Boolean(user)}
-                            onRequestSignIn={() => {
-                                setAuthGateReason("report");
-                                setAuthTrigger("auto");
-                                if (forYouDeck.activeJob) gate({ kind: "report", payload: forYouDeck.activeJob });
-                            }}
-                            pursuitsByJobId={pursuitsByJobId}
-                            onGoAfter={handleGoAfter}
-                            goingAfterId={goingAfterId}
-                            reportJobEnabled={reportJobEnabled}
-                            reportDialogOpen={reportDialogOpen}
-                            onReportDialogOpenChange={setReportDialogOpen}
-                            onAcceptLocalTailor={(data) => {
-                                setResume(data);
-                                if (localAiEnabled) writeLocalAiResume(data);
-                            }}
+                            onReplaceResume={beginResumeUpload}
+                            hasUsableResume={hasUsableResume}
                         />
                     </div>
                 ) : showJobsHomePending ? (
-                    <div className={cn("mt-2 flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
+                    <div className={cn("mt-2", cappedContentClass)}>
                         <ForYouHomePending />
                     </div>
                 ) : (

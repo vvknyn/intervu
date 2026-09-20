@@ -17,15 +17,13 @@ describe("for-you mobile chrome", () => {
         assert.doesNotMatch(src, /text-xs/, "segments use the chip text size (text-sm), not text-xs");
     });
 
-    it("ForYouHome's preference row wraps and its Edit link shares the toolbar's tap-target height", () => {
+    it("ForYouHome keeps pack navigation and skip controls at phone-friendly tap targets", () => {
         const src = readFileSync(join(FOR_YOU, "ForYouHome.tsx"), "utf8");
-        assert.match(src, /data-testid="for-you-preferences"/);
-        assert.match(src, /flex shrink-0 flex-wrap items-center gap-2/);
-        assert.match(src, /import \{ toolbarChipClass \} from "@\/lib\/jobs\/toolbar-control-height"/);
-        const editLinkBlock =
-            src.match(/<Link\s+href="\/settings"[\s\S]*?<\/Link>/)?.[0] ?? "";
-        assert.match(editLinkBlock, /toolbarChipClass/);
-        assert.match(editLinkBlock, /Edit preferences/);
+        assert.doesNotMatch(src, /for-you-preferences/, "preference chips are Search-only");
+        assert.match(src, /data-testid="for-you-skip"/);
+        assert.match(src, /data-testid="for-you-next"/);
+        assert.match(src, /data-testid="for-you-previous"/);
+        assert.match(src, /h-11 min-h-11[\s\S]*data-testid="for-you-skip"/);
     });
 
     it("LocalCustomizePanel dialog and footer actions are phone-friendly", () => {
