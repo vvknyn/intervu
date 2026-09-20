@@ -408,9 +408,8 @@ async function resolvePhraseOrRawLiteral(
   const exact = await resolveExactFacetValue(phrase, vocab);
   if (exact.length > 0) {
     // A literal that matched an exact location_country value IS a country
-    // filter from the searcher's point of view — this clause already ORs
-    // city/state/country readings of the same string, and remote-anywhere
-    // is one more such reading (placeClause, geo/resolve-place.ts).
+    // filter from the searcher's point of view — explicit picks do not OR in
+    // untagged remotes; only the IP default does (placeClause, resolve-place.ts).
     const country = exact.some((f) => f.field === "location_country");
     return { places: [placeClause(exact, { country })], unmatched: [] };
   }

@@ -377,7 +377,7 @@ export async function getDefaultBrowseAction(
     searchId: string;
     /** See `LocationDefaultApplication.remoteAnywhere` (lib/geo/ip-default.ts)
      *  — same gate as `defaultedLocation` here too: `placesForCountry` calls
-     *  the same `placeClause(..., { country: true })` `resolveLocationDefault`
+     *  the same `placeClause(..., { remoteAnywhere: true })` `resolveLocationDefault`
      *  does, so it's read off `places` itself rather than assumed. */
     remoteAnywhere?: boolean;
   }

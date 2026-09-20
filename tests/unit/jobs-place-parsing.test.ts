@@ -102,7 +102,7 @@ const VOCAB = fakeVocab([
 test("the screenshot case: 'Technical Account Manager canada' becomes a Canada FILTER, not a content word", async () => {
   const { residualQ, places } = await parsePlaceTokens("Technical Account Manager canada", VOCAB);
   assert.equal(residualQ, "Technical Account Manager");
-  assert.deepEqual(places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
+  assert.deepEqual(places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
 });
 
 test("multi-word places match longest-first and leave the rest of the query alone", async () => {
@@ -331,7 +331,7 @@ test("not just the surfacing instance — a typed CITY ('toronto') resolves the 
 
 test("a typed COUNTRY ('canada') goes through resolution too — the corpus's own casing, not the typed casing", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["canada"] } }, VOCAB);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
   assert.equal(p.facets?.location_country, undefined);
 });
 
@@ -361,10 +361,9 @@ test("a real gazetteer place this corpus has no postings for is ALSO dropped and
 
 test("a value WITH corpus support keeps its exact facet (no regression): a raw-ingest literal the gazetteer can't resolve as any place, but the corpus genuinely has, still becomes a filter", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["worldwide"] } }, VOCAB);
-  // Ruling (Vivek, Sep 2026): an exact location_country hit IS a country
-  // filter even when the gazetteer never recognized the string as a place —
-  // see placeClause's doc (geo/resolve-place.ts) for the raw-literal caller.
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Worldwide" }], remoteAnywhere: true }]);
+  // An exact location_country hit IS a country filter even when the gazetteer
+  // never recognized the string — but explicit picks do not OR untagged remotes.
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Worldwide" }] }]);
   assert.equal(p.facets?.location_country, undefined);
   assert.equal(p.unmatchedPlaceMentions, undefined, "a value the corpus actually has is never reported as unmatched");
 });
@@ -389,7 +388,7 @@ test("country=all widen sentinel is treated the same as any", async () => {
 
 test("mixed sentinel + real place: any is ignored, sibling still resolves, any not unmatched", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["any", "canada"] } }, VOCAB);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
   assert.equal(p.facets?.location_country, undefined);
   assert.equal(p.unmatchedPlaceMentions, undefined);
   assert.ok(
@@ -457,7 +456,7 @@ test("tiered resolution: confirms the fixture actually exercises the bug's mecha
 test("tiered resolution step 1: a phrase that fully tokenizes never reaches the literal probe — 'usa' resolves via the country alias exactly as it always did", async () => {
   const vocab = fakeVocab([{ field: "location_country", value: "United States" }]);
   const p = await resolveLocationFacet({ facets: { location_country: ["usa"] } }, vocab);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "United States" }], remoteAnywhere: true }]);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "United States" }] }]);
 });
 
 /* Dedicated fixture for the actual prod bug shape: "US CA San Diego". */
@@ -584,7 +583,7 @@ test("multi-value facet (a `?location_country=a,b` deep link): all resolve -> on
   const both = await resolveLocationFacet({ facets: { location_country: ["florida", "canada"] } }, VOCAB);
   assert.deepEqual(both.places, [
     { any: [{ field: "location_state", value: "Florida" }] },
-    { any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true },
+    { any: [{ field: "location_country", value: "Canada" }] },
   ]);
   assert.ok(
     buildFilter(both).some((f) => f.includes('location_state = "Florida"') && f.includes('location_country = "Canada"') && f.includes(" OR ")),
@@ -636,7 +635,7 @@ test("F1: mixed 'remote canada' -> a Canada place clause carrying the work mode"
   // "remote in Canada, hybrid in Toronto" at all.
   const p = await resolveLocationFacet({ facets: { location_country: ["remote canada"] } }, VOCAB);
   assert.deepEqual(p.places, [
-    { any: [{ field: "location_country", value: "Canada" }], workTypes: ["remote"], remoteAnywhere: true },
+    { any: [{ field: "location_country", value: "Canada" }], workTypes: ["remote"] },
   ]);
   assert.equal(p.facets?.work_type, undefined, "bound, so nothing pools globally");
   assert.equal(p.facets?.location_country, undefined);
@@ -649,7 +648,7 @@ test("F1: mixed 'remote canada' -> a Canada place clause carrying the work mode"
 
 test("F1 class case: plain 'canada' (no work-mode term) is untouched by the work-mode path", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["canada"] } }, VOCAB);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
   assert.equal(p.facets?.work_type, undefined);
 });
 
@@ -888,16 +887,16 @@ test("the Work-mode dropdown's own selection stays global alongside a bound one"
   assert.deepEqual(p.places![0].workTypes, ["hybrid"]);
 });
 
-test("a clause with no work mode/scope still renders as ONE group — the multi-part parenthesised form is reserved for clauses with extra (scopedToCountry/workTypes) parts", async () => {
-  // A country resolution now carries `remoteAnywhere`, which widens the
-  // content of that single `any` group (see PlaceClause.remoteAnywhere) —
-  // it does NOT add a second top-level part, so the shape this test guards
-  // (one group, no outer AND-wrap) is unchanged by the ruling.
+test("a clause with no work mode/scope still renders as ONE group — explicit country does not widen", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["canada"] } }, VOCAB);
   const filter = buildFilter(p);
   assert.ok(
-    filter.some((f) => f === `((location_country = "Canada" OR (${REMOTE_ANYWHERE_CLAUSE})))`),
-    `single-group rendering (widened content, no extra AND-part) expected: ${JSON.stringify(filter)}`,
+    filter.some((f) => f === `((location_country = "Canada"))`),
+    `single-group Canada-only rendering expected: ${JSON.stringify(filter)}`,
+  );
+  assert.ok(
+    !filter.some((f) => f.includes(REMOTE_ANYWHERE_CLAUSE)),
+    `explicit Canada must not OR untagged remotes: ${JSON.stringify(filter)}`,
   );
 });
 

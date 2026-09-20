@@ -18,6 +18,10 @@ test("shouldShowLocationDefaultChip: hides once the searcher has chosen their ow
   assert.equal(shouldShowLocationDefaultChip("CA", ["Toronto"]), false);
 });
 
+test("shouldShowLocationDefaultChip: hides when Canada is chosen — stale US default chip must not show", () => {
+  assert.equal(shouldShowLocationDefaultChip("US", ["Canada"]), false);
+});
+
 test("shouldShowLocationDefaultChip: hides for every chosen place, not just the first", () => {
   // The case a `[0]`-only check would miss: the chip must not reappear
   // because some later entry is the interesting one.

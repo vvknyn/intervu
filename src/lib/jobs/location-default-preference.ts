@@ -151,11 +151,9 @@ export const DEFAULT_LOCATION_CHIP_KEY = "default-location";
  * the SAME `PlaceClause.remoteAnywhere` flag `buildFilter` (meilisearch.ts)
  * itself uses to OR `REMOTE_ANYWHERE_CLAUSE` into the applied place filter,
  * never re-derived from country names or the word "remote" as a string
- * match. A country-level geo default sets it unconditionally today
- * (resolve-place.ts's `placeClause`), so every one of these chips used to
- * read "near Canada" over a result set that also included Sydney/Dubai/Costa
- * Rica remote listings — true of the country clause alone, false of the
- * query that actually ran. Naming the OR keeps the label honest without
+ * match. Only the IP geo default passes `remoteAnywhere: true` into
+ * `placeClause` (resolve-place.ts); an explicit country pick does not.
+ * Naming the OR on the default chip keeps the label honest without
  * hardcoding that correlation.
  */
 export function locationDefaultScope(iso2: string, remoteAnywhere: boolean | undefined): string {

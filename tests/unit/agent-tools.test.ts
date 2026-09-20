@@ -752,7 +752,7 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
   it('maps location "Canada" to a places param too — proves the mapping is class-wide, not a Toronto special case', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { location: 'Canada' });
-    assert.deepEqual(searchCalls[0].places, [{ any: [{ field: 'location_country', value: 'Canada' }], remoteAnywhere: true }]);
+    assert.deepEqual(searchCalls[0].places, [{ any: [{ field: 'location_country', value: 'Canada' }] }]);
   });
 
   it('drops an unrecognized location instead of inventing a places filter', async () => {
@@ -925,7 +925,7 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
         experience_level: ['senior'],
         employment_type: ['full_time'],
       },
-      places: [{ any: [{ field: 'location_country', value: 'Canada' }], remoteAnywhere: true }],
+      places: [{ any: [{ field: 'location_country', value: 'Canada' }] }],
     });
   });
 });

@@ -8,7 +8,10 @@ import {
     isLocationSelected,
     addLocationValue,
     removeLocationValue,
+    prioritizeCountryMatch,
+    countryCommitFieldForQuery,
     LOCATION_SUGGEST_PER_FIELD,
+    type LocationSuggestGroup,
 } from "../../src/lib/jobs/location-suggest";
 
 /**
@@ -351,4 +354,43 @@ test("the honest COUNTRY row survives, so the broad result stays one click away"
 test("without a gazetteer the rung is inert — absence of knowledge never suppresses", () => {
     const out = mergeFieldHits("location_city", [{ value: "Canada", count: 31 }]);
     assert.deepEqual(out.map((o) => o.label), ["Canada"]);
+});
+
+test("prioritizeCountryMatch: exact query 'Canada' puts the country group first and ahead of city collisions", () => {
+    const groups: LocationSuggestGroup[] = buildLocationSuggestions(
+        {
+            location_city: [
+                { value: "Canandaigua", count: 120 },
+                { value: "Canada-Mississauga", count: 90 },
+            ],
+            location_country: [{ value: "Canada", count: 77399 }],
+        },
+        LOCATION_SUGGEST_PER_FIELD,
+        GAZETTEER,
+    );
+    const out = prioritizeCountryMatch(groups, "Canada");
+    assert.deepEqual(out.map((g) => g.field), ["location_country", "location_city"]);
+    assert.equal(out[0]!.items[0]!.label, "Canada");
+    assert.equal(out[0]!.items[0]!.field, "location_country");
+});
+
+test("prioritizeCountryMatch: no reorder when the query is not an exact country match", () => {
+    const groups: LocationSuggestGroup[] = buildLocationSuggestions({
+        location_city: [{ value: "Canandaigua", count: 120 }],
+        location_country: [{ value: "Canada", count: 77399 }],
+    });
+    const out = prioritizeCountryMatch(groups, "Can");
+    assert.deepEqual(out.map((g) => g.field), groups.map((g) => g.field));
+});
+
+test("countryCommitFieldForQuery: exact 'Canada' resolves to location_country for free-text commit", () => {
+    const groups: LocationSuggestGroup[] = [
+        {
+            field: "location_country",
+            heading: "Countries",
+            items: [{ key: "location_country:canada", label: "Canada", field: "location_country", count: 77399 }],
+        },
+    ];
+    assert.equal(countryCommitFieldForQuery(groups, "canada"), "location_country");
+    assert.equal(countryCommitFieldForQuery(groups, "Canandaigua"), undefined);
 });

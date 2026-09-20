@@ -6,7 +6,11 @@ import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
 import { Check, CircleNotch } from "@phosphor-icons/react";
 import { highlightMatch } from "@/lib/highlight-match";
-import { isLocationSelected } from "@/lib/jobs/location-suggest";
+import {
+    countryCommitFieldForQuery,
+    isLocationSelected,
+    prioritizeCountryMatch,
+} from "@/lib/jobs/location-suggest";
 import { splitLocationLabel } from "@/lib/presentation/location";
 import { LOCATION_TRIGGER_PLACEHOLDER } from "@/components/jobs/FilterPanel";
 import type { LocationSuggestGroup, LocationSuggestion, SuggestField } from "@/lib/jobs/location-suggest";
@@ -122,6 +126,9 @@ export function LocationCombobox({
     // overwrite a faster one for a later keystroke. Same reasoning as
     // SearchAutocomplete's generation counter.
     const generation = useRef(0);
+    /** Set on suggestion mousedown so blur does not free-text-commit before
+     *  the click's field-scoped commit runs (standard combobox guard). */
+    const pickingRef = useRef(false);
     const anchorRef = useRef<HTMLDivElement>(null);
     const hasSuggestions = groups.some((g) => g.items.length > 0);
     const showLoading = isOpen && value.trim().length > 0 && fetching;
@@ -142,7 +149,7 @@ export function LocationCombobox({
                 .then((r) => (r.ok ? r.json() : { groups: [] }))
                 .then((body: { groups?: LocationSuggestGroup[] }) => {
                     if (mine !== generation.current) return;
-                    setGroups(body.groups ?? []);
+                    setGroups(prioritizeCountryMatch(body.groups ?? [], q));
                     setActiveIndex(-1);
                 })
                 // Suggestions are an accelerant, never a source of error —
@@ -160,6 +167,7 @@ export function LocationCombobox({
 
     const commit = useCallback(
         (next: string, field?: SuggestField) => {
+            pickingRef.current = false;
             onCommit(next, field);
             onChange("");
             setGroups([]);
@@ -199,7 +207,10 @@ export function LocationCombobox({
             // dropdown to it.
             const picked = activeIndex >= 0 ? items[activeIndex] : undefined;
             const next = picked ? picked.label : value.trim();
-            if (next) commit(next, picked?.field);
+            if (!next) return;
+            const field =
+                picked?.field ?? countryCommitFieldForQuery(groups, next);
+            commit(next, field);
         }
     };
 
@@ -235,7 +246,10 @@ export function LocationCombobox({
                                             : "text-muted-foreground hover:bg-muted hover:text-foreground",
                                     )}
                                     onMouseEnter={() => setActiveIndex(index)}
-                                    onMouseDown={(e) => e.preventDefault()}
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        pickingRef.current = true;
+                                    }}
                                     onClick={() => commit(item.label, item.field)}
                                 >
                                     <SuggestionLabel label={item.label} query={value} />
@@ -278,8 +292,12 @@ export function LocationCombobox({
                 // as SearchAutocomplete's).
                 onBlur={() => {
                     setIsOpen(false);
+                    if (pickingRef.current) {
+                        pickingRef.current = false;
+                        return;
+                    }
                     const typed = value.trim();
-                    if (typed) commit(typed);
+                    if (typed) commit(typed, countryCommitFieldForQuery(groups, typed));
                 }}
                 onKeyDown={handleKeyDown}
                 className={className}
