@@ -73,6 +73,21 @@ test("TD Canada regression: CAD in description overrides stored USD", () => {
     assert.equal(applyTrustCorrections(raw).salary_currency, "CAD");
 });
 
+test("TD Canada: CAD glued to TD with null salary fields flips USD to CAD", () => {
+    const description = "Pay Details:$81,600 - $115,200 CADTD is committed to…";
+    assert.equal(detectSalaryCurrencyFromText(description), "CAD");
+    const raw = job({
+        company: "The Toronto-Dominion Bank (Canada)",
+        title: "Software Engineer II",
+        salary_min: null,
+        salary_max: null,
+        salary_currency: "USD",
+        description,
+    });
+    assert.equal(correctSalaryCurrency(raw), "CAD");
+    assert.equal(applyTrustCorrections(raw).salary_currency, "CAD");
+});
+
 test("does not invent currency when description has no currency marker", () => {
     const raw = job({
         salary_min: 90_000,

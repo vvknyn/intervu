@@ -83,13 +83,21 @@ const SALARY_CONTEXT =
 const SALARY_AMOUNT =
   /\$[\d,]+(?:\.\d{2})?(?:\s*[–\-—]\s*\$[\d,]+(?:\.\d{2})?|\s*(?:to|-)\s*\$[\d,]+(?:\.\d{2})?)?/g;
 
-type CurrencyMarker = { code: "CAD" | "USD" | "GBP" | "EUR"; pattern: RegExp };
+type CurrencyMarker = { code: "CAD" | "USD" | "GBP" | "EUR"; patterns: RegExp[] };
 
 const CURRENCY_MARKERS: CurrencyMarker[] = [
-  { code: "CAD", pattern: /\bCAD\b|\bCA\$|\bC\$(?=\d)|\bCanadian dollars?\b/gi },
-  { code: "USD", pattern: /\bUSD\b|\bUS\$/gi },
-  { code: "GBP", pattern: /\bGBP\b|£|\bpounds?(?:\s+sterling)?\b/gi },
-  { code: "EUR", pattern: /\bEUR\b|€|\beuros?\b/gi },
+  {
+    code: "CAD",
+    patterns: [
+      // No `i` flag: `(?![a-z])` must stay case-sensitive so "CADTD" matches
+      // (uppercase T) while "cadence" does not. `\bCAD\b` misses the glue.
+      /(?<![A-Za-z])CAD(?![a-z])/g,
+      /\bCA\$|\bC\$(?=\d)|\bCanadian dollars?\b/gi,
+    ],
+  },
+  { code: "USD", patterns: [/\bUSD\b|\bUS\$/gi] },
+  { code: "GBP", patterns: [/\bGBP\b|£|\bpounds?(?:\s+sterling)?\b/gi] },
+  { code: "EUR", patterns: [/\bEUR\b|€|\beuros?\b/gi] },
 ];
 
 const SALARY_MARKER_WINDOW = 120;
@@ -221,15 +229,17 @@ export function detectSalaryCurrencyFromText(
   const hits: Hit[] = [];
 
   for (const marker of CURRENCY_MARKERS) {
-    marker.pattern.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = marker.pattern.exec(text)) !== null) {
-      const index = m.index;
-      let distance = contextPositions.length === 0 ? Infinity : Infinity;
-      for (const pos of contextPositions) {
-        distance = Math.min(distance, Math.abs(index - pos));
+    for (const pattern of marker.patterns) {
+      pattern.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = pattern.exec(text)) !== null) {
+        const index = m.index;
+        let distance = Infinity;
+        for (const pos of contextPositions) {
+          distance = Math.min(distance, Math.abs(index - pos));
+        }
+        hits.push({ code: marker.code, distance, index });
       }
-      hits.push({ code: marker.code, distance, index });
     }
   }
 
@@ -274,17 +284,14 @@ export function detectSalaryCurrencyFromText(
 }
 
 /**
- * When salary figures exist and posting text names a currency different from
- * stored `salary_currency`, return the text-derived code. Never invents from
- * location.
+ * When posting text names a currency different from stored `salary_currency`,
+ * return the text-derived code — even if `salary_min` / `salary_max` are null
+ * (TD Canada docs often keep the amounts only in the description). Never
+ * invents a currency from location alone.
  */
 export function correctSalaryCurrency(
   job: Pick<PublicJob, "salary_min" | "salary_max" | "salary_currency" | "description">,
 ): string | null {
-  if (job.salary_min == null && job.salary_max == null) {
-    return job.salary_currency;
-  }
-
   const detected = detectSalaryCurrencyFromText(job.description);
   if (detected && detected !== (job.salary_currency ?? null)) {
     return detected;
