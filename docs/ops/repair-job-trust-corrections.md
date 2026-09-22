@@ -14,6 +14,8 @@ npx tsx scripts/repair-job-trust-corrections-meili.mjs \
 
 Upstream ingest (`/opt/jobs-sync/sync.mjs`) must be fixed separately or bad values may return on the next sync.
 
+`salary_currency` is not filterable on the live `jobs` index. The script does not filter on it. Currency candidates are the docs already returned by the domain queries, plus searchable hits for company text together with a CAD marker (`Toronto-Dominion` + `CAD`, `TD Bank` + `Canadian dollars`). `jobNeedsTrustCorrection` / `applyTrustCorrections` decide in JS. Dry-run is the default; `--apply` PATCHes.
+
 ## SERP vs detail
 
 SERP/list Meili hits omit `description`, so CAD salary display on the list requires this Meili repair (or upstream writing correct `salary_currency`). Job detail still corrects via the read path when `description` is present. Domain remap works on SERP without `description`.

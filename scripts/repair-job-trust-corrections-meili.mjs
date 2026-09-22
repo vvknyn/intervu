@@ -10,6 +10,12 @@
  *
  * SAFE BY DEFAULT — dry run unless --apply is passed.
  *
+ * `salary_currency` is NOT a filterable attribute on the live `jobs` index
+ * (Meili 400s). Do not add a filter on it. Currency candidates come from
+ * searchable queries (company text + CAD markers in description) and from
+ * documents already pulled for domain repair; `jobNeedsTrustCorrection`
+ * decides in JS.
+ *
  * Hop (Contabo — NOT run from CI / cloud agents):
  *
  *   CREDS=$(ssh subspace@194.163.147.154 'set -a; . /opt/jobs-sync/.env; set +a;
@@ -136,11 +142,20 @@ async function main() {
       body: { q: "TD Bank Canada", attributesToSearchOn: ["company"] },
     },
     {
-      label: "CAD in description with stored USD salary",
+      // salary_currency is not filterable — search the text, decide in JS.
+      label: "TD company + CAD marker in description",
       body: {
-        q: "CAD",
-        filter: ['salary_currency = "USD"'],
-        attributesToSearchOn: ["description"],
+        q: "Toronto-Dominion CAD",
+        matchingStrategy: "all",
+        attributesToSearchOn: ["company", "description"],
+      },
+    },
+    {
+      label: "TD Bank + Canadian dollars marker",
+      body: {
+        q: "TD Bank Canadian dollars",
+        matchingStrategy: "all",
+        attributesToSearchOn: ["company", "description"],
       },
     },
   ];
