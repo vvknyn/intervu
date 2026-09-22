@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSalaryAmount, salaryText } from "../../src/lib/jobs/presentation";
+import { normalizePublicJob } from "../../src/lib/jobs/normalize-public-job";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 function job(overrides: Partial<PublicJob> = {}): PublicJob {
@@ -92,4 +93,20 @@ test("salaryText prints one figure when min equals max after normalize", () => {
         ),
         "USD 46k/yr",
     );
+});
+
+test("salaryText shows CAD after normalizePublicJob trust correction", () => {
+    const normalized = normalizePublicJob(
+        job({
+            company: "The Toronto-Dominion Bank (Canada)",
+            company_domain: "tddirectinvesting.co.uk",
+            location_country: "Canada",
+            salary_min: 81_600,
+            salary_max: 115_200,
+            salary_currency: "USD",
+            salary_period: "year",
+            description: "Compensation: CAD $81,600–$115,200 per year.",
+        }),
+    );
+    assert.equal(salaryText(normalized), "CAD 82k–115k/yr");
 });

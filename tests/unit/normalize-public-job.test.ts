@@ -52,3 +52,20 @@ test("normalizePublicJob never leaves apply_url or location undefined", () => {
     assert.equal("apply_url" in job, true);
     assert.equal("location" in job, true);
 });
+
+test("normalizePublicJob applies TD Canada trust corrections end-to-end", () => {
+    const normalized = normalizePublicJob({
+        id: "td-ca-1",
+        title: "Senior Analyst",
+        company: "The Toronto-Dominion Bank (Canada)",
+        company_domain: "tddirectinvesting.co.uk",
+        location_country: "Canada",
+        salary_min: 81_600,
+        salary_max: 115_200,
+        salary_currency: "USD",
+        description: "Annual compensation: CAD $81,600–$115,200.",
+        apply_url: "https://example.com/apply",
+    } as PublicJob);
+    assert.equal(normalized.company_domain, "td.com");
+    assert.equal(normalized.salary_currency, "CAD");
+});

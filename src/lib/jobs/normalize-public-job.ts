@@ -1,5 +1,6 @@
 import type { PublicJob } from "./types";
 import { toValueArray } from "./types";
+import { applyTrustCorrections } from "./trust-corrections";
 
 /** Meili documents may carry `url` (Ashby/Greenhouse posting URL) instead of
  *  `apply_url`, or omit both — coerce to the `PublicJob.apply_url` string
@@ -34,15 +35,16 @@ export function resolvePublicJobLocation(
 
 /** Raw Meili hit → wire-safe `PublicJob`. Search hits are cast straight
  *  through today; this is the ONE boundary that fills gaps sparse documents
- *  leave (`apply_url`, `location`). */
+ *  leave (`apply_url`, `location`) and applies read-path trust corrections
+ *  (`company_domain`, `salary_currency`). */
 export function normalizePublicJob(
   hit: PublicJob & { url?: string | null },
 ): PublicJob {
-  return {
+  return applyTrustCorrections({
     ...hit,
     apply_url: resolvePublicJobApplyUrl(hit),
     location: resolvePublicJobLocation(hit),
-  };
+  });
 }
 
 export function normalizePublicJobs(hits: (PublicJob & { url?: string | null })[]): PublicJob[] {
