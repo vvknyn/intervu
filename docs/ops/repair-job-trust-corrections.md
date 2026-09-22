@@ -14,7 +14,7 @@ npx tsx scripts/repair-job-trust-corrections-meili.mjs \
 
 Upstream ingest (`/opt/jobs-sync/sync.mjs`) must be fixed separately or bad values may return on the next sync.
 
-`salary_currency` is not filterable on the live `jobs` index. The script does not filter on it. Currency candidates are the docs already returned by the domain queries, plus searchable hits for company text together with a CAD marker (`Toronto-Dominion` + `CAD`, `TD Bank` + `Canadian dollars`). `jobNeedsTrustCorrection` / `applyTrustCorrections` decide in JS. Dry-run is the default; `--apply` PATCHes.
+`salary_currency` is not filterable on the live `jobs` index. The script does not filter on it. Currency candidates are the docs already returned by the domain queries, plus searchable hits for company text together with a CAD marker (`Toronto-Dominion` + `CAD`, `TD Bank` + `Canadian dollars`). `jobNeedsTrustCorrection` / `applyTrustCorrections` decide in JS, including when `CAD` is glued to the next word (`$115,200 CADTD`) and when `salary_min` / `salary_max` are null. Dry-run is the default; `--apply` PUTs partial `{id, company_domain?, salary_currency?}` batches (this Meili returns 405 for PATCH).
 
 ## SERP vs detail
 

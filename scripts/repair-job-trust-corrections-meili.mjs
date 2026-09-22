@@ -10,6 +10,10 @@
  *
  * SAFE BY DEFAULT — dry run unless --apply is passed.
  *
+ * Writes use PUT /indexes/jobs/documents (Meili 1.45.2 on Contabo: PATCH → 405,
+ * PUT and POST → 202). PUT merges the sent top-level fields; POST would
+ * replace the whole document.
+ *
  * `salary_currency` is NOT a filterable attribute on the live `jobs` index
  * (Meili 400s). Do not add a filter on it. Currency candidates come from
  * searchable queries (company text + CAD markers in description) and from
@@ -197,7 +201,7 @@ async function main() {
   }
 
   if (!apply) {
-    console.log("\nDry run complete. Re-run with --apply to PATCH partial updates.");
+    console.log("\nDry run complete. Re-run with --apply to PUT partial updates.");
     return;
   }
 
@@ -206,12 +210,13 @@ async function main() {
     return;
   }
 
-  // Meili POST /documents replaces the whole document; PATCH merges partial fields only.
+  // Meili 1.45.2: PATCH /documents → 405. PUT merges partial top-level fields.
+  // POST replaces the whole document — do not use it for these patches.
   const BATCH = 100;
   for (let i = 0; i < patches.length; i += BATCH) {
     const batch = patches.slice(i, i + BATCH).map((p) => p.patch);
     const task = await call(`/indexes/${INDEX}/documents`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(batch),
     });
     console.log(`patched batch ${Math.floor(i / BATCH) + 1} (${batch.length} docs) task ${task.taskUid ?? task.uid ?? "?"}`);
