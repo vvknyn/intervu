@@ -115,6 +115,9 @@ function patchFields(before, after) {
   const patch = { id: before.id };
   if (after.company_domain !== before.company_domain) patch.company_domain = after.company_domain;
   if (after.salary_currency !== before.salary_currency) patch.salary_currency = after.salary_currency;
+  if (after.salary_min !== before.salary_min) patch.salary_min = after.salary_min;
+  if (after.salary_max !== before.salary_max) patch.salary_max = after.salary_max;
+  if (after.salary_period !== before.salary_period) patch.salary_period = after.salary_period;
   return patch;
 }
 
@@ -162,6 +165,14 @@ async function main() {
         attributesToSearchOn: ["company", "description"],
       },
     },
+    {
+      label: "multi-zone salary table in description",
+      body: {
+        q: "Zone A CAD gross",
+        matchingStrategy: "all",
+        attributesToSearchOn: ["description"],
+      },
+    },
   ];
 
   const byId = new Map();
@@ -176,6 +187,7 @@ async function main() {
   const patches = [];
   let domainFixes = 0;
   let currencyFixes = 0;
+  let salaryAmountFixes = 0;
 
   for (const hit of candidates) {
     if (!jobNeedsTrustCorrection(hit)) continue;
@@ -184,16 +196,36 @@ async function main() {
     if (Object.keys(patch).length <= 1) continue;
     if (patch.company_domain) domainFixes++;
     if (patch.salary_currency) currencyFixes++;
+    if (
+      patch.salary_min !== undefined ||
+      patch.salary_max !== undefined ||
+      patch.salary_period !== undefined
+    ) {
+      salaryAmountFixes++;
+    }
     patches.push({ before: hit, patch, corrected });
   }
 
   console.log(`\ncandidates scanned ${candidates.length}`);
-  console.log(`would patch ${patches.length} document(s) (${domainFixes} domain, ${currencyFixes} currency)`);
+  console.log(
+    `would patch ${patches.length} document(s) (${domainFixes} domain, ${currencyFixes} currency, ${salaryAmountFixes} salary amount/period)`,
+  );
 
   const sample = patches.slice(0, 8);
   for (const { before, patch } of sample) {
+    const salaryBefore =
+      before.salary_min != null || before.salary_max != null
+        ? `${before.salary_min ?? "?"}–${before.salary_max ?? "?"} ${before.salary_currency ?? ""}/${before.salary_period ?? "?"}`
+        : "∅";
+    const salaryAfter =
+      patch.salary_min !== undefined ||
+      patch.salary_max !== undefined ||
+      patch.salary_period !== undefined ||
+      patch.salary_currency !== undefined
+        ? `${patch.salary_min ?? before.salary_min ?? "?"}–${patch.salary_max ?? before.salary_max ?? "?"} ${patch.salary_currency ?? before.salary_currency ?? ""}/${patch.salary_period ?? before.salary_period ?? "?"}`
+        : salaryBefore;
     console.log(
-      `  ${before.id}  ${before.company ?? "?"}  domain ${before.company_domain ?? "∅"} → ${patch.company_domain ?? before.company_domain ?? "∅"}  currency ${before.salary_currency ?? "∅"} → ${patch.salary_currency ?? before.salary_currency ?? "∅"}`,
+      `  ${before.id}  ${before.company ?? "?"}  domain ${before.company_domain ?? "∅"} → ${patch.company_domain ?? before.company_domain ?? "∅"}  currency ${before.salary_currency ?? "∅"} → ${patch.salary_currency ?? before.salary_currency ?? "∅"}  salary ${salaryBefore} → ${salaryAfter}`,
     );
   }
   if (patches.length > sample.length) {

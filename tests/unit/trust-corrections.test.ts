@@ -4,9 +4,11 @@ import {
     applyTrustCorrections,
     correctCompanyDomain,
     correctSalaryCurrency,
+    correctSalaryFromZoneTable,
     detectSalaryCurrencyFromText,
     isForeignCountryTld,
     isCanadaJobContext,
+    jobNeedsTrustCorrection,
     listCanadaForeignDomainRisks,
 } from "../../src/lib/jobs/trust-corrections";
 import type { PublicJob } from "../../src/lib/jobs/types";
@@ -145,4 +147,108 @@ test("ambiguous dual-currency description returns null", () => {
     const text =
         "Pay is CAD $90,000 in Toronto and USD $95,000 for US-based staff.";
     assert.equal(detectSalaryCurrencyFromText(text), null);
+});
+
+test("TD US: TD Bank, N.A. with UK domain remaps to td.com", () => {
+    const raw = job({
+        company: "TD Bank, N.A.",
+        company_domain: "tddirectinvesting.co.uk",
+        location_country: "United States",
+    });
+    assert.equal(correctCompanyDomain(raw), "td.com");
+    assert.equal(applyTrustCorrections(raw).company_domain, "td.com");
+});
+
+test("Unity SWE zone table: implausible stored amounts corrected to envelope", () => {
+    const description =
+        "Base Salary Range: We determine the base salary range for this role based on your primary work location:Zone A: CA$125,300 - CA$175,300 CAD grossZone B: CA$135,400 - CA$203,000 CAD gross";
+    const raw = job({
+        id: "e15e53ae-02f6-44e5-8a71-549d4115a3d6",
+        company: "Unity",
+        title: "Senior Software Engineer",
+        location_country: "Canada",
+        salary_min: 639_400,
+        salary_max: 799_300,
+        salary_currency: "USD",
+        salary_period: null,
+        description,
+    });
+    const corrected = applyTrustCorrections(raw);
+    assert.equal(corrected.salary_min, 125_300);
+    assert.equal(corrected.salary_max, 203_000);
+    assert.equal(corrected.salary_currency, "CAD");
+    assert.equal(corrected.salary_period, "year");
+    assert.equal(jobNeedsTrustCorrection(raw), true);
+});
+
+test("Unity QA zone table: exact Zone A band is left unchanged", () => {
+    const description =
+        "Base Salary Range: Zone A: CA$103,000 - CA$153,000 CAD grossZone B: CA$111,100 - CA$161,100 CAD gross";
+    const raw = job({
+        company: "Unity",
+        title: "QA Engineer",
+        salary_min: 103_000,
+        salary_max: 153_000,
+        salary_currency: "USD",
+        salary_period: "year",
+        description,
+    });
+    const zoneOnly = correctSalaryFromZoneTable(raw);
+    assert.equal(zoneOnly.salary_min, 103_000);
+    assert.equal(zoneOnly.salary_max, 153_000);
+    assert.equal(zoneOnly.salary_period, "year");
+
+    const corrected = applyTrustCorrections(raw);
+    assert.equal(corrected.salary_min, 103_000);
+    assert.equal(corrected.salary_max, 153_000);
+    assert.equal(corrected.salary_period, "year");
+    assert.equal(corrected.salary_currency, "CAD");
+});
+
+test("no zone table: normal annual range is unchanged", () => {
+    const raw = job({
+        salary_min: 128_000,
+        salary_max: 145_000,
+        salary_currency: "USD",
+        salary_period: "year",
+        description: "Salary range $128,000 to $145,000 annually.",
+    });
+    const corrected = applyTrustCorrections(raw);
+    assert.equal(corrected.salary_min, 128_000);
+    assert.equal(corrected.salary_max, 145_000);
+    assert.equal(corrected.salary_currency, "USD");
+    assert.equal(corrected.salary_period, "year");
+    assert.equal(jobNeedsTrustCorrection(raw), false);
+});
+
+test("Unity zone table: hourly period is rewritten when amounts are replaced", () => {
+    const description =
+        "Base Salary Range: Zone A: CA$125,300 - CA$175,300 CAD grossZone B: CA$135,400 - CA$203,000 CAD gross";
+    const raw = job({
+        salary_min: 639_400,
+        salary_max: 799_300,
+        salary_currency: "USD",
+        salary_period: "hourly",
+        description,
+    });
+    const corrected = applyTrustCorrections(raw);
+    assert.equal(corrected.salary_min, 125_300);
+    assert.equal(corrected.salary_max, 203_000);
+    assert.equal(corrected.salary_period, "year");
+});
+
+test("zone table with null description is unchanged (SERP list hit)", () => {
+    const raw = job({
+        salary_min: 639_400,
+        salary_max: 799_300,
+        salary_currency: "USD",
+        salary_period: null,
+        description: null,
+    });
+    const corrected = applyTrustCorrections(raw);
+    assert.equal(corrected.salary_min, 639_400);
+    assert.equal(corrected.salary_max, 799_300);
+    assert.equal(corrected.salary_currency, "USD");
+    assert.equal(corrected.salary_period, null);
+    assert.equal(jobNeedsTrustCorrection(raw), false);
 });

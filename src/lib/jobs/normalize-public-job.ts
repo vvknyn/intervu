@@ -36,7 +36,7 @@ export function resolvePublicJobLocation(
 /** Raw Meili hit → wire-safe `PublicJob`. Search hits are cast straight
  *  through today; this is the ONE boundary that fills gaps sparse documents
  *  leave (`apply_url`, `location`) and applies read-path trust corrections
- *  (`company_domain`, `salary_currency`). */
+ *  (`company_domain`, salary min/max/period/currency from zone tables). */
 export function normalizePublicJob(
   hit: PublicJob & { url?: string | null },
 ): PublicJob {
