@@ -81,7 +81,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-50 shrink-0 border-b border-border bg-card transition-colors"
+            className="sticky top-0 z-50 shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)] transition-colors"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
@@ -313,7 +313,7 @@ export function TopBar() {
                 those fields don't exist when only the toggle is docked. */}
             {(docked || homeViewDocked) && (
                 <div data-region="band" className="hidden bg-muted lg:block">
-                    <div className="shell-row box-border flex h-10 flex-nowrap items-center gap-2 overflow-x-auto border-t border-border">
+                    <div className="shell-row box-border flex min-h-[var(--jobs-filter-row-h)] flex-nowrap items-center gap-2 overflow-x-auto border-t border-border">
                         <div data-testid="topbar-docked-home-view" className="flex shrink-0 items-center gap-2" />
                         {docked && (
                             <>

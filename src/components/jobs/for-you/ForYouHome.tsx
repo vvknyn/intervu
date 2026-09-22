@@ -62,7 +62,7 @@ export interface ForYouHomeProps {
  *  pre-résumé shell must stay free of both (first-paint spec rule). */
 function ForYouPackSkeleton() {
     return (
-        <div className="flex flex-col border border-border bg-card">
+        <div className="flex flex-col overflow-hidden rounded-panel border border-border bg-card">
             <div className="border-b border-border bg-muted p-4 lg:p-6">
                 <div className="flex items-start gap-3">
                     <Skeleton className="size-10 shrink-0" />
@@ -228,7 +228,7 @@ export function ForYouHome({
     return (
         <div className={FOR_YOU_HOME_FRAME_CLASS} data-testid="for-you-home">
             {(canNavigate || (hasUsableResume && onReplaceResume)) && (
-                <div className="mb-4 flex shrink-0 flex-wrap items-center justify-end gap-3">
+                <div className="mb-4 flex shrink-0 flex-wrap items-center justify-end gap-3 pt-1">
                     {canNavigate && (
                         <div className="flex flex-wrap items-center gap-2">
                             <Button
@@ -311,7 +311,7 @@ export function ForYouHome({
             ) : visiblePacks.length === 0 ? (
                 <div
                     data-testid="for-you-empty"
-                    className="flex flex-col items-center justify-center gap-4 border border-border bg-card p-12 text-center"
+                    className="flex flex-col items-center justify-center gap-4 rounded-panel border border-border bg-card p-12 text-center"
                 >
                     <p className="text-sm text-muted-foreground">
                         No ranked roles to show right now. Try Search to browse the full list.

@@ -139,7 +139,9 @@
      search box landed underneath it. */
   --topbar-h: 48px;
   --jobs-sticky-offset: var(--topbar-h);
-  --jobs-filter-row-h: 36px;
+  /* Docked TopBar band min-height — must clear the For you/Search pill
+     (min-h-11) plus vertical padding so overflow-x-auto does not clip it. */
+  --jobs-filter-row-h: calc(2.75rem + 1rem);
   --jobs-bar-content-gap: 8px;
   --jobs-sticky-gap: 24px;
   /* Single source for the /jobs results list's horizontal inset. The results

@@ -187,46 +187,46 @@ export function ForYouPack({
     return (
         <div
             data-testid="for-you-pack"
-            className={cn("flex flex-col border border-border bg-card", className)}
+            className={cn("flex flex-col overflow-hidden rounded-panel border border-border bg-card", className)}
         >
             <div className="border-b border-border bg-muted p-4 lg:p-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-start gap-3">
                         <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                             <p className={SECTION_LABEL}>{company}</p>
-                            <h2 className="text-title-sm font-semibold text-foreground lg:text-title">
+                            <h2 className="break-words text-title-sm font-semibold text-foreground lg:text-title">
                                 {displayJob.title}
                             </h2>
                             {place && <p className="mt-0.5 text-sm text-muted-foreground">{place}</p>}
                         </div>
+                        {matchScore ? (
+                            <FitReadout score={matchScore} strong={strongFit} />
+                        ) : (
+                            <NoScoreReadout reason={noScore!} />
+                        )}
                     </div>
-                    {matchScore ? (
-                        <FitReadout score={matchScore} strong={strongFit} />
-                    ) : (
-                        <NoScoreReadout reason={noScore!} />
+                    {factChips.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {factChips.map((chip) => {
+                                const Icon = FACT_CHIP_ICON[chip.kind];
+                                return (
+                                    <span key={chip.kind} className={cn(STATED_CHIP_CLASS, "gap-1.5")}>
+                                        {Icon && (
+                                            <Icon size={16} weight="bold" className="shrink-0" aria-hidden />
+                                        )}
+                                        {chip.label}
+                                    </span>
+                                );
+                            })}
+                        </div>
                     )}
                 </div>
-                {factChips.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                        {factChips.map((chip) => {
-                            const Icon = FACT_CHIP_ICON[chip.kind];
-                            return (
-                                <span key={chip.kind} className={cn(STATED_CHIP_CLASS, "gap-1.5")}>
-                                    {Icon && (
-                                        <Icon size={16} weight="bold" className="shrink-0" aria-hidden />
-                                    )}
-                                    {chip.label}
-                                </span>
-                            );
-                        })}
-                    </div>
-                )}
             </div>
 
             <div className={cn("grid gap-6 p-4 lg:p-6", hasAside && "lg:grid-cols-[280px_1fr]")}>
                 {hasAside && (
-                    <aside className="min-w-0 space-y-6 border border-border bg-muted p-4">
+                    <aside className="min-w-0 space-y-6 rounded-panel border border-border bg-muted p-4">
                         {matchScore ? (
                             <FitBreakdown score={matchScore} />
                         ) : (

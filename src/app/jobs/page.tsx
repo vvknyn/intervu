@@ -3895,10 +3895,7 @@ function JobsContent() {
     };
 
     const homeViewToggleEl = showHomeViewToggle ? (
-        <div>
-            <ForYouToggle value={homeViewToggleValue} onChange={setJobsHomeView} />
-            <p className="mt-1.5 text-xs text-muted-foreground">{JOBS_TAB_HELPER}</p>
-        </div>
+        <ForYouToggle value={homeViewToggleValue} onChange={setJobsHomeView} />
     ) : null;
 
     useEffect(() => {
@@ -4952,10 +4949,18 @@ function JobsContent() {
                 </a>
 
                 {!homeViewDockActive && showHomeViewToggle && (
-                    <div className={cn("mb-3", cappedContentClass)}>{homeViewToggleEl}</div>
+                    <div className={cn("mb-3 pt-3 sm:pt-4", cappedContentClass)}>
+                        {homeViewToggleEl}
+                        <p className="mt-1.5 text-xs text-muted-foreground">{JOBS_TAB_HELPER}</p>
+                    </div>
                 )}
                 {homeViewDockActive && dockedHomeViewMount && homeViewToggleEl &&
                     createPortal(homeViewToggleEl, dockedHomeViewMount)}
+                {homeViewDockActive && showHomeViewToggle && (
+                    <div className={cn("mb-3", cappedContentClass)}>
+                        <p className="mt-1.5 text-xs text-muted-foreground">{JOBS_TAB_HELPER}</p>
+                    </div>
+                )}
 
                 {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
@@ -5480,7 +5485,7 @@ function JobsContent() {
                     )}
 
                 {showForYouHome ? (
-                    <div className={cn("mt-2", cappedContentClass)}>
+                    <div className={cn("mt-4", cappedContentClass)}>
                         <ForYouHome
                             visiblePacks={forYouDeck.visiblePacks}
                             activeIndex={forYouDeck.activeIndex}
@@ -5503,7 +5508,7 @@ function JobsContent() {
                         />
                     </div>
                 ) : showJobsHomePending ? (
-                    <div className={cn("mt-2", cappedContentClass)}>
+                    <div className={cn("mt-4", cappedContentClass)}>
                         <ForYouHomePending />
                     </div>
                 ) : (
