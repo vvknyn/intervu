@@ -51,6 +51,7 @@ import { cn } from "@/lib/utils";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
+import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
 
 /** The employer rail — live open-role count, opened/closed 90d, and a
@@ -249,6 +250,8 @@ export interface JobDetailDocumentProps {
     /** Local-AI résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
     onAcceptLocalTailor?: (data: ResumeData) => void;
+    onUploadResume?: () => void;
+    onSignInToSync?: () => void;
 }
 
 /**
@@ -287,6 +290,8 @@ export function JobDetailDocument({
     matchAsOfDate = null,
     resume = null,
     onAcceptLocalTailor,
+    onUploadResume,
+    onSignInToSync,
 }: JobDetailDocumentProps) {
     const closed = job.vacancy_status === "closed";
     const freshness = classifyPostingFreshness(job, now);
@@ -473,11 +478,25 @@ export function JobDetailDocument({
                     action row, JobCard's row) already uses — one chokepoint,
                     no independent restyle. */}
                 <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
-                <LocalCustomizePanel
-                    job={job}
-                    resume={resume}
-                    onAccept={onAcceptLocalTailor}
-                />
+                {resume != null ? (
+                    <LocalCustomizePanel
+                        job={job}
+                        resume={resume}
+                        onAccept={onAcceptLocalTailor}
+                        signedIn={signedIn}
+                        onSignInToSync={onSignInToSync}
+                    />
+                ) : onUploadResume ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        data-testid="job-detail-upload-to-customize"
+                        onClick={onUploadResume}
+                        className="h-10 shrink-0 rounded-ctl text-xs font-semibold"
+                    >
+                        {UPLOAD_TO_CUSTOMIZE_LABEL}
+                    </Button>
+                ) : null}
             </div>
         </div>
     );
@@ -646,6 +665,8 @@ export function JobDetailDocument({
                     goingAfter={goingAfter}
                     resume={resume}
                     onAcceptLocalTailor={onAcceptLocalTailor}
+                    onUploadResume={onUploadResume}
+                    onSignInToSync={onSignInToSync}
                     className="bottom-12 lg:hidden"
                 />
             )}

@@ -4,6 +4,7 @@ import { BoardComparisonTable } from "@/components/marketing/BoardComparisonTabl
 import { ELUTA_ALTERNATIVE, ELUTA_ALTERNATIVE_FAQ } from "@/lib/seo/alternatives";
 import { buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = ELUTA_ALTERNATIVE;
 
@@ -75,7 +76,7 @@ export default function ElutaAlternativePage() {
 
         <h2 className={ASEC}>Look at the jobs</h2>
         <p>
-          Searching is free. Objective match receipts, no sponsored bumps.{" "}
+          Searching is free. {PUBLIC_ANTI_SCORE_SENTENCE}{" "}
           <Link href="/jobs">The live listings are here</Link>. Indeed and LinkedIn are different problems (
           <Link href="/indeed-alternative">Indeed alternative</Link>,{" "}
           <Link href="/linkedin-jobs-alternative">LinkedIn Jobs alternative</Link>).

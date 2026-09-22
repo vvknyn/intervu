@@ -19,7 +19,7 @@ const JOB_DETAIL_DOCUMENT = readFileSync("src/components/jobs/JobDetailDocument.
 
 describe("APPLY_BUTTON_LABEL — one shared source across every Apply surface", () => {
     it("is the honest wording: navigates to the employer's own posting, not an in-app flow", () => {
-        assert.equal(APPLY_BUTTON_LABEL, "Apply on Company Site");
+        assert.equal(APPLY_BUTTON_LABEL, "Apply on employer site");
     });
 
     it("no file hardcodes the label literal — every surface must import the constant instead", () => {

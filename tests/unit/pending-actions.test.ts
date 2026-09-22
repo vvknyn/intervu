@@ -12,11 +12,11 @@ import {
 import { validateNextParam } from '../../src/lib/auth/product-routes';
 
 describe('resolveApplyClickDecision — signed-in vs guest Apply click', () => {
-    it('signed out gates on auth before the ATS ever opens', () => {
-        assert.equal(resolveApplyClickDecision(false), 'auth-first');
+    it('signed out opens the employer site immediately — tracking is optional', () => {
+        assert.equal(resolveApplyClickDecision(false), 'perform');
     });
 
-    it('signed in performs the action immediately, no auth interstitial', () => {
+    it('signed in performs the action immediately', () => {
         assert.equal(resolveApplyClickDecision(true), 'perform');
     });
 });

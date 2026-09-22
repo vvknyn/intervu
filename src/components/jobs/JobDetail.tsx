@@ -51,6 +51,7 @@ import {
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import type { ResumeData } from "@/types/resume";
+import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -318,6 +319,8 @@ export function JobDetailActionBar({
     className,
     resume,
     onAcceptLocalTailor,
+    onUploadResume,
+    onSignInToSync,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
@@ -342,6 +345,8 @@ export function JobDetailActionBar({
     /** Local-AI résumé for on-device tailor — only passed by JobDetailDocument. */
     resume?: ResumeData | null;
     onAcceptLocalTailor?: (data: ResumeData) => void;
+    onUploadResume?: () => void;
+    onSignInToSync?: () => void;
 }) {
     return (
         <div
@@ -354,14 +359,26 @@ export function JobDetailActionBar({
                     {APPLY_BUTTON_LABEL}
                 </Button>
             )}
-            {resume != null && (
+            {resume != null ? (
                 <LocalCustomizePanel
                     job={job}
                     resume={resume}
                     onAccept={onAcceptLocalTailor}
                     compactTrigger
+                    signedIn={signedIn}
+                    onSignInToSync={onSignInToSync}
                 />
-            )}
+            ) : onUploadResume ? (
+                <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="job-detail-upload-to-customize"
+                    onClick={onUploadResume}
+                    className="h-10 shrink-0 rounded-ctl text-xs font-semibold sm:h-9"
+                >
+                    {UPLOAD_TO_CUSTOMIZE_LABEL}
+                </Button>
+            ) : null}
             {/* Same 40px icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}
             <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
@@ -437,6 +454,8 @@ export function JobDetail({
     onRetryDescription,
     resume = null,
     onAcceptLocalTailor,
+    onUploadResume,
+    onSignInToSync,
     onSkip,
 }: {
     job: PublicJob;
@@ -505,6 +524,8 @@ export function JobDetail({
     /** Local-AI guest/signed-in résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
     onAcceptLocalTailor?: (data: ResumeData) => void;
+    onUploadResume?: () => void;
+    onSignInToSync?: () => void;
     /** Wired to the existing skip/hide mechanism (`useForYouDeck`'s
      *  `handleSkip`) — present only on the For-you ranked-results surface.
      *  Renders a quiet overflow (⋯) menu next to Close with one "Hide" item;
@@ -868,11 +889,25 @@ export function JobDetail({
                                 {APPLY_BUTTON_LABEL}
                             </Button>
                         )}
-                        <LocalCustomizePanel
-                            job={job}
-                            resume={resume}
-                            onAccept={onAcceptLocalTailor}
-                        />
+                        {resume != null ? (
+                            <LocalCustomizePanel
+                                job={job}
+                                resume={resume}
+                                onAccept={onAcceptLocalTailor}
+                                signedIn={signedIn}
+                                onSignInToSync={onSignInToSync}
+                            />
+                        ) : onUploadResume ? (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                data-testid="job-detail-upload-to-customize"
+                                onClick={onUploadResume}
+                                className="h-10 shrink-0 rounded-ctl text-xs font-semibold"
+                            >
+                                {UPLOAD_TO_CUSTOMIZE_LABEL}
+                            </Button>
+                        ) : null}
                         {/* RowBookmarkButton is a fixed-size icon-only square
                             control (no text-label prop) — `rounded-ctl` plus
                             an outline matches every other control in this

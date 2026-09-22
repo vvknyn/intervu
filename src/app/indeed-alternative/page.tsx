@@ -5,6 +5,7 @@ import { INDEED_ALTERNATIVE, INDEED_ALTERNATIVE_FAQ } from "@/lib/seo/alternativ
 import { buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getGhostJobsStats } from "@/lib/research/ghost-jobs-snapshot";
+import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = INDEED_ALTERNATIVE;
 
@@ -78,7 +79,8 @@ export default function IndeedAlternativePage() {
 
         <h2 className={ASEC}>Look at the jobs</h2>
         <p>
-          Searching is free. No percentage telling you you&apos;re a 73% match for a paragraph nobody updated.{" "}
+          Searching is free.{" "}
+          {PUBLIC_ANTI_SCORE_SENTENCE}{" "}
           <Link href="/jobs">The live listings are here</Link>. LinkedIn Jobs is a different mess (
           <Link href="/linkedin-jobs-alternative">no profile, no Easy Apply pile</Link>
           ).

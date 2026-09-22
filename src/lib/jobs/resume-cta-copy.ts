@@ -1,21 +1,38 @@
 /**
- * Shared résumé-upload CTA copy — the /jobs front door's at-rest band and
- * /resume's signed-out empty state both invite the same action and must say
- * the exact same thing about what it does, or the two surfaces drift.
- *
- * `RESUME_UPLOAD_PROMISE` makes NO on-device, privacy, or AI claim, even
- * though the upload path (`ResumeImportModal.tsx`) now always parses
- * on-device (founder rule: résumé interpretation never happens on our
- * servers). Kept conservative here because this copy is unconditional CTA
- * copy shared across surfaces, not a decision about what to say about
- * privacy — that's ResumeImportModal's own consent-block copy to own.
+ * Shared résumé-upload CTA copy — the /jobs front door, /resume empty state,
+ * For you deck, and job-detail customize entry points.
  */
-export const RESUME_UPLOAD_PROMISE = "Upload a PDF or Word document.";
 
-/** Sign-in value line paired with the promise above on the /jobs front-door
- *  band. Not currently duplicated on /resume (that page's own sign-in button
- *  sits in a full page of context that already explains itself), but kept
- *  here rather than inline so a future second surface reuses it instead of
- *  drifting. */
+/** Beside the importer control — not the front-door card subcopy. */
+export const RESUME_UPLOAD_PROMISE =
+    "Upload a PDF or Word résumé. We parse it privately, then show what was accepted before scoring jobs.";
+
 export const RESUME_UPLOAD_SIGNIN_LINE =
-    "Sign in to upload. You also get job alerts, saved searches, and an application tracker on any device.";
+    "Sign in to sync your résumé and tracker across devices.";
+
+/** Jobs tabs helper — directly under ForYouToggle when Search is active. */
+export const JOBS_TAB_HELPER =
+    "Search is open. Add a résumé to unlock fit bands and tailored applications.";
+
+/** Rank-by-fit secondary line (orientation card + sort menu). */
+export const RANK_SECONDARY_COPY =
+    "See Strong, Good, and Stretch matches—with the reasons.";
+
+/** Front-door résumé band card subcopy (not the upload promise). */
+export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
+    "Create a free account, upload one résumé, and unlock For you, fit bands, Customize, and tailored PDFs.";
+
+/** For you deck download CTA. */
+export const FOR_YOU_DOWNLOAD_LABEL = "Download tailored PDF & open application";
+
+/** For you deck empty-state upload prompt. */
+export const FOR_YOU_UPLOAD_PDF_EMPTY = "Upload résumé to create a tailored PDF.";
+
+/** Customize panel header when a résumé is present. */
+export const CUSTOMIZE_READY_HEADER = "Your résumé is ready. Customize for this role.";
+
+/** Signed-out sync line inside customize panel. */
+export const SIGN_IN_TO_SYNC_LABEL = "Sign in to sync this version.";
+
+/** Job detail action when no résumé yet. */
+export const UPLOAD_TO_CUSTOMIZE_LABEL = "Upload résumé to customize.";

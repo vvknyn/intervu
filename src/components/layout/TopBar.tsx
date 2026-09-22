@@ -19,6 +19,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NAV_TABS, menuNavActive, menuNavTriggerLabel } from "@/components/layout/nav-tabs";
+import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
@@ -61,6 +62,7 @@ export function TopBar() {
     const barTabs = NAV_TABS.filter((t) => t.placement === "bar");
     const menuActive = menuNavActive(pathname, NAV_TABS);
     const menuTriggerLabel = menuNavTriggerLabel(pathname, NAV_TABS);
+    const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
 
     const hideNav = shouldHideSiteChrome(pathname);
     if (hideNav) return null;
@@ -207,6 +209,7 @@ export function TopBar() {
                         </DropdownMenu>
                         {barTabs.map((tab) => {
                             const active = tab.match(pathname);
+                            const label = tab.href === "/connect" ? connectLabel : tab.label;
                             return (
                                 <Link
                                     key={tab.href + tab.label}
@@ -223,7 +226,7 @@ export function TopBar() {
                                             : "font-normal text-muted-foreground hover:text-foreground",
                                     )}
                                 >
-                                    <span className={cn(active && "border-b-2 border-brand")}>{tab.label}</span>
+                                    <span className={cn(active && "border-b-2 border-brand")}>{label}</span>
                                 </Link>
                             );
                         })}

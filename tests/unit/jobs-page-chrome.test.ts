@@ -84,7 +84,7 @@ describe("nav tab placement", () => {
         assert.equal(resume?.placement, "menu");
         assert.equal(tracker?.placement, "menu");
         assert.equal(agents?.placement, "bar");
-        assert.equal(agents?.label, "Connect AI");
+        assert.equal(agents?.label, "Add résumé");
         assert.equal(agents?.tourSelector, "nav-connect");
     });
 

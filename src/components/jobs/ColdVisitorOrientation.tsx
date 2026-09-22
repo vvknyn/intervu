@@ -4,6 +4,7 @@ import { useSyncExternalStore, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Sparkle, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { RANK_SECONDARY_COPY } from "@/lib/jobs/resume-cta-copy";
 
 export const COLD_ORIENTATION_DISMISSED_KEY = "velai.jobs.coldOrientationDismissed";
 
@@ -90,18 +91,17 @@ export function ColdVisitorOrientation({
                 )}
             >
                 <Sparkle size={16} weight="fill" className="shrink-0 text-brand" aria-hidden />
-                <span className="min-w-0 flex-1 truncate">
-                    Search every live role, or rank results by résumé fit.
-                </span>
+                <span className="min-w-0 flex-1 truncate">{RANK_SECONDARY_COPY}</span>
                 <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={onRankByFit}
                     data-testid="orientation-rank-by-fit"
+                    title={RANK_SECONDARY_COPY}
                     className="shrink-0 text-xs font-semibold rounded-ctl"
                 >
-                    Rank by fit
+                    Rank with my résumé
                 </Button>
                 <button
                     type="button"
@@ -165,9 +165,7 @@ export function ColdVisitorOrientation({
                         </div>
                         <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground">Rank by résumé fit</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                                See roles scored by your skills, experience & seniority.
-                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{RANK_SECONDARY_COPY}</p>
                         </div>
                     </div>
                     <Button
@@ -178,7 +176,7 @@ export function ColdVisitorOrientation({
                         data-testid="orientation-rank-by-fit"
                         className="shrink-0 text-xs font-semibold rounded-ctl"
                     >
-                        Rank by fit
+                        Rank with my résumé
                     </Button>
                 </div>
             </div>

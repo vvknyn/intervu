@@ -2,7 +2,7 @@
 
 import { UploadSimple } from "@phosphor-icons/react";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
-import { RESUME_UPLOAD_PROMISE, RESUME_UPLOAD_SIGNIN_LINE } from "@/lib/jobs/resume-cta-copy";
+import { FRONT_DOOR_RESUME_CARD_SUBCOPY, RESUME_UPLOAD_SIGNIN_LINE } from "@/lib/jobs/resume-cta-copy";
 
 /**
  * The /jobs at-rest front door's résumé-upload band (requirement 2). Full-
@@ -40,9 +40,9 @@ export function FrontDoorResumeBand({
             <div className="mx-auto grid max-w-[960px] gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-8">
                 <div>
                     <h2 className="text-xl font-semibold text-brand-foreground sm:text-2xl">
-                        Add your resume. Rank results by fit.
+                        See which live jobs fit your experience.
                     </h2>
-                    <p className="mt-1 text-sm text-brand-foreground">{RESUME_UPLOAD_PROMISE}</p>
+                    <p className="mt-1 text-sm text-brand-foreground">{FRONT_DOOR_RESUME_CARD_SUBCOPY}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                     <button
@@ -51,7 +51,7 @@ export function FrontDoorResumeBand({
                         className="inline-flex h-11 items-center justify-center gap-1.5 rounded-ctl bg-brand-foreground px-5 text-xs font-semibold text-brand transition-colors hover:opacity-90"
                     >
                         <UploadSimple size={16} weight="bold" aria-hidden />
-                        Upload resume
+                        Upload résumé
                     </button>
                 </div>
                 <p className="text-xs text-brand-foreground sm:col-span-2">

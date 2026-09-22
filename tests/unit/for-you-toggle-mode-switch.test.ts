@@ -44,10 +44,10 @@ test("clicking the already-active tab still calls onChange with its own value (i
 
 test("aria-selected marks exactly the active tab, for either value", () => {
     const forYouActive = renderToStaticMarkup(React.createElement(ForYouToggle, { value: "for-you", onChange: () => {} }));
-    assert.match(forYouActive, /For you<\/button>/);
+    assert.match(forYouActive, /For you · résumé<\/button>/);
     const searchActiveHtml = renderToStaticMarkup(React.createElement(ForYouToggle, { value: "search", onChange: () => {} }));
     const selectedTrue = searchActiveHtml.match(/aria-selected="true"[^>]*>([^<]*)</);
-    assert.equal(selectedTrue?.[1], "Search");
+    assert.equal(selectedTrue?.[1], "Search all jobs");
     const forYouSelected = forYouActive.match(/aria-selected="true"[^>]*>([^<]*)</);
-    assert.equal(forYouSelected?.[1], "For you");
+    assert.equal(forYouSelected?.[1], "For you · résumé");
 });

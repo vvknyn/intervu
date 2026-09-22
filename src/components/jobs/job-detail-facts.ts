@@ -326,7 +326,7 @@ export function pairedKpiChips(record: TrackRecord): KpiStatChip[] {
  * posting, never an in-app application flow, and applying stays fully
  * self-serve for guests with no sign-in gate.
  */
-export const APPLY_BUTTON_LABEL = "Apply on Company Site";
+export const APPLY_BUTTON_LABEL = "Apply on employer site";
 
 /** First comma segment of a job's full location text ("Redmond, WA, US" →
  *  "Redmond") — keeps the "also in" chip compact instead of wrapping full

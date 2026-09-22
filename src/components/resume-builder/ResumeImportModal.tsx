@@ -25,6 +25,14 @@ import {
 } from "@/lib/local-ai/parse-confidence";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Warning, Cpu } from "@phosphor-icons/react";
+import { captureEvent } from "@/lib/analytics/events";
+import {
+    buildResumeFunnelPayload,
+    classifyResumeError,
+    classifyResumeFileType,
+    classifyResumeSizeBucket,
+    type ResumeFunnelReason,
+} from "@/lib/analytics/resume-funnel";
 
 interface ResumeImportModalProps {
     isOpen: boolean;
@@ -68,6 +76,12 @@ interface ResumeImportModalProps {
      * this browser (`writeLocalAiResume`), never the server.
      */
     storageNote: string;
+    /** Privacy-safe funnel context for résumé analytics. */
+    funnelContext?: {
+        reason?: ResumeFunnelReason;
+        surface?: string;
+        signed_in?: boolean;
+    };
 }
 
 type ImportStep = 'input' | 'parsing' | 'review';
@@ -98,7 +112,7 @@ export function ResumeParsingStep() {
     );
 }
 
-export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote }: ResumeImportModalProps) {
+export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote, funnelContext }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
     const [pastedText, setPastedText] = useState("");
@@ -120,7 +134,15 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     useEffect(() => {
         if (!isOpen) return;
         setLocalAiConsent(readLocalAiConsent());
-    }, [isOpen]);
+        captureEvent(
+            "resume_gate_shown",
+            buildResumeFunnelPayload({
+                reason: funnelContext?.reason,
+                surface: funnelContext?.surface,
+                signed_in: funnelContext?.signed_in,
+            }),
+        );
+    }, [isOpen, funnelContext?.reason, funnelContext?.surface, funnelContext?.signed_in]);
 
     const resetState = () => {
         setStep('input');
@@ -151,10 +173,29 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 setContentType('text');
             } else {
                 setError("Unsupported file type. Please use PDF, DOCX, or TXT.");
+                captureEvent(
+                    "resume_upload_rejected",
+                    buildResumeFunnelPayload({
+                        source: "picker",
+                        error_class: "type",
+                        error_code: "type",
+                        file_type: classifyResumeFileType(extension),
+                        ...funnelContext,
+                    }),
+                );
                 return;
             }
             setSelectedFile(file);
             setError(null);
+            captureEvent(
+                "resume_upload_selected",
+                buildResumeFunnelPayload({
+                    source: "picker",
+                    file_type: classifyResumeFileType(extension),
+                    size_bucket: classifyResumeSizeBucket(file.size),
+                    ...funnelContext,
+                }),
+            );
         }
     };
 
@@ -171,12 +212,31 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 setContentType('text');
             } else {
                 setError("Unsupported file type. Please use PDF, DOCX, or TXT.");
+                captureEvent(
+                    "resume_upload_rejected",
+                    buildResumeFunnelPayload({
+                        source: "drop",
+                        error_class: "type",
+                        error_code: "type",
+                        file_type: classifyResumeFileType(extension),
+                        ...funnelContext,
+                    }),
+                );
                 return;
             }
             setSelectedFile(file);
             setError(null);
+            captureEvent(
+                "resume_upload_selected",
+                buildResumeFunnelPayload({
+                    source: "drop",
+                    file_type: classifyResumeFileType(extension),
+                    size_bucket: classifyResumeSizeBucket(file.size),
+                    ...funnelContext,
+                }),
+            );
         }
-    }, []);
+    }, [funnelContext]);
 
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -205,11 +265,23 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     };
 
     const runParse = async (textContent: string) => {
+        const started = Date.now();
         const local = await parseResumeLocally(textContent, { skipDownload: consentDeclined });
         setEngineLabel(local.engineLabel);
         setParseResult(local.data);
         setEditedData(local.data.parsed);
         setStep('review');
+        captureEvent(
+            "resume_parse_succeeded",
+            buildResumeFunnelPayload({
+                duration_ms: Date.now() - started,
+                parser_source: consentDeclined ? "rules" : "on_device_model",
+                engine: consentDeclined ? "rules" : "on_device_model",
+                section_count: local.data.parsed.experience.length + local.data.parsed.education.length,
+                warning_count: local.data.warnings?.length ?? 0,
+                ...funnelContext,
+            }),
+        );
     };
 
     // Shared by handleDownloadAndParse (explicit click) and handleParse
@@ -235,6 +307,13 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const handleParse = async () => {
         setIsProcessing(true);
         setError(null);
+        captureEvent(
+            "resume_upload_started",
+            buildResumeFunnelPayload({
+                source: inputMethod === "paste" ? "paste" : "picker",
+                ...funnelContext,
+            }),
+        );
 
         try {
             let textContent: string;
@@ -249,6 +328,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             }
 
             setStep('parsing');
+            captureEvent("resume_parse_started", buildResumeFunnelPayload({ ...funnelContext }));
 
             // Explicitly declining the download means heuristic rules only —
             // never trigger a model download the user asked to skip.
@@ -258,9 +338,18 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             }
 
             await runParse(textContent);
-        } catch (e: any) {
-            setError(e instanceof Error ? e.message : "Failed to parse resume");
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : "Failed to parse resume";
+            setError(message);
             setStep('input');
+            captureEvent(
+                "resume_parse_failed",
+                buildResumeFunnelPayload({
+                    error_class: classifyResumeError({ message }),
+                    error_code: classifyResumeError({ message }),
+                    ...funnelContext,
+                }),
+            );
         } finally {
             setIsProcessing(false);
         }
@@ -277,6 +366,13 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const handleConfirm = () => {
         if (!editedData || !parseResult) return;
         if (reviewConfidence && !canAcceptLocalParse(reviewConfidence)) {
+            captureEvent(
+                "resume_upload_rejected",
+                buildResumeFunnelPayload({
+                    error_class: "too_short",
+                    ...funnelContext,
+                }),
+            );
             return;
         }
         const overall = reviewConfidence?.overall ?? parseResult.confidence.overall;
@@ -284,6 +380,22 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             inputMethod === "file" && selectedFile
                 ? selectedFile.name
                 : "Pasted text";
+        captureEvent(
+            "resume_review_completed",
+            buildResumeFunnelPayload({
+                section_count: editedData.experience.length + editedData.education.length,
+                warning_count: parseResult.warnings?.length ?? 0,
+                ...funnelContext,
+            }),
+        );
+        captureEvent(
+            "resume_upload_accepted",
+            buildResumeFunnelPayload({
+                file_type: classifyResumeFileType(contentType),
+                source: inputMethod === "paste" ? "paste" : "picker",
+                ...funnelContext,
+            }),
+        );
         onImport(editedData, contentType, overall, sourceLabel);
         handleClose();
     };

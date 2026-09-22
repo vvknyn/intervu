@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONNECT_TAB, NAV_TABS, TRENDS_TAB, mobilePrimaryTabs } from "../../src/components/layout/nav-tabs";
+import { CONNECT_TAB, NAV_TABS, TRENDS_TAB, connectTabLabel, mobilePrimaryTabs } from "../../src/components/layout/nav-tabs";
 
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
 const ADMIN = join(__dirname, "..", "..", "src", "app", "admin", "page.tsx");
@@ -25,10 +25,15 @@ test("TRENDS_TAB is a footer-only /trends entry", () => {
 test("Agents tab is present with its own icon and no cta variant", () => {
     const connect = NAV_TABS.find((t) => t.href === "/connect");
     assert.ok(connect);
-    assert.equal(connect?.label, "Connect AI");
-    assert.equal(connect?.shortLabel, "Connect AI");
+    assert.equal(connect?.label, "Add résumé");
+    assert.equal(connect?.shortLabel, "Add résumé");
     assert.ok(connect?.icon);
     assert.equal(connect?.variant, undefined);
+});
+
+test("connectTabLabel reflects résumé presence without hardcoding Connect AI", () => {
+    assert.equal(connectTabLabel(false), "Add résumé");
+    assert.equal(connectTabLabel(true), "Résumé & AI");
 });
 
 test("NAV_TABS no longer markets /prep or /resume-builder as top-level nav", () => {
