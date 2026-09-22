@@ -235,30 +235,15 @@ function clauseHasCity(clause: PlaceClause): boolean {
  * "Toronto" paired with country "Canada" (or typed "Toronto, Canada" with a
  * bare Canada alternative) widens to every Canadian posting, including
  * Halifax, St. John's, Vancouver, and Den Haag rows mislabeled Canada.
- * Idempotent. State/admin1 and multi-city ORs are preserved; work modes on a
- * dropped country clause are unioned onto surviving city clauses (never
- * `remoteAnywhere`).
+ * Idempotent. State/admin1 and multi-city ORs are preserved. A country clause
+ * that carries phrase-bound `workTypes` ("remote canada" beside "hybrid
+ * toronto") is an independent place intent and is kept, not folded onto the
+ * city. `remoteAnywhere` is never added.
  */
 export function preferStrictCity(places: PlaceClause[]): PlaceClause[] {
   if (!places.some(clauseHasCity)) return places;
-
-  const dropped = places.filter(isDroppableCountryOnlyClause);
-  if (dropped.length === 0) return places;
-
-  const workTypesFromDropped = new Set<string>();
-  for (const d of dropped) {
-    for (const wt of d.workTypes ?? []) workTypesFromDropped.add(wt);
-  }
-
-  const surviving = places.filter((c) => !isDroppableCountryOnlyClause(c));
-
-  if (workTypesFromDropped.size === 0) return surviving;
-
-  return surviving.map((c) => {
-    if (!clauseHasCity(c)) return c;
-    const merged = new Set([...(c.workTypes ?? []), ...workTypesFromDropped]);
-    return { ...c, workTypes: [...merged] };
-  });
+  if (!places.some(isDroppableCountryOnlyClause)) return places;
+  return places.filter((c) => !isDroppableCountryOnlyClause(c));
 }
 
 /** A region/continent phrase ("North America", "EMEA", ...) resolves to ONE
