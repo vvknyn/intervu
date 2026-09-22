@@ -161,6 +161,30 @@ test("captureEvent sends result_clicked with the exact name and payload shape", 
   });
 });
 
+test("captureEvent sends result_clicked with optional match-quality fields", (t) => {
+  withReadyPostHog(t, (capture) => {
+    captureEvent("result_clicked", {
+      position: 1,
+      job_id: "job-1",
+      source: "serp",
+      match_label: "Good",
+      match_score: 68,
+      match_band: "good",
+    });
+    assert.deepEqual(capture.mock.calls[0].arguments, [
+      "result_clicked",
+      {
+        position: 1,
+        job_id: "job-1",
+        source: "serp",
+        match_label: "Good",
+        match_score: 68,
+        match_band: "good",
+      },
+    ]);
+  });
+});
+
 // Below: entity-catalog coverage (design item 2). Each exercises a payload
 // shape that's distinct enough to be worth its own compile-time+behavioral
 // proof — a nullable field, an array field, a wire-name divergence from its
@@ -173,6 +197,52 @@ test("captureEvent sends job_viewed with a nullable company_domain", (t) => {
     assert.deepEqual(capture.mock.calls[0].arguments, [
       "job_viewed",
       { job_id: "job-1", company_domain: null, source: "direct" },
+    ]);
+  });
+});
+
+test("captureEvent sends job_viewed with optional match-quality fields", (t) => {
+  withReadyPostHog(t, (capture) => {
+    captureEvent("job_viewed", {
+      job_id: "job-1",
+      company_domain: "acme.com",
+      source: "serp",
+      match_label: "Strong",
+      match_score: 91,
+      match_band: "strong",
+    });
+    assert.deepEqual(capture.mock.calls[0].arguments, [
+      "job_viewed",
+      {
+        job_id: "job-1",
+        company_domain: "acme.com",
+        source: "serp",
+        match_label: "Strong",
+        match_score: 91,
+        match_band: "strong",
+      },
+    ]);
+  });
+});
+
+test("captureEvent sends apply_clicked with optional match-quality fields", (t) => {
+  withReadyPostHog(t, (capture) => {
+    captureEvent("apply_clicked", {
+      job_id: "job-1",
+      source: "serp",
+      match_label: "Stretch",
+      match_score: 42,
+      match_band: "stretch",
+    });
+    assert.deepEqual(capture.mock.calls[0].arguments, [
+      "apply_clicked",
+      {
+        job_id: "job-1",
+        source: "serp",
+        match_label: "Stretch",
+        match_score: 42,
+        match_band: "stretch",
+      },
     ]);
   });
 });
