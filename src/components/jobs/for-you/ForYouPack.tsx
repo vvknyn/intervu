@@ -14,7 +14,7 @@ import { displayCompanyBrand, locationText, placeWithWorkMode } from "@/lib/jobs
 import { inferReasons, noScoreReason, NO_SCORE_MESSAGES, type NoScoreReason } from "@/lib/jobs/for-you/infer-reasons";
 import { descriptionPaneState } from "@/lib/jobs/for-you/description-pane-state";
 import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
-import { MATCH_CHIP_BRAND_THRESHOLD, type MatchScore } from "@/lib/match/score";
+import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
@@ -53,25 +53,24 @@ const STATED_CHIP_CLASS = cn(chipVariants({ active: false }), "h-7 px-2.5 text-x
 const DERIVED_CHIP_CLASS = cn(chipVariants({ active: true }), "h-7 px-2.5 text-xs");
 
 /**
- * The card's headline number: big total + bar, brand tone once the score
- * clears the same threshold the SERP row's Fit chip uses (no new
- * red/amber semantics — at/above brand, below neutral). Lives in the
- * header; the aside's `FitBreakdown` covers the per-component detail below
- * and does not repeat this total.
+ * The card's headline fit label — Strong / Good / Stretch, brand tone for
+ * Strong (same band the SERP row's MatchChip uses). Lives in the header;
+ * the aside's `FitBreakdown` covers per-component detail below and does not
+ * repeat this label.
  */
 function FitReadout({ score, strong }: { score: MatchScore; strong: boolean }) {
+    const label = matchBandLabel(matchBand(score.total));
     return (
         <div className="shrink-0 text-right">
             <p className={SECTION_LABEL}>Fit</p>
             <p
                 className={cn(
-                    "text-title-sm font-semibold tabular-nums",
+                    "text-title-sm font-semibold",
                     strong ? "text-brand" : "text-foreground",
                 )}
             >
-                {score.total}
+                {label}
             </p>
-            <ProgressBar progress={score.total} className="mt-1 w-16" />
         </div>
     );
 }
@@ -152,7 +151,7 @@ export function ForYouPack({
 
     const company = displayCompanyBrand(displayJob.company, displayJob.company_domain, displayJob.title);
     const place = placeWithWorkMode(locationText(displayJob), displayJob.work_type);
-    const strongFit = matchScore != null && matchScore.total >= MATCH_CHIP_BRAND_THRESHOLD;
+    const strongFit = matchScore != null && matchBand(matchScore.total) === "strong";
     const noScore = matchScore == null ? noScoreReason(resume) : null;
     const paneState = descriptionPaneState(descriptionPending, sections);
     const hasAside = matchScore != null || reasons.bullets.length > 0 || reasons.chips.length > 0;

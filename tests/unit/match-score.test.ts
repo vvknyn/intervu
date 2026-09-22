@@ -2,7 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     scoreJobAgainstResume,
+    MATCH_BAND_GOOD_MIN,
+    MATCH_BAND_STRONG_MIN,
     MATCH_CHIP_BRAND_THRESHOLD,
+    matchBand,
+    matchBandLabel,
 } from '../../src/lib/match/score';
 import type { ResumeData } from '../../src/types/resume';
 import type { PublicJob } from '../../src/lib/jobs/types';
@@ -328,10 +332,39 @@ describe('scoreJobAgainstResume', () => {
         });
     });
 
-    it('chip-threshold boundary: 74 is below brand, 75 is at/above it', () => {
-        assert.equal(MATCH_CHIP_BRAND_THRESHOLD, 75);
-        assert.equal(74 >= MATCH_CHIP_BRAND_THRESHOLD, false);
-        assert.equal(75 >= MATCH_CHIP_BRAND_THRESHOLD, true);
+    it('chip-threshold boundary: 79 is below brand, 80 is at/above it', () => {
+        assert.equal(MATCH_CHIP_BRAND_THRESHOLD, MATCH_BAND_STRONG_MIN);
+        assert.equal(MATCH_BAND_STRONG_MIN, 80);
+        assert.equal(79 >= MATCH_CHIP_BRAND_THRESHOLD, false);
+        assert.equal(80 >= MATCH_CHIP_BRAND_THRESHOLD, true);
+    });
+
+    describe('matchBand qualitative labels', () => {
+        it('maps boundary scores on the 0–100 integer scale', () => {
+            assert.equal(matchBand(0), 'stretch');
+            assert.equal(matchBand(59), 'stretch');
+            assert.equal(matchBand(60), 'good');
+            assert.equal(matchBand(79), 'good');
+            assert.equal(matchBand(80), 'strong');
+            assert.equal(matchBand(100), 'strong');
+        });
+
+        it('matchBandLabel capitalizes each band', () => {
+            assert.equal(matchBandLabel('stretch'), 'Stretch');
+            assert.equal(matchBandLabel('good'), 'Good');
+            assert.equal(matchBandLabel('strong'), 'Strong');
+        });
+
+        it('non-finite scores fall back to stretch', () => {
+            assert.equal(matchBand(Number.NaN), 'stretch');
+            assert.equal(matchBand(Number.POSITIVE_INFINITY), 'stretch');
+        });
+
+        it('Good band starts at MATCH_BAND_GOOD_MIN', () => {
+            assert.equal(MATCH_BAND_GOOD_MIN, 60);
+            assert.equal(matchBand(MATCH_BAND_GOOD_MIN - 1), 'stretch');
+            assert.equal(matchBand(MATCH_BAND_GOOD_MIN), 'good');
+        });
     });
 
     it('the same résumé/job pair scores identically on repeat calls (deterministic, no LLM)', () => {
