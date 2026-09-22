@@ -213,6 +213,54 @@ export function placeClause(
   return clause;
 }
 
+/** True when every filter in `any` is `location_country` — a bare country or
+ *  region expansion, with no city/state disambiguation. Phrase-bound work
+ *  modes (`workTypes`) mean an independent intent like "remote canada" and
+ *  are never dropped beside a city clause. */
+function isDroppableCountryOnlyClause(clause: PlaceClause): boolean {
+  return (
+    clause.any.length > 0 &&
+    clause.any.every((f) => f.field === "location_country") &&
+    (clause.workTypes?.length ?? 0) === 0
+  );
+}
+
+function clauseHasCity(clause: PlaceClause): boolean {
+  return clause.any.some((f) => f.field === "location_city");
+}
+
+/**
+ * When a resolved place list already constrains `location_city`, drop sibling
+ * country-only clauses before `buildFilter` ORs them — otherwise a city chip
+ * "Toronto" paired with country "Canada" (or typed "Toronto, Canada" with a
+ * bare Canada alternative) widens to every Canadian posting, including
+ * Halifax, St. John's, Vancouver, and Den Haag rows mislabeled Canada.
+ * Idempotent. State/admin1 and multi-city ORs are preserved; work modes on a
+ * dropped country clause are unioned onto surviving city clauses (never
+ * `remoteAnywhere`).
+ */
+export function preferStrictCity(places: PlaceClause[]): PlaceClause[] {
+  if (!places.some(clauseHasCity)) return places;
+
+  const dropped = places.filter(isDroppableCountryOnlyClause);
+  if (dropped.length === 0) return places;
+
+  const workTypesFromDropped = new Set<string>();
+  for (const d of dropped) {
+    for (const wt of d.workTypes ?? []) workTypesFromDropped.add(wt);
+  }
+
+  const surviving = places.filter((c) => !isDroppableCountryOnlyClause(c));
+
+  if (workTypesFromDropped.size === 0) return surviving;
+
+  return surviving.map((c) => {
+    if (!clauseHasCity(c)) return c;
+    const merged = new Set([...(c.workTypes ?? []), ...workTypesFromDropped]);
+    return { ...c, workTypes: [...merged] };
+  });
+}
+
 /** A region/continent phrase ("North America", "EMEA", ...) resolves to ONE
  *  PlaceClause whose candidates are the UNION of every member country's own
  *  candidate set — built by calling `countryPlaceCandidates` per member, the

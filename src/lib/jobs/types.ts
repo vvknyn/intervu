@@ -348,6 +348,11 @@ export interface JobSearchParams {
    * positive is worse than the false negative, and unlike an
    * independently-typed country word, this scope comes from the gazetteer's
    * OWN resolution of the city, not a second thing the searcher had to type.
+   *
+   * Location-filter resolution (`preferStrictCity`, resolve-place.ts) drops
+   * a country-only alternative when a city clause is present; `buildFilter`
+   * still ORs the clauses it receives, which is why free-text query mentions
+   * stay OR'd.
    */
   places?: PlaceClause[];
   /**

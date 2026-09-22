@@ -798,19 +798,18 @@ test("S1 REGRESSION (live-discovered): Meilisearch's own stop-words list ('in','
  * multiple location searches like (Canada and remote) and (US & hybrid)".
  * ──────────────────────────────────────────────────────────────────────── */
 
-test("several chosen places OR together — the list has always been supported end to end", async () => {
+test("several chosen places: when one resolves to a city, a sibling country-only clause is dropped — avoids Halifax / Vancouver / St. John's / Den Haag leak", async () => {
   const p = await resolveLocationFacet(
     { facets: { location_country: ["toronto", "canada"] } },
     VOCAB,
   );
-  assert.equal(p.places?.length, 2, "each chosen place resolves to its own clause");
-  // The exact facet is consumed — leaving it would AND a raw string against
-  // the resolved clauses and match nothing.
+  assert.equal(p.places?.length, 1, "Toronto city wins; bare Canada country-only clause is dropped");
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
   assert.equal(p.facets?.location_country, undefined);
   const filter = buildFilter(p);
   assert.ok(
-    filter.some((f) => f.includes('location_city = "Toronto"') && f.includes('location_country = "Canada"') && f.includes(" OR ")),
-    `both places must appear in ONE OR group: ${JSON.stringify(filter)}`,
+    filter.some((f) => f.includes('location_city = "Toronto"') && !f.match(/\)\s+OR\s+\(location_country/)),
+    `Toronto city only — scopedToCountry AND is ok, bare country OR is not: ${JSON.stringify(filter)}`,
   );
 });
 
@@ -977,20 +976,44 @@ test("(e) REGRESSION GATE: free text (field===undefined), a region phrase with n
   assert.equal(p.facets?.location_country, undefined);
 });
 
-test("(e) REGRESSION GATE: free text (field===undefined), a multi-place phrase ('Toronto, Canada') typed as ONE mention, still fragments via parsePlaceTokens and ORs together (with the pre-existing cross-mention country scoping) — the typed code path is textually untouched by this change", async () => {
+test("(e) REGRESSION GATE: 'Toronto, Canada' typed as ONE mention resolves to Toronto city only — no bare Canada OR that would admit Halifax / St. John's / Vancouver / Den Haag", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["Toronto, Canada"] } }, VOCAB);
-  assert.equal(p.places?.length, 2);
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
+  assert.deepEqual(p.places![0].scopedToCountry, [{ field: "location_country", value: "Canada" }]);
   assert.equal(p.facets?.location_country, undefined);
   const filter = buildFilter(p);
   assert.ok(
-    filter.some(
-      (f) =>
-        f.includes('((location_city = "Toronto") AND (location_country = "Canada"))') &&
-        f.includes('(location_country = "Canada")') &&
-        f.includes(" OR "),
-    ),
-    `expected Toronto-scoped-to-Canada OR a bare Canada clause: ${JSON.stringify(filter)}`,
+    filter.some((f) => f.includes('location_city = "Toronto"') && f.includes('location_country = "Canada"')),
+    `Toronto scoped to Canada, no second country-only OR branch: ${JSON.stringify(filter)}`,
   );
+  assert.ok(
+    !filter.some((f) => f.includes(") OR (location_country")),
+    `must not OR a bare location_country clause beside the city: ${JSON.stringify(filter)}`,
+  );
+});
+
+test("picked city Toronto + country Canada facet: city wins, no Canada-wide OR (Halifax / Vancouver / St. John's / Den Haag excluded)", async () => {
+  const p = await resolveLocationFacet(
+    { facets: { location_country: ["Canada"], location_city: ["Toronto"] } },
+    VOCAB,
+  );
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
+  assert.equal(p.facets?.location_country, undefined);
+  assert.equal(p.facets?.location_city, undefined);
+  const filter = buildFilter(p);
+  assert.ok(
+    filter.some((f) => f.includes('location_city = "Toronto"') && !f.match(/\)\s+OR\s+\(location_country/)),
+    `must constrain location_city = Toronto without OR'ing location_country = Canada: ${JSON.stringify(filter)}`,
+  );
+});
+
+test("country-only facet with no city chip stays Canada-wide", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["Canada"] } }, VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+  const filter = buildFilter(p);
+  assert.ok(filter.some((f) => f.includes('location_country = "Canada"')), filter.join(" "));
 });
 
 test("(f) two picked values on DIFFERENT fields OR together, not AND — a city pick and a state pick both apply, reusing the pre-existing p.places OR-across-mentions mechanism", async () => {
@@ -1010,7 +1033,7 @@ test("(f) two picked values on DIFFERENT fields OR together, not AND — a city 
   );
 });
 
-test("(f) class coverage: a picked value composes with an already-typed free-text place (field===undefined) — different origins, same OR group", async () => {
+test("(f) class coverage: picked city San Jose + typed country Canada — city chip wins, country-only clause dropped", async () => {
   const mixedVocab = fakeVocab([
     { field: "location_country", value: "Canada" },
     { field: "location_city", value: "San Jose" },
@@ -1019,9 +1042,9 @@ test("(f) class coverage: a picked value composes with an already-typed free-tex
     { facets: { location_country: ["canada"], location_city: ["San Jose"] } },
     mixedVocab,
   );
-  assert.equal(p.places?.length, 2);
-  assert.ok(p.places!.some((c) => c.any.some((a) => a.value === "Canada")));
-  assert.ok(p.places!.some((c) => c.any.some((a) => a.value === "San Jose" && a.field === "location_city")));
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "San Jose" }]);
+  assert.ok(!p.places!.some((c) => c.any.some((a) => a.value === "Canada")));
 });
 
 // ---------------------------------------------------------------------------

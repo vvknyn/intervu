@@ -24,6 +24,7 @@ import type { CompanyPageData } from "../companies/types";
 import type { CompanyExhaust } from "../companies/exhaust";
 import type { CompanySearchHit } from "../companies/company-search";
 import { parsePlaceTokens, type LocationVocabulary } from "../jobs/query-understanding";
+import { preferStrictCity } from "../geo/resolve-place";
 import {
   buildJobSnapshot, orderResumeVersionsLatestFirst,
   type JobSnapshot, type Pursuit, type PursuitStage, type ResumeVersionSnapshot,
@@ -397,7 +398,7 @@ async function resolvePlaces(deps: ToolDeps, location: string | undefined): Prom
   const text = location?.trim();
   if (!text) return [];
   const vocab = await deps.locationVocabulary();
-  return (await parsePlaceTokens(text, vocab)).places;
+  return preferStrictCity((await parsePlaceTokens(text, vocab)).places);
 }
 
 /** How many more results the depth cap still allows past `offset` — 0 once
