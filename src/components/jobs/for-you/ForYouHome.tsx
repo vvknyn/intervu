@@ -63,7 +63,7 @@ export interface ForYouHomeProps {
 function ForYouPackSkeleton() {
     return (
         <div className="flex flex-col overflow-hidden rounded-panel border border-border bg-card">
-            <div className="border-b border-border bg-muted p-4 lg:p-6">
+            <div className="border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8">
                 <div className="flex items-start gap-3">
                     <Skeleton className="size-10 shrink-0" />
                     <div className="flex-1 space-y-2">
@@ -78,7 +78,7 @@ function ForYouPackSkeleton() {
                     <Skeleton className="h-7 w-16" />
                 </div>
             </div>
-            <div className="grid gap-6 p-4 lg:grid-cols-[280px_1fr] lg:p-6">
+            <div className="grid gap-6 py-4 px-4 lg:grid-cols-[280px_1fr] lg:py-6 lg:px-8">
                 <div className="hidden border border-border bg-muted p-4 lg:block">
                     <Skeleton className="h-3 w-20" />
                     <Skeleton className="mt-3 h-2 w-full" />

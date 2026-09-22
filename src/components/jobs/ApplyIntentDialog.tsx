@@ -114,16 +114,18 @@ export function ApplyIntentDialog({
                 growing the whole dialog past `max-h` and pushing the footer
                 off screen — that was the bug: the exit lived inside the same
                 scrolling block as content that can run long. */}
-            <DialogContent className="flex max-h-[85dvh] flex-col rounded-panel sm:max-w-lg">
-                <DialogHeader className="shrink-0">
-                    <DialogTitle className="text-title">Tailor your résumé — free, bring your own agent</DialogTitle>
-                    <DialogDescription className="text-sm leading-relaxed">
-                        Connect Claude or ChatGPT over MCP and it can read your résumé, tailor it
-                        for this role, and save the result back to your account.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="flex max-h-[85dvh] flex-col overflow-hidden rounded-panel p-0 sm:max-w-lg">
+                <div className="shrink-0 px-6 pt-6 pr-12">
+                    <DialogHeader className="text-left">
+                        <DialogTitle className="text-title">Tailor your résumé — free, bring your own agent</DialogTitle>
+                        <DialogDescription className="text-sm leading-relaxed">
+                            Connect Claude or ChatGPT over MCP and it can read your résumé, tailor it
+                            for this role, and save the result back to your account.
+                        </DialogDescription>
+                    </DialogHeader>
+                </div>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto py-0.5">
+                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-6 py-0.5">
                     {saved && !choosing ? (
                         <button type="button" onClick={() => handoff(saved)} className={outlineButtonCls}>
                             Open in {CLIENT_LABEL[saved]}
@@ -161,7 +163,7 @@ export function ApplyIntentDialog({
                     border is what reads this as its own zone rather than a
                     third "hand it to your AI" option sitting flush under
                     Claude/ChatGPT. */}
-                <div className="flex shrink-0 flex-col gap-2 border-t border-border pt-3">
+                <div className="flex shrink-0 flex-col gap-2 border-t border-border px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                     {postingHref ? (
                         <a
                             href={postingHref}

@@ -189,7 +189,7 @@ export function ForYouPack({
             data-testid="for-you-pack"
             className={cn("flex flex-col overflow-hidden rounded-panel border border-border bg-card", className)}
         >
-            <div className="border-b border-border bg-muted p-4 lg:p-6">
+            <div className="border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8">
                 <div className="flex flex-col gap-4">
                     <div className="flex items-start gap-3">
                         <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
@@ -224,7 +224,7 @@ export function ForYouPack({
                 </div>
             </div>
 
-            <div className={cn("grid gap-6 p-4 lg:p-6", hasAside && "lg:grid-cols-[280px_1fr]")}>
+            <div className={cn("grid gap-6 py-4 px-4 lg:py-6 lg:px-8", hasAside && "lg:grid-cols-[280px_1fr]")}>
                 {hasAside && (
                     <aside className="min-w-0 space-y-6 rounded-panel border border-border bg-muted p-4">
                         {matchScore ? (
