@@ -2,10 +2,11 @@ import type { PublicJob } from "./types";
 import { toValueArray } from "./types";
 
 /**
- * Read-path trust corrections for Meili documents — domain affiliation and
- * salary currency inferred from posting text. Applied at the Meili→wire
- * boundary (`normalizePublicJob`). Upstream jobs-sync may still write bad
- * values; the Contabo repair script backfills live Meili docs.
+ * Read-path trust corrections for Meili documents — domain affiliation,
+ * salary currency, and multi-zone salary bands inferred from posting text.
+ * Applied at the Meili→wire boundary (`normalizePublicJob`). Upstream
+ * jobs-sync may still write bad values; the Contabo repair script backfills
+ * live Meili docs.
  *
  * Extend `BRAND_AFFILIATIONS` when prod QA surfaces a verified wrong→right
  * pair (brand match + country context + foreign domain). Do not invent mappings.
@@ -55,7 +56,7 @@ type BrandAffiliation = {
   /** Known wrong domains keyed to this brand (lowercase, no scheme). */
   wrongDomains: string[];
   /** Canonical domain per country code when location/company implies that market. */
-  regions: Partial<Record<"CA", string>>;
+  regions: Partial<Record<"CA" | "US", string>>;
 };
 
 /**
@@ -71,7 +72,7 @@ const BRAND_AFFILIATIONS: BrandAffiliation[] = [
       "td.co.uk",
       "tdbank.co.uk",
     ],
-    regions: { CA: "td.com" },
+    regions: { CA: "td.com", US: "td.com" },
   },
 ];
 
@@ -127,6 +128,20 @@ function isCanadaLocationCountry(location_country: PublicJob["location_country"]
   });
 }
 
+function isUnitedStatesLocationCountry(
+  location_country: PublicJob["location_country"],
+): boolean {
+  return toValueArray(location_country).some((c) => {
+    const v = c.trim();
+    return (
+      /^us$/i.test(v) ||
+      /^usa$/i.test(v) ||
+      /^united states$/i.test(v) ||
+      /^united states of america$/i.test(v)
+    );
+  });
+}
+
 /** Job is Canada-scoped when the company name or location_country says so. */
 export function isCanadaJobContext(
   job: Pick<PublicJob, "company" | "location_country">,
@@ -134,6 +149,13 @@ export function isCanadaJobContext(
   const company = job.company?.trim() ?? "";
   if (CANADA_COMPANY_SUFFIX.test(company)) return true;
   return isCanadaLocationCountry(job.location_country);
+}
+
+/** Job is United-States-scoped when location_country says so. */
+export function isUnitedStatesJobContext(
+  job: Pick<PublicJob, "location_country">,
+): boolean {
+  return isUnitedStatesLocationCountry(job.location_country);
 }
 
 function matchesBrand(company: string | null | undefined, patterns: RegExp[]): boolean {
@@ -180,12 +202,20 @@ export function correctCompanyDomain(
   const domain = normalizeDomain(original);
   if (!domain) return original ?? null;
 
-  if (!isCanadaJobContext(job)) return original ?? null;
+  const isCanada = isCanadaJobContext(job);
+  const isUnitedStates = isUnitedStatesJobContext(job);
+  if (!isCanada && !isUnitedStates) return original ?? null;
 
   const affiliation = findBrandAffiliation(job.company);
-  if (!affiliation?.regions.CA) return original ?? null;
+  if (!affiliation) return original ?? null;
 
-  const canonical = affiliation.regions.CA;
+  const canonical = isCanada
+    ? affiliation.regions.CA
+    : isUnitedStates
+      ? affiliation.regions.US
+      : undefined;
+  if (!canonical) return original ?? null;
+
   const isKnownWrong = affiliation.wrongDomains.includes(domain);
   const isForeign = isForeignCountryTld(domain);
 
@@ -300,25 +330,175 @@ export function correctSalaryCurrency(
   return job.salary_currency;
 }
 
-/** True when read-path corrections would change domain or salary currency. */
-export function jobNeedsTrustCorrection(job: PublicJob): boolean {
-  const domain = correctCompanyDomain(job);
-  const currency = correctSalaryCurrency(job);
-  return domain !== job.company_domain || currency !== job.salary_currency;
+const ZONE_BAND_RE =
+  /Zone\s+[A-Z]+:\s*((?:CA\$|C\$|US\$|\$|£|€)?[\d,]+(?:\.\d{2})?)\s*[–\-—]\s*((?:CA\$|C\$|US\$|\$|£|€)?[\d,]+(?:\.\d{2})?)(?:\s*(CAD|USD|GBP|EUR))?\s*(?:gross)?/gi;
+
+const ANNUAL_ZONE_MIN = 20_000;
+const ANNUAL_ZONE_MAX = 750_000;
+
+type ParsedZoneBand = { min: number; max: number; currency: "CAD" | "USD" | "GBP" | "EUR" | null };
+
+function parseDollarAmount(raw: string): number | null {
+  const m = raw.match(/([\d,]+(?:\.\d{2})?)/);
+  if (!m) return null;
+  const n = Number(m[1].replace(/,/g, ""));
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n);
 }
 
-/** Shallow copy with corrected `company_domain` / `salary_currency` when rules fire. */
+/** Currency from zone-band text; bare `$` alone does not count. */
+function currencyFromZoneSegment(segment: string): "CAD" | "USD" | "GBP" | "EUR" | null {
+  if (/(?:^|[^\w])CA\$|(?:^|[^\w])C\$(?=\d)|(?:^|[^\w])CAD(?:$|[^\w])/i.test(segment)) {
+    return "CAD";
+  }
+  if (/(?:^|[^\w])US\$|(?:^|[^\w])USD(?:$|[^\w])/i.test(segment)) return "USD";
+  if (/£|(?:^|[^\w])GBP(?:$|[^\w])/i.test(segment)) return "GBP";
+  if (/€|(?:^|[^\w])EUR(?:$|[^\w])/i.test(segment)) return "EUR";
+  return null;
+}
+
+function parseZoneSalaryBands(
+  description: string | null | undefined,
+): { bands: ParsedZoneBand[]; envelopeMin: number; envelopeMax: number; currency: "CAD" | "USD" | "GBP" | "EUR" | null } | null {
+  const text = description?.trim();
+  if (!text) return null;
+
+  const bands: ParsedZoneBand[] = [];
+  ZONE_BAND_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = ZONE_BAND_RE.exec(text)) !== null) {
+    const low = parseDollarAmount(match[1]);
+    const high = parseDollarAmount(match[2]);
+    if (low == null || high == null) continue;
+    if (low < ANNUAL_ZONE_MIN || high < ANNUAL_ZONE_MIN) continue;
+    if (low > ANNUAL_ZONE_MAX || high > ANNUAL_ZONE_MAX) continue;
+    if (low > high) continue;
+
+    const segment = match[0];
+    const suffixCode = match[3]?.toUpperCase() as ParsedZoneBand["currency"] | undefined;
+    const markerCurrency = currencyFromZoneSegment(segment);
+    const currency = suffixCode ?? markerCurrency;
+    bands.push({ min: low, max: high, currency });
+  }
+
+  if (bands.length < 2) return null;
+
+  const nonNullCurrencies = bands.map((b) => b.currency).filter((c): c is NonNullable<typeof c> => c != null);
+  const uniqueCurrencies = new Set(nonNullCurrencies);
+  if (uniqueCurrencies.size > 1) return null;
+
+  const currency = nonNullCurrencies[0] ?? null;
+  const envelopeMin = Math.min(...bands.map((b) => b.min));
+  const envelopeMax = Math.max(...bands.map((b) => b.max));
+
+  return { bands, envelopeMin, envelopeMax, currency };
+}
+
+const NON_ANNUAL_SALARY_PERIODS = new Set([
+  "hour",
+  "hourly",
+  "week",
+  "weekly",
+  "month",
+  "monthly",
+  "day",
+  "daily",
+]);
+
+/**
+ * When a posting lists multi-zone annual salary bands and stored min/max are
+ * implausible (Unity Montreal SWE), replace with the envelope. Leave stored
+ * amounts alone when they already match one posted band exactly.
+ */
+export function correctSalaryFromZoneTable(
+  job: Pick<
+    PublicJob,
+    "salary_min" | "salary_max" | "salary_currency" | "salary_period" | "description"
+  >,
+): Pick<PublicJob, "salary_min" | "salary_max" | "salary_currency" | "salary_period"> {
+  const parsed = parseZoneSalaryBands(job.description);
+  if (!parsed) {
+    return {
+      salary_min: job.salary_min,
+      salary_max: job.salary_max,
+      salary_currency: job.salary_currency,
+      salary_period: job.salary_period,
+    };
+  }
+
+  const { bands, envelopeMin, envelopeMax, currency } = parsed;
+  const storedMin = job.salary_min;
+  const storedMax = job.salary_max;
+
+  const matchesExactBand = bands.some((b) => storedMin === b.min && storedMax === b.max);
+  const matchesEnvelope = storedMin === envelopeMin && storedMax === envelopeMax;
+
+  const implausible =
+    storedMin == null ||
+    storedMax == null ||
+    storedMin < envelopeMin * 0.5 ||
+    storedMin > envelopeMax ||
+    storedMax > envelopeMax * 1.15;
+
+  if (matchesExactBand || matchesEnvelope || !implausible) {
+    return {
+      salary_min: job.salary_min,
+      salary_max: job.salary_max,
+      salary_currency: job.salary_currency,
+      salary_period: job.salary_period,
+    };
+  }
+
+  let salary_period = job.salary_period;
+  const periodKey = salary_period?.toLowerCase() ?? "";
+  if (!periodKey || NON_ANNUAL_SALARY_PERIODS.has(periodKey)) {
+    salary_period = "year";
+  }
+
+  return {
+    salary_min: envelopeMin,
+    salary_max: envelopeMax,
+    salary_currency: currency ?? job.salary_currency,
+    salary_period,
+  };
+}
+
+/** True when read-path corrections would change any trusted field. */
+export function jobNeedsTrustCorrection(job: PublicJob): boolean {
+  const corrected = applyTrustCorrections(job);
+  return (
+    corrected.company_domain !== job.company_domain ||
+    corrected.salary_currency !== job.salary_currency ||
+    corrected.salary_min !== job.salary_min ||
+    corrected.salary_max !== job.salary_max ||
+    corrected.salary_period !== job.salary_period
+  );
+}
+
+/** Shallow copy with corrected domain / salary fields when rules fire. */
 export function applyTrustCorrections(job: PublicJob): PublicJob {
   const company_domain = correctCompanyDomain(job);
-  const salary_currency = correctSalaryCurrency(job);
+  const zoneSalary = correctSalaryFromZoneTable(job);
+  const salary_currency = correctSalaryCurrency({
+    ...job,
+    salary_currency: zoneSalary.salary_currency,
+  });
 
-  if (company_domain === job.company_domain && salary_currency === job.salary_currency) {
-    return job;
-  }
+  const unchanged =
+    company_domain === job.company_domain &&
+    zoneSalary.salary_min === job.salary_min &&
+    zoneSalary.salary_max === job.salary_max &&
+    zoneSalary.salary_period === job.salary_period &&
+    salary_currency === job.salary_currency;
+
+  if (unchanged) return job;
 
   return {
     ...job,
     company_domain,
+    salary_min: zoneSalary.salary_min,
+    salary_max: zoneSalary.salary_max,
+    salary_period: zoneSalary.salary_period,
     salary_currency,
   };
 }
