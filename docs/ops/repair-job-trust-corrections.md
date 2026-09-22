@@ -13,3 +13,7 @@ npx tsx scripts/repair-job-trust-corrections-meili.mjs \
 ```
 
 Upstream ingest (`/opt/jobs-sync/sync.mjs`) must be fixed separately or bad values may return on the next sync.
+
+## SERP vs detail
+
+SERP/list Meili hits omit `description`, so CAD salary display on the list requires this Meili repair (or upstream writing correct `salary_currency`). Job detail still corrects via the read path when `description` is present. Domain remap works on SERP without `description`.

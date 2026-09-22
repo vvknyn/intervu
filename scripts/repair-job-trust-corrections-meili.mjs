@@ -182,7 +182,7 @@ async function main() {
   }
 
   if (!apply) {
-    console.log("\nDry run complete. Re-run with --apply to POST patches.");
+    console.log("\nDry run complete. Re-run with --apply to PATCH partial updates.");
     return;
   }
 
@@ -191,14 +191,15 @@ async function main() {
     return;
   }
 
+  // Meili POST /documents replaces the whole document; PATCH merges partial fields only.
   const BATCH = 100;
   for (let i = 0; i < patches.length; i += BATCH) {
     const batch = patches.slice(i, i + BATCH).map((p) => p.patch);
     const task = await call(`/indexes/${INDEX}/documents`, {
-      method: "POST",
+      method: "PATCH",
       body: JSON.stringify(batch),
     });
-    console.log(`posted batch ${Math.floor(i / BATCH) + 1} (${batch.length} docs) task ${task.taskUid ?? task.uid ?? "?"}`);
+    console.log(`patched batch ${Math.floor(i / BATCH) + 1} (${batch.length} docs) task ${task.taskUid ?? task.uid ?? "?"}`);
   }
 
   console.log(`\nApplied ${patches.length} patch(es). Monitor Meili tasks for indexing completion.`);
