@@ -141,12 +141,14 @@ export function saveSavedSearches(list: SavedSearch[]): void {
 }
 
 export function clearSavedSearches(): void {
+    cache = null;
     if (!hasLocalStorage()) return;
     try {
         localStorage.removeItem(SAVED_SEARCHES_KEY);
     } catch {
         /* ignore */
     }
+    notify();
 }
 
 let cache: SavedSearch[] | null = null;

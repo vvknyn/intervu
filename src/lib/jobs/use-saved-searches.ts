@@ -85,7 +85,18 @@ export function useSavedSearches(): UseSavedSearchesResult {
     const [saved, setSaved] = useState<SavedSearch[]>(() => (user ? (cache ?? []) : loadSavedSearches()));
     const [loading, setLoading] = useState(!!user && !cache);
 
-    useEffect(() => onAuthChange(setUser), []);
+    useEffect(
+        () =>
+            onAuthChange((nextUser) => {
+                setUser(nextUser);
+                if (!nextUser) {
+                    invalidateSavedSearchesCache();
+                    setSaved(loadSavedSearches());
+                    setLoading(false);
+                }
+            }),
+        [],
+    );
 
     useEffect(() => {
         let cancelled = false;

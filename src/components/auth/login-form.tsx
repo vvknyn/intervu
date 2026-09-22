@@ -15,6 +15,7 @@ import { CircleNotch, Fingerprint } from '@phosphor-icons/react'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
+import { revalidateClientSession } from '@/lib/firebase/client-auth'
 import { buildReturnTo } from '@/lib/jobs/pending-actions'
 import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -105,6 +106,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 return
             }
             router.refresh()
+            revalidateClientSession()
             await syncGuestFollowsToServer()
             if (onSuccess) onSuccess()
         })
@@ -176,6 +178,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() })
                 clearGateAttempt(window.sessionStorage)
                 router.refresh()
+                revalidateClientSession()
                 await syncGuestFollowsToServer()
                 if (onSuccess) onSuccess()
             } catch (err) {

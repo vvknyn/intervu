@@ -1,0 +1,34 @@
+/**
+ * Client-side session stores that must reset when WorkOS auth ends.
+ *
+ * Module-level caches (saved searches, follows, pursuits) and in-memory résumé
+ * state can outlive the httpOnly cookie — a deep-linked /jobs URL that
+ * rehydrates from those stores without re-checking the live session is how
+ * signed-in chrome ghosts after sign-out.
+ */
+
+import { clearLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { LAST_JOBS_HOME_VIEW_KEY } from "@/lib/jobs/for-you/last-home-view";
+import { clearSavedSearches } from "@/lib/jobs/saved-searches";
+import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
+import { invalidateFollowsCache } from "@/lib/follows/use-follows";
+import { invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
+
+function clearStorageKey(key: string): void {
+    if (typeof window === "undefined") return;
+    try {
+        window.localStorage.removeItem(key);
+    } catch {
+        /* private mode */
+    }
+}
+
+/** Drop every client store that can paint signed-in /jobs chrome. */
+export function clearSessionClientStores(): void {
+    invalidateSavedSearchesCache();
+    invalidateFollowsCache();
+    invalidatePursuitsCache();
+    clearSavedSearches();
+    clearLocalAiResume();
+    clearStorageKey(LAST_JOBS_HOME_VIEW_KEY);
+}
