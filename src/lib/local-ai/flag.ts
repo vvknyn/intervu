@@ -11,6 +11,12 @@
 
 export const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 
+const localAiEnabledListeners = new Set<() => void>();
+
+function notifyLocalAiEnabledListeners(): void {
+    localAiEnabledListeners.forEach((listener) => listener());
+}
+
 function getStorage(): Storage | null {
     if (typeof globalThis.localStorage === "undefined") return null;
     return globalThis.localStorage;
@@ -40,9 +46,38 @@ export function writeLocalAiEnabled(enabled: boolean): void {
         } else {
             storage.removeItem(LOCAL_AI_ENABLED_KEY);
         }
+        notifyLocalAiEnabledListeners();
     } catch {
         // Private browsing / quota — ignore; flag stays session-only via URL.
     }
+}
+
+/** SSR-safe subscribe pair for the local-AI guest device flag. */
+export function subscribeLocalAiEnabled(callback: () => void): () => void {
+    localAiEnabledListeners.add(callback);
+    if (typeof window !== "undefined") {
+        const onStorage = (event: StorageEvent) => {
+            if (event.key === LOCAL_AI_ENABLED_KEY || event.key === null) {
+                notifyLocalAiEnabledListeners();
+            }
+        };
+        window.addEventListener("storage", onStorage);
+        return () => {
+            localAiEnabledListeners.delete(callback);
+            window.removeEventListener("storage", onStorage);
+        };
+    }
+    return () => {
+        localAiEnabledListeners.delete(callback);
+    };
+}
+
+export function getLocalAiEnabledSnapshot(): boolean {
+    return readLocalAiEnabled();
+}
+
+export function getLocalAiEnabledServerSnapshot(): boolean {
+    return false;
 }
 
 /**

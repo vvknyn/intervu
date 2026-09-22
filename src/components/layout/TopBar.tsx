@@ -70,7 +70,11 @@ export function TopBar() {
     const handleSignOut = async () => {
         if (signingOut) return;
         setSigningOut(true);
-        localStorage.clear();
+        try {
+            localStorage.clear();
+        } catch {
+            /* private mode */
+        }
         await signOut();
         window.location.href = "/";
     };

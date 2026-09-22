@@ -105,7 +105,18 @@ export function useFollows(): UseFollowsResult {
     const [follows, setFollows] = useState<FollowedCompany[]>(() => (user ? (cache ?? []) : listGuestFollows()));
     const [loading, setLoading] = useState(!!user && !cache);
 
-    useEffect(() => onAuthChange(setUser), []);
+    useEffect(
+        () =>
+            onAuthChange((nextUser) => {
+                setUser(nextUser);
+                if (!nextUser) {
+                    invalidateFollowsCache();
+                    setFollows(listGuestFollows());
+                    setLoading(false);
+                }
+            }),
+        [],
+    );
 
     useEffect(() => {
         let cancelled = false;

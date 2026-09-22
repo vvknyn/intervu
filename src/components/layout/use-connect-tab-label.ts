@@ -14,6 +14,7 @@ function readLocalResumeConnected(): boolean {
 
 /** Desktop/mobile Connect tab label from local or account résumé presence. */
 export function useConnectTabLabel(uid: string | null | undefined, authReady: boolean): string {
+    const signedIn = authReady && !!uid;
     const resumeOnFile = useResumePresence(uid ?? null, authReady);
     const [localConnected, setLocalConnected] = useState(readLocalResumeConnected);
 
@@ -21,5 +22,6 @@ export function useConnectTabLabel(uid: string | null | undefined, authReady: bo
         setLocalConnected(readLocalResumeConnected());
     }, [uid, resumeOnFile]);
 
-    return connectTabLabel(localConnected || resumeOnFile === true);
+    const localGuestConnected = !signedIn && localConnected;
+    return connectTabLabel((signedIn && resumeOnFile === true) || localGuestConnected);
 }

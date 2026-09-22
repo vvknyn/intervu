@@ -35,7 +35,7 @@ import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
 import { getMarketingStatsAction } from "@/actions/marketing";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { FooterLinks } from "@/components/layout/Footer";
-import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
+import { getCurrentUser, onAuthChange, revalidateClientSession, type User } from "@/lib/firebase/client-auth";
 import {
     searchJobsAction as searchJobsActionRaw,
     getDefaultBrowseAction,
@@ -141,7 +141,12 @@ import { JobCard } from "@/components/jobs/JobCard";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import type { ResumeFunnelReason } from "@/lib/analytics/resume-funnel";
-import { applyLocalAiSearchParam, readLocalAiEnabled } from "@/lib/local-ai/flag";
+import {
+    applyLocalAiSearchParam,
+    getLocalAiEnabledServerSnapshot,
+    getLocalAiEnabledSnapshot,
+    subscribeLocalAiEnabled,
+} from "@/lib/local-ai/flag";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
@@ -247,6 +252,12 @@ import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
+import {
+    isConfirmedSignedIn,
+    isConfirmedSignedOut,
+    resolveJobsResumeOnFile,
+    shouldShowJobsHomeViewToggle,
+} from "@/lib/auth/jobs-chrome-gates";
 import {
     AUTH_CTA_LABEL,
     formatAuthGateValueLine,
@@ -945,10 +956,13 @@ function JobsContent() {
     const initialUrlState = useMemo(() => parseJobsUrl(searchParams), []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // R&D: `?localAi=1` enables on-device résumé parse for the session.
-    const [localAiEnabled, setLocalAiEnabled] = useState(false);
+    const localAiGuestEnabled = useSyncExternalStore(
+        subscribeLocalAiEnabled,
+        getLocalAiEnabledSnapshot,
+        getLocalAiEnabledServerSnapshot,
+    );
     useEffect(() => {
         if (searchParams.get("localAi") === "1") applyLocalAiSearchParam("1");
-        setLocalAiEnabled(readLocalAiEnabled());
     }, [searchParams]);
 
     // Review fix (2026-07-19) — ONE "now" for this entire render pass,
@@ -1560,11 +1574,9 @@ function JobsContent() {
     // R&D local mode: hydrate browser-stored résumé for signed-out guests.
     // useLayoutEffect so a usable local résumé is in state before paint and
     // `resumeOnFile` can resolve For you without a Search-chrome flash.
-    // Reads the flag from storage (not `localAiEnabled` state, which is
-    // itself filled in a post-paint effect).
     useLayoutEffect(() => {
         if (user) return;
-        if (!readLocalAiEnabled()) return;
+        if (!localAiGuestEnabled) return;
         if (resume && resumeIsUsable(resume)) return;
         const stored = readLocalAiResume();
         if (stored && resumeIsUsable(stored.data)) {
@@ -1572,7 +1584,7 @@ function JobsContent() {
             setResumeUpdatedAt(stored.updatedAt);
             setResumeSourceLabel(stored.sourceLabel ?? null);
         }
-    }, [user, resume]);
+    }, [user, resume, localAiGuestEnabled]);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
     // fetch of the résumé itself; Task 4 removed that). The card's other gate
@@ -1657,6 +1669,18 @@ function JobsContent() {
         return () => unsub();
     }, []);
 
+    // Landing stays on the session resolved at mount. The first deep link
+    // (a query or a selected job) re-checks the live cookie once, so a
+    // session resurrected after sign-out cannot stick on that view.
+    const deepLinkedSession = Boolean(query.trim() || searchParams.get("job"));
+    useEffect(() => {
+        if (!deepLinkedSession) return;
+        revalidateClientSession();
+    }, [deepLinkedSession]);
+
+    const signedIn = isConfirmedSignedIn(authReady, user);
+    const signedOut = isConfirmedSignedOut(authReady, user);
+
     // Refetch rule: only the search-affecting subset should trigger a fetch.
     // `jobId` is deliberately omitted here, so opening/closing a job (a `job`-
     // only URL change) can never appear in this key — the fetch effect below
@@ -1726,11 +1750,13 @@ function JobsContent() {
     // outright when true; otherwise this is `resumeKnownOnServer`'s
     // tri-state answer as-is, `null` included. Auth not ready yet is also
     // unknown — folding it into `false` flashes Search for a returning user.
-    const resumeOnFile: boolean | null = hasUsableResume
-        ? true
-        : authReady
-          ? resumeKnownOnServer
-          : null;
+    const resumeOnFile: boolean | null = resolveJobsResumeOnFile({
+        authReady,
+        signedIn,
+        hasUsableResume,
+        localAiGuestEnabled,
+        resumeKnownOnServer,
+    });
 
     const lastHomeView = useSyncExternalStore(
         subscribeLastJobsHomeView,
@@ -1743,7 +1769,7 @@ function JobsContent() {
     // own doc comment for why it reads `resumeOnFile` (server-aware) rather
     // than `hasUsableResume` (local-only): the latter told a returning
     // signed-in user with a résumé already on the server to "add" one.
-    const showResumeEntry = needsResumeEntry({ signedIn: !!user, resumeOnFile, fitActive });
+    const showResumeEntry = needsResumeEntry({ signedIn, resumeOnFile, fitActive });
     const showResumeReplace = needsResumeReplace({ resumeOnFile });
 
     const resolvedHomeView = useMemo(
@@ -1765,7 +1791,11 @@ function JobsContent() {
     // For-you ⇄ Search toggle: shown whenever there's a For-you home to switch
     // out of (a resume on file) or while that resolution is still pending —
     // one value, one mount point, rendered identically across all three states.
-    const showHomeViewToggle = resumeOnFile === true || showJobsHomePending;
+    const showHomeViewToggle = shouldShowJobsHomeViewToggle({
+        signedOut,
+        resumeOnFile,
+        showJobsHomePending,
+    });
     const homeViewToggleValue: JobsHomeView = resolvedHomeView === "search" ? "search" : "for-you";
 
     // Single source for "what filters are currently active" — the toolbar
@@ -3797,6 +3827,19 @@ function JobsContent() {
     const fitIntentRef = useRef<FitIntentGuard | null>(null);
     if (!fitIntentRef.current) fitIntentRef.current = new FitIntentGuard();
 
+    // Drop session-local résumé state once the server confirms nobody is
+    // signed in — otherwise a deep-linked SERP keeps painting For you /
+    // "Scoring with …" from the previous account's in-memory résumé.
+    useEffect(() => {
+        if (!signedOut || localAiGuestEnabled) return;
+        setResume(null);
+        setResumeUpdatedAt(null);
+        setResumeSourceLabel(null);
+        setFitActive(false);
+        setFitResolving(false);
+        fitIntentRef.current?.begin();
+    }, [signedOut, localAiGuestEnabled]);
+
     // Cancel ANY action queued for after sign-in (apply / gate / upload) so a
     // later, unrelated login can't hijack the user into it or write a
     // phantom application they didn't ask for. Called by every alternate
@@ -3815,7 +3858,8 @@ function JobsContent() {
     // `resumeIsUsable`'s bar exactly.
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
-        if (!user && readLocalAiEnabled()) {
+        if (!user) {
+            if (!localAiGuestEnabled) return null;
             const stored = readLocalAiResume();
             if (stored && resumeIsUsable(stored.data)) {
                 setResume(stored.data);
@@ -4369,7 +4413,7 @@ function JobsContent() {
                     resume={resume}
                     onAcceptLocalTailor={(data) => {
                         setResume(data);
-                        if (localAiEnabled) writeLocalAiResume(data);
+                        if (localAiGuestEnabled) writeLocalAiResume(data);
                     }}
                     onUploadResume={() => handleUploadClick()}
                     onSignInToSync={() => {
@@ -4387,7 +4431,7 @@ function JobsContent() {
                     resume={resume}
                     onAcceptLocalTailor={(data) => {
                         setResume(data);
-                        if (localAiEnabled) writeLocalAiResume(data);
+                        if (localAiGuestEnabled) writeLocalAiResume(data);
                     }}
                     onUploadResume={() => handleUploadClick()}
                     onSignInToSync={() => {
@@ -4809,7 +4853,7 @@ function JobsContent() {
 
     // "Scoring with {filename} · Replace" — one toolbar résumé control.
     const asOfEl =
-        hasUsableResume ? (
+        hasUsableResume && (signedIn || localAiGuestEnabled) ? (
             <span
                 data-testid="resume-as-of"
                 className="mono-data inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
@@ -4876,7 +4920,7 @@ function JobsContent() {
      * this component now only ever shows once a search is actually running.
      */
     const showColdOrientation = !user && resumeOnFile !== true && !hasUsableResume;
-    const frontDoorBandVisible = showsFrontDoorBand({ atRest, signedIn: !!user, resumeOnFile, fitActive });
+    const frontDoorBandVisible = showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive });
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -5600,7 +5644,7 @@ function JobsContent() {
                                     of restating px-4 (see globals.css's `--list-inset`
                                     comment for the full adopter list). */}
                                 <div className="px-[var(--list-inset)]">
-                                {localAiEnabled && !user && (
+                                {localAiGuestEnabled && !user && (
                                     <div
                                         data-testid="local-ai-guest-banner"
                                         className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"

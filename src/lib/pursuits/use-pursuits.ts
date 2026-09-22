@@ -126,7 +126,18 @@ export function usePursuits(): UsePursuitsResult {
     const [pursuits, setPursuits] = useState<Pursuit[]>(() => (user ? (cache ?? []) : listGuestPursuits()));
     const [loading, setLoading] = useState(!!user && !cache);
 
-    useEffect(() => onAuthChange(setUser), []);
+    useEffect(
+        () =>
+            onAuthChange((nextUser) => {
+                setUser(nextUser);
+                if (!nextUser) {
+                    invalidatePursuitsCache();
+                    setPursuits(listGuestPursuits());
+                    setLoading(false);
+                }
+            }),
+        [],
+    );
 
     // Re-read on mount/user-change and whenever the server cache or the
     // guest store is invalidated elsewhere (another mounted consumer's
