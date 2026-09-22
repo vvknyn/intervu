@@ -4,8 +4,8 @@
  * "The Match Receipt" — the chip + disclosure for `scoreJobAgainstResume`'s
  * output (lib/match/score.ts). One component, three call sites: the SERP
  * card's meta column, the job-detail header, and (later, /co — Leg D) the
- * company page. All three render the SAME `MatchScore`, so they can never
- * show a different number for the same job/résumé pair.
+ * company page. All three render the SAME `MatchScore` through `matchBand`,
+ * so they show the same Strong / Good / Stretch label for the same pair.
  *
  * Disclosure reuses `ContextHelp` (components/ui/context-help.tsx) — the
  * repo's existing tooltip-on-desktop / tap-to-expand-on-mobile primitive,
@@ -14,7 +14,7 @@
  */
 import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
-import { MATCH_CHIP_BRAND_THRESHOLD, type MatchScore } from "@/lib/match/score";
+import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
 import { captureEvent } from "@/lib/analytics/events";
 
 /** The receipt's one static disclosure row — salary is not a scored
@@ -34,34 +34,45 @@ export interface MatchChipProps {
 }
 
 export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps) {
-    const strong = score.total >= MATCH_CHIP_BRAND_THRESHOLD;
+    const band = matchBand(score.total);
+    const label = matchBandLabel(band);
+    const strong = band === "strong";
     return (
         <ContextHelp
             side="bottom"
-            content={<MatchReceipt score={score} asOfDate={asOfDate} />}
+            content={<MatchReceipt score={score} asOfDate={asOfDate} label={label} />}
             onOpenChange={(open) => {
                 if (open && jobId) captureEvent("job_match_expanded", { job_id: jobId });
             }}
         >
             <span
                 data-testid="match-chip"
+                aria-label={`${label} match`}
                 className={cn(
                     "mono-data inline-block rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none",
                     strong ? "border-brand bg-card text-brand" : "border-border bg-chip text-foreground",
                     className,
                 )}
             >
-                match {score.total}
+                {label}
             </span>
         </ContextHelp>
     );
 }
 
-function MatchReceipt({ score, asOfDate }: { score: MatchScore; asOfDate?: string | null }) {
+function MatchReceipt({
+    score,
+    asOfDate,
+    label,
+}: {
+    score: MatchScore;
+    asOfDate?: string | null;
+    label: string;
+}) {
     return (
         <div className="min-w-[220px]">
             <div className="mb-2 text-xs font-semibold text-muted-foreground">
-                Why {score.total}
+                Why {label}
                 {asOfDate ? ` — against your résumé of ${asOfDate}` : ""}
             </div>
             <div className="space-y-1.5">

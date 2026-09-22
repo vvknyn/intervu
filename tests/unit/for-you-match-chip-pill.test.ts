@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MatchChip } from "../../src/components/jobs/MatchChip";
-import { MATCH_CHIP_BRAND_THRESHOLD, type MatchScore } from "../../src/lib/match/score";
+import { MATCH_BAND_STRONG_MIN, type MatchScore } from "../../src/lib/match/score";
 
 /**
  * For-you's row fit pill (mock B5) is `JobCard`'s existing `matchScore` prop
  * rendering `MatchChip` — the SAME chip Search's row already uses, not a
- * new For-you-only pill. This asserts the pill's label/value come straight
- * from `score.total` (the existing scored field), for more than one value,
- * so the pill can never drift from what actually got computed.
+ * new For-you-only pill. This asserts the pill's qualitative label comes
+ * from the scored total via `matchBand`, for more than one value, so the
+ * pill can never drift from what actually got computed.
  */
 function score(total: number): MatchScore {
     return {
@@ -25,22 +25,27 @@ function chipText(html: string): string {
     return m![1].trim();
 }
 
-test("pill renders 'match <total>' for the scored total, not a hardcoded number", () => {
+test("pill renders Good for a mid-band total, not a hardcoded number", () => {
     const html = renderToStaticMarkup(React.createElement(MatchChip, { score: score(62) }));
-    assert.equal(chipText(html), "match 62");
+    assert.equal(chipText(html), "Good");
 });
 
-test("pill tracks a different total too — class-wide, not the one instance that motivated it", () => {
+test("pill renders Strong for a high-band total — class-wide, not the one instance that motivated it", () => {
     const html = renderToStaticMarkup(React.createElement(MatchChip, { score: score(91) }));
-    assert.equal(chipText(html), "match 91");
+    assert.equal(chipText(html), "Strong");
 });
 
-test("brand-outline styling switches at MATCH_CHIP_BRAND_THRESHOLD, driven by the field, not a copy of the constant", () => {
+test("pill renders Stretch below the Good band", () => {
+    const html = renderToStaticMarkup(React.createElement(MatchChip, { score: score(45) }));
+    assert.equal(chipText(html), "Stretch");
+});
+
+test("brand-outline styling switches at the Strong band, driven by the score, not a copy of the constant", () => {
     const below = renderToStaticMarkup(
-        React.createElement(MatchChip, { score: score(MATCH_CHIP_BRAND_THRESHOLD - 1) }),
+        React.createElement(MatchChip, { score: score(MATCH_BAND_STRONG_MIN - 1) }),
     );
     const atThreshold = renderToStaticMarkup(
-        React.createElement(MatchChip, { score: score(MATCH_CHIP_BRAND_THRESHOLD) }),
+        React.createElement(MatchChip, { score: score(MATCH_BAND_STRONG_MIN) }),
     );
     assert.doesNotMatch(below, /border-brand/);
     assert.match(atThreshold, /border-brand/);
