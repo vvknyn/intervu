@@ -97,7 +97,7 @@ function FitBreakdown({ score }: { score: MatchScore }) {
                 {score.components.map((component) => (
                     <div key={component.key}>
                         <p className="text-sm font-semibold text-foreground">{component.label}</p>
-                        <ProgressBar progress={component.score * 100} className="mt-1" />
+                        <ProgressBar progress={component.score * 100} className="mt-1" radius="ctl" />
                         <p className="mt-1 text-xs text-muted-foreground">{component.detail}</p>
                     </div>
                 ))}
