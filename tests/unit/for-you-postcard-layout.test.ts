@@ -103,6 +103,20 @@ describe("for-you postcard layout", () => {
         assert.match(headerBlock, /flex flex-wrap gap-2/, "chip row still wraps chips");
     });
 
+    it("ForYouPack header and body grid share lg:px-8 horizontal inset on desktop", () => {
+        const pack = source("ForYouPack.tsx");
+        assert.match(
+            pack,
+            /border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8/,
+            "pack header must use px-4 lg:px-8",
+        );
+        assert.match(
+            pack,
+            /grid gap-6 py-4 px-4 lg:py-6 lg:px-8/,
+            "pack body grid must use px-4 lg:px-8",
+        );
+    });
+
     it("ForYouHome skeleton and empty state use rounded-panel", () => {
         const home = source("ForYouHome.tsx");
         const skeletonBlock = home.match(/function ForYouPackSkeleton[\s\S]*?^}/m)?.[0] ?? "";
@@ -111,6 +125,16 @@ describe("for-you postcard layout", () => {
             skeletonBlock,
             /overflow-hidden rounded-panel/,
             "skeleton root must use rounded-panel",
+        );
+        assert.match(
+            skeletonBlock,
+            /border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8/,
+            "skeleton header must match pack horizontal inset",
+        );
+        assert.match(
+            skeletonBlock,
+            /grid gap-6 py-4 px-4 lg:grid-cols-\[280px_1fr\] lg:py-6 lg:px-8/,
+            "skeleton body grid must match pack horizontal inset",
         );
         assert.match(
             home,

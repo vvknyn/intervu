@@ -57,4 +57,24 @@ describe("for-you mobile chrome", () => {
         const src = readFileSync(join(JOBS, "ApplyIntentDialog.tsx"), "utf8");
         assert.match(src, /max-h-\[85dvh\]/);
     });
+
+    it("ApplyIntentDialog uses p-0 shell with explicit px-6 zone padding", () => {
+        const src = readFileSync(join(JOBS, "ApplyIntentDialog.tsx"), "utf8");
+        assert.match(
+            src,
+            /DialogContent className="[^"]*\bp-0\b[^"]*"/,
+            "DialogContent must override primitive p-6 with p-0",
+        );
+        assert.match(src, /shrink-0 px-6 pt-6 pr-12/, "header zone must carry px-6");
+        assert.match(
+            src,
+            /overflow-y-auto px-6/,
+            "middle scroller must carry px-6",
+        );
+        assert.match(
+            src,
+            /border-t border-border px-6/,
+            "footer zone must carry px-6",
+        );
+    });
 });

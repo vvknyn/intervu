@@ -850,7 +850,7 @@ function EmptyResults({
     const hasQuery = query.trim().length > 0;
     const hasFilters = entries.length > 0 || !!locationDefault;
     return (
-        <div className="py-8 text-left">
+        <div className="px-[var(--list-inset)] py-8 text-left">
             <p className="text-sm text-foreground">
                 {hasFilters ? "Nothing matches these filters." : "No roles match."}
             </p>
@@ -919,7 +919,7 @@ function ListTail({
 }) {
     if (endOfListState === "more-available") return null;
     return (
-        <div className="py-5 text-left">
+        <div className="px-[var(--list-inset)] py-5 text-left">
             {endOfListState === "cap-reached" ? (
                 // A4 — the honest cap-reached line: `hasMore` stopped
                 // because pagination hit MAX_REACHABLE, not because the
@@ -5763,41 +5763,43 @@ function JobsContent() {
                             this state (see `resultCountLine`) because the relaxed total
                             counts word-dropped matches — a number that doesn't describe
                             the query the user actually typed. */}
-                        {!loading && result?.widened && (
-                            <p data-testid="widened-note" className="mb-3 text-sm text-muted-foreground">
-                                Nothing matches every word of that — showing the closest matches.
-                            </p>
-                        )}
+                        <div className="px-[var(--list-inset)]">
+                            {!loading && result?.widened && (
+                                <p data-testid="widened-note" className="mb-3 text-sm text-muted-foreground">
+                                    Nothing matches every word of that — showing the closest matches.
+                                </p>
+                            )}
 
-                        {!loading && degradedNote && (
-                            <p data-testid="degraded-note" className="mb-3 text-sm text-muted-foreground">
-                                {degradedNote}
-                            </p>
-                        )}
+                            {!loading && degradedNote && (
+                                <p data-testid="degraded-note" className="mb-3 text-sm text-muted-foreground">
+                                    {degradedNote}
+                                </p>
+                            )}
 
-                        {!loading && unmatchedNote && (
-                            <p data-testid="unmatched-place-note" className="mb-3 text-sm text-muted-foreground">
-                                {unmatchedNote}
-                            </p>
-                        )}
+                            {!loading && unmatchedNote && (
+                                <p data-testid="unmatched-place-note" className="mb-3 text-sm text-muted-foreground">
+                                    {unmatchedNote}
+                                </p>
+                            )}
 
-                        {result?.preview && result.note && (
-                            <div className="mb-3 shrink-0 border-l-2 border-verdict-caution pl-3 text-xs text-verdict-caution">
-                                {result.note}
-                            </div>
-                        )}
+                            {result?.preview && result.note && (
+                                <div className="mb-3 shrink-0 border-l-2 border-verdict-caution pl-3 text-xs text-verdict-caution">
+                                    {result.note}
+                                </div>
+                            )}
 
-                        {backgroundError && (
-                            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-l-2 border-verdict-risk pl-3 text-xs text-verdict-risk">
-                                <span>{searchError}</span>
-                                <button
-                                    onClick={() => setSearchRetry((n) => n + 1)}
-                                    className="underline underline-offset-2"
-                                >
-                                    Retry
-                                </button>
-                            </div>
-                        )}
+                            {backgroundError && (
+                                <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-l-2 border-verdict-risk pl-3 text-xs text-verdict-risk">
+                                    <span>{searchError}</span>
+                                    <button
+                                        onClick={() => setSearchRetry((n) => n + 1)}
+                                        className="underline underline-offset-2"
+                                    >
+                                        Retry
+                                    </button>
+                                </div>
+                            )}
+                        </div>
 
 
                         {/* Flex COLUMN, not a bare block. The results pane below is the
@@ -5837,7 +5839,7 @@ function JobsContent() {
                                    the URL write and recent-searches recording can't
                                    drift from a real search. Styled like SerpFilters'
                                    own `Affordance` grammar — no pills, no buttons. */
-                                <div className="text-left" data-testid="serp-ask">
+                                <div className="px-[var(--list-inset)] text-left" data-testid="serp-ask">
                                     <p className="text-xs text-faint">
                                         Suggested roles
                                     </p>
@@ -5860,7 +5862,7 @@ function JobsContent() {
                                     </div>
                                 </div>
                             ) : resultsPanel === "not-connected" ? (
-                                <div className="border-l-2 border-foreground py-6 pl-4 text-left">
+                                <div className="border-l-2 border-foreground px-[var(--list-inset)] py-6 pl-4 text-left">
                                     <p className="text-xs text-foreground">Job search is being connected.</p>
                                     <p className="mt-1.5 max-w-md text-xs text-muted-foreground">
                                         We&apos;re wiring velai up to Subspace&apos;s live job corpus — including the posting check
@@ -5879,7 +5881,7 @@ function JobsContent() {
                                 // unavailable." repeated right above `searchError`,
                                 // which itself often already opens with that same
                                 // backend-supplied phrase — this no longer says it twice.
-                                <div role="alert" className="border-l-2 border-verdict-risk py-6 pl-4 text-left">
+                                <div role="alert" className="border-l-2 border-verdict-risk px-[var(--list-inset)] py-6 pl-4 text-left">
                                     <p className="text-xs text-foreground">We can&apos;t load results right now.</p>
                                     <p className="mt-1.5 max-w-md text-xs text-muted-foreground">{searchError}</p>
                                     <button
