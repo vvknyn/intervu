@@ -140,6 +140,24 @@ export function clearPersistedPendingAction(storage: PendingActionStorage): void
     }
 }
 
+/** Read a queued action kind without consuming — for post-auth routing only. */
+export function peekPendingActionKind(storage: PendingActionStorage): PendingActionKind | null {
+    let raw: string | null;
+    try {
+        raw = storage.getItem(PENDING_ACTION_STORAGE_KEY);
+    } catch {
+        return null;
+    }
+    if (!raw) return null;
+    try {
+        const parsed: unknown = JSON.parse(raw);
+        if (!isValidPersistedPendingActionShape(parsed)) return null;
+        return parsed.action.kind;
+    } catch {
+        return null;
+    }
+}
+
 const DEFAULT_MAX_PENDING_ACTION_AGE_MS = 15 * 60_000;
 
 export interface TakePersistedPendingActionOptions {

@@ -22,6 +22,7 @@ test("isAuthGatedProductPath matches product prefixes", () => {
 test("validateNextParam accepts safe in-app paths", () => {
   assert.equal(validateNextParam("/jobs"), "/jobs");
   assert.equal(validateNextParam("/jobs?q=design"), "/jobs?q=design");
+  assert.equal(validateNextParam("/jobs?resume=gate"), "/jobs?resume=gate");
   assert.equal(validateNextParam("/connect?client=claude"), "/connect?client=claude");
   assert.equal(validateNextParam("/admin"), "/admin");
   assert.equal(validateNextParam("/"), "/");

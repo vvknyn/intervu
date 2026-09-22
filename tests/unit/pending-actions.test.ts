@@ -6,6 +6,7 @@ import {
     persistPendingAction,
     takePersistedPendingAction,
     clearPersistedPendingAction,
+    peekPendingActionKind,
     PENDING_ACTION_STORAGE_KEY,
     type PendingActionStorage,
 } from '../../src/lib/jobs/pending-actions';
@@ -236,6 +237,20 @@ describe('takePersistedPendingAction — malformed records never reach the calle
         });
         assert.deepEqual(record?.action, { kind: 'report', payload: 'job-R' });
         assert.equal(record?.scrollY, 120);
+    });
+});
+
+describe('peekPendingActionKind — read without consume for post-auth routing', () => {
+    it('returns the queued kind and leaves storage intact', () => {
+        const storage = fakeStorage();
+        persistPendingAction(storage, {
+            action: { kind: 'upload', payload: true },
+            returnTo: '/jobs',
+            scrollY: 0,
+            createdAt: 1000,
+        });
+        assert.equal(peekPendingActionKind(storage), 'upload');
+        assert.ok(storage.getItem(PENDING_ACTION_STORAGE_KEY));
     });
 });
 
