@@ -213,6 +213,39 @@ export function placeClause(
   return clause;
 }
 
+/** True when every filter in `any` is `location_country` — a bare country or
+ *  region expansion, with no city/state disambiguation. Phrase-bound work
+ *  modes (`workTypes`) mean an independent intent like "remote canada" and
+ *  are never dropped beside a city clause. */
+function isDroppableCountryOnlyClause(clause: PlaceClause): boolean {
+  return (
+    clause.any.length > 0 &&
+    clause.any.every((f) => f.field === "location_country") &&
+    (clause.workTypes?.length ?? 0) === 0
+  );
+}
+
+function clauseHasCity(clause: PlaceClause): boolean {
+  return clause.any.some((f) => f.field === "location_city");
+}
+
+/**
+ * When a resolved place list already constrains `location_city`, drop sibling
+ * country-only clauses before `buildFilter` ORs them — otherwise a city chip
+ * "Toronto" paired with country "Canada" (or typed "Toronto, Canada" with a
+ * bare Canada alternative) widens to every Canadian posting, including
+ * Halifax, St. John's, Vancouver, and Den Haag rows mislabeled Canada.
+ * Idempotent. State/admin1 and multi-city ORs are preserved. A country clause
+ * that carries phrase-bound `workTypes` ("remote canada" beside "hybrid
+ * toronto") is an independent place intent and is kept, not folded onto the
+ * city. `remoteAnywhere` is never added.
+ */
+export function preferStrictCity(places: PlaceClause[]): PlaceClause[] {
+  if (!places.some(clauseHasCity)) return places;
+  if (!places.some(isDroppableCountryOnlyClause)) return places;
+  return places.filter((c) => !isDroppableCountryOnlyClause(c));
+}
+
 /** A region/continent phrase ("North America", "EMEA", ...) resolves to ONE
  *  PlaceClause whose candidates are the UNION of every member country's own
  *  candidate set — built by calling `countryPlaceCandidates` per member, the

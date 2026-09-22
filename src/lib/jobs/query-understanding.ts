@@ -15,7 +15,7 @@
 import type { JobSearchParams, PlaceClause, PlaceFilter } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
-import { scanPlacePhrases, rebuildAfterRejection, placeClause, type PlaceResolution, type LocationField } from "../geo/resolve-place";
+import { scanPlacePhrases, rebuildAfterRejection, placeClause, preferStrictCity, type PlaceResolution, type LocationField } from "../geo/resolve-place";
 import { MAX_REGION_CLAUSE_TERMS, regionLabel } from "../geo/regions";
 import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
@@ -394,9 +394,10 @@ export async function resolvePickedFacetValue(
  *
  * 3. No literal match either — fall back to whatever tokenizing DID manage
  *    (today's partial-match behavior, unchanged: "San Diego Renewable
- *    Group" still finds San Diego, "Toronto, Canada" still finds both).
- *    Only when tokenizing found nothing AT ALL does the phrase get dropped
- *    as unmatched.
+ *    Group" still finds San Diego). `preferStrictCity` then drops a bare
+ *    country-only alternative when a city clause is present ("Toronto,
+ *    Canada" → Toronto only, not Canada-wide). Only when tokenizing found
+ *    nothing AT ALL does the phrase get dropped as unmatched.
  */
 async function resolvePhraseOrRawLiteral(
   phrase: string,
@@ -414,7 +415,7 @@ async function resolvePhraseOrRawLiteral(
     return { places: [placeClause(exact, { country })], unmatched: [] };
   }
 
-  if (places.length > 0) return { places, unmatched: [] };
+  if (places.length > 0) return { places: preferStrictCity(places), unmatched: [] };
   return { places: [], unmatched: [phrase] };
 }
 
@@ -548,7 +549,10 @@ export async function resolveLocationFacet(
   // anywhere") from one typed into a place phrase ("remote in Canada"), so
   // it stays global and still AND's across the whole query.
   const mergedWorkTypes = new Set([...(facets.work_type ?? []), ...unboundWorkTypes]);
-  const mergedPlaces = [...(p.places ?? []), ...resolved];
+  const hasCityConstraint = resolved.some((c) => c.any.some((f) => f.field === "location_city"));
+  const mergedPlaces = hasCityConstraint
+    ? preferStrictCity([...(p.places ?? []), ...resolved])
+    : [...(p.places ?? []), ...resolved];
   return {
     ...p,
     // Only attach `places` when there's a resolved clause to carry — a
