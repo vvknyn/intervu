@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { buildPostAuthResumeGatePath } from "@/lib/auth/post-auth-destination";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { withAuthProvider } from "@/lib/auth/authkit-url";
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     // Validated, never passed through raw: an unchecked `next` is an open
     // redirect, and this one survives a round trip through an external host.
-    const returnTo = validateNextParam(params.get("next")) ?? "/jobs";
+    const returnTo = validateNextParam(params.get("next")) ?? buildPostAuthResumeGatePath();
 
     const url =
         params.get("mode") === "signup"

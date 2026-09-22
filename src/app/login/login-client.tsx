@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
+import { hasUsableResumeOnFile } from "@/actions/resume";
+import { resolvePostAuthDestination } from "@/lib/auth/post-auth-destination";
 import { validateNextParam } from "@/lib/auth/product-routes";
+import { peekPendingActionKind } from "@/lib/jobs/pending-actions";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { captureEvent } from "@/lib/analytics/events";
 import { buildAuthOpenPayload } from "@/lib/analytics/auth-event-payload";
@@ -48,12 +51,20 @@ export function LoginClient() {
         }));
     }, [searchParams]);
 
-    const redirectAfterAuth = useCallback(() => {
-        router.replace(validateNextParam(searchParams.get("next")) ?? "/jobs");
+    const redirectAfterAuth = useCallback(async () => {
+        const validatedNext = validateNextParam(searchParams.get("next"));
+        const hasPendingAction = peekPendingActionKind(window.sessionStorage) !== null;
+        const { hasResume } = await hasUsableResumeOnFile();
+        const destination = resolvePostAuthDestination({
+            validatedNext,
+            hasResume,
+            hasPendingAction,
+        });
+        router.replace(destination);
     }, [router, searchParams]);
 
     useEffect(() => {
-        if (user) redirectAfterAuth();
+        if (user) void redirectAfterAuth();
     }, [user, redirectAfterAuth]);
 
     return (

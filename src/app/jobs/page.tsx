@@ -139,6 +139,7 @@ import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
+import type { ResumeFunnelReason } from "@/lib/analytics/resume-funnel";
 import { applyLocalAiSearchParam, readLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -196,6 +197,12 @@ import { SearchAlertCapture } from "@/components/jobs/SearchAlertCapture";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { useApplyReturnPrompt, ApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
 import { GuestApplyTrackPrompt, type GuestApplyTrackRecord } from "@/components/jobs/GuestApplyTrackPrompt";
+import { readGateAttempt } from "@/lib/auth/gate-attempt";
+import {
+    authGateReasonToFunnelReason,
+    POST_AUTH_RESUME_GATE_PARAM,
+    POST_AUTH_RESUME_GATE_VALUE,
+} from "@/lib/auth/post-auth-destination";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
 import { JOBS_TAB_HELPER, RANK_SECONDARY_COPY, RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
@@ -1543,6 +1550,11 @@ function JobsContent() {
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
     const [resumeSourceLabel, setResumeSourceLabel] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
+    const [importFunnelContext, setImportFunnelContext] = useState<{
+        reason?: ResumeFunnelReason;
+        surface?: string;
+        signed_in?: boolean;
+    }>({ reason: "fit", surface: "jobs_banner" });
 
     // R&D local mode: hydrate browser-stored résumé for signed-out guests.
     // useLayoutEffect so a usable local résumé is in state before paint and
@@ -4009,6 +4021,44 @@ function JobsContent() {
         beginResumeUpload();
     };
 
+    const postAuthResumeGateHandledRef = useRef(false);
+
+    // OAuth and /login default land here with `?resume=gate` when the user
+    // has no résumé on file. Strip the param once presence is known; open the
+    // importer only for confirmed résumeless users (returning users with a
+    // résumé just lose the flag). Pending upload replay via useAuthGate owns
+    // its own open — this path is for topbar/login defaults only.
+    useEffect(() => {
+        if (searchParams.get(POST_AUTH_RESUME_GATE_PARAM) !== POST_AUTH_RESUME_GATE_VALUE) return;
+        if (!authReady || !user) return;
+        if (resumeOnFile === null) return;
+
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete(POST_AUTH_RESUME_GATE_PARAM);
+        const qs = params.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname);
+
+        if (resumeOnFile !== false) return;
+        if (postAuthResumeGateHandledRef.current || importOpen) return;
+        postAuthResumeGateHandledRef.current = true;
+
+        const attempt = readGateAttempt(window.sessionStorage);
+        setImportFunnelContext({
+            reason: authGateReasonToFunnelReason(attempt?.lastGateReason),
+            surface: attempt?.originSurface ?? "login",
+            signed_in: true,
+        });
+        beginResumeUpload();
+    }, [
+        authReady,
+        user,
+        resumeOnFile,
+        searchParams,
+        pathname,
+        router,
+        importOpen,
+    ]);
+
     const handleImport = (
         data: ResumeData,
         source: "pdf" | "docx" | "text",
@@ -6183,7 +6233,7 @@ function JobsContent() {
                 title="Rank jobs by your résumé"
                 description={RESUME_UPLOAD_PROMISE}
                 storageNote="Your résumé and the parsed result are then saved to your account so they follow you across devices."
-                funnelContext={{ reason: "fit", surface: "jobs_banner", signed_in: Boolean(user) }}
+                funnelContext={{ ...importFunnelContext, signed_in: Boolean(user) }}
             />
             <Sheet
                 // Two-Panel Selector: gated through `resolveDetailMountSite`
