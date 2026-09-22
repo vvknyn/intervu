@@ -1609,6 +1609,10 @@ function JobsContent() {
             // apply-intent/departure step a signed-in click takes.
             apply: (action) => setApplyIntentJob(action.payload),
             upload: () => {
+                resumeActionAfterImportRef.current = {
+                    kind: "fit",
+                    fitToken: fitIntentRef.current!.begin(),
+                };
                 setImportOpen(true);
             },
             // Reopening the dialog isn't enough on its own — the page's
@@ -5377,7 +5381,29 @@ function JobsContent() {
                     a single call site. */}
                 {frontDoorBandVisible && (
                     <FrontDoorResumeBand
-                        onUploadClick={() => handleUploadClick()}
+                        nextStep={user ? "importer" : "auth"}
+                        onUploadClick={() => {
+                            if (user) {
+                                handleUploadClick();
+                                return;
+                            }
+                            resumeActionAfterImportRef.current = {
+                                kind: "fit",
+                                fitToken: fitIntentRef.current!.begin(),
+                            };
+                            setAuthGateReason("fit");
+                            setAuthTrigger("user");
+                            recordAuthGateOpen({
+                                storage: window.sessionStorage,
+                                reason: "fit",
+                                trigger: "user",
+                                originSurface: "jobs_banner",
+                            });
+                            gate(
+                                { kind: "upload", payload: true },
+                                { originSurface: "jobs_banner", gateReason: "fit" },
+                            );
+                        }}
                         onSignInClick={() => openAuth("generic", "user")}
                     />
                 )}
@@ -6140,7 +6166,13 @@ function JobsContent() {
                         ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length)
                         : undefined
                 }
-                defaultTab={authGateReason === "apply" ? "signup" : "login"}
+                defaultTab={
+                    authGateReason === "apply" ||
+                    authGateReason === "fit" ||
+                    authGateReason === "resume"
+                        ? "signup"
+                        : "login"
+                }
                 reason={authGateReason ?? undefined}
             />
             <ResumeImportModal
@@ -6264,8 +6296,6 @@ function JobsContent() {
                 offset above the real toast stack's own corner so a
                 concurrent "Marked as applied" success toast never stacks
                 directly on top of it. */}
-            {/* Held-open apply click. `onContinue` fires from a click inside
-                the dialog, which keeps `window.open` inside a user gesture. */}
             <ApplyIntentDialog
                 job={applyIntentJob}
                 open={Boolean(applyIntentJob)}
@@ -6273,7 +6303,7 @@ function JobsContent() {
                     if (!next) setApplyIntentJob(null);
                 }}
                 onContinue={() => {
-                    if (applyIntentJob) openPostingNow(applyIntentJob);
+                    if (applyIntentJob && user) armApplyReturnJob(applyIntentJob);
                 }}
             />
 

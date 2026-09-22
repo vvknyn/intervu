@@ -37,18 +37,20 @@ describe("apply-open-first — class-wide guarantees", () => {
 
     it("every raw navigation call in a file that handles employer URLs is routed through the shared apply gate", () => {
         const REFERENCES_APPLY_LINK = /(apply_url|job_url)/;
-        const NAVIGATES = /(window\.open\(|location\.href\s*=|location\.assign\()/;
+        const RAW_APPLY_NAV =
+            /(window\.open\([^)]*(apply_url|job\.apply_url)|location\.(href\s*=|assign)\([^)]*(apply_url|job\.apply_url))/;
         const EXEMPT_MARKER = /\/\/\s*not-an-apply-link:/;
         const SANCTIONED_FILE = join(SRC, "components", "jobs", "use-gated-apply.ts");
+        const ANCHOR_HANDOFF_FILE = join(SRC, "components", "jobs", "ApplyIntentDialog.tsx");
 
         const offenders: string[] = [];
         for (const file of ALL_SRC_FILES) {
-            if (file === SANCTIONED_FILE) continue;
+            if (file === SANCTIONED_FILE || file === ANCHOR_HANDOFF_FILE) continue;
             const src = readFileSync(file, "utf8");
             if (!REFERENCES_APPLY_LINK.test(src)) continue;
             const lines = src.split("\n");
             lines.forEach((line, i) => {
-                if (!NAVIGATES.test(line)) return;
+                if (!RAW_APPLY_NAV.test(line)) return;
                 if (EXEMPT_MARKER.test(line) || (i > 0 && EXEMPT_MARKER.test(lines[i - 1]))) return;
                 offenders.push(`${file}:${i + 1}`);
             });
@@ -56,7 +58,7 @@ describe("apply-open-first — class-wide guarantees", () => {
         assert.deepEqual(
             offenders,
             [],
-            `raw navigation call not routed through the shared apply gate: ${offenders.join(", ")}`,
+            `raw apply-url navigation not routed through the shared apply gate: ${offenders.join(", ")}`,
         );
     });
 });

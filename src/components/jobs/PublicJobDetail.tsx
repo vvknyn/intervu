@@ -351,7 +351,9 @@ export function PublicJobDetail({
                 job={job}
                 open={applyIntentOpen}
                 onOpenChange={setApplyIntentOpen}
-                onContinue={() => openPostingNow(job)}
+                onContinue={() => {
+                    if (user) armApplyReturnJob(job);
+                }}
             />
             <AuthPopover
                 open={authOpen}

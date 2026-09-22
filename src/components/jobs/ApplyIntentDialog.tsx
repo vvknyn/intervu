@@ -22,6 +22,7 @@ import { dismissApplyIntent } from "@/lib/jobs/apply-intent";
 import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
+import { isHttpApplyUrl } from "@/components/jobs/use-gated-apply";
 
 const CLIENT_LABEL: Record<McpHandoffClient, string> = {
     claude: "Claude",
@@ -40,10 +41,9 @@ const outlineButtonCls =
  * itself. "Continue to the posting" always stays available: it is never a
  * gate on applying.
  *
- * `onContinue` runs from a real click inside this dialog, which matters: the
- * apply path ends in `window.open`, and a popup blocker kills that unless it
- * runs synchronously inside a user gesture. Opening a dialog first and calling
- * `window.open` from a timer or an effect afterwards would break applying.
+ * `onContinue` is side effects only (e.g. arm the signed-in return prompt).
+ * Employer navigation is the anchor's default action — a real `<a href>`
+ * inside the click so closing this dialog cannot sever a delayed assignment.
  */
 export function ApplyIntentDialog({
     job,
@@ -88,6 +88,21 @@ export function ApplyIntentDialog({
     };
 
     const saved = getSavedHandoffClient();
+    const postingHref = job.apply_url && isHttpApplyUrl(job.apply_url) ? job.apply_url : null;
+
+    const deferClose = () => {
+        setTimeout(() => onOpenChange(false), 0);
+    };
+
+    const handleContinueSideEffects = () => {
+        onContinue();
+        deferClose();
+    };
+
+    const handleDismissAndContinue = () => {
+        dismissApplyIntent();
+        handleContinueSideEffects();
+    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -147,20 +162,23 @@ export function ApplyIntentDialog({
                     third "hand it to your AI" option sitting flush under
                     Claude/ChatGPT. */}
                 <div className="flex shrink-0 flex-col gap-2 border-t border-border pt-3">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            // Depart first, close second: `window.open` has to
-                            // run in this click's own gesture stack, and doing
-                            // it before any state change keeps that obvious.
-                            onContinue();
-                            onOpenChange(false);
-                        }}
-                        className={outlineButtonCls}
-                    >
-                        <ArrowSquareOut size={16} />
-                        Continue to the posting
-                    </button>
+                    {postingHref ? (
+                        <a
+                            href={postingHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={handleContinueSideEffects}
+                            className={outlineButtonCls}
+                        >
+                            <ArrowSquareOut size={16} />
+                            Continue to the posting
+                        </a>
+                    ) : (
+                        <button type="button" onClick={handleContinueSideEffects} className={outlineButtonCls}>
+                            <ArrowSquareOut size={16} />
+                            Continue to the posting
+                        </button>
+                    )}
 
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                         <Link
@@ -169,17 +187,25 @@ export function ApplyIntentDialog({
                         >
                             How connecting works
                         </Link>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                dismissApplyIntent();
-                                onContinue();
-                                onOpenChange(false);
-                            }}
-                            className="text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
-                        >
-                            Don&apos;t show this again
-                        </button>
+                        {postingHref ? (
+                            <a
+                                href={postingHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={handleDismissAndContinue}
+                                className="text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                            >
+                                Don&apos;t show this again
+                            </a>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={handleDismissAndContinue}
+                                className="text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                            >
+                                Don&apos;t show this again
+                            </button>
+                        )}
                     </div>
                 </div>
             </DialogContent>
