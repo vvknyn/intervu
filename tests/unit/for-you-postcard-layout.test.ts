@@ -81,4 +81,41 @@ describe("for-you postcard layout", () => {
         assert.doesNotMatch(pack, /data-pack-meta-scroll/);
         assert.doesNotMatch(pack, /lg:min-h-\[420px\]/);
     });
+
+    it("ForYouPack uses rounded-panel and keeps chips below the identity+FIT block", () => {
+        const pack = source("ForYouPack.tsx");
+        assert.match(
+            pack,
+            /data-testid="for-you-pack"[\s\S]*?rounded-panel/,
+            "pack root must use rounded-panel",
+        );
+        assert.match(pack, /flex flex-col gap-4/, "header inner layout must be a column with gap-4");
+        assert.match(pack, /break-words/, "title h2 must break long words");
+        const headerBlock = pack.match(/border-b border-border bg-muted[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
+        assert.ok(headerBlock.length > 0, "pack header block not found");
+        const identityRow = headerBlock.match(/<div className="flex items-start gap-3">[\s\S]*?<\/div>/)?.[0] ?? "";
+        assert.ok(identityRow.length > 0, "identity row not found");
+        assert.doesNotMatch(
+            identityRow,
+            /flex-wrap/,
+            "identity row must not wrap FIT into the chip row",
+        );
+        assert.match(headerBlock, /flex flex-wrap gap-2/, "chip row still wraps chips");
+    });
+
+    it("ForYouHome skeleton and empty state use rounded-panel", () => {
+        const home = source("ForYouHome.tsx");
+        const skeletonBlock = home.match(/function ForYouPackSkeleton[\s\S]*?^}/m)?.[0] ?? "";
+        assert.ok(skeletonBlock.length > 0, "ForYouPackSkeleton not found");
+        assert.match(
+            skeletonBlock,
+            /overflow-hidden rounded-panel/,
+            "skeleton root must use rounded-panel",
+        );
+        assert.match(
+            home,
+            /data-testid="for-you-empty"[\s\S]*?rounded-panel/,
+            "empty state must use rounded-panel",
+        );
+    });
 });
