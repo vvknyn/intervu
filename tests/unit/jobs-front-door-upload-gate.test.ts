@@ -15,8 +15,22 @@ function section(startMarker: string, endMarker: string): string {
 
 const beginResumeUpload = section("const beginResumeUpload = () => {", "const handleUploadClick = () => {");
 
-test("page.tsx wires FrontDoorResumeBand's onUploadClick to handleUploadClick", () => {
-    assert.match(SOURCE, /<FrontDoorResumeBand\s*\n\s*onUploadClick=\{\(\) => handleUploadClick\(\)\}/);
+function frontDoorBandBlock(): string {
+    const start = SOURCE.indexOf("<FrontDoorResumeBand");
+    assert.ok(start !== -1);
+    const end = SOURCE.indexOf("/>", start);
+    assert.ok(end !== -1);
+    return SOURCE.slice(start, end + 2);
+}
+
+test("FrontDoorResumeBand receives nextStep from auth state and signed-out upload gates fit auth", () => {
+    const band = frontDoorBandBlock();
+    assert.match(band, /nextStep=\{user \? "importer" : "auth"\}/);
+    assert.doesNotMatch(band, /onUploadClick=\{\(\) => handleUploadClick\(\)\}/);
+    assert.match(band, /gate\(\s*\{\s*kind:\s*"upload"/);
+    assert.match(band, /gateReason:\s*"fit"/);
+    assert.match(band, /setAuthGateReason\("fit"\)/);
+    assert.match(band, /resumeActionAfterImportRef\.current/);
 });
 
 test("beginResumeUpload opens the importer for guests and signed-in users — no auth gate", () => {
@@ -31,6 +45,18 @@ test("handleUploadClick is a bare pass-through to beginResumeUpload", () => {
     const end = SOURCE.indexOf("};", start);
     const body = SOURCE.slice(start, end + 2);
     assert.match(body, /beginResumeUpload\(\)/);
+});
+
+test("auth upload replay sets fit ref before opening importer", () => {
+    const handlersStart = SOURCE.indexOf("useAuthGate<PublicJob>({");
+    assert.ok(handlersStart !== -1);
+    const uploadStart = SOURCE.indexOf("upload: () => {", handlersStart);
+    assert.ok(uploadStart !== -1);
+    const uploadEnd = SOURCE.indexOf("},", uploadStart);
+    const uploadBlock = SOURCE.slice(uploadStart, uploadEnd);
+    assert.match(uploadBlock, /resumeActionAfterImportRef\.current/);
+    assert.match(uploadBlock, /fitIntentRef\.current!\.begin\(\)/);
+    assert.match(uploadBlock, /setImportOpen\(true\)/);
 });
 
 test("Apply does not auth-gate — guest tracker prompt is separate from useGatedApply perform", () => {
