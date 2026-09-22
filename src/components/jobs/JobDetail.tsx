@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
+import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
@@ -29,8 +30,7 @@ import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { withShareRef } from "@/lib/share/share-decision";
-import { captureEvent, type EventSource } from "@/lib/analytics/events";
-import { recordGuestJobView } from "@/lib/auth/guest-engage-nudge";
+import { type EventSource } from "@/lib/analytics/events";
 import { SHARE_JOB_TEXT } from "@/lib/seo/constants";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
 import { getRelatedJobsAction, getCompanyOpenCountAction } from "@/actions/jobs";
@@ -450,6 +450,7 @@ export function JobDetail({
     collapseDescription = true,
     matchScore = null,
     matchAsOfDate = null,
+    matchPending = false,
     descriptionPending,
     onRetryDescription,
     resume = null,
@@ -513,6 +514,8 @@ export function JobDetail({
     matchScore?: MatchScore | null;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
+    /** When true, defer `job_viewed` until auth + résumé reads settle (PublicJobDetail). */
+    matchPending?: boolean;
     /** True when the stored description is a stub AND searchJobsAction's live
      *  fill hit its deadline still waiting on it — see description-section-
      *  state.ts's "pending" state. */
@@ -557,11 +560,7 @@ export function JobDetail({
     useEffect(() => {
         setDescExpanded(false);
     }, [job.id]);
-    useEffect(() => {
-        captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
-        if (!signedIn) recordGuestJobView();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [job.id, source, signedIn]);
+    useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
     // Identity-header location line — same progressive-disclosure idiom as
     // the description clamp above, for aggregator-feed `location` strings
     // that stuff many semicolon-joined locations into one field (see

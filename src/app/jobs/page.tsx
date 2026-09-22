@@ -112,6 +112,7 @@ import { useOverflowEdges } from "@/hooks/use-overflow-edges";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { edgeFadeMaskImage } from "@/lib/jobs/edge-fade";
 import { captureEvent } from "@/lib/analytics/events";
+import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
@@ -2393,6 +2394,7 @@ function JobsContent() {
                 // armed with below. That's the id a click must carry to join
                 // back to the impression it came from (SPEC §5).
                 ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+                ...matchAnalyticsProps(matchScores?.get(id) ?? null),
             });
             if (!user) recordGuestResultClick();
         }
@@ -3553,6 +3555,7 @@ function JobsContent() {
             // `result_clicked` above — the id `useResultImpressions` is
             // armed with for the currently-rendered result set (SPEC §5).
             ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+            ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
         });
         gatedOpenPosting(job);
     };
@@ -4362,6 +4365,7 @@ function JobsContent() {
                     className="border-0 bg-transparent"
                     descriptionPending={detailDescriptionPending}
                     onRetryDescription={retryDescription}
+                    matchScore={matchScores?.get(detailJob.id) ?? undefined}
                     resume={resume}
                     onAcceptLocalTailor={(data) => {
                         setResume(data);

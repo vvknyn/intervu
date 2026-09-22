@@ -81,6 +81,8 @@ export function PublicJobDetail({
     const [goingAfter, setGoingAfter] = useState(false);
     const [applyIntentOpen, setApplyIntentOpen] = useState(false);
     const [user, setUser] = useState<User | null>(() => getCurrentUser());
+    const [authReady, setAuthReady] = useState(() => getCurrentUser() !== null);
+    const [resumeSettled, setResumeSettled] = useState(false);
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
     const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
     const [guestTrackPrompt, setGuestTrackPrompt] = useState<GuestApplyTrackRecord | null>(null);
@@ -91,7 +93,14 @@ export function PublicJobDetail({
     const router = useRouter();
     const { byJobId } = usePursuits();
 
-    useEffect(() => onAuthChange(setUser), []);
+    useEffect(
+        () =>
+            onAuthChange((nextUser) => {
+                setUser(nextUser);
+                setAuthReady(true);
+            }),
+        [],
+    );
 
     // Same résumé read path `/jobs` uses (`fetchResumeData` →
     // `resume_last_updated`, see actions/resume.ts) so the detail-header chip
@@ -99,6 +108,8 @@ export function PublicJobDetail({
     const [resume, setResume] = useState<ResumeData | null>(null);
     const [resumeAsOfDate, setResumeAsOfDate] = useState<string | null>(null);
     useEffect(() => {
+        if (!authReady) return;
+
         if (!user) {
             if (readLocalAiEnabled()) {
                 const stored = readLocalAiResume();
@@ -114,24 +125,39 @@ export function PublicJobDetail({
                 setResume(null);
                 setResumeAsOfDate(null);
             }
+            setResumeSettled(true);
             return;
         }
+
         let cancelled = false;
+        setResumeSettled(false);
         fetchResumeData()
             .then(({ data, updatedAt }) => {
-                if (cancelled || !data || !resumeIsUsable(data)) return;
+                if (cancelled) return;
+                if (!data || !resumeIsUsable(data)) {
+                    setResume(null);
+                    setResumeAsOfDate(null);
+                    return;
+                }
                 setResume(data);
                 const ms = updatedAt ? Date.parse(updatedAt) : NaN;
                 setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
             })
             .catch(() => {
-                /* no résumé on file — no chip, no nagging */
+                if (!cancelled) {
+                    setResume(null);
+                    setResumeAsOfDate(null);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setResumeSettled(true);
             });
         return () => {
             cancelled = true;
         };
-    }, [user]);
+    }, [user, authReady]);
     const matchScore = resume ? scoreJobAgainstResume(resume, job) : null;
+    const matchPending = !authReady || !resumeSettled;
 
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
@@ -389,6 +415,7 @@ export function PublicJobDetail({
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
                     matchAsOfDate={resumeAsOfDate}
+                    matchPending={matchPending}
                     resume={resume}
                     onAcceptLocalTailor={(data) => {
                         setResume(data);
@@ -417,6 +444,7 @@ export function PublicJobDetail({
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
                     matchAsOfDate={resumeAsOfDate}
+                    matchPending={matchPending}
                     resume={resume}
                     onAcceptLocalTailor={(data) => {
                         setResume(data);

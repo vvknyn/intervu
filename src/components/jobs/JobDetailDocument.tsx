@@ -12,8 +12,8 @@ import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import type { MatchScore } from "@/lib/match/score";
-import { captureEvent, type EventSource } from "@/lib/analytics/events";
-import { recordGuestJobView } from "@/lib/auth/guest-engage-nudge";
+import { type EventSource } from "@/lib/analytics/events";
+import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
@@ -247,6 +247,8 @@ export interface JobDetailDocumentProps {
     matchScore?: MatchScore | null;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`). */
     matchAsOfDate?: string | null;
+    /** When true, defer `job_viewed` until auth + résumé reads settle (PublicJobDetail). */
+    matchPending?: boolean;
     /** Local-AI résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
     onAcceptLocalTailor?: (data: ResumeData) => void;
@@ -288,6 +290,7 @@ export function JobDetailDocument({
     onReportDialogOpenChange,
     matchScore = null,
     matchAsOfDate = null,
+    matchPending = false,
     resume = null,
     onAcceptLocalTailor,
     onUploadResume,
@@ -316,11 +319,7 @@ export function JobDetailDocument({
     const blocks = formatDescription(job.description);
     const exceptionMark = rowExceptionMark(job, now);
 
-    useEffect(() => {
-        captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
-        if (!signedIn) recordGuestJobView();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [job.id, source, signedIn]);
+    useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
 
     const [related, setRelated] = useState<PublicJob[]>([]);
     useEffect(() => {

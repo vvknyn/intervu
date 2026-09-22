@@ -39,6 +39,14 @@ export { ANALYTICS_EVENTS, type AnalyticsEventKey, type SignupMethod };
 /** Where a job result/apply/view/share originated. */
 export type EventSource = "serp" | "co" | "board" | "email" | "direct";
 
+/** Match-quality fields shared by job funnel events — all optional and omitted
+ *  entirely when no résumé score exists (never null or a fabricated 0). */
+export type MatchQualityAnalyticsProps = {
+  match_label: "Strong" | "Good" | "Stretch";
+  match_score: number;
+  match_band: "strong" | "good" | "stretch";
+};
+
 export interface EventPayloads {
   search_submitted: {
     query_length: number;
@@ -56,13 +64,13 @@ export interface EventPayloads {
      *  optional rather than a fabricated id — SERP always has one once a
      *  search has resolved). */
     query_id?: string;
-  };
+  } & Partial<MatchQualityAnalyticsProps>;
   apply_clicked: {
     job_id: string;
     source: EventSource;
     /** Same `query_id` contract as `result_clicked` above. */
     query_id?: string;
-  };
+  } & Partial<MatchQualityAnalyticsProps>;
   job_saved: {
     job_id: string;
   };
@@ -82,7 +90,7 @@ export interface EventPayloads {
     job_id: string;
     company_domain: string | null;
     source: EventSource;
-  };
+  } & Partial<MatchQualityAnalyticsProps>;
   job_unsaved: {
     job_id: string;
   };
