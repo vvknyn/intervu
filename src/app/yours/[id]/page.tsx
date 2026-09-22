@@ -251,8 +251,6 @@ export default function PursuitDetailPage() {
     });
     const gatedOpenPosting = useGatedApply<string>({
         user,
-        gate,
-        setAuthGateReason,
         perform: openApplyUrl,
     });
 
@@ -506,9 +504,10 @@ export default function PursuitDetailPage() {
                 onOpenChange={setAuthOpen}
                 onAuthed={onAuthed}
                 showTrigger={false}
-                trigger="auto"
+                trigger="user"
+                originSurface="tracker"
                 valueLine={authGateReason ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length) : undefined}
-                defaultTab={authGateReason === "apply" ? "signup" : "login"}
+                defaultTab={authGateReason === "tracker" ? "signup" : "login"}
                 reason={authGateReason ?? undefined}
             />
         </PageLayout>

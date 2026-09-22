@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
 import { captureEvent, type SignupMethod } from '@/lib/analytics/events'
+import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from '@/lib/auth/gate-attempt'
 import { clearSignupSignalCookieFromDocument } from '@/lib/auth/authkit-signup-signal'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
@@ -68,6 +69,11 @@ export function resolveAuthKitMethod(provider?: string): SignupMethod {
     return provider === 'GoogleOAuth' ? 'google' : 'passkey'
 }
 
+function authContinuityPayload() {
+    const attempt = typeof window !== 'undefined' ? readGateAttempt(window.sessionStorage) : null
+    return gateAttemptEventFields(attempt)
+}
+
 export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", headline }: LoginFormProps = {}) {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab)
@@ -123,7 +129,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
         // One capture for both method buttons below — Google passes its
         // provider id, the passkey/email-code button passes none, so the
         // two branches can't drift into different event names.
-        captureEvent('auth_method_selected', { method: resolveAuthKitMethod(provider) })
+        captureEvent('auth_method_selected', { method: resolveAuthKitMethod(provider), ...authContinuityPayload() })
         setAuthKitPending(provider ?? 'passkey')
         const params = new URLSearchParams()
         // `next` already on this URL (e.g. middleware bounced here from a
@@ -167,7 +173,8 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
                 // so an abandoned Google redirect + password signup cannot double-fire.
                 clearSignupSignalCookieFromDocument()
-                captureEvent('signup_completed', { method: 'username' })
+                captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() })
+                clearGateAttempt(window.sessionStorage)
                 router.refresh()
                 await syncGuestFollowsToServer()
                 if (onSuccess) onSuccess()
@@ -273,7 +280,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         onSubmit={(e) => {
                             // One call site for both tabs — a third tab
                             // wouldn't need a new capture call either.
-                            captureEvent('auth_method_selected', { method: 'username' })
+                            captureEvent('auth_method_selected', { method: 'username', ...authContinuityPayload() })
                             void (activeTab === "login" ? handleLogin(e) : handleSignUp(e))
                         }}
                     >

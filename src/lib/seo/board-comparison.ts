@@ -1,3 +1,5 @@
+import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
+
 /**
  * One comparison table, three column variants. About uses "typical job board";
  * the alternative pages name Indeed / LinkedIn Jobs. Row labels and the velai
@@ -41,7 +43,7 @@ export const COMPARISON_ROWS: ReadonlyArray<{
   },
   {
     label: "match scores",
-    velai: "transparent match receipts (no pay-to-win badges)",
+    velai: PUBLIC_ANTI_SCORE_SENTENCE,
     typical: "invented percentages",
     indeed: '"be an early applicant" theater',
     linkedin: '"you\'re a top applicant" badges',

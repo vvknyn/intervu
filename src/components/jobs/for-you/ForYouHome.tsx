@@ -21,6 +21,10 @@ import type { ResumeData } from "@/types/resume";
 import { toast } from "@/lib/toast";
 import type { JobsHomeView } from "@/lib/jobs/for-you/home-view";
 import { cn } from "@/lib/utils";
+import {
+    FOR_YOU_DOWNLOAD_LABEL,
+    FOR_YOU_UPLOAD_PDF_EMPTY,
+} from "@/lib/jobs/resume-cta-copy";
 
 /** For-you frame grows with the pack deck — document scroll, not a nested
  *  100dvh trap. JD scroll stays inside each postcard (`data-pack-scroll`). */
@@ -334,9 +338,7 @@ export function ForYouHome({
                 <div className="mt-4 shrink-0 border-t border-border pt-4">
                     {!resume && onReplaceResume && (
                         <div className="mb-3 space-y-2">
-                            <p className="text-xs text-muted-foreground">
-                                Upload a résumé to download a tailored PDF
-                            </p>
+                            <p className="text-xs text-muted-foreground">{FOR_YOU_UPLOAD_PDF_EMPTY}</p>
                             <button
                                 type="button"
                                 data-testid="for-you-upload-resume"
@@ -361,7 +363,7 @@ export function ForYouHome({
                                     Preparing…
                                 </>
                             ) : (
-                                "Download & apply"
+                                FOR_YOU_DOWNLOAD_LABEL
                             )}
                         </Button>
                         <Button

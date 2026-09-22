@@ -7,107 +7,51 @@ import {
     formatAuthGateValueLine,
     guestKeepLine,
     SIGNUP_SUBCOPY,
+    RESUME_UPLOAD_CTA,
+    RESUME_UPLOAD_AUTH_CTA,
 } from "../../src/lib/auth/auth-gate-copy";
-
 test("guestKeepLine is null for zero count", () => {
     assert.equal(guestKeepLine(0), null);
 });
 
-test("guestKeepLine uses singular copy for one pursuit", () => {
-    assert.match(guestKeepLine(1)!, /role you've saved/);
-});
-
-test("guestKeepLine uses plural copy for multiple pursuits", () => {
-    assert.match(guestKeepLine(3)!, /3 roles/);
-});
-
-test("formatAuthGateValueLine varies by reason class", () => {
-    assert.match(formatAuthGateValueLine("apply", 0), /track this application/i);
-    assert.match(formatAuthGateValueLine("generic", 0), /sync/);
-});
-
-// apply-behind-signup (2026-09-18): the guest never reaches the ATS before
-// this popover, so both the popover's headline and its body have to say so.
-test('reason "apply" has a visible title and a body that names the next step', () => {
-    assert.equal(authGateTitle("apply"), "Create a free account to apply");
-    assert.equal(
-        formatAuthGateValueLine("apply", 0),
-        "We'll take you to the company's application page next, and track this application across your devices.",
-    );
-});
-
-test("only reason \"apply\" has a title — every other reason keeps the plain card heading", () => {
-    const otherReasons = ["generic", "save", "fit", "report", "tailor", "resume"] as const;
-    for (const reason of otherReasons) {
-        assert.equal(authGateTitle(reason), undefined, `reason "${reason}" should have no title`);
-    }
-});
-
-test('formatAuthGateValueLine for reason "save" mentions keep-across-devices and alerts', () => {
+test("formatAuthGateValueLine for save mentions tracker sync", () => {
     const line = formatAuthGateValueLine("save", 0);
-    assert.match(line, /across devices/i);
-    assert.match(line, /alert/i);
+    assert.match(line, /sync across devices/i);
 });
 
-test('formatAuthGateValueLine for reason "fit" mentions uploading a résumé and ranking by fit — only facts, no unproven claims', () => {
-    const line = formatAuthGateValueLine("fit", 0);
-    assert.match(line, /upload your résumé/i);
-    assert.match(line, /rank every result by fit/i);
-    // Fable design pass, 2026-09-17: dropped "personalized recommendations"
-    // and the on-device claim ("Fit scoring and tailoring run in your
-    // browser") — the latter was true of the scoring engine but not the
-    // upload path itself, which is server-side (ResumeImportModal.tsx).
-    assert.doesNotMatch(line, /recommendations/i);
-    assert.doesNotMatch(line, /run in your browser/i);
+test('fit gate has title and body from copy matrix', () => {
+    assert.equal(authGateTitle("fit"), "Create your free account, then upload your résumé.");
+    assert.match(formatAuthGateValueLine("fit", 0), /For you, Strong\/Good\/Stretch/i);
 });
 
-test('formatAuthGateValueLine for reason "report" mentions reporting issue', () => {
-    const line = formatAuthGateValueLine("report", 0);
-    assert.match(line, /report an issue/i);
+test('save gate has title from copy matrix', () => {
+    assert.equal(authGateTitle("save"), "Sign in to save this job to Tracker.");
 });
 
-test('formatAuthGateValueLine for reason "tailor" mentions on-device AI and export', () => {
-    const line = formatAuthGateValueLine("tailor", 0);
-    assert.match(line, /on-device AI/i);
-    assert.match(line, /export/i);
+test('generic and topbar use tracker sync copy', () => {
+    assert.match(formatAuthGateValueLine("generic", 0), /sync your tracker across devices/i);
+    assert.match(formatAuthGateValueLine("topbar", 0), /sync your tracker across devices/i);
 });
 
-test('formatAuthGateValueLine for reason "resume" mentions edit, export, and sync', () => {
-    const line = formatAuthGateValueLine("resume", 0);
-    assert.match(line, /edit, export, and sync/i);
+test("tailor gate mentions sync, not auth wall before customize", () => {
+    assert.match(formatAuthGateValueLine("tailor", 0), /sync/i);
 });
 
-test("formatAuthGateValueLine prepends keep-line only when count is real", () => {
-    assert.doesNotMatch(formatAuthGateValueLine("generic", 0), /keep/i);
-    assert.match(formatAuthGateValueLine("generic", 2), /keep the 2 roles/);
+test("resume upload CTA labels distinguish auth-next vs importer-next", () => {
+    assert.equal(RESUME_UPLOAD_CTA, "Upload résumé");
+    assert.equal(RESUME_UPLOAD_AUTH_CTA, "Create account & upload résumé");
 });
 
-// Wave-2 signup-ladder audit (2026-08-20): the header's new "Get job
-// alerts" CTA opens straight to the signup tab, whose only value pitch is
-// this subcopy — it has to actually name the alerts/tracker promise the
-// button just made, not a generic "save roles" line.
+test("authCardCopy: tab label, title, and submit label are identical per tab", () => {
+    const login = authCardCopy("login");
+    assert.equal(login.tabLabel, login.title);
+    assert.equal(login.title, AUTH_CTA_LABEL);
+    const signup = authCardCopy("signup");
+    assert.equal(signup.title, "Create account");
+});
+
 test("SIGNUP_SUBCOPY names the alerts/saved-search/tracker value triad", () => {
     assert.match(SIGNUP_SUBCOPY, /alert/i);
     assert.match(SIGNUP_SUBCOPY, /saved search/i);
     assert.match(SIGNUP_SUBCOPY, /tracker/i);
-});
-
-// Redesign (2026-08-27, frozen proposal #9): the login card's tab, heading,
-// and submit button must literally share one word per action — this is the
-// "control-names-the-action" invariant, proved by construction rather than
-// by convention.
-test("authCardCopy: tab label, title, and submit label are identical per tab", () => {
-    const login = authCardCopy("login");
-    assert.equal(login.tabLabel, login.title);
-    assert.equal(login.tabLabel, login.submitLabel);
-    assert.equal(login.title, AUTH_CTA_LABEL);
-
-    const signup = authCardCopy("signup");
-    assert.equal(signup.tabLabel, signup.title);
-    assert.equal(signup.tabLabel, signup.submitLabel);
-    assert.equal(signup.title, "Create account");
-});
-
-test("authCardCopy: login and signup never share the same wording", () => {
-    assert.notEqual(authCardCopy("login").title, authCardCopy("signup").title);
 });

@@ -195,6 +195,9 @@ import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import { SearchAlertCapture } from "@/components/jobs/SearchAlertCapture";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { useApplyReturnPrompt, ApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
+import { GuestApplyTrackPrompt, type GuestApplyTrackRecord } from "@/components/jobs/GuestApplyTrackPrompt";
+import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
+import { JOBS_TAB_HELPER, RANK_SECONDARY_COPY, RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel } from "@/lib/jobs/sort";
 import {
@@ -1602,14 +1605,8 @@ function JobsContent() {
     // long after this component has finished its first render.
     const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<PublicJob>({
         handlers: {
-            // A guest's Apply click never reached the ATS (auth-first gate
-            // above) — so the replay isn't "mark applied", it's the same
-            // apply-intent/departure step a signed-in click takes. It can't
-            // call `openPostingNow` itself: `window.open` outside this
-            // click's own gesture (we're deep in an auth callback, not a
-            // click handler) is exactly what popup blockers stop. Opening
-            // the dialog instead means the user's own next click —
-            // "Continue to the posting" — is a fresh, real gesture.
+            // Guest opted into tracker sign-in after Apply — replay the same
+            // apply-intent/departure step a signed-in click takes.
             apply: (action) => setApplyIntentJob(action.payload),
             upload: () => {
                 setImportOpen(true);
@@ -3510,17 +3507,19 @@ function JobsContent() {
     // hollow without a résumé — else depart); guest → auth-first via the one
     // shared gate (`use-gated-apply.ts`), same chokepoint every job surface
     // uses.
+    const [guestTrackPrompt, setGuestTrackPrompt] = useState<GuestApplyTrackRecord | null>(null);
+
     const gatedOpenPosting = useGatedApply<PublicJob>({
         user,
-        gate,
-        setAuthGateReason,
-        setAuthTrigger,
         perform: (job) => {
             if (job.apply_url && shouldPromptApplyIntent()) {
                 setApplyIntentJob(job);
                 return;
             }
             openPostingNow(job);
+        },
+        onGuestApplied: (job) => {
+            setGuestTrackPrompt({ jobId: job.id, title: job.title });
         },
     });
 
@@ -3597,7 +3596,7 @@ function JobsContent() {
     const handleGoAfter = (job: PublicJob) => {
         if (!user) {
             if (getGuestSaveCount() >= 1) {
-                openAuth("save", "auto");
+                openAuth("save", "user");
                 return;
             }
             addGuestPursuit(job);
@@ -3649,7 +3648,7 @@ function JobsContent() {
     // "first save free, second requires sign-in" rule with one counter.
     const handleBeforeGuestSavedSearch = (): "proceed" | "block" => {
         if (getGuestSaveCount() >= 1) {
-            openAuth("save", "auto");
+            openAuth("save", "user");
             return "block";
         }
         const newCount = recordGuestSave();
@@ -3663,10 +3662,44 @@ function JobsContent() {
     // (see `handleOpenPosting`'s guest branch, `beginResumeUpload`, the report
     // gate below),
     // which persists the action itself; this just opens the popover.
-    const openAuth = (reason: AuthGateReason | null, trigger: AuthGateTrigger) => {
+    const openAuth = (
+        reason: AuthGateReason | null,
+        trigger: AuthGateTrigger,
+        meta?: { jobId?: string; originSurface?: import("@/lib/auth/gate-attempt").OriginSurface },
+    ) => {
+        const effectiveReason = reason ?? "generic";
+        if (trigger === "user" && effectiveReason !== "generic") {
+            recordAuthGateOpen({
+                storage: window.sessionStorage,
+                reason: effectiveReason,
+                trigger,
+                originSurface: meta?.originSurface ?? "jobs_banner",
+                jobId: meta?.jobId,
+            });
+        }
         setAuthGateReason(reason);
         setAuthTrigger(trigger);
         setAuthOpen(true);
+    };
+
+    const handleGuestTrackSignIn = () => {
+        if (!guestTrackPrompt) return;
+        const job = hits.find((h) => h.id === guestTrackPrompt.jobId) ?? detailJob;
+        setAuthGateReason("tracker");
+        setAuthTrigger("user");
+        recordAuthGateOpen({
+            storage: window.sessionStorage,
+            reason: "tracker",
+            trigger: "user",
+            originSurface: "job_detail",
+            jobId: guestTrackPrompt.jobId,
+        });
+        if (job) {
+            gate({ kind: "apply", payload: job }, { originSurface: "job_detail", gateReason: "tracker" });
+        } else {
+            setAuthOpen(true);
+        }
+        setGuestTrackPrompt(null);
     };
 
     // Guest→auth merge (pursuits + follows + saved searches) — at most once
@@ -3845,9 +3878,12 @@ function JobsContent() {
         applyUrlState(buildUrlState({ homeView: view }), "replace");
     };
 
-    const homeViewToggleEl = showHomeViewToggle
-        ? <ForYouToggle value={homeViewToggleValue} onChange={setJobsHomeView} />
-        : null;
+    const homeViewToggleEl = showHomeViewToggle ? (
+        <div>
+            <ForYouToggle value={homeViewToggleValue} onChange={setJobsHomeView} />
+            <p className="mt-1.5 text-xs text-muted-foreground">{JOBS_TAB_HELPER}</p>
+        </div>
+    ) : null;
 
     useEffect(() => {
         if (resolvedHomeView === "for-you" || resolvedHomeView === "search") {
@@ -3959,17 +3995,6 @@ function JobsContent() {
     const beginResumeUpload = () => {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
-        // Sign-in is unconditional here — a signed-out visitor never reaches
-        // the importer, even with local-AI (on-device) parsing enabled. That
-        // flag only changes WHERE parsing happens once a session exists; it
-        // was never meant to bypass the account gate itself (product ruling,
-        // 2026-09-17: résumé upload requires sign-in to grow signups).
-        if (!user) {
-            setAuthGateReason("fit");
-            setAuthTrigger("auto");
-            gate({ kind: "upload", payload: true });
-            return;
-        }
         setImportOpen(true);
     };
 
@@ -3991,15 +4016,13 @@ function JobsContent() {
         setResumeUpdatedAt(updatedAt);
         setResumeSourceLabel(sourceLabel);
         setImportOpen(false);
-        // `handleImport` only ever fires once `<ResumeImportModal>` is open,
-        // which — since `beginResumeUpload` above gates unconditionally on
-        // sign-in — means `user` is always truthy here (P2 review fix,
-        // 2026-09-17: the `else if (readLocalAiEnabled())` local-storage
-        // fallback this used to have was dead code for a signed-out saver
-        // that could no longer be reached).
-        void saveResumeData(data, source, confidence)
-            .then(() => captureEvent("resume_uploaded", {}))
-            .catch(() => {});
+        if (user) {
+            void saveResumeData(data, source, confidence)
+                .then(() => captureEvent("resume_uploaded", {}))
+                .catch(() => {});
+        } else {
+            writeLocalAiResume(data, updatedAt, sourceLabel);
+        }
         // `handleUploadClick` queued this because no usable résumé was on
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
@@ -4263,8 +4286,16 @@ function JobsContent() {
                     signedIn={Boolean(user)}
                     onRequestSignIn={() => {
                         setAuthGateReason("report");
-                        setAuthTrigger("auto");
-                        gate({ kind: "report", payload: detailJob });
+                        setAuthTrigger("user");
+                        setAuthGateReason("report");
+                        recordAuthGateOpen({
+                            storage: window.sessionStorage,
+                            reason: "report",
+                            trigger: "user",
+                            originSurface: "job_detail",
+                            jobId: detailJob.id,
+                        });
+                        gate({ kind: "report", payload: detailJob }, { originSurface: "job_detail", gateReason: "report" });
                     }}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
@@ -4285,6 +4316,10 @@ function JobsContent() {
                         setResume(data);
                         if (localAiEnabled) writeLocalAiResume(data);
                     }}
+                    onUploadResume={() => handleUploadClick()}
+                    onSignInToSync={() => {
+                        openAuth("tailor", "user", { originSurface: "job_detail", jobId: detailJob.id });
+                    }}
                 />
                 {!collapseDescription && (
                 <JobDetailActionBar
@@ -4294,6 +4329,15 @@ function JobsContent() {
                     onGoAfter={() => handleGoAfter(detailJob)}
                     pursuit={detailPursuit}
                     goingAfter={goingAfterId === detailJob.id}
+                    resume={resume}
+                    onAcceptLocalTailor={(data) => {
+                        setResume(data);
+                        if (localAiEnabled) writeLocalAiResume(data);
+                    }}
+                    onUploadResume={() => handleUploadClick()}
+                    onSignInToSync={() => {
+                        openAuth("tailor", "user", { originSurface: "job_detail", jobId: detailJob.id });
+                    }}
                 />
                 )}
             </>
@@ -4483,14 +4527,14 @@ function JobsContent() {
         <button
             type="button"
             data-testid="jobs-rank-by-fit"
-            title="Add your résumé to rank these roles by fit"
+            title={RANK_SECONDARY_COPY}
             onClick={() => void handleRankByFit()}
             className={cn(
                 toolbarControlHeight,
                 "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
             )}
         >
-            Rank by fit
+            Rank with my résumé
         </button>
     ) : null;
 
@@ -4694,10 +4738,11 @@ function JobsContent() {
                     <DropdownMenuItem
                         data-testid="jobs-sort-fit"
                         onSelect={() => void handleRankByFit()}
-                        className="flex items-center justify-between gap-3 text-sm"
+                        title={RANK_SECONDARY_COPY}
+                        className="flex flex-col items-start gap-0.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                     >
-                        <span>Rank by fit</span>
-                        <span className="text-xs text-muted-foreground">add résumé</span>
+                        <span>Rank with my résumé</span>
+                        <span className="text-xs text-muted-foreground">{RANK_SECONDARY_COPY}</span>
                     </DropdownMenuItem>
                 )}
             </DropdownMenuContent>
@@ -6104,8 +6149,9 @@ function JobsContent() {
                 onImport={handleImport}
                 confirmLabel="Rank my jobs"
                 title="Rank jobs by your résumé"
-                description="Upload or paste your résumé — we'll rank this list by how well each role fits."
+                description={RESUME_UPLOAD_PROMISE}
                 storageNote="Your résumé and the parsed result are then saved to your account so they follow you across devices."
+                funnelContext={{ reason: "fit", surface: "jobs_banner", signed_in: Boolean(user) }}
             />
             <Sheet
                 // Two-Panel Selector: gated through `resolveDetailMountSite`
@@ -6231,6 +6277,11 @@ function JobsContent() {
                 }}
             />
 
+            <GuestApplyTrackPrompt
+                record={guestTrackPrompt}
+                onSignIn={handleGuestTrackSignIn}
+                onDismiss={() => setGuestTrackPrompt(null)}
+            />
             <ApplyReturnPrompt
                 record={applyReturnPrompt}
                 onMarkApplied={markApplyReturnApplied}

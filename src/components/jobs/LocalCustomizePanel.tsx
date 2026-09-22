@@ -26,14 +26,11 @@ import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { displayCompanyBrand } from "@/lib/jobs/presentation";
-import { AuthPopover } from "@/components/auth/auth-popover";
-import { getCurrentUser } from "@/lib/firebase/client-auth";
-import { formatAuthGateValueLine } from "@/lib/auth/auth-gate-copy";
-import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
 import { toast, confirmToast } from "@/lib/toast";
+import { CUSTOMIZE_READY_HEADER, SIGN_IN_TO_SYNC_LABEL } from "@/lib/jobs/resume-cta-copy";
 
 export interface LocalCustomizePanelProps {
     job: PublicJob;
@@ -41,22 +38,25 @@ export interface LocalCustomizePanelProps {
     onAccept?: (data: ResumeData) => void;
     /** Short label for tight bars (mobile document action bar). */
     compactTrigger?: boolean;
+    signedIn?: boolean;
+    onSignInToSync?: () => void;
 }
 
-export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: LocalCustomizePanelProps) {
+export function LocalCustomizePanel({
+    job,
+    resume,
+    onAccept,
+    compactTrigger,
+    signedIn = true,
+    onSignInToSync,
+}: LocalCustomizePanelProps) {
     const [draft, setDraft] = useState<TailorDraft | null>(null);
     const [loading, setLoading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const [consentNeeded, setConsentNeeded] = useState(false);
     const [generatingWithModel, setGeneratingWithModel] = useState(false);
-    const [authOpen, setAuthOpen] = useState(false);
-
     const handleCopy = useCallback(async () => {
-        if (!getCurrentUser()) {
-            setAuthOpen(true);
-            return;
-        }
         if (!draft) return;
         const md = resumeDataToZipMarkdown(draft.tailored);
         await navigator.clipboard.writeText(md);
@@ -65,10 +65,6 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
     }, [draft]);
 
     const handlePdf = useCallback(() => {
-        if (!getCurrentUser()) {
-            setAuthOpen(true);
-            return;
-        }
         if (!draft) return;
         const filename = deriveResumePdfFilename({
             company: null,
@@ -123,10 +119,6 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
     }, [resetDialogState, runGenerate]);
 
     const handleEnableAi = useCallback(async () => {
-        if (!getCurrentUser()) {
-            setAuthOpen(true);
-            return;
-        }
         grantLocalAiConsent();
         await initLocalAiLadder();
         void runGenerate(true);
@@ -145,10 +137,6 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
     );
 
     const handleAccept = useCallback(async () => {
-        if (!getCurrentUser()) {
-            setAuthOpen(true);
-            return;
-        }
         if (!draft) return;
         const ok = await confirmToast({
             title: "Update résumé for Rank?",
@@ -196,7 +184,7 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                     loading && dialogOpen && "opacity-60",
                 )}
             >
-                Customize
+                Customize résumé
                 {!compactTrigger && <span className="hidden sm:inline"> for this job</span>}
             </Button>
 
@@ -210,9 +198,21 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                                     <span>100% On-Device AI: Private to your browser</span>
                                 </div>
                                 <DialogTitle className="break-words text-base font-semibold leading-snug text-foreground">
+                                    {CUSTOMIZE_READY_HEADER}
+                                </DialogTitle>
+                                <p className="text-sm text-muted-foreground">
                                     {job.title}
                                     {companyBrand ? ` · ${companyBrand}` : ""}
-                                </DialogTitle>
+                                </p>
+                                {!signedIn && onSignInToSync && (
+                                    <button
+                                        type="button"
+                                        onClick={onSignInToSync}
+                                        className="text-left text-xs font-semibold text-foreground underline underline-offset-2 transition-colors hover:text-brand"
+                                    >
+                                        {SIGN_IN_TO_SYNC_LABEL}
+                                    </button>
+                                )}
                                 {engineLabel && (
                                     <p className="text-xs text-muted-foreground">{engineLabel}</p>
                                 )}
@@ -366,15 +366,6 @@ export function LocalCustomizePanel({ job, resume, onAccept, compactTrigger }: L
                 </DialogContent>
             </Dialog>
 
-            <AuthPopover
-                open={authOpen}
-                onOpenChange={setAuthOpen}
-                showTrigger={false}
-                trigger="auto"
-                defaultTab="signup"
-                reason="tailor"
-                valueLine={formatAuthGateValueLine("tailor", listGuestPursuits().length)}
-            />
         </>
     );
 }

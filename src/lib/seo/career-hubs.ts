@@ -1,5 +1,6 @@
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import type { FacetKey } from "@/lib/jobs/types";
+import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 
 /**
  * Closed registry of indexable career-intent hubs — not every occupation,
@@ -74,7 +75,7 @@ export const CAREER_HUBS: readonly CareerHub[] = [
     h1: "Data scientist jobs worth a second look",
     intro: [
       "Analytics and data-science reqs are easy to leave open on a board long after the team moved on. Velai reads the employer's career page directly.",
-      "Find machine-learning, analytics, and research-engineering roles with signals for posting age — not invented fit percentages.",
+      PUBLIC_ANTI_SCORE_SENTENCE,
     ],
     relatedSlugs: ["tech-jobs", "software-engineer-jobs", "remote-jobs"],
   },

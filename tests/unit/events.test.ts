@@ -75,6 +75,15 @@ test("ANALYTICS_EVENTS pins the exact wire name for every declared event", () =>
 
     application_stage_changed: "application_stage_changed",
     resume_uploaded: "resume_uploaded",
+    resume_gate_shown: "resume_gate_shown",
+    resume_upload_started: "resume_upload_started",
+    resume_upload_selected: "resume_upload_selected",
+    resume_upload_accepted: "resume_upload_accepted",
+    resume_upload_rejected: "resume_upload_rejected",
+    resume_parse_started: "resume_parse_started",
+    resume_parse_succeeded: "resume_parse_succeeded",
+    resume_parse_failed: "resume_parse_failed",
+    resume_review_completed: "resume_review_completed",
   });
 });
 

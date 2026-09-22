@@ -1,6 +1,15 @@
 import posthog from "posthog-js";
 import { trackToLedger } from "@/lib/telemetry/client";
 import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
+import type { AuthContinuityFields, AuthEventContext } from "@/lib/analytics/auth-event-payload";
+import type {
+  ResumeErrorClass,
+  ResumeFileType,
+  ResumeFunnelReason,
+  ResumeInputSource,
+  ResumeParserEngine,
+  ResumeSizeBucket,
+} from "@/lib/analytics/resume-funnel";
 import {
   ANALYTICS_EVENTS,
   type AnalyticsEventKey,
@@ -60,16 +69,12 @@ export interface EventPayloads {
   company_followed: {
     company_domain: string;
   };
-  auth_started: {
-    reason: AuthGateReason;
-  };
-  auth_nudge_shown: {
-    reason: AuthGateReason;
-  };
-  auth_method_selected: {
+  auth_started: AuthEventContext;
+  auth_nudge_shown: AuthEventContext;
+  auth_method_selected: AuthContinuityFields & {
     method: SignupMethod;
   };
-  signup_completed: {
+  signup_completed: AuthContinuityFields & {
     method: SignupMethod;
   };
 
@@ -184,6 +189,34 @@ export interface EventPayloads {
     to_stage: string;
   };
   resume_uploaded: Record<string, never>;
+
+  resume_gate_shown: ResumeFunnelEventPayload;
+  resume_upload_started: ResumeFunnelEventPayload;
+  resume_upload_selected: ResumeFunnelEventPayload;
+  resume_upload_accepted: ResumeFunnelEventPayload;
+  resume_upload_rejected: ResumeFunnelEventPayload;
+  resume_parse_started: ResumeFunnelEventPayload;
+  resume_parse_succeeded: ResumeFunnelEventPayload;
+  resume_parse_failed: ResumeFunnelEventPayload;
+  resume_review_completed: ResumeFunnelEventPayload;
+}
+
+export interface ResumeFunnelEventPayload {
+  reason?: ResumeFunnelReason;
+  source?: ResumeInputSource;
+  file_type?: ResumeFileType;
+  size_bucket?: ResumeSizeBucket;
+  latency_ms?: number;
+  duration_ms?: number;
+  parser_source?: ResumeParserEngine;
+  engine?: ResumeParserEngine;
+  error_class?: ResumeErrorClass;
+  error_code?: ResumeErrorClass;
+  surface?: string;
+  signed_in?: boolean;
+  section_count?: number;
+  warning_count?: number;
+  edited?: boolean;
 }
 
 /**

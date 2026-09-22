@@ -1,6 +1,6 @@
 /**
  * Primary nav — frozen coherent chrome:
- * Jobs · Resume · Tracker · Connect AI · (avatar → Account)
+ * Jobs · Resume · Tracker · Résumé & AI · (avatar → Account)
  * Research / Trends live in the footer.
  */
 import type { ComponentType } from "react";
@@ -93,9 +93,14 @@ function AccountIcon() {
  *  pairing flow isn't a top-5 daily action on a phone); it stays reachable
  *  from the footer and from Settings (AgentAccessSection.tsx already links
  *  `/connect`), and desktop's `barTabs` still renders it every time. */
+/** Resume/AI nav label — "Add résumé" until connected, then "Résumé & AI". */
+export function connectTabLabel(resumeConnected: boolean): string {
+    return resumeConnected ? "Résumé & AI" : "Add résumé";
+}
+
 export const CONNECT_TAB: NavTab = {
-    label: "Connect AI",
-    shortLabel: "Connect AI",
+    label: "Add résumé",
+    shortLabel: "Add résumé",
     href: "/connect",
     testId: "topbar-connect",
     match: (p) => p.startsWith("/connect"),

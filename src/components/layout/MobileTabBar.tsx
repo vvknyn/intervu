@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { MOBILE_ACCOUNT_TAB, NAV_TABS, mobilePrimaryTabs } from "@/components/layout/nav-tabs";
+import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +24,14 @@ const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
  *  this bar's). */
 export function MobileTabBar() {
     const pathname = usePathname();
+    const [user, setUser] = useState<User | null | undefined>(undefined);
+    const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
+
+    useEffect(() => {
+        const unsubscribe = onAuthChange((nextUser) => setUser(nextUser));
+        return () => unsubscribe();
+    }, []);
+
     const hideNav = shouldHideSiteChrome(pathname);
     if (hideNav) return null;
 
@@ -35,6 +46,7 @@ export function MobileTabBar() {
             {MOBILE_TABS.map((tab) => {
                 const active = tab.match(pathname);
                 const Icon = tab.icon;
+                const label = tab.href === "/connect" ? connectLabel : tab.shortLabel;
                 return (
                     <Link
                         key={tab.href + tab.label}
@@ -54,7 +66,7 @@ export function MobileTabBar() {
                         )}
                     >
                         {Icon && <Icon />}
-                        <span>{tab.shortLabel}</span>
+                        <span>{label}</span>
                     </Link>
                 );
             })}
