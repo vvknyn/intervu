@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { humanizeRawLocation, locationText, clampLocationSegments, stripStreetAddress } from "../../src/lib/jobs/presentation";
+import {
+    humanizeRawLocation,
+    locationText,
+    clampLocationSegments,
+    stripStreetAddress,
+    placeWithWorkMode,
+    stripRemoteSegmentsFromPlace,
+} from "../../src/lib/jobs/presentation";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 const job = (over: Partial<PublicJob>): PublicJob =>
@@ -258,4 +265,18 @@ test("a remote job with no location text at all still falls back to the word 'Re
 
 test("a hybrid job's location is unaffected by the remote-prefix removal", () => {
     assert.equal(locationText(job({ location: "Austin, TX", work_type: "hybrid" })), "Austin, TX");
+});
+
+test("placeWithWorkMode does not append Remote when the place already includes it", () => {
+    assert.equal(placeWithWorkMode("Canada · Remote", "remote"), "Canada · Remote");
+    assert.equal(placeWithWorkMode("Canada - Remote", "remote"), "Canada - Remote");
+    assert.equal(placeWithWorkMode("Remote", "remote"), "Remote");
+    assert.equal(placeWithWorkMode("Milan, Italy", "remote"), "Milan, Italy · Remote");
+});
+
+test("stripRemoteSegmentsFromPlace removes Remote while keeping country/city prose", () => {
+    assert.equal(stripRemoteSegmentsFromPlace("Canada · Remote"), "Canada");
+    assert.equal(stripRemoteSegmentsFromPlace("Canada · Remote · Remote"), "Canada");
+    assert.equal(stripRemoteSegmentsFromPlace("Remote"), "");
+    assert.equal(stripRemoteSegmentsFromPlace("Toronto, Canada"), "Toronto, Canada");
 });
