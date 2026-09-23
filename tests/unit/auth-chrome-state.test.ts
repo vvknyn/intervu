@@ -112,8 +112,19 @@ test("signOut bumps epoch, clears client stores, and notifies listeners", () => 
     assert.match(src, /commitSessionUser\(signOutEpoch, null\)/);
     assert.match(src, /isCurrentSessionEpoch/);
     assert.match(src, /pageshow/);
+    assert.match(src, /isSignedOutMarkerSet\(\)\) \{[\s\S]*sessionEpoch \+= 1[\s\S]*abortInflightSessionFetch/);
     assert.match(src, /revalidateClientSession/);
     assert.match(src, /applyingSignOut && user/);
+    assert.match(src, /velai\.auth\.signedOut/);
+    assert.match(src, /form\.action = "\/auth\/signout"/);
+    assert.match(src, /form\.submit\(\)/);
+    assert.doesNotMatch(src, /redirect:\s*"manual"/);
+    assert.doesNotMatch(src, /fetch\("\/auth\/signout"/);
+    assert.doesNotMatch(
+        src,
+        /commitSessionUser\(signOutEpoch, null\)[\s\S]*fetchServerUser/,
+        "signOut must not resurrection-check the session after committing null",
+    );
 });
 
 test("jobs page gates For-you chrome on confirmed session and clears stale résumé", () => {
