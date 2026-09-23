@@ -65,7 +65,7 @@ test("setImportOpen(true) is called in exactly 2 places: beginResumeUpload, and 
 test("post-auth resume gate routes through beginResumeUpload and ResumeImportModal funnel context", () => {
     assert.match(SOURCE, /POST_AUTH_RESUME_GATE_PARAM/);
     assert.match(SOURCE, /authGateReasonToFunnelReason\(attempt\?\.lastGateReason\)/);
-    assert.match(SOURCE, /beginResumeUpload\(\)/);
+    assert.match(SOURCE, /beginResumeUpload\(\{ postSignup: true \}\)/);
     assert.match(SOURCE, /funnelContext=\{\{ \.\.\.importFunnelContext, signed_in: Boolean\(user\) \}\}/);
 });
 

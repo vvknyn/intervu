@@ -196,7 +196,7 @@ export interface EventPayloads {
     from_stage: string;
     to_stage: string;
   };
-  resume_uploaded: Record<string, never>;
+  resume_uploaded: { surface?: string };
 
   resume_gate_shown: ResumeFunnelEventPayload;
   resume_upload_started: ResumeFunnelEventPayload;

@@ -55,7 +55,7 @@ import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage, buildJobSnapshot } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
-import { fetchResumeData, saveResumeData } from "@/actions/resume";
+import { fetchResumeData, hasUsableResumeOnFile, saveResumeData } from "@/actions/resume";
 import { pickExceptionJit } from "@/lib/jobs/should-show-relist-jit";
 import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
@@ -206,9 +206,16 @@ import {
     authGateReasonToFunnelReason,
     POST_AUTH_RESUME_GATE_PARAM,
     POST_AUTH_RESUME_GATE_VALUE,
+    shouldOpenResumeGateAfterInlineAuth,
 } from "@/lib/auth/post-auth-destination";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
-import { jobsTabHelperCopy, RANK_SECONDARY_COPY, RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
+import { peekPendingActionKind } from "@/lib/jobs/pending-actions";
+import {
+    jobsTabHelperCopy,
+    POST_SIGNUP_RESUME_GATE_TITLE,
+    RANK_SECONDARY_COPY,
+    RESUME_UPLOAD_PROMISE,
+} from "@/lib/jobs/resume-cta-copy";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel } from "@/lib/jobs/sort";
 import {
@@ -1563,6 +1570,9 @@ function JobsContent() {
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
     const [resumeSourceLabel, setResumeSourceLabel] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
+    const importOpenRef = useRef(importOpen);
+    importOpenRef.current = importOpen;
+    const [importTitle, setImportTitle] = useState("Rank jobs by your résumé");
     const [importFunnelContext, setImportFunnelContext] = useState<{
         reason?: ResumeFunnelReason;
         surface?: string;
@@ -4046,9 +4056,10 @@ function JobsContent() {
     // Select's `onValueChange` below — but does NOT clear this ref) would
     // get silently clobbered once the upload finally completes, minutes
     // later.
-    const beginResumeUpload = () => {
+    const beginResumeUpload = (opts?: { postSignup?: boolean }) => {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
+        setImportTitle(opts?.postSignup ? POST_SIGNUP_RESUME_GATE_TITLE : "Rank jobs by your résumé");
         setImportOpen(true);
     };
 
@@ -4083,10 +4094,10 @@ function JobsContent() {
         const attempt = readGateAttempt(window.sessionStorage);
         setImportFunnelContext({
             reason: authGateReasonToFunnelReason(attempt?.lastGateReason),
-            surface: attempt?.originSurface ?? "login",
+            surface: attempt?.originSurface ?? "post_signup",
             signed_in: true,
         });
-        beginResumeUpload();
+        beginResumeUpload({ postSignup: true });
     }, [
         authReady,
         user,
@@ -4110,7 +4121,11 @@ function JobsContent() {
         setImportOpen(false);
         if (user) {
             void saveResumeData(data, source, confidence)
-                .then(() => captureEvent("resume_uploaded", {}))
+                .then(() =>
+                    captureEvent("resume_uploaded", {
+                        surface: importFunnelContext.surface ?? "jobs",
+                    }),
+                )
                 .catch(() => {});
         } else {
             writeLocalAiResume(data, updatedAt, sourceLabel);
@@ -6256,7 +6271,32 @@ function JobsContent() {
                 }}
                 onAuthed={() => {
                     justAuthedRef.current = true;
+                    const pendingActionKind = peekPendingActionKind(window.sessionStorage);
                     onAuthed();
+                    if (
+                        !shouldOpenResumeGateAfterInlineAuth({
+                            pendingActionKind,
+                            alreadyHandled: postAuthResumeGateHandledRef.current,
+                            importAlreadyOpen: importOpenRef.current,
+                            hasResume: false,
+                        })
+                    ) {
+                        return;
+                    }
+                    postAuthResumeGateHandledRef.current = true;
+                    void hasUsableResumeOnFile()
+                        .then(({ hasResume }) => {
+                            if (hasResume) return;
+                            if (importOpenRef.current) return;
+                            const attempt = readGateAttempt(window.sessionStorage);
+                            setImportFunnelContext({
+                                reason: authGateReasonToFunnelReason(attempt?.lastGateReason),
+                                surface: "post_signup",
+                                signed_in: true,
+                            });
+                            beginResumeUpload({ postSignup: true });
+                        })
+                        .catch(() => {});
                 }}
                 showTrigger={false}
                 trigger={authTrigger}
@@ -6279,7 +6319,7 @@ function JobsContent() {
                 onClose={() => setImportOpen(false)}
                 onImport={handleImport}
                 confirmLabel="Rank my jobs"
-                title="Rank jobs by your résumé"
+                title={importTitle}
                 description={RESUME_UPLOAD_PROMISE}
                 storageNote="Your résumé and the parsed result are then saved to your account so they follow you across devices."
                 funnelContext={{ ...importFunnelContext, signed_in: Boolean(user) }}
