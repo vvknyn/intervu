@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authkit, handleAuthkitHeaders } from "@workos-inc/authkit-nextjs";
+import { isAuthSignOutRequest } from "@/lib/auth/signout-request";
 import { isAuthGatedProductPath, loginRedirectUrl } from "@/lib/auth/product-routes";
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
 import { JOBS_QUERY_HEADER } from "@/lib/seo/jobs-query-header";
@@ -28,6 +29,12 @@ export async function middleware(request: NextRequest) {
         pathname === "/jobs" && request.nextUrl.searchParams.toString().length > 0;
     if (jobsHasQuery) {
         request.headers.set(JOBS_QUERY_HEADER, "1");
+    }
+
+    // Sign-out POST must not refresh wos-session — authkit() would re-seal the
+    // cookie after AuthKit deletes it, or race the delete on the way out.
+    if (isAuthSignOutRequest(pathname, request.method)) {
+        return NextResponse.next();
     }
 
     // WorkOS AuthKit session — composable pattern that integrates with

@@ -111,7 +111,6 @@ function StoriesContent() {
         isSigningOut.current = true;
         localStorage.clear();
         await firebaseSignOut();
-        window.location.href = "/";
     };
 
     const handleStorySave = async (newStories: StarStory[]) => {

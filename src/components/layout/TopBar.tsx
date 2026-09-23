@@ -76,7 +76,6 @@ export function TopBar() {
             /* private mode */
         }
         await signOut();
-        window.location.href = "/";
     };
 
     const accountActive =
