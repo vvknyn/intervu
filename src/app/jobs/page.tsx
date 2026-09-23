@@ -210,7 +210,7 @@ import {
     POST_AUTH_RESUME_GATE_VALUE,
 } from "@/lib/auth/post-auth-destination";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
-import { JOBS_TAB_HELPER, RANK_SECONDARY_COPY, RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
+import { jobsTabHelperCopy, RANK_SECONDARY_COPY, RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel } from "@/lib/jobs/sort";
 import {
@@ -1796,6 +1796,7 @@ function JobsContent() {
         resumeOnFile,
         showJobsHomePending,
     });
+    const jobsTabHelper = jobsTabHelperCopy(resumeOnFile);
     const homeViewToggleValue: JobsHomeView = resolvedHomeView === "search" ? "search" : "for-you";
 
     // Single source for "what filters are currently active" — the toolbar
@@ -4999,14 +5000,16 @@ function JobsContent() {
                 {!homeViewDockActive && showHomeViewToggle && (
                     <div className={cn("mb-3 pt-3 sm:pt-4", cappedContentClass)}>
                         {homeViewToggleEl}
-                        <p className="mt-1.5 text-xs text-muted-foreground">{JOBS_TAB_HELPER}</p>
+                        {jobsTabHelper && (
+                            <p className="mt-1.5 text-xs text-muted-foreground">{jobsTabHelper}</p>
+                        )}
                     </div>
                 )}
                 {homeViewDockActive && dockedHomeViewMount && homeViewToggleEl &&
                     createPortal(homeViewToggleEl, dockedHomeViewMount)}
-                {homeViewDockActive && showHomeViewToggle && (
+                {homeViewDockActive && showHomeViewToggle && jobsTabHelper && (
                     <div className={cn("mb-3", cappedContentClass)}>
-                        <p className="mt-1.5 text-xs text-muted-foreground">{JOBS_TAB_HELPER}</p>
+                        <p className="mt-1.5 text-xs text-muted-foreground">{jobsTabHelper}</p>
                     </div>
                 )}
 
@@ -5225,7 +5228,7 @@ function JobsContent() {
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
                                     atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
-                                    "w-full rounded-ctl px-6 text-xs font-semibold sm:w-auto transition-colors",
+                                    "w-full rounded-pill px-6 text-xs font-semibold sm:w-auto transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
                             >

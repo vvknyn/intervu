@@ -21,6 +21,13 @@ export const RESUME_UPLOAD_SIGNIN_LINE =
 export const JOBS_TAB_HELPER =
     "Search is open. Add a résumé to unlock fit bands and tailored applications.";
 
+/** Under For you / Search tabs. Null = render nothing.
+ *  Confirmed résumé, or presence not yet known, must not ask to add one. */
+export function jobsTabHelperCopy(resumeOnFile: boolean | null): string | null {
+    if (resumeOnFile !== false) return null;
+    return JOBS_TAB_HELPER;
+}
+
 /** Rank-by-fit secondary line (orientation card + sort menu). */
 export const RANK_SECONDARY_COPY =
     "See Strong, Good, and Stretch matches—with the reasons.";
