@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
     CUSTOMIZE_READY_HEADER,
     FOR_YOU_DOWNLOAD_LABEL,
@@ -10,6 +12,7 @@ import {
     RESUME_UPLOAD_PROMISE,
     SIGN_IN_TO_SYNC_LABEL,
     UPLOAD_TO_CUSTOMIZE_LABEL,
+    jobsTabHelperCopy,
     resumeUploadCtaLabel,
 } from "../../src/lib/jobs/resume-cta-copy";
 import { RESUME_UPLOAD_AUTH_CTA, RESUME_UPLOAD_CTA } from "../../src/lib/auth/auth-gate-copy";
@@ -21,6 +24,30 @@ test("jobs tab helper copy matches contract", () => {
         JOBS_TAB_HELPER,
         "Search is open. Add a résumé to unlock fit bands and tailored applications.",
     );
+});
+
+test("jobsTabHelperCopy shows Add-résumé helper only when résumé is confirmed absent", () => {
+    assert.equal(jobsTabHelperCopy(false), JOBS_TAB_HELPER);
+    assert.equal(jobsTabHelperCopy(true), null);
+    assert.notEqual(jobsTabHelperCopy(true), JOBS_TAB_HELPER);
+    assert.equal(jobsTabHelperCopy(null), null);
+});
+
+test("page.tsx gates jobs tab helper via jobsTabHelperCopy(resumeOnFile)", () => {
+    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+    assert.match(pageSrc, /jobsTabHelperCopy\(resumeOnFile\)/);
+    assert.doesNotMatch(pageSrc, /\{JOBS_TAB_HELPER\}/);
+});
+
+test("inline Search button uses rounded-pill, not rounded-ctl", () => {
+    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+    const searchButtonBlock =
+        pageSrc.match(
+            /onClick=\{\(\) => submitSearch\(queryDraft\)\}[\s\S]*?<\/Button>/,
+        )?.[0] ?? "";
+    assert.ok(searchButtonBlock.length > 0, "inline Search button block not found");
+    assert.match(searchButtonBlock, /rounded-pill/);
+    assert.doesNotMatch(searchButtonBlock, /rounded-ctl/);
 });
 
 test("rank secondary copy matches contract", () => {
