@@ -5,7 +5,9 @@ import {
     buildPostAuthResumeGatePath,
     hasPostAuthResumeGateParam,
     isBareJobsDefault,
+    resolveAuthKitReturnTo,
     resolvePostAuthDestination,
+    shouldOpenResumeGateAfterInlineAuth,
 } from "../../src/lib/auth/post-auth-destination";
 
 test("buildPostAuthResumeGatePath returns the /jobs gate query", () => {
@@ -96,4 +98,51 @@ test("authGateReasonToFunnelReason maps gate continuity to funnel reasons", () =
     assert.equal(authGateReasonToFunnelReason("apply"), "tracker");
     assert.equal(authGateReasonToFunnelReason("topbar"), "fit");
     assert.equal(authGateReasonToFunnelReason(undefined), "fit");
+});
+
+test("resolveAuthKitReturnTo rewrites signup bare /jobs defaults to the gate path", () => {
+    const gate = "/jobs?resume=gate";
+    for (const rawNext of [null, "/jobs", "/jobs/", "/jobs?resume=gate"]) {
+        assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext }), gate);
+    }
+});
+
+test("resolveAuthKitReturnTo preserves explicit signup destinations", () => {
+    assert.equal(
+        resolveAuthKitReturnTo({ mode: "signup", rawNext: "/jobs?q=engineer" }),
+        "/jobs?q=engineer",
+    );
+    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/settings" }), "/settings");
+    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/co/acme" }), "/co/acme");
+});
+
+test("resolveAuthKitReturnTo does not rewrite sign-in return targets", () => {
+    assert.equal(resolveAuthKitReturnTo({ mode: "login", rawNext: "/jobs" }), "/jobs");
+    assert.equal(resolveAuthKitReturnTo({ mode: "login", rawNext: null }), null);
+});
+
+test("shouldOpenResumeGateAfterInlineAuth opens only when clear and résumeless", () => {
+    const base = {
+        pendingActionKind: null as string | null,
+        alreadyHandled: false,
+        importAlreadyOpen: false,
+        hasResume: false,
+    };
+    assert.equal(shouldOpenResumeGateAfterInlineAuth(base), true);
+    assert.equal(
+        shouldOpenResumeGateAfterInlineAuth({ ...base, pendingActionKind: "upload" }),
+        false,
+    );
+    assert.equal(
+        shouldOpenResumeGateAfterInlineAuth({ ...base, alreadyHandled: true }),
+        false,
+    );
+    assert.equal(
+        shouldOpenResumeGateAfterInlineAuth({ ...base, importAlreadyOpen: true }),
+        false,
+    );
+    assert.equal(
+        shouldOpenResumeGateAfterInlineAuth({ ...base, hasResume: true }),
+        false,
+    );
 });

@@ -17,6 +17,7 @@ import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
 import { revalidateClientSession } from '@/lib/firebase/client-auth'
 import { buildReturnTo } from '@/lib/jobs/pending-actions'
+import { resolveAuthKitReturnTo } from '@/lib/auth/post-auth-destination'
 import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from 'next/link'
@@ -138,7 +139,11 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
         // gated route) wins; otherwise fall back to wherever the user
         // actually is, so a hard-nav OAuth/passkey round trip returns to the
         // same page instead of AuthKit's own default.
-        const next = new URLSearchParams(window.location.search).get("next") || buildReturnTo(window.location)
+        const rawNext = new URLSearchParams(window.location.search).get("next") || buildReturnTo(window.location)
+        const next = resolveAuthKitReturnTo({
+            mode: activeTab === "signup" ? "signup" : "login",
+            rawNext,
+        })
         if (next) params.set("next", next)
         if (activeTab === "signup") params.set("mode", "signup")
         if (provider) params.set("provider", provider)

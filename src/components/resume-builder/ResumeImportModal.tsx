@@ -102,7 +102,7 @@ export function ResumeParsingStep() {
                 <Cpu size={24} weight="fill" className="text-brand" />
             </div>
             <div>
-                <p className="text-foreground">Parsing your resume...</p>
+                <p className="text-foreground">Parsing your résumé...</p>
                 <p className="text-sm text-muted-foreground mt-1">Structuring on this device — no cloud LLM</p>
             </div>
             <div className="w-48 h-1 rounded-pill bg-secondary mx-auto overflow-hidden">
@@ -541,7 +541,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                 <Upload size={24} weight="duotone" className="text-muted-foreground" />
                             </div>
                             <div>
-                                <p className="text-foreground">Drop your resume here</p>
+                                <p className="text-foreground">Drop your résumé here</p>
                                 <p className="text-sm text-muted-foreground">or click to browse</p>
                             </div>
                             <p className="text-xs text-muted-foreground">
@@ -552,12 +552,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 </div>
             ) : (
                 <div className="space-y-2">
-                    <Label htmlFor="resume-text">Paste your resume text</Label>
+                    <Label htmlFor="resume-text">Paste your résumé text</Label>
                     <Textarea
                         id="resume-text"
                         value={pastedText}
                         onChange={(e) => setPastedText(e.target.value)}
-                        placeholder="Copy and paste your resume content here..."
+                        placeholder="Copy and paste your résumé content here..."
                         className="min-h-64 text-base md:text-sm resize-none"
                     />
                     <p className="text-xs text-muted-foreground">
