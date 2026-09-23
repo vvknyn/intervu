@@ -243,7 +243,7 @@ import {
 } from "@/lib/jobs/for-you/last-home-view";
 import { ForYouHome, ForYouHomePending } from "@/components/jobs/for-you/ForYouHome";
 import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
-import { partitionByTargetTitle } from "@/lib/jobs/for-you/title-relevance";
+import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
@@ -2598,11 +2598,16 @@ function JobsContent() {
     // For-you toggle. Gating this list to the branch would collapse
     // `visiblePacks` to empty while browsing Search, and the hook's own
     // resize-clamp would zero the index before the user ever came back.
-    // Partitioned by target title match against effectiveQ: cards matching
-    // target titles come first, off-target cards are demoted (never hidden).
+    // Band-first pack order (Strong → Good → Stretch, unscored last) with
+    // target-title relevance inside each band — see orderForYouJobsByBand.
     const forYouPacks = useMemo(
-        () => partitionByTargetTitle(renderedClusters.map((c) => c.primary), result?.effectiveQ),
-        [renderedClusters, result?.effectiveQ],
+        () =>
+            orderForYouJobsByBand(
+                renderedClusters.map((c) => c.primary),
+                matchScores ? (job) => matchScores.get(job.id) ?? null : null,
+                result?.effectiveQ,
+            ),
+        [renderedClusters, result?.effectiveQ, matchScores],
     );
     const forYouDeck = useForYouDeck(forYouPacks);
 
@@ -3619,7 +3624,10 @@ function JobsContent() {
                 return;
             }
             invalidatePursuitsCache();
-            captureEvent("job_marked_applied", { job_id: job.id });
+            captureEvent("job_marked_applied", {
+                job_id: job.id,
+                ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
+            });
             toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
@@ -3666,7 +3674,10 @@ function JobsContent() {
             // not at the top of the handler: the branch above this one opens the
             // auth popover instead of saving, and counting that click would
             // inflate saves with the exact clicks the gate rejected.
-            captureEvent("job_saved", { job_id: job.id });
+            captureEvent("job_saved", {
+                job_id: job.id,
+                ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
+            });
             return;
         }
         void (async () => {
@@ -3688,7 +3699,10 @@ function JobsContent() {
                 // The signed-in save, counted only once the action came back
                 // clean — the `res.error` branch above returns, and a thrown
                 // error lands in the catch, so neither reaches this line.
-                captureEvent("job_saved", { job_id: job.id });
+                captureEvent("job_saved", {
+                    job_id: job.id,
+                    ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
+                });
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     setAuthTrigger("auto");

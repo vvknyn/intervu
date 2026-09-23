@@ -27,6 +27,7 @@ import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { shortDate } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
+import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
@@ -157,6 +158,7 @@ export function PublicJobDetail({
         };
     }, [user, authReady]);
     const matchScore = resume ? scoreJobAgainstResume(resume, job) : null;
+    const matchScoreFor = (target: PublicJob) => (resume ? scoreJobAgainstResume(resume, target) : null);
     const matchPending = !authReady || !resumeSettled;
 
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
@@ -249,7 +251,10 @@ export function PublicJobDetail({
                 return;
             }
             invalidatePursuitsCache();
-            captureEvent("job_marked_applied", { job_id: target.id });
+            captureEvent("job_marked_applied", {
+                job_id: target.id,
+                ...matchAnalyticsProps(matchScoreFor(target)),
+            });
             toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
@@ -316,7 +321,10 @@ export function PublicJobDetail({
             // A guest's first save is a real save — same placement rule as
             // jobs/page.tsx's handleGoAfter: after the gate branch above (which
             // returns instead of saving), so a rejected click never counts.
-            captureEvent("job_saved", { job_id: target.id });
+            captureEvent("job_saved", {
+                job_id: target.id,
+                ...matchAnalyticsProps(matchScoreFor(target)),
+            });
             return;
         }
         void (async () => {
@@ -333,7 +341,10 @@ export function PublicJobDetail({
                 }
                 invalidatePursuitsCache();
                 toast.success(GUEST_SAVE_TOAST);
-                captureEvent("job_saved", { job_id: target.id });
+                captureEvent("job_saved", {
+                    job_id: target.id,
+                    ...matchAnalyticsProps(matchScoreFor(target)),
+                });
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     openAuth("save");
