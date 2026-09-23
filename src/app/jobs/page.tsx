@@ -5579,7 +5579,39 @@ function JobsContent() {
                     but unlike `ColdVisitorOrientation`, this band itself
                     only needs one mount: it's a full-bleed block, not a row
                     inside the results list, so it works at every width from
-                    a single call site. */}
+                    a single call site. At rest the default feed now renders
+                    above this block (front-door wave, 2026-09-22), so the
+                    band reads as the feed's closing pitch instead of the
+                    first thing a visitor with zero jobs on screen sees. */}
+                {frontDoorBandVisible && (
+                    <FrontDoorResumeBand
+                        nextStep={user ? "importer" : "auth"}
+                        onUploadClick={() => {
+                            if (user) {
+                                handleUploadClick();
+                                return;
+                            }
+                            resumeActionAfterImportRef.current = {
+                                kind: "fit",
+                                fitToken: fitIntentRef.current!.begin(),
+                            };
+                            setAuthGateReason("fit");
+                            setAuthTrigger("user");
+                            recordAuthGateOpen({
+                                storage: window.sessionStorage,
+                                reason: "fit",
+                                trigger: "user",
+                                originSurface: "jobs_banner",
+                            });
+                            gate(
+                                { kind: "upload", payload: true },
+                                { originSurface: "jobs_banner", gateReason: "fit" },
+                            );
+                        }}
+                        onSignInClick={() => openAuth("generic", "user")}
+                    />
+                )}
+
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
                     createPortal(fieldDirectoryMenu, dockedFieldDirectoryMount)}
                 {headerDockActive && showLandingMarketing && dockedFieldDirectoryMount &&

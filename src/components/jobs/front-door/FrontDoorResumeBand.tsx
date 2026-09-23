@@ -48,7 +48,7 @@ export function FrontDoorResumeBand({
                     <h2 className="text-lg font-semibold text-brand-foreground sm:text-xl">
                         See which live jobs fit your experience.
                     </h2>
-                    <p className="mt-1 text-sm text-brand-foreground/90">{FRONT_DOOR_RESUME_CARD_SUBCOPY}</p>
+                    <p className="mt-1 text-sm text-brand-foreground">{FRONT_DOOR_RESUME_CARD_SUBCOPY}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                     <button

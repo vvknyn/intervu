@@ -50,7 +50,7 @@ export function MatchChipTeaser({ onClick, className }: { onClick: () => void; c
                 className,
             )}
         >
-            <Lock size={12} weight="bold" aria-hidden />
+            <Lock size={16} weight="bold" aria-hidden />
             Your fit
         </button>
     );
