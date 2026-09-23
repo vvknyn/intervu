@@ -185,6 +185,11 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 router.refresh()
                 revalidateClientSession()
                 await syncGuestFollowsToServer()
+                const landed = buildReturnTo(window.location)
+                const destination = resolveAuthKitReturnTo({ mode: "signup", rawNext: landed })
+                if (destination && destination !== landed) {
+                    router.replace(destination)
+                }
                 if (onSuccess) onSuccess()
             } catch (err) {
                 setMessage(err instanceof Error ? err.message : "Failed to create account")

@@ -22,6 +22,8 @@ test("auth/start defaults OAuth returnTo to the résumé gate path", () => {
 test("login-form and jobs page wire AuthKit and inline signup résumé gate helpers", () => {
     const loginForm = readFileSync(join(__dirname, "../../src/components/auth/login-form.tsx"), "utf8");
     assert.match(loginForm, /resolveAuthKitReturnTo/);
+    assert.match(loginForm, /buildReturnTo/);
+    assert.match(loginForm, /resolveAuthKitReturnTo\(\{ mode: "signup", rawNext: landed \}\)/);
 
     const jobsPage = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
     assert.match(jobsPage, /shouldOpenResumeGateAfterInlineAuth/);
