@@ -1,4 +1,11 @@
 
+export interface LLMAnalyticsContext {
+    feature: string;
+    traceId: string;
+    distinctId: string;
+    isFallback?: boolean;
+}
+
 export interface LLMRequest {
     system?: string;
     prompt: string;
@@ -7,6 +14,7 @@ export interface LLMRequest {
     timeoutMs?: number;
     /** Provider-level retries; defaults to 3. Ladder callers pass 1. */
     maxRetries?: number;
+    analytics?: LLMAnalyticsContext;
 }
 
 export interface LLMResponse {

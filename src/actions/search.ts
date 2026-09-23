@@ -44,7 +44,7 @@ export async function parseSearchQuery(query: string, modelConfig?: Partial<Prov
             setTimeout(() => resolve(null), 15000); // 15 second timeout
         });
 
-        const llmPromise = generateGenericJSON(prompt, modelConfig);
+        const llmPromise = generateGenericJSON(prompt, modelConfig, "search_query_parse");
         const result = await Promise.race([llmPromise, timeoutPromise]);
 
         if (result && result.company && result.position) {
