@@ -10,7 +10,7 @@ import { chipVariants } from "@/components/ui/chip";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
-import { displayCompanyBrand, locationText, placeWithWorkMode } from "@/lib/jobs/presentation";
+import { displayCompanyBrand, locationText, placeWithWorkMode, stripRemoteSegmentsFromPlace } from "@/lib/jobs/presentation";
 import { inferReasons, noScoreReason, NO_SCORE_MESSAGES, type NoScoreReason } from "@/lib/jobs/for-you/infer-reasons";
 import { descriptionPaneState } from "@/lib/jobs/for-you/description-pane-state";
 import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
@@ -150,7 +150,11 @@ export function ForYouPack({
     );
 
     const company = displayCompanyBrand(displayJob.company, displayJob.company_domain, displayJob.title);
-    const place = placeWithWorkMode(locationText(displayJob), displayJob.work_type);
+    const rawPlace = locationText(displayJob);
+    const place =
+        displayJob.work_type === "remote"
+            ? stripRemoteSegmentsFromPlace(rawPlace)
+            : placeWithWorkMode(rawPlace, displayJob.work_type);
     const strongFit = matchScore != null && matchBand(matchScore.total) === "strong";
     const noScore = matchScore == null ? noScoreReason(resume) : null;
     const paneState = descriptionPaneState(descriptionPending, sections);

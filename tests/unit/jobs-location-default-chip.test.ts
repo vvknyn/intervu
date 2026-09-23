@@ -94,3 +94,10 @@ test("buildDockedChips: remoteAnywhere=true appends \"· Remote\" to the chip la
   const undefinedRemote = buildDockedChips("CA", undefined, []);
   assert.equal(undefinedRemote[0].label, "Canada", "undefined must behave like false, not throw or say '· Remote'");
 });
+
+test("buildDockedChips: remoteAnywhere=true with a separate Remote work-type chip omits Remote from the country label", () => {
+  const chips = buildDockedChips("CA", true, [{ key: "work_type:remote", label: "Work mode · Remote" }]);
+  assert.equal(chips.length, 2);
+  assert.equal(chips[0].label, "Canada");
+  assert.equal(chips[1].label, "Work mode · Remote");
+});

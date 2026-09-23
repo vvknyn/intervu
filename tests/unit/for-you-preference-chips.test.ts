@@ -51,4 +51,34 @@ describe("buildPreferenceChips", () => {
         });
         assert.deepEqual(chips.map((c) => c.key), ["role", "where"]);
     });
+
+    it("collapses doubled Remote in the location label and skips a second remote chip", () => {
+        const chips = buildPreferenceChips({
+            search: { location: "Canada · Remote · Remote", remoteOnly: true },
+            resume: null,
+        });
+        assert.deepEqual(
+            chips.map((c) => c.label),
+            ["Canada · Remote"],
+        );
+    });
+
+    it("does not rewrite a normal location that mentions Remote only once", () => {
+        const chips = buildPreferenceChips({
+            search: { location: "Toronto, Canada", remoteOnly: false },
+            resume: null,
+        });
+        assert.deepEqual(chips.map((c) => c.label), ["Toronto, Canada"]);
+    });
+
+    it("Canada plus remoteOnly still renders separate location and Remote only chips", () => {
+        const chips = buildPreferenceChips({
+            search: { location: "Canada", remoteOnly: true },
+            resume: null,
+        });
+        assert.deepEqual(
+            chips.map((c) => c.label),
+            ["Canada", "Remote only"],
+        );
+    });
 });

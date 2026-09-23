@@ -1,4 +1,5 @@
 import type { SearchPreferences } from "@/lib/agent/preferences";
+import { collapseDoubledRemoteInPlace, placeContainsWorkModeSegment } from "@/lib/jobs/presentation";
 import type { ResumeData } from "@/types/resume";
 
 export interface PreferenceChip {
@@ -49,14 +50,17 @@ export function buildPreferenceChips(input: {
         null;
     if (level) chips.push({ key: "level", label: level });
 
-    const where =
+    const whereRaw =
         search.location?.trim() ||
         fitFacets?.location?.trim() ||
         resume?.profile?.location?.trim() ||
         null;
+    const where = whereRaw ? collapseDoubledRemoteInPlace(whereRaw) : null;
     if (where) chips.push({ key: "where", label: where });
 
-    if (search.remoteOnly || fitFacets?.remote) {
+    const wantsRemoteChip = search.remoteOnly || fitFacets?.remote;
+    const locationAlreadyRemote = where != null && placeContainsWorkModeSegment(where, "Remote");
+    if (wantsRemoteChip && !locationAlreadyRemote) {
         chips.push({ key: "remote", label: "Remote only" });
     }
 

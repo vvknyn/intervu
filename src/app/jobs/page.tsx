@@ -147,7 +147,7 @@ import {
 } from "@/lib/local-ai/flag";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
+import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
@@ -436,14 +436,19 @@ function ToolbarSegment({
 function DefaultLocationChip({
     iso2,
     remoteAnywhere,
+    separateRemoteWorkTypeChip,
     onClear,
 }: {
     iso2: string;
     remoteAnywhere: boolean | undefined;
+    separateRemoteWorkTypeChip: boolean;
     onClear: () => void;
 }) {
     const flag = countryToFlag(iso2);
-    const scope = useMemo(() => locationDefaultScope(iso2, remoteAnywhere), [iso2, remoteAnywhere]);
+    const scope = useMemo(
+        () => locationDefaultScope(iso2, remoteAnywhere, { separateRemoteWorkTypeChip }),
+        [iso2, remoteAnywhere, separateRemoteWorkTypeChip],
+    );
     return (
         <span
             data-testid="default-location-chip"
@@ -1052,6 +1057,7 @@ function JobsContent() {
      * "no location chosen" to the IP-default chip and the saved preference.
      */
     const chosenLocations = LOCATION_FACET_FIELDS.flatMap((field) => filterState.facets[field] ?? []);
+    const hasSeparateRemoteWorkTypeChip = (filterState.facets.work_type ?? []).some(isRemoteWorkTypeValue);
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
@@ -5385,6 +5391,7 @@ function JobsContent() {
                             <DefaultLocationChip
                                 iso2={result!.defaultedLocation!}
                                 remoteAnywhere={result!.remoteAnywhere}
+                                separateRemoteWorkTypeChip={hasSeparateRemoteWorkTypeChip}
                                 onClear={suppressLocationDefault}
                             />
                         )}
@@ -5916,7 +5923,9 @@ function JobsContent() {
                                     locationDefault={
                                         shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
                                             ? {
-                                                  label: locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere),
+                                                  label: locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere, {
+                                                      separateRemoteWorkTypeChip: hasSeparateRemoteWorkTypeChip,
+                                                  }),
                                                   onClear: suppressLocationDefault,
                                               }
                                             : undefined
