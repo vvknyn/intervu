@@ -5063,21 +5063,15 @@ function JobsContent() {
                     in favor of the sr-only heading so the page still carries
                     exactly one h1. */}
                 {atRest && showSearchHome ? (
-                    <div className="pb-2">
-                        <div className="mx-auto max-w-[960px] border-b border-border py-2 text-center sm:py-3">
-                            <p className="mb-1 text-xs font-semibold text-brand">
+                    <div className="pb-1.5">
+                        <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
+                            <p className="mb-0.5 text-xs font-semibold text-brand">
                                 Live from employer career pages
                             </p>
-                            <h1 className="text-xl font-semibold text-foreground sm:text-2xl">
+                            <h1 className="text-xl font-semibold text-foreground">
                                 {JOBS_USP.mastheadTitle}
                             </h1>
-                            {/* Provenance (what the corpus is) stays a distinct
-                                sentence from the count below (how many there
-                                are right now) — dropping it would conflate two
-                                different jobs into one line. */}
-                            <p className="mx-auto mt-1 hidden max-w-2xl text-sm text-muted-foreground lg:block">
-                                {JOBS_USP.searchDescription}
-                            </p>
+                            <p className="sr-only">{JOBS_USP.searchDescription}</p>
                         </div>
                     </div>
                 ) : (
@@ -5226,7 +5220,7 @@ function JobsContent() {
                                         // the largest element on the page — lg+ jumps to the tallest
                                         // existing control-height token (h-14) instead of the
                                         // mid-search state's h-[56px]. Below lg, unchanged.
-                                        atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                        atRest ? "h-11" : "h-11 sm:h-[56px]",
                                         "w-full min-w-0 rounded-pill border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0",
                                     )}
                                     containerClassName="min-w-0 w-full"
@@ -5267,7 +5261,7 @@ function JobsContent() {
                                     onFocus={() => searchAutocompleteRef.current?.close()}
                                     containerClassName="hidden lg:flex"
                                     className={cn(
-                                        atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                        atRest ? "h-11" : "h-11 sm:h-[56px]",
                                         "min-w-0 flex-1 rounded-pill border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0",
                                     )}
                                 />
@@ -5322,7 +5316,7 @@ function JobsContent() {
                                 onClick={() => submitSearch(queryDraft)}
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
-                                    atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                    atRest ? "h-11" : "h-11 sm:h-[56px]",
                                     "w-full rounded-pill px-6 text-xs font-semibold sm:w-auto transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
@@ -5567,49 +5561,6 @@ function JobsContent() {
                     disagree with this piece about whether it's showing. */}
                 {atRest && showSearchHome && (
                     <FrontDoorFieldLinks onSelectQuery={submitSearch} />
-                )}
-
-                {/* Requirement 2 (front-door redesign): the résumé-upload
-                    band replaces `ColdVisitorOrientation` at rest (that
-                    component's two mounts each gained `!atRest &&` instead —
-                    see `showColdOrientation` above and its mobile-flatMap
-                    mount below). One gate, hoisted in `showsFrontDoorBand`,
-                    reused nowhere else so the desktop and mobile renders of
-                    this SAME band can't drift onto different conditions —
-                    but unlike `ColdVisitorOrientation`, this band itself
-                    only needs one mount: it's a full-bleed block, not a row
-                    inside the results list, so it works at every width from
-                    a single call site. At rest the default feed now renders
-                    above this block (front-door wave, 2026-09-22), so the
-                    band reads as the feed's closing pitch instead of the
-                    first thing a visitor with zero jobs on screen sees. */}
-                {frontDoorBandVisible && (
-                    <FrontDoorResumeBand
-                        nextStep={user ? "importer" : "auth"}
-                        onUploadClick={() => {
-                            if (user) {
-                                handleUploadClick();
-                                return;
-                            }
-                            resumeActionAfterImportRef.current = {
-                                kind: "fit",
-                                fitToken: fitIntentRef.current!.begin(),
-                            };
-                            setAuthGateReason("fit");
-                            setAuthTrigger("user");
-                            recordAuthGateOpen({
-                                storage: window.sessionStorage,
-                                reason: "fit",
-                                trigger: "user",
-                                originSurface: "jobs_banner",
-                            });
-                            gate(
-                                { kind: "upload", payload: true },
-                                { originSurface: "jobs_banner", gateReason: "fit" },
-                            );
-                        }}
-                        onSignInClick={() => openAuth("generic", "user")}
-                    />
                 )}
 
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
@@ -6307,6 +6258,38 @@ function JobsContent() {
                 </div>
                 )}
                 </>
+                )}
+
+                {/* Closing pitch after the live feed — one mount, same
+                    `showsFrontDoorBand` gate as before. Source order is the
+                    first-viewport contract: jobs, then the résumé invite. */}
+                {frontDoorBandVisible && (
+                    <FrontDoorResumeBand
+                        nextStep={user ? "importer" : "auth"}
+                        onUploadClick={() => {
+                            if (user) {
+                                handleUploadClick();
+                                return;
+                            }
+                            resumeActionAfterImportRef.current = {
+                                kind: "fit",
+                                fitToken: fitIntentRef.current!.begin(),
+                            };
+                            setAuthGateReason("fit");
+                            setAuthTrigger("user");
+                            recordAuthGateOpen({
+                                storage: window.sessionStorage,
+                                reason: "fit",
+                                trigger: "user",
+                                originSurface: "jobs_banner",
+                            });
+                            gate(
+                                { kind: "upload", payload: true },
+                                { originSurface: "jobs_banner", gateReason: "fit" },
+                            );
+                        }}
+                        onSignInClick={() => openAuth("generic", "user")}
+                    />
                 )}
             </div>
 

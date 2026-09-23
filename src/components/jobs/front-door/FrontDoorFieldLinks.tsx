@@ -19,8 +19,8 @@ import { DotSeparated } from "@/components/ui/dot-separated";
  */
 export function FrontDoorFieldLinks({ onSelectQuery }: { onSelectQuery: (q: string) => void }) {
     return (
-        <div className="mx-auto mt-3 max-w-[960px] text-center">
-            <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Browse by field</p>
+        <div className="mx-auto mt-2 max-w-[960px] text-center">
+            <p className="mb-1 text-xs font-semibold text-muted-foreground">Browse by field</p>
             <p className="text-sm">
                 <DotSeparated
                     items={indexCategories.map((cat) => (
