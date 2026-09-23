@@ -108,9 +108,7 @@ import { indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
 import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
-import { useOverflowEdges } from "@/hooks/use-overflow-edges";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
-import { edgeFadeMaskImage } from "@/lib/jobs/edge-fade";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
@@ -442,10 +440,10 @@ function DefaultLocationChip({
     return (
         <span
             data-testid="default-location-chip"
-            className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
+            className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 text-xs leading-none")}
         >
-            {flag && <span aria-hidden>{flag}</span>}
-            {scope}
+            {flag && <span aria-hidden className="shrink-0">{flag}</span>}
+            <span className="min-w-0 truncate" title={scope}>{scope}</span>
             <ChipDismiss label={`Stop defaulting to ${scope}`} onClick={onClear} />
         </span>
     );
@@ -3028,11 +3026,6 @@ function JobsContent() {
     // #jobs-results-list container — the one mount point `useResultImpressions`
     // watches for rows crossing 50% visible (see the ref attached below).
     const resultsListRef = useRef<HTMLDivElement | null>(null);
-    // Horizontal-scroll toolbar row — feeds `useOverflowEdges` so the edge
-    // fade renders only on a side that actually hides content.
-    const toolbarScrollerRef = useRef<HTMLDivElement | null>(null);
-    const toolbarOverflowEdges = useOverflowEdges(toolbarScrollerRef);
-    const toolbarEdgeFadeMask = edgeFadeMaskImage(toolbarOverflowEdges);
     // `result?.searchId`, not `lastSearchId`: this is the id `loadMore`
     // leaves untouched when it appends a page (`setResult` spreads `...prev`
     // without overwriting `searchId` — see `loadMore` below), so it stays
@@ -5334,22 +5327,16 @@ function JobsContent() {
                                 // filled strip a live query still gets.
                                 atRest
                                     ? "mx-auto mt-3 w-full max-w-[960px] border-y border-border py-2"
-                                    : "mt-3 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5"
+                                    : "mt-3 w-full min-w-0 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5"
                             ),
                     )}
                 >
+                    {/* Wrap instead of overflow-x scroll — long query chips truncate
+                        with a title tooltip; controls and short chips stay whole. */}
                     {showJobsToolbarRow && (
                     <div
-                        ref={toolbarScrollerRef}
                         data-testid="jobs-toolbar-scroller"
-                        data-fade-left={toolbarOverflowEdges.left || undefined}
-                        data-fade-right={toolbarOverflowEdges.right || undefined}
-                        className="no-scrollbar flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain px-[var(--list-inset)] [scroll-padding-inline:var(--list-inset)] lg:gap-3"
-                        style={
-                            toolbarEdgeFadeMask
-                                ? { WebkitMaskImage: toolbarEdgeFadeMask, maskImage: toolbarEdgeFadeMask }
-                                : undefined
-                        }
+                        className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-clip px-[var(--list-inset)] lg:gap-3"
                     >
                         {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
                         <button
@@ -5391,7 +5378,7 @@ function JobsContent() {
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
                         {!headerDockActive && (
-                            <div data-testid="jobs-toolbar-actions" className="flex shrink-0 items-center gap-2">
+                            <div data-testid="jobs-toolbar-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                                 {showToolbarFilters && savedSearchMountEl}
                                 {sortEl}
                                 {tourReplayEl}
@@ -5403,21 +5390,25 @@ function JobsContent() {
                     {!headerDockActive && unnamedEntries.length > 0 && (
                         <div
                             data-testid="active-filter-row"
-                            className="no-scrollbar mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain border-t border-border pt-2"
+                            className="mt-2 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-clip border-t border-border pt-2"
                         >
-                            {!headerDockActive && unnamedEntries.map((entry) => (
+                            {!headerDockActive && unnamedEntries.map((entry) => {
+                                const label = chipLabelForEntry(entry);
+                                return (
                                 <span
                                     key={entry.key}
                                     data-testid="active-filter-chip"
-                                    className={cn(chipVariants({ active: true, interactive: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
+                                    title={label}
+                                    className={cn(chipVariants({ active: true, interactive: true }), toolbarControlHeight, "mono-data inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
                                 >
-                                    {chipLabelForEntry(entry)}
+                                    <span className="min-w-0 max-w-[min(100%,18rem)] truncate">{label}</span>
                                     <ChipDismiss
-                                        label={`Clear ${chipLabelForEntry(entry)}`}
+                                        label={`Clear ${label}`}
                                         onClick={() => applyFilterState(entry.clear(filterState))}
                                     />
                                 </span>
-                            ))}
+                                );
+                            })}
                             {clearFiltersEl}
                         </div>
                     )}

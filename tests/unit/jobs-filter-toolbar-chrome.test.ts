@@ -100,7 +100,7 @@ describe("jobs filter toolbar chrome", () => {
     it("FacetBar root is visible below lg (no hidden lg:flex)", () => {
         const src = readFileSync(FACET_BAR, "utf8");
         const root = src.slice(src.indexOf('data-testid="facet-bar"'), src.indexOf('data-testid="facet-bar"') + 120);
-        assert.match(root, /flex flex-nowrap/);
+        assert.match(root, /flex flex-wrap/);
         assert.doesNotMatch(root, /hidden lg:flex/);
     });
 
@@ -114,16 +114,26 @@ describe("jobs filter toolbar chrome", () => {
             src.indexOf('data-testid="active-filter-row"'),
             src.indexOf('data-testid="active-filter-row"') + 400,
         );
-        assert.match(activeRow, /flex-nowrap/);
-        assert.doesNotMatch(activeRow, /flex-wrap/);
+        assert.match(activeRow, /flex-wrap/);
+        assert.match(activeRow, /overflow-x-clip/);
+        assert.doesNotMatch(activeRow, /flex-nowrap/);
+        assert.doesNotMatch(activeRow, /overflow-x-auto/);
+
+        const activeChip = src.slice(
+            src.indexOf('data-testid="active-filter-chip"'),
+            src.indexOf('data-testid="active-filter-chip"') + 500,
+        );
+        assert.match(activeChip, /truncate/);
+        assert.match(activeChip, /title=\{label\}/);
 
         const toolbarScroller = src.slice(
-            src.indexOf('data-testid="jobs-toolbar"'),
-            src.indexOf('data-testid="active-filter-row"'),
+            src.indexOf('data-testid="jobs-toolbar-scroller"'),
+            src.indexOf('data-testid="jobs-toolbar-scroller"') + 300,
         );
-        assert.match(toolbarScroller, /flex-nowrap/);
-        assert.match(toolbarScroller, /overflow-x-auto/);
-        assert.doesNotMatch(toolbarScroller, /flex-wrap/);
+        assert.match(toolbarScroller, /flex-wrap/);
+        assert.match(toolbarScroller, /overflow-x-clip/);
+        assert.doesNotMatch(toolbarScroller, /overflow-x-auto/);
+        assert.doesNotMatch(toolbarScroller, /flex-nowrap/);
     });
 
     it("Clear sits at the trailing end of the filter/chip cluster, not between chips and Save", () => {
@@ -198,6 +208,20 @@ describe("jobs filter toolbar chrome", () => {
         );
         assert.match(src, /filterCountBadgeClass/);
         assert.match(src, /bg-muted lg:block/);
+
+        const bandRow = src.slice(
+            src.indexOf('data-region="band"'),
+            src.indexOf('data-testid="topbar-docked-home-view"') + 200,
+        );
+        assert.match(bandRow, /flex-wrap/);
+        assert.match(bandRow, /overflow-x-clip/);
+        assert.doesNotMatch(bandRow, /overflow-x-auto/);
+
+        const dockedChip = src.slice(
+            src.indexOf('data-testid="topbar-docked-chip"'),
+            src.indexOf('data-testid="topbar-docked-chip"') + 400,
+        );
+        assert.match(dockedChip, /title=\{chip\.label\}/);
     });
 
     it("globals.css defines jobs-instrument-rule and hides empty docked portal mounts", () => {
