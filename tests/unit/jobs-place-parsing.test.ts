@@ -156,6 +156,58 @@ test("cross-country homonym FIX: Toronto's 'Richmond Hill' radius match is scope
   );
 });
 
+/** Corpus with a Toronto radius neighbor present — exercises strict vs metro
+ *  paths without changing shared VOCAB (preferStrictCity regressions expect
+ *  Toronto-only `any` because Richmond Hill is absent from VOCAB). */
+const METRO_NEIGHBOR_VOCAB = fakeVocab([
+  { field: "location_city", value: "Toronto" },
+  { field: "location_city", value: "Richmond Hill" },
+  { field: "location_country", value: "Canada" },
+]);
+
+test("explicit typed location (resolveLocationFacet): Toronto is city-strict — Richmond Hill excluded even when in corpus", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["Toronto"] } }, METRO_NEIGHBOR_VOCAB);
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
+  assert.ok(
+    !p.places![0].any.some((f) => f.value === "Richmond Hill"),
+    "explicit location must not OR radius neighbors",
+  );
+  assert.deepEqual(p.places![0].scopedToCountry, [{ field: "location_country", value: "Canada" }]);
+});
+
+test("free-text parsePlaceTokens (default radius): jobs in toronto still includes Richmond Hill when in corpus", async () => {
+  const { residualQ, places } = await parsePlaceTokens("jobs in toronto", METRO_NEIGHBOR_VOCAB);
+  assert.equal(residualQ, "jobs in");
+  assert.equal(places.length, 1);
+  assert.ok(
+    places[0].any.some((f) => f.field === "location_city" && f.value === "Richmond Hill"),
+    `expected Richmond Hill in metro OR-set: ${JSON.stringify(places[0])}`,
+  );
+  assert.ok(places[0].any.some((f) => f.value === "Toronto"));
+});
+
+test("applyQueryUnderstanding: pre-set explicit places win — query place words do not replace or widen the filter", async () => {
+  const torontoPlaces = [{ any: [{ field: "location_city" as const, value: "Toronto" }] }];
+  const p = await applyQueryUnderstanding(
+    { q: "Richmond Hill engineer", places: torontoPlaces },
+    METRO_NEIGHBOR_VOCAB,
+  );
+  assert.equal(p.q, "Richmond Hill engineer", "place word stays in query when explicit places already set");
+  assert.deepEqual(p.places, torontoPlaces, "explicit Toronto filter must not be replaced by Richmond Hill");
+});
+
+test("applyQueryUnderstanding: explicit places keep a query work-mode as a global facet", async () => {
+  const torontoPlaces = [{ any: [{ field: "location_city" as const, value: "Toronto" }] }];
+  const p = await applyQueryUnderstanding(
+    { q: "remote engineer", places: torontoPlaces },
+    METRO_NEIGHBOR_VOCAB,
+  );
+  assert.equal(p.q, "engineer");
+  assert.deepEqual(p.places, torontoPlaces);
+  assert.deepEqual(p.facets?.work_type, ["remote"]);
+});
+
 test("a real gazetteer place the corpus has no postings for produces no filter — and stays OUT of the query text, not back in as a content word (full-text matching on a bare place name is exactly what place filtering exists to avoid — see the module doc)", async () => {
   const { residualQ, places } = await parsePlaceTokens("product manager lisbon", VOCAB);
   assert.equal(residualQ, "product manager");

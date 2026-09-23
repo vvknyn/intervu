@@ -398,7 +398,7 @@ async function resolvePlaces(deps: ToolDeps, location: string | undefined): Prom
   const text = location?.trim();
   if (!text) return [];
   const vocab = await deps.locationVocabulary();
-  return preferStrictCity((await parsePlaceTokens(text, vocab)).places);
+  return preferStrictCity((await parsePlaceTokens(text, vocab, false, { radius: false })).places);
 }
 
 /** How many more results the depth cap still allows past `offset` — 0 once

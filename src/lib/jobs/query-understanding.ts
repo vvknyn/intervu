@@ -15,7 +15,15 @@
 import type { JobSearchParams, PlaceClause, PlaceFilter } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
-import { scanPlacePhrases, rebuildAfterRejection, placeClause, preferStrictCity, type PlaceResolution, type LocationField } from "../geo/resolve-place";
+import {
+  scanPlacePhrases,
+  rebuildAfterRejection,
+  placeClause,
+  preferStrictCity,
+  type PlaceResolution,
+  type LocationField,
+  type ResolvePlaceOptions,
+} from "../geo/resolve-place";
 import { MAX_REGION_CLAUSE_TERMS, regionLabel } from "../geo/regions";
 import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
@@ -173,8 +181,9 @@ export async function parsePlaceTokens(
   q: string,
   vocab: LocationVocabulary,
   guardFreeTextWords = false,
+  opts?: ResolvePlaceOptions,
 ): Promise<ParsedPlaces> {
-  const scan = scanPlacePhrases(q, vocab.gazetteer, guardFreeTextWords);
+  const scan = scanPlacePhrases(q, vocab.gazetteer, guardFreeTextWords, opts);
   let { residualQ, resolutions } = scan;
   if (resolutions.length === 0) return { residualQ, places: [] };
 
@@ -403,7 +412,7 @@ async function resolvePhraseOrRawLiteral(
   phrase: string,
   vocab: LocationVocabulary,
 ): Promise<{ places: PlaceClause[]; unmatched: string[] }> {
-  const { residualQ, places } = await parsePlaceTokens(phrase, vocab);
+  const { residualQ, places } = await parsePlaceTokens(phrase, vocab, false, { radius: false });
   if (places.length === 1 && residualQ.trim() === "") return { places, unmatched: [] };
 
   const exact = await resolveExactFacetValue(phrase, vocab);
@@ -583,7 +592,11 @@ export async function resolveLocationFacet(
  *
  * Explicit UI selection always wins: a facet the user already narrowed in
  * the filter panel leaves the corresponding typed tokens in the query
- * untouched rather than second-guessing their click.
+ * untouched rather than second-guessing their click. An explicit `places`
+ * clause (MCP `location`, already resolved) is the same kind of selection:
+ * place words in `q` stay search text and must not replace that clause.
+ * A work-mode token in that query still becomes a global `work_type`
+ * facet so "remote" is not stripped from the query and then dropped.
  */
 export async function applyQueryUnderstanding(
   p: JobSearchParams,
@@ -599,7 +612,8 @@ export async function applyQueryUnderstanding(
     next = { ...next, q: residualQ };
   }
 
-  if (vocab && !p.facets?.location_country?.length) {
+  const hasExplicitPlaces = (p.places?.length ?? 0) > 0;
+  if (vocab && !p.facets?.location_country?.length && !hasExplicitPlaces) {
     const parsed = await parsePlaceTokens((next.q ?? "").trim(), vocab, true);
     if (parsed.places.length > 0) {
       const places =
@@ -610,7 +624,16 @@ export async function applyQueryUnderstanding(
     }
   }
 
-  if (workTypes.length > 0 && !explicitWorkType && !(next.places?.length ?? 0)) {
+  // Place clauses parsed FROM the query already carry `workTypes` on the
+  // clause. An explicit place filter does not — the work-mode token was
+  // still stripped from `q` above, so it has to land on the global facet
+  // or "remote engineer" + location=Toronto searches onsite Toronto jobs
+  // for the word "engineer" only.
+  if (
+    workTypes.length > 0 &&
+    !explicitWorkType &&
+    (hasExplicitPlaces || !(next.places?.length ?? 0))
+  ) {
     next = { ...next, facets: { ...next.facets, work_type: workTypes } };
   }
 
