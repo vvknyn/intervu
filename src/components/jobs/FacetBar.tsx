@@ -185,7 +185,7 @@ export function FacetBar({
     if (!hasStandingFacetSelection(state, postedDateSupported)) return null;
 
     return (
-        <div data-testid="facet-bar" className="flex flex-nowrap items-center gap-2">
+        <div data-testid="facet-bar" className="flex flex-wrap min-w-0 items-center gap-2">
             {postedDateSupported &&
                 facetBarShouldRenderChip("postedBucket", state, postedDateSupported) && (
                     <FacetChip

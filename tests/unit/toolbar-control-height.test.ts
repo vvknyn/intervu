@@ -113,15 +113,15 @@ test("toolbar control height", async (t) => {
         assert.doesNotMatch(seg!, HEIGHT_UTIL);
     });
 
-    await t.test("the toolbar scroller stays one nowrap row at every breakpoint", () => {
-        const toolbar = pageSrc.slice(pageSrc.indexOf('data-testid="jobs-toolbar"'));
-        const scroller = toolbar.slice(
-            toolbar.indexOf("showJobsToolbarRow && ("),
-            toolbar.indexOf("{facetsMountSite ==="),
+    await t.test("the toolbar scroller wraps instead of horizontal scroll", () => {
+        const scroller = pageSrc.slice(
+            pageSrc.indexOf('data-testid="jobs-toolbar-scroller"'),
+            pageSrc.indexOf('data-testid="jobs-toolbar-scroller"') + 300,
         );
-        assert.match(scroller, /flex-nowrap/);
-        assert.match(scroller, /overflow-x-auto/);
-        assert.doesNotMatch(scroller, /flex-wrap/);
+        assert.match(scroller, /flex-wrap/);
+        assert.match(scroller, /overflow-x-clip/);
+        assert.doesNotMatch(scroller, /overflow-x-auto/);
+        assert.doesNotMatch(scroller, /flex-nowrap/);
     });
 
     await t.test("FilterChipsRow is a nowrap chip rail, not a 3-column grid", () => {
@@ -131,8 +131,14 @@ test("toolbar control height", async (t) => {
         assert.match(filterChipsSrc, /toolbarChipClass/);
     });
 
-    await t.test("compact SavedSearchesPanel stays nowrap inside the toolbar scroller", () => {
-        assert.match(savedSearchesSrc, /compact \? "shrink-0 flex-nowrap" : "flex-wrap"/);
-        assert.match(savedSearchesSrc, /compact \? "shrink-0 flex-nowrap" : "flex-wrap"\)/);
+    await t.test("compact SavedSearchesPanel wraps inside the toolbar scroller", () => {
+        assert.match(savedSearchesSrc, /compact \? "min-w-0 flex-wrap" : "flex-wrap"/);
+        assert.match(savedSearchesSrc, /compact \? "min-w-0 flex-wrap" : "flex-wrap"\)/);
+        const savedItemBlock = savedSearchesSrc.slice(
+            savedSearchesSrc.indexOf('data-testid="saved-search-item"'),
+            savedSearchesSrc.indexOf('data-testid="saved-search-item"') + 800,
+        );
+        assert.match(savedItemBlock, /truncate/);
+        assert.match(savedItemBlock, /title=\{s\.name\}/, "saved-search name button exposes full label via title");
     });
 });
