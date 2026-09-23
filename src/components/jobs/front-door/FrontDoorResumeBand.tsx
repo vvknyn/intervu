@@ -41,14 +41,14 @@ export function FrontDoorResumeBand({
     return (
         <section
             aria-label="Add your resume"
-            className="mt-6 w-full bg-brand px-4 py-8 text-brand-foreground sm:px-8"
+            className="mt-8 w-full bg-brand px-4 py-6 text-brand-foreground sm:px-8"
         >
-            <div className="mx-auto grid max-w-[960px] gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-8">
+            <div className="mx-auto grid max-w-[960px] gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
                 <div>
-                    <h2 className="text-xl font-semibold text-brand-foreground sm:text-2xl">
+                    <h2 className="text-lg font-semibold text-brand-foreground sm:text-xl">
                         See which live jobs fit your experience.
                     </h2>
-                    <p className="mt-1 text-sm text-brand-foreground">{FRONT_DOOR_RESUME_CARD_SUBCOPY}</p>
+                    <p className="mt-1 text-sm text-brand-foreground/90">{FRONT_DOOR_RESUME_CARD_SUBCOPY}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                     <button

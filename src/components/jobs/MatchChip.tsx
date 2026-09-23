@@ -12,6 +12,7 @@
  * already used for exactly this kind of "explain a computed value" need
  * elsewhere in JobCard.
  */
+import { Lock } from "@phosphor-icons/react";
 import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
 import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
@@ -31,6 +32,28 @@ export interface MatchChipProps {
      *  because not every render site (yet) has a job id in scope; omit to
      *  render the chip without that capture rather than fabricate an id. */
     jobId?: string;
+}
+
+/** Locked teaser occupying the same footprint as {@link MatchChip}. */
+export function MatchChipTeaser({ onClick, className }: { onClick: () => void; className?: string }) {
+    return (
+        <button
+            type="button"
+            data-testid="match-chip-teaser"
+            aria-label="See how this role fits your experience"
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+            }}
+            className={cn(
+                "mono-data inline-flex items-center gap-1 rounded-pill border border-border bg-chip px-2 py-0.5 text-xs font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground",
+                className,
+            )}
+        >
+            <Lock size={12} weight="bold" aria-hidden />
+            Your fit
+        </button>
+    );
 }
 
 export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps) {

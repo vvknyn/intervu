@@ -2,18 +2,26 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hasSearchIntent, type SearchIntentInput } from "../../src/lib/jobs/search-intent";
 
-// Perf first-paint (2026-09-18), product decision (Vivek): /jobs at rest must
-// never render or fetch results. `hasSearchIntent` is the single predicate
-// that decides "results surface" vs "at-rest front door" — see its own doc
-// comment (src/lib/jobs/search-intent.ts) for what each clause means.
+// Front-door live feed (2026-09-22), product decision (Vivek), superseding
+// the 2026-09-18 "at rest never fetches" rule: the at-rest Search home now
+// shows a default recency feed via the `defaultFeedAtRest` clause, so "no
+// intent at rest" only holds when that feed is off (For-you home, job open
+// elsewhere, etc.). `hasSearchIntent` remains the single predicate deciding
+// "results surface" vs "at-rest front door" — see its doc comment
+// (src/lib/jobs/search-intent.ts) for what each clause means.
 
 const REST: SearchIntentInput = {
+    defaultFeedAtRest: false,
     query: "",
     filtersAwayFromDefault: false,
     explicitlySubmitted: false,
     jobOpen: false,
     forYouActive: false,
 };
+
+test("the at-rest default feed alone has search intent, with no query and no submit", () => {
+    assert.equal(hasSearchIntent({ ...REST, defaultFeedAtRest: true }), true);
+});
 
 test("at rest (nothing set) has no search intent", () => {
     assert.equal(hasSearchIntent(REST), false);
