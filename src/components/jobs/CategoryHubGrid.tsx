@@ -1010,12 +1010,12 @@ export function CategoryHubGrid({
             <Dialog open={modalCategory !== null} onOpenChange={(open) => !open && setModalCategory(null)}>
                 <DialogContent
                     showCloseButton={false}
-                    className="w-[95vw] max-w-[95vw] sm:max-w-[95vw] h-[95vh] max-h-[95vh] p-0 gap-0 overflow-hidden flex flex-col bg-background rounded-panel border border-border"
+                    className="w-[95vw] max-w-7xl h-[90dvh] max-h-[90dvh] p-0 gap-0 overflow-hidden flex flex-col bg-background rounded-panel border border-border"
                 >
                     {modalCategory && (
                         <>
                             {/* Modal Header & Navigation Bar */}
-                            <div className="border-b border-border bg-card px-6 py-3.5 flex items-center justify-between shrink-0">
+                            <div className="border-b border-border bg-card px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between shrink-0">
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-foreground">
                                         <modalCategory.icon size={16} />
@@ -1081,7 +1081,7 @@ export function CategoryHubGrid({
                             {viewMode === "shuffle" && activeRole && (
                                 <div className="flex-1 overflow-y-auto flex flex-col bg-background">
                                     {/* Card Deck Controller Header */}
-                                    <div className="border-b border-border bg-card px-6 py-2.5 flex items-center justify-between shrink-0">
+                                    <div className="border-b border-border bg-card px-4 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shrink-0">
                                         <div className="flex items-center gap-2 text-xs">
                                             <span className="font-semibold text-foreground">
                                                 Role {currentIndex + 1} of {currentJobs.length}
@@ -1125,10 +1125,10 @@ export function CategoryHubGrid({
                                     </div>
 
                                     {/* The Active Role Card — 2-Column Split */}
-                                    <div className="p-4 sm:p-6">
-                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                                    <div className="p-3 sm:p-6">
+                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
                                             {/* LEFT COLUMN: Job Description & Role Mission (Col 8) */}
-                                            <div className="lg:col-span-8 rounded-panel border border-border bg-card p-6 space-y-6">
+                                            <div className="lg:col-span-8 rounded-panel border border-border bg-card p-4 sm:p-6 space-y-4 sm:space-y-6">
                                                 {/* Role Title Header */}
                                                 <div className="space-y-2 pb-5 border-b border-border">
                                                     <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
@@ -1401,21 +1401,21 @@ export function CategoryHubGrid({
                             )}
 
                             {/* Modal Footer Controls */}
-                            <div className="border-t border-border px-6 py-3.5 bg-card flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 text-xs">
-                                <div className="flex items-center gap-3">
+                            <div className="border-t border-border px-4 sm:px-6 py-3 sm:py-3.5 bg-card flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 shrink-0 text-xs">
+                                <div className="hidden sm:flex items-center gap-3">
                                     <span className="text-muted-foreground flex items-center gap-1.5">
                                         <span className="h-1.5 w-1.5 rounded-pill bg-live" />
                                         All roles actively hiring and verified
                                     </span>
                                 </div>
 
-                                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                                     {viewMode === "shuffle" && (
                                         <Button
                                             variant="outline"
                                             size="sm"
                                             onClick={handleShuffle}
-                                            className="gap-1.5 text-xs"
+                                            className="gap-1.5 text-xs flex-1 sm:flex-initial h-9"
                                         >
                                             <Shuffle size={16} />
                                             Shuffle next
@@ -1426,7 +1426,7 @@ export function CategoryHubGrid({
                                         <Button
                                             size="sm"
                                             onClick={() => handleTailorApply(activeRole)}
-                                            className="gap-1.5 text-xs font-semibold"
+                                            className="gap-1.5 text-xs font-semibold flex-1 sm:flex-initial h-9"
                                         >
                                             <Sparkle size={16} />
                                             Tailor & Apply
@@ -1437,6 +1437,7 @@ export function CategoryHubGrid({
                                         variant="outline"
                                         size="sm"
                                         onClick={() => setModalCategory(null)}
+                                        className="text-xs flex-none sm:flex-initial h-9"
                                     >
                                         Done
                                     </Button>

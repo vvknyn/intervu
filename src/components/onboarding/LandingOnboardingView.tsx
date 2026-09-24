@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { getMarketingStatsAction } from "@/actions/marketing";
-import { formatCorpusCount } from "@/lib/jobs/corpus-count";
+import { formatCorpusCount, formatCompactCorpusCount } from "@/lib/jobs/corpus-count";
 import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
 import { GHOST_JOB_RESEARCH_TITLE } from "@/lib/seo/ghost-job-term";
 import {
@@ -67,6 +67,7 @@ export function LandingOnboardingView({
     });
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [liveRoleCount, setLiveRoleCount] = useState<string>("2.4M+");
+    const [compactLiveRoleCount, setCompactLiveRoleCount] = useState<string>("~2.4M");
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,6 +109,7 @@ export function LandingOnboardingView({
             .then((stats) => {
                 if (mounted && stats?.liveJobs) {
                     setLiveRoleCount(formatCorpusCount(stats.liveJobs));
+                    setCompactLiveRoleCount(formatCompactCorpusCount(stats.liveJobs));
                 }
             })
             .catch(() => {});
@@ -200,24 +202,24 @@ export function LandingOnboardingView({
     return (
         <div className={cn("mx-auto w-full max-w-[760px] relative z-10", className)}>
             {/* Unified Solid Reading Card */}
-            <div className="rounded-panel border border-border bg-card p-4 sm:p-5 space-y-3 relative z-10">
+            <div className="rounded-panel border border-border bg-card p-3.5 sm:p-5 space-y-3 relative z-10">
                 {/* Header Kicker */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1.5 border-b border-border">
-                    <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-border">
+                    <div className="flex items-center gap-1.5 text-xs">
                         <span className="h-2 w-2 rounded-pill bg-brand" />
                         <span className="font-semibold text-foreground">Getting started</span>
                         <span className="text-muted-foreground">·</span>
                         <span className="text-muted-foreground">Step {step} of 3</span>
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs">
+                    <div className="flex items-center gap-2 text-xs">
                         {isAuthenticated ? (
-                            <span className="text-xs text-muted-foreground font-semibold">
-                                Signed in as {userName || userEmail || "Account"} ✓
+                            <span className="text-xs text-muted-foreground font-semibold truncate max-w-[130px] sm:max-w-none">
+                                {userName || userEmail || "Account"} ✓
                             </span>
                         ) : (
-                            <div className="flex items-center gap-1.5 text-xs">
-                                <span className="text-muted-foreground">Already have an account?</span>
+                            <div className="flex items-center gap-1 text-xs">
+                                <span className="text-muted-foreground hidden sm:inline">Already have an account?</span>
                                 <button
                                     type="button"
                                     onClick={onOpenAuth ?? handleSignIn}
@@ -230,76 +232,90 @@ export function LandingOnboardingView({
                     </div>
                 </div>
 
-                {/* Step Progress Bar */}
-                <div className="h-1 w-full bg-muted rounded-pill overflow-hidden">
-                    <div
-                        className="h-1 bg-brand transition-all duration-300 ease-out"
-                        style={{ width: `${(step / 3) * 100}%` }}
-                    />
+                {/* Native Segmented Progress Bar */}
+                <div className="grid grid-cols-3 gap-1.5 w-full">
+                    <div className={cn("h-1 rounded-pill transition-colors duration-200", step >= 1 ? "bg-brand" : "bg-muted")} />
+                    <div className={cn("h-1 rounded-pill transition-colors duration-200", step >= 2 ? "bg-brand" : "bg-muted")} />
+                    <div className={cn("h-1 rounded-pill transition-colors duration-200", step >= 3 ? "bg-brand" : "bg-muted")} />
                 </div>
+
                 {/* STATION 1: PUNCHY MARKETING HERO */}
                 {step === 1 && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 sm:space-y-3.5">
                         {/* Live Status Pill */}
                         <div className="inline-flex items-center gap-1.5 rounded-pill bg-muted px-2.5 py-0.5 text-xs font-semibold text-live">
                             <span className="h-1.5 w-1.5 rounded-pill bg-live" />
-                            Straight From Employers · Verified Active Postings · 100% Private
+                            <span className="sm:hidden">Straight From Employers · 100% Private</span>
+                            <span className="hidden sm:inline">Straight From Employers · Verified Active Postings · 100% Private</span>
                         </div>
 
                         {/* Punchy Headline & Subhead */}
                         <div className="space-y-1">
-                            <h2 className="text-lg sm:text-xl font-semibold text-foreground leading-tight">
-                                Real jobs, straight from the company.
-                                <br />
-                                <span className="text-brand">Matched to your résumé — 100% privately on your device.</span>
+                            <h2 className="text-base sm:text-xl font-semibold text-foreground leading-snug">
+                                Real jobs, straight from employers.
+                                <br className="hidden sm:inline" />{" "}
+                                <span className="text-brand">Matched to your résumé 100% privately on your device.</span>
                             </h2>
                             <p className="text-xs text-muted-foreground leading-relaxed">
-                                We check official company career pages directly so every listing is verified and active. Your résumé is analyzed safely on your own computer or phone — never shared, sold, or sent to outside recruiters.
+                                We check official company career pages directly so every listing is verified and active. Your résumé is analyzed safely in this browser — never shared, sold, or sent to outside recruiters.
                             </p>
                         </div>
 
-                        {/* 3 Punchy Value Cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
-                            <div className="rounded-ctl border border-border bg-card p-2.5 space-y-1">
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                    <ShieldCheck size={16} className="text-live shrink-0" />
-                                    <span>Straight From Employers</span>
+                        {/* 3 Native Value Props: List rows on mobile, 3-column cards on desktop */}
+                        <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-2 pt-0.5">
+                            <div className="rounded-ctl border border-border bg-card p-2.5 flex sm:flex-col items-start gap-2.5 sm:gap-1.5">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-live shrink-0">
+                                    <ShieldCheck size={20} weight="bold" />
                                 </div>
-                                <p className="text-xs text-muted-foreground leading-snug">
-                                    Every opening comes directly from official company career sites. No middleman boards or stale reposts.
-                                </p>
+                                <div className="space-y-0.5 min-w-0">
+                                    <div className="text-xs font-semibold text-foreground">
+                                        Straight From Employers
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-snug">
+                                        Every opening comes directly from official company career sites. No middleman boards or stale reposts.
+                                    </p>
+                                </div>
                             </div>
 
-                            <div className="rounded-ctl border border-border bg-card p-2.5 space-y-1">
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                    <Cpu size={16} className="text-brand shrink-0" />
-                                    <span>100% Private to You</span>
+                            <div className="rounded-ctl border border-border bg-card p-2.5 flex sm:flex-col items-start gap-2.5 sm:gap-1.5">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-brand shrink-0">
+                                    <Cpu size={20} weight="bold" />
                                 </div>
-                                <p className="text-xs text-muted-foreground leading-snug">
-                                    Your résumé never leaves your device. We never sell your personal data or share it with recruiters.
-                                </p>
+                                <div className="space-y-0.5 min-w-0">
+                                    <div className="text-xs font-semibold text-foreground">
+                                        100% Private to You
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-snug">
+                                        Your résumé never leaves your device. We never sell your personal data or share it with recruiters.
+                                    </p>
+                                </div>
                             </div>
 
-                            <div className="rounded-ctl border border-border bg-card p-2.5 space-y-1">
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                    <Sparkle size={16} className="text-brand shrink-0" />
-                                    <span>Instant Job Matches</span>
+                            <div className="rounded-ctl border border-border bg-card p-2.5 flex sm:flex-col items-start gap-2.5 sm:gap-1.5">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-brand shrink-0">
+                                    <Sparkle size={20} weight="bold" />
                                 </div>
-                                <p className="text-xs text-muted-foreground leading-snug">
-                                    See how well your background fits each role before applying, with real employer pay ranges.
-                                </p>
+                                <div className="space-y-0.5 min-w-0">
+                                    <div className="text-xs font-semibold text-foreground">
+                                        Instant Job Matches
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-snug">
+                                        See how well your background fits each role before applying, with real employer pay ranges.
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
                         {/* Live Proof Stat Strip & Assistant Readiness */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-ctl border border-border bg-muted px-3 py-1.5 text-xs">
-                            <div className="flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 rounded-ctl border border-border bg-muted px-3 py-1.5 text-xs">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                 <Link
                                     href="/trends"
                                     className="group inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
                                     title="Live count across verified employer ATS feeds — view market trends"
                                 >
-                                    <span className="font-semibold text-foreground">{liveRoleCount}</span>{" "}
+                                    <span className="font-semibold text-foreground sm:hidden">{compactLiveRoleCount}</span>
+                                    <span className="font-semibold text-foreground hidden sm:inline">{liveRoleCount}</span>{" "}
                                     <span className="text-muted-foreground group-hover:text-foreground">active roles</span>
                                 </Link>
                                 <span className="text-muted-foreground">·</span>
@@ -311,10 +327,10 @@ export function LandingOnboardingView({
                                     <span className="font-semibold text-live">Jobs report:</span>{" "}
                                     <span className="text-muted-foreground group-hover:text-foreground">{GHOST_JOB_RESEARCH_TITLE} ↗</span>
                                 </Link>
-                                <span className="text-muted-foreground">·</span>
+                                <span className="text-muted-foreground hidden sm:inline">·</span>
                                 <Link
                                     href="/privacy"
-                                    className="group inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
+                                    className="group hidden sm:inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
                                     title="Resume parsing and match scoring run locally on your device via WebAssembly"
                                 >
                                     <span className="font-semibold text-foreground">100%</span>{" "}
@@ -322,32 +338,35 @@ export function LandingOnboardingView({
                                 </Link>
                             </div>
 
-                            <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
+                            <div className="flex items-center gap-1.5 text-muted-foreground shrink-0 pt-0.5 sm:pt-0">
                                 <Cpu size={16} className={cn("text-brand", !modelReady && "animate-spin")} />
                                 <span>{modelReady ? "Private matching ready ✓" : "Preparing private matching"}</span>
                             </div>
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex items-center justify-between pt-1.5 border-t border-border">
-                            {!isAuthenticated ? (
-                                <button
-                                    type="button"
-                                    onClick={onOpenAuth ?? handleSignIn}
-                                    className="text-xs text-muted-foreground hover:text-foreground font-semibold"
-                                >
-                                    Already have an account? Sign in
-                                </button>
-                            ) : (
-                                <span className="text-xs text-muted-foreground">Free &amp; private forever</span>
-                            )}
-
+                        {/* Native Thumb-Friendly Action Bar */}
+                        <div className="pt-2 border-t border-border flex flex-col gap-2">
                             <Button
                                 onClick={() => setStep(isAuthenticated ? 3 : 2)}
-                                className="gap-2 text-xs font-semibold"
+                                className="w-full h-11 rounded-ctl text-xs font-semibold gap-2 justify-center active:scale-[0.99] transition-transform"
                             >
                                 Start private matching <ArrowRight size={16} />
                             </Button>
+                            {!isAuthenticated ? (
+                                <div className="text-center">
+                                    <button
+                                        type="button"
+                                        onClick={onOpenAuth ?? handleSignIn}
+                                        className="text-xs text-muted-foreground hover:text-foreground font-semibold inline-flex items-center gap-1"
+                                    >
+                                        Already have an account? <span className="text-foreground underline">{AUTH_CTA_LABEL}</span>
+                                    </button>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-muted-foreground text-center">
+                                    Free &amp; private forever
+                                </p>
+                            )}
                         </div>
                     </div>
                 )}
@@ -380,11 +399,11 @@ export function LandingOnboardingView({
                             </div>
                         ) : (
                             <>
-                                <div className="space-y-2 pt-1">
+                                <div className="space-y-2.5 pt-1">
                                     <button
                                         type="button"
                                         onClick={() => handleStartAuth("GoogleOAuth")}
-                                        className="w-full h-10 rounded-ctl border border-border bg-card hover:bg-muted text-xs font-semibold flex items-center justify-center gap-2.5 transition-colors"
+                                        className="w-full h-11 rounded-ctl border border-border bg-card hover:bg-muted text-xs font-semibold flex items-center justify-center gap-2.5 transition-colors text-foreground active:scale-[0.99]"
                                     >
                                         <svg className="w-4 h-4" viewBox="0 0 24 24">
                                             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -398,15 +417,15 @@ export function LandingOnboardingView({
                                     <button
                                         type="button"
                                         onClick={() => handleStartAuth()}
-                                        className="w-full h-10 rounded-ctl border border-border bg-card hover:bg-muted text-xs font-semibold flex items-center justify-center gap-2 transition-colors text-foreground"
+                                        className="w-full h-11 rounded-ctl border border-border bg-card hover:bg-muted text-xs font-semibold flex items-center justify-center gap-2 transition-colors text-foreground active:scale-[0.99]"
                                     >
                                         Continue with email
                                     </button>
                                 </div>
 
-                                <div className="p-3 rounded-ctl border border-border bg-muted text-xs space-y-1">
+                                <div className="p-2.5 rounded-ctl border border-border bg-muted text-xs space-y-1">
                                     <p className="font-semibold text-foreground">Why sign-in is required:</p>
-                                    <p className="text-muted-foreground">
+                                    <p className="text-muted-foreground leading-snug">
                                         All role recommendations, compensation analysis, and tailored resumes are private and tied securely to your verified account.
                                     </p>
                                 </div>
@@ -557,7 +576,7 @@ export function LandingOnboardingView({
                                         variant="outline"
                                         size="sm"
                                         onClick={() => setStep(2)}
-                                        className="gap-1.5 text-xs"
+                                        className="gap-1.5 text-xs h-10"
                                     >
                                         <ArrowLeft size={16} /> Back
                                     </Button>
@@ -565,7 +584,7 @@ export function LandingOnboardingView({
                                     <Button
                                         size="sm"
                                         onClick={handleFinalSubmit}
-                                        className="gap-1.5 text-xs font-semibold"
+                                        className="gap-1.5 text-xs font-semibold h-10"
                                     >
                                         <Sparkle size={16} />
                                         Save &amp; Start matching roles
@@ -632,7 +651,7 @@ export function LandingOnboardingView({
                                 {/* Upload Drop Zone */}
                                 <div
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="border-2 border-dashed rounded-panel p-4 text-center cursor-pointer transition-colors bg-card border-border hover:border-foreground"
+                                    className="border-2 border-dashed rounded-panel p-4 sm:p-5 text-center cursor-pointer transition-colors bg-card border-border hover:border-foreground active:scale-[0.99]"
                                 >
                                     <input
                                         ref={fileInputRef}
@@ -656,16 +675,16 @@ export function LandingOnboardingView({
                                             </p>
                                         </div>
                                     ) : (
-                                        <div className="flex flex-col items-center gap-1.5">
-                                            <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-muted-foreground">
-                                                <UploadSimple size={16} />
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-ctl bg-muted text-muted-foreground">
+                                                <UploadSimple size={20} />
                                             </div>
                                             <div>
                                                 <p className="text-xs font-semibold text-foreground">
-                                                    Click to select or drag and drop your résumé
+                                                    Tap to select or drag and drop your résumé
                                                 </p>
                                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                                    PDF up to 10MB
+                                                    PDF format up to 10MB
                                                 </p>
                                             </div>
                                         </div>
@@ -689,7 +708,7 @@ export function LandingOnboardingView({
                                         variant="outline"
                                         size="sm"
                                         onClick={() => setStep(2)}
-                                        className="gap-1.5 text-xs"
+                                        className="gap-1.5 text-xs h-10"
                                     >
                                         <ArrowLeft size={16} /> Back
                                     </Button>
@@ -699,7 +718,7 @@ export function LandingOnboardingView({
                                             variant="outline"
                                             size="sm"
                                             onClick={handleFinalSubmit}
-                                            className="text-xs"
+                                            className="text-xs h-10"
                                         >
                                             Browse without résumé
                                         </Button>

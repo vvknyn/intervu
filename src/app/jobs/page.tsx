@@ -5079,7 +5079,7 @@ function JobsContent() {
      * sized for).
      */
     const showMobileSearchCta =
-        !isLgUp && showSearchHome && !detailSheetOpen && !locationSheetOpen && !authOpen && !importOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
+        !isLgUp && !showLandingOnboarding && !showForYouHome && showSearchHome && !detailSheetOpen && !locationSheetOpen && !authOpen && !importOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
 
     /**
      * Single source of truth for whether `ColdVisitorOrientation` renders at
@@ -5124,7 +5124,7 @@ function JobsContent() {
                 className={cn(
                     "shell-row flex flex-col",
                     showLandingOnboarding
-                        ? "flex-1 justify-center items-center py-0"
+                        ? "flex-1 justify-start sm:justify-center items-center py-2 sm:py-6"
                         : cn(
                             "pt-2 sm:pt-3",
                             showSearchHome && showMobileSearchCta
@@ -5148,6 +5148,18 @@ function JobsContent() {
                 {atRest && showSearchHome ? (
                     showAdvancedSearch && !showLandingOnboarding ? (
                         <div className="pb-1.5">
+                            <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowAdvancedSearch(false);
+                                        setJobsHomeView("for-you");
+                                    }}
+                                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
+                                >
+                                    ← Back to Job Packs
+                                </button>
+                            </div>
                             <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
                                 <p className="mb-0.5 text-xs font-semibold text-brand">
                                     Live from employer career pages
@@ -5644,9 +5656,9 @@ function JobsContent() {
                     pristine gate — so the rest of the centered hero can't
                     disagree with this piece about whether it's showing. */}
                 {showLandingOnboarding ? (
-                    <div className="relative w-full flex-1 flex flex-col justify-center items-center overflow-hidden py-0">
+                    <div className="relative w-full flex-1 flex flex-col justify-start sm:justify-center items-center py-0">
                         <LandingAnimatedBackground />
-                        <div className={cn("relative z-10 w-full px-4", cappedContentClass)}>
+                        <div className={cn("relative z-10 w-full px-2 sm:px-4", cappedContentClass)}>
                             <LandingOnboardingView
                                 isAuthenticated={Boolean(user)}
                                 userEmail={user?.email}
@@ -5663,31 +5675,6 @@ function JobsContent() {
                     </div>
                 ) : (
                     <>
-                        {Boolean(user) && atRest && showSearchHome && !showAdvancedSearch && (
-                            <div className={cn("mt-4 mb-6", cappedContentClass)}>
-                                <CategoryHubGrid
-                                    userName={user?.displayName}
-                                    isAuthenticated={true}
-                                    hasResume={hasUsableResume}
-                                    resume={resume}
-                                    onUpdateResume={(updatedResume) => {
-                                        setResume(updatedResume);
-                                        const updatedAt = new Date().toISOString();
-                                        setResumeUpdatedAt(updatedAt);
-                                        if (user) {
-                                            void saveResumeData(updatedResume, "pdf", 1).catch(() => {});
-                                        }
-                                        writeLocalAiResume(updatedResume, updatedAt, "Adjusted parameters");
-                                    }}
-                                    onTailorApply={(job) => {
-                                        submitSearch(job.title);
-                                    }}
-                                    onOpenAdvancedSearch={() => {
-                                        setShowAdvancedSearch(true);
-                                    }}
-                                />
-                            </div>
-                        )}
                         {showAdvancedSearch && atRest && showSearchHome && (
                             <FrontDoorFieldLinks onSelectQuery={submitSearch} />
                         )}
@@ -5717,26 +5704,51 @@ function JobsContent() {
 
                 {showForYouHome ? (
                     <div className={cn("mt-4", cappedContentClass)}>
-                        <ForYouHome
-                            visiblePacks={forYouDeck.visiblePacks}
-                            activeIndex={forYouDeck.activeIndex}
-                            onActiveIndexChange={forYouDeck.setActiveIndex}
-                            activeJob={forYouDeck.activeJob}
-                            onSkip={forYouDeck.handleSkip}
-                            matchScores={matchScores}
-                            resume={resume}
-                            nowMs={nowMs}
-                            fitResolving={fitResolving}
-                            loading={loading}
-                            fitActive={fitActive}
-                            hydratedJobs={forYouHydrated}
-                            onActivePackChange={handleForYouActivePackChange}
-                            onOpenPosting={handleOpenPosting}
-                            onHomeViewChange={setJobsHomeView}
-                            showSearchCta={resumeOnFile === true}
-                            onReplaceResume={beginResumeUpload}
-                            hasUsableResume={hasUsableResume}
-                        />
+                        {atRest && !showAdvancedSearch ? (
+                            <CategoryHubGrid
+                                userName={user?.displayName}
+                                isAuthenticated={true}
+                                hasResume={hasUsableResume}
+                                resume={resume}
+                                onUpdateResume={(updatedResume) => {
+                                    setResume(updatedResume);
+                                    const updatedAt = new Date().toISOString();
+                                    setResumeUpdatedAt(updatedAt);
+                                    if (user) {
+                                        void saveResumeData(updatedResume, "pdf", 1).catch(() => {});
+                                    }
+                                    writeLocalAiResume(updatedResume, updatedAt, "Adjusted parameters");
+                                }}
+                                onTailorApply={(job) => {
+                                    submitSearch(job.title);
+                                }}
+                                onOpenAdvancedSearch={() => {
+                                    setShowAdvancedSearch(true);
+                                    setJobsHomeView("search");
+                                }}
+                            />
+                        ) : (
+                            <ForYouHome
+                                visiblePacks={forYouDeck.visiblePacks}
+                                activeIndex={forYouDeck.activeIndex}
+                                onActiveIndexChange={forYouDeck.setActiveIndex}
+                                activeJob={forYouDeck.activeJob}
+                                onSkip={forYouDeck.handleSkip}
+                                matchScores={matchScores}
+                                resume={resume}
+                                nowMs={nowMs}
+                                fitResolving={fitResolving}
+                                loading={loading}
+                                fitActive={fitActive}
+                                hydratedJobs={forYouHydrated}
+                                onActivePackChange={handleForYouActivePackChange}
+                                onOpenPosting={handleOpenPosting}
+                                onHomeViewChange={setJobsHomeView}
+                                showSearchCta={resumeOnFile === true}
+                                onReplaceResume={beginResumeUpload}
+                                hasUsableResume={hasUsableResume}
+                            />
+                        )}
                     </div>
                 ) : showJobsHomePending ? (
                     <div className={cn("mt-4", cappedContentClass)}>

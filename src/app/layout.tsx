@@ -12,7 +12,6 @@ import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
-import { FeedbackTrigger } from "@/components/feedback/FeedbackTrigger";
 import { getSiteUrl, LANDING_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME } from "@/lib/seo/constants";
 import {
   buildJobSearchFaqJsonLd,
@@ -213,7 +212,6 @@ export default function RootLayout({
               <Footer />
               <MobileTabBar />
               <TourOverlay />
-              <FeedbackTrigger />
               <Toaster />
             </TourProvider>
             </IconDefaultsProvider>

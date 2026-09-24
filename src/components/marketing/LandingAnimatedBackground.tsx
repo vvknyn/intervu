@@ -45,17 +45,17 @@ export function LandingAnimatedBackground({ className }: { className?: string })
             <div className="absolute inset-0 flex flex-col justify-around py-12 overflow-hidden pointer-events-none opacity-30">
                 {/* Telemetry Trace 1 */}
                 <div className="relative w-full h-px bg-border opacity-20">
-                    <div className="absolute -top-px h-[3px] w-12 rounded-pill bg-brand opacity-40 animate-marquee-left" />
+                    <div className="absolute -top-px h-0.5 w-12 rounded-pill bg-brand opacity-40 animate-marquee-left" />
                 </div>
 
                 {/* Telemetry Trace 2 */}
                 <div className="relative w-full h-px bg-border opacity-20">
-                    <div className="absolute -top-px h-[3px] w-16 rounded-pill bg-live opacity-40 animate-marquee-right" />
+                    <div className="absolute -top-px h-0.5 w-16 rounded-pill bg-live opacity-40 animate-marquee-right" />
                 </div>
 
                 {/* Telemetry Trace 3 */}
                 <div className="relative w-full h-px bg-border opacity-20">
-                    <div className="absolute -top-px h-[3px] w-10 rounded-pill bg-brand opacity-40 animate-marquee-left" />
+                    <div className="absolute -top-px h-0.5 w-10 rounded-pill bg-brand opacity-40 animate-marquee-left" />
                 </div>
             </div>
 
@@ -70,13 +70,7 @@ export function LandingAnimatedBackground({ className }: { className?: string })
             </div>
 
             {/* Center Readability Mask: Keeps the center behind the card completely calm */}
-            <div
-                className="absolute inset-0 pointer-events-none z-10"
-                style={{
-                    background: "radial-gradient(ellipse 900px 580px at 50% 50%, var(--background) 75%, transparent 100%)",
-                    opacity: 0.95,
-                }}
-            />
+            <div className="absolute inset-0 pointer-events-none z-10 landing-radial-mask" />
         </div>
     );
 }

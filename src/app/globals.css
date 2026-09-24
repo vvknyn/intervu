@@ -1091,3 +1091,8 @@ body[data-scroll-locked] [data-testid="mobile-search-cta"],
 body[data-scroll-locked] [data-testid="apply-return-prompt"] {
   display: none !important;
 }
+
+.landing-radial-mask {
+  background: radial-gradient(ellipse 900px 580px at 50% 50%, var(--background) 75%, transparent 100%);
+  opacity: 0.95;
+}
