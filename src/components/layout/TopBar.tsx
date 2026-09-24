@@ -169,50 +169,52 @@ export function TopBar() {
                         aria-label="Primary"
                         className="hidden items-center gap-3 text-xs lg:flex"
                     >
-                        <DropdownMenu>
-                            <DropdownMenuTrigger
-                                className={cn(
-                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors outline-none",
-                                    menuActive
-                                        ? "font-semibold text-foreground"
-                                        : "font-normal text-muted-foreground hover:text-foreground",
-                                )}
-                            >
-                                <span className={cn(menuActive && "border-b-2 border-brand")}>{menuTriggerLabel}</span>
-                                <CaretDown aria-hidden />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="min-w-[9rem] rounded-panel border-border bg-card">
-                                {menuTabs.map((tab) => {
-                                    const active = tab.match(pathname);
-                                    return (
-                                        <DropdownMenuItem key={tab.href + tab.label} asChild>
-                                            <Link
-                                                href={tab.href}
-                                                data-testid={tab.testId}
-                                                aria-current={active ? "page" : undefined}
-                                                className={cn(
-                                                    "flex w-full items-center whitespace-nowrap",
-                                                    active && "font-semibold text-foreground",
-                                                )}
-                                            >
-                                                {tab.label}
-                                                {tab.badge && navBadges[tab.badge] > 0 && (
-                                                    <span
-                                                        data-testid={`${tab.testId}-badge`}
-                                                        className="ml-auto mono-data text-xs font-semibold text-brand"
-                                                    >
-                                                        {navBadges[tab.badge]}
-                                                    </span>
-                                                )}
-                                            </Link>
-                                        </DropdownMenuItem>
-                                    );
-                                })}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        {user && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger
+                                    className={cn(
+                                        "inline-flex items-center gap-1 whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors outline-none",
+                                        menuActive
+                                            ? "font-semibold text-foreground"
+                                            : "font-normal text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    <span className={cn(menuActive && "border-b-2 border-brand")}>{menuTriggerLabel}</span>
+                                    <CaretDown aria-hidden />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="min-w-[9rem] rounded-panel border-border bg-card">
+                                    {menuTabs.map((tab) => {
+                                        const active = tab.match(pathname);
+                                        return (
+                                            <DropdownMenuItem key={tab.href + tab.label} asChild>
+                                                <Link
+                                                    href={tab.href}
+                                                    data-testid={tab.testId}
+                                                    aria-current={active ? "page" : undefined}
+                                                    className={cn(
+                                                        "flex w-full items-center whitespace-nowrap",
+                                                        active && "font-semibold text-foreground",
+                                                    )}
+                                                >
+                                                    {tab.label}
+                                                    {tab.badge && navBadges[tab.badge] > 0 && (
+                                                        <span
+                                                            data-testid={`${tab.testId}-badge`}
+                                                            className="ml-auto mono-data text-xs font-semibold text-brand"
+                                                        >
+                                                            {navBadges[tab.badge]}
+                                                        </span>
+                                                    )}
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        );
+                                    })}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                         {barTabs.map((tab) => {
                             const active = tab.match(pathname);
-                            const label = tab.href === "/connect" ? connectLabel : tab.label;
+                            const label = tab.href === "/connect" ? "MCP" : tab.label;
                             return (
                                 <Link
                                     key={tab.href + tab.label}
@@ -278,7 +280,7 @@ export function TopBar() {
                             {AUTH_CTA_LABEL}
                         </Button>
                         {/* Plain nav link, not a control — Sign in is the
-                            header's one filled action. */}
+                            header's one filled action. Kept hidden to declutter header. */}
                         <button
                             type="button"
                             data-testid="topbar-alerts-cta"
@@ -286,7 +288,7 @@ export function TopBar() {
                                 setAuthTab("signup");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="hidden whitespace-nowrap px-1 text-sm font-normal text-muted-foreground transition-colors hover:text-foreground lg:inline-flex"
+                            className="hidden"
                         >
                             Get job alerts
                         </button>

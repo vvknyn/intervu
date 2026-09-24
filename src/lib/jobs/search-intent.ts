@@ -1,14 +1,16 @@
 /**
  * Whether /jobs has search intent — the one gate between the at-rest front
- * door (Search primitives panel, the résumé/sign-in prompt, the marketing
- * sections) and the live results surface (the results list, its skeleton
- * rows, the result-count line, and the fetch that populates all three).
+ * door (compact hero, field links) and the live results surface (the results
+ * list, its skeleton rows, the result-count line, and the fetch that
+ * populates all three).
  *
- * Product decision (Vivek, 2026-09-18): the at-rest page must never render
- * or fetch results — "it's confusing the user." One OR of every way a
- * visitor can arrive at "show me jobs," so a future entry point is covered
- * by construction instead of a new special case landing here later:
+ * One OR of every way a visitor can arrive at "show me jobs," so a future
+ * entry point is covered by construction instead of a new special case
+ * landing here later:
  *
+ *  - `defaultFeedAtRest`: the Search home tab is at rest (no typed query, no
+ *    `?job=`) but should still show the default recency feed below the
+ *    compact hero — empty query, default posted window, location default.
  *  - `query`: the debounced (never per-keystroke) search text is non-empty.
  *  - `filtersAwayFromDefault`: any filter or sort control differs from its
  *    default — pass `activeFilterEntries(filterState).length > 0` (facets,
@@ -27,12 +29,14 @@
  *    that surface is always a ranked-results view, never the at-rest page.
  *
  * When every clause clears (query emptied before any submit, filters back
- * to their defaults, no job open, For-you not active), this returns to
- * false and the page returns to rest — there is no additional state here
- * beyond the caller-held `explicitlySubmitted` flag, so nothing but that
- * one flag can keep the page out of rest once the rest all clear.
+ * to their defaults, no job open, For-you not active, default feed off),
+ * this returns to false and the page returns to rest without a results
+ * fetch — there is no additional state here beyond the caller-held
+ * `explicitlySubmitted` flag, so nothing but that one flag can keep the
+ * page out of rest once the rest all clear.
  */
 export interface SearchIntentInput {
+    defaultFeedAtRest: boolean;
     query: string;
     filtersAwayFromDefault: boolean;
     explicitlySubmitted: boolean;
@@ -42,6 +46,7 @@ export interface SearchIntentInput {
 
 export function hasSearchIntent(input: SearchIntentInput): boolean {
     return (
+        input.defaultFeedAtRest ||
         Boolean(input.query.trim()) ||
         input.filtersAwayFromDefault ||
         input.explicitlySubmitted ||

@@ -54,6 +54,11 @@ interface LocationComboboxProps {
     /** Already-filtered places, so their rows can render as chosen rather
      *  than inviting a second, no-op click. */
     selected: readonly string[];
+    /** Focus entering this field — the jobs page uses it to close the
+     *  KEYWORD box's suggestion panel, which otherwise has no idea focus
+     *  moved to a sibling and keeps floating its title suggestions over a
+     *  user who is now typing a city (prod bug, 2026-09-22). */
+    onFocus?: () => void;
     placeholder?: string;
     className?: string;
     containerClassName?: string;
@@ -111,6 +116,7 @@ export function LocationCombobox({
     onChange,
     onCommit,
     selected,
+    onFocus,
     placeholder = LOCATION_TRIGGER_PLACEHOLDER,
     className,
     containerClassName,
@@ -275,14 +281,21 @@ export function LocationCombobox({
                 aria-label={ariaLabel}
                 aria-expanded={open}
                 aria-autocomplete="list"
-                aria-controls="location-suggestions"
+                // Only reference the listbox while it is actually mounted —
+                // a dangling `aria-controls` id lets assistive tech fall
+                // back to whatever other listbox is visible (the keyword
+                // box's, in the observed bug).
+                aria-controls={open ? "location-suggestions" : undefined}
                 placeholder={selected.length > 0 ? "Add another location" : placeholder}
                 value={value}
                 onChange={(e) => {
                     onChange(e.target.value);
                     setIsOpen(true);
                 }}
-                onFocus={() => setIsOpen(true)}
+                onFocus={() => {
+                    onFocus?.();
+                    setIsOpen(true);
+                }}
                 // Blur closes AND commits whatever was typed. Committing on
                 // blur is kept from the plain input this replaced: without it,
                 // typing a city and clicking "Search" — never pressing Enter —

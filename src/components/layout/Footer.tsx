@@ -81,11 +81,11 @@ export function FooterContent() {
     return (
         <footer
             data-testid="site-footer"
-            className="shrink-0 border-t border-border bg-background pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-0"
+            className="relative z-20 shrink-0 border-t border-border bg-background pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-0"
         >
             {/* Same `shell-row` as TopBar — the two bands frame the page, so
                 they have to share its gutter or the frame is crooked. */}
-            <div className="shell-row flex flex-col gap-3 py-6">
+            <div className="shell-row flex flex-col gap-2 sm:gap-2.5 py-3 sm:py-4">
                 <p className="max-w-md text-xs text-muted-foreground">
                     {/* E1 (front-door redesign): link the screening clause to the
                         proof page instead of just asserting it. Split on the

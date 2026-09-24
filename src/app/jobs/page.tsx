@@ -156,7 +156,11 @@ import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
+import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
+import { LandingOnboardingView } from "@/components/onboarding/LandingOnboardingView";
+import { LandingAnimatedBackground } from "@/components/marketing/LandingAnimatedBackground";
+import { CategoryHubGrid } from "@/components/jobs/CategoryHubGrid";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { isSameOpenJob } from "@/lib/jobs/is-same-open-job";
@@ -1031,6 +1035,8 @@ function JobsContent() {
         board,
         companyDomain,
     };
+    const filterStateRef = useRef(filterState);
+    filterStateRef.current = filterState;
     /**
      * The date window actually filtering these results — never the raw
      * `postedBucket`, which still holds the fresh-visit "30d" nobody chose
@@ -1219,7 +1225,57 @@ function JobsContent() {
         setQueryDraft(q);
         setQuery(q);
         recordRecentSearch(q);
-        applyUrlState(buildUrlState({ q }), "push");
+        // Commit a typed-but-unselected location before building the push.
+        // The Search button lives OUTSIDE LocationCombobox, whose Enter/blur
+        // are its only commit paths — when blur doesn't fire (or its commit
+        // is skipped), the draft was silently dropped: the URL carried no
+        // location, the IP default filtered the results, and the header kept
+        // showing the dead text (prod bug, 2026-09-22). Same field fallback
+        // as `addLocation`'s free-text branch (`location_country`), same
+        // default suppression and preference write; idempotent when blur DID
+        // commit (the folded compare no-ops).
+        const draftPlace = locationDraft.trim();
+        if (draftPlace) {
+            const latestState = filterStateRef.current;
+            const current = latestState.facets.location_country ?? [];
+            const nextValues = addLocationValue(current, draftPlace);
+            if (nextValues !== current) {
+                suppressLocationDefault();
+                applyFilterStateRef.current({
+                    ...latestState,
+                    facets: { ...latestState.facets, location_country: nextValues },
+                });
+                if (user && q.trim()) {
+                    void saveAgentPreferencesAction({
+                        search: { query: q.trim(), location: nextValues[0]?.trim() || undefined },
+                    }).catch(() => {});
+                }
+            }
+            setLocationDraft("");
+        }
+        // Push from the LATEST filter state, not this render's closure —
+        // `applyFilterState` keeps `filterStateRef` current within the tick,
+        // so a location committed a moment ago (by the flush above, or by
+        // the combobox's own blur chaining into this submit via
+        // `flushSearchIntent`) survives. The closure-built push used to
+        // carry the pre-commit facets, and the URL reconcile effect then
+        // wiped the just-committed place off the filter.
+        const latestFilters = filterStateRef.current;
+        applyUrlState(
+            buildUrlState({
+                q,
+                facets: latestFilters.facets,
+                salaryMin: latestFilters.salaryMin,
+                visaOnly: latestFilters.visaOnly,
+                postedBucket: latestFilters.postedBucket,
+                postedExplicit: latestFilters.postedExplicit || undefined,
+                yearsExperience: latestFilters.yearsExperience,
+                hideGhosts: latestFilters.hideGhosts,
+                board: latestFilters.board,
+                companyDomain: latestFilters.companyDomain,
+            }),
+            "push",
+        );
         // Step 1 of the funnel (docs/analytics/FUNNEL.md). Placed at this one
         // submit chokepoint for the same reason the dropdown is closed here:
         // Enter, a suggestion pick, the external Search button and the
@@ -1237,7 +1293,10 @@ function JobsContent() {
             "search_submitted",
             {
                 query_length: q.trim().length,
-                has_location: chosenLocations.length > 0,
+                // `chosenLocations` is render-scope — a draft committed by the
+                // flush above isn't in it yet, but it IS a location on this
+                // very search, so count it.
+                has_location: chosenLocations.length > 0 || Boolean(draftPlace),
                 filter_count: activeFilterEntries(filterState).length,
             },
             { query_text: q },
@@ -1622,6 +1681,54 @@ function JobsContent() {
         }
     };
 
+    // First-time unregistered visitor onboarding & landing state
+    const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+    const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+
+    useEffect(() => {
+        try {
+            setOnboardingDismissed(localStorage.getItem("velai.onboarding.completed") === "1");
+        } catch {
+            /* private mode */
+        }
+    }, []);
+
+    const handleOnboardingComplete = (data: {
+        resume: ResumeData | null;
+        storageMode: "cloud" | "device";
+        accountCreated: boolean;
+    }) => {
+        try {
+            localStorage.setItem("velai.onboarding.completed", "1");
+        } catch {}
+        setOnboardingDismissed(true);
+        if (data.resume) {
+            setResume(data.resume);
+            const updatedAt = new Date().toISOString();
+            setResumeUpdatedAt(updatedAt);
+            setResumeSourceLabel("Onboarding upload");
+            if (user) {
+                void saveResumeData(data.resume, "pdf", 1)
+                    .then(() => captureEvent("resume_uploaded", {}))
+                    .catch(() => {});
+            } else if (data.storageMode === "cloud") {
+                writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
+                setAuthTrigger("user");
+                setAuthGateReason("resume");
+                setAuthOpen(true);
+            } else {
+                writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
+            }
+        }
+    };
+
+    const handleOnboardingSkip = () => {
+        try {
+            localStorage.setItem("velai.onboarding.completed", "1");
+        } catch {}
+        setOnboardingDismissed(true);
+    };
+
     // Which auth value-line reason class to show (apply / generic).
     // Set by the call site that opened the popover; null = no value line.
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
@@ -1946,10 +2053,14 @@ function JobsContent() {
     // (the masthead's marketing content specifically wants zero filters
     // too). See `isAtRest` (lib/jobs/front-door-state.ts) for the pure rule.
     const atRest = isAtRest({ query, jobParam: searchParams.get("job") });
-    // Perf first-paint (2026-09-18), product decision (Vivek): the at-rest
-    // page must never render or fetch results — "it's confusing the user."
+    // Sign-in is the absolute gate: unauthenticated visitors cannot access categories or job feeds
+    const isSignedOut = !user;
+    const userNeedsOnboarding = Boolean(user) && !hasUsableResume && !onboardingDismissed;
+    const showLandingOnboarding = (isSignedOut || userNeedsOnboarding) && !showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
+    // At rest, the raw corpus feed is tucked away behind Advanced Search or explicit search intent
+    const defaultFeedAtRest = showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
     // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the
-    // ONE gate between the at-rest front door and the results surface (the
+    // ONE gate between "no results surface" and the live results surface (the
     // results list, its skeleton rows, the result-count line, and the fetch
     // that populates all three — see the search-fetch effect and the results
     // div below, both of which read this same value). `activeEntries`/
@@ -1959,6 +2070,7 @@ function JobsContent() {
     // ambient default-browse auto-selection is not deliberate intent — see
     // `atRest`'s own comment above for the same distinction).
     const searchIntent = hasSearchIntent({
+        defaultFeedAtRest,
         query,
         filtersAwayFromDefault: activeEntries.length > 0 || sortOverride !== null,
         explicitlySubmitted,
@@ -2003,15 +2115,12 @@ function JobsContent() {
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
     //
-    // Perf first-paint (2026-09-18): NO search intent (`searchIntent` above)
-    // now DOES skip this — the at-rest page must never fetch results at all,
-    // not merely render around a fetch already in flight. `firstSearchSettled`
-    // is still flipped true immediately so the secondary mount probes gated
-    // on it (posted-date support, report-job-enabled, live-jobs-count for the
-    // at-rest masthead) aren't left waiting on a fetch that will never fire;
-    // `loading` is flipped false so the results div (hidden at rest anyway,
-    // see below) never carries a stuck "still loading" flag into the moment
-    // intent later appears.
+    // When `searchIntent` is false (For-you-only, etc.) this skips the fetch.
+    // `firstSearchSettled` is still flipped true immediately so the secondary
+    // mount probes gated on it (posted-date support, report-job-enabled,
+    // live-jobs-count) aren't left waiting on a fetch that will never fire;
+    // `loading` is flipped false so the results div never carries a stuck
+    // "still loading" flag into the moment intent later appears.
     useEffect(() => {
         if (!searchIntent) {
             setFirstSearchSettled(true);
@@ -3246,6 +3355,11 @@ function JobsContent() {
         for (const facet of changedFilterFacets(filterState, next)) {
             captureEvent("search_filter_applied", { facet });
         }
+        // Keep the ref current WITHIN this tick — `submitSearch` builds its
+        // URL push from `filterStateRef.current`, and when a blur-commit
+        // chains straight into a submit (same event turn, before any
+        // re-render), the render-scope `filterState` is one commit behind.
+        filterStateRef.current = next;
         setFacets(next.facets);
         setSalaryMin(next.salaryMin);
         setVisaOnly(next.visaOnly);
@@ -3412,8 +3526,6 @@ function JobsContent() {
     // one closed over at the last run.
     const applyFilterStateRef = useRef(applyFilterState);
     applyFilterStateRef.current = applyFilterState;
-    const filterStateRef = useRef(filterState);
-    filterStateRef.current = filterState;
 
     // --- docked search (header) ------------------------------------------
     // Once a search is active the header carries a live, typeable copy of
@@ -4090,6 +4202,37 @@ function JobsContent() {
         beginResumeUpload();
     };
 
+    /** Résumé-upload / fit-rank gate — shared by FrontDoorResumeBand and
+     *  JobCard's match teaser (same flow as RESUME_UPLOAD_AUTH_CTA). */
+    const handleFitRankUploadGate = () => {
+        if (user) {
+            handleUploadClick();
+            return;
+        }
+        resumeActionAfterImportRef.current = {
+            kind: "fit",
+            fitToken: fitIntentRef.current!.begin(),
+        };
+        setAuthGateReason("fit");
+        setAuthTrigger("user");
+        recordAuthGateOpen({
+            storage: window.sessionStorage,
+            reason: "fit",
+            trigger: "user",
+            originSurface: "jobs_banner",
+        });
+        gate(
+            { kind: "upload", payload: true },
+            { originSurface: "jobs_banner", gateReason: "fit" },
+        );
+    };
+
+    const showMatchTeaser = needsResumeEntry({
+        signedIn: Boolean(user),
+        resumeOnFile,
+        fitActive,
+    });
+
     const postAuthResumeGateHandledRef = useRef(false);
 
     // OAuth and /login default land here with `?resume=gate` when the user
@@ -4361,6 +4504,8 @@ function JobsContent() {
                 onToggleExpand={clusterProps?.onToggleExpand}
                 tourAnchor={tourAnchor}
                 matchScore={matchScores?.get(j.id) ?? null}
+                showMatchTeaser={showMatchTeaser}
+                onMatchTeaserClick={handleFitRankUploadGate}
                 matchAsOfDate={resumeAsOfDate}
                 pursuit={pursuitsByJobId.get(j.id)}
                 onGoAfter={() => handleGoAfter(j)}
@@ -4786,6 +4931,7 @@ function JobsContent() {
                 onChange={setLocationDraft}
                 onCommit={addLocation}
                 selected={chosenLocations}
+                onFocus={() => searchAutocompleteRef.current?.close()}
                 data-testid="topbar-docked-location-input"
                 className="h-full min-h-0 min-w-0 flex-1 rounded-pill border-0 bg-transparent pl-1 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
@@ -4949,7 +5095,10 @@ function JobsContent() {
      * this component now only ever shows once a search is actually running.
      */
     const showColdOrientation = !user && resumeOnFile !== true && !hasUsableResume;
-    const frontDoorBandVisible = showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive });
+    const frontDoorBandVisible =
+        showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive }) &&
+        !showLandingOnboarding &&
+        (!atRest || showAdvancedSearch);
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -4959,7 +5108,10 @@ function JobsContent() {
      * (`src/app/page.tsx`), not on this route.
      */
     return (
-        <div className="min-h-screen">
+        <div
+            className={showLandingOnboarding ? "flex flex-1 flex-col" : "min-h-screen"}
+            // className="min-h-screen"
+        >
             {/* `data-shell="bleed"` is this page ASKING for the full window;
                 globals.css turns that into `--shell-max: none` for the header
                 and footer too, so all three left edges stay together. Each
@@ -4970,19 +5122,15 @@ function JobsContent() {
             <div
                 data-shell="bleed"
                 className={cn(
-                    "shell-row flex flex-col pt-2 sm:pt-3 lg:pb-20",
-                    showSearchHome && showMobileSearchCta
-                        ? // Below lg, `mobile-search-cta` and the tab bar are both
-                          // FIXED overlays stacked over this scroll area's bottom
-                          // edge (z-[180] and z-50) — content there needs bottom
-                          // clearance for whichever of them is actually mounted,
-                          // not a flat guess. `--mobile-tabbar-h`/
-                          // `--mobile-search-cta-h` (globals.css) are the same
-                          // numbers those elements render at, so this can never
-                          // under-clear what's really on screen. lg+ has neither
-                          // overlay (both `lg:hidden`), hence the flat `lg:pb-20`.
-                          "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))]"
-                        : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))]",
+                    "shell-row flex flex-col",
+                    showLandingOnboarding
+                        ? "flex-1 justify-center items-center py-0"
+                        : cn(
+                            "pt-2 sm:pt-3",
+                            showSearchHome && showMobileSearchCta
+                                ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))] lg:pb-20"
+                                : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-20",
+                        ),
                 )}
             >
                 {/* Landing masthead — mounts whenever the front door is "at
@@ -4998,23 +5146,19 @@ function JobsContent() {
                     in favor of the sr-only heading so the page still carries
                     exactly one h1. */}
                 {atRest && showSearchHome ? (
-                    <div className="pb-2">
-                        <div className="mx-auto max-w-[960px] border-b border-border py-4 text-center sm:py-6">
-                            <p className="mb-2 text-xs font-semibold text-brand">
-                                Live from employer career pages
-                            </p>
-                            <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
-                                {JOBS_USP.mastheadTitle}
-                            </h1>
-                            {/* Provenance (what the corpus is) stays a distinct
-                                sentence from the count below (how many there
-                                are right now) — dropping it would conflate two
-                                different jobs into one line. */}
-                            <p className="mx-auto mt-2 hidden max-w-2xl text-sm text-muted-foreground lg:block">
-                                {JOBS_USP.searchDescription}
-                            </p>
+                    showAdvancedSearch && !showLandingOnboarding ? (
+                        <div className="pb-1.5">
+                            <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
+                                <p className="mb-0.5 text-xs font-semibold text-brand">
+                                    Live from employer career pages
+                                </p>
+                                <h1 className="text-xl font-semibold text-foreground">
+                                    {JOBS_USP.mastheadTitle}
+                                </h1>
+                                <p className="sr-only">{JOBS_USP.searchDescription}</p>
+                            </div>
                         </div>
-                    </div>
+                    ) : null
                 ) : (
                     <h1 className="sr-only">Jobs</h1>
                 )}
@@ -5058,7 +5202,7 @@ function JobsContent() {
                     outlive the search line have their own homes on the header
                     row and the toolbar; see `status` on the dock payload and
                     `fieldDirectoryMenu`. */}
-                {!headerDockActive && showSearchHome && (
+                {!headerDockActive && showSearchHome && !showLandingOnboarding && (!atRest || showAdvancedSearch) && (
                 <section
                     className={cn(
                         "transition-colors",
@@ -5161,7 +5305,7 @@ function JobsContent() {
                                         // the largest element on the page — lg+ jumps to the tallest
                                         // existing control-height token (h-14) instead of the
                                         // mid-search state's h-[56px]. Below lg, unchanged.
-                                        atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                        atRest ? "h-11" : "h-11 sm:h-[56px]",
                                         "w-full min-w-0 rounded-pill border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0",
                                     )}
                                     containerClassName="min-w-0 w-full"
@@ -5199,9 +5343,10 @@ function JobsContent() {
                                     onChange={setLocationDraft}
                                     onCommit={addLocation}
                                     selected={chosenLocations}
+                                    onFocus={() => searchAutocompleteRef.current?.close()}
                                     containerClassName="hidden lg:flex"
                                     className={cn(
-                                        atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                        atRest ? "h-11" : "h-11 sm:h-[56px]",
                                         "min-w-0 flex-1 rounded-pill border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0",
                                     )}
                                 />
@@ -5252,10 +5397,11 @@ function JobsContent() {
                                 bespoke hairline style. */}
                             <Button
                                 type="button"
+                                data-testid="search-submit"
                                 onClick={() => submitSearch(queryDraft)}
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
-                                    atRest ? "h-11 lg:h-14" : "h-11 sm:h-[56px]",
+                                    atRest ? "h-11" : "h-11 sm:h-[56px]",
                                     "w-full rounded-pill px-6 text-xs font-semibold sm:w-auto transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
@@ -5348,7 +5494,7 @@ function JobsContent() {
                         </div>
                     </div>
                 )}
-                {showJobsToolbarSection && showSearchHome && (
+                {showJobsToolbarSection && showSearchHome && !showLandingOnboarding && (!atRest || showAdvancedSearch) && (
                 <section
                     data-testid="jobs-toolbar"
                     className={cn(
@@ -5497,48 +5643,55 @@ function JobsContent() {
                     — broader than the old `showLandingMarketing`-only
                     pristine gate — so the rest of the centered hero can't
                     disagree with this piece about whether it's showing. */}
-                {atRest && showSearchHome && (
-                    <FrontDoorFieldLinks onSelectQuery={submitSearch} />
-                )}
-
-                {/* Requirement 2 (front-door redesign): the résumé-upload
-                    band replaces `ColdVisitorOrientation` at rest (that
-                    component's two mounts each gained `!atRest &&` instead —
-                    see `showColdOrientation` above and its mobile-flatMap
-                    mount below). One gate, hoisted in `showsFrontDoorBand`,
-                    reused nowhere else so the desktop and mobile renders of
-                    this SAME band can't drift onto different conditions —
-                    but unlike `ColdVisitorOrientation`, this band itself
-                    only needs one mount: it's a full-bleed block, not a row
-                    inside the results list, so it works at every width from
-                    a single call site. */}
-                {frontDoorBandVisible && (
-                    <FrontDoorResumeBand
-                        nextStep={user ? "importer" : "auth"}
-                        onUploadClick={() => {
-                            if (user) {
-                                handleUploadClick();
-                                return;
-                            }
-                            resumeActionAfterImportRef.current = {
-                                kind: "fit",
-                                fitToken: fitIntentRef.current!.begin(),
-                            };
-                            setAuthGateReason("fit");
-                            setAuthTrigger("user");
-                            recordAuthGateOpen({
-                                storage: window.sessionStorage,
-                                reason: "fit",
-                                trigger: "user",
-                                originSurface: "jobs_banner",
-                            });
-                            gate(
-                                { kind: "upload", payload: true },
-                                { originSurface: "jobs_banner", gateReason: "fit" },
-                            );
-                        }}
-                        onSignInClick={() => openAuth("generic", "user")}
-                    />
+                {showLandingOnboarding ? (
+                    <div className="relative w-full flex-1 flex flex-col justify-center items-center overflow-hidden py-0">
+                        <LandingAnimatedBackground />
+                        <div className={cn("relative z-10 w-full px-4", cappedContentClass)}>
+                            <LandingOnboardingView
+                                isAuthenticated={Boolean(user)}
+                                userEmail={user?.email}
+                                userName={user?.displayName}
+                                onComplete={handleOnboardingComplete}
+                                onSkip={handleOnboardingSkip}
+                                onOpenAuth={() => {
+                                    setAuthTrigger("user");
+                                    setAuthGateReason("resume");
+                                    setAuthOpen(true);
+                                }}
+                            />
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {Boolean(user) && atRest && showSearchHome && !showAdvancedSearch && (
+                            <div className={cn("mt-4 mb-6", cappedContentClass)}>
+                                <CategoryHubGrid
+                                    userName={user?.displayName}
+                                    isAuthenticated={true}
+                                    hasResume={hasUsableResume}
+                                    resume={resume}
+                                    onUpdateResume={(updatedResume) => {
+                                        setResume(updatedResume);
+                                        const updatedAt = new Date().toISOString();
+                                        setResumeUpdatedAt(updatedAt);
+                                        if (user) {
+                                            void saveResumeData(updatedResume, "pdf", 1).catch(() => {});
+                                        }
+                                        writeLocalAiResume(updatedResume, updatedAt, "Adjusted parameters");
+                                    }}
+                                    onTailorApply={(job) => {
+                                        submitSearch(job.title);
+                                    }}
+                                    onOpenAdvancedSearch={() => {
+                                        setShowAdvancedSearch(true);
+                                    }}
+                                />
+                            </div>
+                        )}
+                        {showAdvancedSearch && atRest && showSearchHome && (
+                            <FrontDoorFieldLinks onSelectQuery={submitSearch} />
+                        )}
+                    </>
                 )}
 
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
@@ -5966,6 +6119,18 @@ function JobsContent() {
                                 <>
                                     {!isSerpAsk && (
                                         <>
+                                            {/* Anonymous return card — "your last search, N new
+                                                since your last visit" — only on the at-rest default
+                                                feed, never over an engaged search's results. Mounted
+                                                unconditionally within that state (the component
+                                                renders null without a card to show) because it also
+                                                owns advancing the jobs visit cursor. */}
+                                            {defaultFeedAtRest && (
+                                                <FrontDoorReturnCard
+                                                    recentQuery={recentSearches[0] ?? ""}
+                                                    onRerun={submitSearch}
+                                                />
+                                            )}
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
                                             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] py-2 text-sm text-muted-foreground">
@@ -6214,7 +6379,7 @@ function JobsContent() {
                                         exactly once, here at the end of the results list —
                                         not in the masthead, not in the search well. */}
                                     {liveCountEl && (
-                                        <div className="border-t border-border pt-4 pb-1">{liveCountEl}</div>
+                                        <div className="border-t border-border px-[var(--list-inset)] pt-4 pb-3">{liveCountEl}</div>
                                     )}
                                 </div>
                                 </>
@@ -6226,6 +6391,38 @@ function JobsContent() {
                 </div>
                 )}
                 </>
+                )}
+
+                {/* Closing pitch after the live feed — one mount, same
+                    `showsFrontDoorBand` gate as before. Source order is the
+                    first-viewport contract: jobs, then the résumé invite. */}
+                {frontDoorBandVisible && (
+                    <FrontDoorResumeBand
+                        nextStep={user ? "importer" : "auth"}
+                        onUploadClick={() => {
+                            if (user) {
+                                handleUploadClick();
+                                return;
+                            }
+                            resumeActionAfterImportRef.current = {
+                                kind: "fit",
+                                fitToken: fitIntentRef.current!.begin(),
+                            };
+                            setAuthGateReason("fit");
+                            setAuthTrigger("user");
+                            recordAuthGateOpen({
+                                storage: window.sessionStorage,
+                                reason: "fit",
+                                trigger: "user",
+                                originSurface: "jobs_banner",
+                            });
+                            gate(
+                                { kind: "upload", payload: true },
+                                { originSurface: "jobs_banner", gateReason: "fit" },
+                            );
+                        }}
+                        onSignInClick={() => openAuth("generic", "user")}
+                    />
                 )}
             </div>
 

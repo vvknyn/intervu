@@ -29,7 +29,7 @@
 import Link from "next/link";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ContextHelp } from "@/components/ui/context-help";
-import { MatchChip } from "@/components/jobs/MatchChip";
+import { MatchChip, MatchChipTeaser } from "@/components/jobs/MatchChip";
 import { MetaLine } from "@/components/jobs/JobDetail";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
@@ -58,6 +58,8 @@ export function JobCard({
     dense = false,
     tourAnchor = false,
     matchScore = null,
+    showMatchTeaser = false,
+    onMatchTeaserClick,
     matchAsOfDate = null,
     pursuit,
     onGoAfter,
@@ -89,6 +91,9 @@ export function JobCard({
      *  no signed-in résumé or no comparable field — renders no chip, never a
      *  fabricated 0 (Rule 3, match-contract.md). */
     matchScore?: MatchScore | null;
+    /** When true and `matchScore` is absent, render a locked fit teaser. */
+    showMatchTeaser?: boolean;
+    onMatchTeaserClick?: () => void;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
     /** Existing pursuit for this job, if any — same contract JobDetail's
@@ -322,7 +327,11 @@ export function JobCard({
                         </span>
                     )}
                 </span>
-                {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />}
+                {matchScore ? (
+                    <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
+                ) : showMatchTeaser && onMatchTeaserClick ? (
+                    <MatchChipTeaser onClick={onMatchTeaserClick} />
+                ) : null}
                 {age && (
                     <span
                         data-testid="posted-age"

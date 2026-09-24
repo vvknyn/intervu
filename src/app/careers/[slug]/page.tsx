@@ -36,7 +36,7 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
 
   return (
     <main data-testid={`career-hub-${hub.slug}`} className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Career hub</p>
+      <p className="text-xs font-semibold text-muted-foreground">Career hub</p>
       <h1 className="mt-3 font-display text-display font-semibold text-foreground">{hub.h1}</h1>
 
       <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">

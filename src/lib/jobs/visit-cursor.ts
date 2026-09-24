@@ -12,7 +12,7 @@
  * caller is covered by picking a scope, not by editing this file.
  */
 
-export type VisitCursorScope = "board" | "follows" | `saved:${string}`;
+export type VisitCursorScope = "board" | "follows" | "jobs" | `saved:${string}`;
 
 const DEFAULT_LOOKBACK_MS = 7 * 86_400_000;
 

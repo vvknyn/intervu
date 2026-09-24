@@ -98,13 +98,11 @@ test("BrowseSeedRow's tail usage lives inside ListTail's own guard", () => {
 });
 
 test("nothing interactive renders in the results-container source after ListTail's call site — the tail is last", () => {
-    // End marker is the next sibling AFTER the results container closes
-    // (a modal, not part of the container), not the container's own
-    // closing tag — `</div>` isn't unique the way `</main>` was, since the
-    // results container went from a page-level `<main>` to a plain `<div>`
-    // (single-`<main>`-per-page fix); `<LocationPickerSheet` is still the
-    // one and only thing that follows it.
-    const afterTailCallSite = section("<ListTail", "<LocationPickerSheet");
+    // End marker is the page-level résumé band that follows the results
+    // ternary — not part of the list container. (`<LocationPickerSheet`
+    // used to be the next sibling; the band now sits between the feed and
+    // that sheet so the first viewport is jobs, not the upload invite.)
+    const afterTailCallSite = section("<ListTail", "{frontDoorBandVisible &&");
     assert.doesNotMatch(
         afterTailCallSite,
         /onClick=|<button\b/,
