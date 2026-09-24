@@ -253,7 +253,7 @@ export function PublicJobDetail({
             invalidatePursuitsCache();
             captureEvent("job_marked_applied", {
                 job_id: target.id,
-                ...matchAnalyticsProps(matchScoreFor(target)),
+                ...matchAnalyticsProps(target.id === job.id ? matchScoreFor(job) : null),
             });
             toast.success("Marked as applied");
         } catch (e) {
