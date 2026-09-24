@@ -160,6 +160,9 @@ import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorField
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
+import { LandingOnboardingView } from "@/components/onboarding/LandingOnboardingView";
+import { LandingAnimatedBackground } from "@/components/marketing/LandingAnimatedBackground";
+import { CategoryHubGrid } from "@/components/jobs/CategoryHubGrid";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { isSameOpenJob } from "@/lib/jobs/is-same-open-job";
@@ -1664,6 +1667,54 @@ function JobsContent() {
         }
     };
 
+    // First-time unregistered visitor onboarding & landing state
+    const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+    const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+
+    useEffect(() => {
+        try {
+            setOnboardingDismissed(localStorage.getItem("velai.onboarding.completed") === "1");
+        } catch {
+            /* private mode */
+        }
+    }, []);
+
+    const handleOnboardingComplete = (data: {
+        resume: ResumeData | null;
+        storageMode: "cloud" | "device";
+        accountCreated: boolean;
+    }) => {
+        try {
+            localStorage.setItem("velai.onboarding.completed", "1");
+        } catch {}
+        setOnboardingDismissed(true);
+        if (data.resume) {
+            setResume(data.resume);
+            const updatedAt = new Date().toISOString();
+            setResumeUpdatedAt(updatedAt);
+            setResumeSourceLabel("Onboarding upload");
+            if (user) {
+                void saveResumeData(data.resume, "pdf", 1)
+                    .then(() => captureEvent("resume_uploaded", {}))
+                    .catch(() => {});
+            } else if (data.storageMode === "cloud") {
+                writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
+                setAuthTrigger("user");
+                setAuthGateReason("resume");
+                setAuthOpen(true);
+            } else {
+                writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
+            }
+        }
+    };
+
+    const handleOnboardingSkip = () => {
+        try {
+            localStorage.setItem("velai.onboarding.completed", "1");
+        } catch {}
+        setOnboardingDismissed(true);
+    };
+
     // Which auth value-line reason class to show (apply / generic).
     // Set by the call site that opened the popover; null = no value line.
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
@@ -1988,10 +2039,12 @@ function JobsContent() {
     // (the masthead's marketing content specifically wants zero filters
     // too). See `isAtRest` (lib/jobs/front-door-state.ts) for the pure rule.
     const atRest = isAtRest({ query, jobParam: searchParams.get("job") });
-    // At-rest default feed (2026-09-22): the compact front door still runs
-    // the cached default-browse pipeline below the hero so first paint shows
-    // real jobs — without flipping `atRest` (header dock, detail pitch, etc.).
-    const defaultFeedAtRest = atRest && showSearchHome && !showForYouHome;
+    // Sign-in is the absolute gate: unauthenticated visitors cannot access categories or job feeds
+    const isSignedOut = !user;
+    const userNeedsOnboarding = Boolean(user) && !hasUsableResume && !onboardingDismissed;
+    const showLandingOnboarding = (isSignedOut || userNeedsOnboarding) && !showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
+    // At rest, the raw corpus feed is tucked away behind Advanced Search or explicit search intent
+    const defaultFeedAtRest = showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
     // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the
     // ONE gate between "no results surface" and the live results surface (the
     // results list, its skeleton rows, the result-count line, and the fetch
@@ -5014,7 +5067,10 @@ function JobsContent() {
      * this component now only ever shows once a search is actually running.
      */
     const showColdOrientation = !user && resumeOnFile !== true && !hasUsableResume;
-    const frontDoorBandVisible = showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive });
+    const frontDoorBandVisible =
+        showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive }) &&
+        !showLandingOnboarding &&
+        (!atRest || showAdvancedSearch);
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -5024,7 +5080,10 @@ function JobsContent() {
      * (`src/app/page.tsx`), not on this route.
      */
     return (
-        <div className="min-h-screen">
+        <div
+            className={showLandingOnboarding ? "flex flex-1 flex-col" : "min-h-screen"}
+            // className="min-h-screen"
+        >
             {/* `data-shell="bleed"` is this page ASKING for the full window;
                 globals.css turns that into `--shell-max: none` for the header
                 and footer too, so all three left edges stay together. Each
@@ -5035,19 +5094,15 @@ function JobsContent() {
             <div
                 data-shell="bleed"
                 className={cn(
-                    "shell-row flex flex-col pt-2 sm:pt-3 lg:pb-20",
-                    showSearchHome && showMobileSearchCta
-                        ? // Below lg, `mobile-search-cta` and the tab bar are both
-                          // FIXED overlays stacked over this scroll area's bottom
-                          // edge (z-[180] and z-50) — content there needs bottom
-                          // clearance for whichever of them is actually mounted,
-                          // not a flat guess. `--mobile-tabbar-h`/
-                          // `--mobile-search-cta-h` (globals.css) are the same
-                          // numbers those elements render at, so this can never
-                          // under-clear what's really on screen. lg+ has neither
-                          // overlay (both `lg:hidden`), hence the flat `lg:pb-20`.
-                          "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))]"
-                        : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))]",
+                    "shell-row flex flex-col",
+                    showLandingOnboarding
+                        ? "flex-1 justify-center items-center py-0"
+                        : cn(
+                            "pt-2 sm:pt-3",
+                            showSearchHome && showMobileSearchCta
+                                ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))] lg:pb-20"
+                                : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-20",
+                        ),
                 )}
             >
                 {/* Landing masthead — mounts whenever the front door is "at
@@ -5063,17 +5118,19 @@ function JobsContent() {
                     in favor of the sr-only heading so the page still carries
                     exactly one h1. */}
                 {atRest && showSearchHome ? (
-                    <div className="pb-1.5">
-                        <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
-                            <p className="mb-0.5 text-xs font-semibold text-brand">
-                                Live from employer career pages
-                            </p>
-                            <h1 className="text-xl font-semibold text-foreground">
-                                {JOBS_USP.mastheadTitle}
-                            </h1>
-                            <p className="sr-only">{JOBS_USP.searchDescription}</p>
+                    showAdvancedSearch && !showLandingOnboarding ? (
+                        <div className="pb-1.5">
+                            <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
+                                <p className="mb-0.5 text-xs font-semibold text-brand">
+                                    Live from employer career pages
+                                </p>
+                                <h1 className="text-xl font-semibold text-foreground">
+                                    {JOBS_USP.mastheadTitle}
+                                </h1>
+                                <p className="sr-only">{JOBS_USP.searchDescription}</p>
+                            </div>
                         </div>
-                    </div>
+                    ) : null
                 ) : (
                     <h1 className="sr-only">Jobs</h1>
                 )}
@@ -5117,7 +5174,7 @@ function JobsContent() {
                     outlive the search line have their own homes on the header
                     row and the toolbar; see `status` on the dock payload and
                     `fieldDirectoryMenu`. */}
-                {!headerDockActive && showSearchHome && (
+                {!headerDockActive && showSearchHome && !showLandingOnboarding && (!atRest || showAdvancedSearch) && (
                 <section
                     className={cn(
                         "transition-colors",
@@ -5409,7 +5466,7 @@ function JobsContent() {
                         </div>
                     </div>
                 )}
-                {showJobsToolbarSection && showSearchHome && (
+                {showJobsToolbarSection && showSearchHome && !showLandingOnboarding && (!atRest || showAdvancedSearch) && (
                 <section
                     data-testid="jobs-toolbar"
                     className={cn(
@@ -5559,8 +5616,55 @@ function JobsContent() {
                     — broader than the old `showLandingMarketing`-only
                     pristine gate — so the rest of the centered hero can't
                     disagree with this piece about whether it's showing. */}
-                {atRest && showSearchHome && (
-                    <FrontDoorFieldLinks onSelectQuery={submitSearch} />
+                {showLandingOnboarding ? (
+                    <div className="relative w-full flex-1 flex flex-col justify-center items-center overflow-hidden py-0">
+                        <LandingAnimatedBackground />
+                        <div className={cn("relative z-10 w-full px-4", cappedContentClass)}>
+                            <LandingOnboardingView
+                                isAuthenticated={Boolean(user)}
+                                userEmail={user?.email}
+                                userName={user?.displayName}
+                                onComplete={handleOnboardingComplete}
+                                onSkip={handleOnboardingSkip}
+                                onOpenAuth={() => {
+                                    setAuthTrigger("user");
+                                    setAuthGateReason("resume");
+                                    setAuthOpen(true);
+                                }}
+                            />
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {Boolean(user) && atRest && showSearchHome && !showAdvancedSearch && (
+                            <div className={cn("mt-4 mb-6", cappedContentClass)}>
+                                <CategoryHubGrid
+                                    userName={user?.displayName}
+                                    isAuthenticated={true}
+                                    hasResume={hasUsableResume}
+                                    resume={resume}
+                                    onUpdateResume={(updatedResume) => {
+                                        setResume(updatedResume);
+                                        const updatedAt = new Date().toISOString();
+                                        setResumeUpdatedAt(updatedAt);
+                                        if (user) {
+                                            void saveResumeData(updatedResume, "pdf", 1).catch(() => {});
+                                        }
+                                        writeLocalAiResume(updatedResume, updatedAt, "Adjusted parameters");
+                                    }}
+                                    onTailorApply={(job) => {
+                                        submitSearch(job.title);
+                                    }}
+                                    onOpenAdvancedSearch={() => {
+                                        setShowAdvancedSearch(true);
+                                    }}
+                                />
+                            </div>
+                        )}
+                        {showAdvancedSearch && atRest && showSearchHome && (
+                            <FrontDoorFieldLinks onSelectQuery={submitSearch} />
+                        )}
+                    </>
                 )}
 
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
@@ -6246,7 +6350,7 @@ function JobsContent() {
                                         exactly once, here at the end of the results list —
                                         not in the masthead, not in the search well. */}
                                     {liveCountEl && (
-                                        <div className="border-t border-border pt-4 pb-1">{liveCountEl}</div>
+                                        <div className="border-t border-border px-[var(--list-inset)] pt-4 pb-3">{liveCountEl}</div>
                                     )}
                                 </div>
                                 </>

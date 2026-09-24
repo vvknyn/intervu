@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CaretLeft, CaretRight, CircleNotch } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, CircleNotch, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -269,7 +269,7 @@ export function ForYouHome({
                             <span className="hidden items-center gap-1 text-muted-foreground lg:flex">
                                 <Kbd>←</Kbd>
                                 <Kbd>K</Kbd>
-                                <span className="text-[10px]" aria-hidden>/</span>
+                                <span className="text-xs" aria-hidden>/</span>
                                 <Kbd>J</Kbd>
                                 <Kbd>→</Kbd>
                             </span>
@@ -339,14 +339,17 @@ export function ForYouHome({
                     {!resume && onReplaceResume && (
                         <div className="mb-3 space-y-2">
                             <p className="text-xs text-muted-foreground">{FOR_YOU_UPLOAD_PDF_EMPTY}</p>
-                            <button
+                            <Button
                                 type="button"
+                                variant="outline"
+                                size="sm"
                                 data-testid="for-you-upload-resume"
                                 onClick={onReplaceResume}
-                                className={TEXT_LINK_BUTTON_CLASS}
+                                className="inline-flex items-center gap-1.5 font-normal"
                             >
+                                <UploadSimple size={16} weight="bold" aria-hidden />
                                 Upload résumé
-                            </button>
+                            </Button>
                         </div>
                     )}
                     <div className="flex gap-2">

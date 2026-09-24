@@ -36,7 +36,7 @@ export interface ForYouPackProps {
  * own size/weight, reused verbatim from the house convention
  * (BoardComparisonTable.tsx, careers hub page).
  */
-const SECTION_LABEL = "text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
+const SECTION_LABEL = "text-xs font-semibold text-muted-foreground";
 
 /** JD column — the only inner scroller; capped so wheel events chain to the page at the ends. */
 const JD_SCROLL_CLASS =

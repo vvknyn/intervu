@@ -80,3 +80,5 @@ openclaw/node_modules/
 /tmp/
 /intervu-main-rd/
 audit-*.json
+.velai-*
+

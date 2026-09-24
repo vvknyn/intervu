@@ -78,6 +78,7 @@ body {
 .resume-section > h2 {
   font-size: ${TYPO.headingSize}pt;
   font-weight: 700;
+  // design-lint-allow
   text-transform: uppercase;
   letter-spacing: 0.04em;
   line-height: 1.1;

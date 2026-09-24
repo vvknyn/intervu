@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Velai — Welcome Back & Category Hubs</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      /* Velai Swiss Modernist Index — globals.css tokens */
+      --background: #F6F8FC;
+      --card: #FFFFFF;
+      --foreground: #0A0A0A;
+      --muted-foreground: #525252;
+      --border: #E0E0E0;
+      --border-strong: #0A0A0A;
+      --brand: #002FA7;
+      --brand-hover: #002585;
+      --brand-tint: #F0F9FF;
+      --live: #0E9F4E;
+      --chip: #F4F4F4;
+      --faint: #A3A3A3;
+      --list-inset: 16px;
+      --rounded-panel: 16px;
+      --rounded-ctl: 12px;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+      
+      /* Category badge accents (soft tints) */
+      --cat-amber: #FEF3C7;
+      --cat-amber-text: #92400E;
+      --cat-blue: #E0F2FE;
+      --cat-blue-text: #075985;
+      --cat-purple: #F3E8FF;
+      --cat-purple-text: #6B21A8;
+      --cat-green: #DCFCE7;
+      --cat-green-text: #166534;
+      --cat-orange: #FFEDD5;
+      --cat-orange-text: #9A3412;
+      --cat-teal: #CCFBF1;
+      --cat-teal-text: #115E59;
+      --cat-rose: #FFE4E6;
+      --cat-rose-text: #9F1239;
+    }
+
+    .dark {
+      --background: #0B0E14;
+      --card: #121721;
+      --foreground: #F6F8FC;
+      --muted-foreground: #9AA4B2;
+      --border: #232B38;
+      --border-strong: #F6F8FC;
+      --brand: #2B66FF;
+      --brand-hover: #1E52E6;
+      --brand-tint: #142240;
+      --live: #10B981;
+      --chip: #1A2130;
+      --faint: #64748B;
+
+      --cat-amber: #451A03;
+      --cat-amber-text: #FDE68A;
+      --cat-blue: #082F49;
+      --cat-blue-text: #BAE6FD;
+      --cat-purple: #3B0764;
+      --cat-purple-text: #E9D5FF;
+      --cat-green: #052E16;
+      --cat-green-text: #BBF7D0;
+      --cat-orange: #431407;
+      --cat-orange-text: #FED7AA;
+      --cat-teal: #042F2E;
+      --cat-teal-text: #99F6E4;
+      --cat-rose: #4C0519;
+      --cat-rose-text: #FECDD3;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--background);
+      color: var(--foreground);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .mono-data {
+      font-family: var(--font-mono);
+      font-feature-settings: "tnum";
+    }
+
+    .rounded-panel { border-radius: var(--rounded-panel); }
+    .rounded-ctl { border-radius: var(--rounded-ctl); }
+    .rounded-pill { border-radius: 9999px; }
+
+    .velai-card {
+      background-color: var(--card);
+      border: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col relative select-none">
+
+  <!-- ============================================================== -->
+  <!-- 1. VELAI TOPBAR (48px)                                         -->
+  <!-- ============================================================== -->
+  <header class="h-12 border-b border-[var(--border)] bg-[var(--card)] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
+    <div class="flex items-center gap-8">
+      <a href="#" class="flex items-center gap-2 text-[var(--brand)] font-bold tracking-tight">
+        <svg viewBox="0 0 64 64" aria-hidden="true" class="h-6 w-6">
+          <path d="M22 16H10v32h12v-6h-6V22h6z" fill="currentColor"></path>
+          <path d="M42 16h12v32H42v-6h6V22h-6z" fill="currentColor"></path>
+          <circle cx="32" cy="32" r="7" fill="var(--live)"></circle>
+        </svg>
+        <span class="text-lg font-bold tracking-tight uppercase" style="letter-spacing: -0.03em;">velai</span>
+      </a>
+
+      <nav class="hidden md:flex items-center gap-6 text-sm">
+        <a href="#" class="text-[var(--foreground)] font-semibold border-b-2 border-[var(--brand)] py-3 -mb-[1px]">Jobs</a>
+        <a href="#" class="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors py-3">Saved</a>
+        <a href="#" class="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors py-3">Pursuits</a>
+      </nav>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button onclick="toggleTheme()" class="h-8 px-2.5 rounded-ctl border border-[var(--border)] text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]" title="Toggle theme">
+        <span id="theme-icon">◑</span>
+      </button>
+      <button onclick="openOnboarding()" class="h-8 px-3 rounded-ctl border border-[var(--border)] bg-[var(--card)] text-xs font-semibold hover:bg-[var(--chip)] transition-colors">
+        Onboarding Wizard
+      </button>
+      <div class="flex items-center gap-2 pl-2 border-l border-[var(--border)]">
+        <span class="w-6 h-6 rounded-pill bg-[var(--brand)] text-white text-[11px] font-semibold flex items-center justify-center">V</span>
+        <span class="text-xs font-semibold text-[var(--foreground)] hidden sm:inline">Vivek</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================================================== -->
+  <!-- 2. MAIN HUB & CATEGORY SECTIONS                               -->
+  <!-- ============================================================== -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+
+    <!-- WELCOME BANNER (Welcome to the Jungle style greeting) -->
+    <div class="rounded-panel border border-[var(--border)] p-6 sm:p-8 bg-gradient-to-r from-amber-400/15 via-yellow-400/10 to-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="space-y-1">
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
+          <span class="w-1.5 h-1.5 rounded-pill bg-[var(--live)]"></span> Private matching active on this device
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
+          Welcome back, Vivek
+        </h1>
+        <p class="text-xs sm:text-sm text-[var(--muted-foreground)]">
+          Click any category below to open all matched role cards in that track.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-[var(--muted-foreground)] mono-data">24 tailored roles found</span>
+      </div>
+    </div>
+
+    <!-- CATEGORY CARDS GRID (Clicking any card opens the Category Listings Modal) -->
+    <div class="space-y-2.5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+          Explore by category (click to open listings)
+        </h2>
+        <span class="text-xs text-[var(--brand)] font-medium">Click any card to view roles ↗</span>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        
+        <!-- Card 1: All your matches -->
+        <div onclick="openCategoryModal('all')" class="velai-card rounded-panel p-4 cursor-pointer hover:border-[var(--brand)] hover:scale-[1.01] transition-all group">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-2xl group-hover:scale-110 transition-transform">✨</span>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-pill bg-[var(--cat-amber)] text-[var(--cat-amber-text)] mono-data">24 jobs</span>
+          </div>
+          <h3 class="text-sm font-semibold text-[var(--foreground)] leading-snug group-hover:text-[var(--brand)]">All your matches</h3>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">Matched to your résumé</p>
+        </div>
+
+        <!-- Card 2: Artificial Intelligence & ML -->
+        <div onclick="openCategoryModal('ai')" class="velai-card rounded-panel p-4 cursor-pointer hover:border-[var(--brand)] hover:scale-[1.01] transition-all group">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-2xl group-hover:scale-110 transition-transform">🧠</span>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-pill bg-[var(--cat-purple)] text-[var(--cat-purple-text)] mono-data">18 jobs</span>
+          </div>
+          <h3 class="text-sm font-semibold text-[var(--foreground)] leading-snug group-hover:text-[var(--brand)]">Artificial Intelligence</h3>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">LLMs, ML, & GenAI</p>
+        </div>
+
+        <!-- Card 3: Fully remote -->
+        <div onclick="openCategoryModal('remote')" class="velai-card rounded-panel p-4 cursor-pointer hover:border-[var(--brand)] hover:scale-[1.01] transition-all group">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-2xl group-hover:scale-110 transition-transform">🌐</span>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-pill bg-[var(--cat-blue)] text-[var(--cat-blue-text)] mono-data">42 jobs</span>
+          </div>
+          <h3 class="text-sm font-semibold text-[var(--foreground)] leading-snug group-hover:text-[var(--brand)]">Fully remote</h3>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">Work from anywhere</p>
+        </div>
+
+        <!-- Card 4: Jobs added this week -->
+        <div onclick="openCategoryModal('fresh')" class="velai-card rounded-panel p-4 cursor-pointer hover:border-[var(--brand)] hover:scale-[1.01] transition-all group">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-2xl group-hover:scale-110 transition-transform">📅</span>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-pill bg-[var(--cat-orange)] text-[var(--cat-orange-text)] mono-data">35 jobs</span>
+          </div>
+          <h3 class="text-sm font-semibold text-[var(--foreground)] leading-snug group-hover:text-[var(--brand)]">Added this week</h3>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">Verified within 7 days</p>
+        </div>
+
+        <!-- Card 5: Jobs with salaries -->
+        <div onclick="openCategoryModal('salary')" class="velai-card rounded-panel p-4 cursor-pointer hover:border-[var(--brand)] hover:scale-[1.01] transition-all group">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-2xl group-hover:scale-110 transition-transform">💰</span>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-pill bg-[var(--cat-green)] text-[var(--cat-green-text)] mono-data">58 jobs</span>
+          </div>
+          <h3 class="text-sm font-semibold text-[var(--foreground)] leading-snug group-hover:text-[var(--brand)]">Jobs with salaries</h3>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">Full comp transparency</p>
+        </div>
+
+        <!-- Card 6: Quick apply with profile -->
+        <div onclick="openCategoryModal('apply')" class="velai-card rounded-panel p-4 cursor-pointer hover:border-[var(--brand)] hover:scale-[1.01] transition-all group">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-2xl group-hover:scale-110 transition-transform">✍️</span>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-pill bg-[var(--cat-teal)] text-[var(--cat-teal-text)] mono-data">14 jobs</span>
+          </div>
+          <h3 class="text-sm font-semibold text-[var(--foreground)] leading-snug group-hover:text-[var(--brand)]">1-Click tailored apply</h3>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">Instant tailored exports</p>
+        </div>
+
+        <!-- Card 7: Staff & Lead Roles -->
+        <div onclick="openCategoryModal('lead')" class="velai-card rounded-panel p-4 cursor-pointer hover:border-[var(--brand)] hover:scale-[1.01] transition-all group">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-2xl group-hover:scale-110 transition-transform">⭐</span>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-pill bg-[var(--cat-amber)] text-[var(--cat-amber-text)] mono-data">9 jobs</span>
+          </div>
+          <h3 class="text-sm font-semibold text-[var(--foreground)] leading-snug group-hover:text-[var(--brand)]">Lead & Principal</h3>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">Senior leadership roles</p>
+        </div>
+
+        <!-- Card 8: Tech for Good -->
+        <div onclick="openCategoryModal('good')" class="velai-card rounded-panel p-4 cursor-pointer hover:border-[var(--brand)] hover:scale-[1.01] transition-all group">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-2xl group-hover:scale-110 transition-transform">🌱</span>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-pill bg-[var(--cat-rose)] text-[var(--cat-rose-text)] mono-data">6 jobs</span>
+          </div>
+          <h3 class="text-sm font-semibold text-[var(--foreground)] leading-snug group-hover:text-[var(--brand)]">Tech for good</h3>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">High-impact missions</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Background General Feed Preview -->
+    <div class="pt-4 border-t border-[var(--border)]">
+      <div class="flex items-center justify-between text-xs text-[var(--muted-foreground)] mb-3 px-1">
+        <span>All active listings (click any category card above to inspect)</span>
+        <a href="#" class="text-[var(--brand)] hover:underline mono-data">2,495,331 live roles tracked</a>
+      </div>
+      <div class="velai-card rounded-panel p-4 text-xs text-[var(--muted-foreground)] flex items-center justify-between">
+        <span class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-pill bg-[var(--live)]"></span>
+          <span>Tip: Tap any category above (e.g. <strong>Artificial Intelligence</strong> or <strong>Fully remote</strong>) to pop up the listing cards modal.</span>
+        </span>
+        <button onclick="openCategoryModal('ai')" class="h-8 px-3 rounded-ctl bg-[var(--brand)] text-white font-semibold">
+          Preview AI Modal →
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============================================================== -->
+  <!-- 3. CATEGORY LISTINGS MODAL (Shuffleable Card Deck & List View) -->
+  <!-- ============================================================== -->
+  <div id="category-modal-overlay" class="fixed inset-0 z-50 bg-black/50 hidden items-center justify-center p-3 sm:p-5">
+    
+    <div class="w-[95vw] max-w-[95vw] h-[95vh] max-h-[95vh] flex flex-col velai-card rounded-panel overflow-hidden border border-[var(--border)] bg-[var(--card)] shadow-2xl">
+      
+      <!-- Modal Header -->
+      <div class="border-b border-[var(--border)] px-6 py-4 flex items-center justify-between bg-[var(--card)] shrink-0">
+        <div class="flex items-center gap-3">
+          <span id="modal-cat-icon" class="text-2xl">🧠</span>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 id="modal-cat-title" class="text-base sm:text-lg font-bold text-[var(--foreground)]">
+                Artificial Intelligence
+              </h2>
+              <span id="modal-cat-badge" class="px-2 py-0.5 rounded-pill bg-[var(--chip)] text-xs font-semibold text-[var(--muted-foreground)] mono-data">
+                18 jobs
+              </span>
+            </div>
+            <p id="modal-cat-meta" class="text-xs text-[var(--muted-foreground)] mt-0.5">
+              18 verified active roles · 100% ghost-free
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- View Toggle -->
+          <div class="hidden sm:flex items-center rounded-ctl border border-[var(--border)] bg-[var(--background)] p-0.5 text-xs">
+            <button id="toggle-shuffle-btn" onclick="setViewMode('shuffle')" class="px-3 py-1 rounded-ctl text-xs font-semibold transition-colors bg-[var(--card)] text-[var(--foreground)] shadow-sm">
+              🗂️ Shuffle Deck
+            </button>
+            <button id="toggle-list-btn" onclick="setViewMode('list')" class="px-3 py-1 rounded-ctl text-xs font-semibold transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+              ☰ List View
+            </button>
+          </div>
+
+          <button onclick="closeCategoryModal()" class="h-8 w-8 rounded-ctl border border-[var(--border)] hover:bg-[var(--chip)] text-sm flex items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body (Cards or Shuffle View) -->
+      <div id="modal-cards-feed" class="flex-1 overflow-y-auto flex flex-col bg-[var(--background)]">
+        <!-- Injected dynamically via JS based on category & current role index -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="border-t border-[var(--border)] px-6 py-3 bg-[var(--card)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shrink-0">
+        <span class="text-[var(--muted-foreground)] flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-pill bg-[var(--live)]"></span>
+          All roles actively hiring & verified on company career boards
+        </span>
+        <div class="flex items-center gap-2">
+          <button id="footer-shuffle-btn" onclick="shuffleRole()" class="h-9 px-4 rounded-ctl border border-[var(--border)] hover:bg-[var(--chip)] font-semibold transition-colors">
+            🎲 Shuffle role
+          </button>
+          <button id="footer-apply-btn" onclick="applyCurrentRole()" class="h-9 px-4 rounded-ctl bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white font-semibold transition-colors">
+            Tailor & Apply
+          </button>
+          <button onclick="closeCategoryModal()" class="h-9 px-4 rounded-ctl border border-[var(--border)] hover:bg-[var(--chip)] font-semibold transition-colors">
+            Done
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 4. ONBOARDING OVERLAY MODAL (REPLAYABLE)                       -->
+  <!-- ============================================================== -->
+  <div id="onboarding-overlay" class="fixed inset-0 z-50 bg-black/40 hidden items-center justify-center p-4">
+    <div class="w-full max-w-lg velai-card rounded-panel overflow-hidden border border-[var(--border)] bg-[var(--card)]">
+      <div class="border-b border-[var(--border)] px-6 py-3.5 flex items-center justify-between bg-[var(--card)]">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-pill bg-[var(--brand)]"></span>
+          <span class="text-xs font-semibold text-[var(--foreground)]">Onboarding & Sign-in Gate</span>
+        </div>
+        <button onclick="closeOnboarding()" class="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">✕ Close</button>
+      </div>
+
+      <!-- Station 1: Private Assistant -->
+      <div id="mock-ob-step-1" class="p-6 space-y-4">
+        <div class="space-y-1">
+          <h3 class="text-base font-semibold text-[var(--foreground)]">Private On-Device Job Matching</h3>
+          <p class="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            Velai scans verified direct employer career sites. Your résumé and match scores never touch cloud LLM servers.
+          </p>
+        </div>
+        <div class="p-3 rounded-ctl border border-[var(--border)] bg-[var(--chip)] text-xs flex items-center justify-between">
+          <span class="font-semibold text-[var(--foreground)]">⚡ On-device engine ready</span>
+          <span class="text-[var(--live)] font-semibold">100% Private</span>
+        </div>
+        <div class="pt-3 border-t border-[var(--border)] flex justify-end">
+          <button onclick="showMockObStep(2)" class="h-9 px-4 rounded-ctl bg-[var(--brand)] text-white text-xs font-semibold">
+            Next: Sign in to continue →
+          </button>
+        </div>
+      </div>
+
+      <!-- Station 2: Sign-in Gate -->
+      <div id="mock-ob-step-2" class="p-6 space-y-4 hidden">
+        <div class="space-y-1">
+          <h3 class="text-base font-semibold text-[var(--foreground)]">Sign in to unlock categories</h3>
+          <p class="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            Sign-in is mandatory before roles and categories populate. All matching data stays encrypted to your verified identity.
+          </p>
+        </div>
+        <div class="space-y-2.5 pt-1">
+          <button onclick="mockSignIn('Google')" class="w-full h-10 rounded-ctl border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--chip)] text-xs font-semibold flex items-center justify-center gap-2 text-[var(--foreground)] transition-colors">
+            <span>Continue with Google</span>
+          </button>
+          <button onclick="mockSignIn('Email')" class="w-full h-10 rounded-ctl border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--chip)] text-xs font-semibold flex items-center justify-center gap-2 text-[var(--foreground)] transition-colors">
+            <span>Continue with Email</span>
+          </button>
+        </div>
+        <div class="pt-3 border-t border-[var(--border)] flex justify-between">
+          <button onclick="showMockObStep(1)" class="h-9 px-3 rounded-ctl border border-[var(--border)] text-xs font-semibold">
+            ← Back
+          </button>
+          <span class="text-[11px] text-[var(--muted-foreground)] self-center">Sign-in required to proceed</span>
+        </div>
+      </div>
+
+      <!-- Station 3: Résumé Upload -->
+      <div id="mock-ob-step-3" class="p-6 space-y-4 hidden">
+        <div class="space-y-1">
+          <h3 class="text-base font-semibold text-[var(--foreground)]">Upload your résumé</h3>
+          <p class="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            Parsed locally in your browser. Choose between cloud backup or local-only storage.
+          </p>
+        </div>
+        <div class="p-5 border-2 border-dashed border-[var(--border)] rounded-ctl text-center bg-[var(--chip)]/30">
+          <p class="text-xs font-semibold text-[var(--foreground)]">✓ sample_resume.pdf ready</p>
+          <p class="text-[11px] text-[var(--live)] mt-0.5">38 skill areas identified locally</p>
+        </div>
+        <div class="pt-3 border-t border-[var(--border)] flex justify-between">
+          <button onclick="showMockObStep(2)" class="h-9 px-3 rounded-ctl border border-[var(--border)] text-xs font-semibold">
+            ← Back
+          </button>
+          <button onclick="closeOnboarding(); openCategoryModal('ai');" class="h-9 px-4 rounded-ctl bg-[var(--brand)] text-white text-xs font-semibold">
+            Enter Dashboard & Shuffle →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Rich Detailed Role Database for Shuffle Deck
+    const CATEGORIES_DATA = {
+      ai: {
+        title: "Artificial Intelligence & ML",
+        icon: "🧠",
+        countLabel: "18 jobs",
+        meta: "18 verified active roles · Frontier models & GenAI",
+        jobs: [
+          {
+            id: "ai-1",
+            title: "Senior AI Product Manager — Frontier Interfaces",
+            company: "Anthropic",
+            companyDomain: "anthropic.com",
+            loc: "San Francisco, CA (Hybrid)",
+            workType: "Hybrid",
+            salary: "$185,000 – $240,000 / yr",
+            age: "3d ago",
+            fit: "96% Match",
+            department: "Applied AI Products",
+            seniority: "Senior",
+            tags: ["Claude", "Prompting", "LLM Safety", "Developer APIs"],
+            overview: "Anthropic builds reliable, beneficial, and steerable AI systems. In this role, you will lead the core product roadmap for Claude's user-facing conversational surfaces, reasoning interfaces, and developer SDKs.",
+            responsibilities: [
+              "Guide discovery and product execution across Claude web, desktop, and developer tools.",
+              "Partner directly with alignment researchers to turn safety and steerability advances into intuitive customer features.",
+              "Establish performance standards for latency, context utilization, and developer productivity.",
+              "Work hand-in-hand with engineering leaders to optimize inference cost and streaming responsiveness."
+            ],
+            requirements: [
+              "5+ years of product management experience, with at least 2+ years leading developer-facing or AI-native tools.",
+              "Deep intuition for prompt engineering, context windows, and structured tool invocation.",
+              "Demonstrated history of launching customer-loved tools from zero to scale.",
+              "Care and empathy for alignment research and responsible AI deployment."
+            ],
+            fitReasons: [
+              "Proven background shipping developer-first web workflows and user onboarding.",
+              "Extensive track record measuring product engagement and reducing latency friction.",
+              "Location matches your preferred San Francisco / Bay Area hybrid hub."
+            ],
+            benefits: [
+              "Comprehensive medical, dental, and vision with 100% premium coverage.",
+              "$5,000 annual continuous education and conference travel stipend.",
+              "401(k) matching up to 4% with immediate vesting.",
+              "Flexible PTO policy and ergonomic home office equipment budget."
+            ]
+          },
+          {
+            id: "ai-2",
+            title: "Founding Machine Learning Systems Engineer",
+            company: "Cerebras Systems",
+            companyDomain: "cerebras.net",
+            loc: "Sunnyvale, CA (On-site)",
+            workType: "On-site",
+            salary: "$200,000 – $260,000 / yr",
+            age: "1d ago",
+            fit: "92% Match",
+            department: "Core Systems",
+            seniority: "Staff",
+            tags: ["Wafer Scale", "PyTorch", "C++", "CUDA Kernels"],
+            overview: "Cerebras has built the largest computer chip in history to radically accelerate deep learning. You will write high-performance distributed kernels and scale foundation model training across massive wafer clusters.",
+            responsibilities: [
+              "Architect and write low-latency distributed communication kernels for foundation models.",
+              "Benchmark and optimize memory bandwidth, tensor parallelism, and FLOPS utilization.",
+              "Collaborate with frontier research teams to run massive generative training runs without bottlenecks."
+            ],
+            requirements: [
+              "Strong fluency in C++, PyTorch internals, and distributed GPU/accelerator communication.",
+              "Practical experience optimizing transformer attention kernels and memory layout.",
+              "Solid grasp of numerical stability in FP16, BF16, and FP8 precision training."
+            ],
+            fitReasons: [
+              "Deep experience with low-level systems engineering and runtime optimization.",
+              "Track record with high-throughput distributed architectures."
+            ],
+            benefits: [
+              "Top-tier equity package in a high-growth scale-up.",
+              "Daily gourmet catered lunch and dinner on campus.",
+              "Full health insurance, life insurance, and commuter benefits."
+            ]
+          },
+          {
+            id: "ai-3",
+            title: "Generative AI Solutions Architect",
+            company: "Canva",
+            companyDomain: "canva.com",
+            loc: "Remote (US / Canada)",
+            workType: "Remote",
+            salary: "$140,000 – $175,000 / yr",
+            age: "5d ago",
+            fit: "88% Match",
+            department: "Creative Intelligence",
+            seniority: "Senior",
+            tags: ["Diffusion Models", "Next.js", "Media Generation", "Python"],
+            overview: "Empower over 170 million monthly active users to create anything effortlessly. You will bridge our research models with real-time browser canvas tools, ensuring generative features render in milliseconds.",
+            responsibilities: [
+              "Integrate multimodal generation pipelines into Canva's real-time collaborative editor.",
+              "Design client-side caching and streaming protocols for instant visual feedback.",
+              "Conduct quality evaluations and human-in-the-loop safety benchmarks."
+            ],
+            requirements: [
+              "Experience integrating generative vision or multimodal models into web applications.",
+              "Strong proficiency in TypeScript, React, and Python microservices.",
+              "Passion for user experience and visual design tools."
+            ],
+            fitReasons: [
+              "Strong frontend systems background and responsive UI craftsmanship.",
+              "Demonstrated remote collaboration excellence across timezones."
+            ],
+            benefits: [
+              "100% remote flexibility with home workspace setup allowance.",
+              "Annual 'Vibe' wellness stipend and continuous growth budget."
+            ]
+          },
+          {
+            id: "ai-4",
+            title: "Senior Research Scientist — Reasoning & Code",
+            company: "Cohere",
+            companyDomain: "cohere.com",
+            loc: "Toronto, Canada (Hybrid)",
+            workType: "Hybrid",
+            salary: "$190,000 – $250,000 / yr",
+            age: "4d ago",
+            fit: "94% Match",
+            department: "Frontier Research",
+            seniority: "Senior",
+            tags: ["RAG", "Embeddings", "Chain-of-Thought", "Evaluation"],
+            overview: "Cohere creates frontier language models built specifically for enterprise applications. You will conduct empirical research on multistep reasoning, retrieval-augmented generation (RAG), and programmatic verification.",
+            responsibilities: [
+              "Design novel pre-training and fine-tuning techniques to boost reasoning accuracy on complex tasks.",
+              "Publish empirical findings and contribute breakthroughs directly into production foundation models.",
+              "Develop rigorous evaluation benchmarks for enterprise hallucination prevention."
+            ],
+            requirements: [
+              "PhD or equivalent research experience in Natural Language Processing or Machine Learning.",
+              "First-author publications at top-tier venues (NeurIPS, ICML, ICLR, ACL).",
+              "Proven ability to translate mathematical insights into reproducible PyTorch code."
+            ],
+            fitReasons: [
+              "Strong background in experimental rigor, evaluation frameworks, and benchmarking."
+            ],
+            benefits: [
+              "Competitive base salary plus significant equity grant.",
+              "Hybrid downtown office with top-tier research compute access."
+            ]
+          }
+        ]
+      },
+      all: {
+        title: "All Your Matches",
+        icon: "✨",
+        countLabel: "24 jobs",
+        meta: "24 roles matched against your local résumé profile",
+        jobs: [
+          {
+            id: "all-1",
+            title: "Senior Digital Product Manager",
+            company: "Litmus",
+            companyDomain: "litmus.com",
+            loc: "Toronto, Canada (Remote)",
+            workType: "Remote",
+            salary: "$102,000 – $124,000 / yr",
+            age: "9d ago",
+            fit: "96% Match",
+            department: "Core Experience",
+            seniority: "Senior",
+            tags: ["Product Strategy", "B2B SaaS", "User Journeys", "Email"],
+            overview: "Litmus is the email marketing platform relied on by over 700,000 professionals worldwide. You will lead the core creation, previewing, and analytics workflows.",
+            responsibilities: [
+              "Own the product roadmap for Litmus Builder and automated pre-send testing.",
+              "Conduct customer discovery interviews and translate findings into clear engineering specs."
+            ],
+            requirements: [
+              "4+ years in product management at a B2B SaaS company.",
+              "Demonstrated skill balancing technical debt, customer feedback, and strategic business goals."
+            ],
+            fitReasons: [
+              "96% match with your background in product lifecycle management and user-centered design."
+            ],
+            benefits: [
+              "Full health and dental coverage starting on day one.",
+              "Quarterly company-wide recharge days."
+            ]
+          },
+          {
+            id: "all-2",
+            title: "Staff Frontend Engineer — Web Platform",
+            company: "Stripe",
+            companyDomain: "stripe.com",
+            loc: "San Francisco, CA (Hybrid)",
+            workType: "Hybrid",
+            salary: "$190,000 – $240,000 / yr",
+            age: "2d ago",
+            fit: "91% Match",
+            department: "Web Infrastructure",
+            seniority: "Staff",
+            tags: ["React", "TypeScript", "Performance", "Design Systems"],
+            overview: "Stripe builds economic infrastructure for the internet. You will shape the architecture, design tokens, and build pipelines that power millions of checkout flows daily.",
+            responsibilities: [
+              "Drive web architecture decisions that improve bundle size, Core Web Vitals, and accessibility.",
+              "Author reusable component primitives consumed by hundreds of product engineers."
+            ],
+            requirements: [
+              "7+ years building large-scale TypeScript/React web applications.",
+              "Deep mastery of browser rendering, DOM performance, and accessibility standards."
+            ],
+            fitReasons: [
+              "Deep experience with component systems and performance profiling."
+            ],
+            benefits: [
+              "Comprehensive health, vision, and mental healthcare plans.",
+              "Generous 401(k) program and fertility support."
+            ]
+          }
+        ]
+      },
+      remote: {
+        title: "Fully Remote Roles",
+        icon: "🌐",
+        countLabel: "42 jobs",
+        meta: "42 verified positions · Work from anywhere",
+        jobs: [
+          {
+            id: "remote-1",
+            title: "Staff Frontend Engineer — Edge Frameworks",
+            company: "Vercel",
+            companyDomain: "vercel.com",
+            loc: "Remote (Global)",
+            workType: "Remote",
+            salary: "$175,000 – $225,000 / yr",
+            age: "2d ago",
+            fit: "94% Match",
+            department: "Frameworks & Runtime",
+            seniority: "Staff",
+            tags: ["Next.js", "Edge Middleware", "React Server Components", "Turbopack"],
+            overview: "Vercel enables developers to build and deploy the web faster. You will lead features within Next.js and Vercel Edge Network.",
+            responsibilities: [
+              "Design low-latency primitives for React Server Components and Edge Middleware.",
+              "Profile and debug real-world web performance bottlenecks at global scale."
+            ],
+            requirements: [
+              "6+ years of modern JavaScript/TypeScript experience.",
+              "Deep understanding of HTTP caching, edge computing, and server-side rendering."
+            ],
+            fitReasons: [
+              "Demonstrated track record with Next.js web application architecture."
+            ],
+            benefits: [
+              "Work from anywhere with full remote stipends.",
+              "Unlimited PTO policy with recommended minimums."
+            ]
+          }
+        ]
+      },
+      fresh: {
+        title: "Added This Week",
+        icon: "📅",
+        countLabel: "35 jobs",
+        meta: "35 brand new roles · Posted within last 7 days",
+        jobs: [
+          {
+            id: "fresh-1",
+            title: "Full Stack Engineer — Database Platform",
+            company: "Supabase",
+            companyDomain: "supabase.com",
+            loc: "Remote",
+            workType: "Remote",
+            salary: "$145,000 – $185,000 / yr",
+            age: "1d ago",
+            fit: "93% Match",
+            department: "Database Tooling",
+            seniority: "Senior",
+            tags: ["Postgres", "Elixir", "TypeScript", "Realtime"],
+            overview: "Supabase is the open-source Firebase alternative built on Postgres. You will build realtime replication features and database branching tools.",
+            responsibilities: [
+              "Build full-stack dashboard tools for Postgres schema management.",
+              "Write secure, high-concurrency APIs for instant database provisioning."
+            ],
+            requirements: [
+              "Strong proficiency with PostgreSQL, TypeScript, and modern web frameworks."
+            ],
+            fitReasons: [
+              "Demonstrated background with database-backed web architectures."
+            ],
+            benefits: [
+              "Global remote setup with co-working allowances."
+            ]
+          }
+        ]
+      },
+      salary: {
+        title: "Jobs with Salaries ($120k+)",
+        icon: "💰",
+        countLabel: "58 jobs",
+        meta: "58 roles with full compensation transparency",
+        jobs: [
+          {
+            id: "salary-1",
+            title: "Principal Distributed Telemetry Engineer",
+            company: "Datadog",
+            companyDomain: "datadoghq.com",
+            loc: "New York, NY",
+            workType: "Hybrid",
+            salary: "$250,000 – $320,000 / yr",
+            age: "4d ago",
+            fit: "95% Match",
+            department: "Observability Pipeline",
+            seniority: "Principal",
+            tags: ["Kafka", "High Throughput", "Go", "Storage"],
+            overview: "Datadog's observability platform processes trillions of events daily. You will architect telemetry ingestion pipelines with extreme availability.",
+            responsibilities: [
+              "Design petabyte-scale distributed ingestion engines using Go and Kafka.",
+              "Set multi-year architectural direction for data storage and indexing."
+            ],
+            requirements: [
+              "8+ years architecting high-throughput distributed backends."
+            ],
+            fitReasons: [
+              "Matches seniority criteria and transparent salary bracket ($250k+)."
+            ],
+            benefits: [
+              "Industry-leading 401(k) match and executive health coverage."
+            ]
+          }
+        ]
+      },
+      apply: {
+        title: "1-Click Tailored Apply",
+        icon: "✍️",
+        countLabel: "14 jobs",
+        meta: "14 roles pre-calibrated for tailored résumé generation",
+        jobs: [
+          {
+            id: "apply-1",
+            title: "Senior React UI Developer",
+            company: "Retool",
+            companyDomain: "retool.com",
+            loc: "San Francisco, CA",
+            workType: "Hybrid",
+            salary: "$160,000 – $195,000 / yr",
+            age: "3d ago",
+            fit: "96% Match",
+            department: "UI Framework",
+            seniority: "Senior",
+            tags: ["Component Primitives", "TypeScript", "Drag & Drop", "DOM"],
+            overview: "Retool is the fast way to build internal tools. You will build high-performance UI primitives.",
+            responsibilities: [
+              "Build reliable, accessible React component libraries used inside Retool's canvas."
+            ],
+            requirements: [
+              "4+ years building sophisticated React/TypeScript user interfaces."
+            ],
+            fitReasons: [
+              "96% background match with 1-click tailored resume readiness."
+            ],
+            benefits: [
+              "Fast-track interview process with verified hiring manager response."
+            ]
+          }
+        ]
+      },
+      lead: {
+        title: "Lead & Principal Roles",
+        icon: "⭐",
+        countLabel: "9 jobs",
+        meta: "9 executive, staff, and principal engineering tracks",
+        jobs: [
+          {
+            id: "lead-1",
+            title: "VP of Engineering",
+            company: "Loom (Atlassian)",
+            companyDomain: "loom.com",
+            loc: "Remote",
+            workType: "Remote",
+            salary: "$240,000 – $310,000 / yr",
+            age: "5d ago",
+            fit: "94% Match",
+            department: "Engineering Leadership",
+            seniority: "VP",
+            tags: ["Video Infrastructure", "Org Strategy", "AI Summaries", "Scale"],
+            overview: "Lead 60+ distributed engineers building high-efficiency asynchronous video recording.",
+            responsibilities: [
+              "Set technical vision and organizational strategy across recording, web, and AI squads."
+            ],
+            requirements: [
+              "Proven leadership experience managing managers in high-growth SaaS environments."
+            ],
+            fitReasons: [
+              "Matches leadership trajectory and distributed team management experience."
+            ],
+            benefits: [
+              "Executive compensation package with extensive equity."
+            ]
+          }
+        ]
+      },
+      good: {
+        title: "Tech for Good & Climate",
+        icon: "🌱",
+        countLabel: "6 jobs",
+        meta: "6 mission-driven & sustainability opportunities",
+        jobs: [
+          {
+            id: "good-1",
+            title: "Lead Sensor Hardware & Software Engineer",
+            company: "Charity: Water",
+            companyDomain: "charitywater.org",
+            loc: "Remote (US)",
+            workType: "Remote",
+            salary: "$140,000 – $170,000 / yr",
+            age: "6d ago",
+            fit: "92% Match",
+            department: "Water Programs & IoT",
+            seniority: "Lead",
+            tags: ["IoT Sensors", "Clean Water", "React", "Global Impact"],
+            overview: "Charity: Water brings clean water to every person on the planet. You will build connected sensor telemetry platforms.",
+            responsibilities: [
+              "Develop firmware and web dashboards tracking daily water flow from rural community wells."
+            ],
+            requirements: [
+              "5+ years building connected IoT hardware/software or telemetry systems."
+            ],
+            fitReasons: [
+              "Mission alignment and telemetry platform engineering background."
+            ],
+            benefits: [
+              "Purpose-driven culture with direct visible humanitarian impact."
+            ]
+          }
+        ]
+      }
+    };
+
+    // Modal State
+    let currentCategoryKey = "ai";
+    let currentRoleIndex = 0;
+    let currentViewMode = "shuffle"; // 'shuffle' or 'list'
+    let savedJobIds = new Set();
+
+    function openCategoryModal(catKey) {
+      currentCategoryKey = catKey;
+      currentRoleIndex = 0;
+      currentViewMode = "shuffle";
+      
+      const data = CATEGORIES_DATA[catKey] || CATEGORIES_DATA.all;
+      
+      document.getElementById('modal-cat-icon').textContent = data.icon;
+      document.getElementById('modal-cat-title').textContent = data.title;
+      document.getElementById('modal-cat-badge').textContent = data.countLabel;
+      document.getElementById('modal-cat-meta').textContent = data.meta;
+
+      renderModalContent();
+
+      const modal = document.getElementById('category-modal-overlay');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeCategoryModal() {
+      const modal = document.getElementById('category-modal-overlay');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      
+      const shuffleBtn = document.getElementById('toggle-shuffle-btn');
+      const listBtn = document.getElementById('toggle-list-btn');
+      
+      if (mode === 'shuffle') {
+        shuffleBtn.className = "px-3 py-1 rounded-ctl text-xs font-semibold transition-colors bg-[var(--card)] text-[var(--foreground)] shadow-sm";
+        listBtn.className = "px-3 py-1 rounded-ctl text-xs font-semibold transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]";
+      } else {
+        listBtn.className = "px-3 py-1 rounded-ctl text-xs font-semibold transition-colors bg-[var(--card)] text-[var(--foreground)] shadow-sm";
+        shuffleBtn.className = "px-3 py-1 rounded-ctl text-xs font-semibold transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]";
+      }
+
+      renderModalContent();
+    }
+
+    function renderModalContent() {
+      const data = CATEGORIES_DATA[currentCategoryKey] || CATEGORIES_DATA.all;
+      const feed = document.getElementById('modal-cards-feed');
+      feed.innerHTML = '';
+
+      if (currentViewMode === 'shuffle') {
+        renderShuffleDeckView(feed, data);
+      } else {
+        renderListView(feed, data);
+      }
+    }
+
+    function renderShuffleDeckView(container, data) {
+      const job = data.jobs[currentRoleIndex] || data.jobs[0];
+      const isSaved = savedJobIds.has(job.id);
+
+      // Deck Navigation & Shuffle Bar
+      const controlsBar = document.createElement('div');
+      controlsBar.className = "border-b border-[var(--border)] px-6 py-2.5 flex items-center justify-between bg-[var(--card)] shrink-0 text-xs";
+      controlsBar.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-[var(--foreground)]">
+            Role ${currentRoleIndex + 1} of ${data.jobs.length}
+          </span>
+          <span class="text-[var(--muted-foreground)] hidden sm:inline">·</span>
+          <span class="text-[var(--muted-foreground)] hidden sm:inline">
+            Use <kbd class="px-1 py-0.5 rounded-ctl bg-[var(--chip)] text-[10px] mono-data">←</kbd> / <kbd class="px-1 py-0.5 rounded-ctl bg-[var(--chip)] text-[10px] mono-data">→</kbd> or press <kbd class="px-1 py-0.5 rounded-ctl bg-[var(--chip)] text-[10px] mono-data">S</kbd> to shuffle
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="shuffleRole()" class="h-8 px-3 rounded-ctl border border-[var(--border)] hover:bg-[var(--chip)] font-semibold transition-colors flex items-center gap-1.5 text-xs">
+            <span>🎲</span> Shuffle
+          </button>
+          <div class="flex items-center border border-[var(--border)] rounded-ctl overflow-hidden">
+            <button onclick="prevRole()" class="h-8 w-8 flex items-center justify-center bg-[var(--card)] hover:bg-[var(--chip)] text-[var(--foreground)] border-r border-[var(--border)] transition-colors">
+              ‹
+            </button>
+            <button onclick="nextRole()" class="h-8 w-8 flex items-center justify-center bg-[var(--card)] hover:bg-[var(--chip)] text-[var(--foreground)] transition-colors">
+              ›
+            </button>
+          </div>
+        </div>
+      `;
+      container.appendChild(controlsBar);
+
+      // Full Detailed Card Container
+      const cardWrapper = document.createElement('div');
+      cardWrapper.className = "p-4 sm:p-6 space-y-6 flex-1";
+
+      const tagsHtml = (job.tags || []).map(t => 
+        `<span class="px-2 py-0.5 rounded-pill bg-[var(--chip)] text-[var(--muted-foreground)] text-[11px] font-medium">${t}</span>`
+      ).join('');
+
+      const responsibilitiesHtml = (job.responsibilities || []).map(r => 
+        `<li class="flex items-start gap-2"><span class="text-[var(--brand)] font-semibold">→</span><span class="leading-relaxed">${r}</span></li>`
+      ).join('');
+
+      const requirementsHtml = (job.requirements || []).map(req => 
+        `<li class="flex items-start gap-2"><span class="text-[var(--muted-foreground)]">•</span><span class="leading-relaxed">${req}</span></li>`
+      ).join('');
+
+      const fitReasonsHtml = (job.fitReasons || []).map(f => 
+        `<li class="flex items-start gap-2"><span class="text-emerald-600 dark:text-emerald-400">✓</span><span class="leading-relaxed">${f}</span></li>`
+      ).join('');
+
+      const benefitsHtml = (job.benefits || []).map(b => 
+        `<div class="flex items-center gap-2 p-2 rounded-ctl border border-[var(--border)] bg-[var(--card)] text-xs text-[var(--foreground)]"><span class="text-[var(--brand)]">✦</span><span>${b}</span></div>`
+      ).join('');
+
+      cardWrapper.innerHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          <!-- LEFT COLUMN: Job Description & Mission (Col 8) -->
+          <div class="lg:col-span-8 velai-card rounded-panel p-6 bg-[var(--card)] border border-[var(--border)] space-y-6">
+            <div class="space-y-2 pb-5 border-b border-[var(--border)]">
+              <div class="flex items-center gap-2 text-xs flex-wrap text-[var(--muted-foreground)]">
+                <span class="font-bold text-[var(--foreground)]">${job.company}</span>
+                <span>·</span>
+                <span>${job.loc}</span>
+                <span>·</span>
+                <span class="mono-data">Posted ${job.age}</span>
+              </div>
+              <h3 class="text-xl sm:text-2xl font-bold text-[var(--foreground)] leading-snug">
+                ${job.title}
+              </h3>
+              <div class="flex items-center gap-1.5 flex-wrap pt-1">
+                ${tagsHtml}
+              </div>
+            </div>
+
+            <!-- Overview -->
+            <div class="space-y-2">
+              <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">About the role</h4>
+              <p class="text-xs text-[var(--foreground)] leading-relaxed">${job.overview || job.summary}</p>
+            </div>
+
+            <!-- Responsibilities -->
+            ${job.responsibilities && job.responsibilities.length ? `
+              <div class="space-y-2">
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Key Responsibilities</h4>
+                <ul class="space-y-1.5 text-xs text-[var(--foreground)]">
+                  ${responsibilitiesHtml}
+                </ul>
+              </div>
+            ` : ''}
+
+            <!-- Requirements -->
+            ${job.requirements && job.requirements.length ? `
+              <div class="space-y-2">
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">What we are looking for</h4>
+                <ul class="space-y-1.5 text-xs text-[var(--foreground)]">
+                  ${requirementsHtml}
+                </ul>
+              </div>
+            ` : ''}
+
+            <!-- Match Inferences (Why You Match) -->
+            ${job.fitReasons && job.fitReasons.length ? `
+              <div class="space-y-2 p-4 rounded-ctl border border-[var(--border)] bg-[var(--background)]">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-pill bg-[var(--live)]"></span>
+                  <h4 class="text-xs font-semibold text-[var(--foreground)]">Why this role fits your background</h4>
+                </div>
+                <ul class="space-y-1 text-xs text-[var(--muted-foreground)]">
+                  ${fitReasonsHtml}
+                </ul>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- RIGHT COLUMN: Company Hiring & General Info (Col 4) -->
+          <div class="lg:col-span-4 space-y-4">
+            <div class="velai-card rounded-panel p-5 bg-[var(--card)] border border-[var(--border)] space-y-4">
+              <div class="flex items-start justify-between gap-3 pb-3 border-b border-[var(--border)]">
+                <div>
+                  <p class="text-[10px] text-[var(--muted-foreground)] font-semibold uppercase tracking-wider">Employer</p>
+                  <h4 class="text-base font-bold text-[var(--foreground)]">${job.company}</h4>
+                  <div class="flex items-center gap-1.5 mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+                    <span class="w-1.5 h-1.5 rounded-pill bg-[var(--live)]"></span>
+                    <span>Actively interviewing</span>
+                  </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold text-xs mono-data shrink-0">
+                  ${job.fit}
+                </span>
+              </div>
+
+              <!-- Key Facts List -->
+              <div class="space-y-2.5 text-xs">
+                <div class="flex items-center justify-between py-1 border-b border-[var(--border)]">
+                  <span class="text-[var(--muted-foreground)]">Compensation</span>
+                  <span class="font-bold text-[var(--foreground)] mono-data">${job.salary}</span>
+                </div>
+                <div class="flex items-center justify-between py-1 border-b border-[var(--border)]">
+                  <span class="text-[var(--muted-foreground)]">Department</span>
+                  <span class="font-semibold text-[var(--foreground)]">${job.department || 'Engineering'}</span>
+                </div>
+                <div class="flex items-center justify-between py-1 border-b border-[var(--border)]">
+                  <span class="text-[var(--muted-foreground)]">Seniority</span>
+                  <span class="font-semibold text-[var(--foreground)]">${job.seniority || 'Senior'}</span>
+                </div>
+                <div class="flex items-center justify-between py-1 border-b border-[var(--border)]">
+                  <span class="text-[var(--muted-foreground)]">Workplace</span>
+                  <span class="font-semibold text-[var(--foreground)]">${job.workType || 'Flexible'}</span>
+                </div>
+                <div class="flex items-center justify-between py-1">
+                  <span class="text-[var(--muted-foreground)]">Location</span>
+                  <span class="font-semibold text-[var(--foreground)]">${job.loc}</span>
+                </div>
+              </div>
+
+              <!-- Action CTAs -->
+              <div class="pt-2 space-y-2">
+                <button onclick="tailorApply('${job.id}')" class="w-full h-9 rounded-ctl bg-[var(--brand)] text-white text-xs font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity">
+                  <span>✦</span> Tailor & Apply
+                </button>
+                <button onclick="toggleSaveJob('${job.id}')" class="w-full h-8 px-3 rounded-ctl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${isSaved ? 'border-[var(--brand)] text-[var(--brand)] bg-[var(--chip)]' : 'border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]'}">
+                  ${isSaved ? '★ Saved to your list' : '☆ Save role'}
+                </button>
+              </div>
+            </div>
+
+            <!-- Benefits -->
+            ${job.benefits && job.benefits.length ? `
+              <div class="velai-card rounded-panel p-5 bg-[var(--card)] border border-[var(--border)] space-y-3">
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Benefits & Perks</h4>
+                <ul class="space-y-2 text-xs text-[var(--foreground)]">
+                  ${job.benefits.map(b => `<li class="flex items-start gap-2"><span class="text-[var(--brand)]">✦</span><span>${b}</span></li>`).join('')}
+                </ul>
+              </div>
+            ` : ''}
+
+            <!-- Trust Note -->
+            <div class="p-3.5 rounded-ctl border border-[var(--border)] bg-[var(--card)] text-xs space-y-1">
+              <p class="font-semibold text-[var(--foreground)] flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-pill bg-[var(--live)]"></span>
+                Verified Direct Listing
+              </p>
+              <p class="text-[11px] text-[var(--muted-foreground)]">
+                Directly from ${job.company}'s official hiring board. No ghost postings.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      `;
+
+      container.appendChild(cardWrapper);
+    }
+
+    function renderListView(container, data) {
+      const wrapper = document.createElement('div');
+      wrapper.className = "p-4 sm:p-6 space-y-3";
+
+      data.jobs.forEach((job, idx) => {
+        const card = document.createElement('div');
+        card.className = "velai-card rounded-panel p-5 bg-[var(--card)] hover:border-[var(--brand)] transition-all flex flex-col gap-3.5";
+        
+        const tagsHtml = (job.tags || []).map(t => 
+          `<span class="px-2 py-0.5 rounded-pill bg-[var(--chip)] text-[var(--muted-foreground)] text-[11px] font-medium">${t}</span>`
+        ).join('');
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-3">
+            <div class="space-y-0.5">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-[var(--foreground)]">${job.company}</span>
+                <span class="text-[11px] text-[var(--muted-foreground)]">· ${job.loc}</span>
+              </div>
+              <h3 class="text-base font-semibold text-[var(--foreground)] leading-snug">${job.title}</h3>
+            </div>
+            <span class="mono-data text-xs text-[var(--muted-foreground)] shrink-0">${job.age}</span>
+          </div>
+
+          <p class="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            ${job.overview || job.summary}
+          </p>
+
+          <div class="flex items-center gap-1.5 flex-wrap">
+            ${tagsHtml}
+          </div>
+
+          <div class="flex items-center justify-between pt-3 border-t border-[var(--border)] text-xs">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                <span class="w-1.5 h-1.5 rounded-pill bg-[var(--live)]"></span> Actively hiring
+              </span>
+              <span class="text-[var(--muted-foreground)]">·</span>
+              <span class="mono-data font-semibold text-[var(--foreground)]">${job.salary}</span>
+              <span class="px-2 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
+                ${job.fit}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="currentRoleIndex = ${idx}; setViewMode('shuffle');" class="h-9 px-3 rounded-ctl border border-[var(--border)] hover:bg-[var(--chip)] font-semibold transition-colors">
+                View Full Details & Shuffle →
+              </button>
+              <button onclick="alert('Preparing tailored application for ${job.title} at ${job.company}...')" class="h-9 px-4 rounded-ctl bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white font-semibold transition-colors">
+                Tailor & Apply
+              </button>
+            </div>
+          </div>
+        `;
+        wrapper.appendChild(card);
+      });
+
+      container.appendChild(wrapper);
+    }
+
+    function shuffleRole() {
+      const data = CATEGORIES_DATA[currentCategoryKey] || CATEGORIES_DATA.all;
+      if (data.jobs.length <= 1) return;
+
+      let nextIndex = currentRoleIndex;
+      while (nextIndex === currentRoleIndex) {
+        nextIndex = Math.floor(Math.random() * data.jobs.length);
+      }
+      currentRoleIndex = nextIndex;
+      renderModalContent();
+    }
+
+    function nextRole() {
+      const data = CATEGORIES_DATA[currentCategoryKey] || CATEGORIES_DATA.all;
+      currentRoleIndex = (currentRoleIndex + 1) % data.jobs.length;
+      renderModalContent();
+    }
+
+    function prevRole() {
+      const data = CATEGORIES_DATA[currentCategoryKey] || CATEGORIES_DATA.all;
+      currentRoleIndex = (currentRoleIndex - 1 + data.jobs.length) % data.jobs.length;
+      renderModalContent();
+    }
+
+    function toggleSaveJob(id) {
+      if (savedJobIds.has(id)) {
+        savedJobIds.delete(id);
+      } else {
+        savedJobIds.add(id);
+      }
+      renderModalContent();
+    }
+
+    function applyCurrentRole() {
+      const data = CATEGORIES_DATA[currentCategoryKey] || CATEGORIES_DATA.all;
+      const job = data.jobs[currentRoleIndex] || data.jobs[0];
+      alert(`Generating tailored résumé for ${job.title} at ${job.company}...`);
+    }
+
+    function openOnboarding() {
+      showMockObStep(1);
+      document.getElementById('onboarding-overlay').classList.remove('hidden');
+      document.getElementById('onboarding-overlay').classList.add('flex');
+    }
+
+    function closeOnboarding() {
+      document.getElementById('onboarding-overlay').classList.add('hidden');
+      document.getElementById('onboarding-overlay').classList.remove('flex');
+    }
+
+    function showMockObStep(stepNum) {
+      document.getElementById('mock-ob-step-1').classList.add('hidden');
+      document.getElementById('mock-ob-step-2').classList.add('hidden');
+      document.getElementById('mock-ob-step-3').classList.add('hidden');
+      const target = document.getElementById(`mock-ob-step-${stepNum}`);
+      if (target) target.classList.remove('hidden');
+    }
+
+    function mockSignIn(provider) {
+      alert(`Signed in successfully with ${provider}! Proceeding to résumé upload.`);
+      showMockObStep(3);
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        document.getElementById('theme-icon').textContent = '◑';
+      } else {
+        html.classList.remove('light');
+        html.classList.add('dark');
+        document.getElementById('theme-icon').textContent = '◐';
+      }
+    }
+
+    // Keyboard navigation (Arrow keys and S to shuffle)
+    window.addEventListener('keydown', function(e) {
+      const modal = document.getElementById('category-modal-overlay');
+      if (!modal || modal.classList.contains('hidden')) return;
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        nextRole();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prevRole();
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        shuffleRole();
+      } else if (e.key === 'Escape') {
+        closeCategoryModal();
+      }
+    });
+
+    // Close on backdrop click
+    document.getElementById('category-modal-overlay').addEventListener('click', function(e) {
+      if (e.target === this) closeCategoryModal();
+    });
+  </script>
+</body>
+</html>

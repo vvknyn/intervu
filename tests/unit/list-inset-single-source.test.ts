@@ -108,4 +108,12 @@ describe("/jobs list inset — single source of truth", () => {
             "EmptyResults root must pad with var(--list-inset)",
         );
     });
+
+    it("liveCountEl footer wrapper reads var(--list-inset), not flush", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const liveCountBlock = page.match(/\{liveCountEl && \([\s\S]*?\)\}/)?.[0] ?? "";
+        assert.ok(liveCountBlock.length > 0, "liveCountEl block not found");
+        assert.match(liveCountBlock, /var\(--list-inset\)/, "liveCountEl wrapper must read var(--list-inset)");
+    });
 });
+
