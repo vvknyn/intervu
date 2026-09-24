@@ -17,7 +17,12 @@ const SECTION_LABEL = "text-xs font-semibold text-muted-foreground";
 
 /** Product-derived/inferred chip — the chip primitive's "active" treatment,
  *  matching the existing convention for a computed inference vs. a stated fact. */
-const DERIVED_CHIP_CLASS = cn(chipVariants({ active: true }), "h-7 px-2.5 text-xs");
+const DERIVED_CHIP_CLASS = cn(
+    chipVariants({ active: true }),
+    // Long inferred titles (e.g. "Technical Account Manager | …") must stay
+    // inside the FIT column — override chip `shrink-0` / `whitespace-nowrap`.
+    "h-auto min-h-7 max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 py-1 text-xs",
+);
 
 export interface FitReasonsProps {
     job: PublicJob;
@@ -88,9 +93,9 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
                             </ul>
                         )}
                         {reasons.chips.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="mt-2 flex min-w-0 flex-wrap gap-2">
                                 {reasons.chips.map((chip) => (
-                                    <span key={chip} className={DERIVED_CHIP_CLASS}>
+                                    <span key={chip} className={DERIVED_CHIP_CLASS} title={chip}>
                                         {chip}
                                     </span>
                                 ))}

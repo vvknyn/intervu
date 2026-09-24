@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CaretLeft, CaretRight, CircleNotch, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Kbd } from "@/components/ui/kbd";
@@ -54,6 +55,14 @@ export interface ForYouHomeProps {
     showSearchCta: boolean;
     onReplaceResume?: () => void;
     hasUsableResume?: boolean;
+    /** Load next PAGE chunk into the deck (same loadMore as SERP). */
+    onLoadMore?: () => void;
+    loadingMore?: boolean;
+    hasMore?: boolean;
+    /** Known corpus total for optional "Showing N of ~total" chrome. */
+    resultTotal?: number | null;
+    /** "Applied today X · Y left in today’s plan" — omit when null/empty. */
+    appliedTodayChrome?: string | null;
 }
 
 /** Placeholder shape for both the loading state and the pre-résumé shell —
@@ -116,6 +125,11 @@ export function ForYouHome({
     showSearchCta,
     onReplaceResume,
     hasUsableResume = false,
+    onLoadMore,
+    loadingMore = false,
+    hasMore = false,
+    resultTotal = null,
+    appliedTodayChrome = null,
 }: ForYouHomeProps) {
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
@@ -225,6 +239,8 @@ export function ForYouHome({
         return () => document.removeEventListener("keydown", onKeyDown);
     }, [onActiveIndexChange, onSkip]);
 
+    const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
+
     return (
         <div className={FOR_YOU_HOME_FRAME_CLASS} data-testid="for-you-home">
             {(canNavigate || (hasUsableResume && onReplaceResume)) && (
@@ -243,14 +259,33 @@ export function ForYouHome({
                             >
                                 <CaretLeft size={16} weight="bold" aria-hidden />
                             </Button>
-                            <div className="flex items-center gap-2">
-                                <p className="text-xs text-muted-foreground tabular-nums">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <p
+                                    className="text-xs text-muted-foreground tabular-nums"
+                                    data-testid="for-you-deck-position"
+                                >
                                     {activeIndex + 1} of {visiblePacks.length}
                                 </p>
                                 <ProgressBar
                                     progress={((activeIndex + 1) / visiblePacks.length) * 100}
                                     className="w-16"
                                 />
+                                {appliedTodayChrome ? (
+                                    <p
+                                        className="text-xs text-muted-foreground"
+                                        data-testid="for-you-applied-today"
+                                    >
+                                        {appliedTodayChrome}
+                                    </p>
+                                ) : null}
+                                {showingLine ? (
+                                    <p
+                                        className="text-xs text-muted-foreground"
+                                        data-testid="for-you-showing-total"
+                                    >
+                                        {showingLine}
+                                    </p>
+                                ) : null}
                             </div>
                             <Button
                                 type="button"
@@ -332,6 +367,22 @@ export function ForYouHome({
                     hydratedJobs={hydratedJobs}
                     onActivePackChange={onActivePackChange}
                 />
+            )}
+
+            {visiblePacks.length > 0 && !showLoading && hasMore && onLoadMore && (
+                <div className="mt-4 flex justify-center" data-testid="for-you-show-more-wrap">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        data-testid="for-you-show-more"
+                        onClick={() => void onLoadMore()}
+                        disabled={loadingMore}
+                        className="text-xs font-semibold"
+                    >
+                        {loadingMore ? "Loading more…" : "Show more matches"}
+                    </Button>
+                </div>
             )}
 
             {visiblePacks.length > 0 && !showLoading && (

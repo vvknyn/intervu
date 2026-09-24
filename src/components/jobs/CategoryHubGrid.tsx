@@ -63,7 +63,8 @@ export interface RoleDetailListing {
 export interface CategoryHubItem {
     id: string;
     label: string;
-    countLabel: string;
+    /** Live or honest fallback — empty omits the count pill (never invent numbers). */
+    countLabel?: string;
     icon: React.ElementType;
     badgeLabel: string;
     subtitle: string;
@@ -643,73 +644,73 @@ export const DEFAULT_CATEGORY_HUBS: CategoryHubItem[] = [
     {
         id: "all",
         label: "All your matches",
-        countLabel: "24 jobs",
+        countLabel: "",
         icon: Sparkle,
         badgeLabel: "Matches",
-        subtitle: "24 roles matched against your local résumé profile",
+        subtitle: "Roles matched against your résumé",
         jobs: CATEGORY_JOBS_CATALOG.all,
     },
     {
         id: "ai",
         label: "Artificial Intelligence",
-        countLabel: "18 jobs",
+        countLabel: "",
         icon: Brain,
         badgeLabel: "AI & ML",
-        subtitle: "18 verified active roles · Frontier models & GenAI",
+        subtitle: "Frontier models & GenAI",
         jobs: CATEGORY_JOBS_CATALOG.ai,
     },
     {
         id: "remote",
         label: "Fully remote",
-        countLabel: "42 jobs",
+        countLabel: "",
         icon: Globe,
         badgeLabel: "Remote",
-        subtitle: "42 verified positions · Work from anywhere",
+        subtitle: "Work from anywhere",
         jobs: CATEGORY_JOBS_CATALOG.remote,
     },
     {
         id: "fresh",
         label: "Added this week",
-        countLabel: "35 jobs",
+        countLabel: "",
         icon: CalendarCheck,
         badgeLabel: "Fresh",
-        subtitle: "35 brand new roles · Posted within last 7 days",
+        subtitle: "Posted within last 7 days",
         jobs: CATEGORY_JOBS_CATALOG.fresh,
     },
     {
         id: "salary",
         label: "Jobs with salaries",
-        countLabel: "58 jobs",
+        countLabel: "",
         icon: CurrencyDollar,
         badgeLabel: "$120k+",
-        subtitle: "58 roles with full compensation transparency",
+        subtitle: "Roles with compensation listed",
         jobs: CATEGORY_JOBS_CATALOG.salary,
     },
     {
         id: "apply",
         label: "1-Click tailored apply",
-        countLabel: "14 jobs",
+        countLabel: "",
         icon: FileText,
         badgeLabel: "Fast Apply",
-        subtitle: "14 roles pre-calibrated for tailored résumé generation",
+        subtitle: "Pre-calibrated for tailored résumé generation",
         jobs: CATEGORY_JOBS_CATALOG.apply,
     },
     {
         id: "lead",
         label: "Lead & Principal",
-        countLabel: "9 jobs",
+        countLabel: "",
         icon: Crown,
         badgeLabel: "Leadership",
-        subtitle: "9 executive, staff, and principal engineering tracks",
+        subtitle: "Executive, staff, and principal tracks",
         jobs: CATEGORY_JOBS_CATALOG.lead,
     },
     {
         id: "good",
         label: "Tech for good",
-        countLabel: "6 jobs",
+        countLabel: "",
         icon: Heart,
         badgeLabel: "Mission",
-        subtitle: "6 mission-driven & sustainability opportunities",
+        subtitle: "Mission-driven & sustainability",
         jobs: CATEGORY_JOBS_CATALOG.good,
     },
 ];
@@ -725,6 +726,10 @@ export interface CategoryHubGridProps {
     onSelectCategory?: (category: CategoryHubItem) => void;
     onTailorApply?: (job: RoleDetailListing) => void;
     onOpenAdvancedSearch?: () => void;
+    /** Live count labels keyed by hub id — overrides DEFAULT_CATEGORY_HUBS.countLabel. */
+    hubCountLabels?: Partial<Record<string, string>>;
+    /** Quiet daily apply tip near Browse all / greeting. */
+    dailyApplyTip?: string | null;
     className?: string;
 }
 
@@ -739,6 +744,8 @@ export function CategoryHubGrid({
     onSelectCategory,
     onTailorApply,
     onOpenAdvancedSearch,
+    hubCountLabels,
+    dailyApplyTip,
     className,
 }: CategoryHubGridProps) {
     const [modalCategory, setModalCategory] = useState<CategoryHubItem | null>(null);
@@ -830,9 +837,14 @@ export function CategoryHubGrid({
     };
 
     const handleCategoryClick = (category: CategoryHubItem) => {
+        // Parent (jobs page) mounts ForYouHome postcard when onSelectCategory
+        // is provided. Keep the hub-internal modal only as a standalone fallback.
+        if (onSelectCategory) {
+            onSelectCategory(category);
+            return;
+        }
         setModalCategory(category);
         setCurrentIndex(0);
-        onSelectCategory?.(category);
     };
 
     const currentJobs = modalCategory?.jobs ?? [];
@@ -912,6 +924,13 @@ export function CategoryHubGrid({
     const greetingTitle = firstName ? `Welcome back, ${firstName}` : "Welcome back";
     const greetingSubtitle = "Choose a category below to browse verified roles tailored to your background.";
 
+    const resolveCountLabel = (category: CategoryHubItem): string => {
+        const live = hubCountLabels?.[category.id];
+        if (live != null && live !== "") return live;
+        return category.countLabel?.trim() ?? "";
+    };
+
+
     return (
         <section aria-label="Job categories" className={cn("space-y-4", className)}>
             {/* Welcome banner — flat token fill */}
@@ -930,6 +949,14 @@ export function CategoryHubGrid({
                         <p className="text-xs text-muted-foreground">
                             {greetingSubtitle}
                         </p>
+                        {dailyApplyTip ? (
+                            <p
+                                className="pt-1 text-xs text-muted-foreground"
+                                data-testid="hub-daily-apply-tip"
+                            >
+                                {dailyApplyTip}
+                            </p>
+                        ) : null}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -953,6 +980,7 @@ export function CategoryHubGrid({
                         <Button
                             type="button"
                             size="sm"
+                            data-testid="hub-browse-all-matches"
                             onClick={() => {
                                 const allItem = DEFAULT_CATEGORY_HUBS.find((c) => c.id === "all");
                                 if (allItem) handleCategoryClick(allItem);
@@ -976,6 +1004,7 @@ export function CategoryHubGrid({
                             key={category.id}
                             role="button"
                             tabIndex={0}
+                            data-testid={`hub-pack-card-${category.id}`}
                             onClick={() => handleCategoryClick(category)}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {
@@ -994,9 +1023,18 @@ export function CategoryHubGrid({
                                 <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-foreground">
                                     <Icon size={16} />
                                 </div>
-                                <span className="mono-data rounded-pill bg-muted text-muted-foreground px-2 py-0.5 text-xs font-semibold">
-                                    {category.countLabel}
-                                </span>
+                                {(() => {
+                                    const label = resolveCountLabel(category);
+                                    if (!label) return null;
+                                    return (
+                                        <span
+                                            className="mono-data rounded-pill bg-muted text-muted-foreground px-2 py-0.5 text-xs font-semibold"
+                                            data-testid={`hub-pack-count-${category.id}`}
+                                        >
+                                            {label}
+                                        </span>
+                                    );
+                                })()}
                             </div>
                             <h3 className="text-xs font-semibold leading-snug text-foreground">
                                 {category.label}
@@ -1025,9 +1063,11 @@ export function CategoryHubGrid({
                                             <DialogTitle className="text-base font-semibold text-foreground">
                                                 {modalCategory.label}
                                             </DialogTitle>
-                                            <span className="mono-data rounded-pill bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-                                                {modalCategory.countLabel}
-                                            </span>
+                                            {resolveCountLabel(modalCategory) ? (
+                                                <span className="mono-data rounded-pill bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                                                    {resolveCountLabel(modalCategory)}
+                                                </span>
+                                            ) : null}
                                         </div>
                                         <DialogDescription className="text-xs text-muted-foreground">
                                             {modalCategory.subtitle}

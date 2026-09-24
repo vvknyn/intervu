@@ -30,12 +30,15 @@ export function resolveJobsResumeOnFile(input: {
     return input.signedIn ? input.resumeKnownOnServer : false;
 }
 
-/** For-you ⇄ Search toggle — never for a confirmed signed-out session. */
-export function shouldShowJobsHomeViewToggle(input: {
+/**
+ * For-you ⇄ Search peer pill — retired. Packs ARE the home for résumé users;
+ * Search stays reachable via QuietSearchLink / `view=search`, not a twin tab.
+ * Kept as a pure gate so call sites and unit tests share one verdict (always off).
+ */
+export function shouldShowJobsHomeViewToggle(_input: {
     signedOut: boolean;
     resumeOnFile: boolean | null;
     showJobsHomePending: boolean;
 }): boolean {
-    if (input.signedOut) return false;
-    return input.resumeOnFile === true || input.showJobsHomePending;
+    return false;
 }

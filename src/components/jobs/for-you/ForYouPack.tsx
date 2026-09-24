@@ -50,7 +50,12 @@ const STATED_CHIP_CLASS = cn(chipVariants({ active: false }), "h-7 px-2.5 text-x
  * treatment (brand blade + tinted fill) so a computed inference is visually
  * distinct from an employer-stated fact, not just a different text color.
  */
-const DERIVED_CHIP_CLASS = cn(chipVariants({ active: true }), "h-7 px-2.5 text-xs");
+const DERIVED_CHIP_CLASS = cn(
+    chipVariants({ active: true }),
+    // Long inferred titles (e.g. "Technical Account Manager | …") must stay
+    // inside the FIT column — override chip `shrink-0` / `whitespace-nowrap`.
+    "h-auto min-h-7 max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 py-1 text-xs",
+);
 
 /**
  * The card's headline fit label — Strong / Good / Stretch, brand tone for
@@ -247,9 +252,9 @@ export function ForYouPack({
                                     </ul>
                                 )}
                                 {reasons.chips.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-2">
+                                    <div className="mt-2 flex min-w-0 flex-wrap gap-2">
                                         {reasons.chips.map((chip) => (
-                                            <span key={chip} className={DERIVED_CHIP_CLASS}>
+                                            <span key={chip} className={DERIVED_CHIP_CLASS} title={chip}>
                                                 {chip}
                                             </span>
                                         ))}

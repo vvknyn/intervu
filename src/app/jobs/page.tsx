@@ -48,6 +48,12 @@ import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { recordJobViewAction } from "@/actions/views";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
+import {
+    DEFAULT_DAILY_APPLY_GOAL,
+    DAILY_APPLY_HUB_TIP,
+    countAppliedToday,
+    formatAppliedTodayChrome,
+} from "@/lib/pursuits/daily-apply-plan";
 import { useViewed } from "@/lib/views/use-viewed";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
 import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
@@ -215,7 +221,6 @@ import {
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
 import { peekPendingActionKind } from "@/lib/jobs/pending-actions";
 import {
-    jobsTabHelperCopy,
     POST_SIGNUP_RESUME_GATE_TITLE,
     RANK_SECONDARY_COPY,
     RESUME_UPLOAD_PROMISE,
@@ -246,8 +251,14 @@ import {
     writeLastJobsHomeView,
 } from "@/lib/jobs/for-you/last-home-view";
 import { ForYouHome, ForYouHomePending } from "@/components/jobs/for-you/ForYouHome";
-import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
+import { QuietSearchLink } from "@/components/jobs/for-you/QuietSearchLink";
+import { PacksHomeIntroModal } from "@/components/jobs/for-you/PacksHomeIntroModal";
+import {
+    readPacksHomeIntroDismissed,
+    writePacksHomeIntroDismissed,
+} from "@/lib/jobs/for-you/packs-home-intro";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
+import { formatHubCountLabel, resolveAllMatchesHubCount } from "@/lib/jobs/for-you/hub-counts";
 import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
@@ -645,8 +656,10 @@ function DeadJobUnresolved({
 
 /* ----------------------------- page ----------------------------- */
 
-/** Page size for the results list + each infinite-scroll fetch. */
+/** Page size for SERP results + each infinite-scroll / Show more chunk. */
 const PAGE = 20;
+/** Deeper first page for For-you / pack-open deck fetches (Strong→Good→Stretch). */
+const FOR_YOU_PAGE = 60;
 /** Meili `pagination.maxTotalHits` — the deepest reachable result in page mode. */
 const MAX_REACHABLE = 100_000;
 
@@ -1620,7 +1633,7 @@ function JobsContent() {
     }, [firstSearchSettled]);
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
-    const { byJobId: pursuitsByJobId } = usePursuits();
+    const { byJobId: pursuitsByJobId, pursuits } = usePursuits();
     const { viewedIds, markViewed } = useViewed();
     const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
     const guestPursuitSyncRef = useRef(false);
@@ -1684,6 +1697,19 @@ function JobsContent() {
     // First-time unregistered visitor onboarding & landing state
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
     const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+    // Packs home stays CategoryHubGrid until the user opens a pack.
+    // Selecting a pack sets forYouPackDeckOpen and mounts ForYouHome postcard
+    // (1 of N), not CategoryHubGrid's internal modal.
+    const [forYouPackDeckOpen, setForYouPackDeckOpen] = useState(false);
+    const [hubSelectedCategoryId, setHubSelectedCategoryId] = useState<string | undefined>(undefined);
+    /** Live hub “all” counts from a quiet fit probe — never mock numbers. */
+    const [hubFitProbe, setHubFitProbe] = useState<{
+        loading: boolean;
+        total: number | null;
+        scores: MatchScore[];
+    }>({ loading: false, total: null, scores: [] });
+    const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
+    forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
     useEffect(() => {
         try {
@@ -1692,6 +1718,17 @@ function JobsContent() {
             /* private mode */
         }
     }, []);
+
+    // Packs-home intro — start dismissed to avoid SSR/hydration flash; reveal
+    // once localStorage says this user has not seen it.
+    const [packsIntroDismissed, setPacksIntroDismissed] = useState(true);
+    useEffect(() => {
+        setPacksIntroDismissed(readPacksHomeIntroDismissed());
+    }, []);
+    const dismissPacksIntro = () => {
+        writePacksHomeIntroDismissed();
+        setPacksIntroDismissed(true);
+    };
 
     const handleOnboardingComplete = (data: {
         resume: ResumeData | null;
@@ -1707,6 +1744,21 @@ function JobsContent() {
             const updatedAt = new Date().toISOString();
             setResumeUpdatedAt(updatedAt);
             setResumeSourceLabel("Onboarding upload");
+            // Post–Step 3: 8-pack CategoryHubGrid (for-you), not postcard deck/SERP.
+            setShowAdvancedSearch(false);
+            setForYouPackDeckOpen(false);
+            setHubSelectedCategoryId(undefined);
+            setFitActive(false);
+            setSortOverride(null);
+            setFacets({});
+            setQueryDraft("");
+            setQuery("");
+            setHomeView("for-you");
+            writeLastJobsHomeView("for-you");
+            applyUrlState(
+                buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null }),
+                "replace",
+            );
             if (user) {
                 void saveResumeData(data.resume, "pdf", 1)
                     .then(() => captureEvent("resume_uploaded", {}))
@@ -1909,16 +1961,14 @@ function JobsContent() {
     const showForYouHome = resolvedHomeView === "for-you";
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
-    // For-you ⇄ Search toggle: shown whenever there's a For-you home to switch
-    // out of (a resume on file) or while that resolution is still pending —
-    // one value, one mount point, rendered identically across all three states.
+    // Peer pill retired (shouldShowJobsHomeViewToggle always false). Quiet
+    // Search link docks in the same topbar slot when packs home is active.
     const showHomeViewToggle = shouldShowJobsHomeViewToggle({
         signedOut,
         resumeOnFile,
         showJobsHomePending,
     });
-    const jobsTabHelper = jobsTabHelperCopy(resumeOnFile);
-    const homeViewToggleValue: JobsHomeView = resolvedHomeView === "search" ? "search" : "for-you";
+    const showQuietSearchEntry = showForYouHome && resumeOnFile === true;
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -2087,7 +2137,7 @@ function JobsContent() {
     // or filters to dock there). Tying the toggle to `headerDockActive`
     // anyway made it jump between an inline position (in-page) and a docked
     // one (header band) depending on which of those states it was in.
-    const homeViewDockActive = isLgUp && showHomeViewToggle;
+    const homeViewDockActive = isLgUp && showQuietSearchEntry;
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
@@ -2162,13 +2212,17 @@ function JobsContent() {
                 // (actions/jobs.ts) for the cost-guard rationale. Every
                 // other state (a real query, fit-active, or zero-query WITH
                 // filters) is unchanged.
+                // Pack / For-you deck: deeper first page. SERP keeps PAGE.
+                const deepForYou =
+                    forYouPackDeckOpenRef.current || fitActiveRef.current;
+                const firstPageLimit = deepForYou ? FOR_YOU_PAGE : PAGE;
                 const r =
                     emptySearchState === "overlay-ask"
                         ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
                         : await searchJobsAction({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                               withFacets: true,
-                              limit: PAGE,
+                              limit: firstPageLimit,
                               offset: 0,
                           });
                 if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
@@ -2720,6 +2774,81 @@ function JobsContent() {
     );
     const forYouDeck = useForYouDeck(forYouPacks);
 
+    // Quiet fit probe for hub “All your matches” live counts — does not apply
+    // fit to the URL or displace CategoryHubGrid. Omit numbers when no data.
+    useEffect(() => {
+        if (!showForYouHome || forYouPackDeckOpen || !hasUsableResume || !resume) {
+            return;
+        }
+        let cancelled = false;
+        setHubFitProbe((prev) => ({ ...prev, loading: true }));
+        void (async () => {
+            try {
+                const { q, facets: derived } = buildMatchQuery(resume);
+                const derivedWithLocation = {
+                    ...derived,
+                    ...deriveResumeLocationFacets(resume.profile?.location),
+                };
+                const merged = mergeFacets({}, derivedWithLocation);
+                const r = await searchJobsAction({
+                    q,
+                    hideGhosts: true,
+                    postedBucket: "30d",
+                    limit: FOR_YOU_PAGE,
+                    offset: 0,
+                    withFacets: true,
+                    ...(Object.keys(merged).length ? { facets: merged } : {}),
+                });
+                if (cancelled) return;
+                if (isUnavailableJobsResult(r)) {
+                    setHubFitProbe({ loading: false, total: null, scores: [] });
+                    return;
+                }
+                const scores: MatchScore[] = [];
+                for (const h of r.hits) {
+                    const s = scoreJobAgainstResume(resume, h);
+                    if (s) scores.push(s);
+                }
+                setHubFitProbe({ loading: false, total: r.total, scores });
+            } catch {
+                if (!cancelled) setHubFitProbe({ loading: false, total: null, scores: [] });
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [showForYouHome, forYouPackDeckOpen, hasUsableResume, resume]);
+
+    const hubCountLabels = useMemo(() => {
+        const labels: Partial<Record<string, string>> = {};
+        // Prefer live deck/fit scores when the pack deck just loaded; else probe.
+        const deckScores =
+            fitActive && matchScores
+                ? [...matchScores.values()]
+                : hubFitProbe.scores.length > 0
+                  ? hubFitProbe.scores
+                  : null;
+        const total =
+            fitActive && result?.total != null
+                ? result.total
+                : hubFitProbe.total;
+        const source = resolveAllMatchesHubCount({
+            loading: hubFitProbe.loading && !deckScores,
+            total,
+            scores: deckScores,
+        });
+        const allLabel = formatHubCountLabel(source);
+        if (allLabel) labels.all = allLabel;
+        return labels;
+    }, [fitActive, matchScores, result?.total, hubFitProbe]);
+
+    const appliedToday = useMemo(() => countAppliedToday(pursuits, nowMs), [pursuits, nowMs]);
+    const appliedTodayChrome = useMemo(
+        () => formatAppliedTodayChrome(appliedToday, DEFAULT_DAILY_APPLY_GOAL),
+        [appliedToday],
+    );
+
+
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
     // after clustering, positions no longer line up 1:1. Every member of one
     // cluster shares the same title, so — since results already arrive
@@ -3181,7 +3310,7 @@ function JobsContent() {
         const cur = result;
         if (!cur || !cur.configured) return;
         if (cur.hits.length >= cur.total || cur.hits.length >= MAX_REACHABLE) return;
-        const ticket = paginationRef.current!.beginLoadMore(PAGE);
+        const ticket = paginationRef.current!.beginLoadMore(PAGE, cur.hits.length);
         if (!ticket) return; // first page active or another load-more owns the generation
         setLoadingMore(true);
         try {
@@ -3994,7 +4123,7 @@ function JobsContent() {
     // `resumeIsUsable`'s bar exactly.
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
-        if (!user) {
+        const readLocalFallback = (): ResumeData | null => {
             if (!localAiGuestEnabled) return null;
             const stored = readLocalAiResume();
             if (stored && resumeIsUsable(stored.data)) {
@@ -4004,14 +4133,23 @@ function JobsContent() {
                 return stored.data;
             }
             return null;
+        };
+        if (!user) {
+            return readLocalFallback();
         }
-        const { data, updatedAt } = await fetchResumeData();
-        if (data && resumeIsUsable(data)) {
-            setResume(data);
-            setResumeUpdatedAt(updatedAt ?? null);
-            return data;
+        try {
+            const { data, updatedAt } = await fetchResumeData();
+            if (data && resumeIsUsable(data)) {
+                setResume(data);
+                setResumeUpdatedAt(updatedAt ?? null);
+                return data;
+            }
+        } catch {
+            // e2e mock / offline — fall through to on-device seed
         }
-        return null;
+        // Cloud empty (e2e mock / fresh account): still use on-device local-AI seed
+        // so pack-open → postcard can apply fit and leave the loading gate.
+        return readLocalFallback();
     };
 
     // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
@@ -4065,20 +4203,41 @@ function JobsContent() {
         }
     };
 
-    useEffect(() => {
-        if (resolvedHomeView !== "for-you" || resumeOnFile !== true || fitActive || fitResolving) return;
-        void resolveAndApplyFit();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [resolvedHomeView, resumeOnFile, fitActive, fitResolving]);
-
+    // Do NOT auto-apply fit on for-you entry. Packs home is CategoryHubGrid
+    // (default whenever for-you + !advanced search + !explicit pack deck).
+    // applyFit writes q=/sort=fit; that must not displace the hub. Fit ranking
+    // stays user-initiated (Rank by fit / Best match) or inside an opened pack.
     const setJobsHomeView = (view: JobsHomeView) => {
         setHomeView(view);
         writeLastJobsHomeView(view);
         applyUrlState(buildUrlState({ homeView: view }), "replace");
     };
 
-    const homeViewToggleEl = showHomeViewToggle ? (
-        <ForYouToggle value={homeViewToggleValue} onChange={setJobsHomeView} />
+    /** Land on the 8-pack CategoryHubGrid (for-you; clears search intent + pack deck). */
+    const returnToJobPacksHub = () => {
+        setShowAdvancedSearch(false);
+        setForYouPackDeckOpen(false);
+        setHubSelectedCategoryId(undefined);
+        setFitActive(false);
+        setSortOverride(null);
+        setFacets({});
+        setQueryDraft("");
+        setQuery("");
+        setHomeView("for-you");
+        writeLastJobsHomeView("for-you");
+        applyUrlState(
+            buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null, jobId: null }),
+            "replace",
+        );
+    };
+
+    // Packs-home: no For you ⇄ Search peer pill. Quiet text link reaches Search.
+    const openQuietSearch = () => {
+        setShowAdvancedSearch(true);
+        setJobsHomeView("search");
+    };
+    const quietSearchLinkEl = showQuietSearchEntry ? (
+        <QuietSearchLink onClick={openQuietSearch} />
     ) : null;
 
     useEffect(() => {
@@ -4282,6 +4441,21 @@ function JobsContent() {
         setResumeUpdatedAt(updatedAt);
         setResumeSourceLabel(sourceLabel);
         setImportOpen(false);
+        // Packs hub after a résumé lands — CategoryHubGrid, not postcard deck/SERP.
+        setShowAdvancedSearch(false);
+        setForYouPackDeckOpen(false);
+        setHubSelectedCategoryId(undefined);
+        setFitActive(false);
+        setSortOverride(null);
+        setFacets({});
+        setQueryDraft("");
+        setQuery("");
+        setHomeView("for-you");
+        writeLastJobsHomeView("for-you");
+        applyUrlState(
+            buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null }),
+            "replace",
+        );
         if (user) {
             void saveResumeData(data, source, confidence)
                 .then(() =>
@@ -5145,21 +5319,19 @@ function JobsContent() {
                     rest, requirement 1a). Once a search runs, this unmounts
                     in favor of the sr-only heading so the page still carries
                     exactly one h1. */}
-                {atRest && showSearchHome ? (
-                    showAdvancedSearch && !showLandingOnboarding ? (
+                {showSearchHome && showAdvancedSearch && !showLandingOnboarding ? (
                         <div className="pb-1.5">
                             <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setShowAdvancedSearch(false);
-                                        setJobsHomeView("for-you");
-                                    }}
+                                    onClick={() => returnToJobPacksHub()}
                                     className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
+                                    data-testid="jobs-back-to-packs"
                                 >
                                     ← Back to Job Packs
                                 </button>
                             </div>
+                            {atRest ? (
                             <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
                                 <p className="mb-0.5 text-xs font-semibold text-brand">
                                     Live from employer career pages
@@ -5169,9 +5341,11 @@ function JobsContent() {
                                 </h1>
                                 <p className="sr-only">{JOBS_USP.searchDescription}</p>
                             </div>
+                            ) : (
+                                <h1 className="sr-only">Jobs</h1>
+                            )}
                         </div>
-                    ) : null
-                ) : (
+                ) : atRest && showSearchHome ? null : (
                     <h1 className="sr-only">Jobs</h1>
                 )}
                 <a
@@ -5181,21 +5355,13 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                {!homeViewDockActive && showHomeViewToggle && (
-                    <div className={cn("mb-3 pt-3 sm:pt-4", cappedContentClass)}>
-                        {homeViewToggleEl}
-                        {jobsTabHelper && (
-                            <p className="mt-1.5 text-xs text-muted-foreground">{jobsTabHelper}</p>
-                        )}
+                {!homeViewDockActive && quietSearchLinkEl && (
+                    <div className={cn("mb-2 flex justify-end pt-2 sm:pt-3", cappedContentClass)}>
+                        {quietSearchLinkEl}
                     </div>
                 )}
-                {homeViewDockActive && dockedHomeViewMount && homeViewToggleEl &&
-                    createPortal(homeViewToggleEl, dockedHomeViewMount)}
-                {homeViewDockActive && showHomeViewToggle && jobsTabHelper && (
-                    <div className={cn("mb-3", cappedContentClass)}>
-                        <p className="mt-1.5 text-xs text-muted-foreground">{jobsTabHelper}</p>
-                    </div>
-                )}
+                {homeViewDockActive && dockedHomeViewMount && quietSearchLinkEl &&
+                    createPortal(quietSearchLinkEl, dockedHomeViewMount)}
 
                 {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
@@ -5704,12 +5870,40 @@ function JobsContent() {
 
                 {showForYouHome ? (
                     <div className={cn("mt-4", cappedContentClass)}>
-                        {atRest && !showAdvancedSearch ? (
+                        {/* Packs home = CategoryHubGrid by default. Do NOT gate on atRest —
+                            fit/query must not swap the 8-pack hub for the postcard deck.
+                            Leave hub for Advanced search (view=search) or when a pack is
+                            opened into ForYouHome (forYouPackDeckOpen). Pack tap / Browse
+                            all matches set forYouPackDeckOpen — not the hub modal. */}
+                        {forYouPackDeckOpen && (
+                            <div className="mb-2 flex items-center justify-between">
+                                <button
+                                    type="button"
+                                    onClick={() => returnToJobPacksHub()}
+                                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
+                                    data-testid="jobs-back-to-packs"
+                                >
+                                    ← Back to Job Packs
+                                </button>
+                            </div>
+                        )}
+                        {!showAdvancedSearch && !forYouPackDeckOpen ? (
                             <CategoryHubGrid
                                 userName={user?.displayName}
                                 isAuthenticated={true}
                                 hasResume={hasUsableResume}
                                 resume={resume}
+                                activeCategoryId={hubSelectedCategoryId}
+                                hubCountLabels={hubCountLabels}
+                                dailyApplyTip={DAILY_APPLY_HUB_TIP}
+                                onSelectCategory={(category) => {
+                                    setHubSelectedCategoryId(category.id);
+                                    setForYouPackDeckOpen(true);
+                                    forYouDeck.setActiveIndex(0);
+                                    // Postcard needs fitActive (ForYouHome gates on it).
+                                    // Safe here: hub already left via forYouPackDeckOpen.
+                                    void resolveAndApplyFit();
+                                }}
                                 onUpdateResume={(updatedResume) => {
                                     setResume(updatedResume);
                                     const updatedAt = new Date().toISOString();
@@ -5747,6 +5941,11 @@ function JobsContent() {
                                 showSearchCta={resumeOnFile === true}
                                 onReplaceResume={beginResumeUpload}
                                 hasUsableResume={hasUsableResume}
+                                onLoadMore={() => void loadMore()}
+                                loadingMore={loadingMore}
+                                hasMore={hasMore}
+                                resultTotal={result?.total ?? null}
+                                appliedTodayChrome={appliedTodayChrome}
                             />
                         )}
                     </div>
@@ -6546,6 +6745,19 @@ function JobsContent() {
                 }
                 reason={authGateReason ?? undefined}
             />
+            <PacksHomeIntroModal
+                open={
+                    !packsIntroDismissed &&
+                    resumeOnFile === true &&
+                    showForYouHome
+                }
+                onGotIt={dismissPacksIntro}
+                onAddOrReplaceResume={() => {
+                    dismissPacksIntro();
+                    beginResumeUpload();
+                }}
+            />
+
             <ResumeImportModal
                 isOpen={importOpen}
                 onClose={() => setImportOpen(false)}

@@ -20,6 +20,10 @@ import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
 import { countAppliedSince, matchesTrackerSearch } from "@/lib/pursuits/tracker-display";
+import {
+    DEFAULT_DAILY_APPLY_GOAL,
+    countAppliedToday,
+} from "@/lib/pursuits/daily-apply-plan";
 import { TrackerKanbanBoard } from "@/components/tracker/TrackerKanbanBoard";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
@@ -55,14 +59,25 @@ function YoursLoading() {
 
 import { BookmarkSimple, MagnifyingGlass } from "@phosphor-icons/react";
 
-/** "N applied this week" — the one still-live count StatusChips used to
- *  carry; lane counts themselves now live solely in each lane's own head
- *  (`TrackerKanbanBoard`), so this is the only thing left to surface here. */
-function AppliedThisWeekBadge({ count }: { count: number }) {
-    if (count < 1) return null;
+/** Applied-this-week + soft daily plan (Today X/12) — quiet Tracker chrome. */
+function AppliedThisWeekBadge({
+    count,
+    appliedToday,
+    dailyGoal = DEFAULT_DAILY_APPLY_GOAL,
+}: {
+    count: number;
+    appliedToday: number;
+    dailyGoal?: number;
+}) {
+    if (count < 1 && appliedToday < 1) return null;
     return (
-        <span className="text-xs font-semibold text-brand">
-            {count} applied this week
+        <span className="text-xs font-semibold text-brand" data-testid="yours-apply-pace">
+            {appliedToday > 0 || count > 0 ? (
+                <>
+                    Today {appliedToday}/{dailyGoal}
+                    {count > 0 ? <> · {count} this week</> : null}
+                </>
+            ) : null}
         </span>
     );
 }
@@ -177,6 +192,7 @@ function YoursContent() {
 
     const selected = pursuits.find((p) => p.id === selectedId) ?? null;
     const appliedThisWeek = useMemo(() => countAppliedSince(pursuits, Date.now() - 7 * 86_400_000), [pursuits]);
+    const appliedToday = useMemo(() => countAppliedToday(pursuits), [pursuits]);
 
     const mutate = async (id: string, patch: Partial<Pursuit>) => {
         setSaving(true);
@@ -307,7 +323,7 @@ function YoursContent() {
                             className="h-11 rounded-ctl border-border bg-card pl-9 text-base"
                         />
                     </div>
-                    <AppliedThisWeekBadge count={appliedThisWeek} />
+                    <AppliedThisWeekBadge count={appliedThisWeek} appliedToday={appliedToday} />
                 </div>
 
                 {filtered.length === 0 ? (

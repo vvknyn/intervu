@@ -23,6 +23,18 @@ describe('JobsPaginationGeneration', () => {
         });
     });
 
+    it('offset override supports deeper first-page limits', () => {
+        const guard = new JobsPaginationGeneration();
+        const gen = guard.beginFirstPage();
+        assert.equal(guard.finishFirstPage(gen, true), true);
+        const ticket = guard.beginLoadMore(20, 60);
+        assert.deepEqual(ticket, {
+            generation: gen,
+            page: 1,
+            offset: 60,
+        });
+    });
+
     it('rejects an old A load-more response after A to B to A', () => {
         const guard = new JobsPaginationGeneration();
 

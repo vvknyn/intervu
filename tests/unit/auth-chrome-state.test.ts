@@ -83,14 +83,14 @@ test("For-you toggle never renders for a confirmed signed-out session", () => {
     );
 });
 
-test("For-you toggle still renders while auth is pending for a returning user", () => {
+test("For-you toggle stays off even while auth is pending (packs-home, no peer pill)", () => {
     assert.equal(
         shouldShowJobsHomeViewToggle({
             signedOut: false,
             resumeOnFile: null,
             showJobsHomePending: true,
         }),
-        true,
+        false,
     );
 });
 
