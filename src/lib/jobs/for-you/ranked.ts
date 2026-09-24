@@ -9,9 +9,9 @@
  * plus résumé-derived location facets (`applyFit`, ~page.tsx:4082) → one
  * search call → fit attached per hit → sorted by `match.total` descending
  * (`matchScores`/`renderedClusters`, ~page.tsx:2782-2828) → reordered by
- * `partitionByTargetTitle` so cards matching the query's own target
- * title(s) lead. A future web caller could adopt this module directly
- * instead of re-deriving the same steps a second time.
+ * `orderForYouJobsByBand` (Strong → Good → Stretch, unscored last) with
+ * target-title relevance inside each band. A future web caller could adopt
+ * this module directly instead of re-deriving the same steps a second time.
  *
  * Scoring/reasons pairing goes through the ONE fit chokepoint (`fitFor`,
  * ./fit.ts) — this module never calls `scoreJobAgainstResume` or
@@ -19,8 +19,9 @@
  */
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
 import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
+import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { fitFor } from "@/lib/jobs/for-you/fit";
-import { partitionByTargetTitle, targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
+import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { decodeText } from "@/lib/jobs/presentation";
 import type { JobSearchParams, JobSearchResult, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import type { MatchScore } from "@/lib/match/score";
@@ -97,8 +98,12 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     // Stable sort, unscored jobs last (Array.prototype.sort is stable per spec).
     scored.sort((a, b) => (b.match?.total ?? -1) - (a.match?.total ?? -1));
 
-    const orderedJobs = partitionByTargetTitle(scored.map((s) => s.job), queryUsed);
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
+    const orderedJobs = orderForYouJobsByBand(
+        scored.map((s) => s.job),
+        (job) => byId.get(job.id)?.match ?? null,
+        queryUsed,
+    );
     const targets = targetTitlesFromQuery(queryUsed);
 
     const hits: RankedHit[] = orderedJobs.map((job) => {

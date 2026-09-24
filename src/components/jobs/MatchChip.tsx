@@ -17,6 +17,7 @@ import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
 import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
 import { captureEvent } from "@/lib/analytics/events";
+import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 
 /** The receipt's one static disclosure row — salary is not a scored
  *  component (location is, when the résumé has a place). Honesty statement
@@ -65,7 +66,12 @@ export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps)
             side="bottom"
             content={<MatchReceipt score={score} asOfDate={asOfDate} label={label} />}
             onOpenChange={(open) => {
-                if (open && jobId) captureEvent("job_match_expanded", { job_id: jobId });
+                if (open && jobId) {
+                    captureEvent("job_match_expanded", {
+                        job_id: jobId,
+                        ...matchAnalyticsProps(score),
+                    });
+                }
             }}
         >
             <span

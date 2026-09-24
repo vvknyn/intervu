@@ -73,7 +73,7 @@ export interface EventPayloads {
   } & Partial<MatchQualityAnalyticsProps>;
   job_saved: {
     job_id: string;
-  };
+  } & Partial<MatchQualityAnalyticsProps>;
   company_followed: {
     company_domain: string;
   };
@@ -96,14 +96,14 @@ export interface EventPayloads {
   };
   job_marked_applied: {
     job_id: string;
-  };
+  } & Partial<MatchQualityAnalyticsProps>;
   job_shared: {
     job_id: string;
     method: "native" | "clipboard";
   };
   job_match_expanded: {
     job_id: string;
-  };
+  } & Partial<MatchQualityAnalyticsProps>;
 
   company_viewed: {
     company_domain: string;

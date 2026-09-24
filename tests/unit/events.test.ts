@@ -247,6 +247,66 @@ test("captureEvent sends apply_clicked with optional match-quality fields", (t) 
   });
 });
 
+test("captureEvent sends job_marked_applied with optional match-quality fields", (t) => {
+  withReadyPostHog(t, (capture) => {
+    captureEvent("job_marked_applied", {
+      job_id: "job-1",
+      match_label: "Strong",
+      match_score: 84,
+      match_band: "strong",
+    });
+    assert.deepEqual(capture.mock.calls[0].arguments, [
+      "job_marked_applied",
+      {
+        job_id: "job-1",
+        match_label: "Strong",
+        match_score: 84,
+        match_band: "strong",
+      },
+    ]);
+  });
+});
+
+test("captureEvent sends job_match_expanded with the chip's match-quality fields", (t) => {
+  withReadyPostHog(t, (capture) => {
+    captureEvent("job_match_expanded", {
+      job_id: "job-1",
+      match_label: "Stretch",
+      match_score: 41,
+      match_band: "stretch",
+    });
+    assert.deepEqual(capture.mock.calls[0].arguments, [
+      "job_match_expanded",
+      {
+        job_id: "job-1",
+        match_label: "Stretch",
+        match_score: 41,
+        match_band: "stretch",
+      },
+    ]);
+  });
+});
+
+test("captureEvent sends job_saved with optional match-quality fields", (t) => {
+  withReadyPostHog(t, (capture) => {
+    captureEvent("job_saved", {
+      job_id: "job-1",
+      match_label: "Good",
+      match_score: 68,
+      match_band: "good",
+    });
+    assert.deepEqual(capture.mock.calls[0].arguments, [
+      "job_saved",
+      {
+        job_id: "job-1",
+        match_label: "Good",
+        match_score: 68,
+        match_band: "good",
+      },
+    ]);
+  });
+});
+
 // job_shared is the one event whose ANALYTICS_EVENTS wire name diverges
 // from its own key ("share_initiated", not "job_shared") — see events.ts's
 // doc comment. This proves captureEvent sends the WIRE name, not the key,
