@@ -27,9 +27,38 @@ declare global {
     }
 }
 
+const SIGNED_OUT_MARKER = "velai.auth.signedOut";
+
 function e2eMockUser(): ServerUser | null {
     if (process.env.NODE_ENV === "production" || typeof window === "undefined") return null;
     return window.__INTERVU_E2E_AUTH__ ?? null;
+}
+
+function isSignedOutMarkerSet(): boolean {
+    if (typeof window === "undefined") return false;
+    try {
+        return sessionStorage.getItem(SIGNED_OUT_MARKER) === "1";
+    } catch {
+        return false;
+    }
+}
+
+function setSignedOutMarker(): void {
+    if (typeof window === "undefined") return;
+    try {
+        sessionStorage.setItem(SIGNED_OUT_MARKER, "1");
+    } catch {
+        /* private mode */
+    }
+}
+
+function clearSignedOutMarker(): void {
+    if (typeof window === "undefined") return;
+    try {
+        sessionStorage.removeItem(SIGNED_OUT_MARKER);
+    } catch {
+        /* private mode */
+    }
 }
 
 type SessionFetchResult =
@@ -101,6 +130,9 @@ function commitSessionUser(requestEpoch: number, user: ServerUser | null): void 
     if (applyingSignOut && user) return;
     resolvedEpoch = requestEpoch;
     resolvedUser = user;
+    if (user) {
+        clearSignedOutMarker();
+    }
     notifyAuthListeners(user);
 }
 
@@ -161,7 +193,17 @@ function registerPageshowRevalidation(): void {
     pageshowRegistered = true;
     window.addEventListener("pageshow", (event) => {
         if (!event.persisted) return;
-        resolvedEpoch = null;
+        if (isSignedOutMarkerSet()) {
+            // Drop the frozen epoch so an in-flight session GET from before
+            // sign-out cannot commit the old account and clear the marker.
+            sessionEpoch += 1;
+            abortInflightSessionFetch();
+            resolvedEpoch = null;
+            resolvedUser = null;
+            notifyAuthListeners(null);
+        } else {
+            resolvedEpoch = null;
+        }
         refreshSession();
     });
 }
@@ -188,7 +230,10 @@ export function onAuthChange(callback: (user: ServerUser | null) => void): () =>
     // Replay a confirmed account immediately so a returning user does not see
     // a Sign-in flash. A cached null is NOT replayed — that was the ghost
     // chrome path (stale "signed out" is fine; stale "signed in" is not).
-    if (resolvedEpoch === sessionEpoch && resolvedUser) {
+    // After sign-out, bfcache must not replay the previous account either.
+    if (isSignedOutMarkerSet()) {
+        callback(null);
+    } else if (resolvedEpoch === sessionEpoch && resolvedUser) {
         callback(resolvedUser);
     }
 
@@ -203,13 +248,12 @@ export function onAuthChange(callback: (user: ServerUser | null) => void): () =>
     };
 }
 
-async function postSignOut(): Promise<void> {
-    await fetch("/auth/signout", {
-        method: "POST",
-        redirect: "manual",
-        cache: "no-store",
-        credentials: "same-origin",
-    }).catch(() => {});
+function submitSignOutForm(): void {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/auth/signout";
+    document.body.appendChild(form);
+    form.submit();
 }
 
 /**
@@ -217,43 +261,26 @@ async function postSignOut(): Promise<void> {
  * through (`/auth/signout`, backed by WorkOS AuthKit's own `signOut`) —
  * unconditionally, since the route is harmless with no session and asking
  * first would mean trusting the same client-side view that might be wrong.
+ *
+ * Navigation is a document POST so Set-Cookie deletions apply and the 303
+ * to WorkOS logout revokes the refresh token. Callers must not redirect after.
  */
 export async function signOut() {
     applyingSignOut = true;
-    try {
-        // Bump before the POST so an in-flight session GET cannot commit the
-        // account it already saw, and abort it so its refreshed Set-Cookie
-        // does not land after the cookie delete.
-        sessionEpoch += 1;
-        abortInflightSessionFetch();
-        resolvedEpoch = null;
+    sessionEpoch += 1;
+    abortInflightSessionFetch();
+    resolvedEpoch = null;
 
-        await postSignOut();
+    const signOutEpoch = sessionEpoch;
+    const { clearSessionClientStores } = await import("@/lib/auth/session-client-stores");
+    clearSessionClientStores();
+    commitSessionUser(signOutEpoch, null);
 
-        // A session GET that started during the POST used the pre-seal epoch.
-        // Bump again so that result cannot restore signed-in chrome.
-        sessionEpoch += 1;
-        abortInflightSessionFetch();
-        const signOutEpoch = sessionEpoch;
-
-        const { clearSessionClientStores } = await import("@/lib/auth/session-client-stores");
-        clearSessionClientStores();
-        commitSessionUser(signOutEpoch, null);
-
-        const checked = await fetchServerUser();
-        if (!isCurrentSessionEpoch(signOutEpoch, sessionEpoch)) return;
-        if (checked.status === "ok" && checked.user) {
-            await postSignOut();
-            if (!isCurrentSessionEpoch(signOutEpoch, sessionEpoch)) return;
-            clearSessionClientStores();
-        }
-
-        // Seal. Anything still in flight from the resurrection check is stale,
-        // and listeners stay on null until a later epoch fetches a real session.
-        sessionEpoch += 1;
-        abortInflightSessionFetch();
-        commitSessionUser(sessionEpoch, null);
-    } finally {
+    if (typeof document === "undefined") {
         applyingSignOut = false;
+        return;
     }
+
+    setSignedOutMarker();
+    submitSignOutForm();
 }

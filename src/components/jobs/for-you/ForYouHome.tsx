@@ -282,7 +282,7 @@ export function ForYouHome({
                             onClick={onReplaceResume}
                             className={TEXT_LINK_BUTTON_CLASS}
                         >
-                            Replace
+                            Replace résumé
                         </button>
                     )}
                 </div>

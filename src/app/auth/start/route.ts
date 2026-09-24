@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { buildPostAuthResumeGatePath } from "@/lib/auth/post-auth-destination";
+import { buildPostAuthResumeGatePath, resolveAuthKitReturnTo } from "@/lib/auth/post-auth-destination";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { withAuthProvider } from "@/lib/auth/authkit-url";
 
@@ -7,7 +7,8 @@ import { withAuthProvider } from "@/lib/auth/authkit-url";
  * Hand off to WorkOS AuthKit for the sign-in methods our own form cannot host.
  *
  *   /auth/start?next=/jobs                        → sign-in screen
- *   /auth/start?next=/jobs&mode=signup            → sign-up screen
+ *   /auth/start?next=/jobs&mode=signup            → sign-up screen (bare /jobs
+ *                                                   rewrites to /jobs?resume=gate)
  *   /auth/start?next=/jobs&provider=GoogleOAuth   → straight to that provider
  *
  * Passkeys are the reason this exists. WebAuthn needs challenge issuance,
@@ -33,7 +34,12 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     // Validated, never passed through raw: an unchecked `next` is an open
     // redirect, and this one survives a round trip through an external host.
-    const returnTo = validateNextParam(params.get("next")) ?? buildPostAuthResumeGatePath();
+    const validatedNext = validateNextParam(params.get("next"));
+    const isSignup = params.get("mode") === "signup";
+    const returnTo = isSignup
+        ? (resolveAuthKitReturnTo({ mode: "signup", rawNext: validatedNext }) ??
+              buildPostAuthResumeGatePath())
+        : (validatedNext ?? buildPostAuthResumeGatePath());
 
     const url =
         params.get("mode") === "signup"

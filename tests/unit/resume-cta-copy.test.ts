@@ -8,6 +8,7 @@ import {
     FOR_YOU_UPLOAD_PDF_EMPTY,
     FRONT_DOOR_RESUME_CARD_SUBCOPY,
     JOBS_TAB_HELPER,
+    POST_SIGNUP_RESUME_GATE_TITLE,
     RANK_SECONDARY_COPY,
     RESUME_UPLOAD_PROMISE,
     SIGN_IN_TO_SYNC_LABEL,
@@ -80,6 +81,11 @@ test("resume upload promise matches contract", () => {
         RESUME_UPLOAD_PROMISE,
         "Upload a PDF or Word résumé. We parse it privately, then show what was accepted before scoring jobs.",
     );
+});
+
+test("post-signup résumé gate title matches contract", () => {
+    assert.equal(POST_SIGNUP_RESUME_GATE_TITLE, "Upload your résumé");
+    assert.doesNotMatch(POST_SIGNUP_RESUME_GATE_TITLE, /jungle|rails|packet/i);
 });
 
 test("connectTabLabel switches on résumé presence", () => {

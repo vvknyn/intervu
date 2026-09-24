@@ -85,6 +85,13 @@ export const PLACE_RADIUS_MAX_NEIGHBORS = 40;
 
 export type LocationField = PlaceFilter["field"];
 
+/** Options for city resolution radius expansion. Default (omit or
+ *  `radius: true`) keeps metro neighbors for free-text queries; explicit
+ *  location filters pass `{ radius: false }` for city-strict matching. */
+export interface ResolvePlaceOptions {
+  radius?: boolean;
+}
+
 export interface PlaceCandidate {
   field: LocationField;
   /** Candidate text in gazetteer casing — NOT yet known to exist in the
@@ -365,7 +372,7 @@ function ambiguousCityNames(gazetteer: Gazetteer): Set<string> {
   return names;
 }
 
-function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution | null {
+function resolveCity(normalized: string, gazetteer: Gazetteer, opts?: ResolvePlaceOptions): PlaceResolution | null {
   const matches = gazetteer.citiesByName.get(normalized);
   if (!matches || matches.length === 0) return null;
   // A bare name can be ambiguous worldwide (many "Springfield"s) — the
@@ -397,7 +404,9 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
     seen.add(key);
     candidates.push({ field: "location_city", value });
   }
-  for (const neighbor of radiusNeighbors(primary, gazetteer)) addCity(neighbor);
+  if (opts?.radius !== false) {
+    for (const neighbor of radiusNeighbors(primary, gazetteer)) addCity(neighbor);
+  }
   const country = gazetteer.countriesByIso2.get(primary.countryCode.toUpperCase());
   const ambiguous = ambiguousCityNames(gazetteer);
   const scoped = scopeCityCandidates(
@@ -561,13 +570,18 @@ const PLACE_ALIASES: Readonly<Record<string, PlaceAlias>> = {
  *  running against doesn't actually have the aliased entity (e.g. a small
  *  hand-built test fixture) — same fail-open shape every other resolver
  *  here has. */
-function resolveAlias(alias: PlaceAlias, wordsConsumed: number, gazetteer: Gazetteer): PlaceResolution | null {
+function resolveAlias(
+  alias: PlaceAlias,
+  wordsConsumed: number,
+  gazetteer: Gazetteer,
+  opts?: ResolvePlaceOptions,
+): PlaceResolution | null {
   if (alias.kind === "metro") {
     const candidates: PlaceCandidate[] = [];
     let entity: ResolvedPlaceEntity | undefined;
     let countryScope: PlaceCandidate[] = [];
     for (const name of alias.anchors) {
-      const r = resolveCity(name, gazetteer);
+      const r = resolveCity(name, gazetteer, opts);
       if (!r) continue;
       candidates.push({ field: "location_city", value: r.entity.name });
       if (!entity) {
@@ -577,8 +591,8 @@ function resolveAlias(alias: PlaceAlias, wordsConsumed: number, gazetteer: Gazet
     }
     return entity ? { entity, candidates, countryScope, wordsConsumed } : null;
   }
-  const resolver = alias.kind === "country" ? resolveCountry : resolveCity;
-  const r = resolver(alias.canonical, gazetteer);
+  const r =
+    alias.kind === "country" ? resolveCountry(alias.canonical, gazetteer) : resolveCity(alias.canonical, gazetteer, opts);
   return r ? { ...r, wordsConsumed } : null;
 }
 
@@ -602,6 +616,7 @@ export function resolvePlacePhrase(
   phrase: string,
   gazetteer: Gazetteer,
   guardCommonWords = false,
+  opts?: ResolvePlaceOptions,
 ): PlaceResolution | null {
   const normalized = phrase.trim().toLowerCase();
   // Runs BEFORE the alias lookup so a genuinely ambiguous alias key ("us",
@@ -611,7 +626,7 @@ export function resolvePlacePhrase(
   if (guardCommonWords && !normalized.includes(" ") && GUARD_WORDS.has(normalized)) return null;
 
   const alias = PLACE_ALIASES[normalized];
-  if (alias) return resolveAlias(alias, normalized.split(" ").length, gazetteer);
+  if (alias) return resolveAlias(alias, normalized.split(" ").length, gazetteer, opts);
 
   // Renamed-city redirect (CITY_NAME_VARIANTS) — same priority tier as
   // PLACE_ALIASES and for the same reason: must win outright over the
@@ -626,7 +641,7 @@ export function resolvePlacePhrase(
   // here has.
   const renamedCanonical = CITY_NAME_VARIANTS[normalized];
   if (renamedCanonical) {
-    const r = resolveCity(renamedCanonical, gazetteer);
+    const r = resolveCity(renamedCanonical, gazetteer, opts);
     return r ? { ...r, wordsConsumed: normalized.split(" ").length } : null;
   }
 
@@ -651,7 +666,7 @@ export function resolvePlacePhrase(
       wordsConsumed: normalized.split(" ").length,
     };
   }
-  return resolveCity(normalized, gazetteer);
+  return resolveCity(normalized, gazetteer, opts);
 }
 
 export interface PlaceScan {
@@ -674,7 +689,12 @@ export interface PlaceScan {
  * `guardCommonWords` passes straight through to `resolvePlacePhrase` on
  * every candidate phrase this scan tries (see that function's doc).
  */
-export function scanPlacePhrases(q: string, gazetteer: Gazetteer, guardCommonWords = false): PlaceScan {
+export function scanPlacePhrases(
+  q: string,
+  gazetteer: Gazetteer,
+  guardCommonWords = false,
+  opts?: ResolvePlaceOptions,
+): PlaceScan {
   const tokens = q.split(/[\s,;/\-–—()]+/).filter(Boolean);
   const resolutions: PlaceResolution[] = [];
   const kept: string[] = [];
@@ -682,7 +702,7 @@ export function scanPlacePhrases(q: string, gazetteer: Gazetteer, guardCommonWor
   while (i < tokens.length) {
     let matched: PlaceResolution | null = null;
     for (let len = Math.min(gazetteer.maxGram, tokens.length - i); len >= 1 && !matched; len--) {
-      matched = resolvePlacePhrase(tokens.slice(i, i + len).join(" "), gazetteer, guardCommonWords);
+      matched = resolvePlacePhrase(tokens.slice(i, i + len).join(" "), gazetteer, guardCommonWords, opts);
     }
     if (matched) {
       resolutions.push({ ...matched, startIndex: i });

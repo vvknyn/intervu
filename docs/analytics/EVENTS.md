@@ -65,7 +65,7 @@ nonexistent seam.
 | Event | Payload | Seam (file:line) | Feeds |
 |---|---|---|---|
 | `application_stage_changed` | `{ job_id, from_stage, to_stage }` | `src/app/yours/page.tsx:365` — the tracker row's stage-select `onStatusChange`, guarded on the pursuit having a real `job_id` (a tracked "outside interview" has none). `from_stage` is read before the mutation, `to_stage` after — deliberately not inside the shared `mutate()` helper (also used for note-saves and interview-date patches) since folding it in there would misattribute non-stage-change patches. | stage-funnel conversion (interested → applied → interviewing → ...). |
-| `resume_uploaded` | `{}` | Terminal cloud save — `YourResumeSection.tsx` and signed-in `jobs/page.tsx` `handleImport`. | base-résumé upload volume. |
+| `resume_uploaded` | `{ surface?: string }` — optional origin surface (`post_signup`, gate attempt origin surface, `jobs`, `settings`) | Terminal cloud save — `YourResumeSection.tsx` and signed-in `jobs/page.tsx` `handleImport`. | base-résumé upload volume. |
 | `resume_gate_shown` | privacy-safe funnel props | `ResumeImportModal.tsx` on open. | résumé funnel entry. |
 | `resume_upload_started` | `{ reason?, source?, surface?, signed_in? }` | `ResumeImportModal.tsx` parse click. | upload intent. |
 | `resume_upload_selected` | `{ source: drop\|picker, file_type, size_bucket, ... }` | file pick/drop. | input method mix. |

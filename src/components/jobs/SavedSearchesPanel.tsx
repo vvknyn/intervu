@@ -155,7 +155,7 @@ export function SavedSearchesPanel({
             data-testid="saved-searches-panel"
             className={cn(
                 "flex items-center gap-2 text-meta",
-                compact ? "shrink-0 flex-nowrap" : "flex-wrap",
+                compact ? "min-w-0 flex-wrap" : "flex-wrap",
                 className,
             )}
         >
@@ -227,7 +227,7 @@ export function SavedSearchesPanel({
                 </div>
             )}
             {!hideList && saved.length > 0 && (
-                <ul className={cn("flex items-center gap-1.5", compact ? "shrink-0 flex-nowrap" : "flex-wrap")}>
+                <ul className={cn("flex items-center gap-1.5", compact ? "min-w-0 flex-wrap" : "flex-wrap")}>
                     {saved.map((s) => (
                         <li key={s.id} className={cn(
                             compact

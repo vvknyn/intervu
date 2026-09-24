@@ -82,6 +82,17 @@ test("city resolution: Toronto expands to itself plus same-country neighbors wit
   assert.ok(!cities.includes("Ottawa"), "Ottawa is ~350km away — outside the radius");
 });
 
+test("city resolution: { radius: false } is city-strict — primary city and name variants only, no radius neighbors", () => {
+  const r = resolvePlacePhrase("toronto", GAZETTEER, false, { radius: false });
+  assert.ok(r, "Toronto must resolve");
+  assert.equal(r!.entity.type, "city");
+  const cities = fieldValues(r!.candidates, "location_city");
+  assert.ok(cities.includes("Toronto"));
+  for (const excluded of ["Mississauga", "Markham", "Brampton", "Vaughan", "Richmond Hill", "Ottawa"]) {
+    assert.ok(!cities.includes(excluded), `expected ${excluded} excluded from strict city filter: ${JSON.stringify(cities)}`);
+  }
+});
+
 test("city resolution carries a countryScope — the resolved country's own candidates, for query-understanding.ts to AND against the city OR-set", () => {
   const r = resolvePlacePhrase("toronto", GAZETTEER);
   assert.ok(r);

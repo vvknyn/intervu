@@ -32,6 +32,9 @@ export function jobsTabHelperCopy(resumeOnFile: boolean | null): string | null {
 export const RANK_SECONDARY_COPY =
     "See Strong, Good, and Stretch matches—with the reasons.";
 
+/** Post-signup résumé gate modal title — distinct from rank-by-fit entry. */
+export const POST_SIGNUP_RESUME_GATE_TITLE = "Upload your résumé";
+
 /** Front-door résumé band card subcopy (not the upload promise). */
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
     "Create a free account, upload one résumé, and unlock For you, fit bands, Customize, and tailored PDFs.";

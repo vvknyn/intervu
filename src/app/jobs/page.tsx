@@ -55,7 +55,7 @@ import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage, buildJobSnapshot } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
-import { fetchResumeData, saveResumeData } from "@/actions/resume";
+import { fetchResumeData, hasUsableResumeOnFile, saveResumeData } from "@/actions/resume";
 import { pickExceptionJit } from "@/lib/jobs/should-show-relist-jit";
 import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
@@ -108,9 +108,7 @@ import { indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
 import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
-import { useOverflowEdges } from "@/hooks/use-overflow-edges";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
-import { edgeFadeMaskImage } from "@/lib/jobs/edge-fade";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
@@ -149,7 +147,7 @@ import {
 } from "@/lib/local-ai/flag";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
+import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
@@ -212,9 +210,16 @@ import {
     authGateReasonToFunnelReason,
     POST_AUTH_RESUME_GATE_PARAM,
     POST_AUTH_RESUME_GATE_VALUE,
+    shouldOpenResumeGateAfterInlineAuth,
 } from "@/lib/auth/post-auth-destination";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
-import { jobsTabHelperCopy, RANK_SECONDARY_COPY, RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
+import { peekPendingActionKind } from "@/lib/jobs/pending-actions";
+import {
+    jobsTabHelperCopy,
+    POST_SIGNUP_RESUME_GATE_TITLE,
+    RANK_SECONDARY_COPY,
+    RESUME_UPLOAD_PROMISE,
+} from "@/lib/jobs/resume-cta-copy";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel } from "@/lib/jobs/sort";
 import {
@@ -435,21 +440,26 @@ function ToolbarSegment({
 function DefaultLocationChip({
     iso2,
     remoteAnywhere,
+    separateRemoteWorkTypeChip,
     onClear,
 }: {
     iso2: string;
     remoteAnywhere: boolean | undefined;
+    separateRemoteWorkTypeChip: boolean;
     onClear: () => void;
 }) {
     const flag = countryToFlag(iso2);
-    const scope = useMemo(() => locationDefaultScope(iso2, remoteAnywhere), [iso2, remoteAnywhere]);
+    const scope = useMemo(
+        () => locationDefaultScope(iso2, remoteAnywhere, { separateRemoteWorkTypeChip }),
+        [iso2, remoteAnywhere, separateRemoteWorkTypeChip],
+    );
     return (
         <span
             data-testid="default-location-chip"
-            className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
+            className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 text-xs leading-none")}
         >
-            {flag && <span aria-hidden>{flag}</span>}
-            {scope}
+            {flag && <span aria-hidden className="shrink-0">{flag}</span>}
+            <span className="min-w-0 truncate" title={scope}>{scope}</span>
             <ChipDismiss label={`Stop defaulting to ${scope}`} onClick={onClear} />
         </span>
     );
@@ -1053,6 +1063,7 @@ function JobsContent() {
      * "no location chosen" to the IP-default chip and the saved preference.
      */
     const chosenLocations = LOCATION_FACET_FIELDS.flatMap((field) => filterState.facets[field] ?? []);
+    const hasSeparateRemoteWorkTypeChip = (filterState.facets.work_type ?? []).some(isRemoteWorkTypeValue);
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
@@ -1624,6 +1635,9 @@ function JobsContent() {
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
     const [resumeSourceLabel, setResumeSourceLabel] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
+    const importOpenRef = useRef(importOpen);
+    importOpenRef.current = importOpen;
+    const [importTitle, setImportTitle] = useState("Rank jobs by your résumé");
     const [importFunnelContext, setImportFunnelContext] = useState<{
         reason?: ResumeFunnelReason;
         surface?: string;
@@ -3137,11 +3151,6 @@ function JobsContent() {
     // #jobs-results-list container — the one mount point `useResultImpressions`
     // watches for rows crossing 50% visible (see the ref attached below).
     const resultsListRef = useRef<HTMLDivElement | null>(null);
-    // Horizontal-scroll toolbar row — feeds `useOverflowEdges` so the edge
-    // fade renders only on a side that actually hides content.
-    const toolbarScrollerRef = useRef<HTMLDivElement | null>(null);
-    const toolbarOverflowEdges = useOverflowEdges(toolbarScrollerRef);
-    const toolbarEdgeFadeMask = edgeFadeMaskImage(toolbarOverflowEdges);
     // `result?.searchId`, not `lastSearchId`: this is the id `loadMore`
     // leaves untouched when it appends a page (`setResult` spreads `...prev`
     // without overwriting `searchId` — see `loadMore` below), so it stays
@@ -4165,9 +4174,10 @@ function JobsContent() {
     // Select's `onValueChange` below — but does NOT clear this ref) would
     // get silently clobbered once the upload finally completes, minutes
     // later.
-    const beginResumeUpload = () => {
+    const beginResumeUpload = (opts?: { postSignup?: boolean }) => {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
+        setImportTitle(opts?.postSignup ? POST_SIGNUP_RESUME_GATE_TITLE : "Rank jobs by your résumé");
         setImportOpen(true);
     };
 
@@ -4233,10 +4243,10 @@ function JobsContent() {
         const attempt = readGateAttempt(window.sessionStorage);
         setImportFunnelContext({
             reason: authGateReasonToFunnelReason(attempt?.lastGateReason),
-            surface: attempt?.originSurface ?? "login",
+            surface: attempt?.originSurface ?? "post_signup",
             signed_in: true,
         });
-        beginResumeUpload();
+        beginResumeUpload({ postSignup: true });
     }, [
         authReady,
         user,
@@ -4260,7 +4270,11 @@ function JobsContent() {
         setImportOpen(false);
         if (user) {
             void saveResumeData(data, source, confidence)
-                .then(() => captureEvent("resume_uploaded", {}))
+                .then(() =>
+                    captureEvent("resume_uploaded", {
+                        surface: importFunnelContext.surface ?? "jobs",
+                    }),
+                )
                 .catch(() => {});
         } else {
             writeLocalAiResume(data, updatedAt, sourceLabel);
@@ -5480,22 +5494,16 @@ function JobsContent() {
                                 // filled strip a live query still gets.
                                 atRest
                                     ? "mx-auto mt-3 w-full max-w-[960px] border-y border-border py-2"
-                                    : "mt-3 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5"
+                                    : "mt-3 w-full min-w-0 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5"
                             ),
                     )}
                 >
+                    {/* Wrap instead of overflow-x scroll — long query chips truncate
+                        with a title tooltip; controls and short chips stay whole. */}
                     {showJobsToolbarRow && (
                     <div
-                        ref={toolbarScrollerRef}
                         data-testid="jobs-toolbar-scroller"
-                        data-fade-left={toolbarOverflowEdges.left || undefined}
-                        data-fade-right={toolbarOverflowEdges.right || undefined}
-                        className="no-scrollbar flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain px-[var(--list-inset)] [scroll-padding-inline:var(--list-inset)] lg:gap-3"
-                        style={
-                            toolbarEdgeFadeMask
-                                ? { WebkitMaskImage: toolbarEdgeFadeMask, maskImage: toolbarEdgeFadeMask }
-                                : undefined
-                        }
+                        className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-clip px-[var(--list-inset)] lg:gap-3"
                     >
                         {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
                         <button
@@ -5529,6 +5537,7 @@ function JobsContent() {
                             <DefaultLocationChip
                                 iso2={result!.defaultedLocation!}
                                 remoteAnywhere={result!.remoteAnywhere}
+                                separateRemoteWorkTypeChip={hasSeparateRemoteWorkTypeChip}
                                 onClear={suppressLocationDefault}
                             />
                         )}
@@ -5537,7 +5546,7 @@ function JobsContent() {
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
                         {!headerDockActive && (
-                            <div data-testid="jobs-toolbar-actions" className="flex shrink-0 items-center gap-2">
+                            <div data-testid="jobs-toolbar-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                                 {showToolbarFilters && savedSearchMountEl}
                                 {sortEl}
                                 {tourReplayEl}
@@ -5549,21 +5558,25 @@ function JobsContent() {
                     {!headerDockActive && unnamedEntries.length > 0 && (
                         <div
                             data-testid="active-filter-row"
-                            className="no-scrollbar mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain border-t border-border pt-2"
+                            className="mt-2 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-clip border-t border-border pt-2"
                         >
-                            {!headerDockActive && unnamedEntries.map((entry) => (
+                            {!headerDockActive && unnamedEntries.map((entry) => {
+                                const label = chipLabelForEntry(entry);
+                                return (
                                 <span
                                     key={entry.key}
                                     data-testid="active-filter-chip"
-                                    className={cn(chipVariants({ active: true, interactive: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
+                                    title={label}
+                                    className={cn(chipVariants({ active: true, interactive: true }), toolbarControlHeight, "mono-data inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
                                 >
-                                    {chipLabelForEntry(entry)}
+                                    <span className="min-w-0 max-w-[min(100%,18rem)] truncate">{label}</span>
                                     <ChipDismiss
-                                        label={`Clear ${chipLabelForEntry(entry)}`}
+                                        label={`Clear ${label}`}
                                         onClick={() => applyFilterState(entry.clear(filterState))}
                                     />
                                 </span>
-                            ))}
+                                );
+                            })}
                             {clearFiltersEl}
                         </div>
                     )}
@@ -6063,7 +6076,9 @@ function JobsContent() {
                                     locationDefault={
                                         shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
                                             ? {
-                                                  label: locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere),
+                                                  label: locationDefaultScope(result!.defaultedLocation!, result!.remoteAnywhere, {
+                                                      separateRemoteWorkTypeChip: hasSeparateRemoteWorkTypeChip,
+                                                  }),
                                                   onClear: suppressLocationDefault,
                                               }
                                             : undefined
@@ -6462,7 +6477,32 @@ function JobsContent() {
                 }}
                 onAuthed={() => {
                     justAuthedRef.current = true;
+                    const pendingActionKind = peekPendingActionKind(window.sessionStorage);
                     onAuthed();
+                    if (
+                        !shouldOpenResumeGateAfterInlineAuth({
+                            pendingActionKind,
+                            alreadyHandled: postAuthResumeGateHandledRef.current,
+                            importAlreadyOpen: importOpenRef.current,
+                            hasResume: false,
+                        })
+                    ) {
+                        return;
+                    }
+                    postAuthResumeGateHandledRef.current = true;
+                    void hasUsableResumeOnFile()
+                        .then(({ hasResume }) => {
+                            if (hasResume) return;
+                            if (importOpenRef.current) return;
+                            const attempt = readGateAttempt(window.sessionStorage);
+                            setImportFunnelContext({
+                                reason: authGateReasonToFunnelReason(attempt?.lastGateReason),
+                                surface: "post_signup",
+                                signed_in: true,
+                            });
+                            beginResumeUpload({ postSignup: true });
+                        })
+                        .catch(() => {});
                 }}
                 showTrigger={false}
                 trigger={authTrigger}
@@ -6485,7 +6525,7 @@ function JobsContent() {
                 onClose={() => setImportOpen(false)}
                 onImport={handleImport}
                 confirmLabel="Rank my jobs"
-                title="Rank jobs by your résumé"
+                title={importTitle}
                 description={RESUME_UPLOAD_PROMISE}
                 storageNote="Your résumé and the parsed result are then saved to your account so they follow you across devices."
                 funnelContext={{ ...importFunnelContext, signed_in: Boolean(user) }}

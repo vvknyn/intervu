@@ -71,3 +71,27 @@ export function resolvePostAuthDestination(input: {
 
     return buildPostAuthResumeGatePath();
 }
+
+/** Rewrite AuthKit `next` for signup when the user is on the anonymous /jobs default. */
+export function resolveAuthKitReturnTo(input: {
+    mode: "login" | "signup";
+    rawNext: string | null | undefined;
+}): string | null {
+    const next = input.rawNext?.trim() ? input.rawNext.trim() : null;
+    if (input.mode === "signup" && isBareJobsDefault(next)) {
+        return buildPostAuthResumeGatePath();
+    }
+    return next;
+}
+
+/** Whether inline signup on /jobs should open the post-auth résumé gate. */
+export function shouldOpenResumeGateAfterInlineAuth(input: {
+    pendingActionKind: string | null;
+    alreadyHandled: boolean;
+    importAlreadyOpen: boolean;
+    hasResume: boolean;
+}): boolean {
+    if (input.pendingActionKind) return false;
+    if (input.alreadyHandled || input.importAlreadyOpen) return false;
+    return input.hasResume === false;
+}

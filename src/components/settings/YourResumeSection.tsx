@@ -456,7 +456,7 @@ function ResumeUploadForm({
                 setError(res.error);
                 return;
             }
-            captureEvent("resume_uploaded", {});
+            captureEvent("resume_uploaded", { surface: "settings" });
             onSaved();
         });
     };

@@ -69,9 +69,9 @@ const TEST_VOCAB: LocationVocabulary = {
   gazetteer: TEST_GAZETTEER,
   corpusChecker: testCorpusChecker,
   // resolvePlaces (agent/tools.ts) always calls parsePlaceTokens with
-  // guardFreeTextWords off (explicit MCP `location` param, not free text —
-  // see that function's doc), so the S1 company-corroboration guard never
-  // runs here; this probe existing only satisfies the interface.
+  // guardFreeTextWords off and `{ radius: false }` (explicit MCP `location`
+  // param — city-strict, not metro radius), so the S1 company-corroboration
+  // guard never runs here; this probe existing only satisfies the interface.
   companyProbe: async () => {
     throw new Error('companyProbe must never be called for the MCP location param');
   },

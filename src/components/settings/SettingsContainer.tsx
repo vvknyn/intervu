@@ -85,7 +85,6 @@ export function SettingsContainer() {
         isSigningOut.current = true;
         localStorage.clear();
         await signOut();
-        window.location.href = "/";
     };
 
     const handleDeleteAccount = async () => {
@@ -103,7 +102,6 @@ export function SettingsContainer() {
             // the session cookie still sitting in the browser (same route
             // `handleSignOut` above uses).
             await signOut();
-            router.push("/");
         } catch (e: unknown) {
             setMessage({ type: "error", text: e instanceof Error ? e.message : "Failed to delete account." });
             setIsDeleting(false);

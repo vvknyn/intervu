@@ -76,7 +76,6 @@ export function TopBar() {
             /* private mode */
         }
         await signOut();
-        window.location.href = "/";
     };
 
     const accountActive =
@@ -319,7 +318,9 @@ export function TopBar() {
                 those fields don't exist when only the toggle is docked. */}
             {(docked || homeViewDocked) && (
                 <div data-region="band" className="hidden bg-muted lg:block">
-                    <div className="shell-row box-border flex min-h-[var(--jobs-filter-row-h)] flex-nowrap items-center gap-2 overflow-x-auto border-t border-border">
+                    {/* Wrap instead of horizontal scroll — long query chips truncate
+                        with a title tooltip; short facet/location chips stay whole. */}
+                    <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip border-t border-border">
                         <div data-testid="topbar-docked-home-view" className="flex shrink-0 items-center gap-2" />
                         {docked && (
                             <>
@@ -347,18 +348,19 @@ export function TopBar() {
                                 {docked.chips.length > 0 && (
                                     <>
                                         <span aria-hidden className="jobs-instrument-rule" />
-                                        <div data-testid="topbar-docked-active-filters" className="flex shrink-0 items-center gap-2">
+                                        <div data-testid="topbar-docked-active-filters" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                                             {docked.chips.map((chip) => (
                                                 <span
                                                     key={chip.key}
                                                     data-testid="topbar-docked-chip"
+                                                    title={chip.label}
                                                     className={cn(
                                                         chipVariants({ active: true, interactive: true }),
                                                         toolbarControlHeight,
-                                                        "box-border items-center gap-2 px-3 lg:px-3",
+                                                        "box-border min-w-0 max-w-full items-center gap-2 px-3 lg:px-3",
                                                     )}
                                                 >
-                                                    {chip.label}
+                                                    <span className="min-w-0 max-w-[min(100%,18rem)] truncate">{chip.label}</span>
                                                     <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
                                                 </span>
                                             ))}
@@ -367,7 +369,7 @@ export function TopBar() {
                                 )}
                                 <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />
                                 <div className="min-w-0 flex-1" aria-hidden />
-                                <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-2" />
+                                <div data-testid="topbar-docked-save-search" className="flex min-w-0 max-w-full flex-wrap items-center gap-2" />
                                 <div data-testid="topbar-docked-sort" className="flex shrink-0 items-center gap-2" />
                                 <div data-testid="topbar-docked-extras" className="flex shrink-0 items-center gap-2" />
                             </>
