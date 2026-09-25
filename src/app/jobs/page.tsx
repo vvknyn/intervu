@@ -3213,8 +3213,17 @@ function JobsContent() {
                     next.set(id, { job: check.job, descriptionPending: check.descriptionPending });
                     return next;
                 });
+                // Still-pending fills (server deadline) must stay retryable —
+                // do not permanently block the id in forYouHydrateStartedRef.
+                if (check.descriptionPending) {
+                    forYouHydrateStartedRef.current.delete(id);
+                }
                 return;
             }
+            // Unknown / not_found: drop the started bit so Try again / revisit
+            // can re-fetch instead of leaving "Couldn't load the full posting"
+            // forever for this pack.
+            forYouHydrateStartedRef.current.delete(id);
             setForYouHydrated((prev) => {
                 const next = new Map(prev);
                 next.set(id, {
@@ -3225,6 +3234,18 @@ function JobsContent() {
             });
         })();
     }, [renderedClusters]);
+
+    const retryForYouDescription = useCallback((id: string) => {
+        forYouHydrateStartedRef.current.delete(id);
+        setForYouHydrated((prev) => {
+            if (!prev.has(id)) return prev;
+            const next = new Map(prev);
+            next.delete(id);
+            return next;
+        });
+        // Re-enter the same hydrate chokepoint; started-ref was cleared above.
+        handleForYouActivePackChange(id);
+    }, [handleForYouActivePackChange]);
 
     // Clears the cached (timed-out) hydrate and requests a fresh fetch for
     // whichever job is currently in the detail pane — wired to the pending
@@ -6023,6 +6044,7 @@ function JobsContent() {
                                 fitActive={fitActive}
                                 hydratedJobs={forYouHydrated}
                                 onActivePackChange={handleForYouActivePackChange}
+                                onRetryDescription={retryForYouDescription}
                                 onOpenPosting={handleOpenPosting}
                                 onHomeViewChange={setJobsHomeView}
                                 showSearchCta={resumeOnFile === true}

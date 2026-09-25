@@ -103,6 +103,11 @@ export function jdTemplateIsThin(t: JdTemplate, raw?: string | null): boolean {
     // Only a truncated hook → sparse card with empty whitespace beside fit aside.
     if (filled === 1 && t.hook.length > 0) return true;
     if (chars < 80) return true;
+    // Substantial recovered prose (≥400 chars across 2+ sections) is never
+    // "thin" even when the source is a long ATS dump — the ratio check below
+    // was marking HelloFresh-scale bodies as soft-fail and replacing them
+    // with a 280-char snippet + Apply link.
+    if (filled >= 2 && chars >= 400) return false;
     const rawLen = (raw ?? "").replace(/\s+/g, " ").trim().length;
     if (rawLen >= 200 && chars / rawLen < 0.2 && filled < 3) return true;
     return false;
@@ -196,10 +201,10 @@ const DO_HEADINGS = new Set([
     "responsibilities",
     "your role",
     "what you'll do",
+    "what you will do",
     "what you'll be doing",
     "key responsibilities",
     "what your impact will be",
-    "the role",
     "duties",
     "essential functions",
     "essential duties",
@@ -215,6 +220,8 @@ const BRING_HEADINGS = new Set([
     "minimum qualifications",
     "your background",
     "what you bring",
+    "what you'll bring",
+    "what you will bring",
     "required skills",
     "technical skills",
     "education",
@@ -273,7 +280,7 @@ function classifyHeading(text: string | undefined): JdTemplateKey | "skip" | nul
     if (NICE_HEADINGS.has(key)) return "nice";
     if (BRING_HEADINGS.has(key)) return "bring";
     if (PERKS_HEADINGS.has(key)) return "perks";
-    if (key === "about the role" || key === "overview" || key === "summary" || key === "position summary" || key === "position purpose" || key === "the opportunity" || key === "job description") {
+    if (key === "about the role" || key === "the role" || key === "overview" || key === "summary" || key === "position summary" || key === "position purpose" || key === "the opportunity" || key === "job description") {
         return "hook";
     }
     return null;
@@ -346,6 +353,23 @@ export function buildDeterministicJdTemplate(raw: string | null | undefined): Jd
         if (current === "skip") continue;
 
         if (block.type === "para" && block.text) {
+            // Glued section openers ("What you'll do Own the product…") —
+            // common when ATS HTML→text loses the break after the heading.
+            const glued = block.text.match(
+                /^(What you'?ll do|What you will do|What you'?ll bring|What you will bring|What you bring|Responsibilities|Requirements|Qualifications|Nice to have|What we offer|Benefits)\b[\s:]+(.+)$/i,
+            );
+            if (glued) {
+                const classified = classifyHeading(glued[1]);
+                if (classified && classified !== "skip") {
+                    current = classified;
+                    const rest = (glued[2] ?? "").trim();
+                    if (rest) {
+                        if (current === "hook") hookParas.push({ type: "para", text: rest });
+                        else out[current].push({ type: "para", text: rest });
+                    }
+                    continue;
+                }
+            }
             const colon = block.text.match(/^([^:]{2,40}):\s*(.*)$/);
             if (colon) {
                 const classified = classifyHeading(colon[1]);

@@ -5,6 +5,8 @@ import {
     buildJdFormatPrompt,
     hashJobDescription,
     jdSearchIndexSnippet,
+    jdTemplateFilledSectionCount,
+    jdTemplateFilledSectionCount,
     jdTemplateHasContent,
     jdTemplateIsThin,
     resetJdFormatCacheForTests,
@@ -140,6 +142,46 @@ describe("format-job-description (on-device JD template)", () => {
         };
         assert.equal(jdTemplateIsThin(thin, "A short role pitch only. Lots more body text that was lost in formatting somehow and should trigger soft-fail."), true);
         assert.ok(jdSearchIndexSnippet("Hello world. More detail here about the role and team.").includes("Hello"));
+    });
+
+    it("maps Greenhouse whitespace-blank HelloFresh-style dumps into multi-section template (not thin)", () => {
+        const raw = [
+            "The role",
+            " ",
+            "HelloFresh's Onboarding squad owns the highest-leverage window in the customer lifecycle: from the moment a prospect converts to the moment they become a settled, loyal customer.",
+            " ",
+            "We are hiring a Staff Product Manager to lead the Onboarding squad and define the product vision for how HelloFresh guides new customers.",
+            " ",
+            "What you'll do",
+            " ",
+            "Own the product vision and strategy for the end-to-end Onboarding experience.",
+            "Lead the build and scaling of the Next Best Action framework.",
+            " ",
+            "What you'll bring",
+            " ",
+            "Customer Lifecycle Expertise: A deep understanding of subscription dynamics.",
+            "Growth Experimentation at Scale: 6+ years of PM experience at Senior or Staff level.",
+            " ",
+            "What we offer",
+            " ",
+            "Health & Dental benefits from day 1.",
+            "Amazing discounts on weekly meal kits.",
+        ].join("\n");
+        const t = buildDeterministicJdTemplate(raw);
+        assert.equal(jdTemplateIsThin(t, raw), false);
+        assert.ok(t.hook.length > 0);
+        assert.ok(t.do.length > 0, "expected do section from What you'll do");
+        assert.ok(t.bring.length > 0, "expected bring section from What you'll bring");
+        assert.ok((t.hook[0]?.text ?? "").includes("HelloFresh"));
+    });
+
+    it("does not mark a 2-section 400+ char template thin just because raw is long", () => {
+        const body = "We ship gateway features for enterprise customers across regions with strong reliability focus. ".repeat(6);
+        const padding = "More body about the platform, reliability, and on-call that pads the source length. ".repeat(30);
+        const raw = `About the role:\n${body}\n\nResponsibilities:\n- Ship APIs end to end with clear ownership\n- Mentor junior engineers on the gateway squad\n- Partner with SRE on latency budgets\n\n${padding}`;
+        const t = buildDeterministicJdTemplate(raw);
+        assert.ok(jdTemplateFilledSectionCount(t) >= 2);
+        assert.equal(jdTemplateIsThin(t, raw), false);
     });
 
 });

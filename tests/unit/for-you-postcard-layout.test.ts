@@ -165,4 +165,12 @@ describe("for-you postcard layout", () => {
         assert.match(pack, /Apply at/);
     });
 
+    it("falls back to scrollable full formatted body when source is rich but template is thin", () => {
+        const pack = source("ForYouPack.tsx");
+        assert.match(pack, /descriptionNeedsFill/);
+        assert.match(pack, /formatDescription/);
+        assert.match(pack, /data-testid="for-you-jd-full-body"/);
+        assert.match(pack, /for-you-jd-soft-fail/);
+    });
+
 });

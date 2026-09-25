@@ -16,8 +16,12 @@ import {
  * owns only the elapsed-ms clock, not the copy decision. Remounts with the
  * rest of `ForYouPack` on every `key={activePack.id}` change (ForYouDeck.tsx),
  * so the clock always starts fresh for whichever card is loading.
+ *
+ * `onRetry` is optional: when the copy ladder reaches "failed" (past the
+ * fetch deadline), a "Try again" control re-kicks the caller's hydrate
+ * instead of leaving "Couldn't load the full posting right now." forever.
  */
-export function DescriptionLoadingStatus() {
+export function DescriptionLoadingStatus({ onRetry }: { onRetry?: () => void } = {}) {
     const [elapsedMs, setElapsedMs] = useState(0);
 
     useEffect(() => {
@@ -32,7 +36,21 @@ export function DescriptionLoadingStatus() {
     const copy = descriptionWaitCopy(phase);
 
     if (phase === "failed") {
-        return <p className="text-sm text-muted-foreground">{copy}</p>;
+        return (
+            <div className="space-y-2" data-testid="for-you-jd-load-failed">
+                <p className="text-sm text-muted-foreground">{copy}</p>
+                {onRetry ? (
+                    <button
+                        type="button"
+                        onClick={onRetry}
+                        data-testid="for-you-jd-retry"
+                        className="text-sm font-semibold text-brand underline-offset-4 hover:underline"
+                    >
+                        Try again
+                    </button>
+                ) : null}
+            </div>
+        );
     }
 
     return (

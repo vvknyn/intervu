@@ -21,6 +21,8 @@ import {
     jdSearchIndexSnippet,
     jdTemplateIsThin,
 } from "@/lib/local-ai/format-job-description";
+import { descriptionNeedsFill } from "@/lib/jobs/fill-description";
+import { formatDescription } from "@/lib/jobs/format-description";
 import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -30,6 +32,8 @@ export interface ForYouPackProps {
     job: PublicJob;
     hydratedJob?: PublicJob | null;
     descriptionPending?: boolean;
+    /** Re-kick description hydrate after a soft-fail / timeout. */
+    onRetryDescription?: () => void;
     matchScore: MatchScore | null;
     resume: ResumeData | null;
     nowMs: number;
@@ -132,6 +136,7 @@ export function ForYouPack({
     job,
     hydratedJob,
     descriptionPending,
+    onRetryDescription,
     matchScore,
     resume,
     nowMs,
@@ -177,13 +182,22 @@ export function ForYouPack({
     const hasAside = matchScore != null || reasons.bullets.length > 0 || reasons.chips.length > 0;
 
     // Soft-fail sparse templates: never render a hook-only "✨ The role" card
-    // with huge empty whitespace. Fall back to title + company + apply link +
-    // a short search-index snippet (Job Apply confirmed).
+    // with huge empty whitespace. When the SOURCE is still a teaser/stub,
+    // fall back to title + company + apply + short snippet. When the source
+    // is a full JD but the template mapper missed structure (Greenhouse
+    // `\n \n` dumps, glued headings), show the scrollable formatted body
+    // instead of truncating to a 280-char snippet — that truncate was the
+    // HelloFresh "cuts mid-sentence then Apply at …" trust killer.
     const templateThin =
         paneState === "empty" ||
         (paneState === "content" && jdTemplateIsThin(template, displayJob.description));
+    const sourceNeedsFill = descriptionNeedsFill(displayJob.description);
     const softFailSnippet = jdSearchIndexSnippet(displayJob.description);
     const applyHref = displayJob.apply_url?.trim() || null;
+    const formattedFullBlocks = useMemo(
+        () => (templateThin && !sourceNeedsFill ? formatDescription(displayJob.description) : []),
+        [templateThin, sourceNeedsFill, displayJob.description],
+    );
 
     const softFailPane = (
         <div className="space-y-4" data-testid="for-you-jd-soft-fail">
@@ -201,6 +215,24 @@ export function ForYouPack({
                     Full description isn&apos;t available yet — open the posting to review the role.
                 </p>
             )}
+            {applyHref ? (
+                <a
+                    href={applyHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="for-you-jd-apply-link"
+                    className="inline-flex text-sm font-semibold text-brand underline-offset-4 hover:underline"
+                >
+                    Apply at {company || "company"}
+                </a>
+            ) : null}
+        </div>
+    );
+
+    const fullBodyPane = (
+        <div className="space-y-4" data-testid="for-you-jd-full-body">
+            <p className={SECTION_LABEL}>About this role</p>
+            <JobDescription blocks={formattedFullBlocks} headingLevel={4} />
             {applyHref ? (
                 <a
                     href={applyHref}
@@ -236,7 +268,11 @@ export function ForYouPack({
 
     const descriptionPane =
         paneState === "loading" ? (
-            <DescriptionLoadingStatus />
+            <DescriptionLoadingStatus onRetry={onRetryDescription} />
+        ) : templateThin && sourceNeedsFill ? (
+            softFailPane
+        ) : templateThin && formattedFullBlocks.length > 0 ? (
+            fullBodyPane
         ) : templateThin ? (
             softFailPane
         ) : (

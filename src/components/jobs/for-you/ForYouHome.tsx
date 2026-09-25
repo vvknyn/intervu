@@ -50,6 +50,7 @@ export interface ForYouHomeProps {
     fitActive: boolean;
     hydratedJobs: Map<string, { job: PublicJob; descriptionPending: boolean }>;
     onActivePackChange: (jobId: string) => void;
+    onRetryDescription?: (jobId: string) => void;
     onOpenPosting: (job: PublicJob) => void;
     onHomeViewChange: (view: JobsHomeView) => void;
     showSearchCta: boolean;
@@ -118,6 +119,7 @@ export function ForYouHome({
     fitActive,
     hydratedJobs,
     onActivePackChange,
+    onRetryDescription,
     onOpenPosting,
     onHomeViewChange,
     showSearchCta,
@@ -347,6 +349,7 @@ export function ForYouHome({
                     nowMs={nowMs}
                     hydratedJobs={hydratedJobs}
                     onActivePackChange={onActivePackChange}
+                    onRetryDescription={onRetryDescription}
                 />
             )}
 

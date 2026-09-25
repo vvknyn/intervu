@@ -29,6 +29,7 @@ export interface ForYouDeckProps {
     nowMs: number;
     hydratedJobs: Map<string, { job: PublicJob; descriptionPending: boolean }>;
     onActivePackChange: (jobId: string) => void;
+    onRetryDescription?: (jobId: string) => void;
     className?: string;
 }
 
@@ -50,6 +51,7 @@ export function ForYouDeck({
     nowMs,
     hydratedJobs,
     onActivePackChange,
+    onRetryDescription,
     className,
 }: ForYouDeckProps) {
     useEffect(() => {
@@ -74,6 +76,9 @@ export function ForYouDeck({
                 matchScore={matchScores?.get(activePack.id) ?? null}
                 resume={resume}
                 nowMs={nowMs}
+                onRetryDescription={
+                    onRetryDescription ? () => onRetryDescription(activePack.id) : undefined
+                }
                 className="fade-in"
             />
         </div>

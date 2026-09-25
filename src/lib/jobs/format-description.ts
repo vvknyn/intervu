@@ -41,7 +41,7 @@ const HEADING_KEYWORDS = new Set([
   "the role", "the team", "the company", "our values", "why join",
   "minimum qualifications", "preferred qualifications", "nice to have",
   "your background", "your impact", "key responsibilities",
-  "what success looks like", "who you are", "what you bring",
+  "what success looks like", "who you are", "what you bring", "what you'll bring", "what you will bring",
   "additional information", "equal opportunity", "eeo statement",
   "position purpose", "education", "experience", "education/experience",
   "pay range", "salary", "salary range", "compensation range",
@@ -67,7 +67,7 @@ const COMPOUND_BRANDS = [
   "PowerPoint", "PowerShell", "DataBricks", "TensorFlow", "PyTorch",
   "ServiceNow", "DocuSign", "SalesForce", "Salesforce", "HubSpot",
   "MailChimp", "SendGrid", "Twilio", "Stripe", "Plaid", "OkCupid",
-  "PostHog", "ChromeOS", "EdgeOS", "FreeBSD", "OpenBSD", "OpenJDK",
+  "PostHog", "HelloFresh", "ChromeOS", "EdgeOS", "FreeBSD", "OpenBSD", "OpenJDK",
   "OpenSSL", "OpenAPI", "RESTful", "RxJS", "Vue", "ReactJS",
   "VueJS", "AngularJS", "NextJS", "NuxtJS", "Express", "FastAPI",
   "FullStack", "FrontEnd", "BackEnd", "DevSecOps", "NetSuite",
@@ -302,6 +302,11 @@ export function formatDescription(raw: string | null | undefined): DescBlock[] {
   let text = raw.replace(/\r\n?/g, "\n");
 
   text = stripResidualHtml(text);
+  // Greenhouse/Workday HTML→text often leaves whitespace-only "blank" lines
+  // (`\n \n`). Those are NOT `\n\n`, so later paragraph splits glue a
+  // heading onto the next body line ("The role HelloFresh's…") and the
+  // For-you template collapses a full JD into a thin soft-fail snippet.
+  text = text.replace(/\n[ \t]+\n/g, "\n\n");
   text = normalizeMarkdown(text);
   text = repairRunTogethers(text);
   text = promoteHeadings(text);

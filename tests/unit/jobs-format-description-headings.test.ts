@@ -131,3 +131,14 @@ test("formatDescription: truly run-together heading (no bold, no newline) is lef
   assert.match(joined, /CREATIVITY IS OUR SUPERPOWER/);
   assert.doesNotMatch(joined, /##/);
 });
+
+test("formatDescription: whitespace-only blank lines are paragraph breaks (Greenhouse \\n \\n)", () => {
+  const raw = "The role\n \nHelloFresh owns onboarding.\n \nWhat you'll do\n \nOwn the roadmap.";
+  const blocks = formatDescription(raw);
+  const headings = blocks.filter((b) => b.type === "heading").map((b) => b.text);
+  assert.ok(headings.some((h) => /the role/i.test(h ?? "")), `expected The role heading, got ${JSON.stringify(headings)}`);
+  assert.ok(headings.some((h) => /what you'll do/i.test(h ?? "")), `expected What you'll do heading, got ${JSON.stringify(headings)}`);
+  const paras = blocks.filter((b) => b.type === "para").map((b) => b.text ?? "");
+  assert.ok(paras.some((t) => t.includes("HelloFresh")), "HelloFresh brand must stay unsplit");
+  assert.ok(!paras.some((t) => t.startsWith("The role Hello")), "heading must not glue onto body");
+});
