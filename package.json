@@ -38,6 +38,7 @@
     "marketing:send": "npx tsx scripts/send-marketing-update.ts"
   },
   "dependencies": {
+    "@base-ui/react": "^1.8.0",
     "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/server": "^2.0.0",
     "@monaco-editor/react": "^4.7.0",
@@ -66,11 +67,13 @@
     "groq-sdk": "^0.37.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
+    "lucide-react": "^1.48.0",
     "mailchecker": "^6.0.21",
     "mammoth": "^1.11.0",
     "markdown-it": "^14.1.0",
     "maxmind": "^5.0.7",
     "mcp-handler": "^2.1.0",
+    "motion": "^13.4.3",
     "next": "16.3.0",
     "openai": "^6.16.0",
     "pg": "^8.23.0",

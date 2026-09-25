@@ -18,5 +18,7 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "registries": {}
+  "registries": {
+    "@iconiq": "https://iconiqui.com/r/{name}.json"
+  }
 }
