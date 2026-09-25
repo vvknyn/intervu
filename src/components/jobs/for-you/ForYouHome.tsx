@@ -28,6 +28,8 @@ import {
     FOR_YOU_DOWNLOAD_LABEL,
     FOR_YOU_UPLOAD_PDF_EMPTY,
 } from "@/lib/jobs/resume-cta-copy";
+import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
+import { locationText } from "@/lib/jobs/presentation";
 
 /** For-you frame grows with the pack deck — document scroll, not a nested
  *  100dvh trap. JD scroll stays inside each postcard (`data-pack-scroll`). */
@@ -398,6 +400,20 @@ export function ForYouHome({
                             {loadingMore ? "Loading more…" : "Show more matches"}
                         </Button>
                     ) : null}
+                </div>
+            )}
+
+            {visiblePacks.length > 0 && !showLoading && activeJob && (
+                <div className="mt-3" data-testid="for-you-mcp-handoff">
+                    <McpHandoffNote
+                        variant="intelligence"
+                        job={{
+                            id: activeJob.id,
+                            title: activeJob.title,
+                            company: activeJob.company || "Unknown company",
+                            location: locationText(activeJob) || null,
+                        }}
+                    />
                 </div>
             )}
 

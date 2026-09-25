@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 // stays in the desktop nav — filtered on that one declarative field via
 // `mobilePrimaryTabs`, never on a tab's name/href, so a future opt-out never
 // needs a second change here.
+/** Native phone primary nav: Jobs | Résumé | Tracker | Account.
+ *  Connect/MCP stays off this bar (mobilePrimary:false) — reachable from deck MCP note + /connect. */
 const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
 
 /** HIG tab bar in house paint: 48px + the safe-area inset, hit areas

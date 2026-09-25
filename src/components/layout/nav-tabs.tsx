@@ -1,6 +1,6 @@
 /**
  * Primary nav — frozen coherent chrome:
- * Jobs · Resume · Tracker · Résumé & AI · (avatar → Account)
+ * Jobs · Résumé · Tracker · (desktop: Résumé & AI) · Account on mobile bar
  * Research / Trends live in the footer.
  */
 import type { ComponentType } from "react";
@@ -123,7 +123,7 @@ export const NAV_TABS: NavTab[] = [
     },
     {
         label: "Resume",
-        shortLabel: "Resume",
+        shortLabel: "Résumé",
         href: "/resume",
         testId: "topbar-resume",
         match: (p) => p.startsWith("/resume"),

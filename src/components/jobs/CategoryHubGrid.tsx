@@ -1011,27 +1011,8 @@ export function CategoryHubGrid({
                     </div>
 
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                        <IconiqButton
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disableRipple
-                            onClick={() => {
-                                if (onAdjustParameters) {
-                                    onAdjustParameters();
-                                } else {
-                                    setProfileModalOpen(true);
-                                }
-                            }}
-                            className={cn(
-                                ICONIQ_VELAI_THEME,
-                                "min-h-11 w-full justify-center gap-1.5 text-xs font-semibold sm:w-auto",
-                            )}
-                            icon={<Sliders size={16} />}
-                        >
-                            Adjust parameters
-                        </IconiqButton>
-
+                        {/* Adjust parameters tucked for Betalist lean loop —
+                            packs → deck → Download & apply. Quiet Search stays. */}
                         <IconiqButton
                             type="button"
                             size="sm"
@@ -1111,7 +1092,10 @@ export function CategoryHubGrid({
                 })}
             </div>
 
-            {/* Comprehensive Category Job Listings Modal */}
+            {/* Comprehensive Category Job Listings Modal — standalone fallback only.
+                When parent provides onSelectCategory (packs home), pack taps open
+                ForYouHome postcard deck; keep mock catalog + Tailor&Apply hidden. */}
+            {!onSelectCategory ? (
             <Dialog open={modalCategory !== null} onOpenChange={(open) => !open && setModalCategory(null)}>
                 <DialogContent
                     showCloseButton={false}
@@ -1554,6 +1538,7 @@ export function CategoryHubGrid({
                     )}
                 </DialogContent>
             </Dialog>
+            ) : null}
 
             {onOpenAdvancedSearch && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-panel border border-border bg-card">

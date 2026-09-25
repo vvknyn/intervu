@@ -134,6 +134,7 @@ import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
+import { hasLiveApplyUrl, isKnownDeadApplyUrl, probeApplyUrl } from "@/lib/jobs/apply-url-health";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
@@ -2777,7 +2778,7 @@ function JobsContent() {
     const forYouPacks = useMemo(
         () =>
             orderForYouJobsByBand(
-                renderedClusters.map((c) => c.primary),
+                renderedClusters.map((c) => c.primary).filter(hasLiveApplyUrl),
                 matchScores ? (job) => matchScores.get(job.id) ?? null : null,
                 result?.effectiveQ,
             ),
@@ -3899,10 +3900,21 @@ function JobsContent() {
     // gesture is what popup blockers exist to stop.
     const openPostingNow = (job: PublicJob) => {
         if (!job.apply_url) return;
+        // Soft-fail known-dead employer URLs — honest toast, no blank Apply tab.
+        if (isKnownDeadApplyUrl(job.apply_url)) {
+            toast.error("This posting link looks expired. Try Skip or another pack role.");
+            return;
+        }
         // A1 — only a signed-in departure arms the return prompt; guests
         // already left via this same call but auth for tracking is separate.
         if (user) armApplyReturnJob(job);
         openApplyUrl(job.apply_url);
+        // Fire-and-forget probe so a fresh 404 demotes on the next click.
+        void probeApplyUrl(job.apply_url).then((status) => {
+            if (status === "dead") {
+                // Session cache updated by probe; next click soft-fails.
+            }
+        });
     };
 
     // Job 2 gate: signed in → perform (offer the AI hand-off once, at the
@@ -5454,7 +5466,9 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                {!homeViewDockActive && quietSearchLinkEl && (
+                {/* Quiet Advanced search — desktop only above hub. Mobile bottom
+                    tab owns primary nav; mid-screen search chrome over tiles is cut. */}
+                {!homeViewDockActive && isLgUp && quietSearchLinkEl && (
                     <div className={cn("mb-2 flex justify-end pt-2 sm:pt-3", cappedContentClass)}>
                         {quietSearchLinkEl}
                     </div>
@@ -5935,12 +5949,6 @@ function JobsContent() {
                                     setAuthGateReason("resume");
                                     setAuthOpen(true);
                                 }}
-                                onBrowsePublicJobs={() => {
-                                    // Soft-gate: public Advanced search / default browse —
-                                    // not For-you packs (those stay behind sign-in + résumé).
-                                    setShowAdvancedSearch(true);
-                                    setJobsHomeView("search");
-                                }}
                             />
                         </div>
                     </div>
@@ -6023,10 +6031,6 @@ function JobsContent() {
                                 }}
                                 onTailorApply={(job) => {
                                     submitSearch(job.title);
-                                }}
-                                onOpenAdvancedSearch={() => {
-                                    setShowAdvancedSearch(true);
-                                    setJobsHomeView("search");
                                 }}
                             />
                         ) : (
