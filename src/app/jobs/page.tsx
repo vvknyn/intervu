@@ -253,7 +253,21 @@ import {
     writePacksHomeIntroDismissed,
 } from "@/lib/jobs/for-you/packs-home-intro";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
-import { formatHubCountLabel, resolveAllMatchesHubCount } from "@/lib/jobs/for-you/hub-counts";
+import {
+    formatAllPackHubLabels,
+    formatHubCorpusLine,
+    formatHubCountLabel,
+    HUB_PROBE_LIMITS,
+    packBandTotalsFromSources,
+    resolveAllPackHubCounts,
+    type ScoredHubHit,
+} from "@/lib/jobs/for-you/hub-counts";
+import {
+    diffHubPackRemovals,
+    formatHubRemovalsLine,
+    readHubCountBaseline,
+    writeHubCountMemory,
+} from "@/lib/jobs/for-you/hub-count-memory";
 import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
@@ -1700,9 +1714,11 @@ function JobsContent() {
     /** Live hub “all” counts from a quiet fit probe — never mock numbers. */
     const [hubFitProbe, setHubFitProbe] = useState<{
         loading: boolean;
+        probing: boolean;
         total: number | null;
-        scores: MatchScore[];
-    }>({ loading: false, total: null, scores: [] });
+        scored: ScoredHubHit[];
+        removalsLine: string | null;
+    }>({ loading: false, probing: false, total: null, scored: [], removalsLine: null });
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -2769,73 +2785,147 @@ function JobsContent() {
     );
     const forYouDeck = useForYouDeck(forYouPacks);
 
-    // Quiet fit probe for hub “All your matches” live counts — does not apply
-    // fit to the URL or displace CategoryHubGrid. Omit numbers when no data.
+    // Progressive quiet fit probe — every pack gets live Strong·Good counts that
+    // climb as deeper pages score. Corpus total (~N pool) surfaces on the hub.
+    // On settle, diff localStorage last-seen counts for honest removal cues.
     useEffect(() => {
         if (!showForYouHome || forYouPackDeckOpen || !hasUsableResume || !resume) {
             return;
         }
         let cancelled = false;
-        setHubFitProbe((prev) => ({ ...prev, loading: true }));
+        setHubFitProbe((prev) => ({
+            ...prev,
+            loading: true,
+            probing: true,
+            removalsLine: null,
+        }));
+
         void (async () => {
             try {
+                const previous = readHubCountBaseline();
                 const { q, facets: derived } = buildMatchQuery(resume);
                 const derivedWithLocation = {
                     ...derived,
                     ...deriveResumeLocationFacets(resume.profile?.location),
                 };
                 const merged = mergeFacets({}, derivedWithLocation);
-                const r = await searchJobsAction({
-                    q,
-                    hideGhosts: true,
-                    postedBucket: "30d",
-                    limit: FOR_YOU_PAGE,
-                    offset: 0,
-                    withFacets: true,
-                    ...(Object.keys(merged).length ? { facets: merged } : {}),
-                });
+                const scoredById = new Map<string, ScoredHubHit>();
+                let poolTotal: number | null = null;
+
+                for (let step = 0; step < HUB_PROBE_LIMITS.length; step++) {
+                    if (cancelled) return;
+                    const limit = HUB_PROBE_LIMITS[step];
+                    const r = await searchJobsAction({
+                        q,
+                        hideGhosts: true,
+                        postedBucket: "30d",
+                        limit,
+                        offset: 0,
+                        withFacets: step === 0,
+                        ...(Object.keys(merged).length ? { facets: merged } : {}),
+                    });
+                    if (cancelled) return;
+                    if (isUnavailableJobsResult(r)) {
+                        setHubFitProbe({
+                            loading: false,
+                            probing: false,
+                            total: null,
+                            scored: [],
+                            removalsLine: null,
+                        });
+                        return;
+                    }
+                    poolTotal = r.total;
+                    for (const h of r.hits) {
+                        if (scoredById.has(h.id)) continue;
+                        const s = scoreJobAgainstResume(resume, h);
+                        if (s) scoredById.set(h.id, { job: h, score: s });
+                    }
+                    const scored = [...scoredById.values()];
+                    const isLast = step === HUB_PROBE_LIMITS.length - 1;
+                    setHubFitProbe({
+                        loading: false,
+                        probing: !isLast,
+                        total: poolTotal,
+                        scored,
+                        removalsLine: null,
+                    });
+                    if (!isLast) {
+                        await new Promise((resolve) => setTimeout(resolve, 450));
+                    }
+                }
+
                 if (cancelled) return;
-                if (isUnavailableJobsResult(r)) {
-                    setHubFitProbe({ loading: false, total: null, scores: [] });
-                    return;
-                }
-                const scores: MatchScore[] = [];
-                for (const h of r.hits) {
-                    const s = scoreJobAgainstResume(resume, h);
-                    if (s) scores.push(s);
-                }
-                setHubFitProbe({ loading: false, total: r.total, scores });
+                const scored = [...scoredById.values()];
+                const sources = resolveAllPackHubCounts({
+                    loading: false,
+                    probing: false,
+                    poolTotal,
+                    scored,
+                });
+                const nextTotals = packBandTotalsFromSources(sources);
+                const removals = diffHubPackRemovals(previous, nextTotals);
+                const removalsLine = formatHubRemovalsLine(removals) || null;
+                writeHubCountMemory({
+                    updatedAt: new Date().toISOString(),
+                    packs: nextTotals,
+                });
+                setHubFitProbe({
+                    loading: false,
+                    probing: false,
+                    total: poolTotal,
+                    scored,
+                    removalsLine,
+                });
             } catch {
-                if (!cancelled) setHubFitProbe({ loading: false, total: null, scores: [] });
+                if (!cancelled) {
+                    setHubFitProbe({
+                        loading: false,
+                        probing: false,
+                        total: null,
+                        scored: [],
+                        removalsLine: null,
+                    });
+                }
             }
         })();
+
         return () => {
             cancelled = true;
         };
     }, [showForYouHome, forYouPackDeckOpen, hasUsableResume, resume]);
 
     const hubCountLabels = useMemo(() => {
-        const labels: Partial<Record<string, string>> = {};
-        // Prefer live deck/fit scores when the pack deck just loaded; else probe.
-        const deckScores =
-            fitActive && matchScores
-                ? [...matchScores.values()]
-                : hubFitProbe.scores.length > 0
-                  ? hubFitProbe.scores
-                  : null;
-        const total =
-            fitActive && result?.total != null
-                ? result.total
-                : hubFitProbe.total;
-        const source = resolveAllMatchesHubCount({
-            loading: hubFitProbe.loading && !deckScores,
-            total,
-            scores: deckScores,
+        const deckScored: ScoredHubHit[] | null =
+            fitActive && matchScores && result?.hits?.length
+                ? result.hits
+                      .map((job) => {
+                          const score = matchScores.get(job.id);
+                          return score ? { job, score } : null;
+                      })
+                      .filter((x): x is ScoredHubHit => x != null)
+                : null;
+        const scored = deckScored && deckScored.length > 0 ? deckScored : hubFitProbe.scored;
+        const pool =
+            fitActive && result?.total != null ? result.total : hubFitProbe.total;
+        const sources = resolveAllPackHubCounts({
+            loading: hubFitProbe.loading && scored.length === 0,
+            probing: hubFitProbe.probing,
+            poolTotal: pool,
+            scored,
         });
-        const allLabel = formatHubCountLabel(source);
-        if (allLabel) labels.all = allLabel;
-        return labels;
-    }, [fitActive, matchScores, result?.total, hubFitProbe]);
+        return formatAllPackHubLabels(sources);
+    }, [fitActive, matchScores, result?.total, result?.hits, hubFitProbe]);
+
+    const hubCorpusLine = useMemo(
+        () =>
+            formatHubCorpusLine(
+                fitActive && result?.total != null ? result.total : hubFitProbe.total,
+                hubFitProbe.loading || hubFitProbe.probing,
+            ) || null,
+        [fitActive, result?.total, hubFitProbe.total, hubFitProbe.loading, hubFitProbe.probing],
+    );
+
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
     // after clustering, positions no longer line up 1:1. Every member of one
@@ -5884,6 +5974,9 @@ function JobsContent() {
                                 activeCategoryId={hubSelectedCategoryId}
                                 hubCountLabels={hubCountLabels}
                                 dailyApplyTip={DAILY_APPLY_HUB_TIP}
+                                hubMatching={hubFitProbe.loading || hubFitProbe.probing}
+                                hubCorpusLine={hubCorpusLine}
+                                hubRemovalsLine={hubFitProbe.removalsLine}
                                 onSelectCategory={(category) => {
                                     setHubSelectedCategoryId(category.id);
                                     setForYouPackDeckOpen(true);

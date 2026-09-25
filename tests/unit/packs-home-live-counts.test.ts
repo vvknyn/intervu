@@ -22,7 +22,19 @@ describe("packs home live counts + deeper deck", () => {
         assert.match(src, /firstPageLimit = deepForYou \? FOR_YOU_PAGE : PAGE/);
         assert.match(src, /hubCountLabels=\{hubCountLabels\}/);
         assert.match(src, /dailyApplyTip=\{DAILY_APPLY_HUB_TIP\}/);
+        assert.match(src, /hubCorpusLine=\{hubCorpusLine\}/);
+        assert.match(src, /hubMatching=/);
+        assert.match(src, /hubRemovalsLine=/);
+        assert.match(src, /HUB_PROBE_LIMITS/);
         assert.doesNotMatch(src, /appliedTodayChrome/);
+    });
+
+    it("CategoryHubGrid surfaces corpus + removals + matching pulse", () => {
+        const src = readFileSync(HUB, "utf8");
+        assert.match(src, /data-testid="hub-corpus-line"/);
+        assert.match(src, /data-testid="hub-removals-line"/);
+        assert.match(src, /hubMatching/);
+        assert.match(src, /data-matching=/);
     });
 
     it("ForYouHome keeps nav-only top chrome; corpus line sits with Show more", () => {
@@ -33,7 +45,6 @@ describe("packs home live counts + deeper deck", () => {
         assert.match(src, /onLoadMore/);
         assert.doesNotMatch(src, /appliedTodayChrome/);
         assert.doesNotMatch(src, /for-you-applied-today/);
-        // corpus line lives in the show-more wrap, not the top nav row
         const showMoreWrap =
             src.match(/data-testid="for-you-show-more-wrap"[\s\S]{0,900}/)?.[0] ?? "";
         assert.match(showMoreWrap, /for-you-showing-total/);

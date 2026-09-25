@@ -730,6 +730,12 @@ export interface CategoryHubGridProps {
     hubCountLabels?: Partial<Record<string, string>>;
     /** Quiet daily apply tip near Browse all / greeting. */
     dailyApplyTip?: string | null;
+    /** True while the progressive fit probe is still climbing pack counts. */
+    hubMatching?: boolean;
+    /** Quiet corpus line under Welcome, e.g. "~508 matches ranked Strong first". */
+    hubCorpusLine?: string | null;
+    /** Honest removal cue when prior known pack counts shrink. */
+    hubRemovalsLine?: string | null;
     className?: string;
 }
 
@@ -746,6 +752,9 @@ export function CategoryHubGrid({
     onOpenAdvancedSearch,
     hubCountLabels,
     dailyApplyTip,
+    hubMatching = false,
+    hubCorpusLine = null,
+    hubRemovalsLine = null,
     className,
 }: CategoryHubGridProps) {
     const [modalCategory, setModalCategory] = useState<CategoryHubItem | null>(null);
@@ -957,6 +966,30 @@ export function CategoryHubGrid({
                                 {dailyApplyTip}
                             </p>
                         ) : null}
+                        {hubCorpusLine ? (
+                            <p
+                                className="pt-1 text-xs text-muted-foreground tabular-nums"
+                                data-testid="hub-corpus-line"
+                            >
+                                {hubCorpusLine}
+                            </p>
+                        ) : null}
+                        {hubRemovalsLine ? (
+                            <p
+                                className="pt-0.5 text-xs text-muted-foreground"
+                                data-testid="hub-removals-line"
+                            >
+                                Recently cleared · {hubRemovalsLine}
+                            </p>
+                        ) : null}
+                        {hubMatching && !hubCorpusLine ? (
+                            <p
+                                className="pt-1 text-xs text-muted-foreground animate-pulse"
+                                data-testid="hub-matching-status"
+                            >
+                                Matching…
+                            </p>
+                        ) : null}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1028,8 +1061,12 @@ export function CategoryHubGrid({
                                     if (!label) return null;
                                     return (
                                         <span
-                                            className="mono-data rounded-pill bg-muted text-muted-foreground px-2 py-0.5 text-xs font-semibold"
+                                            className={cn(
+                                                "mono-data rounded-pill bg-muted text-muted-foreground px-2 py-0.5 text-xs font-semibold transition-all",
+                                                hubMatching && "animate-pulse",
+                                            )}
                                             data-testid={`hub-pack-count-${category.id}`}
+                                            data-matching={hubMatching ? "true" : undefined}
                                         >
                                             {label}
                                         </span>
