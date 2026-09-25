@@ -52,44 +52,35 @@ test("resolvePostAuthDestination honors pending actions without forcing the gate
         }),
         "/jobs",
     );
-});
-
-test("resolvePostAuthDestination routes résumeless default sign-ins to the gate path", () => {
     assert.equal(
         resolvePostAuthDestination({
-            validatedNext: null,
+            validatedNext: "/co/acme",
             hasResume: false,
-            hasPendingAction: false,
+            hasPendingAction: true,
         }),
-        "/jobs?resume=gate",
-    );
-    assert.equal(
-        resolvePostAuthDestination({
-            validatedNext: "/jobs",
-            hasResume: false,
-            hasPendingAction: false,
-        }),
-        "/jobs?resume=gate",
+        "/co/acme",
     );
 });
 
-test("resolvePostAuthDestination keeps explicit non-default destinations", () => {
-    assert.equal(
-        resolvePostAuthDestination({
-            validatedNext: "/connect?client=claude",
-            hasResume: false,
-            hasPendingAction: false,
-        }),
-        "/connect?client=claude",
-    );
-    assert.equal(
-        resolvePostAuthDestination({
-            validatedNext: "/jobs?q=engineer",
-            hasResume: false,
-            hasPendingAction: false,
-        }),
+test("resolvePostAuthDestination routes every résumeless no-pending landing to the gate", () => {
+    const gate = "/jobs?resume=gate";
+    for (const validatedNext of [
+        null,
+        "/jobs",
         "/jobs?q=engineer",
-    );
+        "/co/outerboxdesign--com",
+        "/connect?client=claude",
+        "/settings",
+    ]) {
+        assert.equal(
+            resolvePostAuthDestination({
+                validatedNext,
+                hasResume: false,
+                hasPendingAction: false,
+            }),
+            gate,
+        );
+    }
 });
 
 test("authGateReasonToFunnelReason maps gate continuity to funnel reasons", () => {
@@ -100,24 +91,25 @@ test("authGateReasonToFunnelReason maps gate continuity to funnel reasons", () =
     assert.equal(authGateReasonToFunnelReason(undefined), "fit");
 });
 
-test("resolveAuthKitReturnTo rewrites signup bare /jobs defaults to the gate path", () => {
+test("resolveAuthKitReturnTo sends every signup returnTo to the gate path", () => {
     const gate = "/jobs?resume=gate";
-    for (const rawNext of [null, "/jobs", "/jobs/", "/jobs?resume=gate"]) {
+    for (const rawNext of [
+        null,
+        "/jobs",
+        "/jobs/",
+        "/jobs?resume=gate",
+        "/jobs?q=engineer",
+        "/settings",
+        "/co/acme",
+        "/co/outerboxdesign--com",
+    ]) {
         assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext }), gate);
     }
 });
 
-test("resolveAuthKitReturnTo preserves explicit signup destinations", () => {
-    assert.equal(
-        resolveAuthKitReturnTo({ mode: "signup", rawNext: "/jobs?q=engineer" }),
-        "/jobs?q=engineer",
-    );
-    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/settings" }), "/settings");
-    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/co/acme" }), "/co/acme");
-});
-
 test("resolveAuthKitReturnTo does not rewrite sign-in return targets", () => {
     assert.equal(resolveAuthKitReturnTo({ mode: "login", rawNext: "/jobs" }), "/jobs");
+    assert.equal(resolveAuthKitReturnTo({ mode: "login", rawNext: "/co/acme" }), "/co/acme");
     assert.equal(resolveAuthKitReturnTo({ mode: "login", rawNext: null }), null);
 });
 
