@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { LOCKED_MARK_DATA_URI } from "@/lib/brand/locked-mark-data-uri";
 import { EMAIL_COLORS } from "@/lib/email/templates/palette";
 import { SITE_NAME } from "@/lib/seo/constants";
 
@@ -7,8 +7,8 @@ import { SITE_NAME } from "@/lib/seo/constants";
  * Shared OpenGraph/Twitter card shape for interior pages (trends, jobs,
  * companies/[slug], jobs/[slug], co/[slug]) — one render function so those
  * routes can't drift into near-identical layouts. Same grammar as the root
- * `/opengraph-image.tsx` card: white ground, ink type, Klein lockup — this
- * one adds a page-specific title + meta line below it. Edge runtime, so no
+ * `/opengraph-image.tsx` card: white ground, ink type, locked product mark —
+ * this one adds a page-specific title + meta line below it. Edge runtime, so no
  * custom font loading — a system sans reads fine at this size.
  */
 
@@ -36,12 +36,15 @@ export function buildPageOgImage(title: string, eyebrow?: string): ImageResponse
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <svg viewBox={BRAND_MARK_VIEWBOX} width={OG_MARK_PX} height={OG_MARK_PX}>
-            {BRAND_MARK_BRACKETS.map((d) => (
-              <path key={d} d={d} fill={EMAIL_COLORS.brand} />
-            ))}
-            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
-          </svg>
+          {/* Locked product mark raster — soft paper card + navy brackets + one bigger live dot */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={LOCKED_MARK_DATA_URI}
+            width={OG_MARK_PX}
+            height={OG_MARK_PX}
+            alt=""
+            style={{ borderRadius: 10 }}
+          />
           {/* Wordmark parity with BrandMark.tsx's on-page lockup: same
               rulebook-sanctioned exception (uppercase, weight 700, tight
               tracking) — just inline styles since Satori can't read

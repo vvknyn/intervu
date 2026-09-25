@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { LOCKED_MARK_DATA_URI } from "@/lib/brand/locked-mark-data-uri";
 import { EMAIL_COLORS } from "@/lib/email/templates/palette";
 import { SITE_NAME } from "@/lib/seo/constants";
 
@@ -10,10 +10,8 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 /**
- * Branded OpenGraph/Twitter card: white field, ink type, and the Velai
- * mark — same palette as the on-page BrandLockup (Satori can't read CSS
- * vars, so colors come from the same literal-hex sources BrandLockup's
- * dot and the email templates already use, rather than a third copy).
+ * Branded OpenGraph/Twitter card: white field, ink type, and the locked
+ * Velai product mark (soft paper card, navy brackets, one bigger live dot).
  * Generated at the edge by next/og's ImageResponse.
  */
 export default function OpengraphImage() {
@@ -34,12 +32,14 @@ export default function OpengraphImage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center" }}>
-          <svg viewBox={BRAND_MARK_VIEWBOX} width="64" height="64">
-            {BRAND_MARK_BRACKETS.map((d) => (
-              <path key={d} d={d} fill={EMAIL_COLORS.brand} />
-            ))}
-            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
-          </svg>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={LOCKED_MARK_DATA_URI}
+            width={64}
+            height={64}
+            alt=""
+            style={{ borderRadius: 12 }}
+          />
           {/* Wordmark parity with BrandMark.tsx's on-page lockup: same
               rulebook-sanctioned exception (uppercase, weight 700, tight
               tracking) — inline styles, Satori can't read Tailwind classes. */}

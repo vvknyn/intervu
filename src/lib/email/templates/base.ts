@@ -72,11 +72,9 @@ function preheaderBlock(text: string): string {
  * Brand lockup: the app mark beside the wordmark, centred, sized to the
  * ratio `BrandLockup` uses (28px mark, 28px wordmark).
  *
- * The mark is a hosted PNG (public/velai-logo.png) because SVG does not
- * render in Gmail or Outlook — it's the app-icon lockup (mark on its own
- * dark ground, per src/app/icon.svg) rather than the site header's
- * currentColor mark (BrandMark.tsx), since a raster can't adapt to the
- * email client's own light/dark rendering the way currentColor does in-app.
+ * The mark is a hosted PNG (public/velai-logo.png) — the locked product
+ * mark (soft paper card, navy brackets, one bigger green live dot). Same
+ * file BrandMark / favicon / PWA use. SVG does not render in Gmail/Outlook.
  *
  * Its `alt` is deliberately EMPTY — the wordmark next to it is real text, so
  * alt text here would read the brand twice to a screen reader and print

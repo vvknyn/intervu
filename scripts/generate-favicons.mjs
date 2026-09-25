@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Regenerates the entire favicon/icon set from one source asset:
- * public/velai-logo.png (the approved lockup raster — same file BrandMark
- * paints in the header and email templates host).
+ * public/velai-logo.png (the locked product mark — soft paper card, navy
+ * brackets, one bigger green live dot — same file BrandMark paints in the
+ * header and email templates host).
  *
  * Before this script, `src/app/icon.png` and raster variants were derived
  * from src/app/icon.svg (a stroke-path favicon mark). The lockup raster is
