@@ -1,6 +1,9 @@
 /**
  * Post-auth landing paths — route signed-in users without a usable résumé
- * into the existing /jobs résumé gate instead of bare `/jobs`.
+ * into the existing /jobs résumé gate (`/jobs?resume=gate`) so one-shot
+ * upload can open. Signup AuthKit returns always use the gate; résumeless
+ * password/login landings do too unless a pending apply/upload/report owns
+ * the next step.
  */
 
 import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
@@ -64,21 +67,19 @@ export function resolvePostAuthDestination(input: {
         return validatedNext ?? "/jobs";
     }
 
-    // Honor explicit non-default destinations (/settings, /connect, /jobs?q=…).
-    if (validatedNext && !isBareJobsDefault(validatedNext)) {
-        return validatedNext;
-    }
-
+    // Résumeless with nothing queued: always open the upload gate — including
+    // returns from /co/…, Search queries, Settings, or Connect. #585 only
+    // covered bare /jobs; company-page signups were skipping the modal.
     return buildPostAuthResumeGatePath();
 }
 
-/** Rewrite AuthKit `next` for signup when the user is on the anonymous /jobs default. */
+/** Rewrite AuthKit `next` for every signup so WorkOS returns to the résumé gate. */
 export function resolveAuthKitReturnTo(input: {
     mode: "login" | "signup";
     rawNext: string | null | undefined;
 }): string | null {
     const next = input.rawNext?.trim() ? input.rawNext.trim() : null;
-    if (input.mode === "signup" && isBareJobsDefault(next)) {
+    if (input.mode === "signup") {
         return buildPostAuthResumeGatePath();
     }
     return next;
