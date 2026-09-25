@@ -27,6 +27,8 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
+import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { Button } from "@/components/ui/button";
 import {
     Card as IconiqCard,
@@ -771,6 +773,10 @@ export function CategoryHubGrid({
 
     // Profile Parameter editing state
     const [profileModalOpen, setProfileModalOpen] = useState(false);
+    const [proofLoading, setProofLoading] = useState(false);
+    useEffect(() => {
+        setProofLoading(readPacksProofLoading());
+    }, []);
     const [profileName, setProfileName] = useState("");
     const [profileRole, setProfileRole] = useState("");
     const [profileYears, setProfileYears] = useState(0);
@@ -948,10 +954,17 @@ export function CategoryHubGrid({
 
 
     return (
-        <section aria-label="Job categories" className={cn("space-y-4", className)}>
+        <section
+            aria-label="Job categories"
+            data-testid="job-packs-hub"
+            className={cn(
+                "space-y-4 px-0 pb-[max(0.5rem,env(safe-area-inset-bottom))] touch-manipulation",
+                className,
+            )}
+        >
             {/* Welcome banner — Iconiq-calm Velai panel */}
-            <div className="rounded-panel border border-border/80 bg-card p-5 sm:p-7 shadow-[0_1px_0_rgb(var(--foreground)/0.02)]">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="rounded-panel border border-border/80 bg-card p-4 sm:p-7 shadow-[0_1px_0_rgb(var(--foreground)/0.02)]">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="space-y-1">
                         {hasResume && (
                             <div className="inline-flex items-center gap-1.5 rounded-pill bg-muted px-2.5 py-0.5 text-xs font-semibold text-live">
@@ -989,17 +1002,15 @@ export function CategoryHubGrid({
                                 Recently cleared · {hubRemovalsLine}
                             </p>
                         ) : null}
-                        {hubMatching && !hubCorpusLine ? (
-                            <p
-                                className="pt-1 text-xs text-muted-foreground animate-pulse"
-                                data-testid="hub-matching-status"
-                            >
-                                Matching…
-                            </p>
+                        {proofLoading || (hubMatching && !hubCorpusLine) ? (
+                            <RotatingLoadingCopy
+                                variant="hub"
+                                className="pt-1 text-xs font-medium tracking-[-0.01em]"
+                            />
                         ) : null}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                         <IconiqButton
                             type="button"
                             variant="outline"
@@ -1012,7 +1023,10 @@ export function CategoryHubGrid({
                                     setProfileModalOpen(true);
                                 }
                             }}
-                            className={cn(ICONIQ_VELAI_THEME, "gap-1.5 text-xs font-semibold")}
+                            className={cn(
+                                ICONIQ_VELAI_THEME,
+                                "min-h-11 w-full justify-center gap-1.5 text-xs font-semibold sm:w-auto",
+                            )}
                             icon={<Sliders size={16} />}
                         >
                             Adjust parameters
@@ -1029,7 +1043,7 @@ export function CategoryHubGrid({
                             }}
                             className={cn(
                                 ICONIQ_VELAI_THEME,
-                                "text-xs font-semibold bg-brand text-brand-foreground hover:bg-brand-hover",
+                                "min-h-11 w-full justify-center text-xs font-semibold bg-brand text-brand-foreground hover:bg-brand-hover sm:w-auto",
                             )}
                         >
                             Browse all matches
@@ -1039,7 +1053,7 @@ export function CategoryHubGrid({
             </div>
 
             {/* 8-Card Category Grid — Iconiq interactive cards, Velai navy */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-3.5">
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 sm:gap-3.5">
                 {DEFAULT_CATEGORY_HUBS.map((category) => {
                     const Icon = category.icon;
                     const isSelected = (modalCategory?.id ?? activeCategoryId) === category.id;
@@ -1062,7 +1076,7 @@ export function CategoryHubGrid({
                             className={cn(
                                 ICONIQ_VELAI_THEME,
                                 ICONIQ_VELAI_PANEL,
-                                "cursor-pointer gap-0 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                                "min-h-[5.75rem] cursor-pointer gap-0 py-4 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-0 sm:active:scale-100",
                                 isSelected
                                     ? "border-brand ring-1 ring-brand"
                                     : "border-border/80",
@@ -1089,7 +1103,7 @@ export function CategoryHubGrid({
                                     </IconiqBadge>
                                 ) : null}
                             </div>
-                            <h3 className="px-4 text-xs font-semibold leading-snug tracking-[-0.01em] text-foreground">
+                            <h3 className="px-3 text-sm font-semibold leading-snug tracking-[-0.01em] text-foreground sm:px-4 sm:text-xs">
                                 {category.label}
                             </h3>
                         </IconiqCard>

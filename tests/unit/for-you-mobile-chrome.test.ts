@@ -77,4 +77,31 @@ describe("for-you mobile chrome", () => {
             "footer zone must carry px-6",
         );
     });
+
+    it("ForYouDeck exposes swipe navigate + touch-pan-y for phone deck", () => {
+        const src = readFileSync(join(FOR_YOU, "ForYouDeck.tsx"), "utf8");
+        assert.match(src, /onSwipeNavigate/);
+        assert.match(src, /touch-pan-y/);
+        assert.match(src, /resolveDeckSwipe/);
+        assert.match(src, /data-testid="for-you-deck"/);
+    });
+
+    it("CategoryHubGrid hub is touch-first with safe-area and full-width CTAs", () => {
+        const src = readFileSync(join(JOBS, "CategoryHubGrid.tsx"), "utf8");
+        assert.match(src, /data-testid="job-packs-hub"/);
+        assert.match(src, /safe-area-inset-bottom/);
+        assert.match(src, /touch-manipulation/);
+        assert.match(src, /min-h-11 w-full/);
+        assert.match(src, /min-h-\[5\.75rem\]/);
+    });
+
+    it("ApplyReturnPrompt is Yes / Not yet / Skip with thumb-sized targets", () => {
+        const src = readFileSync(join(JOBS, "ApplyReturnPrompt.tsx"), "utf8");
+        assert.match(src, />\s*Yes\s*</);
+        assert.match(src, />\s*Not yet\s*</);
+        assert.match(src, /data-testid="apply-return-skip"/);
+        assert.match(src, /min-h-11/);
+        assert.match(src, /safe-area-inset-bottom/);
+        assert.doesNotMatch(src, />\s*I applied\s*</);
+    });
 });

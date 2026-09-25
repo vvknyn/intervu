@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
+import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { Kbd } from "@/components/ui/kbd";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ForYouDeck } from "@/components/jobs/for-you/ForYouDeck";
@@ -68,37 +70,45 @@ export interface ForYouHomeProps {
  *  one skeleton, reused, so the two never drift into different "card
  *  shapes." Only `<div>`s: no headings or interactive elements, since the
  *  pre-résumé shell must stay free of both (first-paint spec rule). */
-function ForYouPackSkeleton() {
+function ForYouPackSkeleton({ withStatus = false }: { withStatus?: boolean } = {}) {
     return (
-        <div className="flex flex-col overflow-hidden rounded-panel border border-border bg-card">
-            <div className="border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8">
-                <div className="flex items-start gap-3">
-                    <Skeleton className="size-10 shrink-0" />
-                    <div className="flex-1 space-y-2">
-                        <Skeleton className="h-3 w-24" />
-                        <Skeleton className="h-5 w-2/3" />
-                        <Skeleton className="h-3 w-40" />
+        <div className="space-y-3">
+            {withStatus ? (
+                <RotatingLoadingCopy
+                    variant="deck"
+                    className="px-1 text-xs font-medium tracking-[-0.01em]"
+                />
+            ) : null}
+            <div className="flex flex-col overflow-hidden rounded-panel border border-border bg-card">
+                <div className="border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8">
+                    <div className="flex items-start gap-3">
+                        <Skeleton className="size-10 shrink-0" />
+                        <div className="flex-1 space-y-2">
+                            <Skeleton className="h-3 w-24" />
+                            <Skeleton className="h-5 w-2/3" />
+                            <Skeleton className="h-3 w-40" />
+                        </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <Skeleton className="h-7 w-20" />
+                        <Skeleton className="h-7 w-24" />
+                        <Skeleton className="h-7 w-16" />
                     </div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                    <Skeleton className="h-7 w-20" />
-                    <Skeleton className="h-7 w-24" />
-                    <Skeleton className="h-7 w-16" />
-                </div>
-            </div>
-            <div className="grid gap-6 py-4 px-4 lg:grid-cols-[280px_1fr] lg:py-6 lg:px-8">
-                <div className="hidden border border-border bg-muted p-4 lg:block">
-                    <Skeleton className="h-3 w-20" />
-                    <Skeleton className="mt-3 h-2 w-full" />
-                    <Skeleton className="mt-4 h-3 w-24" />
-                    <Skeleton className="mt-2 h-2 w-full" />
-                </div>
-                <div className="max-h-[min(60dvh,640px)] space-y-3">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-5/6" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-2/3" />
+                <div className="grid gap-6 py-4 px-4 lg:grid-cols-[280px_1fr] lg:py-6 lg:px-8">
+                    <div className="hidden border border-border bg-muted p-4 lg:block">
+                        <Skeleton className="h-3 w-20" />
+                        <Skeleton className="mt-3 h-2 w-full" />
+                        <Skeleton className="mt-4 h-3 w-24" />
+                        <Skeleton className="mt-2 h-2 w-full" />
+                    </div>
+                    <div className="max-h-[min(60dvh,640px)] space-y-3">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-5/6" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-2/3" />
+                    </div>
                 </div>
             </div>
         </div>
@@ -133,9 +143,11 @@ export function ForYouHome({
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(true);
+    const [proofLoading, setProofLoading] = useState(false);
 
     useEffect(() => {
         setHintDismissed(readForYouHintDismissed());
+        setProofLoading(readPacksProofLoading());
     }, []);
 
     const dismissHint = useCallback(() => {
@@ -207,7 +219,7 @@ export function ForYouHome({
         })();
     }, [activeJob, resume, applying, hydratedJobs, exportPdfForJob, onOpenPosting]);
 
-    const showLoading = fitResolving || loading || !fitActive;
+    const showLoading = proofLoading || fitResolving || loading || !fitActive;
     const canNavigate = !showLoading && visiblePacks.length > 0;
 
     const shortcutStateRef = useRef({ activeIndex, packsLength: visiblePacks.length, canNavigate, applying });
@@ -324,7 +336,7 @@ export function ForYouHome({
 
             {showLoading ? (
                 <div data-testid="for-you-loading">
-                    <ForYouPackSkeleton />
+                    <ForYouPackSkeleton withStatus />
                 </div>
             ) : visiblePacks.length === 0 ? (
                 <div
@@ -350,6 +362,13 @@ export function ForYouHome({
                     hydratedJobs={hydratedJobs}
                     onActivePackChange={onActivePackChange}
                     onRetryDescription={onRetryDescription}
+                    onSwipeNavigate={(direction) => {
+                        if (direction === "previous") {
+                            onActiveIndexChange(Math.max(activeIndex - 1, 0));
+                        } else {
+                            onActiveIndexChange(Math.min(activeIndex + 1, visiblePacks.length - 1));
+                        }
+                    }}
                 />
             )}
 

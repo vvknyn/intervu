@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ForYouPack } from "@/components/jobs/for-you/ForYouPack";
 import { prefetchIndexesAhead } from "@/lib/jobs/for-you/deck-active-job";
 import { resolveDescriptionHydration } from "@/lib/jobs/for-you/description-pane-state";
+import { resolveDeckSwipe } from "@/lib/jobs/for-you/deck-swipe";
 import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -30,18 +31,16 @@ export interface ForYouDeckProps {
     hydratedJobs: Map<string, { job: PublicJob; descriptionPending: boolean }>;
     onActivePackChange: (jobId: string) => void;
     onRetryDescription?: (jobId: string) => void;
+    /** Horizontal swipe → previous/next. Optional so Search-adjacent mounts stay inert. */
+    onSwipeNavigate?: (direction: "previous" | "next") => void;
     className?: string;
 }
 
 /**
  * Renders ONLY the active pack — no stacked offset cards behind it (that
- * was the "white box" peeking-edges defect, and the source of the old
- * wheel/touch gesture code below it that tried to route scroll gestures
- * around them). Keying on `pack.id` remounts the card on every job change,
- * which is also what resets its scroll position to the top for free.
- * `onActivePackChange` still fires for the active card AND the next
- * `FOR_YOU_PREFETCH_AHEAD` cards so description prefetch (owned by the
- * caller) keeps working.
+ * was the "white box" peeking-edges defect). Keying on `pack.id` remounts
+ * the card on every job change (scroll resets for free). Horizontal swipe
+ * flips cards; vertical scroll inside the postcard JD stays native.
  */
 export function ForYouDeck({
     packs,
@@ -52,6 +51,7 @@ export function ForYouDeck({
     hydratedJobs,
     onActivePackChange,
     onRetryDescription,
+    onSwipeNavigate,
     className,
 }: ForYouDeckProps) {
     useEffect(() => {
@@ -62,12 +62,33 @@ export function ForYouDeck({
         }
     }, [activeIndex, packs, onActivePackChange]);
 
+    const touchStart = useRef<{ x: number; y: number } | null>(null);
+
     const activePack = packs[activeIndex];
     if (!activePack) return null;
     const hydrated = resolveDescriptionHydration(activePack, hydratedJobs.get(activePack.id));
 
     return (
-        <div className={cn("relative", className)}>
+        <div
+            className={cn("relative touch-pan-y", className)}
+            data-testid="for-you-deck"
+            onTouchStart={(event) => {
+                if (!onSwipeNavigate) return;
+                const t = event.changedTouches[0];
+                if (!t) return;
+                touchStart.current = { x: t.clientX, y: t.clientY };
+            }}
+            onTouchEnd={(event) => {
+                if (!onSwipeNavigate || !touchStart.current) return;
+                const t = event.changedTouches[0];
+                if (!t) return;
+                const dx = t.clientX - touchStart.current.x;
+                const dy = t.clientY - touchStart.current.y;
+                touchStart.current = null;
+                const direction = resolveDeckSwipe({ dx, dy });
+                if (direction) onSwipeNavigate(direction);
+            }}
+        >
             <ForYouPack
                 key={activePack.id}
                 job={activePack}

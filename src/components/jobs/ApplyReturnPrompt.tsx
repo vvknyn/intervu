@@ -85,10 +85,10 @@ export function useApplyReturnPrompt({
 }
 
 /**
- * The visible box — same fixed placement/testid/role the board's old inline
- * implementation used. "I applied" / "Not yet" (no ×): a return prompt is a
- * yes/no question, not a dismissible notice, so the negative answer gets
- * the same weight as the positive one instead of an anonymous close glyph.
+ * Quiet close-the-loop chip after return from the employer posting.
+ * Yes → mark applied (caller writes tracker + `job_marked_applied`).
+ * Not yet / Skip → dismiss once, no nag. Not a modal wall — fixed chip
+ * above the mobile tab bar with safe-area inset.
  */
 export function ApplyReturnPrompt({
     record,
@@ -104,31 +104,36 @@ export function ApplyReturnPrompt({
         <div
             data-testid="apply-return-prompt"
             role="status"
-            // Clears the mobile tab bar via its published height token (0 on
-            // desktop/chrome-hidden routes, see globals.css) instead of the
-            // flat `bottom-24` guess that let it sit on top of the bar.
-            className="fixed right-4 z-40 flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3 bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+1rem)] lg:bottom-24"
+            className="fixed inset-x-3 z-40 mx-auto flex w-auto max-w-sm flex-col gap-3 rounded-panel border border-border bg-card px-4 py-3 shadow-[0_8px_24px_rgb(var(--foreground)/0.06)] bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+0.75rem)] sm:inset-x-auto sm:right-4 sm:left-auto lg:bottom-24"
         >
-            <div className="min-w-0 flex-1">
-                <div className="mono-data whitespace-nowrap text-xs text-muted-foreground">Did you apply?</div>
-                <div className="mt-0.5 truncate text-meta text-foreground">{decodeText(record.title)}</div>
+            <div className="min-w-0">
+                <div className="text-xs font-semibold tracking-[-0.01em] text-foreground">Did you apply?</div>
+                <div className="mt-0.5 truncate text-xs text-muted-foreground">{decodeText(record.title)}</div>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
                 <button
                     type="button"
                     data-testid="apply-return-mark-applied"
                     onClick={onMarkApplied}
-                    className="border border-border bg-background px-2.5 py-1.5 text-xs text-foreground hover:bg-muted"
+                    className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-border bg-brand px-3 text-xs font-semibold text-brand-foreground hover:bg-brand-hover sm:flex-none"
                 >
-                    I applied
+                    Yes
                 </button>
                 <button
                     type="button"
                     data-testid="apply-return-not-yet"
                     onClick={onDismiss}
-                    className="text-xs text-muted-foreground hover:text-foreground"
+                    className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-border bg-background px-3 text-xs font-semibold text-foreground hover:bg-muted sm:flex-none"
                 >
                     Not yet
+                </button>
+                <button
+                    type="button"
+                    data-testid="apply-return-skip"
+                    onClick={onDismiss}
+                    className="inline-flex min-h-11 items-center justify-center px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                >
+                    Skip
                 </button>
             </div>
         </div>
