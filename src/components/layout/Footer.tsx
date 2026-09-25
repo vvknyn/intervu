@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Moon, Sun } from "@phosphor-icons/react";
 import { onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
-import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { FOOTER_PROVENANCE_LINE, GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
 
@@ -29,6 +29,13 @@ export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true 
     { label: "Privacy", href: "/privacy" },
     { label: "Terms", href: "/terms" },
 ];
+
+/** Minimal legal strip for lean hub/deck/apply — not the marketing link farm. */
+export const LEAN_LEGAL_LINKS: { label: string; href: string }[] = [
+    { label: "Privacy", href: "/privacy" },
+    { label: "Terms", href: "/terms" },
+];
+
 
 /** Appends `from=<pathname>` to `href` for a link flagged `fromCurrentPage`,
  *  reusing whatever query string the link already has — pulled out of
@@ -141,7 +148,32 @@ export function FooterContent() {
 export function Footer() {
     const pathname = usePathname();
     if (shouldHideSiteChrome(pathname)) return null;
+    if (isLeanProductSurface(pathname)) return <LeanFooterContent />;
 
     return <FooterContent />;
+}
+
+/** Privacy/Terms only — keeps legal reachable without the ~17-link farm on
+ *  hub/deck/apply lean walks. */
+function LeanFooterContent() {
+    return (
+        <footer
+            data-testid="site-footer"
+            data-lean="true"
+            className="relative z-20 shrink-0 border-t border-border bg-background pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-0"
+        >
+            <div className="shell-row flex flex-wrap items-center gap-x-5 gap-y-1.5 py-3 text-xs text-muted-foreground sm:py-4">
+                {LEAN_LEGAL_LINKS.map((link) => (
+                    <Link
+                        key={link.href}
+                        href={link.href}
+                        className="transition-colors duration-100 hover:text-foreground"
+                    >
+                        {link.label}
+                    </Link>
+                ))}
+            </div>
+        </footer>
+    );
 }
 

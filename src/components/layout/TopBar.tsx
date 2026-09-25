@@ -22,7 +22,7 @@ import { NAV_TABS, menuNavActive, menuNavTriggerLabel } from "@/components/layou
 import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandLockup } from "@/components/brand/BrandMark";
-import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
@@ -35,6 +35,7 @@ import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
  */
 export function TopBar() {
     const pathname = usePathname();
+    const leanSurface = isLeanProductSurface(pathname);
     // `undefined` until `onAuthChange` resolves — NOT `null`, which would
     // claim "signed out" during the server round-trip and flash a Sign-in
     // button at a signed-in user. See lib/auth/chrome-state.ts.
@@ -59,7 +60,11 @@ export function TopBar() {
     const { docked, homeViewDocked } = useSearchDock();
     const navBadges = useNavBadgeCounts();
     const menuTabs = NAV_TABS.filter((t) => t.placement === "menu");
-    const barTabs = NAV_TABS.filter((t) => t.placement === "bar");
+    const barTabs = NAV_TABS.filter((t) => t.placement === "bar").filter(
+        // Lean hub/deck/apply: drop desktop header MCP (/connect). Pack-deck
+        // `for-you-mcp-handoff` stays — that is not TopBar chrome.
+        (t) => !(leanSurface && t.href === "/connect"),
+    );
     const menuActive = menuNavActive(pathname, NAV_TABS);
     const menuTriggerLabel = menuNavTriggerLabel(pathname, NAV_TABS);
     const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
