@@ -4,8 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { getMarketingStatsAction } from "@/actions/marketing";
 import { formatCorpusCount, formatCompactCorpusCount } from "@/lib/jobs/corpus-count";
-import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
-import { GHOST_JOB_RESEARCH_TITLE } from "@/lib/seo/ghost-job-term";
 import {
     Sparkle,
     ArrowRight,
@@ -27,6 +25,7 @@ import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { buildReturnTo } from "@/lib/jobs/pending-actions";
 import type { ResumeData, ResumeProfile } from "@/types/resume";
+import { LandingLiveRolesPreview } from "@/components/onboarding/LandingLiveRolesPreview";
 
 export interface LandingOnboardingViewProps {
     onComplete: (data: {
@@ -36,6 +35,8 @@ export interface LandingOnboardingViewProps {
     }) => void;
     onSkip?: () => void;
     onOpenAuth?: () => void;
+    /** Soft-gate: open public Advanced search (not For-you packs). */
+    onBrowsePublicJobs?: () => void;
     isAuthenticated?: boolean;
     initialStep?: 1 | 2 | 3;
     initialParsedResume?: ResumeData | null;
@@ -48,6 +49,7 @@ export function LandingOnboardingView({
     onComplete,
     onSkip,
     onOpenAuth,
+    onBrowsePublicJobs,
     isAuthenticated = false,
     initialStep,
     initialParsedResume,
@@ -200,7 +202,11 @@ export function LandingOnboardingView({
     };
 
     return (
-        <div className={cn("mx-auto w-full max-w-[760px] relative z-10", className)}>
+        <div className={cn(
+            "mx-auto w-full relative z-10",
+            step === 1 ? "max-w-[960px]" : "max-w-[760px]",
+            className,
+        )}>
             {/* Unified Solid Reading Card */}
             <div className="rounded-panel border border-border bg-card p-3.5 sm:p-5 space-y-3 relative z-10">
                 {/* Header Kicker */}
@@ -239,74 +245,26 @@ export function LandingOnboardingView({
                     <div className={cn("h-1 rounded-pill transition-colors duration-200", step >= 3 ? "bg-brand" : "bg-muted")} />
                 </div>
 
-                {/* STATION 1: PUNCHY MARKETING HERO */}
+                {/* STATION 1: value line + live roles + CTA (Velai 2.0 public preview) */}
                 {step === 1 && (
                     <div className="space-y-3 sm:space-y-3.5">
-                        {/* Live Status Pill */}
-                        <div className="inline-flex items-center gap-1.5 rounded-pill bg-muted px-2.5 py-0.5 text-xs font-semibold text-live">
-                            <span className="h-1.5 w-1.5 rounded-pill bg-live" />
-                            <span className="sm:hidden">Straight From Employers · 100% Private</span>
-                            <span className="hidden sm:inline">Straight From Employers · Verified Active Postings · 100% Private</span>
-                        </div>
-
-                        {/* Punchy Headline & Subhead */}
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
+                            <div className="inline-flex items-center gap-1.5 rounded-pill bg-muted px-2.5 py-0.5 text-xs font-semibold text-live">
+                                <span className="h-1.5 w-1.5 rounded-pill bg-live" />
+                                <span>Straight from employers · matching stays private</span>
+                            </div>
                             <h2 className="text-base sm:text-xl font-semibold text-foreground leading-snug">
-                                Real jobs, straight from employers.
+                                Real jobs, before you sign in.
                                 <br className="hidden sm:inline" />{" "}
-                                <span className="text-brand">Matched to your résumé 100% privately on your device.</span>
+                                <span className="text-brand">Private matching starts after your résumé — on your device.</span>
                             </h2>
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                                We check official company career pages directly so every listing is verified and active. Your résumé is analyzed safely in this browser — never shared, sold, or sent to outside recruiters.
+                            <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
+                                Preview live roles from official career pages. Sign in and add a résumé to unlock tailored packs, Strong/Good fit, and on-device apply help — résumé text never leaves this browser for matching.
                             </p>
                         </div>
 
-                        {/* 3 Native Value Props: List rows on mobile, 3-column cards on desktop */}
-                        <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-2 pt-0.5">
-                            <div className="rounded-ctl border border-border bg-card p-2.5 flex sm:flex-col items-start gap-2.5 sm:gap-1.5">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-live shrink-0">
-                                    <ShieldCheck size={20} weight="bold" />
-                                </div>
-                                <div className="space-y-0.5 min-w-0">
-                                    <div className="text-xs font-semibold text-foreground">
-                                        Straight From Employers
-                                    </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">
-                                        Every opening comes directly from official company career sites. No middleman boards or stale reposts.
-                                    </p>
-                                </div>
-                            </div>
+                        <LandingLiveRolesPreview onBrowseMore={onBrowsePublicJobs} />
 
-                            <div className="rounded-ctl border border-border bg-card p-2.5 flex sm:flex-col items-start gap-2.5 sm:gap-1.5">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-brand shrink-0">
-                                    <Cpu size={20} weight="bold" />
-                                </div>
-                                <div className="space-y-0.5 min-w-0">
-                                    <div className="text-xs font-semibold text-foreground">
-                                        100% Private to You
-                                    </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">
-                                        Your résumé never leaves your device. We never sell your personal data or share it with recruiters.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="rounded-ctl border border-border bg-card p-2.5 flex sm:flex-col items-start gap-2.5 sm:gap-1.5">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-brand shrink-0">
-                                    <Sparkle size={20} weight="bold" />
-                                </div>
-                                <div className="space-y-0.5 min-w-0">
-                                    <div className="text-xs font-semibold text-foreground">
-                                        Instant Job Matches
-                                    </div>
-                                    <p className="text-xs text-muted-foreground leading-snug">
-                                        See how well your background fits each role before applying, with real employer pay ranges.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Live Proof Stat Strip & Assistant Readiness */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 rounded-ctl border border-border bg-muted px-3 py-1.5 text-xs">
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                 <Link
@@ -320,31 +278,20 @@ export function LandingOnboardingView({
                                 </Link>
                                 <span className="text-muted-foreground">·</span>
                                 <Link
-                                    href={GHOST_RESEARCH_HREF}
-                                    className="group inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
-                                    title="We scored over 1.8M corporate ATS listings — read our research report on stale listings and application waste"
-                                >
-                                    <span className="font-semibold text-live">Jobs report:</span>{" "}
-                                    <span className="text-muted-foreground group-hover:text-foreground">{GHOST_JOB_RESEARCH_TITLE} ↗</span>
-                                </Link>
-                                <span className="text-muted-foreground hidden sm:inline">·</span>
-                                <Link
                                     href="/privacy"
-                                    className="group hidden sm:inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
-                                    title="Resume parsing and match scoring run locally on your device via WebAssembly"
+                                    className="group inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
+                                    title="Resume parsing and match scoring run locally on your device"
                                 >
-                                    <span className="font-semibold text-foreground">100%</span>{" "}
-                                    <span className="text-muted-foreground group-hover:text-foreground">private</span>
+                                    <span className="font-semibold text-foreground">On-device</span>{" "}
+                                    <span className="text-muted-foreground group-hover:text-foreground">matching after résumé</span>
                                 </Link>
                             </div>
-
                             <div className="flex items-center gap-1.5 text-muted-foreground shrink-0 pt-0.5 sm:pt-0">
                                 <Cpu size={16} className={cn("text-brand", !modelReady && "animate-spin")} />
                                 <span>{modelReady ? "Private matching ready ✓" : "Preparing private matching"}</span>
                             </div>
                         </div>
 
-                        {/* Native Thumb-Friendly Action Bar */}
                         <div className="pt-2 border-t border-border flex flex-col gap-2">
                             <Button
                                 onClick={() => setStep(isAuthenticated ? 3 : 2)}

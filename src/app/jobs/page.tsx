@@ -5914,6 +5914,12 @@ function JobsContent() {
                                     setAuthGateReason("resume");
                                     setAuthOpen(true);
                                 }}
+                                onBrowsePublicJobs={() => {
+                                    // Soft-gate: public Advanced search / default browse —
+                                    // not For-you packs (those stay behind sign-in + résumé).
+                                    setShowAdvancedSearch(true);
+                                    setJobsHomeView("search");
+                                }}
                             />
                         </div>
                     </div>
