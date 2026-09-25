@@ -4,7 +4,9 @@ import {
     buildDeterministicJdTemplate,
     buildJdFormatPrompt,
     hashJobDescription,
+    jdSearchIndexSnippet,
     jdTemplateHasContent,
+    jdTemplateIsThin,
     resetJdFormatCacheForTests,
     resolveJdTemplateSync,
     JD_TEMPLATE_LABELS,
@@ -116,6 +118,28 @@ describe("format-job-description (on-device JD template)", () => {
         assert.equal(t.hook.length, 1);
         assert.ok((t.hook[0]?.text?.length ?? 0) > 5);
         assert.ok(t.bring.length > 0);
+    });
+
+    it("keeps leftover hook sentences in do instead of discarding a mega-paragraph", () => {
+        const raw =
+            "Caseware seeks a PM. Own the roadmap end to end. Partner with engineering and design. Need 5 years of B2B SaaS product management.";
+        const t = buildDeterministicJdTemplate(raw);
+        assert.equal(t.hook.length, 1);
+        assert.match(t.hook[0]?.text ?? "", /Caseware seeks a PM/i);
+        assert.ok(t.do.length > 0, "expected leftover body folded into do");
+        assert.equal(jdTemplateIsThin(t, raw), false);
+    });
+
+    it("marks hook-only templates as thin so the postcard can soft-fail", () => {
+        const thin = {
+            hook: [{ type: "para" as const, text: "A short role pitch only." }],
+            do: [],
+            bring: [],
+            nice: [],
+            perks: [],
+        };
+        assert.equal(jdTemplateIsThin(thin, "A short role pitch only. Lots more body text that was lost in formatting somehow and should trigger soft-fail."), true);
+        assert.ok(jdSearchIndexSnippet("Hello world. More detail here about the role and team.").includes("Hello"));
     });
 
 });

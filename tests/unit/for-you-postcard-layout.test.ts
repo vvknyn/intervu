@@ -156,4 +156,13 @@ describe("for-you postcard layout", () => {
         );
     });
 
+    it("soft-fails thin JD templates to title/company/apply/snippet — never empty ✨ The role", () => {
+        const pack = source("ForYouPack.tsx");
+        assert.match(pack, /jdTemplateIsThin/);
+        assert.match(pack, /jdSearchIndexSnippet/);
+        assert.match(pack, /data-testid="for-you-jd-soft-fail"/);
+        assert.match(pack, /data-testid="for-you-jd-apply-link"/);
+        assert.match(pack, /Apply at/);
+    });
+
 });

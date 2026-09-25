@@ -49,7 +49,7 @@ export const JD_TEMPLATE_LABELS: Record<JdTemplateKey, string> = {
 export const JD_TEMPLATE_ORDER: JdTemplateKey[] = ["hook", "do", "bring", "nice", "perks"];
 
 const CACHE_PREFIX = "velai.jdFormat.v1:";
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const MAX_CACHE_ENTRIES = 48;
 const AI_TIMEOUT_MS = 12_000;
 /** Cap source text sent to the on-device model. */
@@ -73,6 +73,53 @@ function emptyTemplate(): JdTemplate {
 
 export function jdTemplateHasContent(t: JdTemplate): boolean {
     return JD_TEMPLATE_ORDER.some((k) => t[k].length > 0);
+}
+
+/** Count non-empty template sections (hook/do/bring/nice/perks). */
+export function jdTemplateFilledSectionCount(t: JdTemplate): number {
+    return JD_TEMPLATE_ORDER.filter((k) => t[k].length > 0).length;
+}
+
+function templateCharCount(t: JdTemplate): number {
+    let n = 0;
+    for (const key of JD_TEMPLATE_ORDER) {
+        for (const b of t[key]) {
+            if (b.type === "list" && b.items) n += b.items.join(" ").length;
+            else n += (b.text ?? "").length;
+        }
+    }
+    return n;
+}
+
+/**
+ * True when the template would render a sparse postcard (hook-only or almost
+ * no recovered prose vs the source). Callers must soft-fail — never show a
+ * huge empty "✨ The role" card.
+ */
+export function jdTemplateIsThin(t: JdTemplate, raw?: string | null): boolean {
+    if (!jdTemplateHasContent(t)) return true;
+    const filled = jdTemplateFilledSectionCount(t);
+    const chars = templateCharCount(t);
+    // Only a truncated hook → sparse card with empty whitespace beside fit aside.
+    if (filled === 1 && t.hook.length > 0) return true;
+    if (chars < 80) return true;
+    const rawLen = (raw ?? "").replace(/\s+/g, " ").trim().length;
+    if (rawLen >= 200 && chars / rawLen < 0.2 && filled < 3) return true;
+    return false;
+}
+
+/**
+ * Short search-index-style snippet for soft-fail postcard bodies when the
+ * template is thin — never invent; just compress the source.
+ */
+export function jdSearchIndexSnippet(raw: string | null | undefined, max = 280): string {
+    const cleaned = (raw ?? "").replace(/\s+/g, " ").trim();
+    if (!cleaned) return "";
+    if (cleaned.length <= max) return cleaned;
+    const slice = cleaned.slice(0, max - 1);
+    const cut = Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("; "), slice.lastIndexOf(", "), slice.lastIndexOf(" "));
+    const base = cut > 80 ? slice.slice(0, cut + (slice[cut] === "." || slice[cut] === ";" ? 1 : 0)) : slice;
+    return `${base.trim()}…`;
 }
 
 /** djb2-ish content hash — short, stable, good enough for cache keys. */
@@ -323,16 +370,28 @@ export function buildDeterministicJdTemplate(raw: string | null | undefined): Jd
     }
 
     // Hook = one-line pitch from the first about/hook prose.
-    const hookText = firstSentence(hookParas.map(blockToProse).filter(Boolean).join(" "));
+    const hookJoined = hookParas.map(blockToProse).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    const hookText = firstSentence(hookJoined);
     if (hookText) out.hook = [{ type: "para", text: hookText }];
 
-    // Leftover hook body (beyond the first sentence) that looks like duties
-    // and we have no do-section yet → fold into do as bullets.
-    if (out.do.length === 0) {
-        const leftover = hookParas
-            .slice(1)
-            .flatMap((b) => (b.type === "list" ? b.items ?? [] : b.text ? [b.text] : []))
-            .filter(Boolean);
+    // Leftover hook body beyond the first sentence — previously we only kept
+    // hookParas.slice(1), which discarded the rest of a single mega-paragraph
+    // and produced hook-only sparse cards (Caseware / Workday flatten).
+    if (out.do.length === 0 && hookJoined) {
+        let rest = hookJoined;
+        if (hookText) {
+            const bare = hookText.replace(/…$/, "");
+            if (rest.startsWith(bare)) rest = rest.slice(bare.length).replace(/^[.…\s]+/, "").trim();
+            else rest = rest.replace(/^.+?[.!?](?:\s+|$)/, "").trim();
+        }
+        const leftover: string[] = [];
+        for (const b of hookParas) {
+            if (b.type === "list" && b.items) leftover.push(...b.items);
+        }
+        if (rest) {
+            const sentences = rest.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length >= 12);
+            leftover.push(...(sentences.length ? sentences : [rest]));
+        }
         if (leftover.length) out.do = toListBlocks(leftover.slice(0, 8));
     }
 
@@ -463,7 +522,7 @@ export async function enhanceJdTemplateWithLocalAi(
 
     const hash = hashJobDescription(raw);
     const cached = readCache(jobId, hash);
-    if (cached) return cached;
+    if (cached && !jdTemplateIsThin(cached, raw)) return cached;
 
     const key = cacheKey(jobId, hash);
     const existing = inFlight.get(key);
@@ -478,6 +537,11 @@ export async function enhanceJdTemplateWithLocalAi(
             const parsed = tryParseModelJson(rawOut);
             if (!parsed) return null;
             const template = modelToTemplate(parsed, fallback);
+            // Soft-fail thin AI output — keep the richer deterministic baseline.
+            if (jdTemplateIsThin(template, raw) && !jdTemplateIsThin(fallback, raw)) {
+                return null;
+            }
+            if (jdTemplateIsThin(template, raw)) return null;
             writeCache(jobId, hash, template, getActiveEngineId());
             return template;
         } catch (e) {
@@ -499,11 +563,16 @@ export function resolveJdTemplateSync(
 ): { template: JdTemplate; source: "cache" | "deterministic" | "empty" } {
     if (!raw?.trim()) return { template: emptyTemplate(), source: "empty" };
     const hash = hashJobDescription(raw);
+    const deterministic = buildDeterministicJdTemplate(raw);
     if (jobId) {
         const cached = readCache(jobId, hash);
-        if (cached) return { template: cached, source: "cache" };
+        // Prefer cached only when it is at least as rich as deterministic —
+        // never resurrect a thin hook-only AI cache into the postcard.
+        if (cached && !jdTemplateIsThin(cached, raw)) {
+            return { template: cached, source: "cache" };
+        }
     }
-    return { template: buildDeterministicJdTemplate(raw), source: "deterministic" };
+    return { template: deterministic, source: "deterministic" };
 }
 
 /** Test helper — clears memory + in-flight maps (not localStorage). */

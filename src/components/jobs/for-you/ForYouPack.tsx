@@ -18,6 +18,8 @@ import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
 import {
     JD_TEMPLATE_LABELS,
     JD_TEMPLATE_ORDER,
+    jdSearchIndexSnippet,
+    jdTemplateIsThin,
 } from "@/lib/local-ai/format-job-description";
 import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -174,28 +176,71 @@ export function ForYouPack({
     const paneState = descriptionPaneState(descriptionPending, sections);
     const hasAside = matchScore != null || reasons.bullets.length > 0 || reasons.chips.length > 0;
 
+    // Soft-fail sparse templates: never render a hook-only "✨ The role" card
+    // with huge empty whitespace. Fall back to title + company + apply link +
+    // a short search-index snippet (Job Apply confirmed).
+    const templateThin =
+        paneState === "empty" ||
+        (paneState === "content" && jdTemplateIsThin(template, displayJob.description));
+    const softFailSnippet = jdSearchIndexSnippet(displayJob.description);
+    const applyHref = displayJob.apply_url?.trim() || null;
+
+    const softFailPane = (
+        <div className="space-y-4" data-testid="for-you-jd-soft-fail">
+            <div>
+                <p className={SECTION_LABEL}>Role</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{displayJob.title}</p>
+                {company ? (
+                    <p className="mt-0.5 text-sm text-muted-foreground">{company}</p>
+                ) : null}
+            </div>
+            {softFailSnippet ? (
+                <p className="text-sm leading-relaxed text-foreground">{softFailSnippet}</p>
+            ) : (
+                <p className="text-sm text-muted-foreground">
+                    Full description isn&apos;t available yet — open the posting to review the role.
+                </p>
+            )}
+            {applyHref ? (
+                <a
+                    href={applyHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="for-you-jd-apply-link"
+                    className="inline-flex text-sm font-semibold text-brand underline-offset-4 hover:underline"
+                >
+                    Apply at {company || "company"}
+                </a>
+            ) : null}
+        </div>
+    );
+
+    const templatePane = (
+        <div
+            className="space-y-6"
+            data-testid="for-you-jd-template"
+            data-jd-enhancing={enhancing ? "1" : "0"}
+        >
+            {JD_TEMPLATE_ORDER.map((key) => {
+                const blocks = template[key];
+                if (!blocks.length) return null;
+                return (
+                    <section key={key} data-jd-section={key}>
+                        <h4 className={cn(SECTION_LABEL, "mb-2")}>{JD_TEMPLATE_LABELS[key]}</h4>
+                        <JobDescription blocks={blocks} headingLevel={4} />
+                    </section>
+                );
+            })}
+        </div>
+    );
+
     const descriptionPane =
         paneState === "loading" ? (
             <DescriptionLoadingStatus />
-        ) : paneState === "empty" ? (
-            <p className="text-sm text-muted-foreground">No description available for this role.</p>
+        ) : templateThin ? (
+            softFailPane
         ) : (
-            <div
-                className="space-y-6"
-                data-testid="for-you-jd-template"
-                data-jd-enhancing={enhancing ? "1" : "0"}
-            >
-                {JD_TEMPLATE_ORDER.map((key) => {
-                    const blocks = template[key];
-                    if (!blocks.length) return null;
-                    return (
-                        <section key={key} data-jd-section={key}>
-                            <h4 className={cn(SECTION_LABEL, "mb-2")}>{JD_TEMPLATE_LABELS[key]}</h4>
-                            <JobDescription blocks={blocks} headingLevel={4} />
-                        </section>
-                    );
-                })}
-            </div>
+            templatePane
         );
 
     return (

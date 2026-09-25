@@ -36,5 +36,7 @@ export async function extractResumeFileText(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
   const result = ext === "pdf" ? await extractPDFTextInBrowser(buffer) : await extractDocxTextInBrowser(buffer);
   if (result.error) throw new Error(result.error);
-  return result.text ?? "";
+  // Soft-fail empty extract (scanned/image-only PDFs, blank docs) — return ""
+  // so callers can treat it as no content instead of crashing the upload path.
+  return (result.text ?? "").trim();
 }

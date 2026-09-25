@@ -5,6 +5,7 @@ import {
     canUseOnDeviceJdFormat,
     enhanceJdTemplateWithLocalAi,
     jdTemplateHasContent,
+    jdTemplateIsThin,
     resolveJdTemplateSync,
     type JdTemplate,
 } from "@/lib/local-ai/format-job-description";
@@ -57,7 +58,12 @@ export function useAiJobDescription(
         void enhanceJdTemplateWithLocalAi(jobId, description, baseline.template).then((upgraded) => {
             if (cancelled) return;
             setEnhancing(false);
-            if (upgraded && jdTemplateHasContent(upgraded)) {
+            // Soft-fail thin AI upgrades — keep the richer baseline postcard.
+            if (
+                upgraded &&
+                jdTemplateHasContent(upgraded) &&
+                !jdTemplateIsThin(upgraded, description)
+            ) {
                 setTemplate(upgraded);
                 setSource("ai");
             }
