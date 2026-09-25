@@ -6,14 +6,18 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProgressBar } from "../../src/components/ui/progress-bar";
 
-test("FitBreakdown passes radius=\"ctl\" to ProgressBar", () => {
+test("ForYouPack tip no longer mounts FitBreakdown bars (band labels only)", () => {
     const source = fs.readFileSync(
         path.join(__dirname, "../../src/components/jobs/for-you/ForYouPack.tsx"),
         "utf8",
     );
-    const fitBreakdownMatch = source.match(/function FitBreakdown[\s\S]*?^}/m);
-    assert.ok(fitBreakdownMatch, "expected FitBreakdown function in ForYouPack.tsx");
-    assert.match(fitBreakdownMatch![0], /radius="ctl"/);
+    assert.doesNotMatch(source, /function FitBreakdown/);
+    assert.doesNotMatch(source, /NoScoreBreakdown/);
+    // Section chrome label must be gone (band FitReadout stays).
+    assert.doesNotMatch(source, /["'`]Fit breakdown["'`]/);
+    assert.doesNotMatch(source, />Fit breakdown</);
+    assert.match(source, /function FitReadout/);
+    assert.match(source, /matchBandLabel/);
 });
 
 test("ProgressBar with radius=\"ctl\" and partial progress uses rounded-ctl on track and fill", () => {

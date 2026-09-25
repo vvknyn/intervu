@@ -7,7 +7,6 @@ import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { chipVariants } from "@/components/ui/chip";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { useAiJobDescription } from "@/hooks/use-ai-job-description";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
@@ -42,10 +41,9 @@ export interface ForYouPackProps {
 
 /**
  * ONE micro-label treatment for every section heading in this pack (kicker
- * above the title, "Fit breakdown" / "What we inferred" / description
- * subheads) — a single quiet-caps class instead of each spot picking its
- * own size/weight, reused verbatim from the house convention
- * (BoardComparisonTable.tsx, careers hub page).
+ * above the title, "What we inferred" / description subheads) — a single
+ * quiet-caps class instead of each spot picking its own size/weight, reused
+ * verbatim from the house convention (BoardComparisonTable.tsx, careers hub).
  */
 const SECTION_LABEL = "text-xs font-semibold text-muted-foreground";
 
@@ -70,9 +68,9 @@ const DERIVED_CHIP_CLASS = cn(
 
 /**
  * The card's headline fit label — Strong / Good / Stretch, brand tone for
- * Strong (same band the SERP row's MatchChip uses). Lives in the header;
- * the aside's `FitBreakdown` covers per-component detail below and does not
- * repeat this label.
+ * Strong (same band the SERP row's MatchChip uses). Lives in the header only;
+ * pack tip surfaces do not show per-component Fit breakdown bars or MatchChip
+ * numbers (band label only).
  */
 function FitReadout({ score, strong }: { score: MatchScore; strong: boolean }) {
     const label = matchBandLabel(matchBand(score.total));
@@ -103,34 +101,6 @@ function NoScoreReadout({ reason }: { reason: NoScoreReason }) {
     );
 }
 
-/** Per-component detail only — the total lives once, in the header's
- *  `FitReadout`, so this does not repeat it. */
-function FitBreakdown({ score }: { score: MatchScore }) {
-    return (
-        <div>
-            <p className={SECTION_LABEL}>Fit breakdown</p>
-            <div className="mt-3 space-y-3">
-                {score.components.map((component) => (
-                    <div key={component.key}>
-                        <p className="text-sm font-semibold text-foreground">{component.label}</p>
-                        <ProgressBar progress={component.score * 100} className="mt-1" radius="ctl" />
-                        <p className="mt-1 text-xs text-muted-foreground">{component.detail}</p>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-/** Explicit stand-in for `FitBreakdown` when there is no fit score at all. */
-function NoScoreBreakdown({ reason }: { reason: NoScoreReason }) {
-    return (
-        <div>
-            <p className={SECTION_LABEL}>Fit breakdown</p>
-            <p className="mt-2 text-sm text-muted-foreground">{NO_SCORE_MESSAGES[reason]}</p>
-        </div>
-    );
-}
 
 export function ForYouPack({
     job,
@@ -179,7 +149,8 @@ export function ForYouPack({
     const strongFit = matchScore != null && matchBand(matchScore.total) === "strong";
     const noScore = matchScore == null ? noScoreReason(resume) : null;
     const paneState = descriptionPaneState(descriptionPending, sections);
-    const hasAside = matchScore != null || reasons.bullets.length > 0 || reasons.chips.length > 0;
+    // Tip ship: no Fit breakdown bars / MatchChip numbers on pack deck — aside is inferences only.
+    const hasAside = reasons.bullets.length > 0 || reasons.chips.length > 0;
 
     // Soft-fail sparse templates: never render a hook-only "✨ The role" card
     // with huge empty whitespace. When the SOURCE is still a teaser/stub,
@@ -322,32 +293,25 @@ export function ForYouPack({
             <div className={cn("grid gap-6 py-4 px-4 lg:py-6 lg:px-8", hasAside && "lg:grid-cols-[280px_1fr]")}>
                 {hasAside && (
                     <aside className="min-w-0 space-y-6 rounded-panel border border-border bg-muted p-4">
-                        {matchScore ? (
-                            <FitBreakdown score={matchScore} />
-                        ) : (
-                            <NoScoreBreakdown reason={noScore!} />
-                        )}
-                        {(reasons.bullets.length > 0 || reasons.chips.length > 0) && (
-                            <div>
-                                <h3 className={SECTION_LABEL}>What we inferred</h3>
-                                {reasons.bullets.length > 0 && (
-                                    <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-foreground">
-                                        {reasons.bullets.map((bullet) => (
-                                            <li key={bullet}>{bullet}</li>
-                                        ))}
-                                    </ul>
-                                )}
-                                {reasons.chips.length > 0 && (
-                                    <div className="mt-2 flex min-w-0 flex-wrap gap-2">
-                                        {reasons.chips.map((chip) => (
-                                            <span key={chip} className={DERIVED_CHIP_CLASS} title={chip}>
-                                                {chip}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        <div>
+                            <h3 className={SECTION_LABEL}>What we inferred</h3>
+                            {reasons.bullets.length > 0 && (
+                                <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-foreground">
+                                    {reasons.bullets.map((bullet) => (
+                                        <li key={bullet}>{bullet}</li>
+                                    ))}
+                                </ul>
+                            )}
+                            {reasons.chips.length > 0 && (
+                                <div className="mt-2 flex min-w-0 flex-wrap gap-2">
+                                    {reasons.chips.map((chip) => (
+                                        <span key={chip} className={DERIVED_CHIP_CLASS} title={chip}>
+                                            {chip}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </aside>
                 )}
 
