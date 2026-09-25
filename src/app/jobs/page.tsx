@@ -48,12 +48,7 @@ import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { recordJobViewAction } from "@/actions/views";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
-import {
-    DEFAULT_DAILY_APPLY_GOAL,
-    DAILY_APPLY_HUB_TIP,
-    countAppliedToday,
-    formatAppliedTodayChrome,
-} from "@/lib/pursuits/daily-apply-plan";
+import { DAILY_APPLY_HUB_TIP } from "@/lib/pursuits/daily-apply-plan";
 import { useViewed } from "@/lib/views/use-viewed";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
 import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
@@ -2841,13 +2836,6 @@ function JobsContent() {
         if (allLabel) labels.all = allLabel;
         return labels;
     }, [fitActive, matchScores, result?.total, hubFitProbe]);
-
-    const appliedToday = useMemo(() => countAppliedToday(pursuits, nowMs), [pursuits, nowMs]);
-    const appliedTodayChrome = useMemo(
-        () => formatAppliedTodayChrome(appliedToday, DEFAULT_DAILY_APPLY_GOAL),
-        [appliedToday],
-    );
-
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
     // after clustering, positions no longer line up 1:1. Every member of one
@@ -5945,7 +5933,6 @@ function JobsContent() {
                                 loadingMore={loadingMore}
                                 hasMore={hasMore}
                                 resultTotal={result?.total ?? null}
-                                appliedTodayChrome={appliedTodayChrome}
                             />
                         )}
                     </div>

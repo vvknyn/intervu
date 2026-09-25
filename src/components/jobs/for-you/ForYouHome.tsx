@@ -59,10 +59,8 @@ export interface ForYouHomeProps {
     onLoadMore?: () => void;
     loadingMore?: boolean;
     hasMore?: boolean;
-    /** Known corpus total for optional "Showing N of ~total" chrome. */
+    /** Known corpus total for optional "N of ~total · Strong first" near Show more. */
     resultTotal?: number | null;
-    /** "Applied today X · Y left in today’s plan" — omit when null/empty. */
-    appliedTodayChrome?: string | null;
 }
 
 /** Placeholder shape for both the loading state and the pre-résumé shell —
@@ -129,7 +127,6 @@ export function ForYouHome({
     loadingMore = false,
     hasMore = false,
     resultTotal = null,
-    appliedTodayChrome = null,
 }: ForYouHomeProps) {
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
@@ -270,22 +267,6 @@ export function ForYouHome({
                                     progress={((activeIndex + 1) / visiblePacks.length) * 100}
                                     className="w-16"
                                 />
-                                {appliedTodayChrome ? (
-                                    <p
-                                        className="text-xs text-muted-foreground"
-                                        data-testid="for-you-applied-today"
-                                    >
-                                        {appliedTodayChrome}
-                                    </p>
-                                ) : null}
-                                {showingLine ? (
-                                    <p
-                                        className="text-xs text-muted-foreground"
-                                        data-testid="for-you-showing-total"
-                                    >
-                                        {showingLine}
-                                    </p>
-                                ) : null}
                             </div>
                             <Button
                                 type="button"
@@ -369,19 +350,32 @@ export function ForYouHome({
                 />
             )}
 
-            {visiblePacks.length > 0 && !showLoading && hasMore && onLoadMore && (
-                <div className="mt-4 flex justify-center" data-testid="for-you-show-more-wrap">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        data-testid="for-you-show-more"
-                        onClick={() => void onLoadMore()}
-                        disabled={loadingMore}
-                        className="text-xs font-semibold"
-                    >
-                        {loadingMore ? "Loading more…" : "Show more matches"}
-                    </Button>
+            {visiblePacks.length > 0 && !showLoading && (showingLine || (hasMore && onLoadMore)) && (
+                <div
+                    className="mt-4 flex flex-col items-center gap-2"
+                    data-testid="for-you-show-more-wrap"
+                >
+                    {showingLine ? (
+                        <p
+                            className="text-xs text-muted-foreground"
+                            data-testid="for-you-showing-total"
+                        >
+                            {showingLine}
+                        </p>
+                    ) : null}
+                    {hasMore && onLoadMore ? (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            data-testid="for-you-show-more"
+                            onClick={() => void onLoadMore()}
+                            disabled={loadingMore}
+                            className="text-xs font-semibold"
+                        >
+                            {loadingMore ? "Loading more…" : "Show more matches"}
+                        </Button>
+                    ) : null}
                 </div>
             )}
 

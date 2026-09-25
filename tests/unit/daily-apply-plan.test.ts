@@ -52,7 +52,7 @@ describe("daily apply plan", () => {
     });
 
     it("optional showing line when total known", () => {
-        assert.equal(formatDeckShowingLine(60, 240), "Showing 60 of ~240 — Strong first");
+        assert.equal(formatDeckShowingLine(60, 240), "60 of ~240 · Strong first");
         assert.equal(formatDeckShowingLine(20, null), null);
     });
 });

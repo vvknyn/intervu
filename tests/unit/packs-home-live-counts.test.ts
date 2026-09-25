@@ -22,14 +22,23 @@ describe("packs home live counts + deeper deck", () => {
         assert.match(src, /firstPageLimit = deepForYou \? FOR_YOU_PAGE : PAGE/);
         assert.match(src, /hubCountLabels=\{hubCountLabels\}/);
         assert.match(src, /dailyApplyTip=\{DAILY_APPLY_HUB_TIP\}/);
-        assert.match(src, /DEFAULT_DAILY_APPLY_GOAL/);
+        assert.doesNotMatch(src, /appliedTodayChrome/);
     });
 
-    it("ForYouHome wires Show more matches + applied-today chrome", () => {
+    it("ForYouHome keeps nav-only top chrome; corpus line sits with Show more", () => {
         const src = readFileSync(HOME, "utf8");
         assert.match(src, /data-testid="for-you-show-more"/);
         assert.match(src, /Show more matches/);
-        assert.match(src, /appliedTodayChrome/);
+        assert.match(src, /data-testid="for-you-showing-total"/);
         assert.match(src, /onLoadMore/);
+        assert.doesNotMatch(src, /appliedTodayChrome/);
+        assert.doesNotMatch(src, /for-you-applied-today/);
+        // corpus line lives in the show-more wrap, not the top nav row
+        const showMoreWrap =
+            src.match(/data-testid="for-you-show-more-wrap"[\s\S]{0,900}/)?.[0] ?? "";
+        assert.match(showMoreWrap, /for-you-showing-total/);
+        const topNav =
+            src.match(/data-testid="for-you-deck-position"[\s\S]{0,400}/)?.[0] ?? "";
+        assert.doesNotMatch(topNav, /for-you-showing-total/);
     });
 });

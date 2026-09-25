@@ -31,7 +31,7 @@ export function remainingInDailyPlan(
 }
 
 /**
- * Deck chrome beside "1 of N".
+ * Quiet applied-today status (hub tip /yours — not deck top chrome).
  * Hides remaining when appliedToday ≥ goal.
  */
 export function formatAppliedTodayChrome(
@@ -44,11 +44,11 @@ export function formatAppliedTodayChrome(
     return `Applied today ${applied} · ${left} left in today’s plan`;
 }
 
-/** Optional deck status when total is known. */
+/** Corpus depth near Show more — not deck top nav. */
 export function formatDeckShowingLine(loaded: number, total: number | null | undefined): string | null {
     if (total == null || !Number.isFinite(total) || total < 0) return null;
     const n = Math.floor(loaded);
     const t = Math.floor(total);
     if (t <= 0) return null;
-    return `Showing ${n} of ~${t.toLocaleString()} — Strong first`;
+    return `${n} of ~${t.toLocaleString()} · Strong first`;
 }
