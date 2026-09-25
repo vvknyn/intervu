@@ -5,8 +5,8 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { chromium } from "playwright";
 import { extractText, getDocumentProxy } from "unpdf";
+import { htmlToChromePdf } from "../src/lib/resume/chrome-print-pdf";
 import { resumeDataFromPlainText } from "../src/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "../src/lib/resume/to-zip-markdown";
 import { resumeDataToZipHtml } from "../src/lib/resume/zip-html";
@@ -26,25 +26,13 @@ async function main() {
     console.log(`Wrote markdown: ${tmpMd}`);
 
     const outPdf = path.join(process.cwd(), "test-resume-csm-golden.pdf");
-    const browser = await chromium.launch();
-    try {
-        const page = await browser.newPage();
-        await page.setContent(html, { waitUntil: "networkidle" });
-        await page.pdf({
-            path: outPdf,
-            format: "Letter",
-            printBackground: true,
-            margin: { top: "0", right: "0", bottom: "0", left: "0" },
-        });
-        console.log(`Wrote PDF: ${outPdf}`);
-    } finally {
-        await browser.close();
-    }
+    const pdfBytes = await htmlToChromePdf(html);
+    writeFileSync(outPdf, pdfBytes);
+    console.log(`Wrote PDF: ${outPdf}`);
 
-    const bytes = readFileSync(outPdf);
-    const pdf = await getDocumentProxy(new Uint8Array(bytes));
+    const pdf = await getDocumentProxy(new Uint8Array(pdfBytes));
     const pageCount = pdf.numPages;
-    const { text } = await extractText(new Uint8Array(bytes));
+    const { text } = await extractText(new Uint8Array(pdfBytes));
     const joined = text.join("\n");
 
     console.log(`Page count: ${pageCount}`);

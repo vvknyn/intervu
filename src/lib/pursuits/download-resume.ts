@@ -20,9 +20,9 @@ function triggerDownload(blob: Blob, filename: string): void {
  * user-facing format (R4/R5, 2026-08-09 user report: "gets downloaded as a
  * .md file and not a pdf") — the original .md stays available as a
  * secondary, portable format via `format: "md"`. Renders through the zip
- * text → structured ResumeData → HTML/CSS → PDF path
- * (`exportZipResumePdf` → `exportZipResumePdfFromData`). Fallback is
- * `renderResumePdf(resumeDataToParsedDocument(data))`, never parseResumeContent.
+ * text → structured ResumeData → HTML/CSS → Chromium/Skia text PDF
+ * (`exportZipResumePdf` → `exportZipResumePdfFromData` → /api/resume/pdf).
+ * Fallback is text `renderResumePdf`, never canvas raster, never parseResumeContent.
  */
 export async function downloadResumeVersion(
     version: ResumeVersionSnapshot,

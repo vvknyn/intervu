@@ -1,17 +1,10 @@
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
 import { downloadBlob } from "@/lib/export-utils";
 import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
-import { renderResumePdf, DEFAULT_PAGE_METRICS } from "@/lib/resume/render-pdf";
-import { RESUME_ZIP_CSS } from "@/lib/resume/resume-zip.css";
+import { renderResumePdf } from "@/lib/resume/render-pdf";
 import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { buildZipResumeDocument, parsedResumeToZipHtml, resumeDataToZipHtml } from "@/lib/resume/zip-html";
 import type { ResumeData } from "@/types/resume";
-
-const CANVAS_SCALE = 2.5;
-const LETTER_WIDTH_PT = DEFAULT_PAGE_METRICS.pageWidth;
-const LETTER_HEIGHT_PT = DEFAULT_PAGE_METRICS.pageHeight;
 
 export function zipResumeMarkdownFromData(data: ResumeData): string {
     return resumeDataToZipMarkdown(data);
@@ -22,117 +15,45 @@ export function zipResumeHtmlFromData(data: ResumeData): string {
     return resumeDataToZipHtml(data);
 }
 
-function waitForPaint(): Promise<void> {
-    return new Promise((resolve) => {
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => resolve());
-        });
+async function fetchChromeTextPdf(html: string): Promise<ArrayBuffer> {
+    const res = await fetch("/api/resume/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ html }),
     });
-}
-
-/**
- * Same-document offscreen host. html2canvas cannot reliably capture nodes
- * inside a hidden iframe (parent-window canvas + iframe document throws),
- * which is what pushed Customize into the jsPDF fallback.
- */
-async function mountHtmlOffscreen(html: string): Promise<{ host: HTMLElement; page: HTMLElement }> {
-    const parsed = new DOMParser().parseFromString(html, "text/html");
-    const sourcePage = parsed.querySelector(".resume-page");
-    if (!sourcePage) throw new Error("resume page element missing");
-
-    const host = document.createElement("div");
-    host.setAttribute("data-resume-zip-export", "true");
-    host.setAttribute("aria-hidden", "true");
-    host.style.cssText = [
-        "position:fixed",
-        "left:-10000px",
-        "top:0",
-        "width:8.5in",
-        "background:#ffffff",
-        "pointer-events:none",
-        "z-index:-1",
-    ].join(";");
-
-    const style = document.createElement("style");
-    style.textContent = RESUME_ZIP_CSS;
-    host.appendChild(style);
-    const page = document.importNode(sourcePage, true) as HTMLElement;
-    host.appendChild(page);
-    document.body.appendChild(host);
-
-    await waitForPaint();
-    await new Promise((r) => setTimeout(r, 50));
-    return { host, page };
-}
-
-function canvasToLetterPdf(canvas: HTMLCanvasElement): ArrayBuffer {
-    const pdf = new jsPDF({ unit: "pt", format: "letter", compress: true });
-    const pageWidthPx = canvas.width;
-    const pageHeightPx = Math.round((LETTER_HEIGHT_PT / LETTER_WIDTH_PT) * pageWidthPx);
-
-    let renderedHeight = 0;
-    let pageIndex = 0;
-
-    while (renderedHeight < canvas.height) {
-        const sliceHeight = Math.min(pageHeightPx, canvas.height - renderedHeight);
-        const pageCanvas = document.createElement("canvas");
-        pageCanvas.width = pageWidthPx;
-        pageCanvas.height = sliceHeight;
-        const ctx = pageCanvas.getContext("2d");
-        if (!ctx) throw new Error("canvas 2d unavailable");
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-        ctx.drawImage(canvas, 0, renderedHeight, pageWidthPx, sliceHeight, 0, 0, pageWidthPx, sliceHeight);
-
-        const imgData = pageCanvas.toDataURL("image/png");
-        const imgHeightPt = (sliceHeight / pageWidthPx) * LETTER_WIDTH_PT;
-
-        if (pageIndex > 0) pdf.addPage([LETTER_WIDTH_PT, LETTER_HEIGHT_PT], "portrait");
-        pdf.addImage(imgData, "PNG", 0, 0, LETTER_WIDTH_PT, imgHeightPt);
-
-        renderedHeight += sliceHeight;
-        pageIndex += 1;
-    }
-
-    return pdf.output("arraybuffer");
-}
-
-async function renderZipHtmlToPdfBytes(html: string): Promise<ArrayBuffer> {
-    const { host, page } = await mountHtmlOffscreen(html);
-    try {
-        const canvas = await html2canvas(page, {
-            scale: CANVAS_SCALE,
-            useCORS: true,
-            logging: false,
-            backgroundColor: "#ffffff",
-            width: page.scrollWidth,
-            height: page.scrollHeight,
-            windowWidth: Math.max(page.scrollWidth, 816),
-            windowHeight: Math.max(page.scrollHeight, 1056),
-        });
-        if (!canvas.width || !canvas.height) {
-            throw new Error("html2canvas produced an empty canvas");
+    if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+            const json = (await res.json()) as { error?: string };
+            if (json.error) detail = json.error;
+        } catch {
+            /* ignore */
         }
-        return canvasToLetterPdf(canvas);
-    } finally {
-        host.remove();
+        throw new Error(detail);
     }
+    return res.arrayBuffer();
 }
 
 /**
- * Primary Customize / Download path:
- * ResumeData → resumeDataToParsedDocument → parsedResumeToZipHtml → canvas → Letter PDF.
- * Fallback is `renderResumePdf(parsed)` from the same structured doc — never parseResumeContent(md).
+ * Primary Customize / For-you / Download path:
+ * ResumeData → resumeDataToParsedDocument → parsedResumeToZipHtml →
+ * Chromium/Skia print-to-pdf (via /api/resume/pdf).
+ *
+ * Fallback is text `renderResumePdf(parsed)` from the same structured doc —
+ * never canvas/image raster PDF, never parseResumeContent(md).
  */
 export async function exportZipResumePdfFromData(data: ResumeData, filename: string): Promise<void> {
     const parsed = resumeDataToParsedDocument(data);
     const html = buildZipResumeDocument(parsedResumeToZipHtml(parsed));
     const outName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
     try {
-        const bytes = await renderZipHtmlToPdfBytes(html);
+        const bytes = await fetchChromeTextPdf(html);
         downloadBlob(bytes, outName, "application/pdf");
     } catch (err) {
-        console.error("[resume-pdf] HTML export failed; falling back to jsPDF layout from ResumeData (not markdown parse)", err);
+        console.error(
+            "[resume-pdf] Chrome/Skia print failed; falling back to text jsPDF layout from ResumeData (not markdown parse, not canvas raster)",
+            err,
+        );
         downloadBlob(renderResumePdf(parsed), outName, "application/pdf");
     }
 }
