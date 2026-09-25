@@ -8,12 +8,17 @@ import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { chipVariants } from "@/components/ui/chip";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { useAiJobDescription } from "@/hooks/use-ai-job-description";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { displayCompanyBrand, locationText, placeWithWorkMode, stripRemoteSegmentsFromPlace } from "@/lib/jobs/presentation";
 import { inferReasons, noScoreReason, NO_SCORE_MESSAGES, type NoScoreReason } from "@/lib/jobs/for-you/infer-reasons";
 import { descriptionPaneState } from "@/lib/jobs/for-you/description-pane-state";
 import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
+import {
+    JD_TEMPLATE_LABELS,
+    JD_TEMPLATE_ORDER,
+} from "@/lib/local-ai/format-job-description";
 import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -149,10 +154,14 @@ export function ForYouPack({
         [displayJob, postedRelative, firstSeenRelative],
     );
 
+    // Pane loading/empty still keyed off the legacy pack split so hydration
+    // semantics stay unchanged; the visible body uses the shared JD template
+    // (deterministic immediately, on-device AI upgrade when enabled).
     const sections = useMemo(
         () => splitPackSections(displayJob.description),
         [displayJob.description],
     );
+    const { template, enhancing } = useAiJobDescription(displayJob.id, displayJob.description);
 
     const company = displayCompanyBrand(displayJob.company, displayJob.company_domain, displayJob.title);
     const rawPlace = locationText(displayJob);
@@ -171,25 +180,21 @@ export function ForYouPack({
         ) : paneState === "empty" ? (
             <p className="text-sm text-muted-foreground">No description available for this role.</p>
         ) : (
-            <div className="space-y-6">
-                {sections.about.length > 0 && (
-                    <section>
-                        <h4 className={cn(SECTION_LABEL, "mb-2")}>About</h4>
-                        <JobDescription blocks={sections.about} headingLevel={4} />
-                    </section>
-                )}
-                {sections.responsibilities.length > 0 && (
-                    <section>
-                        <h4 className={cn(SECTION_LABEL, "mb-2")}>Responsibilities</h4>
-                        <JobDescription blocks={sections.responsibilities} headingLevel={4} />
-                    </section>
-                )}
-                {sections.requirements.length > 0 && (
-                    <section>
-                        <h4 className={cn(SECTION_LABEL, "mb-2")}>Requirements</h4>
-                        <JobDescription blocks={sections.requirements} headingLevel={4} />
-                    </section>
-                )}
+            <div
+                className="space-y-6"
+                data-testid="for-you-jd-template"
+                data-jd-enhancing={enhancing ? "1" : "0"}
+            >
+                {JD_TEMPLATE_ORDER.map((key) => {
+                    const blocks = template[key];
+                    if (!blocks.length) return null;
+                    return (
+                        <section key={key} data-jd-section={key}>
+                            <h4 className={cn(SECTION_LABEL, "mb-2")}>{JD_TEMPLATE_LABELS[key]}</h4>
+                            <JobDescription blocks={blocks} headingLevel={4} />
+                        </section>
+                    );
+                })}
             </div>
         );
 

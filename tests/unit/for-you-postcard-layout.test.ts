@@ -142,4 +142,18 @@ describe("for-you postcard layout", () => {
             "empty state must use rounded-panel",
         );
     });
+
+    it("JD body uses the shared on-device template chrome (emoji section labels)", () => {
+        const pack = source("ForYouPack.tsx");
+        assert.match(pack, /useAiJobDescription/);
+        assert.match(pack, /JD_TEMPLATE_LABELS/);
+        assert.match(pack, /JD_TEMPLATE_ORDER/);
+        assert.match(pack, /data-testid="for-you-jd-template"/);
+        assert.doesNotMatch(
+            pack,
+            /<h4 className=\{cn\(SECTION_LABEL, "mb-2"\)\}>About<\/h4>/,
+            "legacy About/Responsibilities/Requirements labels must yield to the shared template",
+        );
+    });
+
 });
