@@ -6,20 +6,18 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Three roles, three faces — see the typeface rationale in app/layout.tsx.
-     The `*-face` variables are supplied by next/font there and are named for
-     the ROLE, not the vendor, so a future swap is one line in layout.tsx and
-     touches nothing here. */
-  --font-sans: var(--font-sans-face), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Body/UI sans: deterministic system stack (no body webfont). Source Sans 3
+     via next/font looked fine in computed letter-spacing but its “t” sidebearings
+     read as extra gaps in small semibold hub labels (“matches”, etc.); the stack
+     below matches onboarding-mockup.html and mail-client fallbacks. Display and
+     mono `*-face` variables still come from next/font in app/layout.tsx. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
   /* Display face retired (rulebook v2 CORRECTIONS #2, 2026-09-03): every
-     `font-display` consumer now resolves to the same Source Sans 3 stack as
-     body text. `--font-display-face` (Libre Franklin, next/font in
-     app/layout.tsx) is kept wired for exactly one consumer — BrandMark.tsx's
-     wordmark span, which reads it directly via an arbitrary `font-[family-
-     name:var(--font-display-face)]` utility rather than through this token —
-     so the variable/import stay in place with no call site left pointing at
-     them through `font-display`. */
+     `font-display` consumer resolves to the same system sans stack as body.
+     `--font-display-face` (Libre Franklin, next/font in app/layout.tsx) stays
+     on `<html>` for intentional wordmark/OG use only — not wired through this
+     token. */
   --font-display: var(--font-sans);
 
   /* Rulebook type scale (Type ramp: 12/16 · 14/20 · 16/22 · 20/28, weights
@@ -571,8 +569,7 @@ body {
   /* 16px — DESIGN-LANGUAGE `text-body` role; matches the iOS 16px form-control floor below. */
   font-size: 16px;
   line-height: 1.5;
-  /* Standards-safe defaults — no body-wide OpenType cv/ss overrides (Source
-     Sans 3 splits glyphs after "t" when cv11 etc. are enabled globally). */
+  /* Standards-safe defaults — no body-wide OpenType cv/ss overrides. */
   font-feature-settings: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -886,7 +883,7 @@ textarea::selection {
    /connect/help). Everything else, including every number, uses the sans.
 
    Numbers still need to line up in columns; that is what tabular figures are
-   for, and Source Sans 3 ships them. Alignment never required conscripting an
+   for on the system sans stack. Alignment never required conscripting an
    IDE typeface — this utility is the one name that carries the pairing, so a
    call site cannot drift by remembering the family and forgetting the
    figures. */
