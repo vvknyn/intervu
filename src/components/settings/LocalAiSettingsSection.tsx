@@ -73,7 +73,7 @@ export function LocalAiSettingsSection() {
             <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                        <ShieldCheck size={16} className="text-brand shrink-0" />
+                        <ShieldCheck size={16} className="text-live shrink-0" />
                         <p className="text-base font-semibold leading-snug">On-device AI inference</p>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
@@ -84,10 +84,10 @@ export function LocalAiSettingsSection() {
             </div>
 
             {enabled ? (
-                <div className="rounded-panel border border-border bg-muted p-3.5 space-y-3">
+                <div className="rounded-panel border border-border bg-surface-2 p-3.5 space-y-3 shadow-[var(--shadow-bevel-inset)]">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                         <div className="flex items-center gap-2">
-                            <Cpu size={16} className="text-brand shrink-0" />
+                            <Cpu size={16} className="text-live shrink-0" />
                             <span className="font-semibold text-foreground">
                                 {bestEngine ? `Available engine: ${getEngineLabel(bestEngine)}` : "Detecting local hardware acceleration…"}
                             </span>
@@ -127,7 +127,7 @@ export function LocalAiSettingsSection() {
                     )}
                 </div>
             ) : (
-                <div className="rounded-panel border border-border bg-muted p-3 text-xs text-muted-foreground">
+                <div className="rounded-panel border border-border bg-surface-2 p-3 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
                     On-device AI is currently disabled. Résumés and role matching will run with standard keyword and heuristic rules without loading AI weights into your browser.
                 </div>
             )}

@@ -18,7 +18,6 @@ import { parseConnectClientParam } from "@/lib/auth/landing-intent";
 import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
 import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-handoff";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
-import { TREND_CAUTION } from "@/components/trends/chart-palette";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
 const MCP_CLIENTS = CONNECT_CLIENTS.filter((c) => c.kind === "mcp");
@@ -139,7 +138,7 @@ export function ConnectClient({
       {/* 2-Column Responsive Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
         {/* Left Column: Universal MCP Server Connection */}
-        <section className="rounded-none border border-border bg-card p-6 sm:p-7 space-y-6">
+        <section className="rounded-panel border border-border bg-surface p-6 sm:p-7 space-y-6 shadow-[var(--shadow-bevel-highlight)]">
           <div className="flex items-center justify-between border-b border-border pb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Universal MCP Server</h2>
@@ -148,7 +147,7 @@ export function ConnectClient({
             <button
               type="button"
               onClick={() => setFilm("mcp")}
-              className="text-xs font-semibold text-brand hover:underline underline-offset-4"
+              className="text-xs font-semibold text-live hover:underline underline-offset-4"
             >
               How MCP works
             </button>
@@ -210,7 +209,7 @@ export function ConnectClient({
                 </Tabs>
 
                 {/* Instructions Box */}
-                <div className="rounded-none border border-border bg-muted p-4 space-y-3">
+                <div className="rounded-ctl border border-border bg-surface-2 p-4 space-y-3 shadow-[var(--shadow-bevel-inset)]">
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-xs font-semibold text-foreground">
                       {currentInstruction.title} Setup
@@ -236,7 +235,7 @@ export function ConnectClient({
                   </ol>
 
                   {currentInstruction.note && (
-                    <p className="text-xs font-semibold inline-block" style={{ color: TREND_CAUTION }}>
+                    <p className="text-xs font-semibold text-warn">
                       Note: {currentInstruction.note}
                     </p>
                   )}
@@ -249,7 +248,7 @@ export function ConnectClient({
         {/* Right Column: OpenClaw Local Agent & Accordions */}
         <div className="space-y-6">
           {/* OpenClaw Card */}
-          <section className="rounded-none border border-border bg-card p-6 sm:p-7 space-y-5">
+          <section className="rounded-panel border border-border bg-surface p-6 sm:p-7 space-y-5 shadow-[var(--shadow-bevel-highlight)]">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-semibold text-foreground">OpenClaw (Autonomous Mac Agent)</h2>
@@ -260,7 +259,7 @@ export function ConnectClient({
               <button
                 type="button"
                 onClick={() => setFilm("claw")}
-                className="text-xs font-semibold text-brand hover:underline underline-offset-4"
+                className="text-xs font-semibold text-live hover:underline underline-offset-4"
               >
                 Watch the demo
               </button>
@@ -283,7 +282,7 @@ export function ConnectClient({
                   {TRY_THESE_PROMPTS.map((prompt, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between gap-2 rounded-none border border-border bg-muted p-2.5 text-xs text-foreground"
+                      className="flex items-center justify-between gap-2 rounded-ctl border border-border bg-surface-2 p-2.5 text-xs text-foreground shadow-[var(--shadow-bevel-inset)]"
                     >
                       <span className="flex-1 leading-snug">{prompt}</span>
                       <Button
@@ -334,15 +333,15 @@ export function ConnectClient({
               <AccordionContent className="pb-3 pt-1">
                 <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li className="flex items-start gap-1.5">
-                    <span className="text-brand font-semibold">✓</span>
+                    <span className="text-live font-semibold">✓</span>
                     <span><span className="font-semibold text-foreground">Read-only search:</span> Your AI queries public verified job data only.</span>
                   </li>
                   <li className="flex items-start gap-1.5">
-                    <span className="text-brand font-semibold">✓</span>
+                    <span className="text-live font-semibold">✓</span>
                     <span><span className="font-semibold text-foreground">No auto-submit:</span> Never submits applications automatically without manual approval.</span>
                   </li>
                   <li className="flex items-start gap-1.5">
-                    <span className="text-brand font-semibold">✓</span>
+                    <span className="text-live font-semibold">✓</span>
                     <span><span className="font-semibold text-foreground">Stateless queries:</span> Zero tracking and never used for model training.</span>
                   </li>
                 </ul>
@@ -354,7 +353,7 @@ export function ConnectClient({
               <AccordionTrigger>Raw JSON config</AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
                 <div className="relative">
-                  <pre className="overflow-x-auto rounded-none bg-muted p-3 text-xs text-foreground">
+                  <pre className="overflow-x-auto rounded-ctl bg-surface-2 p-3 text-xs text-foreground shadow-[var(--shadow-bevel-inset)]">
                     <code>{jsonConfig}</code>
                   </pre>
                   <Button

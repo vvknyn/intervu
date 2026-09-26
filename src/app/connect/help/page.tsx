@@ -52,7 +52,7 @@ function HelpSection({
  *  this page has no client-side state, so there's no copy button here. */
 function Command({ children }: { children: string }) {
   return (
-    <code className="block overflow-x-auto rounded-none bg-muted px-3.5 py-2.5 text-sm text-foreground">
+    <code className="block overflow-x-auto rounded-ctl bg-surface-2 px-3.5 py-2.5 text-sm text-foreground shadow-[var(--shadow-bevel-inset)]">
       {children}
     </code>
   );
@@ -77,18 +77,21 @@ export default function ConnectHelpPage() {
         agent you install on your own Mac. If an install failed and sent you here, find the
         section it named below — each one covers what happened, why, and what to do next. Start
         at{" "}
-        <Link href="/connect" className="text-brand underline-offset-4 hover:underline">
+        <Link href="/connect" className="text-live underline-offset-4 hover:underline">
           /connect
         </Link>{" "}
         if you haven&apos;t begun yet.
       </p>
 
-      <nav aria-label="On this page" className="mt-8 border border-border p-5">
+      <nav
+        aria-label="On this page"
+        className="mt-8 rounded-panel border border-border bg-surface p-5 shadow-[var(--shadow-bevel-highlight)]"
+      >
         <p className="text-xs font-semibold text-foreground">On this page</p>
         <ol className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
           {SECTIONS.map((s) => (
             <li key={s.id}>
-              <a href={`#${s.id}`} className="text-brand underline-offset-4 hover:underline">
+              <a href={`#${s.id}`} className="text-live underline-offset-4 hover:underline">
                 {s.label}
               </a>
             </li>
@@ -111,11 +114,11 @@ export default function ConnectHelpPage() {
           </p>
           <p>
             If you&apos;re not sure, use the connector first — jump to{" "}
-            <a href="#connector" className="text-brand underline-offset-4 hover:underline">
+            <a href="#connector" className="text-live underline-offset-4 hover:underline">
               The Claude connector
             </a>
             . On Windows, the local agent isn&apos;t available yet; see{" "}
-            <a href="#windows" className="text-brand underline-offset-4 hover:underline">
+            <a href="#windows" className="text-live underline-offset-4 hover:underline">
               Windows
             </a>
             .
@@ -162,7 +165,7 @@ export default function ConnectHelpPage() {
           </p>
           <p>
             If you specifically want the local agent, the OpenClaw tab on{" "}
-            <Link href="/connect" className="text-brand underline-offset-4 hover:underline">
+            <Link href="/connect" className="text-live underline-offset-4 hover:underline">
               /connect
             </Link>{" "}
             has a &ldquo;tell me when Windows is ready&rdquo; signup — that list is what tells us
@@ -211,7 +214,7 @@ export default function ConnectHelpPage() {
           <p>
             The fix is simple: just re-run the install command. It now brings its own current
             runtime (see{" "}
-            <a href="#install-node" className="text-brand underline-offset-4 hover:underline">
+            <a href="#install-node" className="text-live underline-offset-4 hover:underline">
               Setting up the runtime automatically
             </a>
             ) instead of trusting whatever was already on your Mac, so this shouldn&apos;t happen
@@ -294,7 +297,7 @@ export default function ConnectHelpPage() {
           </p>
           <p>
             See{" "}
-            <a href="#node-version" className="text-brand underline-offset-4 hover:underline">
+            <a href="#node-version" className="text-live underline-offset-4 hover:underline">
               An old runtime quietly gave you an outdated OpenClaw
             </a>{" "}
             and re-run the install command — it now brings a current runtime, which fixes this in
@@ -328,12 +331,12 @@ export default function ConnectHelpPage() {
         <HelpSection id="stuck" title={SECTIONS[11].label}>
           <p>
             If none of the above covers it, use the{" "}
-            <Link href="/contact" className="text-brand underline-offset-4 hover:underline">
+            <Link href="/contact" className="text-live underline-offset-4 hover:underline">
               contact page
             </Link>{" "}
             — we read everything that comes through there. It helps to mention which step you were
             on and what the terminal or Claude showed you. You can also go back to{" "}
-            <Link href="/connect" className="text-brand underline-offset-4 hover:underline">
+            <Link href="/connect" className="text-live underline-offset-4 hover:underline">
               /connect
             </Link>{" "}
             and try the other path — the connector needs nothing installed at all.

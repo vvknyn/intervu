@@ -61,7 +61,7 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                             setPendingEmail(email);
                             setEmailState("pending-confirmation");
                         }}
-                        className="rounded-panel border border-border p-4"
+                        className="rounded-panel border border-border bg-surface-2 p-4 shadow-[var(--shadow-bevel-inset)]"
                     />
                 ) : (
                     <div className="flex items-center justify-between gap-4">
