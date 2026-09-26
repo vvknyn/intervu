@@ -46,13 +46,13 @@ export const SITE_NAME = "Velai";
 export const LANDING_TITLE =
     "Velai.app — Live jobs from company career pages";
 export const LANDING_DESCRIPTION =
-    "Search live jobs pulled directly from employer career pages in Canada and the US — software, healthcare, trades, and more. Every role is screened for freshness, salary transparency, and ghost-job risk before you apply.";
+    "Search live jobs pulled directly from employer career pages — software, healthcare, trades, and more. Every role is screened for freshness, salary transparency, and ghost-job risk before you apply.";
 
 /** Site-wide default meta description (root layout). Declared here — not in
  *  layout.tsx — so the jargon test covers every guest meta string in one
  *  place. */
 export const SITE_DESCRIPTION =
-    "Search live, verified jobs from company career pages in Canada and the US. Every role is screened for freshness, salary transparency, and ghost-job risk — the transparent alternative to Indeed and LinkedIn.";
+    "Search live, verified jobs from company career pages. Every role is screened for freshness, salary transparency, and ghost-job risk — the transparent alternative to Indeed and LinkedIn.";
 
 /** Body text for the share primitive (components/ui/share-action.tsx) — sent
  *  as the native share sheet's `text` and prepended to the clipboard-fallback
@@ -64,7 +64,7 @@ export const SHARE_APP_TEXT =
     "Velai shows live jobs pulled straight from company career pages, and screens each one for ghost-job risk before you apply.";
 
 /** High-intent keywords targeting core job discovery, Google Trends top queries,
- *  remote work, Canada/US markets, tech roles, verified employer postings, and salary transparency. */
+ *  remote work, tech roles, verified employer postings, and salary transparency. */
 export const SITE_KEYWORDS = [
     "jobs",
     "job search",
@@ -75,11 +75,7 @@ export const SITE_KEYWORDS = [
     "remote jobs",
     "work from home jobs",
     "wfh jobs",
-    "canada remote jobs",
-    "remote jobs canada",
-    "remote jobs in canada",
     "eluta alternative",
-    "jobs in canada",
     "jobs in toronto",
     "jobs in vancouver",
     "jobs in montreal",

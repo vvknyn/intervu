@@ -187,7 +187,7 @@ export function buildWebsiteJsonLd(): WebsiteJsonLd {
     name: SITE_NAME,
     alternateName: ["Velai.app", "Velai", "Velai Jobs"],
     description:
-      "Search live, verified jobs from company career pages in Canada and the US with ghost-job screening and hiring signals.",
+      "Search live, verified jobs from company career pages with ghost-job screening and hiring signals.",
     inLanguage: "en",
     potentialAction: {
       "@type": "SearchAction",
@@ -209,14 +209,13 @@ export function buildOrganizationJsonLd(): OrganizationJsonLd {
     url: siteUrl,
     logo: `${siteUrl}/icon-512.png`,
     description:
-      "Velai.app is an independent job search at velai.app that reads listings from employer career pages in Canada and the US and screens for ghost jobs.",
+      "Velai.app is an independent job search at velai.app that reads listings from employer career pages and screens for ghost jobs.",
     slogan:
       "Live jobs, checked for ghost postings — the transparent alternative to Indeed & LinkedIn",
     knowsAbout: [
       "Job Search",
       "Remote Jobs",
       "Best Remote Jobs",
-      "Canada Remote Jobs",
       "Work From Home Jobs",
       "Verified Jobs",
       "Hiring Market Trends",

@@ -22,7 +22,7 @@ describe("competitor-alternative pages", () => {
     assert.ok(hrefs.includes(INDEED_ALTERNATIVE.path));
     assert.ok(hrefs.includes(LINKEDIN_JOBS_ALTERNATIVE.path));
     assert.ok(hrefs.includes(ELUTA_ALTERNATIVE.path));
-    assert.ok(hrefs.includes("/careers/canada-jobs"));
+    assert.ok(!hrefs.includes("/careers/canada-jobs"));
     const sitemapSrc = readFileSync(join(ROOT, "src/app/sitemap.ts"), "utf8");
     assert.ok(sitemapSrc.includes("`/indeed-alternative`") || sitemapSrc.includes("/indeed-alternative"));
     assert.ok(sitemapSrc.includes("/linkedin-jobs-alternative"));
@@ -36,7 +36,7 @@ describe("competitor-alternative pages", () => {
     assert.match(about, /href="\/indeed-alternative"/);
     assert.match(about, /href="\/linkedin-jobs-alternative"/);
     assert.match(about, /href="\/eluta-alternative"/);
-    assert.match(about, /href="\/careers\/canada-jobs"/);
+    assert.doesNotMatch(about, /href="\/careers\/canada-jobs"/);
   });
 
   it("titles target the queries people actually type", () => {

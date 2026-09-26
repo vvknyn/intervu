@@ -23,7 +23,7 @@ export const ELUTA_ALTERNATIVE = {
   path: "/eluta-alternative",
   title: "Velai — Eluta alternative that reads the career page",
   description:
-    "Velai is an Eluta alternative for Canada: jobs read from employer career pages, screened for freshness. Same career-page source class as Eluta, with stale-posting flags and listings outside Canada too.",
+    "Velai is an Eluta alternative: jobs read from employer career pages, screened for freshness. Same career-page source class as Eluta, with stale-posting flags and listings beyond a single domestic catalog.",
 } as const;
 
 export const INDEED_ALTERNATIVE_FAQ: FaqItem[] = [
@@ -53,17 +53,17 @@ export const ELUTA_ALTERNATIVE_FAQ: FaqItem[] = [
   {
     question: "Is Velai an Eluta alternative?",
     answer:
-      "Velai reads employer career pages the way Eluta crawls Canadian company sites — but also covers employers outside Canada and flags listings that look stale on the source page.",
+      "Velai reads employer career pages the way Eluta crawls company sites — but also covers employers outside a single home-market index and flags listings that look stale on the source page.",
   },
   {
     question: "How is Velai different from Eluta?",
     answer:
-      "Eluta focuses on Canada's Top 100 Employers and other Canadian sites. Velai uses the same class of read — the company's own hiring page — and adds freshness screening plus US and global career pages when you need more than a Canada-only catalog.",
+      "Eluta focuses on a domestic-first employer-site directory. Velai uses the same class of read — the company's own hiring page — and adds freshness screening plus career pages wherever the employer publishes them.",
   },
   {
     question: "Should I use Eluta or Velai?",
     answer:
-      "Keep Eluta if you want a Canada-only directory built around employer websites. Use Velai when you also want stale-posting flags and the same career-page read for roles beyond Canada.",
+      "Keep Eluta if you want a familiar home-market directory built around employer websites. Use Velai when you also want stale-posting flags and the same career-page read for roles beyond that catalog.",
   },
 ];
 
