@@ -3,7 +3,13 @@
 import { cn } from "@/lib/utils";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import type { Pursuit } from "@/lib/pursuits/types";
-import { daysInTracker, daysSinceUpdate, hasResumeLinked, isStalePursuit } from "@/lib/pursuits/tracker-display";
+import {
+    daysInTracker,
+    daysSinceUpdate,
+    hasResumeLinked,
+    isStalePursuit,
+    trackerResumeMetaLabel,
+} from "@/lib/pursuits/tracker-display";
 import { StageBadge } from "@/components/tracker/StageBadge";
 
 interface PursuitListRowProps {
@@ -40,7 +46,7 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
                         <DotSeparated
                             items={[
                                 `${days}d in tracker`,
-                                resumeLinked ? "resume linked" : "no resume",
+                                trackerResumeMetaLabel(resumeLinked),
                                 stale && `no update in ${daysSinceUpdate(pursuit)}d`,
                                 note,
                             ]}

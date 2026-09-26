@@ -27,6 +27,17 @@ describe("yours tracker chrome", () => {
         assert.match(src, /Agent drafts still stop before they(?:'|&apos;)re sent\./);
         assert.doesNotMatch(src, /Agent drafts still stop before send\./);
     });
+
+    it("search placeholder fits narrow tracker chrome", () => {
+        const src = readFileSync(YOURS, "utf8");
+        assert.match(src, /Search tracker…/);
+        assert.doesNotMatch(src, /Search company or role/);
+    });
+
+    it("tracker header uses display masthead with stacked actions on narrow viewports", () => {
+        const src = readFileSync(YOURS, "utf8");
+        assert.match(src, /size="display"/);
+    });
 });
 
 describe("contact intro", () => {

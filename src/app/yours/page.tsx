@@ -35,7 +35,7 @@ const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still st
 
 function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
     return (
-        <PageHeader fullWidth sticky={false} title="Tracker" description={TRACKER_SUBCOPY} actions={actions} />
+        <PageHeader fullWidth sticky={false} size="display" title="Tracker" description={TRACKER_SUBCOPY} actions={actions} />
     );
 }
 
@@ -325,7 +325,7 @@ function YoursContent() {
                             type="search"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search company or role in your tracker..."
+                            placeholder="Search tracker…"
                             className="h-11 rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
                         />
                     </div>

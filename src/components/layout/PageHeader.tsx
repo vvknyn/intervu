@@ -75,9 +75,11 @@ export function PageHeader({
   // wrapper, not the row itself — `bare` embeds this row inside a page's own
   // spacing (e.g. Prep's landing view), so it must carry none of its own.
   const row = display ? (
-    <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:justify-between md:gap-3">
       {titleBlock}
-      {trailing}
+      {trailing ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 md:ml-auto">{trailing}</div>
+      ) : null}
     </div>
   ) : (
     <div className="flex min-h-16 items-center justify-between py-2">
