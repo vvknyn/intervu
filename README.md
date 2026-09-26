@@ -177,6 +177,19 @@ SUBSPACE_API_KEY=...
 > values are public-by-design (they ship in the client bundle); everything else is
 > a server secret.
 
+**WorkOS headed sign-in (local):** AuthKit reads **`NEXT_PUBLIC_WORKOS_REDIRECT_URI`**
+(not `WORKOS_REDIRECT_URI` alone). Use the same host you browse (`127.0.0.1` ≠
+`localhost` for cookies). Path must be **`/auth/callback`**. For `:3002` QA:
+
+```bash
+NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3002
+NEXT_PUBLIC_WORKOS_REDIRECT_URI=http://127.0.0.1:3002/auth/callback
+PORT=3002 npm run dev -- -H 127.0.0.1
+```
+
+Register that redirect URI in the WorkOS dashboard allowlist. `next.config.ts` bridges
+legacy `WORKOS_REDIRECT_URI` and `/callback` → `/auth/callback` at boot.
+
 ### 3. Run
 
 ```bash

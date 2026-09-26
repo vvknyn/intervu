@@ -14,16 +14,21 @@ export function normalizeWorkOsRedirectUri(raw: string): string {
 }
 
 /** Resolve redirect URI from env, bridging legacy `WORKOS_REDIRECT_URI`. */
-export function resolveWorkOsRedirectUriFromEnv(
-    env: Pick<NodeJS.ProcessEnv, "NEXT_PUBLIC_WORKOS_REDIRECT_URI" | "WORKOS_REDIRECT_URI">,
-): string | undefined {
+type WorkOsRedirectEnv = {
+    NEXT_PUBLIC_WORKOS_REDIRECT_URI?: string;
+    WORKOS_REDIRECT_URI?: string;
+};
+
+export function resolveWorkOsRedirectUriFromEnv(env: WorkOsRedirectEnv): string | undefined {
     const raw = env.NEXT_PUBLIC_WORKOS_REDIRECT_URI?.trim() || env.WORKOS_REDIRECT_URI?.trim();
     if (!raw) return undefined;
     return normalizeWorkOsRedirectUri(raw);
 }
 
 /** Call before AuthKit loads so middleware and /auth/start see a redirect URI. */
-export function applyWorkOsRedirectUriBridge(env: NodeJS.ProcessEnv = process.env): void {
+export function applyWorkOsRedirectUriBridge(
+    env: WorkOsRedirectEnv & Record<string, string | undefined> = process.env,
+): void {
     const resolved = resolveWorkOsRedirectUriFromEnv(env);
     if (resolved) {
         env.NEXT_PUBLIC_WORKOS_REDIRECT_URI = resolved;

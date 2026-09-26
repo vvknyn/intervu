@@ -8,10 +8,10 @@ import {
 
 describe("workos redirect uri env", () => {
     it("bridges legacy WORKOS_REDIRECT_URI into NEXT_PUBLIC_WORKOS_REDIRECT_URI", () => {
-        const env = {
+        const env: Record<string, string | undefined> = {
             WORKOS_REDIRECT_URI: "http://localhost:3002/callback",
-        } as NodeJS.ProcessEnv;
-        applyWorkOsRedirectUriBridge(env);
+        };
+        applyWorkOsRedirectUriBridge(env as NodeJS.ProcessEnv);
         assert.equal(env.NEXT_PUBLIC_WORKOS_REDIRECT_URI, "http://localhost:3002/auth/callback");
     });
 
