@@ -153,7 +153,7 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
 
             <div className="relative z-10 flex flex-1 flex-col lg:flex-row items-stretch lg:items-center px-5 sm:px-10 lg:px-14 pb-10 lg:pb-16 gap-8 lg:gap-6 min-h-0">
                 <div className="flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 pt-6 lg:pt-0 lg:w-[46%]">
-                    <h1 className="text-display sm:text-4xl lg:text-5xl font-semibold leading-tight">
+                    <h1 className="text-poster-hero font-semibold">
                         Skip the job
                         <br />
                         board dump.

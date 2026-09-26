@@ -65,6 +65,11 @@
      the letter-spacing companions are gone. */
   --text-display: 2.625rem;
   --text-display--line-height: 3.125rem;
+  /* Concept A signed-out poster hero — fluid display (design-language rollout);
+     fixed text-display above stays for in-app/marketing pages. */
+  --text-poster-hero: clamp(2.5rem, 7vw, 4.75rem);
+  --text-poster-hero--line-height: 1.05;
+  --tracking-poster-hero: -0.025em;
   --text-title: 1.75rem;
   --text-title--line-height: 2.25rem;
   --text-title-lg: 2rem;
@@ -1116,6 +1121,13 @@ body[data-scroll-locked] [data-testid="apply-return-prompt"] {
 .landing-radial-mask {
   background: radial-gradient(ellipse 900px 580px at 50% 50%, var(--background) 75%, transparent 100%);
   opacity: 0.95;
+}
+
+/** Poster hero heading — clamp + tight tracking live in tokens, not utilities. */
+.text-poster-hero {
+  font-size: var(--text-poster-hero);
+  line-height: var(--text-poster-hero--line-height);
+  letter-spacing: var(--tracking-poster-hero);
 }
 
 /* Concept A poster grain + vignette — token-backed, shared with landing. */
