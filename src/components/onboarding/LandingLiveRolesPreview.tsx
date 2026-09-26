@@ -8,12 +8,6 @@ import type { PublicJob } from "@/lib/jobs/types";
 import { displayCompanyBrand, locationText, salaryText } from "@/lib/jobs/presentation";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { cn } from "@/lib/utils";
-import {
-    Card as IconiqCard,
-    CardContent as IconiqCardContent,
-    ICONIQ_VELAI_THEME,
-    ICONIQ_VELAI_PANEL,
-} from "@/components/ui/iconiq";
 
 const PREVIEW_LIMIT = 9;
 
@@ -88,7 +82,7 @@ export function LandingLiveRolesPreview({
             </div>
 
             {state.status === "loading" ? (
-                <div className="flex items-center justify-center gap-2 rounded-panel border border-border bg-muted/40 px-3 py-8 text-xs text-muted-foreground">
+                <div className="flex items-center justify-center gap-2 rounded-panel border border-border bg-muted px-3 py-8 text-xs text-muted-foreground">
                     <CircleNotch size={16} className="animate-spin text-brand" />
                     Loading live roles…
                 </div>
@@ -96,7 +90,7 @@ export function LandingLiveRolesPreview({
 
             {state.status === "error" ? (
                 <div
-                    className="rounded-panel border border-border bg-muted/40 px-3 py-4 text-xs text-muted-foreground text-center"
+                    className="rounded-panel border border-border bg-muted px-3 py-4 text-xs text-muted-foreground text-center"
                     data-testid="landing-live-roles-error"
                 >
                     Live roles are temporarily unavailable. You can still start private matching —
@@ -106,7 +100,7 @@ export function LandingLiveRolesPreview({
 
             {state.status === "empty" ? (
                 <div
-                    className="rounded-panel border border-border bg-muted/40 px-3 py-4 text-xs text-muted-foreground text-center"
+                    className="rounded-panel border border-border bg-muted px-3 py-4 text-xs text-muted-foreground text-center"
                     data-testid="landing-live-roles-empty"
                 >
                     No live roles to preview right now. Start private matching to continue, or
@@ -122,39 +116,29 @@ export function LandingLiveRolesPreview({
                         const pay = salaryText(job);
                         return (
                             <li key={job.id}>
-                                <IconiqCard
-                                    asChild
-                                    interactive
-                                    className={cn(
-                                        ICONIQ_VELAI_THEME,
-                                        ICONIQ_VELAI_PANEL,
-                                        "h-full border border-border bg-card shadow-none",
-                                    )}
+                                <Link
+                                    href={jobPath(job)}
+                                    className="block h-full rounded-panel border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                                 >
-                                    <Link
-                                        href={jobPath(job)}
-                                        className="block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                                    >
-                                        <IconiqCardContent className="p-2.5 sm:p-3 space-y-1.5">
-                                            <div className="text-xs font-semibold text-foreground leading-snug line-clamp-2">
-                                                {job.title}
+                                    <div className="p-2.5 sm:p-3 space-y-1.5">
+                                        <div className="text-xs font-semibold text-foreground leading-snug line-clamp-2">
+                                            {job.title}
+                                        </div>
+                                        <div className="flex items-start gap-1 text-xs text-muted-foreground">
+                                            <Buildings size={16} className="mt-0.5 shrink-0 text-brand" />
+                                            <span className="truncate">{company}</span>
+                                        </div>
+                                        <div className="flex items-start gap-1 text-xs text-muted-foreground">
+                                            <MapPin size={16} className="mt-0.5 shrink-0" />
+                                            <span className="line-clamp-1">{place}</span>
+                                        </div>
+                                        {pay ? (
+                                            <div className="text-xs font-semibold text-foreground pt-0.5">
+                                                {pay}
                                             </div>
-                                            <div className="flex items-start gap-1 text-xs text-muted-foreground">
-                                                <Buildings size={12} className="mt-0.5 shrink-0 text-brand" />
-                                                <span className="truncate">{company}</span>
-                                            </div>
-                                            <div className="flex items-start gap-1 text-xs text-muted-foreground">
-                                                <MapPin size={12} className="mt-0.5 shrink-0" />
-                                                <span className="line-clamp-1">{place}</span>
-                                            </div>
-                                            {pay ? (
-                                                <div className="text-xs font-semibold text-foreground pt-0.5">
-                                                    {pay}
-                                                </div>
-                                            ) : null}
-                                        </IconiqCardContent>
-                                    </Link>
-                                </IconiqCard>
+                                        ) : null}
+                                    </div>
+                                </Link>
                             </li>
                         );
                     })}

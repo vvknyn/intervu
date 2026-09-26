@@ -31,13 +31,6 @@ import { matchBandLabel } from "@/lib/match/score";
 import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { Button } from "@/components/ui/button";
-import {
-    Card as IconiqCard,
-    Badge as IconiqBadge,
-    IconiqButton,
-    ICONIQ_VELAI_THEME,
-    ICONIQ_VELAI_PANEL,
-} from "@/components/ui/iconiq";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -964,7 +957,7 @@ export function CategoryHubGrid({
             )}
         >
             {/* Welcome banner — Iconiq-calm Velai panel */}
-            <div className="rounded-panel border border-border/80 bg-card p-4 sm:p-7 shadow-[0_1px_0_rgb(var(--foreground)/0.02)]">
+            <div className="rounded-panel border border-border bg-card p-4 sm:p-7">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="space-y-1">
                         {hasResume && (
@@ -1006,7 +999,7 @@ export function CategoryHubGrid({
                         {proofLoading || (hubMatching && !hubCorpusLine) ? (
                             <RotatingLoadingCopy
                                 variant="hub"
-                                className="pt-1 text-xs font-medium tracking-[-0.01em]"
+                                className="pt-1 text-xs font-semibold"
                             />
                         ) : null}
                     </div>
@@ -1014,22 +1007,18 @@ export function CategoryHubGrid({
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                         {/* Adjust parameters tucked for Betalist lean loop —
                             packs → deck → Download & apply. Quiet Search stays. */}
-                        <IconiqButton
+                        <Button
                             type="button"
                             size="sm"
-                            disableRipple
                             data-testid="hub-browse-all-matches"
                             onClick={() => {
                                 const allItem = DEFAULT_CATEGORY_HUBS.find((c) => c.id === "all");
                                 if (allItem) handleCategoryClick(allItem);
                             }}
-                            className={cn(
-                                ICONIQ_VELAI_THEME,
-                                "min-h-11 w-full justify-center text-xs font-semibold bg-brand text-brand-foreground hover:bg-brand-hover sm:w-auto",
-                            )}
+                            className="min-h-11 w-full justify-center text-xs font-semibold sm:w-auto"
                         >
                             Browse all matches
-                        </IconiqButton>
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -1042,26 +1031,16 @@ export function CategoryHubGrid({
                     const countLabel = resolveCountLabel(category);
 
                     return (
-                        <IconiqCard
+                        <button
+                            type="button"
                             key={category.id}
-                            interactive
-                            role="button"
-                            tabIndex={0}
                             data-testid={`hub-pack-card-${category.id}`}
                             onClick={() => handleCategoryClick(category)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                    e.preventDefault();
-                                    handleCategoryClick(category);
-                                }
-                            }}
                             className={cn(
-                                ICONIQ_VELAI_THEME,
-                                ICONIQ_VELAI_PANEL,
-                                "min-h-[5.75rem] cursor-pointer gap-0 py-4 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-0 sm:active:scale-100",
+                                "rounded-panel border bg-card min-h-24 cursor-pointer gap-0 py-4 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-0 sm:active:scale-100",
                                 isSelected
                                     ? "border-brand ring-1 ring-brand"
-                                    : "border-border/80",
+                                    : "border-border",
                             )}
                         >
                             <div className="flex items-center justify-between gap-2 px-4 mb-3">
@@ -1069,26 +1048,22 @@ export function CategoryHubGrid({
                                     <Icon size={16} />
                                 </div>
                                 {countLabel ? (
-                                    <IconiqBadge
-                                        color="gray"
-                                        size="sm"
-                                        shimmer={false}
-                                        animate={hubMatching}
+                                    <span
                                         className={cn(
-                                            "mono-data max-w-[9.5rem] truncate font-semibold",
+                                            "mono-data inline-flex max-w-36 truncate rounded-pill bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground",
                                             hubMatching && "opacity-90",
                                         )}
                                         data-testid={`hub-pack-count-${category.id}`}
                                         data-matching={hubMatching ? "true" : undefined}
                                     >
                                         {countLabel}
-                                    </IconiqBadge>
+                                    </span>
                                 ) : null}
                             </div>
-                            <h3 className="px-3 text-sm font-semibold leading-snug tracking-[-0.01em] text-foreground sm:px-4 sm:text-xs">
+                            <h3 className="px-3 text-sm font-semibold leading-snug text-foreground sm:px-4 sm:text-xs">
                                 {category.label}
                             </h3>
-                        </IconiqCard>
+                        </button>
                     );
                 })}
             </div>

@@ -1,5 +1,8 @@
 "use client";
 
+// design-lint-allow-file: isolated Concept A public poster — pixel-matched dark
+// landing face with cream postcard stack; not app chrome or token surfaces.
+
 import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { BrandMark } from "@/components/brand/BrandMark";

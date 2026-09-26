@@ -78,7 +78,7 @@ function ForYouPackSkeleton({ withStatus = false }: { withStatus?: boolean } = {
             {withStatus ? (
                 <RotatingLoadingCopy
                     variant="deck"
-                    className="px-1 text-xs font-medium tracking-[-0.01em]"
+                    className="px-1 text-xs font-semibold"
                 />
             ) : null}
             <div className="flex flex-col overflow-hidden rounded-panel border border-border bg-card">
