@@ -171,8 +171,8 @@ test("primary filled chrome aliases brand — body ink stays on --foreground", (
         );
         assert.match(
             block,
-            /--primary-foreground:\s*255 255 255/,
-            `${scope}: --primary-foreground must stay white on brand fills`,
+            /--primary-foreground:\s*var\(--brand-foreground\)/,
+            `${scope}: --primary-foreground must alias --brand-foreground on green fills`,
         );
         assert.match(
             block,
@@ -273,9 +273,11 @@ function isRingShadowLayer(layer: string): boolean {
     return /^0(px)?[\s_]+0(px)?[\s_]+0(px)?[\s_]+[\d.]+px\b/.test(layer.trim());
 }
 
-/** True for a layer that is exactly the sanctioned overlay token. */
-function isOverlayTokenShadowLayer(layer: string): boolean {
-    return /^var\(--shadow-overlay\)$/.test(layer.trim());
+/** True for a layer that uses a sanctioned semantic elevation token. */
+function isSanctionedElevationShadowLayer(layer: string): boolean {
+    return /^var\(--shadow-(?:overlay|postcard|surface-raised|bevel-highlight|bevel-inset)\)$/.test(
+        layer.trim(),
+    );
 }
 
 /**
@@ -286,7 +288,7 @@ function isForbiddenOuterShadowLayer(layer: string): boolean {
     return (
         !isInsetShadowLayer(layer) &&
         !isRingShadowLayer(layer) &&
-        !isOverlayTokenShadowLayer(layer)
+        !isSanctionedElevationShadowLayer(layer)
     );
 }
 
@@ -425,10 +427,6 @@ test("shadow means floating: outer utility shadows only appear as the overlay to
             `surface genuinely outside this change's scope — add it to tests/unit/shadow-preset-baseline.json.`,
     );
 
-    // No "must carry the overlay token" half any more: rulebook clause 4 resolves
-    // every shadow token, --shadow-overlay included, to none on both themes, so
-    // an overlay carrying the class renders identically to one without it. The
-    // classifier still treats the token as sanctioned wherever it survives.
 });
 
 test("shadow classifier: survives an inset sheen, catches a hardcoded outer shadow", () => {
@@ -448,6 +446,11 @@ test("shadow classifier: survives an inset sheen, catches a hardcoded outer shad
         isForbiddenOuterShadowUtility("shadow-[var(--shadow-overlay)]"),
         false,
         "the sanctioned overlay token must survive anywhere it's used",
+    );
+    assert.equal(
+        isForbiddenOuterShadowUtility("shadow-[var(--shadow-postcard)]"),
+        false,
+        "the sanctioned postcard token must survive on landing surfaces",
     );
     // A violation fixture other than any instance this change touched: a
     // hypothetical card component hardcoding its own drop shadow instead of

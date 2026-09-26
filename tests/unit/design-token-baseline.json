@@ -17,10 +17,10 @@
     "rounded-arbitrary": 0,
     "text-arbitrary": 1,
     "leading-arbitrary": 0,
-    "size-arbitrary": 60,
-    "padding-arbitrary": 13,
+    "size-arbitrary": 61,
+    "padding-arbitrary": 14,
     "hex-literal": 12,
-    "shadow-utility": 0,
+    "shadow-utility": 2,
     "inline-style": 2
   },
   "yours": {
@@ -104,19 +104,19 @@
     "size-arbitrary": 6,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 0,
+    "shadow-utility": 1,
     "inline-style": 1
   },
   "ui": {
     "rounded-none": 2,
     "rounded-size": 0,
     "rounded-arbitrary": 1,
-    "text-arbitrary": 0,
+    "text-arbitrary": 1,
     "leading-arbitrary": 0,
-    "size-arbitrary": 5,
+    "size-arbitrary": 6,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 0,
+    "shadow-utility": 1,
     "inline-style": 2
   },
   "trends": {

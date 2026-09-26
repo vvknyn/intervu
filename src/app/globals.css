@@ -157,48 +157,38 @@
      column lines up on one edge. */
   --list-inset: 16px;
 
-  /* Swiss Modernist Index — Cool Paper (#F6F8FC) × Pure Ink Black (#0A0A0A) × International Klein Blue (#002FA7) */
-  /* Soft-surfaces pass (2026-09-17): canvas goes back to a cool grey so
-     `--card` white panels read as distinct surfaces floating on the page
-     (simplify.jobs reference — grey page, white 16px-radius cards). This is
-     a *different* grey from the 2026-08-24 blue-tinted #FAFAFA that was
-     reverted for reading as "dull" against pure-white cards: this pass
-     depends on the page/card contrast that reversion removed, so the two
-     decisions aren't in tension — the earlier one was made when there was
-     no white card to contrast against. */
-  --background: 246 247 250; /* cool grey canvas, brand is navy (was pure #FFFFFF) */
-  --foreground: 10 10 10;
-  --card: 255 255 255;
+  /* Concept A skeuomorphic canvas (2026-09-26) — charcoal poster #0B0D12,
+     elevated cards, green accent #0E9F4E. Replaces the paper/Klein-blue
+     shadow-none stack; depth comes from sanctioned shadow tokens below. */
+  --background: 11 13 18;
+  --foreground: 250 250 250;
+  --card: 20 23 32;
   --card-foreground: var(--foreground);
-  --popover: 255 255 255;
+  --popover: 22 25 34;
   --popover-foreground: var(--foreground);
   --primary: var(--brand);
-  --primary-foreground: 255 255 255;
+  --primary-foreground: var(--brand-foreground);
   --secondary: var(--chip);
   --secondary-foreground: var(--foreground);
   --muted: var(--chip);
-  --muted-foreground: 82 82 82; /* jobs-SERP secondary text #525252 (was 115 115 115) */
-  --accent: var(--chip);
-  --accent-foreground: var(--foreground);
+  --muted-foreground: 156 163 175; /* #9CA3AF — ≥4.5:1 on --background */
+  --accent: var(--brand);
+  --accent-foreground: var(--brand-foreground);
   --destructive: 225 29 72;
   --destructive-foreground: 255 255 255;
   /* Rose/pink error language (33 call sites) — left as-is. #DA1E28 red-60
      is a different hue for jobs-SERP error text, so it's a new token
      rather than repointing this sitewide one. */
   --danger-text: 218 30 40;
-  --border: 224 224 224; /* jobs-SERP hairline #E0E0E0 (was 229 229 229) */
-  --input: 141 141 141; /* field-01 rest edge #8D8D8D (was ink) */
+  --border: 45 50 62;
+  --input: 115 122 135;
   --ring: var(--brand);
 
-  /* Brand / accent — International Klein Blue (#002FA7) & Safety Signal Orange (#FF4400) */
-  --brand: 0 47 167;
-  --brand-foreground: 255 255 255;
-  --brand-muted: 37 99 235;
-  /* Filled-button hover state (Group B): Klein −10% lightness, #002585. A
-     dedicated token rather than an opacity/brightness filter on --brand so
-     `hover:bg-brand-hover` composes with every other utility on the same
-     element the way `hover:bg-muted` etc. already do. */
-  --brand-hover: 0 37 133;
+  /* Brand / accent — Concept A live green (#0E9F4E) */
+  --brand: 14 159 78;
+  --brand-foreground: 11 13 18;
+  --brand-muted: 16 142 72;
+  --brand-hover: 12 140 70;
   /* Named for the ROLE, not the hue — these are the blue-50/blue-100 tints
      that `--live-tint-*` carried before the Ledger palette (2026-08-27) gave
      green exactly one meaning ("this fact is live/verified") and moved every
@@ -206,33 +196,41 @@
      tint --brand, not --live, so --st-applied/--st-offer (tracker progress
      states, not live facts) read these instead of drifting green by riding
      a token they no longer mean. */
-  --brand-tint-bg: 240 249 255;
-  --brand-tint-bg-alt: 239 246 255;
+  --brand-tint-bg: 14 37 23;
+  --brand-tint-bg-alt: 14 37 23;
 
   /* Site chrome */
-  --chrome: 10 10 10;
+  --chrome: 11 13 18;
   --chrome-foreground: 250 250 250;
 
   /* Surface + text levels */
-  --surface: 255 255 255;
-  --surface-hover: 244 244 244; /* rulebook layer #F4F4F4, matches --chip */
-  --surface-2: 245 245 245;
-  --surface-3: 212 212 212;
-  --border-strong: 10 10 10;
+  --surface: 20 23 32;
+  --surface-hover: 28 32 42;
+  --surface-2: 32 36 48;
+  --surface-3: 45 50 62;
+  --border-strong: 156 163 175;
   --text-2: var(--muted-foreground);
   --text-3: var(--faint);
 
+  /* Concept A poster + postcard (landing + marketing) */
+  --surface-poster: 11 13 18;
+  --surface-poster-foreground: 250 250 250;
+  --surface-poster-muted: 156 163 175;
+  --surface-postcard: 244 240 230;
+  --surface-postcard-foreground: 12 26 51;
+  --surface-postcard-muted: 82 82 82;
+  --surface-mark-tile: 20 23 32;
+
   /* Soft Signal accents */
-  --chip: 244 244 244; /* jobs-SERP layer #F4F4F4 (was 245 245 245); feeds --secondary/--muted/--accent above */
-  --faint: 163 163 163;
+  --chip: 26 29 38;
+  --faint: 115 122 135;
   /* No existing token carries a dedicated placeholder-text meaning — actual
      inputs style placeholders via `placeholder:text-muted-foreground/70`,
      an opacity modifier, not a distinct color. jobs-SERP field-01 wants an
      opaque #8D8D8D placeholder, so this is a new token (wiring it into
      input classNames is a later phase, not a globals.css change). */
   --placeholder-text: 141 141 141;
-  --live: 21 128 61; /* was 14 159 78 (#0E9F4E, 3.45:1 on white) — failed WCAG AA
-     for 12-14px text. #15803D is ≈5.0:1 on white / ≈4.6:1 on --chip #F4F4F4. */
+  --live: 14 159 78; /* Concept A accent — ≥4.5:1 on --surface-poster for large/semibold */
   /* Named for the ROLE (the tint that accompanies --live), not for a hue.
      These held blue-50/blue-100/blue-200 under `--green-tint-*` names ever
      since the accent moved from emerald to Klein blue — a token whose name
@@ -275,29 +273,45 @@
   --transition-fast: 100ms;
   --transition-panel: 150ms;
 
-  /* Overlay elevation — rulebook: no shadow anywhere, including overlays
-     (dialog, sheet, tooltip, select, dropdown-menu, popover). Was the one
-     shadow value in the system; separation now comes from --border alone,
-     same as every in-flow surface. See docs/design/ATTENTION.md. */
-  --shadow-overlay: none;
+  /* Elevation — Tailwind named scale stays `none`; sanctioned semantic shadows
+     below (Concept A skeuomorphic, 2026-09-26). See DESIGN-LANGUAGE.md. */
+  --shadow-overlay: 0 12px 40px -8px rgb(0 0 0 / 0.45), 0 4px 12px rgb(0 0 0 / 0.28);
+  --shadow-postcard: 0 18px 40px -12px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.25);
+  --shadow-surface-raised: 0 8px 24px -6px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.18);
+  --shadow-bevel-highlight: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --shadow-bevel-inset: inset 0 1px 2px rgb(0 0 0 / 0.35);
+
+  /* Z-index ladder — one source; consume via z-[var(--z-*)] at call sites. */
+  --z-topbar: 50;
+  --z-skip-link: 60;
+  --z-tour-trigger: 80;
+  --z-landing-poster: 100;
+  --z-dropdown: 100;
+  --z-apply-return: 120;
+  --z-sheet-scrim: 150;
+  --z-sheet: 150;
+  --z-dialog-scrim: 200;
+  --z-dialog: 210;
+  --z-tour: 200;
+  --z-toast: 300;
 }
 
 .dark {
-  /* Swiss Modernist Dark — Pitch Charcoal (#0A0A0A) with Chalk White (#F5F5F5) & Electric Klein Blue (#2D68FF) */
-  --background: 10 10 10;
+  /* Dark theme — deeper charcoal; same Concept A accent and shadow language. */
+  --background: 8 9 12;
   --foreground: 245 245 245;
-  --card: 18 18 18;
+  --card: 16 18 24;
   --card-foreground: 245 245 245;
-  --popover: 18 18 18;
+  --popover: 18 20 28;
   --popover-foreground: 245 245 245;
   --primary: var(--brand);
-  --primary-foreground: 255 255 255;
+  --primary-foreground: var(--brand-foreground);
   --secondary: var(--chip);
   --secondary-foreground: 245 245 245;
   --muted: var(--chip);
   --muted-foreground: 163 163 163;
-  --accent: var(--chip);
-  --accent-foreground: 245 245 245;
+  --accent: var(--brand);
+  --accent-foreground: var(--brand-foreground);
   --destructive: 255 59 105;
   --destructive-foreground: 10 10 10;
   --border: 38 38 38;
@@ -317,12 +331,11 @@
   --sidebar-border: 38 38 38;
   --sidebar-ring: 45 104 255;
 
-  /* Brand / links — Electric Klein Blue (#2D68FF) */
-  --brand: 45 104 255;
-  --brand-foreground: 255 255 255;
-  --brand-muted: 37 99 235;
-  /* Dark mirror of --brand-hover: lighter, not darker, on a dark ground. */
-  --brand-hover: 66 105 220;
+  /* Brand — slightly brighter green on the deepest ground */
+  --brand: 47 191 113;
+  --brand-foreground: 8 9 12;
+  --brand-muted: 34 170 95;
+  --brand-hover: 56 205 125;
   /* See the light-mode comment above — same tints --live-tint-* carried
      before the Ledger palette, now under the honest --brand-tint-* name. */
   --brand-tint-bg: 15 23 42;
@@ -369,8 +382,9 @@
   --st-offer: var(--brand);               --st-offer-soft: var(--brand-tint-bg-alt);
   --st-closed: var(--destructive);        --st-closed-soft: 42 16 22;
 
-  /* Overlay elevation (dark) — rulebook: no shadow, same as light. */
-  --shadow-overlay: none;
+  --shadow-overlay: 0 14px 44px -8px rgb(0 0 0 / 0.55), 0 4px 14px rgb(0 0 0 / 0.35);
+  --shadow-postcard: 0 20px 44px -12px rgb(0 0 0 / 0.6), 0 4px 14px rgb(0 0 0 / 0.32);
+  --shadow-surface-raised: 0 10px 28px -6px rgb(0 0 0 / 0.45), 0 2px 8px rgb(0 0 0 / 0.22);
 }
 
 @theme inline {
@@ -440,6 +454,13 @@
   --color-verdict-good-bg: rgb(var(--verdict-good-bg));
   --color-verdict-caution-bg: rgb(var(--verdict-caution-bg));
   --color-verdict-risk-bg: rgb(var(--verdict-risk-bg));
+  --color-surface-poster: rgb(var(--surface-poster));
+  --color-surface-poster-foreground: rgb(var(--surface-poster-foreground));
+  --color-surface-poster-muted: rgb(var(--surface-poster-muted));
+  --color-surface-postcard: rgb(var(--surface-postcard));
+  --color-surface-postcard-foreground: rgb(var(--surface-postcard-foreground));
+  --color-surface-postcard-muted: rgb(var(--surface-postcard-muted));
+  --color-surface-mark-tile: rgb(var(--surface-mark-tile));
   /* Elevation: none (DESIGN-LANGUAGE.md "Tokens"). Separation comes from a
      1px --border and whitespace, so every key in the shadow scale resolves to
      `none` — including 2xs/xs/xl, which the 2026-08-04 pass zeroed only in
@@ -1095,4 +1116,12 @@ body[data-scroll-locked] [data-testid="apply-return-prompt"] {
 .landing-radial-mask {
   background: radial-gradient(ellipse 900px 580px at 50% 50%, var(--background) 75%, transparent 100%);
   opacity: 0.95;
+}
+
+/* Concept A poster grain + vignette — token-backed, shared with landing. */
+.poster-noise {
+  background-color: rgb(var(--surface-poster));
+  background-image:
+    radial-gradient(ellipse 80% 60% at 70% 40%, rgb(255 255 255 / 0.03), transparent 60%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
 }

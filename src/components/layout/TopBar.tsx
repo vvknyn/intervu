@@ -89,7 +89,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-50 shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)] transition-colors"
+            className="sticky top-0 z-[var(--z-topbar)] shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)] transition-colors shadow-[var(--shadow-bevel-highlight)]"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped

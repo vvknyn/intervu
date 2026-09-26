@@ -18,6 +18,23 @@ Why this exists: six design passes each remapped the same token names to differe
 there was no current document to arbitrate with and every change drifted. One document, or it
 happens again.
 
+## Decisions (owner, 2026-09-26) — Concept A skeuomorphic system
+
+1. **The signed-out Concept A landing (`ConceptALanding.tsx`) is the canonical visual language**
+   for the whole product — dark charcoal surfaces (`--surface-poster` / `--background`), cream
+   postcard accents (`--surface-postcard`), **green live accent** (`--brand` / `--live` =
+   `#0E9F4E`), **title-case `Velai`**, rounded panels and pills, and **sanctioned depth**
+   (`--shadow-overlay`, `--shadow-postcard`, `--shadow-surface-raised`, bevel inset/highlight).
+2. **The paper / Klein-blue / shadow-none stack is retired.** `--brand` is green, not Klein blue;
+   elevation is allowed only through the semantic shadow tokens above (Tailwind's named
+   `shadow-*` scale remains `none`).
+3. **The app mark never sits on a white tile** — `public/velai-logo.png` and every derived icon
+   use a dark skeuomorphic tile or transparency (`--surface-mark-tile`).
+4. **One z-index ladder** in `globals.css` (`--z-topbar` … `--z-toast`); call sites consume
+   `z-[var(--z-*)]`, not ad-hoc numbers.
+
+See `docs/design-language-rollout.md` (project store) for phased surface rollout and WCAG targets.
+
 ## Decisions (owner, 2026-08-04)
 
 1. **The marketing surface takes its composition from ollama.com** — near-monochrome, generous

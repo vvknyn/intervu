@@ -1,5 +1,5 @@
-/** Locked Velai product mark — soft paper card, thick navy brackets, ONE bigger
- *  green live dot, soft drop shadow. Raster is the source of truth
+/** Locked Velai product mark — dark skeuomorphic tile (no white card), navy
+ *  brackets, ONE green live dot. Raster is the source of truth
  *  (`public/velai-logo.png`, derived from the locked master in
  *  `.velai-icon-imports/velai-icon-exports/`). Do not invent a second mark.
  *
@@ -61,20 +61,8 @@ export function BrandLockup({ className, markClassName }: { className?: string; 
     return (
         <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join(" ")}>
             <BrandLockupMark tileClassName={markClassName} />
-            {/* Wordmark is the one rulebook exception: Libre Franklin 700,
-                caps, tight tracking. `--font-display` was retired to the sans
-                stack site-wide (rulebook v2 CORRECTIONS #2), so this reads
-                `--font-display-face` (the Libre Franklin next/font variable
-                from app/layout.tsx) directly instead of through that token —
-                the one call site still allowed to. font-[700] (not
-                font-bold, now 600) + data-rulebook-exempt covers the runtime
-                probe; design-lint-allow covers the static gate. */}
-            {/* design-lint-allow */}
-            <span
-                data-rulebook-exempt
-                className="font-[family-name:var(--font-display-face)] text-[28px] leading-none font-[700] uppercase tracking-tight"
-            >
-                velai
+            <span data-rulebook-exempt className="text-title-sm leading-none font-semibold">
+                Velai
             </span>
         </span>
     );

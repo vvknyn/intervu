@@ -122,7 +122,7 @@ export const NAV_TABS: NavTab[] = [
         icon: JobsIcon,
     },
     {
-        label: "Resume",
+        label: "Résumé",
         shortLabel: "Résumé",
         href: "/resume",
         testId: "topbar-resume",

@@ -190,7 +190,7 @@ export default function RootLayout({
                   is the standard pattern, not a duplicate. */}
               <a
                 href="#main"
-                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
+                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[var(--z-skip-link)] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
               >
                 Skip to main content
               </a>

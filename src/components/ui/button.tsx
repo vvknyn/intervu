@@ -34,12 +34,14 @@ const buttonVariants = cva(
         // because CompletenessMock.tsx (outside this change's scope) still
         // references it.
         quiet: TERTIARY_BUTTON_CLASSES,
+        accent: "bg-brand text-brand-foreground hover:brightness-110 border-transparent",
       },
       size: {
         default: "h-8 px-3",
         xs: "h-8 px-2",
         sm: "h-8 px-3",
         lg: "h-11 px-4 [&_svg]:size-5",
+        accent: "h-12 sm:h-[52px] px-7 sm:px-8 rounded-pill text-sm sm:text-base font-semibold",
         icon: "size-8",
         "icon-lg": "size-10 [&_svg]:size-5",
       },
