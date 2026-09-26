@@ -6,6 +6,7 @@ import { join } from "node:path";
 const PAGE = join(__dirname, "..", "..", "src", "app", "watch", "anywhere", "page.tsx");
 const YOURS = join(__dirname, "..", "..", "src", "app", "yours", "page.tsx");
 const TRACKER_BOARD = join(__dirname, "..", "..", "src", "components", "tracker", "TrackerKanbanBoard.tsx");
+const PURSUIT_ROW = join(__dirname, "..", "..", "src", "components", "tracker", "PursuitListRow.tsx");
 const CONTACT = join(__dirname, "..", "..", "src", "app", "contact", "page.tsx");
 
 describe("watch anywhere copy", () => {
@@ -37,6 +38,12 @@ describe("yours tracker chrome", () => {
     it("tracker header uses display masthead with stacked actions on narrow viewports", () => {
         const src = readFileSync(YOURS, "utf8");
         assert.match(src, /size="display"/);
+    });
+
+    it("lane rows wrap role titles up to two lines instead of one-line truncate", () => {
+        const src = readFileSync(PURSUIT_ROW, "utf8");
+        assert.match(src, /line-clamp-2 text-base font-semibold leading-snug text-foreground">\{pursuit\.position\}/);
+        assert.doesNotMatch(src, /truncate text-base font-semibold leading-snug text-foreground">\{pursuit\.position\}/);
     });
 });
 
