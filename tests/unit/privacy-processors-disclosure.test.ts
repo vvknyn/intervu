@@ -18,6 +18,8 @@ const PROCESSOR_DEFS = [
     { privacyLabel: "Groq", needles: [/GROQ_API_KEY/, /from ["']groq-sdk["']/] },
     { privacyLabel: "Google Cloud Firestore", needles: [/firebase-admin\/firestore/, /getAdminDb\s*\(/] },
     { privacyLabel: "Cloudflare Turnstile", needles: [/verifyTurnstile\s*\(/, /challenges\.cloudflare\.com/] },
+    { privacyLabel: "Meilisearch", needles: [/MEILISEARCH_HOST/, /meilisearch\.ts/] },
+    { privacyLabel: "Subspace", needles: [/SUBSPACE_API/, /subspaceJobs\.ts/] },
 ] as const;
 
 function listSrcFiles(dir = join(ROOT, "src")): string[] {
