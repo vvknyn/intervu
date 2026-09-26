@@ -284,9 +284,9 @@ export default function PrivacyPage() {
         <p>
           That server action removes your Firestore profile and every user-owned collection in our migration manifest
           (for example applications, resumes, saved searches, prep answers, agent credentials, and email digest
-          state keyed to your account), deletes your WorkOS sign-in record, and — when your login email is a real
+          state keyed to your account), deletes your WorkOS sign-in record, and — when your sign-in email is a real
           address, not a synthetic username-only address — runs our identity-forget path: global email suppression
-          for that address, deletion from our intervu identity store, and deletion of behavioural-ledger rows in
+          for that address, deletion from our PostgreSQL identity store, and deletion of behavioural-ledger rows in
           PostgreSQL keyed to your WorkOS user id.
         </p>
         <p>

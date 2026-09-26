@@ -27,7 +27,7 @@ export const RESUME_UPLOAD_PROMISE =
 
 /** Passed into ResumeImportModal `storageNote`. */
 export const RESUME_IMPORT_STORAGE_NOTE =
-    "The parsed résumé stays in this browser until you sign in and sync to your account.";
+    "The parsed résumé stays in this browser until you sign in and sync.";
 
 /** Résumé import modal — parsing location (interpretation, not job-search retrieval). */
 export const RESUME_IMPORT_PARSE_LINE =
