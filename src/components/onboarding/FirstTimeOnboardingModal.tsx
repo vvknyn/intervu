@@ -23,6 +23,11 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
+import {
+    ONBOARDING_MATCHING_PRIVACY,
+    ONBOARDING_UPLOAD_PRIVACY_BODY,
+    ONBOARDING_UPLOAD_PRIVACY_LABEL,
+} from "@/lib/jobs/resume-privacy-copy";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import type { ResumeData } from "@/types/resume";
 
@@ -184,9 +189,9 @@ export function FirstTimeOnboardingModal({
                                     2
                                 </div>
                                 <div>
-                                    <h3 className="text-xs font-semibold text-foreground">100% Private matching</h3>
+                                    <h3 className="text-xs font-semibold text-foreground">Private parsing, server-side matching</h3>
                                     <p className="mt-0.5 text-xs text-muted-foreground leading-snug">
-                                        Find roles that fit your skills without sharing your personal info. Your résumé is analyzed right here on your computer—never sent to cloud AI companies.
+                                        {ONBOARDING_MATCHING_PRIVACY}
                                     </p>
                                 </div>
                             </div>
@@ -315,7 +320,8 @@ export function FirstTimeOnboardingModal({
                         <div className="rounded-ctl border border-border bg-card p-3 flex items-start gap-2.5">
                             <ShieldCheck size={16} className="text-live shrink-0 mt-0.5" />
                             <p className="text-xs text-muted-foreground leading-relaxed">
-                                <strong className="text-foreground font-semibold">100% on your device:</strong> Your résumé is read privately on this computer. It is never fed to external AI models or third parties.
+                                <strong className="text-foreground font-semibold">{ONBOARDING_UPLOAD_PRIVACY_LABEL}</strong>{" "}
+                                {ONBOARDING_UPLOAD_PRIVACY_BODY}
                             </p>
                         </div>
 
