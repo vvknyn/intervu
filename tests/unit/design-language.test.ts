@@ -61,6 +61,43 @@ test("type scale: body default and theme tokens wired at the chokepoint", () => 
     assert.match(themeBlock, /--text-sm:\s*0\.875rem;/, "@theme must override --text-sm to 0.875rem (14px)");
 });
 
+test("body typography: no global OpenType cv/ss feature overrides", () => {
+    const bodyBlock = GLOBALS.match(/body\s*\{[\s\S]*?\}/)?.[0] ?? "";
+    assert.ok(bodyBlock.length > 0, "body { … } block missing from globals.css");
+    assert.match(
+        bodyBlock,
+        /font-feature-settings:\s*normal\s*;/,
+        "body must use font-feature-settings: normal — body-wide cv/ss overrides split glyphs in Source Sans 3",
+    );
+    assert.doesNotMatch(
+        bodyBlock,
+        /font-feature-settings:[^;]*\bcv\d+/,
+        "body must not enable custom character variants globally",
+    );
+    assert.doesNotMatch(bodyBlock, /font-feature-settings:[^;]*\bss\d+/, "body must not enable stylistic sets globally");
+});
+
+test("tracking tokens: body/label scale stays normal; poster hero may tighten only", () => {
+    const tracking = declarations(GLOBALS).filter((d) => d.name.startsWith("--tracking-"));
+    assert.ok(tracking.length > 0, "no --tracking-* tokens found");
+    const posterHero = tracking.find((d) => d.name === "--tracking-poster-hero");
+    assert.ok(posterHero, "--tracking-poster-hero must exist for Concept A poster hero");
+    const maxTightEm = 0.05;
+    const maxLooseEm = 0.05;
+    for (const { name, value } of tracking) {
+        if (name === "--tracking-poster-hero") {
+            const em = parseFloat(value.replace(/em\s*$/, ""));
+            assert.ok(em <= 0 && em >= -0.06, `${name}=${value} — poster hero tracking only slightly tight`);
+            continue;
+        }
+        const em = parseFloat(value.replace(/em\s*$/, ""));
+        assert.ok(
+            Number.isFinite(em) && em >= -maxTightEm && em <= maxLooseEm,
+            `${name}=${value} — body/label tracking tokens must stay near 0 (not poster hero)`,
+        );
+    }
+});
+
 test("elevation is none: every --shadow-* scale key resolves to none", () => {
     const scaleKeys = tailwindShadowScaleKeys();
     const shadows = declarations(GLOBALS).filter((d) => scaleKeys.has(d.name));
