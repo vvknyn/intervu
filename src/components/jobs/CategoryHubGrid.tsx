@@ -27,6 +27,7 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { matchBandLabel } from "@/lib/match/score";
 import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { Button } from "@/components/ui/button";
@@ -58,7 +59,7 @@ export interface RoleDetailListing {
     workType: "Remote" | "Hybrid" | "On-site";
     salary: string;
     postedAgo: string;
-    fitScorePercent: number;
+    fitBand: "strong" | "good" | "stretch";
     department: string;
     seniority: string;
     tags: string[];
@@ -91,7 +92,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Hybrid",
             salary: "$185,000 – $240,000 / yr",
             postedAgo: "3d ago",
-            fitScorePercent: 96,
+            fitBand: "strong",
             department: "Applied AI Products",
             seniority: "Senior",
             tags: ["Claude", "Prompt Workflows", "Developer APIs", "Model Safety"],
@@ -130,7 +131,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "On-site",
             salary: "$200,000 – $260,000 / yr",
             postedAgo: "1d ago",
-            fitScorePercent: 92,
+            fitBand: "strong",
             department: "Core Systems",
             seniority: "Staff",
             tags: ["Wafer Scale", "PyTorch", "C++", "CUDA Kernels"],
@@ -163,11 +164,11 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             title: "Generative AI Solutions Architect",
             company: "Canva",
             companyDomain: "canva.com",
-            location: "Remote (US / Canada)",
+            location: "Remote (US)",
             workType: "Remote",
             salary: "$140,000 – $175,000 / yr",
             postedAgo: "5d ago",
-            fitScorePercent: 88,
+            fitBand: "strong",
             department: "Creative Intelligence",
             seniority: "Senior",
             tags: ["Diffusion Models", "Next.js", "Media Generation", "Python"],
@@ -199,11 +200,11 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             title: "Senior Research Scientist — Reasoning & Code",
             company: "Cohere",
             companyDomain: "cohere.com",
-            location: "Toronto, Canada",
+            location: "Seattle, WA",
             workType: "Hybrid",
             salary: "$190,000 – $250,000 / yr",
             postedAgo: "4d ago",
-            fitScorePercent: 94,
+            fitBand: "strong",
             department: "Frontier Research",
             seniority: "Senior",
             tags: ["RAG", "Embeddings", "Chain-of-Thought", "Evaluation"],
@@ -237,11 +238,11 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             title: "Senior Digital Product Manager",
             company: "Litmus",
             companyDomain: "litmus.com",
-            location: "Toronto, Canada",
+            location: "Seattle, WA",
             workType: "Remote",
             salary: "$102,000 – $124,000 / yr",
             postedAgo: "9d ago",
-            fitScorePercent: 96,
+            fitBand: "strong",
             department: "Core Experience",
             seniority: "Senior",
             tags: ["Product Strategy", "B2B SaaS", "User Journeys", "Email Tech"],
@@ -277,7 +278,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Hybrid",
             salary: "$190,000 – $240,000 / yr",
             postedAgo: "2d ago",
-            fitScorePercent: 91,
+            fitBand: "strong",
             department: "Web Infrastructure",
             seniority: "Staff",
             tags: ["React", "TypeScript", "Performance", "Design Systems"],
@@ -313,7 +314,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Remote",
             salary: "$165,000 – $195,000 / yr",
             postedAgo: "4d ago",
-            fitScorePercent: 89,
+            fitBand: "strong",
             department: "Product Design",
             seniority: "Lead",
             tags: ["Design Systems", "Figma", "Keyboard Shortcuts", "Precision"],
@@ -351,7 +352,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Remote",
             salary: "$175,000 – $225,000 / yr",
             postedAgo: "2d ago",
-            fitScorePercent: 94,
+            fitBand: "strong",
             department: "Frameworks & Runtime",
             seniority: "Staff",
             tags: ["Next.js", "Edge Middleware", "React Server Components", "Turbopack"],
@@ -387,7 +388,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Remote",
             salary: "$150,000 – $180,000 / yr",
             postedAgo: "4d ago",
-            fitScorePercent: 90,
+            fitBand: "strong",
             department: "CI/CD & Verify",
             seniority: "Senior",
             tags: ["Async Culture", "GitLab CI", "Figma", "Open Source"],
@@ -423,7 +424,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Remote",
             salary: "$145,000 – $185,000 / yr",
             postedAgo: "1d ago",
-            fitScorePercent: 93,
+            fitBand: "strong",
             department: "Database Tooling",
             seniority: "Senior",
             tags: ["Postgres", "Elixir", "TypeScript", "Realtime"],
@@ -455,7 +456,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Hybrid",
             salary: "$220,000 – $280,000 / yr",
             postedAgo: "Today",
-            fitScorePercent: 89,
+            fitBand: "strong",
             department: "Core Editor",
             seniority: "Manager",
             tags: ["WebAssembly", "C++", "Multiplayer", "Mentorship"],
@@ -489,7 +490,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Hybrid",
             salary: "$250,000 – $320,000 / yr",
             postedAgo: "4d ago",
-            fitScorePercent: 95,
+            fitBand: "strong",
             department: "Observability Pipeline",
             seniority: "Principal",
             tags: ["Kafka", "High Throughput", "Go", "Storage"],
@@ -521,7 +522,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Hybrid",
             salary: "$210,000 – $270,000 / yr",
             postedAgo: "6d ago",
-            fitScorePercent: 91,
+            fitBand: "strong",
             department: "Data Cloud",
             seniority: "Staff",
             tags: ["Data Cloud", "SQL", "Compliance", "Enterprise"],
@@ -555,7 +556,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Hybrid",
             salary: "$160,000 – $195,000 / yr",
             postedAgo: "3d ago",
-            fitScorePercent: 96,
+            fitBand: "strong",
             department: "UI Framework",
             seniority: "Senior",
             tags: ["Component Primitives", "TypeScript", "Drag & Drop", "DOM"],
@@ -589,7 +590,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Remote",
             salary: "$240,000 – $310,000 / yr",
             postedAgo: "5d ago",
-            fitScorePercent: 94,
+            fitBand: "strong",
             department: "Engineering Leadership",
             seniority: "VP",
             tags: ["Video Infrastructure", "Org Strategy", "AI Summaries", "Scale"],
@@ -623,7 +624,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
             workType: "Remote",
             salary: "$140,000 – $170,000 / yr",
             postedAgo: "6d ago",
-            fitScorePercent: 92,
+            fitBand: "strong",
             department: "Water Programs & IoT",
             seniority: "Lead",
             tags: ["IoT Sensors", "Clean Water", "React", "Global Impact"],
@@ -1325,7 +1326,7 @@ export function CategoryHubGrid({
                                                         </div>
 
                                                         <span className="rounded-pill bg-muted px-2.5 py-1 text-xs font-semibold text-live shrink-0">
-                                                            {activeRole.fitScorePercent}% Match
+                                                            {matchBandLabel(activeRole.fitBand)}
                                                         </span>
                                                     </div>
 
@@ -1460,7 +1461,7 @@ export function CategoryHubGrid({
                                                         {job.salary}
                                                     </span>
                                                     <span className="rounded-pill bg-muted px-2 py-0.5 text-xs font-semibold text-live">
-                                                        {job.fitScorePercent}% Match
+                                                        {matchBandLabel(job.fitBand)}
                                                     </span>
                                                 </div>
 
