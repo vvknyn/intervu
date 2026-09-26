@@ -253,7 +253,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
                 "Familiarity with web standards, rendering engines, and developer workflows.",
             ],
             fitReasons: [
-                "96% match with your background in product lifecycle management and user-centered design.",
+                "Strong fit for your background in product lifecycle management and user-centered design.",
                 "Experience working directly with engineering and design to streamline onboarding.",
             ],
             benefits: [
