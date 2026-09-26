@@ -30,6 +30,8 @@ import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
 import { AUTH_CTA_LABEL, formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
+import { posterInlinePanelClassName } from "@/components/layout/route-loading";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before they're sent.";
 
@@ -43,11 +45,7 @@ function YoursLoading() {
     return (
         <PageLayout fullWidth header={<TrackerHeader />}>
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 py-8 sm:px-8 xl:px-10">
-                <div
-                    className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]"
-                    role="status"
-                    aria-busy="true"
-                >
+                <div className={cn(posterInlinePanelClassName, "p-6")} role="status" aria-busy="true">
                     <div aria-hidden className="space-y-4">
                         <div className="skeleton-bar h-9 w-full max-w-md" />
                         <div className="flex gap-3 overflow-hidden">
@@ -97,29 +95,31 @@ function TrackerEmptyState({
 }) {
     const guestCount = listGuestPursuits().length;
     return (
-        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="py-8 text-left">
-            <p className="text-sm text-foreground">Your tracker is empty.</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-                Save roles while browsing verified jobs, then pick up where you left off here.
-            </p>
-            <Button asChild variant="outline" size="sm" className="mt-3 rounded-ctl font-semibold">
-                <Link href="/jobs">Browse verified roles</Link>
-            </Button>
-
-            {!user && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                    {guestCount > 0 && <>{guestKeepLine(guestCount)} </>}
-                    <button
-                        type="button"
-                        onClick={onLoginClick}
-                        className="font-semibold text-live underline-offset-4 hover:underline"
-                    >
-                        {AUTH_CTA_LABEL}
-                    </button>{" "}
-                    to sync across devices.
-                </p>
-            )}
-        </div>
+        <EmptyState
+            testId={user ? "yours-empty" : "yours-guest-empty"}
+            title="Your tracker is empty."
+            description="Save roles while browsing verified jobs, then pick up where you left off here."
+            actions={
+                <Button asChild variant="outline" size="sm" className="rounded-ctl font-semibold">
+                    <Link href="/jobs">Browse verified roles</Link>
+                </Button>
+            }
+            footer={
+                !user ? (
+                    <p className="text-xs text-muted-foreground">
+                        {guestCount > 0 && <>{guestKeepLine(guestCount)} </>}
+                        <button
+                            type="button"
+                            onClick={onLoginClick}
+                            className="font-semibold text-live underline-offset-4 hover:underline"
+                        >
+                            {AUTH_CTA_LABEL}
+                        </button>{" "}
+                        to sync across devices.
+                    </p>
+                ) : undefined
+            }
+        />
     );
 }
 
