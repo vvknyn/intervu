@@ -171,7 +171,7 @@ export function CompanyChangeEvents({
             // folded in — the list is server-rendered and never reordered.
             <li
               key={`${event.event_type}-${event.occurred_at}-${idx}`}
-              className="flex items-start gap-3.5 rounded-panel border border-border bg-card px-5 py-4"
+              className="flex items-start gap-3.5 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-5 py-4"
             >
               <Icon size={18} weight="bold" className={cn("mt-0.5 shrink-0", icon)} aria-hidden />
               <div className="min-w-0 flex-1">

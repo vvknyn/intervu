@@ -64,7 +64,7 @@ export function Affordance({
             data-testid={testId}
             className={cn(
                 "flex min-h-8 cursor-pointer items-center gap-2 text-xs leading-tight text-foreground",
-                active && inputType === "radio" && "text-brand",
+                active && inputType === "radio" && "text-live",
             )}
         >
             <input
@@ -157,7 +157,7 @@ function Group({
             <h4 className="mb-1 flex items-baseline gap-1 whitespace-nowrap text-xs font-semibold text-muted-foreground">
                 {label}
                 {typeof count === "number" && count > 0 && (
-                    <span className="font-normal normal-case tabular-nums text-brand">({count})</span>
+                    <span className="font-normal normal-case tabular-nums text-live">({count})</span>
                 )}
             </h4>
             <div className="flex flex-col gap-1">{children}</div>

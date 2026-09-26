@@ -15,7 +15,7 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
     return (
         <div
             data-testid="launch-banner"
-            className="mb-2.5 grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-panel bg-card border border-border p-4 text-left border-l-4 border-l-brand transition-all"
+            className="mb-2.5 grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-panel bg-surface border border-border p-4 text-left border-l-4 border-l-live transition-all"
         >
             <div className="flex h-9 w-9 items-center justify-center rounded-panel bg-muted text-brand font-semibold text-xs">
                 AI

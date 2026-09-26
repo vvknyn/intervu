@@ -86,7 +86,7 @@ export function ColdVisitorOrientation({
                 data-testid="cold-visitor-orientation"
                 data-compact="true"
                 className={cn(
-                    "flex items-center gap-3 rounded-panel border border-border bg-card px-3 py-2 text-sm text-foreground",
+                    "flex items-center gap-3 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-3 py-2 text-sm text-foreground",
                     className,
                 )}
             >
@@ -119,7 +119,7 @@ export function ColdVisitorOrientation({
         <div
             data-testid="cold-visitor-orientation"
             className={cn(
-                "relative mb-4 rounded-panel border border-border bg-card p-4 sm:p-5 transition-all",
+                "relative mb-4 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-4 sm:p-5 transition-all",
                 className,
             )}
         >

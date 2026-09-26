@@ -322,7 +322,7 @@ export function CompanyRoleSearch({
       )}
 
       {displayed.length > 0 && (
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-panel border border-border bg-card p-6">
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-6">
           <div>
             <h3 className="font-display text-base font-semibold text-foreground">
               Explore all open roles at {companyName}

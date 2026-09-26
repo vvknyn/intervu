@@ -957,7 +957,7 @@ export function CategoryHubGrid({
             )}
         >
             {/* Welcome banner — Iconiq-calm Velai panel */}
-            <div className="rounded-panel border border-border bg-card p-4 sm:p-7">
+            <div className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-4 sm:p-7">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="space-y-1">
                         {hasResume && (
@@ -1037,9 +1037,9 @@ export function CategoryHubGrid({
                             data-testid={`hub-pack-card-${category.id}`}
                             onClick={() => handleCategoryClick(category)}
                             className={cn(
-                                "rounded-panel border bg-card min-h-24 cursor-pointer gap-0 py-4 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-0 sm:active:scale-100",
+                                "rounded-panel border bg-surface shadow-[var(--shadow-bevel-highlight)] min-h-24 cursor-pointer gap-0 py-4 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live sm:min-h-0 sm:active:scale-100",
                                 isSelected
-                                    ? "border-brand ring-1 ring-brand"
+                                    ? "border-live ring-1 ring-live"
                                     : "border-border",
                             )}
                         >
@@ -1080,7 +1080,7 @@ export function CategoryHubGrid({
                     {modalCategory && (
                         <>
                             {/* Modal Header & Navigation Bar */}
-                            <div className="border-b border-border bg-card px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between shrink-0">
+                            <div className="border-b border-border bg-surface px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between shrink-0">
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-foreground">
                                         <modalCategory.icon size={16} />
@@ -1111,7 +1111,7 @@ export function CategoryHubGrid({
                                             className={cn(
                                                 "px-2.5 py-1 rounded-ctl text-xs font-semibold transition-colors flex items-center gap-1.5",
                                                 viewMode === "shuffle"
-                                                    ? "bg-card text-foreground"
+                                                    ? "bg-surface text-foreground"
                                                     : "text-muted-foreground hover:text-foreground",
                                             )}
                                         >
@@ -1124,7 +1124,7 @@ export function CategoryHubGrid({
                                             className={cn(
                                                 "px-2.5 py-1 rounded-ctl text-xs font-semibold transition-colors flex items-center gap-1.5",
                                                 viewMode === "list"
-                                                    ? "bg-card text-foreground"
+                                                    ? "bg-surface text-foreground"
                                                     : "text-muted-foreground hover:text-foreground",
                                             )}
                                         >
@@ -1148,7 +1148,7 @@ export function CategoryHubGrid({
                             {viewMode === "shuffle" && activeRole && (
                                 <div className="flex-1 overflow-y-auto flex flex-col bg-background">
                                     {/* Card Deck Controller Header */}
-                                    <div className="border-b border-border bg-card px-4 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shrink-0">
+                                    <div className="border-b border-border bg-surface px-4 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shrink-0">
                                         <div className="flex items-center gap-2 text-xs">
                                             <span className="font-semibold text-foreground">
                                                 Role {currentIndex + 1} of {currentJobs.length}
@@ -1175,7 +1175,7 @@ export function CategoryHubGrid({
                                                     type="button"
                                                     onClick={handlePrev}
                                                     title="Previous role"
-                                                    className="h-8 w-8 flex items-center justify-center bg-card hover:bg-muted text-foreground border-r border-border transition-colors"
+                                                    className="h-8 w-8 flex items-center justify-center bg-surface hover:bg-muted text-foreground border-r border-border transition-colors"
                                                 >
                                                     <CaretLeft size={16} />
                                                 </button>
@@ -1183,7 +1183,7 @@ export function CategoryHubGrid({
                                                     type="button"
                                                     onClick={handleNext}
                                                     title="Next role"
-                                                    className="h-8 w-8 flex items-center justify-center bg-card hover:bg-muted text-foreground transition-colors"
+                                                    className="h-8 w-8 flex items-center justify-center bg-surface hover:bg-muted text-foreground transition-colors"
                                                 >
                                                     <CaretRight size={16} />
                                                 </button>
@@ -1195,7 +1195,7 @@ export function CategoryHubGrid({
                                     <div className="p-3 sm:p-6">
                                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
                                             {/* LEFT COLUMN: Job Description & Role Mission (Col 8) */}
-                                            <div className="lg:col-span-8 rounded-panel border border-border bg-card p-4 sm:p-6 space-y-4 sm:space-y-6">
+                                            <div className="lg:col-span-8 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-4 sm:p-6 space-y-4 sm:space-y-6">
                                                 {/* Role Title Header */}
                                                 <div className="space-y-2 pb-5 border-b border-border">
                                                     <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
@@ -1243,7 +1243,7 @@ export function CategoryHubGrid({
                                                     <ul className="space-y-2 text-xs sm:text-sm text-foreground">
                                                         {activeRole.responsibilities.map((resp, i) => (
                                                             <li key={i} className="flex items-start gap-2.5">
-                                                                <span className="text-brand shrink-0">→</span>
+                                                                <span className="text-live shrink-0">→</span>
                                                                 <span className="leading-relaxed">{resp}</span>
                                                             </li>
                                                         ))}
@@ -1266,7 +1266,7 @@ export function CategoryHubGrid({
                                                 </div>
 
                                                 {/* Private Matching Analysis (Why you match) */}
-                                                <div className="space-y-2 p-4 rounded-ctl border border-border bg-card">
+                                                <div className="space-y-2 p-4 rounded-ctl border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]">
                                                     <div className="flex items-center gap-2">
                                                         <span className="h-2 w-2 rounded-pill bg-live" />
                                                         <h4 className="text-xs font-semibold text-foreground">
@@ -1287,7 +1287,7 @@ export function CategoryHubGrid({
                                             {/* RIGHT COLUMN: Company Hiring & General Info (Col 4) */}
                                             <div className="lg:col-span-4 space-y-4">
                                                 {/* Hiring & Company Info Card */}
-                                                <div className="rounded-panel border border-border bg-card p-5 space-y-4">
+                                                <div className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-5 space-y-4">
                                                     <div className="flex items-start justify-between gap-3 pb-3 border-b border-border">
                                                         <div>
                                                             <p className="text-xs text-muted-foreground">Employer</p>
@@ -1346,8 +1346,8 @@ export function CategoryHubGrid({
                                                             className={cn(
                                                                 "w-full h-8 px-2.5 rounded-ctl border text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors",
                                                                 savedRoleIds.has(activeRole.id)
-                                                                    ? "border-brand bg-card text-brand"
-                                                                    : "border-border bg-card text-muted-foreground hover:text-foreground",
+                                                                    ? "border-live bg-surface text-live"
+                                                                    : "border-border bg-surface text-muted-foreground hover:text-foreground",
                                                             )}
                                                         >
                                                             <BookmarkSimple size={16} />
@@ -1357,14 +1357,14 @@ export function CategoryHubGrid({
                                                 </div>
 
                                                 {/* Benefits & Perks Card */}
-                                                <div className="rounded-panel border border-border bg-card p-5 space-y-3">
+                                                <div className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-5 space-y-3">
                                                     <h4 className="text-xs font-semibold text-muted-foreground">
                                                         Benefits & Perks
                                                     </h4>
                                                     <ul className="space-y-2 text-xs text-foreground">
                                                         {activeRole.benefits.map((benefit, i) => (
                                                             <li key={i} className="flex items-start gap-2">
-                                                                <span className="text-brand shrink-0">✦</span>
+                                                                <span className="text-live shrink-0">✦</span>
                                                                 <span className="leading-relaxed">{benefit}</span>
                                                             </li>
                                                         ))}
@@ -1372,7 +1372,7 @@ export function CategoryHubGrid({
                                                 </div>
 
                                                 {/* Trust & Verification Card */}
-                                                <div className="p-3.5 rounded-ctl border border-border bg-card text-xs space-y-1">
+                                                <div className="p-3.5 rounded-ctl border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] text-xs space-y-1">
                                                     <p className="font-semibold text-foreground flex items-center gap-1.5">
                                                         <span className="h-1.5 w-1.5 rounded-pill bg-live" />
                                                         Verified Direct Listing
@@ -1393,7 +1393,7 @@ export function CategoryHubGrid({
                                     {currentJobs.map((job, idx) => (
                                         <div
                                             key={job.id}
-                                            className="rounded-panel border border-border bg-card p-5 hover:border-foreground transition-colors flex flex-col gap-3.5"
+                                            className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-5 hover:border-foreground transition-colors flex flex-col gap-3.5"
                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="space-y-0.5">
@@ -1468,7 +1468,7 @@ export function CategoryHubGrid({
                             )}
 
                             {/* Modal Footer Controls */}
-                            <div className="border-t border-border px-4 sm:px-6 py-3 sm:py-3.5 bg-card flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 shrink-0 text-xs">
+                            <div className="border-t border-border px-4 sm:px-6 py-3 sm:py-3.5 bg-surface flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 shrink-0 text-xs">
                                 <div className="hidden sm:flex items-center gap-3">
                                     <span className="text-muted-foreground flex items-center gap-1.5">
                                         <span className="h-1.5 w-1.5 rounded-pill bg-live" />
@@ -1517,7 +1517,7 @@ export function CategoryHubGrid({
             ) : null}
 
             {onOpenAdvancedSearch && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-panel border border-border bg-card">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]">
                     <div className="space-y-0.5">
                         <p className="text-xs font-semibold text-foreground">
                             Looking for specific job titles, companies, or salary filters?
@@ -1546,7 +1546,7 @@ export function CategoryHubGrid({
                 >
                     <div className="space-y-1 pb-2 border-b border-border">
                         <div className="flex items-center gap-2 text-foreground">
-                            <User size={16} className="text-brand shrink-0" />
+                            <User size={16} className="text-live shrink-0" />
                             <DialogTitle className="text-base font-semibold">
                                 User Profile Parameters
                             </DialogTitle>
@@ -1611,7 +1611,7 @@ export function CategoryHubGrid({
                             <span>Need to update full work experience or education?</span>
                             <Link
                                 href="/settings?tab=resume"
-                                className="font-semibold text-brand hover:underline inline-flex items-center gap-1"
+                                className="font-semibold text-live hover:underline inline-flex items-center gap-1"
                                 onClick={() => setProfileModalOpen(false)}
                             >
                                 Open in Settings →

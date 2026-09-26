@@ -21,7 +21,7 @@ export function CompanyCadenceStrip({
   const last = eventDate(`${weeks[weeks.length - 1].weekStartIso}T00:00:00Z`);
 
   return (
-    <section data-testid="company-cadence-strip" className="rounded-panel border border-border bg-card px-6 py-6 sm:px-8">
+    <section data-testid="company-cadence-strip" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
       <h2 className="text-xs font-semibold text-muted-foreground">
         Their posting rhythm, last {weeks.length} weeks
       </h2>

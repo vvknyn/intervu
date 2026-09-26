@@ -319,7 +319,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {/* Plain-language hiring record — same figures the old
                     "Hiring activity" section drew from, now its own named
                     rail box instead of a shared block with the intel grid. */}
-                <section data-testid="company-hiring-activity" className="rounded-panel border border-border bg-card p-6">
+                <section data-testid="company-hiring-activity" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-6">
                   <h2 className="text-xs font-semibold text-muted-foreground">
                     The hiring record — last 90 days
                   </h2>
@@ -345,7 +345,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {/* List health — the ghost-flagged share restated as a count
                     instead of a bare, jargon-labelled percentage tile. */}
                 {staleShare && (
-                  <section className="rounded-panel border border-border bg-card p-6">
+                  <section className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-6">
                     <h2 className="text-xs font-semibold text-muted-foreground">
                       List health
                     </h2>

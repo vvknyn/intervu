@@ -12,7 +12,7 @@ export interface ForYouToggleProps {
 /**
  * For you ⇄ Search mode control: an iOS/Material-style pill segmented
  * control (ui-patterns "Module Tabs") — a filled `rounded-pill` track with
- * two `rounded-pill` segments, active = raised `bg-card` chip, inactive =
+ * two `rounded-pill` segments, active = raised `bg-surface` chip, inactive =
  * plain text. No underline, no tab-strip treatment.
  */
 export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) {
@@ -35,7 +35,7 @@ export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) 
                         onClick={() => onChange(tab)}
                         className={cn(
                             "inline-flex min-h-10 items-center rounded-pill px-4 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2",
-                            active ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground",
+                            active ? "bg-surface text-foreground" : "text-muted-foreground hover:text-foreground",
                         )}
                     >
                         {label}

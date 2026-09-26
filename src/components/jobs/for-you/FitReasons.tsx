@@ -50,7 +50,7 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
     const reasons = useMemo(() => inferReasons(job, score, resume), [job, score, resume]);
 
     return (
-        <details data-tour="jobs-fit-reasons" className="group mb-4 rounded-panel bg-card px-4 py-3.5" open>
+        <details data-tour="jobs-fit-reasons" className="group mb-4 rounded-panel bg-surface px-4 py-3.5" open>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                 <span className="text-sm font-semibold text-foreground">Why this fits</span>
                 <span className="flex items-center gap-2">

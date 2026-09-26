@@ -60,7 +60,7 @@ export function CompanyFilingsBand({ exhaust }: { exhaust: CompanyExhaust }) {
   if (rows.length === 0 && !warn && !h1b) return null;
 
   return (
-    <section data-testid="company-filings-band" className="rounded-panel border border-border bg-card px-6 py-6 sm:px-8">
+    <section data-testid="company-filings-band" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
       <h2 className="text-xs font-semibold text-muted-foreground">
         The paper trail · {rows.length} record{rows.length === 1 ? "" : "s"}
       </h2>

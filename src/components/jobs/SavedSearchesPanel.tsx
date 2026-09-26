@@ -181,7 +181,7 @@ export function SavedSearchesPanel({
                 <div className={cn(
                     compact
                         ? "flex items-center gap-1"
-                        : "flex h-11 sm:h-[46px] items-center gap-1.5 rounded-ctl bg-card border border-border px-2",
+                        : "flex h-11 sm:h-[46px] items-center gap-1.5 rounded-ctl bg-surface border border-border px-2",
                 )}>
                     <input
                         data-testid="save-search-name"

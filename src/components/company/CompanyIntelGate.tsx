@@ -62,7 +62,7 @@ export function CompanyIntelLockCard({
   showFollowButton = true,
 }: Pick<CompanyIntelGateProps, "domain" | "slug" | "displayName" | "description" | "showFollowButton">) {
   return (
-    <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-panel border border-border bg-card px-6 py-6">
+    <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6">
       <p className="text-sm font-semibold text-foreground">Follow this company to see its hiring history</p>
       <p className="text-xs leading-relaxed text-muted-foreground">
         {description ?? `Recent hiring changes, funding, tech stack, and news for ${displayName} — visible once you follow.`}

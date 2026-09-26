@@ -19,7 +19,7 @@ export function CompanyChangeEventTeaser({ event }: { event: CompanyChangeEvent 
   return (
     <div
       data-testid="company-change-event-teaser"
-      className="rounded-panel border border-border bg-card px-5 py-3.5"
+      className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-5 py-3.5"
     >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         {label && (

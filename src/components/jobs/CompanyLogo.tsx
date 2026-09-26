@@ -9,21 +9,15 @@ import { cn } from "@/lib/utils";
 // parentheticals, so the logo initial can never disagree with the row text.
 import { cleanCompany } from "@/lib/jobs/presentation";
 
-/**
- * Company-initial tile palette (portal redesign spec) — a fixed set of
- * bg/fg pastel pairs, deliberately raw hex: the spec calls these out as the
- * one explicit exception to "tokens only," since they're the design's own
- * fixed chip palette rather than theme-driven surface colors. Same pairs in
- * both themes (spec: "they read as pastel chips" either way).
- */
-const TILE_PALETTE: { bg: string; fg: string }[] = [
-    { bg: "#E8EDF6", fg: "#2B4A7E" },
-    { bg: "#EFE8F6", fg: "#5B3A8E" },
-    { bg: "#E6F1EC", fg: "#0E6B4C" },
-    { bg: "#F6EDE4", fg: "#8E5B2B" },
-    { bg: "#F6E8E8", fg: "#8E2B2B" },
-    { bg: "#EDEBE2", fg: "#3E3B30" },
-];
+/** Deterministic initial-tile pairs hashed from company name — poster tints only. */
+const TILE_VARIANT_CLASS = [
+    "bg-surface-2 text-foreground",
+    "bg-surface-3 text-muted-foreground",
+    "bg-live-tint-bg text-verdict-live",
+    "bg-brand-tint-bg text-brand",
+    "bg-verdict-caution-bg text-verdict-caution",
+    "bg-chip text-faint",
+] as const;
 
 function hashString(s: string): number {
     let h = 0;
@@ -40,15 +34,14 @@ function hashString(s: string): number {
 export function CompanyInitialTile({ name, className }: { name: string | null; className?: string }) {
     const clean = cleanCompany(name);
     const initial = clean ? clean[0].toUpperCase() : "?";
-    const pair = TILE_PALETTE[hashString(clean || "?") % TILE_PALETTE.length];
+    const variant = TILE_VARIANT_CLASS[hashString(clean || "?") % TILE_VARIANT_CLASS.length];
     return (
         <div
-            data-rulebook-exempt
             className={cn(
-                "flex shrink-0 items-center justify-center rounded-panel font-display text-lg font-semibold",
+                "flex shrink-0 items-center justify-center rounded-panel text-lg font-semibold",
+                variant,
                 className,
             )}
-            style={{ background: pair.bg, color: pair.fg }}
         >
             {initial}
         </div>
@@ -93,10 +86,7 @@ export function CompanyLogo({
         return (
             <CompanyInitialTile
                 name={cleanedName}
-                className={cn(
-                    "border border-border dark:border-border",
-                    sizeCls,
-                )}
+                className={cn("border border-border", sizeCls)}
             />
         );
     }
@@ -104,7 +94,7 @@ export function CompanyLogo({
     return (
         <div
             className={cn(
-                "flex shrink-0 items-center justify-center overflow-hidden border border-border bg-white dark:border-border dark:bg-border",
+                "flex shrink-0 items-center justify-center overflow-hidden border border-border bg-surface-2 shadow-[var(--shadow-bevel-inset)]",
                 sizeCls,
             )}
         >

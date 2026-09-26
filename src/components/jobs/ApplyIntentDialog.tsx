@@ -23,14 +23,12 @@ import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from 
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
 import { isHttpApplyUrl } from "@/components/jobs/use-gated-apply";
+import { Button } from "@/components/ui/button";
 
 const CLIENT_LABEL: Record<McpHandoffClient, string> = {
     claude: "Claude",
     chatgpt: "ChatGPT",
 };
-
-const outlineButtonCls =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-ctl border border-border-strong px-4 text-xs font-semibold transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60";
 
 /**
  * Shown once, at the moment someone commits to applying. Handing the role to
@@ -127,20 +125,22 @@ export function ApplyIntentDialog({
 
                 <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-6 py-0.5">
                     {saved && !choosing ? (
-                        <button type="button" onClick={() => handoff(saved)} className={outlineButtonCls}>
+                        <Button type="button" variant="secondary" size="lg" className="w-full gap-2" onClick={() => handoff(saved)}>
                             Open in {CLIENT_LABEL[saved]}
-                        </button>
+                        </Button>
                     ) : (
                         <div className="grid grid-cols-2 gap-2">
                             {(Object.keys(CLIENT_LABEL) as McpHandoffClient[]).map((client) => (
-                                <button
+                                <Button
                                     key={client}
                                     type="button"
+                                    variant="secondary"
+                                    size="lg"
+                                    className="w-full"
                                     onClick={() => handoff(client)}
-                                    className={outlineButtonCls}
                                 >
                                     {CLIENT_LABEL[client]}
-                                </button>
+                                </Button>
                             ))}
                         </div>
                     )}
@@ -165,21 +165,22 @@ export function ApplyIntentDialog({
                     Claude/ChatGPT. */}
                 <div className="flex shrink-0 flex-col gap-2 border-t border-border px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                     {postingHref ? (
-                        <a
-                            href={postingHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={handleContinueSideEffects}
-                            className={outlineButtonCls}
-                        >
-                            <ArrowSquareOut size={16} />
-                            Continue to the posting
-                        </a>
+                        <Button asChild variant="secondary" size="lg" className="w-full gap-2">
+                            <a
+                                href={postingHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={handleContinueSideEffects}
+                            >
+                                <ArrowSquareOut size={16} />
+                                Continue to the posting
+                            </a>
+                        </Button>
                     ) : (
-                        <button type="button" onClick={handleContinueSideEffects} className={outlineButtonCls}>
+                        <Button type="button" variant="secondary" size="lg" className="w-full gap-2" onClick={handleContinueSideEffects}>
                             <ArrowSquareOut size={16} />
                             Continue to the posting
-                        </button>
+                        </Button>
                     )}
 
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">

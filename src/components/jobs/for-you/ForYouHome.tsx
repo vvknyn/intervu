@@ -81,8 +81,8 @@ function ForYouPackSkeleton({ withStatus = false }: { withStatus?: boolean } = {
                     className="px-1 text-xs font-semibold"
                 />
             ) : null}
-            <div className="flex flex-col overflow-hidden rounded-panel border border-border bg-card">
-                <div className="border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8">
+            <div className="flex flex-col overflow-hidden rounded-panel bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]">
+                <div className="border-b border-border/60 py-4 px-4 lg:py-6 lg:px-8">
                     <div className="flex items-start gap-3">
                         <Skeleton className="size-10 shrink-0" />
                         <div className="flex-1 space-y-2">
@@ -98,7 +98,7 @@ function ForYouPackSkeleton({ withStatus = false }: { withStatus?: boolean } = {
                     </div>
                 </div>
                 <div className="grid gap-6 py-4 px-4 lg:grid-cols-[280px_1fr] lg:py-6 lg:px-8">
-                    <div className="hidden border border-border bg-muted p-4 lg:block">
+                    <div className="hidden rounded-ctl border border-border/60 p-4 shadow-[var(--shadow-bevel-inset)] lg:block">
                         <Skeleton className="h-3 w-20" />
                         <Skeleton className="mt-3 h-2 w-full" />
                         <Skeleton className="mt-4 h-3 w-24" />
@@ -343,7 +343,7 @@ export function ForYouHome({
             ) : visiblePacks.length === 0 ? (
                 <div
                     data-testid="for-you-empty"
-                    className="flex flex-col items-center justify-center gap-4 rounded-panel border border-border bg-card p-12 text-center"
+                    className="flex flex-col items-center justify-center gap-4 rounded-panel border border-border bg-surface p-12 text-center shadow-[var(--shadow-bevel-highlight)]"
                 >
                     <p className="text-sm text-muted-foreground">
                         No ranked roles to show right now. Try Search to browse the full list.
