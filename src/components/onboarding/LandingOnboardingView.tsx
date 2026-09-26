@@ -25,7 +25,7 @@ import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { buildReturnTo } from "@/lib/jobs/pending-actions";
 import type { ResumeData, ResumeProfile } from "@/types/resume";
-import { LandingLiveRolesPreview } from "@/components/onboarding/LandingLiveRolesPreview";
+import { ConceptALanding } from "@/components/onboarding/ConceptALanding";
 
 export interface LandingOnboardingViewProps {
     onComplete: (data: {
@@ -201,14 +201,33 @@ export function LandingOnboardingView({
         });
     };
 
+    // Public Step 1 = full-bleed Concept A (covers site chrome). Steps 2–3
+    // stay the real account + résumé gate in the light reading card.
+    if (step === 1) {
+        return (
+            <ConceptALanding
+                onStart={() => setStep(isAuthenticated ? 3 : 2)}
+                onSignIn={() => {
+                    // Drop full-bleed portal first so AuthPopover / step-2 gate
+                    // are not trapped under z-[100].
+                    setStep(2);
+                    if (onOpenAuth) {
+                        requestAnimationFrame(() => onOpenAuth());
+                    } else {
+                        handleSignIn();
+                    }
+                }}
+            />
+        );
+    }
+
     return (
         <div className={cn(
-            "mx-auto w-full relative z-10",
-            step === 1 ? "max-w-[960px]" : "max-w-[760px]",
+            "mx-auto w-full relative z-10 max-w-[760px]",
             className,
         )}>
-            {/* Unified Solid Reading Card */}
-            <div className="rounded-panel border border-border bg-card p-3.5 sm:p-5 space-y-3 relative z-10">
+            {/* Unified Solid Reading Card — steps 2–3 (auth + résumé gate) */}
+            <div className="rounded-panel border p-3.5 sm:p-5 space-y-3 relative z-10 border-border bg-card">
                 {/* Header Kicker */}
                 <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-border">
                     <div className="flex items-center gap-1.5 text-xs">
@@ -220,7 +239,7 @@ export function LandingOnboardingView({
 
                     <div className="flex items-center gap-2 text-xs">
                         {isAuthenticated ? (
-                            <span className="text-xs text-muted-foreground font-semibold truncate max-w-[130px] sm:max-w-none">
+                            <span className="text-xs font-semibold truncate max-w-[130px] sm:max-w-none text-muted-foreground">
                                 {userName || userEmail || "Account"} ✓
                             </span>
                         ) : (
@@ -240,83 +259,19 @@ export function LandingOnboardingView({
 
                 {/* Native Segmented Progress Bar */}
                 <div className="grid grid-cols-3 gap-1.5 w-full">
-                    <div className={cn("h-1 rounded-pill transition-colors duration-200", step >= 1 ? "bg-brand" : "bg-muted")} />
-                    <div className={cn("h-1 rounded-pill transition-colors duration-200", step >= 2 ? "bg-brand" : "bg-muted")} />
-                    <div className={cn("h-1 rounded-pill transition-colors duration-200", step >= 3 ? "bg-brand" : "bg-muted")} />
+                    <div className={cn(
+                        "h-1 rounded-pill transition-colors duration-200",
+                        step >= 1 ? "bg-brand" : "bg-muted",
+                    )} />
+                    <div className={cn(
+                        "h-1 rounded-pill transition-colors duration-200",
+                        step >= 2 ? "bg-brand" : "bg-muted",
+                    )} />
+                    <div className={cn(
+                        "h-1 rounded-pill transition-colors duration-200",
+                        step >= 3 ? "bg-brand" : "bg-muted",
+                    )} />
                 </div>
-
-                {/* STATION 1: value line + live roles + CTA (Velai 2.0 public preview) */}
-                {step === 1 && (
-                    <div className="space-y-3 sm:space-y-3.5">
-                        <div className="space-y-1.5">
-                            <div className="inline-flex items-center gap-1.5 rounded-pill bg-muted px-2.5 py-0.5 text-xs font-semibold text-live">
-                                <span className="h-1.5 w-1.5 rounded-pill bg-live" />
-                                <span>Straight from employers · matching stays private</span>
-                            </div>
-                            <h2 className="text-base sm:text-xl font-semibold text-foreground leading-snug">
-                                Real jobs, before you sign in.
-                                <br className="hidden sm:inline" />{" "}
-                                <span className="text-brand">Private matching starts after your résumé — on your device.</span>
-                            </h2>
-                            <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
-                                Preview live roles from official career pages. Sign in and add a résumé to unlock tailored packs, Strong/Good fit, and on-device apply help — résumé text never leaves this browser for matching.
-                            </p>
-                        </div>
-
-                        <LandingLiveRolesPreview onBrowseMore={onBrowsePublicJobs} />
-
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 rounded-ctl border border-border bg-muted px-3 py-1.5 text-xs">
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                <Link
-                                    href="/trends"
-                                    className="group inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
-                                    title="Live count across verified employer ATS feeds — view market trends"
-                                >
-                                    <span className="font-semibold text-foreground sm:hidden">{compactLiveRoleCount}</span>
-                                    <span className="font-semibold text-foreground hidden sm:inline">{liveRoleCount}</span>{" "}
-                                    <span className="text-muted-foreground group-hover:text-foreground">active roles</span>
-                                </Link>
-                                <span className="text-muted-foreground">·</span>
-                                <Link
-                                    href="/privacy"
-                                    className="group inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
-                                    title="Resume parsing and match scoring run locally on your device"
-                                >
-                                    <span className="font-semibold text-foreground">On-device</span>{" "}
-                                    <span className="text-muted-foreground group-hover:text-foreground">matching after résumé</span>
-                                </Link>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-muted-foreground shrink-0 pt-0.5 sm:pt-0">
-                                <Cpu size={16} className={cn("text-brand", !modelReady && "animate-spin")} />
-                                <span>{modelReady ? "Private matching ready ✓" : "Preparing private matching"}</span>
-                            </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-border flex flex-col gap-2">
-                            <Button
-                                onClick={() => setStep(isAuthenticated ? 3 : 2)}
-                                className="w-full h-11 rounded-ctl text-xs font-semibold gap-2 justify-center active:scale-[0.99] transition-transform"
-                            >
-                                Start private matching <ArrowRight size={16} />
-                            </Button>
-                            {!isAuthenticated ? (
-                                <div className="text-center">
-                                    <button
-                                        type="button"
-                                        onClick={onOpenAuth ?? handleSignIn}
-                                        className="text-xs text-muted-foreground hover:text-foreground font-semibold inline-flex items-center gap-1"
-                                    >
-                                        Already have an account? <span className="text-foreground underline">{AUTH_CTA_LABEL}</span>
-                                    </button>
-                                </div>
-                            ) : (
-                                <p className="text-xs text-muted-foreground text-center">
-                                    Free &amp; private forever
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                )}
 
                 {/* STATION 2: CREATE ACCOUNT FIRST (MANDATORY GATE) */}
                 {step === 2 && (

@@ -5936,6 +5936,8 @@ function JobsContent() {
                     disagree with this piece about whether it's showing. */}
                 {showLandingOnboarding ? (
                     <div className="relative w-full flex-1 flex flex-col justify-start sm:justify-center items-center py-0">
+                        {/* Concept A Step 1 portals full-bleed over this; grid
+                            remains for steps 2–3 auth + résumé gate. */}
                         <LandingAnimatedBackground />
                         <div className={cn("relative z-10 w-full px-2 sm:px-4", cappedContentClass)}>
                             <LandingOnboardingView
