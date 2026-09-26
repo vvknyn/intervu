@@ -6,7 +6,7 @@ import { GHOST_CHECK_TAGLINE, REPRESENTATIVE_GHOST_SIGNALS } from "@/components/
 import { VARIANT_COPY } from "@/components/mcp/McpHandoffNote";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { RESUME_UPLOAD_SIGNIN_LINE } from "@/lib/jobs/resume-cta-copy";
-import { FOOTER_PROVENANCE_LINE, GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
+import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
 
 /**
  * Fills the desktop detail pane at rest (requirement 3) instead of a
@@ -14,9 +14,9 @@ import { FOOTER_PROVENANCE_LINE, GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } f
  * it replaces here. No job is open yet, so this "pitches" what the pane
  * does once one is — reusing the SAME copy/data those real surfaces use,
  * never inventing new marketing claims:
- *  - `FOOTER_PROVENANCE_LINE` — the site footer's own provenance line,
- *    same split-on-`GHOST_SCREENING_CLAUSE`-and-link convention
- *    (Footer.tsx) so the linked claim isn't duplicated as plain text here.
+ *  - Provenance — mirrors Footer.tsx's provenance line minus the geo clause
+ *    (no country list on guest surfaces), with `GHOST_SCREENING_CLAUSE`
+ *    linked to `GHOST_RESEARCH_HREF` the same way.
  *  - "What every posting is checked for" — `REPRESENTATIVE_GHOST_SIGNALS`, a
  *    literal subset of what `deriveGhostSignals` actually emits
  *    (job-detail-facts.ts), rendered as a plain definition list (no check
@@ -38,19 +38,11 @@ export function FrontDoorDetailPitch({ onSignInClick }: { onSignInClick: () => v
     return (
         <div className="divide-y divide-border p-6 text-sm text-foreground" data-testid="detail-pane-placeholder">
             <div className="pb-4 text-xs text-muted-foreground">
-                {FOOTER_PROVENANCE_LINE.split(GHOST_SCREENING_CLAUSE).map((part, i, parts) => (
-                    <span key={i}>
-                        {part}
-                        {i < parts.length - 1 && (
-                            <Link
-                                href={GHOST_RESEARCH_HREF}
-                                className="underline underline-offset-2 hover:text-foreground"
-                            >
-                                {GHOST_SCREENING_CLAUSE}
-                            </Link>
-                        )}
-                    </span>
-                ))}
+                Every listing is from companies&apos; own career pages,{" "}
+                <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
+                    {GHOST_SCREENING_CLAUSE}
+                </Link>
+                . Never resold, never curated.
             </div>
 
             <div className="py-4">
