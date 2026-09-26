@@ -60,11 +60,15 @@ export function TopBar() {
     const { docked, homeViewDocked } = useSearchDock();
     const navBadges = useNavBadgeCounts();
     const menuTabs = NAV_TABS.filter((t) => t.placement === "menu");
-    const barTabs = NAV_TABS.filter((t) => t.placement === "bar").filter(
+    const barTabs = NAV_TABS.filter((t) => t.placement === "bar").filter((t) => {
+        if (t.href !== "/connect") return true;
         // Lean hub/deck/apply: drop desktop header MCP (/connect). Pack-deck
         // `for-you-mcp-handoff` stays — that is not TopBar chrome.
-        (t) => !(leanSurface && t.href === "/connect"),
-    );
+        if (leanSurface) return false;
+        // Signed-out public chrome (404, marketing-adjacent routes): no MCP tab.
+        if (authChrome !== "authenticated") return false;
+        return true;
+    });
     const menuActive = menuNavActive(pathname, NAV_TABS);
     const menuTriggerLabel = menuNavTriggerLabel(pathname, NAV_TABS);
     const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
