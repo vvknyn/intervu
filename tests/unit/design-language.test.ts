@@ -122,6 +122,18 @@ test("tracking tokens: body/label scale stays normal; poster hero may tighten on
     assert.ok(tracking.length > 0, "no --tracking-* tokens found");
     const posterHero = tracking.find((d) => d.name === "--tracking-poster-hero");
     assert.ok(posterHero, "--tracking-poster-hero must exist for Concept A poster hero");
+    const labelSemibold = tracking.find((d) => d.name === "--tracking-label-semibold");
+    assert.ok(labelSemibold, "--tracking-label-semibold must exist for small semibold hub labels");
+    const labelEm = parseFloat(labelSemibold!.value.replace(/em\s*$/, ""));
+    assert.ok(
+        Number.isFinite(labelEm) && labelEm <= 0 && labelEm >= -0.02,
+        `--tracking-label-semibold=${labelSemibold!.value} — bounded negative sidebearing fix only`,
+    );
+    assert.match(
+        GLOBALS,
+        /letter-spacing:\s*var\(--tracking-label-semibold\)/,
+        "label semibold tracking must apply via globals.css base layer, not per-component utilities",
+    );
     const maxTightEm = 0.05;
     const maxLooseEm = 0.05;
     for (const { name, value } of tracking) {
@@ -130,12 +142,47 @@ test("tracking tokens: body/label scale stays normal; poster hero may tighten on
             assert.ok(em <= 0 && em >= -0.06, `${name}=${value} — poster hero tracking only slightly tight`);
             continue;
         }
+        if (name === "--tracking-label-semibold") {
+            continue;
+        }
         const em = parseFloat(value.replace(/em\s*$/, ""));
         assert.ok(
             Number.isFinite(em) && em >= -maxTightEm && em <= maxLooseEm,
             `${name}=${value} — body/label tracking tokens must stay near 0 (not poster hero)`,
         );
     }
+});
+
+test("wordmark lockup call sites: no local text-brand override on BrandLockup wrappers", () => {
+    const offenders: string[] = [];
+    for (const file of walkTsxFiles(path.join(ROOT, "src"))) {
+        if (isFileAllowed(readFileSync(file, "utf8"))) continue;
+        const raw = readFileSync(file, "utf8");
+        if (!raw.includes("BrandLockup")) continue;
+        const lines = raw.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+            if (!lines[i].includes("BrandLockup")) continue;
+            const window = lines.slice(Math.max(0, i - 6), i + 1).join("\n");
+            if (/\btext-brand\b/.test(window) && !window.includes("design-lint-allow")) {
+                offenders.push(`${path.relative(ROOT, file)}:${i + 1}`);
+            }
+        }
+    }
+    assert.deepEqual(
+        offenders,
+        [],
+        `BrandLockup must not sit under a text-brand wrapper — warm white wordmark only: ${offenders.join("; ")}`,
+    );
+});
+
+test("TopBar: MCP/Connect tab hidden when signed out on public chrome", () => {
+    const topbar = readFileSync(path.join(ROOT, "src/components/layout/TopBar.tsx"), "utf8");
+    assert.match(
+        topbar,
+        /authChrome !== "authenticated"/,
+        "desktop /connect must drop unless auth has resolved to signed in",
+    );
+    assert.match(topbar, /leanSurface/, "lean surfaces still drop /connect");
 });
 
 test("elevation is none: every --shadow-* scale key resolves to none", () => {
