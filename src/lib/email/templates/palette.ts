@@ -45,14 +45,14 @@ export const EMAIL_COLOR_TOKENS = {
 export type EmailColorRole = keyof typeof EMAIL_COLOR_TOKENS;
 
 export const EMAIL_COLORS = {
-  ink: "#0A0A0A",
-  muted: "#737373",
-  faint: "#A3A3A3",
-  line: "#E5E5E5",
-  page: "#F6F8FC",
-  card: "#FFFFFF",
-  brand: "#002FA7",
-  onBrand: "#FFFFFF",
+  ink: "#FAFAFA",
+  muted: "#9CA3AF",
+  faint: "#737A87",
+  line: "#2D323E",
+  page: "#0B0D12",
+  card: "#141720",
+  brand: "#0E9F4E",
+  onBrand: "#0B0D12",
 } as const satisfies Record<EmailColorRole, string>;
 
 /**
@@ -73,8 +73,8 @@ export const EMAIL_FONT_SANS =
  * first did, is a different wordmark next to identical typography.
  */
 export const EMAIL_WORDMARK = {
-  text: "VELAI",
+  text: "Velai",
   fontSize: BRAND_LOCKUP_WORDMARK_PX,
-  fontWeight: 700,
-  letterSpacing: "-0.025em",
+  fontWeight: 600,
+  letterSpacing: "0em",
 } as const;

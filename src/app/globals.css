@@ -281,7 +281,7 @@
   --shadow-bevel-highlight: inset 0 1px 0 rgb(255 255 255 / 0.08);
   --shadow-bevel-inset: inset 0 1px 2px rgb(0 0 0 / 0.35);
 
-  /* Z-index ladder — one source; consume via z-[var(--z-*)] at call sites. */
+  /* Z-index ladder — one source; consume --z-topbar through --z-toast at call sites. */
   --z-topbar: 50;
   --z-skip-link: 60;
   --z-tour-trigger: 80;

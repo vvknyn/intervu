@@ -31,7 +31,7 @@ happens again.
 3. **The app mark never sits on a white tile** — `public/velai-logo.png` and every derived icon
    use a dark skeuomorphic tile or transparency (`--surface-mark-tile`).
 4. **One z-index ladder** in `globals.css` (`--z-topbar` … `--z-toast`); call sites consume
-   `z-[var(--z-*)]`, not ad-hoc numbers.
+   `z-[var(--z-topbar)]` (and the other named ladder steps), not ad-hoc numbers.
 
 See `docs/design-language-rollout.md` (project store) for phased surface rollout and WCAG targets.
 
