@@ -211,6 +211,11 @@ Fonts load once in `layout.tsx` via `next/font` and reach components only as `--
 code.** The audit found five different mechanisms for an `h1` across public pages alone; that is
 what this table exists to stop.
 
+**OpenType on `body`:** `font-feature-settings: normal` only. Do not enable body-wide character
+variants (`cv*`) or stylistic sets (`ss*`) — Source Sans 3 mis-spaces common words when those
+features inherit everywhere. Letter-spacing for body and labels stays at the zeroed
+`--tracking-*` tokens; only `--tracking-poster-hero` may tighten for the signed-out poster hero.
+
 ## Density — the rule that keeps marketing and app coherent
 
 Marketing surfaces are sparse; app surfaces are dense. This is the one place they legitimately
