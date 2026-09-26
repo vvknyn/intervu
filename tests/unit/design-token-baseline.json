@@ -68,7 +68,7 @@
     "size-arbitrary": 0,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 4,
+    "shadow-utility": 18,
     "inline-style": 0
   },
   "company": {
@@ -104,7 +104,7 @@
     "size-arbitrary": 6,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 1,
+    "shadow-utility": 2,
     "inline-style": 1
   },
   "ui": {
