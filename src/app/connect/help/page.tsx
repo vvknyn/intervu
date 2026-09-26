@@ -184,7 +184,7 @@ export default function ConnectHelpPage() {
             (<code className="text-xs">~/.openclaw/runtime</code>), checks it against
             the official checksum published by nodejs.org so you know it wasn&apos;t tampered with,
             and adds one line to a personal settings file
-            (<code className="text-xs">~/.zprofile</code>, marked &ldquo;# Velai
+            (<code className="text-xs">~/.zprofile</code>, marked &ldquo;# intervu
             installer: local Node runtime&rdquo;) so your Terminal can find it every time you open a
             new window. No admin password, nothing installed system-wide.
           </p>
@@ -311,7 +311,7 @@ export default function ConnectHelpPage() {
             Then open{" "}
             <code className="text-xs">~/.zprofile</code> in a text editor, find the
             line that reads <code className="text-xs">
-              # Velai installer: local Node runtime
+              # intervu installer: local Node runtime
             </code>
             , and delete that line and the one right after it. If your Mac already had Node
             installed before you ran this installer, nothing else on your machine was touched — the
