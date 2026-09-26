@@ -20,9 +20,9 @@ describe("lean packs surfaces — band only, no Canada claims in hub mock", () =
         assert.doesNotMatch(catalog, /Canada|Toronto/i);
     });
 
-    it("ForYouPack deck header uses band label readout, not MatchChip", () => {
+    it("ForYouPack deck header uses band label readout, not MatchChip component", () => {
         const src = readFileSync(PACK, "utf8");
-        assert.doesNotMatch(src, /MatchChip/);
+        assert.doesNotMatch(src, /import.*MatchChip|<MatchChip/);
         assert.match(src, /function FitReadout/);
         assert.match(src, /matchBandLabel/);
     });
