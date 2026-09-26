@@ -571,7 +571,9 @@ body {
   /* 16px — DESIGN-LANGUAGE `text-body` role; matches the iOS 16px form-control floor below. */
   font-size: 16px;
   line-height: 1.5;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+  /* Standards-safe defaults — no body-wide OpenType cv/ss overrides (Source
+     Sans 3 splits glyphs after "t" when cv11 etc. are enabled globally). */
+  font-feature-settings: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
