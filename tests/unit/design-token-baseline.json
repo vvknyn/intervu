@@ -32,7 +32,7 @@
     "size-arbitrary": 1,
     "padding-arbitrary": 2,
     "hex-literal": 0,
-    "shadow-utility": 9,
+    "shadow-utility": 6,
     "inline-style": 0
   },
   "resume": {
@@ -44,7 +44,7 @@
     "size-arbitrary": 8,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 27,
+    "shadow-utility": 26,
     "inline-style": 1
   },
   "tracker": {
@@ -108,7 +108,7 @@
     "inline-style": 1
   },
   "ui": {
-    "rounded-none": 2,
+    "rounded-none": 1,
     "rounded-size": 0,
     "rounded-arbitrary": 1,
     "text-arbitrary": 0,
