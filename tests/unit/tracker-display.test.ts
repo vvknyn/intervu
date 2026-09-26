@@ -7,6 +7,7 @@ import {
     matchesTrackerFilter,
     matchesTrackerSearch,
     trackerStatusLabel,
+    trackerResumeMetaLabel,
     visibleTrackerBoardColumns,
 } from "../../src/lib/pursuits/tracker-display";
 import type { Pursuit } from "../../src/lib/pursuits/types";
@@ -36,6 +37,11 @@ test("matchesTrackerSearch matches company or role case-insensitively", () => {
     assert.equal(matchesTrackerSearch(p, "north"), true);
     assert.equal(matchesTrackerSearch(p, "staff"), true);
     assert.equal(matchesTrackerSearch(p, "product"), false);
+});
+
+test("trackerResumeMetaLabel spells résumé with accent in row meta", () => {
+    assert.equal(trackerResumeMetaLabel(false), "no résumé");
+    assert.equal(trackerResumeMetaLabel(true), "résumé linked");
 });
 
 test("countByTrackerFilter and trackerStatusLabel stay aligned", () => {

@@ -21,12 +21,12 @@ export type HubPackId = (typeof HUB_PACK_IDS)[number];
 /** Short labels for removal cues (Swiss/Klein, pack identity). */
 export const HUB_PACK_SHORT_LABELS: Record<HubPackId, string> = {
     all: "All your matches",
-    ai: "Artificial Intelligence",
+    ai: "Artificial intelligence",
     remote: "Fully remote",
     fresh: "Added this week",
     salary: "Jobs with salaries",
     apply: "1-Click tailored apply",
-    lead: "Lead & Principal",
+    lead: "Lead & principal",
     good: "Tech for good",
 };
 

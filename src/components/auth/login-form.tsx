@@ -207,7 +207,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 {/* A dead end otherwise — this card had no wordmark/home link
                     back to the rest of the site. Reuses TopBar's own lockup
                     (BrandMark.tsx) rather than a second copy of the mark. */}
-                <Link href="/jobs" className="inline-flex w-fit text-brand transition-opacity hover:opacity-90" data-rulebook-exempt>
+                <Link href="/jobs" className="inline-flex w-fit transition-opacity hover:opacity-90" data-rulebook-exempt>
                     <BrandLockup />
                 </Link>
                 <h1 className="font-semibold text-xl text-foreground">
