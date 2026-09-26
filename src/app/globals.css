@@ -6,12 +6,11 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Body/UI sans: deterministic system stack (no body webfont). Source Sans 3
-     via next/font looked fine in computed letter-spacing but its “t” sidebearings
-     read as extra gaps in small semibold hub labels (“matches”, etc.); the stack
-     below matches onboarding-mockup.html and mail-client fallbacks. Display and
-     mono `*-face` variables still come from next/font in app/layout.tsx. */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Body/UI sans: Source Sans 3 via next/font (`--font-sans-face`, static 400/600
+     in app/layout.tsx). Variable-axis Source Sans had normal computed tracking but
+     visible post-`t` gaps in small semibold hub labels; static cuts keep the face.
+     Display and mono `*-face` variables still come from next/font in layout.tsx. */
+  --font-sans: var(--font-sans-face), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
   /* Display face retired (rulebook v2 CORRECTIONS #2, 2026-09-03): every
      `font-display` consumer resolves to the same system sans stack as body.
@@ -95,6 +94,9 @@
   --font-weight-bold: 600;
   --font-weight-extrabold: 600;
   --font-weight-black: 600;
+
+  /* App wordmark text — warm white (#FAFAFA), same as landing poster foreground. */
+  --wordmark-foreground: var(--foreground);
 
   /* Tracking: normal everywhere except the wordmark (BrandMark.tsx keeps an
      explicit tracking-tight utility on the wordmark span only). */
@@ -393,6 +395,7 @@
 @theme inline {
   --color-background: rgb(var(--background));
   --color-foreground: rgb(var(--foreground));
+  --color-wordmark: rgb(var(--wordmark-foreground));
   --color-card: rgb(var(--card));
   --color-card-foreground: rgb(var(--card-foreground));
   --color-popover: rgb(var(--popover));
@@ -571,6 +574,9 @@ body {
   line-height: 1.5;
   /* Standards-safe defaults — no body-wide OpenType cv/ss overrides. */
   font-feature-settings: normal;
+  font-variant-ligatures: no-contextual;
+  font-kerning: auto;
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

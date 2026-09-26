@@ -26,6 +26,9 @@ export const BRAND_MARK_DOT_FILL = "#0E9F4E";
 export const BRAND_LOCKUP_MARK_PX = 28;
 export const BRAND_LOCKUP_WORDMARK_PX = 28;
 
+/** Warm-white lockup text — matches landing poster foreground, never brand green. */
+export const BRAND_LOCKUP_WORDMARK_CLASS = "text-wordmark";
+
 export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
     return (
         // eslint-disable-next-line @next/next/no-img-element -- brand lockup must match email/favicon raster exactly; next/image would re-encode
@@ -59,9 +62,12 @@ export function BrandLockupMark({
  *  (error/not-found chrome, ConsentCards) relies on. */
 export function BrandLockup({ className, markClassName }: { className?: string; markClassName?: string }) {
     return (
-        <span className={["flex items-center gap-2 text-brand", className].filter(Boolean).join(" ")}>
+        <span className={["flex items-center gap-2", className].filter(Boolean).join(" ")}>
             <BrandLockupMark tileClassName={markClassName} />
-            <span data-rulebook-exempt className="text-title-sm leading-none font-semibold">
+            <span
+                data-rulebook-exempt
+                className={[BRAND_LOCKUP_WORDMARK_CLASS, "text-title-sm leading-none font-semibold"].join(" ")}
+            >
                 Velai
             </span>
         </span>
