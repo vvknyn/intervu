@@ -25,7 +25,7 @@ export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) 
         >
             {(["for-you", "search"] as const).map((tab) => {
                 const active = value === tab;
-                const label = tab === "for-you" ? "For you" : "Search";
+                const label = tab === "for-you" ? "For you · résumé" : "Search all jobs";
                 return (
                     <button
                         key={tab}

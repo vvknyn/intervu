@@ -19,9 +19,10 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NAV_TABS, menuNavActive, menuNavTriggerLabel } from "@/components/layout/nav-tabs";
+import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandLockup } from "@/components/brand/BrandMark";
-import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
@@ -34,6 +35,7 @@ import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
  */
 export function TopBar() {
     const pathname = usePathname();
+    const leanSurface = isLeanProductSurface(pathname);
     // `undefined` until `onAuthChange` resolves — NOT `null`, which would
     // claim "signed out" during the server round-trip and flash a Sign-in
     // button at a signed-in user. See lib/auth/chrome-state.ts.
@@ -58,9 +60,14 @@ export function TopBar() {
     const { docked, homeViewDocked } = useSearchDock();
     const navBadges = useNavBadgeCounts();
     const menuTabs = NAV_TABS.filter((t) => t.placement === "menu");
-    const barTabs = NAV_TABS.filter((t) => t.placement === "bar");
+    const barTabs = NAV_TABS.filter((t) => t.placement === "bar").filter(
+        // Lean hub/deck/apply: drop desktop header MCP (/connect). Pack-deck
+        // `for-you-mcp-handoff` stays — that is not TopBar chrome.
+        (t) => !(leanSurface && t.href === "/connect"),
+    );
     const menuActive = menuNavActive(pathname, NAV_TABS);
     const menuTriggerLabel = menuNavTriggerLabel(pathname, NAV_TABS);
+    const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
 
     const hideNav = shouldHideSiteChrome(pathname);
     if (hideNav) return null;
@@ -68,9 +75,12 @@ export function TopBar() {
     const handleSignOut = async () => {
         if (signingOut) return;
         setSigningOut(true);
-        localStorage.clear();
+        try {
+            localStorage.clear();
+        } catch {
+            /* private mode */
+        }
         await signOut();
-        window.location.href = "/";
     };
 
     const accountActive =
@@ -79,7 +89,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-50 shrink-0 border-b border-border bg-card transition-colors"
+            className="sticky top-0 z-50 shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)] transition-colors"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
@@ -164,49 +174,52 @@ export function TopBar() {
                         aria-label="Primary"
                         className="hidden items-center gap-3 text-xs lg:flex"
                     >
-                        <DropdownMenu>
-                            <DropdownMenuTrigger
-                                className={cn(
-                                    "inline-flex items-center gap-1 whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors outline-none",
-                                    menuActive
-                                        ? "font-semibold text-foreground"
-                                        : "font-normal text-muted-foreground hover:text-foreground",
-                                )}
-                            >
-                                <span className={cn(menuActive && "border-b-2 border-brand")}>{menuTriggerLabel}</span>
-                                <CaretDown aria-hidden />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="min-w-[9rem] rounded-panel border-border bg-card">
-                                {menuTabs.map((tab) => {
-                                    const active = tab.match(pathname);
-                                    return (
-                                        <DropdownMenuItem key={tab.href + tab.label} asChild>
-                                            <Link
-                                                href={tab.href}
-                                                data-testid={tab.testId}
-                                                aria-current={active ? "page" : undefined}
-                                                className={cn(
-                                                    "flex w-full items-center whitespace-nowrap",
-                                                    active && "font-semibold text-foreground",
-                                                )}
-                                            >
-                                                {tab.label}
-                                                {tab.badge && navBadges[tab.badge] > 0 && (
-                                                    <span
-                                                        data-testid={`${tab.testId}-badge`}
-                                                        className="ml-auto mono-data text-xs font-semibold text-brand"
-                                                    >
-                                                        {navBadges[tab.badge]}
-                                                    </span>
-                                                )}
-                                            </Link>
-                                        </DropdownMenuItem>
-                                    );
-                                })}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        {user && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger
+                                    className={cn(
+                                        "inline-flex items-center gap-1 whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors outline-none",
+                                        menuActive
+                                            ? "font-semibold text-foreground"
+                                            : "font-normal text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    <span className={cn(menuActive && "border-b-2 border-brand")}>{menuTriggerLabel}</span>
+                                    <CaretDown aria-hidden />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="min-w-[9rem] rounded-panel border-border bg-card">
+                                    {menuTabs.map((tab) => {
+                                        const active = tab.match(pathname);
+                                        return (
+                                            <DropdownMenuItem key={tab.href + tab.label} asChild>
+                                                <Link
+                                                    href={tab.href}
+                                                    data-testid={tab.testId}
+                                                    aria-current={active ? "page" : undefined}
+                                                    className={cn(
+                                                        "flex w-full items-center whitespace-nowrap",
+                                                        active && "font-semibold text-foreground",
+                                                    )}
+                                                >
+                                                    {tab.label}
+                                                    {tab.badge && navBadges[tab.badge] > 0 && (
+                                                        <span
+                                                            data-testid={`${tab.testId}-badge`}
+                                                            className="ml-auto mono-data text-xs font-semibold text-brand"
+                                                        >
+                                                            {navBadges[tab.badge]}
+                                                        </span>
+                                                    )}
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        );
+                                    })}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                         {barTabs.map((tab) => {
                             const active = tab.match(pathname);
+                            const label = tab.href === "/connect" ? "MCP" : tab.label;
                             return (
                                 <Link
                                     key={tab.href + tab.label}
@@ -223,7 +236,7 @@ export function TopBar() {
                                             : "font-normal text-muted-foreground hover:text-foreground",
                                     )}
                                 >
-                                    <span className={cn(active && "border-b-2 border-brand")}>{tab.label}</span>
+                                    <span className={cn(active && "border-b-2 border-brand")}>{label}</span>
                                 </Link>
                             );
                         })}
@@ -272,7 +285,7 @@ export function TopBar() {
                             {AUTH_CTA_LABEL}
                         </Button>
                         {/* Plain nav link, not a control — Sign in is the
-                            header's one filled action. */}
+                            header's one filled action. Kept hidden to declutter header. */}
                         <button
                             type="button"
                             data-testid="topbar-alerts-cta"
@@ -280,7 +293,7 @@ export function TopBar() {
                                 setAuthTab("signup");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="hidden whitespace-nowrap px-1 text-sm font-normal text-muted-foreground transition-colors hover:text-foreground lg:inline-flex"
+                            className="hidden"
                         >
                             Get job alerts
                         </button>
@@ -310,7 +323,9 @@ export function TopBar() {
                 those fields don't exist when only the toggle is docked. */}
             {(docked || homeViewDocked) && (
                 <div data-region="band" className="hidden bg-muted lg:block">
-                    <div className="shell-row box-border flex h-10 flex-nowrap items-center gap-2 overflow-x-auto border-t border-border">
+                    {/* Wrap instead of horizontal scroll — long query chips truncate
+                        with a title tooltip; short facet/location chips stay whole. */}
+                    <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip border-t border-border">
                         <div data-testid="topbar-docked-home-view" className="flex shrink-0 items-center gap-2" />
                         {docked && (
                             <>
@@ -338,18 +353,19 @@ export function TopBar() {
                                 {docked.chips.length > 0 && (
                                     <>
                                         <span aria-hidden className="jobs-instrument-rule" />
-                                        <div data-testid="topbar-docked-active-filters" className="flex shrink-0 items-center gap-2">
+                                        <div data-testid="topbar-docked-active-filters" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                                             {docked.chips.map((chip) => (
                                                 <span
                                                     key={chip.key}
                                                     data-testid="topbar-docked-chip"
+                                                    title={chip.label}
                                                     className={cn(
                                                         chipVariants({ active: true, interactive: true }),
                                                         toolbarControlHeight,
-                                                        "box-border items-center gap-2 px-3 lg:px-3",
+                                                        "box-border min-w-0 max-w-full items-center gap-2 px-3 lg:px-3",
                                                     )}
                                                 >
-                                                    {chip.label}
+                                                    <span className="min-w-0 max-w-[min(100%,18rem)] truncate">{chip.label}</span>
                                                     <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
                                                 </span>
                                             ))}
@@ -358,7 +374,7 @@ export function TopBar() {
                                 )}
                                 <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />
                                 <div className="min-w-0 flex-1" aria-hidden />
-                                <div data-testid="topbar-docked-save-search" className="flex shrink-0 items-center gap-2" />
+                                <div data-testid="topbar-docked-save-search" className="flex min-w-0 max-w-full flex-wrap items-center gap-2" />
                                 <div data-testid="topbar-docked-sort" className="flex shrink-0 items-center gap-2" />
                                 <div data-testid="topbar-docked-extras" className="flex shrink-0 items-center gap-2" />
                             </>

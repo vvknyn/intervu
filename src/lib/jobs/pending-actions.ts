@@ -4,18 +4,16 @@
  *
  * On /jobs a logged-out user can trigger three actions that require sign-in:
  *
- *   - apply   — guest Apply click → after login, resume the exact signed-in
- *               apply flow (apply-intent prompt, then departure) rather than
- *               a second, narrower "just mark it applied" path. Guests never
- *               open the ATS before auth at all — see
- *               `resolveApplyClickDecision` below.
+ *   - apply   — optional guest tracker prompt after Apply opens the employer
+ *               site; after sign-in, resume tracking (apply-intent / mark
+ *               applied) rather than blocking the outbound click.
  *   - upload  — gate: open the resume-import modal
  *   - report  — flag/report a job → after login, reopen the report dialog
  *               for that job and let the user resubmit
  *
  * (A legacy `"gate"` kind — open the posting and write the tracker
  * application on replay — was superseded 2026-09-10 and retired 2026-09-18
- * once guest Apply started gating on auth before ever opening the ATS;
+ * once guest Apply opened the ATS before auth (retired 2026-09-18);
  * removed here the same day once nothing wrote it any more. A fifth kind,
  * "explore" — résumé-driven AI-suggested adjacent roles — existed here
  * through 2026-08-02; removed along with the feature when it moved to MCP.)
@@ -39,6 +37,9 @@
  * path resolution. `upload` carries no payload of its own (it is a plain
  * "open the importer" flag), so its slot is a `boolean`.
  */
+
+import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
+import type { OriginSurface } from "@/lib/auth/gate-attempt";
 
 /** The three kinds of pending action — the single source of truth
  *  `PendingAction`'s `kind` union AND this module's own persisted-record
@@ -97,6 +98,12 @@ export interface PersistedPendingAction<Apply, Report> {
     returnTo: string;
     scrollY: number;
     createdAt: number;
+    /** Stable anonymous attempt id — reused through signup when present. */
+    pendingActionId?: string;
+    gateReason?: AuthGateReason;
+    firstGateReason?: AuthGateReason;
+    lastGateReason?: AuthGateReason;
+    originSurface?: OriginSurface;
 }
 
 /** `pathname + search + hash` — the round-trippable "come back here" target,
@@ -133,6 +140,24 @@ export function clearPersistedPendingAction(storage: PendingActionStorage): void
     }
 }
 
+/** Read a queued action kind without consuming — for post-auth routing only. */
+export function peekPendingActionKind(storage: PendingActionStorage): PendingActionKind | null {
+    let raw: string | null;
+    try {
+        raw = storage.getItem(PENDING_ACTION_STORAGE_KEY);
+    } catch {
+        return null;
+    }
+    if (!raw) return null;
+    try {
+        const parsed: unknown = JSON.parse(raw);
+        if (!isValidPersistedPendingActionShape(parsed)) return null;
+        return parsed.action.kind;
+    } catch {
+        return null;
+    }
+}
+
 const DEFAULT_MAX_PENDING_ACTION_AGE_MS = 15 * 60_000;
 
 export interface TakePersistedPendingActionOptions {
@@ -155,6 +180,11 @@ function isValidPersistedPendingActionShape(value: unknown): value is {
     returnTo: string;
     createdAt: number;
     scrollY?: number;
+    pendingActionId?: string;
+    gateReason?: string;
+    firstGateReason?: string;
+    lastGateReason?: string;
+    originSurface?: string;
     action: { kind: PendingActionKind; payload: unknown };
 } {
     if (!value || typeof value !== "object") return false;
@@ -164,6 +194,11 @@ function isValidPersistedPendingActionShape(value: unknown): value is {
     if (r.scrollY !== undefined && !(typeof r.scrollY === "number" && Number.isFinite(r.scrollY) && r.scrollY >= 0)) {
         return false;
     }
+    if (r.pendingActionId !== undefined && typeof r.pendingActionId !== "string") return false;
+    if (r.gateReason !== undefined && typeof r.gateReason !== "string") return false;
+    if (r.firstGateReason !== undefined && typeof r.firstGateReason !== "string") return false;
+    if (r.lastGateReason !== undefined && typeof r.lastGateReason !== "string") return false;
+    if (r.originSurface !== undefined && typeof r.originSurface !== "string") return false;
     if (!r.action || typeof r.action !== "object") return false;
     if (!isKnownPendingActionKind((r.action as Record<string, unknown>).kind)) return false;
     return true;
@@ -217,6 +252,11 @@ export function takePersistedPendingAction<Apply, Report>(
         createdAt: parsed.createdAt,
         scrollY: parsed.scrollY ?? 0,
         action: parsed.action as PendingAction<Apply, Report>,
+        ...(parsed.pendingActionId ? { pendingActionId: parsed.pendingActionId } : {}),
+        ...(parsed.gateReason ? { gateReason: parsed.gateReason as AuthGateReason } : {}),
+        ...(parsed.firstGateReason ? { firstGateReason: parsed.firstGateReason as AuthGateReason } : {}),
+        ...(parsed.lastGateReason ? { lastGateReason: parsed.lastGateReason as AuthGateReason } : {}),
+        ...(parsed.originSurface ? { originSurface: parsed.originSurface as OriginSurface } : {}),
     };
 
     if (now - record.createdAt > maxAgeMs) return null;
@@ -232,16 +272,10 @@ export function takePersistedPendingAction<Apply, Report>(
     return record;
 }
 
-/** Signed-in vs guest Apply click — one function so every entry point
- *  (`use-gated-apply.ts`, shared by jobs/page.tsx, PublicJobDetail.tsx, and
- *  /yours) shares the same branch without each repeating `if (!user)`.
- *  Guests never reach
- *  the employer's site before they sign up: the click gates on auth first,
- *  and only after that succeeds does the click's own next gesture (inside
- *  the apply-intent dialog) open the ATS. Signed-in users go straight to
- *  apply-intent / departure — unchanged. */
-export type ApplyClickDecision = "perform" | "auth-first";
+/** Apply click always opens the employer site — guests and signed-in users
+ *  share the same perform path. Optional tracker sign-in is separate. */
+export type ApplyClickDecision = "perform";
 
-export function resolveApplyClickDecision(signedIn: boolean): ApplyClickDecision {
-    return signedIn ? "perform" : "auth-first";
+export function resolveApplyClickDecision(_signedIn: boolean): ApplyClickDecision {
+    return "perform";
 }

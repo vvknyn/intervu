@@ -1,6 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <title>velai</title>
+  <!-- DEPRECATED silhouette for tooling only. Product mark is public/velai-logo.png
+       (locked: soft paper card, navy brackets, ONE bigger green live dot). -->
+  <title>velai (legacy SVG — use /velai-logo.png)</title>
   <path d="M22 16H10v32h12v-6h-6V22h6z" fill="currentColor"/>
   <path d="M42 16h12v32H42v-6h6V22h-6z" fill="currentColor"/>
-  <circle cx="32" cy="32" r="7" fill="#0E9F4E"/>
+  <circle cx="32" cy="32" r="10" fill="#0E9F4E"/>
 </svg>

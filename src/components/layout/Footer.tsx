@@ -1,14 +1,14 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Moon, Sun } from "@phosphor-icons/react";
 import { onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
-import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { useTheme } from "@/components/providers/ThemeProvider";
-import { FOOTER_PROVENANCE_LINE, GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
+import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
 
 /** Quiet footer links — Research lives here (not primary nav). `fromCurrentPage`
  *  marks a link whose destination wants to know where the visitor was —
@@ -18,7 +18,6 @@ export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true 
     { label: "Research", href: "/research/ghost-jobs" },
     { label: "About", href: "/about" },
     { label: "Remote jobs", href: "/careers/remote-jobs" },
-    { label: "Canada jobs", href: "/careers/canada-jobs" },
     { label: "Company career pages", href: "/careers/company-career-pages" },
     { label: "Indeed alternative", href: "/indeed-alternative" },
     { label: "LinkedIn Jobs alternative", href: "/linkedin-jobs-alternative" },
@@ -29,6 +28,13 @@ export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true 
     { label: "Privacy", href: "/privacy" },
     { label: "Terms", href: "/terms" },
 ];
+
+/** Minimal legal strip for lean hub/deck/apply — not the marketing link farm. */
+export const LEAN_LEGAL_LINKS: { label: string; href: string }[] = [
+    { label: "Privacy", href: "/privacy" },
+    { label: "Terms", href: "/terms" },
+];
+
 
 /** Appends `from=<pathname>` to `href` for a link flagged `fromCurrentPage`,
  *  reusing whatever query string the link already has — pulled out of
@@ -81,26 +87,19 @@ export function FooterContent() {
     return (
         <footer
             data-testid="site-footer"
-            className="shrink-0 border-t border-border bg-background pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-0"
+            className="relative z-20 shrink-0 border-t border-border bg-background pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-0"
         >
             {/* Same `shell-row` as TopBar — the two bands frame the page, so
                 they have to share its gutter or the frame is crooked. */}
-            <div className="shell-row flex flex-col gap-3 py-6">
+            <div className="shell-row flex flex-col gap-2 sm:gap-2.5 py-3 sm:py-4">
                 <p className="max-w-md text-xs text-muted-foreground">
-                    {/* E1 (front-door redesign): link the screening clause to the
-                        proof page instead of just asserting it. Split on the
-                        single-source clause text (marketing-stats.ts) rather than
-                        a second hand-typed copy of the phrase. */}
-                    {FOOTER_PROVENANCE_LINE.split(GHOST_SCREENING_CLAUSE).map((part, i, parts) => (
-                        <Fragment key={i}>
-                            {part}
-                            {i < parts.length - 1 && (
-                                <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
-                                    {GHOST_SCREENING_CLAUSE}
-                                </Link>
-                            )}
-                        </Fragment>
-                    ))}
+                    {/* Provenance without the geo clause from marketing-stats — avoids
+                        the multi-country list on guest surfaces. */}
+                    Every listing is from companies&apos; own career pages,{" "}
+                    <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
+                        {GHOST_SCREENING_CLAUSE}
+                    </Link>
+                    . Never resold, never curated.
                 </p>
                 <FooterLinks>
                     {!user && mounted && (
@@ -141,7 +140,32 @@ export function FooterContent() {
 export function Footer() {
     const pathname = usePathname();
     if (shouldHideSiteChrome(pathname)) return null;
+    if (isLeanProductSurface(pathname)) return <LeanFooterContent />;
 
     return <FooterContent />;
+}
+
+/** Privacy/Terms only — keeps legal reachable without the ~17-link farm on
+ *  hub/deck/apply lean walks. */
+function LeanFooterContent() {
+    return (
+        <footer
+            data-testid="site-footer"
+            data-lean="true"
+            className="relative z-20 shrink-0 border-t border-border bg-background pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-0"
+        >
+            <div className="shell-row flex flex-wrap items-center gap-x-5 gap-y-1.5 py-3 text-xs text-muted-foreground sm:py-4">
+                {LEAN_LEGAL_LINKS.map((link) => (
+                    <Link
+                        key={link.href}
+                        href={link.href}
+                        className="transition-colors duration-100 hover:text-foreground"
+                    >
+                        {link.label}
+                    </Link>
+                ))}
+            </div>
+        </footer>
+    );
 }
 

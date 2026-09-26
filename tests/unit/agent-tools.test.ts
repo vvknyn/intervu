@@ -69,9 +69,9 @@ const TEST_VOCAB: LocationVocabulary = {
   gazetteer: TEST_GAZETTEER,
   corpusChecker: testCorpusChecker,
   // resolvePlaces (agent/tools.ts) always calls parsePlaceTokens with
-  // guardFreeTextWords off (explicit MCP `location` param, not free text —
-  // see that function's doc), so the S1 company-corroboration guard never
-  // runs here; this probe existing only satisfies the interface.
+  // guardFreeTextWords off and `{ radius: false }` (explicit MCP `location`
+  // param — city-strict, not metro radius), so the S1 company-corroboration
+  // guard never runs here; this probe existing only satisfies the interface.
   companyProbe: async () => {
     throw new Error('companyProbe must never be called for the MCP location param');
   },
@@ -752,7 +752,7 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
   it('maps location "Canada" to a places param too — proves the mapping is class-wide, not a Toronto special case', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { location: 'Canada' });
-    assert.deepEqual(searchCalls[0].places, [{ any: [{ field: 'location_country', value: 'Canada' }], remoteAnywhere: true }]);
+    assert.deepEqual(searchCalls[0].places, [{ any: [{ field: 'location_country', value: 'Canada' }] }]);
   });
 
   it('drops an unrecognized location instead of inventing a places filter', async () => {
@@ -925,7 +925,7 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
         experience_level: ['senior'],
         employment_type: ['full_time'],
       },
-      places: [{ any: [{ field: 'location_country', value: 'Canada' }], remoteAnywhere: true }],
+      places: [{ any: [{ field: 'location_country', value: 'Canada' }] }],
     });
   });
 });

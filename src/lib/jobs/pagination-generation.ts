@@ -52,12 +52,14 @@ export class JobsPaginationGeneration {
         return generation === this.generation;
     }
 
-    beginLoadMore(pageSize: number): LoadMoreTicket | null {
+    beginLoadMore(pageSize: number, offsetOverride?: number): LoadMoreTicket | null {
         if (this.firstPageActive || !this.firstPageReady || this.activeLoadMore) return null;
         const ticket = {
             generation: this.generation,
             page: this.pagesLoaded,
-            offset: this.pagesLoaded * pageSize,
+            // Prefer actual accumulated hits length when the first page used a
+            // deeper limit (For-you FOR_YOU_PAGE) than the load-more chunk size.
+            offset: offsetOverride ?? this.pagesLoaded * pageSize,
         };
         this.activeLoadMore = ticket;
         return ticket;

@@ -4,15 +4,15 @@ import { chipVariants } from "../../src/components/ui/chip";
 
 /**
  * Chips visually respond to hover with `hover:bg-muted` unconditionally,
- * even when the chip is plain informational text (PreferenceChipStrip's
- * "Your preferences" chips: a <span> with no onClick anywhere in it) — a
+ * even when the chip is plain informational text (ForYouPack's inert
+ * fact chips: a <span> with no onClick anywhere in it) — a
  * false affordance. Fixed at the seam (chip.tsx): the hover/cursor classes
  * moved out of the base string and into an `interactive` variant that
  * defaults to false, so every existing inert call site is safe by
  * construction, not by each one remembering to opt out.
  */
 describe("chipVariants: hover affordance is opt-in, safe by default", () => {
-    it("PreferenceChipStrip's exact inert call (active: false, no interactive) carries no hover affordance", () => {
+    it("an inert informational chip (active: false, no interactive) carries no hover affordance", () => {
         const classes = chipVariants({ active: false });
         assert.ok(!classes.includes("hover:bg-muted"), classes);
         assert.ok(!classes.includes("cursor-pointer"), classes);

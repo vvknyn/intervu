@@ -1,6 +1,34 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildFilter } from "../../src/lib/jobs/meilisearch";
+import { buildFilter, REMOTE_ANYWHERE_CLAUSE } from "../../src/lib/jobs/meilisearch";
+import { resolveLocationFacet } from "../../src/lib/jobs/query-understanding";
+import { buildGazetteerIndex, type GazetteerData } from "../../src/lib/geo/gazetteer";
+import type { CorpusValueChecker } from "../../src/lib/geo/corpus-values";
+import type { LocationVocabulary } from "../../src/lib/jobs/query-understanding";
+import type { PlaceFilter } from "../../src/lib/jobs/types";
+
+const CANADA_VOCAB_DATA: GazetteerData = {
+  countries: [["CA", "CAN", "Canada"]],
+  admin1: [],
+  cities: [],
+};
+const CANADA_GAZETTEER = buildGazetteerIndex(CANADA_VOCAB_DATA);
+
+function canadaVocab(): LocationVocabulary {
+  const realValues: PlaceFilter[] = [{ field: "location_country", value: "Canada" }];
+  const checker: CorpusValueChecker = async (groups) =>
+    groups.map((candidates) => {
+      const out: PlaceFilter[] = [];
+      for (const c of candidates) {
+        const hit = realValues.find(
+          (v) => v.field === c.field && v.value.toLowerCase() === c.value.toLowerCase(),
+        );
+        if (hit) out.push(hit);
+      }
+      return out;
+    });
+  return { gazetteer: CANADA_GAZETTEER, corpusChecker: checker, companyProbe: async () => false };
+}
 
 test("hideGhosts adds the ghost exclusion clause", () => {
     const f = buildFilter({ hideGhosts: true });
@@ -125,4 +153,21 @@ test("yearsExperience composes with an unrelated facet — proves the class, not
     const f = buildFilter({ yearsExperience: "6-10", facets: { work_type: ["remote"] } });
     assert.ok(f.some((c) => c.includes("min_years_experience") && c.includes("NOT EXISTS")), JSON.stringify(f));
     assert.ok(f.some((c) => c.includes("work_type") && c.includes("remote")), JSON.stringify(f));
+});
+
+test("postedBucket 1d AND a resolved Canada place both reach buildFilter — Past 24h cannot drop location", async () => {
+    const p = await resolveLocationFacet(
+        { facets: { location_country: ["Canada"] }, postedBucket: "1d" },
+        canadaVocab(),
+    );
+    const f = buildFilter(p);
+    assert.ok(f.some((c) => c.startsWith("posted_ts >= ")), JSON.stringify(f));
+    assert.ok(
+        f.some((c) => c.includes('location_country = "Canada"')),
+        `expected Canada place clause alongside posted_ts: ${JSON.stringify(f)}`,
+    );
+    assert.ok(
+        !f.some((c) => c.includes(REMOTE_ANYWHERE_CLAUSE)),
+        `explicit Canada must not OR untagged remotes: ${JSON.stringify(f)}`,
+    );
 });

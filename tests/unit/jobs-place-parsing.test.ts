@@ -102,7 +102,7 @@ const VOCAB = fakeVocab([
 test("the screenshot case: 'Technical Account Manager canada' becomes a Canada FILTER, not a content word", async () => {
   const { residualQ, places } = await parsePlaceTokens("Technical Account Manager canada", VOCAB);
   assert.equal(residualQ, "Technical Account Manager");
-  assert.deepEqual(places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
+  assert.deepEqual(places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
 });
 
 test("multi-word places match longest-first and leave the rest of the query alone", async () => {
@@ -154,6 +154,58 @@ test("cross-country homonym FIX: Toronto's 'Richmond Hill' radius match is scope
     /\(.*location_city = "Richmond Hill".*\) AND \(.*location_country = "Canada".*\)/,
     `the city OR-group must be AND'd against the country OR-group, not left as a bare city match: ${placeClause}`,
   );
+});
+
+/** Corpus with a Toronto radius neighbor present — exercises strict vs metro
+ *  paths without changing shared VOCAB (preferStrictCity regressions expect
+ *  Toronto-only `any` because Richmond Hill is absent from VOCAB). */
+const METRO_NEIGHBOR_VOCAB = fakeVocab([
+  { field: "location_city", value: "Toronto" },
+  { field: "location_city", value: "Richmond Hill" },
+  { field: "location_country", value: "Canada" },
+]);
+
+test("explicit typed location (resolveLocationFacet): Toronto is city-strict — Richmond Hill excluded even when in corpus", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["Toronto"] } }, METRO_NEIGHBOR_VOCAB);
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
+  assert.ok(
+    !p.places![0].any.some((f) => f.value === "Richmond Hill"),
+    "explicit location must not OR radius neighbors",
+  );
+  assert.deepEqual(p.places![0].scopedToCountry, [{ field: "location_country", value: "Canada" }]);
+});
+
+test("free-text parsePlaceTokens (default radius): jobs in toronto still includes Richmond Hill when in corpus", async () => {
+  const { residualQ, places } = await parsePlaceTokens("jobs in toronto", METRO_NEIGHBOR_VOCAB);
+  assert.equal(residualQ, "jobs in");
+  assert.equal(places.length, 1);
+  assert.ok(
+    places[0].any.some((f) => f.field === "location_city" && f.value === "Richmond Hill"),
+    `expected Richmond Hill in metro OR-set: ${JSON.stringify(places[0])}`,
+  );
+  assert.ok(places[0].any.some((f) => f.value === "Toronto"));
+});
+
+test("applyQueryUnderstanding: pre-set explicit places win — query place words do not replace or widen the filter", async () => {
+  const torontoPlaces = [{ any: [{ field: "location_city" as const, value: "Toronto" }] }];
+  const p = await applyQueryUnderstanding(
+    { q: "Richmond Hill engineer", places: torontoPlaces },
+    METRO_NEIGHBOR_VOCAB,
+  );
+  assert.equal(p.q, "Richmond Hill engineer", "place word stays in query when explicit places already set");
+  assert.deepEqual(p.places, torontoPlaces, "explicit Toronto filter must not be replaced by Richmond Hill");
+});
+
+test("applyQueryUnderstanding: explicit places keep a query work-mode as a global facet", async () => {
+  const torontoPlaces = [{ any: [{ field: "location_city" as const, value: "Toronto" }] }];
+  const p = await applyQueryUnderstanding(
+    { q: "remote engineer", places: torontoPlaces },
+    METRO_NEIGHBOR_VOCAB,
+  );
+  assert.equal(p.q, "engineer");
+  assert.deepEqual(p.places, torontoPlaces);
+  assert.deepEqual(p.facets?.work_type, ["remote"]);
 });
 
 test("a real gazetteer place the corpus has no postings for produces no filter — and stays OUT of the query text, not back in as a content word (full-text matching on a bare place name is exactly what place filtering exists to avoid — see the module doc)", async () => {
@@ -331,7 +383,7 @@ test("not just the surfacing instance — a typed CITY ('toronto') resolves the 
 
 test("a typed COUNTRY ('canada') goes through resolution too — the corpus's own casing, not the typed casing", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["canada"] } }, VOCAB);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
   assert.equal(p.facets?.location_country, undefined);
 });
 
@@ -361,10 +413,9 @@ test("a real gazetteer place this corpus has no postings for is ALSO dropped and
 
 test("a value WITH corpus support keeps its exact facet (no regression): a raw-ingest literal the gazetteer can't resolve as any place, but the corpus genuinely has, still becomes a filter", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["worldwide"] } }, VOCAB);
-  // Ruling (Vivek, Sep 2026): an exact location_country hit IS a country
-  // filter even when the gazetteer never recognized the string as a place —
-  // see placeClause's doc (geo/resolve-place.ts) for the raw-literal caller.
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Worldwide" }], remoteAnywhere: true }]);
+  // An exact location_country hit IS a country filter even when the gazetteer
+  // never recognized the string — but explicit picks do not OR untagged remotes.
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Worldwide" }] }]);
   assert.equal(p.facets?.location_country, undefined);
   assert.equal(p.unmatchedPlaceMentions, undefined, "a value the corpus actually has is never reported as unmatched");
 });
@@ -389,7 +440,7 @@ test("country=all widen sentinel is treated the same as any", async () => {
 
 test("mixed sentinel + real place: any is ignored, sibling still resolves, any not unmatched", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["any", "canada"] } }, VOCAB);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
   assert.equal(p.facets?.location_country, undefined);
   assert.equal(p.unmatchedPlaceMentions, undefined);
   assert.ok(
@@ -457,7 +508,7 @@ test("tiered resolution: confirms the fixture actually exercises the bug's mecha
 test("tiered resolution step 1: a phrase that fully tokenizes never reaches the literal probe — 'usa' resolves via the country alias exactly as it always did", async () => {
   const vocab = fakeVocab([{ field: "location_country", value: "United States" }]);
   const p = await resolveLocationFacet({ facets: { location_country: ["usa"] } }, vocab);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "United States" }], remoteAnywhere: true }]);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "United States" }] }]);
 });
 
 /* Dedicated fixture for the actual prod bug shape: "US CA San Diego". */
@@ -584,7 +635,7 @@ test("multi-value facet (a `?location_country=a,b` deep link): all resolve -> on
   const both = await resolveLocationFacet({ facets: { location_country: ["florida", "canada"] } }, VOCAB);
   assert.deepEqual(both.places, [
     { any: [{ field: "location_state", value: "Florida" }] },
-    { any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true },
+    { any: [{ field: "location_country", value: "Canada" }] },
   ]);
   assert.ok(
     buildFilter(both).some((f) => f.includes('location_state = "Florida"') && f.includes('location_country = "Canada"') && f.includes(" OR ")),
@@ -636,7 +687,7 @@ test("F1: mixed 'remote canada' -> a Canada place clause carrying the work mode"
   // "remote in Canada, hybrid in Toronto" at all.
   const p = await resolveLocationFacet({ facets: { location_country: ["remote canada"] } }, VOCAB);
   assert.deepEqual(p.places, [
-    { any: [{ field: "location_country", value: "Canada" }], workTypes: ["remote"], remoteAnywhere: true },
+    { any: [{ field: "location_country", value: "Canada" }], workTypes: ["remote"] },
   ]);
   assert.equal(p.facets?.work_type, undefined, "bound, so nothing pools globally");
   assert.equal(p.facets?.location_country, undefined);
@@ -649,7 +700,7 @@ test("F1: mixed 'remote canada' -> a Canada place clause carrying the work mode"
 
 test("F1 class case: plain 'canada' (no work-mode term) is untouched by the work-mode path", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["canada"] } }, VOCAB);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }], remoteAnywhere: true }]);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
   assert.equal(p.facets?.work_type, undefined);
 });
 
@@ -799,19 +850,18 @@ test("S1 REGRESSION (live-discovered): Meilisearch's own stop-words list ('in','
  * multiple location searches like (Canada and remote) and (US & hybrid)".
  * ──────────────────────────────────────────────────────────────────────── */
 
-test("several chosen places OR together — the list has always been supported end to end", async () => {
+test("several chosen places: when one resolves to a city, a sibling country-only clause is dropped — avoids Halifax / Vancouver / St. John's / Den Haag leak", async () => {
   const p = await resolveLocationFacet(
     { facets: { location_country: ["toronto", "canada"] } },
     VOCAB,
   );
-  assert.equal(p.places?.length, 2, "each chosen place resolves to its own clause");
-  // The exact facet is consumed — leaving it would AND a raw string against
-  // the resolved clauses and match nothing.
+  assert.equal(p.places?.length, 1, "Toronto city wins; bare Canada country-only clause is dropped");
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
   assert.equal(p.facets?.location_country, undefined);
   const filter = buildFilter(p);
   assert.ok(
-    filter.some((f) => f.includes('location_city = "Toronto"') && f.includes('location_country = "Canada"') && f.includes(" OR ")),
-    `both places must appear in ONE OR group: ${JSON.stringify(filter)}`,
+    filter.some((f) => f.includes('location_city = "Toronto"') && !f.match(/\)\s+OR\s+\(location_country/)),
+    `Toronto city only — scopedToCountry AND is ok, bare country OR is not: ${JSON.stringify(filter)}`,
   );
 });
 
@@ -888,16 +938,16 @@ test("the Work-mode dropdown's own selection stays global alongside a bound one"
   assert.deepEqual(p.places![0].workTypes, ["hybrid"]);
 });
 
-test("a clause with no work mode/scope still renders as ONE group — the multi-part parenthesised form is reserved for clauses with extra (scopedToCountry/workTypes) parts", async () => {
-  // A country resolution now carries `remoteAnywhere`, which widens the
-  // content of that single `any` group (see PlaceClause.remoteAnywhere) —
-  // it does NOT add a second top-level part, so the shape this test guards
-  // (one group, no outer AND-wrap) is unchanged by the ruling.
+test("a clause with no work mode/scope still renders as ONE group — explicit country does not widen", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["canada"] } }, VOCAB);
   const filter = buildFilter(p);
   assert.ok(
-    filter.some((f) => f === `((location_country = "Canada" OR (${REMOTE_ANYWHERE_CLAUSE})))`),
-    `single-group rendering (widened content, no extra AND-part) expected: ${JSON.stringify(filter)}`,
+    filter.some((f) => f === `((location_country = "Canada"))`),
+    `single-group Canada-only rendering expected: ${JSON.stringify(filter)}`,
+  );
+  assert.ok(
+    !filter.some((f) => f.includes(REMOTE_ANYWHERE_CLAUSE)),
+    `explicit Canada must not OR untagged remotes: ${JSON.stringify(filter)}`,
   );
 });
 
@@ -978,20 +1028,44 @@ test("(e) REGRESSION GATE: free text (field===undefined), a region phrase with n
   assert.equal(p.facets?.location_country, undefined);
 });
 
-test("(e) REGRESSION GATE: free text (field===undefined), a multi-place phrase ('Toronto, Canada') typed as ONE mention, still fragments via parsePlaceTokens and ORs together (with the pre-existing cross-mention country scoping) — the typed code path is textually untouched by this change", async () => {
+test("(e) REGRESSION GATE: 'Toronto, Canada' typed as ONE mention resolves to Toronto city only — no bare Canada OR that would admit Halifax / St. John's / Vancouver / Den Haag", async () => {
   const p = await resolveLocationFacet({ facets: { location_country: ["Toronto, Canada"] } }, VOCAB);
-  assert.equal(p.places?.length, 2);
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
+  assert.deepEqual(p.places![0].scopedToCountry, [{ field: "location_country", value: "Canada" }]);
   assert.equal(p.facets?.location_country, undefined);
   const filter = buildFilter(p);
   assert.ok(
-    filter.some(
-      (f) =>
-        f.includes('((location_city = "Toronto") AND (location_country = "Canada"))') &&
-        f.includes('(location_country = "Canada")') &&
-        f.includes(" OR "),
-    ),
-    `expected Toronto-scoped-to-Canada OR a bare Canada clause: ${JSON.stringify(filter)}`,
+    filter.some((f) => f.includes('location_city = "Toronto"') && f.includes('location_country = "Canada"')),
+    `Toronto scoped to Canada, no second country-only OR branch: ${JSON.stringify(filter)}`,
   );
+  assert.ok(
+    !filter.some((f) => f.includes(") OR (location_country")),
+    `must not OR a bare location_country clause beside the city: ${JSON.stringify(filter)}`,
+  );
+});
+
+test("picked city Toronto + country Canada facet: city wins, no Canada-wide OR (Halifax / Vancouver / St. John's / Den Haag excluded)", async () => {
+  const p = await resolveLocationFacet(
+    { facets: { location_country: ["Canada"], location_city: ["Toronto"] } },
+    VOCAB,
+  );
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
+  assert.equal(p.facets?.location_country, undefined);
+  assert.equal(p.facets?.location_city, undefined);
+  const filter = buildFilter(p);
+  assert.ok(
+    filter.some((f) => f.includes('location_city = "Toronto"') && !f.match(/\)\s+OR\s+\(location_country/)),
+    `must constrain location_city = Toronto without OR'ing location_country = Canada: ${JSON.stringify(filter)}`,
+  );
+});
+
+test("country-only facet with no city chip stays Canada-wide", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["Canada"] } }, VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+  const filter = buildFilter(p);
+  assert.ok(filter.some((f) => f.includes('location_country = "Canada"')), filter.join(" "));
 });
 
 test("(f) two picked values on DIFFERENT fields OR together, not AND — a city pick and a state pick both apply, reusing the pre-existing p.places OR-across-mentions mechanism", async () => {
@@ -1011,7 +1085,7 @@ test("(f) two picked values on DIFFERENT fields OR together, not AND — a city 
   );
 });
 
-test("(f) class coverage: a picked value composes with an already-typed free-text place (field===undefined) — different origins, same OR group", async () => {
+test("(f) class coverage: picked city San Jose + typed country Canada — city chip wins, country-only clause dropped", async () => {
   const mixedVocab = fakeVocab([
     { field: "location_country", value: "Canada" },
     { field: "location_city", value: "San Jose" },
@@ -1020,9 +1094,9 @@ test("(f) class coverage: a picked value composes with an already-typed free-tex
     { facets: { location_country: ["canada"], location_city: ["San Jose"] } },
     mixedVocab,
   );
-  assert.equal(p.places?.length, 2);
-  assert.ok(p.places!.some((c) => c.any.some((a) => a.value === "Canada")));
-  assert.ok(p.places!.some((c) => c.any.some((a) => a.value === "San Jose" && a.field === "location_city")));
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "San Jose" }]);
+  assert.ok(!p.places!.some((c) => c.any.some((a) => a.value === "Canada")));
 });
 
 // ---------------------------------------------------------------------------

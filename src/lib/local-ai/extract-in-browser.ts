@@ -52,7 +52,7 @@ export async function extractPDFTextInBrowser(
         const rawText = pages.join("\n\n");
         if (!rawText || rawText.trim().length < 20) {
             return {
-                error: "No text could be extracted from this PDF. It may be an image-based/scanned document. Please paste your resume text instead.",
+                error: "No text could be extracted from this PDF. It may be an image-based/scanned document. Please re-upload a text PDF or paste your resume text instead.",
             };
         }
 

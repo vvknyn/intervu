@@ -45,7 +45,7 @@ export default async function CompanyCardsMockPage({
 
   return (
     <div className="min-h-dvh bg-background px-4 py-8 sm:px-8">
-      <p className="mb-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="mb-6 text-xs font-semibold text-muted-foreground">
         {scenario.label} — companyUnlockStep = {step ?? "null (no card)"}
       </p>
 

@@ -12,8 +12,8 @@ import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import type { MatchScore } from "@/lib/match/score";
-import { captureEvent, type EventSource } from "@/lib/analytics/events";
-import { recordGuestJobView } from "@/lib/auth/guest-engage-nudge";
+import { type EventSource } from "@/lib/analytics/events";
+import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
@@ -51,6 +51,7 @@ import { cn } from "@/lib/utils";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
+import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
 
 /** The employer rail — live open-role count, opened/closed 90d, and a
@@ -246,9 +247,13 @@ export interface JobDetailDocumentProps {
     matchScore?: MatchScore | null;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`). */
     matchAsOfDate?: string | null;
+    /** When true, defer `job_viewed` until auth + résumé reads settle (PublicJobDetail). */
+    matchPending?: boolean;
     /** Local-AI résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
     onAcceptLocalTailor?: (data: ResumeData) => void;
+    onUploadResume?: () => void;
+    onSignInToSync?: () => void;
 }
 
 /**
@@ -285,8 +290,11 @@ export function JobDetailDocument({
     onReportDialogOpenChange,
     matchScore = null,
     matchAsOfDate = null,
+    matchPending = false,
     resume = null,
     onAcceptLocalTailor,
+    onUploadResume,
+    onSignInToSync,
 }: JobDetailDocumentProps) {
     const closed = job.vacancy_status === "closed";
     const freshness = classifyPostingFreshness(job, now);
@@ -311,11 +319,7 @@ export function JobDetailDocument({
     const blocks = formatDescription(job.description);
     const exceptionMark = rowExceptionMark(job, now);
 
-    useEffect(() => {
-        captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
-        if (!signedIn) recordGuestJobView();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [job.id, source, signedIn]);
+    useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
 
     const [related, setRelated] = useState<PublicJob[]>([]);
     useEffect(() => {
@@ -473,11 +477,25 @@ export function JobDetailDocument({
                     action row, JobCard's row) already uses — one chokepoint,
                     no independent restyle. */}
                 <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
-                <LocalCustomizePanel
-                    job={job}
-                    resume={resume}
-                    onAccept={onAcceptLocalTailor}
-                />
+                {resume != null ? (
+                    <LocalCustomizePanel
+                        job={job}
+                        resume={resume}
+                        onAccept={onAcceptLocalTailor}
+                        signedIn={signedIn}
+                        onSignInToSync={onSignInToSync}
+                    />
+                ) : onUploadResume ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        data-testid="job-detail-upload-to-customize"
+                        onClick={onUploadResume}
+                        className="h-10 shrink-0 rounded-ctl text-xs font-semibold"
+                    >
+                        {UPLOAD_TO_CUSTOMIZE_LABEL}
+                    </Button>
+                ) : null}
             </div>
         </div>
     );
@@ -646,6 +664,8 @@ export function JobDetailDocument({
                     goingAfter={goingAfter}
                     resume={resume}
                     onAcceptLocalTailor={onAcceptLocalTailor}
+                    onUploadResume={onUploadResume}
+                    onSignInToSync={onSignInToSync}
                     className="bottom-12 lg:hidden"
                 />
             )}

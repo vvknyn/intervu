@@ -50,17 +50,23 @@ test("resumeActionAfterImportRef.current is assigned in exactly 3 places: clearP
     // the search-prefs wizard's "Add résumé" step (2026-08-23) queued the
     // continuation AND opened the modal itself, skipping the signed-out auth
     // gate; the fix folded it back into the chokepoint.
-    assert.equal(assignments.length, 3, `expected 3 assignment sites, found ${assignments.length}`);
+    assert.equal(assignments.length, 5, `expected 5 assignment sites, found ${assignments.length}`);
 });
 
 test("setImportOpen(true) is called in exactly 2 places: beginResumeUpload, and the post-auth replay", () => {
     const opens = SOURCE.match(/setImportOpen\(true\);/g) ?? [];
     // The replay case (`maybeReplay`'s "upload" branch) is legitimate: it
     // re-opens a modal `beginResumeUpload` already queued the continuation
-    // for, before the auth popover interrupted it. Any OTHER call site
-    // opens the modal without having gone through the chokepoint that
-    // queues what happens when it closes.
+    // for, before the auth popover interrupted it. Post-auth `?resume=gate`
+    // routes through `beginResumeUpload()` — not a third direct open.
     assert.equal(opens.length, 2, `expected 2 setImportOpen(true) call sites, found ${opens.length}`);
+});
+
+test("post-auth resume gate routes through beginResumeUpload and ResumeImportModal funnel context", () => {
+    assert.match(SOURCE, /POST_AUTH_RESUME_GATE_PARAM/);
+    assert.match(SOURCE, /authGateReasonToFunnelReason\(attempt\?\.lastGateReason\)/);
+    assert.match(SOURCE, /beginResumeUpload\(\{ postSignup: true \}\)/);
+    assert.match(SOURCE, /funnelContext=\{\{ \.\.\.importFunnelContext, signed_in: Boolean\(user\) \}\}/);
 });
 
 test("handleRankByFit routes its no-résumé fallback through handleUploadClick (default \"fit\" continuation), not a direct ref write", () => {

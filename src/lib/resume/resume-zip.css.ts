@@ -1,10 +1,10 @@
-/** Matches `RESUME_PDF_TYPOGRAPHY` in render-pdf.ts — duplicated here so CSS
- *  imports never pull jsPDF into Node/HTML-only test paths. */
+/** Matches Job Apply / TAM V4 zip HTML print: Helvetica Neue, ~9.2pt, tight Letter margins. */
 const TYPO = {
     nameSize: 16,
     contactSize: 8.5,
     headingSize: 9.5,
-    bodySize: 9,
+    /** ~9.2pt body — Job Apply / velai.app tailored text PDFs. */
+    bodySize: 9.2,
     lineHeight: 1.15,
     bulletIndent: 12,
     ruleGapBelowText: 3,
@@ -12,16 +12,17 @@ const TYPO = {
     gapAfterHeadingRule: 4,
     gapBetweenBlocks: 3,
     gapEntryTitleToBullets: 2,
-    marginTop: 28,
-    marginBottom: 28,
-    marginX: 40,
+    /** @page-equivalent padding: ~0.34in 0.46in 0.28in 0.46in */
+    marginTop: 24.5,
+    marginBottom: 20,
+    marginX: 33,
 } as const;
 
 /** Dedicated CSS for zip-style résumé HTML — not app Tailwind. */
 export const RESUME_ZIP_CSS = `
 @page {
   size: letter;
-  margin: 0;
+  margin: 0.34in 0.46in 0.28in 0.46in;
 }
 
 * {
@@ -36,7 +37,7 @@ html, body {
 }
 
 body {
-  font-family: Calibri, Carlito, "Segoe UI", Arial, Helvetica, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: ${TYPO.bodySize}pt;
   line-height: ${TYPO.lineHeight};
   -webkit-print-color-adjust: exact;
@@ -47,8 +48,17 @@ body {
   width: 8.5in;
   min-height: 11in;
   margin: 0 auto;
+  /* Screen / Playwright margin:0 path — mirrors @page when print margins are zeroed */
   padding: ${TYPO.marginTop}pt ${TYPO.marginX}pt ${TYPO.marginBottom}pt;
   background: #ffffff;
+}
+
+@media print {
+  .resume-page {
+    width: auto;
+    min-height: auto;
+    padding: 0;
+  }
 }
 
 .resume-name {
@@ -78,6 +88,7 @@ body {
 .resume-section > h2 {
   font-size: ${TYPO.headingSize}pt;
   font-weight: 700;
+  // design-lint-allow
   text-transform: uppercase;
   letter-spacing: 0.04em;
   line-height: 1.1;

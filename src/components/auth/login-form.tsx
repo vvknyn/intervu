@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
 import { captureEvent, type SignupMethod } from '@/lib/analytics/events'
+import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from '@/lib/auth/gate-attempt'
 import { clearSignupSignalCookieFromDocument } from '@/lib/auth/authkit-signup-signal'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
@@ -14,7 +15,9 @@ import { CircleNotch, Fingerprint } from '@phosphor-icons/react'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
+import { revalidateClientSession } from '@/lib/firebase/client-auth'
 import { buildReturnTo } from '@/lib/jobs/pending-actions'
+import { resolveAuthKitReturnTo } from '@/lib/auth/post-auth-destination'
 import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from 'next/link'
@@ -68,6 +71,11 @@ export function resolveAuthKitMethod(provider?: string): SignupMethod {
     return provider === 'GoogleOAuth' ? 'google' : 'passkey'
 }
 
+function authContinuityPayload() {
+    const attempt = typeof window !== 'undefined' ? readGateAttempt(window.sessionStorage) : null
+    return gateAttemptEventFields(attempt)
+}
+
 export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", headline }: LoginFormProps = {}) {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab)
@@ -99,6 +107,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 return
             }
             router.refresh()
+            revalidateClientSession()
             await syncGuestFollowsToServer()
             if (onSuccess) onSuccess()
         })
@@ -123,14 +132,18 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
         // One capture for both method buttons below — Google passes its
         // provider id, the passkey/email-code button passes none, so the
         // two branches can't drift into different event names.
-        captureEvent('auth_method_selected', { method: resolveAuthKitMethod(provider) })
+        captureEvent('auth_method_selected', { method: resolveAuthKitMethod(provider), ...authContinuityPayload() })
         setAuthKitPending(provider ?? 'passkey')
         const params = new URLSearchParams()
         // `next` already on this URL (e.g. middleware bounced here from a
         // gated route) wins; otherwise fall back to wherever the user
         // actually is, so a hard-nav OAuth/passkey round trip returns to the
         // same page instead of AuthKit's own default.
-        const next = new URLSearchParams(window.location.search).get("next") || buildReturnTo(window.location)
+        const rawNext = new URLSearchParams(window.location.search).get("next") || buildReturnTo(window.location)
+        const next = resolveAuthKitReturnTo({
+            mode: activeTab === "signup" ? "signup" : "login",
+            rawNext,
+        })
         if (next) params.set("next", next)
         if (activeTab === "signup") params.set("mode", "signup")
         if (provider) params.set("provider", provider)
@@ -167,9 +180,16 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
                 // so an abandoned Google redirect + password signup cannot double-fire.
                 clearSignupSignalCookieFromDocument()
-                captureEvent('signup_completed', { method: 'username' })
+                captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() })
+                clearGateAttempt(window.sessionStorage)
                 router.refresh()
+                revalidateClientSession()
                 await syncGuestFollowsToServer()
+                const landed = buildReturnTo(window.location)
+                const destination = resolveAuthKitReturnTo({ mode: "signup", rawNext: landed })
+                if (destination && destination !== landed) {
+                    router.replace(destination)
+                }
                 if (onSuccess) onSuccess()
             } catch (err) {
                 setMessage(err instanceof Error ? err.message : "Failed to create account")
@@ -273,7 +293,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         onSubmit={(e) => {
                             // One call site for both tabs — a third tab
                             // wouldn't need a new capture call either.
-                            captureEvent('auth_method_selected', { method: 'username' })
+                            captureEvent('auth_method_selected', { method: 'username', ...authContinuityPayload() })
                             void (activeTab === "login" ? handleLogin(e) : handleSignUp(e))
                         }}
                     >

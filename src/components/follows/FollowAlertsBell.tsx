@@ -45,7 +45,7 @@ function jobAgeLabel(job: PublicJob, nowMs: number): string {
 }
 
 export function FollowAlertsBell() {
-  const { follows } = useFollows();
+  const { follows, isSignedIn } = useFollows();
   const [nowMs] = useState(() => Date.now());
   const [groups, setGroups] = useState<FollowAlertGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +83,8 @@ export function FollowAlertsBell() {
     setGroups([]);
     setOpen(false);
   }, []);
+
+  if (!isSignedIn) return null;
 
   if (loading) {
     return (

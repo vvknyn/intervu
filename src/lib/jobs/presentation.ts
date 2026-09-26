@@ -1454,9 +1454,54 @@ export function locationWithMode(location: string, workType: string | null | und
  * appending the same word again would repeat it on one line, exactly the
  * defect `locationText`'s prefix removal fixed elsewhere.
  */
+const PLACE_SEGMENT_SPLIT_RE = /\s*[·\-,;]\s*/;
+
+/** Split a place string on the separators used across corpus/label builders. */
+export function splitPlaceSegments(place: string): string[] {
+    return place.split(PLACE_SEGMENT_SPLIT_RE).map((s) => s.trim()).filter(Boolean);
+}
+
+function placeSegmentEqualsMode(segment: string, mode: string): boolean {
+    return segment.toLowerCase() === mode.toLowerCase();
+}
+
+/** True when `place` already carries `mode` as its own segment (any supported separator). */
+export function placeContainsWorkModeSegment(place: string, mode: string): boolean {
+    return splitPlaceSegments(place).some((segment) => placeSegmentEqualsMode(segment, mode));
+}
+
+/** Collapse duplicate Remote segments inside one label ("Canada · Remote · Remote" → "Canada · Remote").
+ *  A place with fewer than two Remote segments is returned unchanged so ordinary
+ *  comma/dash locations ("Toronto, Canada") keep their original separators. */
+export function collapseDoubledRemoteInPlace(place: string): string {
+    const segments = splitPlaceSegments(place);
+    const remoteCount = segments.filter((segment) => /^remote$/i.test(segment)).length;
+    if (remoteCount < 2) return place;
+    let seenRemote = false;
+    return segments
+        .filter((segment) => {
+            if (/^remote$/i.test(segment)) {
+                if (seenRemote) return false;
+                seenRemote = true;
+            }
+            return true;
+        })
+        .join(" · ");
+}
+
+/** Remove Remote segments from a place line when work mode is shown separately.
+ *  Returns `place` unchanged when it has no Remote segment, so "Toronto, Canada"
+ *  is not rewritten to middle-dot separators. */
+export function stripRemoteSegmentsFromPlace(place: string): string {
+    const segments = splitPlaceSegments(place);
+    if (!segments.some((segment) => /^remote$/i.test(segment))) return place;
+    return segments.filter((segment) => !/^remote$/i.test(segment)).join(" · ");
+}
+
 export function placeWithWorkMode(place: string, workType: string | null | undefined): string {
     const mode = prettyEnum(workType);
     if (!mode || mode === place) return place;
+    if (placeContainsWorkModeSegment(place, mode)) return place;
     return place ? `${place} · ${mode}` : mode;
 }
 

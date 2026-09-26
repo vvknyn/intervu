@@ -366,3 +366,61 @@ export function removeLocationValue(selected: readonly string[], value: string):
     const folded = foldForMatch(value);
     return selected.filter((s) => foldForMatch(s) !== folded);
 }
+
+/**
+ * When the typed query matches a country suggestion exactly (folded), that
+ * country must rank above city/state collisions ("Canandaigua", "Canada-
+ * Mississauga"). Measured prod 2026-09: typing "Canada" surfaced those city
+ * rows first; Enter or the first ArrowDown landed on a city literal, not
+ * `location_country = "Canada"`.
+ *
+ * Returns a new array — input is untouched when there is no exact country
+ * match for the query.
+ */
+export function prioritizeCountryMatch(
+    groups: LocationSuggestGroup[],
+    query: string,
+): LocationSuggestGroup[] {
+    const foldedQuery = foldForMatch(query);
+    if (!foldedQuery) return groups;
+
+    const countryGroup = groups.find((g) => g.field === "location_country");
+    if (!countryGroup?.items.length) return groups;
+
+    const matchIndex = countryGroup.items.findIndex(
+        (item) => foldForMatch(item.label) === foldedQuery,
+    );
+    if (matchIndex < 0) return groups;
+
+    const match = countryGroup.items[matchIndex]!;
+    const reorderedCountryGroup: LocationSuggestGroup = {
+        ...countryGroup,
+        items: [
+            match,
+            ...countryGroup.items.filter((_, i) => i !== matchIndex),
+        ],
+    };
+
+    // Exact country match overrides narrowest-first ordering so keyboard
+    // commit and the first ArrowDown stop land on the country row.
+    return [
+        reorderedCountryGroup,
+        ...groups.filter((g) => g.field !== "location_country"),
+    ];
+}
+
+/**
+ * When free-text Enter/blur commits a query that exactly matches a country
+ * suggestion, return `location_country` so the filter is the country facet,
+ * not a re-resolved city collision.
+ */
+export function countryCommitFieldForQuery(
+    groups: readonly LocationSuggestGroup[],
+    query: string,
+): SuggestField | undefined {
+    const foldedQuery = foldForMatch(query);
+    if (!foldedQuery) return undefined;
+    const countryGroup = groups.find((g) => g.field === "location_country");
+    const match = countryGroup?.items.some((item) => foldForMatch(item.label) === foldedQuery);
+    return match ? "location_country" : undefined;
+}

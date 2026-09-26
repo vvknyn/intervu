@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
+import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
@@ -29,8 +30,7 @@ import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { withShareRef } from "@/lib/share/share-decision";
-import { captureEvent, type EventSource } from "@/lib/analytics/events";
-import { recordGuestJobView } from "@/lib/auth/guest-engage-nudge";
+import { type EventSource } from "@/lib/analytics/events";
 import { SHARE_JOB_TEXT } from "@/lib/seo/constants";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
 import { getRelatedJobsAction, getCompanyOpenCountAction } from "@/actions/jobs";
@@ -51,6 +51,7 @@ import {
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import type { ResumeData } from "@/types/resume";
+import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -318,6 +319,8 @@ export function JobDetailActionBar({
     className,
     resume,
     onAcceptLocalTailor,
+    onUploadResume,
+    onSignInToSync,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
@@ -342,6 +345,8 @@ export function JobDetailActionBar({
     /** Local-AI résumé for on-device tailor — only passed by JobDetailDocument. */
     resume?: ResumeData | null;
     onAcceptLocalTailor?: (data: ResumeData) => void;
+    onUploadResume?: () => void;
+    onSignInToSync?: () => void;
 }) {
     return (
         <div
@@ -354,14 +359,26 @@ export function JobDetailActionBar({
                     {APPLY_BUTTON_LABEL}
                 </Button>
             )}
-            {resume != null && (
+            {resume != null ? (
                 <LocalCustomizePanel
                     job={job}
                     resume={resume}
                     onAccept={onAcceptLocalTailor}
                     compactTrigger
+                    signedIn={signedIn}
+                    onSignInToSync={onSignInToSync}
                 />
-            )}
+            ) : onUploadResume ? (
+                <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="job-detail-upload-to-customize"
+                    onClick={onUploadResume}
+                    className="h-10 shrink-0 rounded-ctl text-xs font-semibold sm:h-9"
+                >
+                    {UPLOAD_TO_CUSTOMIZE_LABEL}
+                </Button>
+            ) : null}
             {/* Same 40px icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}
             <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
@@ -433,10 +450,13 @@ export function JobDetail({
     collapseDescription = true,
     matchScore = null,
     matchAsOfDate = null,
+    matchPending = false,
     descriptionPending,
     onRetryDescription,
     resume = null,
     onAcceptLocalTailor,
+    onUploadResume,
+    onSignInToSync,
     onSkip,
 }: {
     job: PublicJob;
@@ -494,6 +514,8 @@ export function JobDetail({
     matchScore?: MatchScore | null;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
+    /** When true, defer `job_viewed` until auth + résumé reads settle (PublicJobDetail). */
+    matchPending?: boolean;
     /** True when the stored description is a stub AND searchJobsAction's live
      *  fill hit its deadline still waiting on it — see description-section-
      *  state.ts's "pending" state. */
@@ -505,6 +527,8 @@ export function JobDetail({
     /** Local-AI guest/signed-in résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
     onAcceptLocalTailor?: (data: ResumeData) => void;
+    onUploadResume?: () => void;
+    onSignInToSync?: () => void;
     /** Wired to the existing skip/hide mechanism (`useForYouDeck`'s
      *  `handleSkip`) — present only on the For-you ranked-results surface.
      *  Renders a quiet overflow (⋯) menu next to Close with one "Hide" item;
@@ -536,11 +560,7 @@ export function JobDetail({
     useEffect(() => {
         setDescExpanded(false);
     }, [job.id]);
-    useEffect(() => {
-        captureEvent("job_viewed", { job_id: job.id, company_domain: job.company_domain, source });
-        if (!signedIn) recordGuestJobView();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [job.id, source, signedIn]);
+    useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
     // Identity-header location line — same progressive-disclosure idiom as
     // the description clamp above, for aggregator-feed `location` strings
     // that stuff many semicolon-joined locations into one field (see
@@ -868,11 +888,25 @@ export function JobDetail({
                                 {APPLY_BUTTON_LABEL}
                             </Button>
                         )}
-                        <LocalCustomizePanel
-                            job={job}
-                            resume={resume}
-                            onAccept={onAcceptLocalTailor}
-                        />
+                        {resume != null ? (
+                            <LocalCustomizePanel
+                                job={job}
+                                resume={resume}
+                                onAccept={onAcceptLocalTailor}
+                                signedIn={signedIn}
+                                onSignInToSync={onSignInToSync}
+                            />
+                        ) : onUploadResume ? (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                data-testid="job-detail-upload-to-customize"
+                                onClick={onUploadResume}
+                                className="h-10 shrink-0 rounded-ctl text-xs font-semibold"
+                            >
+                                {UPLOAD_TO_CUSTOMIZE_LABEL}
+                            </Button>
+                        ) : null}
                         {/* RowBookmarkButton is a fixed-size icon-only square
                             control (no text-label prop) — `rounded-ctl` plus
                             an outline matches every other control in this

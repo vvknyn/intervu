@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { BRAND_MARK_BRACKETS, BRAND_MARK_VIEWBOX, BrandMark } from "@/components/brand/BrandMark";
+import { BrandMark, BrandLockup } from "@/components/brand/BrandMark";
 
 function Wordmark() {
     return (
@@ -11,29 +11,6 @@ function Wordmark() {
 
 function LockupRow({ children }: { children: React.ReactNode }) {
     return <span className="flex items-center gap-2 text-brand">{children}</span>;
-}
-
-/** Brackets only, no live dot — a no-signal variant of the canonical mark. */
-function FilledWeightStandInMark() {
-    return (
-        <svg viewBox={BRAND_MARK_VIEWBOX} aria-hidden className="h-7 w-7">
-            {BRAND_MARK_BRACKETS.map((d) => (
-                <path key={d} d={d} fill="currentColor" />
-            ))}
-        </svg>
-    );
-}
-
-function LiveSignalMark() {
-    return (
-        <span className="relative inline-flex h-7 w-7 shrink-0">
-            <BrandMark className="h-7 w-7 text-current" />
-            <span
-                className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-none bg-live"
-                aria-hidden
-            />
-        </span>
-    );
 }
 
 function Option({
@@ -55,49 +32,41 @@ function Option({
     );
 }
 
+/** Compare fixture: locked product mark is the only live direction. */
 export function LockupMock() {
     return (
         <main className="mx-auto flex max-w-[820px] flex-col gap-6 p-8">
             <header>
                 <h1 className="text-lg font-semibold">
-                    Header lockup — four directions
+                    Header lockup — locked product mark
                 </h1>
                 <p className="mt-1 text-xs text-muted-foreground">
-                    Compare-only fixture at header scale. Not linked from anywhere and not indexed.
+                    Soft paper card, navy brackets, one bigger green live dot. Not linked from anywhere and not indexed.
                 </p>
             </header>
 
-            <Option n={1} title="App-icon lockup">
+            <Option n={1} title="Locked app-icon lockup (product)">
                 <LockupRow>
                     <Image
                         src="/velai-logo.png"
                         width={28}
                         height={28}
                         alt=""
-                        className="h-7 w-7 rounded-none"
+                        className="h-7 w-7 object-contain"
                     />
                     <Wordmark />
                 </LockupRow>
             </Option>
 
-            <Option n={2} title="Filled monogram — filled-weight stand-in">
+            <Option n={2} title="BrandMark component (same raster)">
                 <LockupRow>
-                    <FilledWeightStandInMark />
+                    <BrandMark className="h-7 w-7" />
                     <Wordmark />
                 </LockupRow>
             </Option>
 
-            <Option n={3} title="Live-signal dot">
-                <LockupRow>
-                    <LiveSignalMark />
-                    <Wordmark />
-                </LockupRow>
-            </Option>
-
-            <Option n={4} title="Wordmark only">
-                <LockupRow>
-                    <Wordmark />
-                </LockupRow>
+            <Option n={3} title="BrandLockup (header chrome)">
+                <BrandLockup />
             </Option>
         </main>
     );

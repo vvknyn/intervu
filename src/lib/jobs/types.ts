@@ -348,6 +348,11 @@ export interface JobSearchParams {
    * positive is worse than the false negative, and unlike an
    * independently-typed country word, this scope comes from the gazetteer's
    * OWN resolution of the city, not a second thing the searcher had to type.
+   *
+   * Location-filter resolution (`preferStrictCity`, resolve-place.ts) drops
+   * a country-only alternative when a city clause is present; `buildFilter`
+   * still ORs the clauses it receives, which is why free-text query mentions
+   * stay OR'd.
    */
   places?: PlaceClause[];
   /**
@@ -418,22 +423,15 @@ export interface PlaceClause {
    */
   workTypes?: string[];
   /**
-   * Ruling (Vivek, Sep 2026): a remote job with no geographic restriction
-   * must be listed under ANY country filter. Data fact (live-verified
-   * against the Meili `jobs` index): that set is exactly
-   * `work_type = "remote" AND location_country IS NULL` (52,512 docs
-   * all-dates; `IS EMPTY` and `NOT EXISTS` both measured 0).
+   * OR untagged remote roles into this clause's `any` group — exactly
+   * `work_type = "remote" AND location_country IS NULL` (live-verified).
    *
-   * Set ONLY where a resolved place is known to be a COUNTRY — a city/state/
-   * region mention (or a literal that isn't a country reading) is asking for
-   * a specific place, not "remote with no restriction," so it never gets
-   * this. `placeClause` (geo/resolve-place.ts) is the ONE builder of every
-   * `PlaceClause` in src — see its doc comment for the full list of callers
-   * and how each decides whether its clause is a country filter, rather than
-   * re-listing them here to go stale again. `renderPlaceClause`
-   * (meilisearch.ts) is the only reader: it OR's `REMOTE_ANYWHERE_CLAUSE`
-   * into the `any` group alone, leaving `scopedToCountry`/`workTypes`
-   * AND-ed unchanged.
+   * Set ONLY by the IP geo default (`resolveLocationDefault`,
+   * `placesForCountry`, ip-default.ts). An explicit country pick
+   * (`?country=Canada`, a typed location box commit) never sets this — the
+   * searcher can add a Remote work-mode chip themselves. `placeClause`
+   * (geo/resolve-place.ts) is the ONE builder; `renderPlaceClause`
+   * (meilisearch.ts) is the only reader.
    */
   remoteAnywhere?: true;
 }

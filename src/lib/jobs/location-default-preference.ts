@@ -151,24 +151,47 @@ export const DEFAULT_LOCATION_CHIP_KEY = "default-location";
  * the SAME `PlaceClause.remoteAnywhere` flag `buildFilter` (meilisearch.ts)
  * itself uses to OR `REMOTE_ANYWHERE_CLAUSE` into the applied place filter,
  * never re-derived from country names or the word "remote" as a string
- * match. A country-level geo default sets it unconditionally today
- * (resolve-place.ts's `placeClause`), so every one of these chips used to
- * read "near Canada" over a result set that also included Sydney/Dubai/Costa
- * Rica remote listings — true of the country clause alone, false of the
- * query that actually ran. Naming the OR keeps the label honest without
+ * match. Only the IP geo default passes `remoteAnywhere: true` into
+ * `placeClause` (resolve-place.ts); an explicit country pick does not.
+ * Naming the OR on the default chip keeps the label honest without
  * hardcoding that correlation.
  */
-export function locationDefaultScope(iso2: string, remoteAnywhere: boolean | undefined): string {
+export interface LocationDefaultScopeOptions {
+    /** When true, remote is already its own work-type chip — omit "· Remote" from the country scope. */
+    separateRemoteWorkTypeChip?: boolean;
+}
+
+/** True when a filter/dock chip label already carries remote as work type. */
+export function chipLabelIncludesRemoteWorkType(label: string): boolean {
+    const trimmed = label.trim();
+    if (/^remote$/i.test(trimmed)) return true;
+    return /\s·\sRemote$/i.test(trimmed);
+}
+
+export function chipsIncludeRemoteWorkType(chips: readonly { label: string }[]): boolean {
+    return chips.some((chip) => chipLabelIncludesRemoteWorkType(chip.label));
+}
+
+export function locationDefaultScope(
+    iso2: string,
+    remoteAnywhere: boolean | undefined,
+    options?: LocationDefaultScopeOptions,
+): string {
     const name = regionDisplayName(iso2);
-    return remoteAnywhere ? `${name} · Remote` : name;
+    const appendRemote = remoteAnywhere === true && !options?.separateRemoteWorkTypeChip;
+    return appendRemote ? `${name} · Remote` : name;
 }
 
 /** Same region-scope copy every applied-default surface uses — flag
  *  first when `countryToFlag` resolves one (most bare ISO2 codes won't; see
  *  country-flag.ts's removed-passthrough note), then the scope name, with
  *  no leading space when there's no flag to prefix. */
-function defaultLocationChipLabel(iso2: string, remoteAnywhere: boolean | undefined): string {
-    const scope = locationDefaultScope(iso2, remoteAnywhere);
+function defaultLocationChipLabel(
+    iso2: string,
+    remoteAnywhere: boolean | undefined,
+    separateRemoteWorkTypeChip: boolean,
+): string {
+    const scope = locationDefaultScope(iso2, remoteAnywhere, { separateRemoteWorkTypeChip });
     const flag = countryToFlag(iso2);
     return flag ? `${flag} ${scope}` : scope;
 }
@@ -188,8 +211,12 @@ export function buildDockedChips(
     entryChips: Array<{ key: string; label: string }>,
 ): Array<{ key: string; label: string }> {
     if (!defaultedIso2) return entryChips;
+    const separateRemoteWorkTypeChip = chipsIncludeRemoteWorkType(entryChips);
     return [
-        { key: DEFAULT_LOCATION_CHIP_KEY, label: defaultLocationChipLabel(defaultedIso2, remoteAnywhere) },
+        {
+            key: DEFAULT_LOCATION_CHIP_KEY,
+            label: defaultLocationChipLabel(defaultedIso2, remoteAnywhere, separateRemoteWorkTypeChip),
+        },
         ...entryChips,
     ];
 }

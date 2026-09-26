@@ -95,4 +95,25 @@ describe("/jobs list inset — single source of truth", () => {
         assert.ok(fn.length > 0, "JobsListSplash function not found");
         assert.match(fn, /var\(--list-inset\)/, "JobsListSplash must read var(--list-inset), not restate px-4");
     });
+
+    it("EmptyResults root reads var(--list-inset) so zero-hit copy and seed pills align with rows", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const fnStart = page.indexOf("function EmptyResults(");
+        const fnEnd = page.indexOf("function ListTail(", fnStart);
+        assert.ok(fnStart >= 0 && fnEnd > fnStart, "EmptyResults function not found");
+        const fn = page.slice(fnStart, fnEnd);
+        assert.match(
+            fn,
+            /className="px-\[var\(--list-inset\)\] py-8 text-left"/,
+            "EmptyResults root must pad with var(--list-inset)",
+        );
+    });
+
+    it("liveCountEl footer wrapper reads var(--list-inset), not flush", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const liveCountBlock = page.match(/\{liveCountEl && \([\s\S]*?\)\}/)?.[0] ?? "";
+        assert.ok(liveCountBlock.length > 0, "liveCountEl block not found");
+        assert.match(liveCountBlock, /var\(--list-inset\)/, "liveCountEl wrapper must read var(--list-inset)");
+    });
 });
+

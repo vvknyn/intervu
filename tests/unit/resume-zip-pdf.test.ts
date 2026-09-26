@@ -17,15 +17,27 @@ const CSM_GOLDEN = readFileSync(
 const PM_FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-pm-resume.txt"), "utf8");
 
 describe("export-zip-pdf source contract", () => {
-    it("FromData builds HTML from resumeDataToParsedDocument, never parseResumeContent(md)", () => {
+    it("FromData uses Chrome/Skia API then text jsPDF fallback — never html2canvas or parseResumeContent(md)", () => {
         const src = readFileSync(path.join(process.cwd(), "src/lib/resume/export-zip-pdf.ts"), "utf8");
         const start = src.indexOf("export async function exportZipResumePdfFromData");
         const next = src.indexOf("export async function exportZipResumePdf(", start + 1);
         const fromData = src.slice(start, next);
         assert.match(fromData, /resumeDataToParsedDocument\(data\)/);
         assert.match(fromData, /parsedResumeToZipHtml\(parsed\)/);
+        assert.match(fromData, /fetchChromeTextPdf\(html\)|\/api\/resume\/pdf/);
         assert.match(fromData, /renderResumePdf\(parsed\)/);
         assert.doesNotMatch(fromData, /parseResumeContent\(/);
+        assert.doesNotMatch(src, /import\s+.*html2canvas/);
+        assert.doesNotMatch(src, /from ["']jspdf["']/);
+        assert.doesNotMatch(src, /html2canvas\(/);
+    });
+
+    it("zip CSS uses Helvetica Neue and Letter @page margins", () => {
+        const css = readFileSync(path.join(process.cwd(), "src/lib/resume/resume-zip.css.ts"), "utf8");
+        assert.match(css, /Helvetica Neue/);
+        assert.match(css, /@page/);
+        assert.match(css, /0\.34in 0\.46in 0\.28in 0\.46in/);
+        assert.match(css, /9\.2/);
     });
 });
 
@@ -39,6 +51,7 @@ describe("resume zip PDF pipeline (no browser)", () => {
         assert.match(md, /^# Vivek Narayanan/m);
         assert.match(html, /<!DOCTYPE html>/);
         assert.match(html, /resume-page/);
+        assert.match(html, /Helvetica Neue/);
         assert.equal(fromHelper, html);
         assert.ok(!/Hands-on with/i.test(md));
         assert.match(html, /Richmond Hill, Ontario/);
@@ -75,35 +88,26 @@ describe("resume zip PDF pipeline (Playwright)", () => {
             return;
         }
 
+        const { htmlToChromePdf } = await import("@/lib/resume/chrome-print-pdf");
         const data = resumeDataFromPlainText(CSM_GOLDEN);
         const html = zipResumeHtmlFromData(data);
-        const browser = await chromium.launch({ headless: true });
-        try {
-            const page = await browser.newPage();
-            await page.setContent(html, { waitUntil: "networkidle" });
-            const pdfBytes = await page.pdf({
-                format: "Letter",
-                printBackground: true,
-                margin: { top: "0", right: "0", bottom: "0", left: "0" },
-            });
+        const pdfBytes = await htmlToChromePdf(html);
 
-            const { extractText, getDocumentProxy } = await import("unpdf");
-            const pdf = await getDocumentProxy(new Uint8Array(pdfBytes));
-            assert.equal(pdf.numPages, 1, "golden CSM résumé must fit one Letter page");
+        const { extractText, getDocumentProxy } = await import("unpdf");
+        const pdf = await getDocumentProxy(new Uint8Array(pdfBytes));
+        assert.equal(pdf.numPages, 1, "golden CSM résumé must fit one Letter page");
 
-            const { text } = await extractText(new Uint8Array(pdfBytes));
-            const joined = text.join("\n");
-            assert.ok(joined.includes("Richmond Hill"));
-            assert.ok(/Customer Success/i.test(joined));
-            assert.ok(/Delivery/i.test(joined));
-            assert.ok(/Platform/i.test(joined));
-            assert.ok(/MITx/i.test(joined));
-            assert.ok(/University at Buffalo/i.test(joined) || /Buffalo/i.test(joined));
-            assert.ok(!/University \| Buffalo/i.test(joined));
-            assert.ok(!/Hands-on with/i.test(joined));
-            assert.ok(!/\*\*:/.test(joined));
-        } finally {
-            await browser.close();
-        }
+        const { text } = await extractText(new Uint8Array(pdfBytes));
+        const joined = text.join("\n");
+        assert.ok(joined.includes("Richmond Hill"));
+        assert.ok(/Customer Success/i.test(joined));
+        assert.ok(/Delivery/i.test(joined));
+        assert.ok(/Platform/i.test(joined));
+        assert.ok(/MITx/i.test(joined));
+        assert.ok(/University at Buffalo/i.test(joined) || /Buffalo/i.test(joined));
+        assert.ok(!/University \| Buffalo/i.test(joined));
+        assert.ok(!/Hands-on with/i.test(joined));
+        assert.ok(!/\*\*:/.test(joined));
+        assert.ok(joined.replace(/\s+/g, " ").trim().length >= 20, "must have extractable text");
     });
 });

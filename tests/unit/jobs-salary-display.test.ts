@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSalaryAmount, salaryText } from "../../src/lib/jobs/presentation";
+import { normalizePublicJob } from "../../src/lib/jobs/normalize-public-job";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 function job(overrides: Partial<PublicJob> = {}): PublicJob {
@@ -92,4 +93,43 @@ test("salaryText prints one figure when min equals max after normalize", () => {
         ),
         "USD 46k/yr",
     );
+});
+
+test("salaryText shows CAD after normalizePublicJob trust correction", () => {
+    const normalized = normalizePublicJob(
+        job({
+            company: "The Toronto-Dominion Bank (Canada)",
+            company_domain: "tddirectinvesting.co.uk",
+            location_country: "Canada",
+            salary_min: 81_600,
+            salary_max: 115_200,
+            salary_currency: "USD",
+            salary_period: "year",
+            description: "Compensation: CAD $81,600–$115,200 per year.",
+        }),
+    );
+    assert.equal(salaryText(normalized), "CAD 82k–115k/yr");
+});
+
+test("salaryText shows Unity SWE zone-table envelope after normalizePublicJob", () => {
+    const description =
+        "Base Salary Range: We determine the base salary range for this role based on your primary work location:Zone A: CA$125,300 - CA$175,300 CAD grossZone B: CA$135,400 - CA$203,000 CAD gross";
+    const normalized = normalizePublicJob(
+        job({
+            id: "e15e53ae-02f6-44e5-8a71-549d4115a3d6",
+            company: "Unity",
+            title: "Senior Software Engineer",
+            location_country: "Canada",
+            salary_min: 639_400,
+            salary_max: 799_300,
+            salary_currency: "USD",
+            salary_period: null,
+            description,
+        }),
+    );
+    assert.equal(normalized.salary_min, 125_300);
+    assert.equal(normalized.salary_max, 203_000);
+    assert.equal(normalized.salary_currency, "CAD");
+    assert.equal(normalized.salary_period, "year");
+    assert.equal(salaryText(normalized), "CAD 125k–203k/yr");
 });

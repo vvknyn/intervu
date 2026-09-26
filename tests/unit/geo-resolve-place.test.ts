@@ -8,8 +8,10 @@ import {
   buildCityVariantIndex,
   scopeCityCandidates,
   buildAmbiguousCityNames,
+  preferStrictCity,
   PLACE_MIN_LENGTH,
 } from "../../src/lib/geo/resolve-place";
+import type { PlaceClause } from "../../src/lib/jobs/types";
 import { JOBS_SYNONYMS } from "../../src/lib/jobs/meilisearch";
 
 /**
@@ -78,6 +80,17 @@ test("city resolution: Toronto expands to itself plus same-country neighbors wit
   assert.ok(cities.includes("Vaughan"));
   assert.ok(cities.includes("Richmond Hill"));
   assert.ok(!cities.includes("Ottawa"), "Ottawa is ~350km away — outside the radius");
+});
+
+test("city resolution: { radius: false } is city-strict — primary city and name variants only, no radius neighbors", () => {
+  const r = resolvePlacePhrase("toronto", GAZETTEER, false, { radius: false });
+  assert.ok(r, "Toronto must resolve");
+  assert.equal(r!.entity.type, "city");
+  const cities = fieldValues(r!.candidates, "location_city");
+  assert.ok(cities.includes("Toronto"));
+  for (const excluded of ["Mississauga", "Markham", "Brampton", "Vaughan", "Richmond Hill", "Ottawa"]) {
+    assert.ok(!cities.includes(excluded), `expected ${excluded} excluded from strict city filter: ${JSON.stringify(cities)}`);
+  }
 });
 
 test("city resolution carries a countryScope — the resolved country's own candidates, for query-understanding.ts to AND against the city OR-set", () => {
@@ -671,4 +684,32 @@ test("'Georgia' resolves as the US state (admin1), never as a region — 'georgi
   assert.equal(r!.entity.countryCode, "US");
   const states = fieldValues(r!.candidates, "location_state");
   assert.ok(states.includes("Georgia"));
+});
+
+test("preferStrictCity: city + country drops bare country-only; two cities stay; city + state stays; country-only unchanged; phrase-bound workTypes kept; idempotent", () => {
+  const toronto: PlaceClause = {
+    any: [{ field: "location_city", value: "Toronto" }],
+    scopedToCountry: [{ field: "location_country", value: "Canada" }],
+  };
+  const canada: PlaceClause = { any: [{ field: "location_country", value: "Canada" }] };
+  const vancouver: PlaceClause = { any: [{ field: "location_city", value: "Vancouver" }] };
+  const georgia: PlaceClause = { any: [{ field: "location_state", value: "Georgia" }] };
+  const sanJose: PlaceClause = { any: [{ field: "location_city", value: "San Jose" }] };
+  const canadaRemote: PlaceClause = {
+    any: [{ field: "location_country", value: "Canada" }],
+    workTypes: ["remote"],
+  };
+
+  assert.deepEqual(preferStrictCity([toronto, canada]), [toronto]);
+
+  assert.deepEqual(preferStrictCity([toronto, vancouver]), [toronto, vancouver]);
+
+  assert.deepEqual(preferStrictCity([sanJose, georgia]), [sanJose, georgia]);
+
+  assert.deepEqual(preferStrictCity([canada]), [canada]);
+
+  assert.deepEqual(preferStrictCity([toronto, canadaRemote]), [toronto, canadaRemote]);
+
+  const once = preferStrictCity([toronto, canada]);
+  assert.deepEqual(preferStrictCity(once), once);
 });

@@ -7,6 +7,7 @@ const SRC = join(__dirname, "../../src");
 const JOB_DETAIL = join(SRC, "components/jobs/JobDetail.tsx");
 const TOP_BAR = join(SRC, "components/layout/TopBar.tsx");
 const PAGE = join(SRC, "app/jobs/page.tsx");
+const GLOBALS = join(SRC, "app/globals.css");
 const TOGGLE_FILE = join(SRC, "components/jobs/for-you/ForYouToggle.tsx");
 
 function walk(dir: string): string[] {
@@ -109,11 +110,40 @@ describe("For-you/Search toggle — one mount, one shape", () => {
         assert.match(src, /createPortal\(homeViewToggleEl, dockedHomeViewMount\)/);
         assert.match(src, /!homeViewDockActive && showHomeViewToggle/, "the same toggle must also render inline when not docked (mobile / below lg)");
 
+        const homeViewToggleBlock =
+            src.match(/const homeViewToggleEl = showHomeViewToggle \?[\s\S]*?\) : null;/)?.[0] ?? "";
+        assert.ok(homeViewToggleBlock.length > 0, "homeViewToggleEl assignment not found");
+        assert.doesNotMatch(
+            homeViewToggleBlock,
+            /JOBS_TAB_HELPER/,
+            "helper copy must not be inside the portaled toggle element",
+        );
+
         const hookSrc = readFileSync(join(SRC, "hooks/use-docked-slot-mount.ts"), "utf8");
         assert.match(
             hookSrc,
             /document\.querySelector\(`\[data-testid="\$\{testId\}"\]`\)/,
             "the shared hook must actually look up the slot by the testId it was given",
+        );
+    });
+
+    it("TopBar band row clears the For you/Search pill via --jobs-filter-row-h", () => {
+        const topBar = readFileSync(TOP_BAR, "utf8");
+        const bandRow =
+            topBar.match(/data-region="band"[\s\S]*?<div className="shell-row[^"]*"/)?.[0] ?? "";
+        assert.ok(bandRow.length > 0, "band row not found");
+        assert.match(
+            bandRow,
+            /min-h-\[var\(--jobs-filter-row-h\)\]/,
+            "band row must use the filter-row token for min-height",
+        );
+        assert.doesNotMatch(bandRow, /\bh-10\b/, "band row must not use a fixed h-10");
+
+        const globals = readFileSync(GLOBALS, "utf8");
+        assert.match(
+            globals,
+            /--jobs-filter-row-h:\s*calc\(2\.75rem \+ 1rem\)/,
+            "filter row token must clear min-h-11 pill plus padding",
         );
     });
 

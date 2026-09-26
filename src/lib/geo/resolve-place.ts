@@ -85,6 +85,13 @@ export const PLACE_RADIUS_MAX_NEIGHBORS = 40;
 
 export type LocationField = PlaceFilter["field"];
 
+/** Options for city resolution radius expansion. Default (omit or
+ *  `radius: true`) keeps metro neighbors for free-text queries; explicit
+ *  location filters pass `{ radius: false }` for city-strict matching. */
+export interface ResolvePlaceOptions {
+  radius?: boolean;
+}
+
 export interface PlaceCandidate {
   field: LocationField;
   /** Candidate text in gazetteer casing — NOT yet known to exist in the
@@ -185,40 +192,65 @@ export function countryPlaceCandidates(iso2: string, gazetteer: Gazetteer): Plac
 }
 
 /**
- * Every `PlaceClause` in src is built here; the caller states whether the
- * clause is a country filter (`opts.country`) rather than handing in an
- * entity type — a caller working from a raw corpus literal, not a
- * `PlaceResolution`, has no entity type to hand in at all. Ruling (Vivek,
- * Sep 2026): a remote job with no geographic restriction must be listed
- * under ANY country filter. Data fact (live-verified against the Meili
- * `jobs` index): that set is exactly `work_type = "remote" AND
- * location_country IS NULL` (52,512 docs all-dates; `IS EMPTY` and
- * `NOT EXISTS` both measured 0). `opts.country: true` stamps
- * `remoteAnywhere: true` on unconditionally; a specific city/admin1/region
- * (or a literal that isn't a country reading) never gets this.
+ * Every `PlaceClause` in src is built here. `opts.country` is documentary
+ * for callers that need to record a country-shaped clause; widening is
+ * controlled separately by `opts.remoteAnywhere`.
  *
- * The five callers, each deciding `opts.country` from the fact it actually
- * has:
- *  - `parsePlaceTokens` (query-understanding.ts) — a typed/picked country
- *    facet the gazetteer resolved: `entity.type === "country"`.
- *  - `resolveLocationDefault` (ip-default.ts) — the IP-geolocated default:
- *    always a country.
- *  - `placesForCountry` (ip-default.ts) — the cached cold-visit /jobs front
- *    door: always a country.
- *  - `resolvePhraseOrRawLiteral` (query-understanding.ts) — the raw-literal
- *    fallback for a phrase the gazetteer can't resolve at all but the corpus
- *    has as an exact value: a country iff one of the exact hits landed on
- *    `location_country` (see that call site's comment).
- *  - `resolveLocationFacet`'s picked-value loop (query-understanding.ts) —
- *    a clicked city/state suggestion: never a country by construction
- *    (`PICKED_LOCATION_FIELDS` excludes `location_country`), so always
- *    `false`.
+ * Ruling (Vivek, Sep 2026): untagged remote roles (`work_type = "remote"
+ * AND `location_country IS NULL`, live-verified) belong in the IP geo
+ * default's result set — the chip honestly reads "United States · Remote".
+ * They do NOT belong in an explicit country pick (`?country=Canada`): the
+ * chip/URL say Canada, not "Canada · Remote".
+ *
+ * Callers that set `remoteAnywhere: true`:
+ *  - `resolveLocationDefault` (ip-default.ts)
+ *  - `placesForCountry` (ip-default.ts)
+ *
+ * Explicit typed/picked country paths (`parsePlaceTokens`,
+ * `resolvePhraseOrRawLiteral`, `resolveLocationFacet`) pass
+ * `remoteAnywhere` omitted/false even when `opts.country` is true.
  */
-export function placeClause(any: PlaceFilter[], opts: { country: boolean; scopedToCountry?: PlaceFilter[] }): PlaceClause {
+export function placeClause(
+  any: PlaceFilter[],
+  opts: { country?: boolean; remoteAnywhere?: boolean; scopedToCountry?: PlaceFilter[] },
+): PlaceClause {
   const clause: PlaceClause =
     opts.scopedToCountry && opts.scopedToCountry.length > 0 ? { any, scopedToCountry: opts.scopedToCountry } : { any };
-  if (opts.country) clause.remoteAnywhere = true;
+  if (opts.remoteAnywhere) clause.remoteAnywhere = true;
   return clause;
+}
+
+/** True when every filter in `any` is `location_country` — a bare country or
+ *  region expansion, with no city/state disambiguation. Phrase-bound work
+ *  modes (`workTypes`) mean an independent intent like "remote canada" and
+ *  are never dropped beside a city clause. */
+function isDroppableCountryOnlyClause(clause: PlaceClause): boolean {
+  return (
+    clause.any.length > 0 &&
+    clause.any.every((f) => f.field === "location_country") &&
+    (clause.workTypes?.length ?? 0) === 0
+  );
+}
+
+function clauseHasCity(clause: PlaceClause): boolean {
+  return clause.any.some((f) => f.field === "location_city");
+}
+
+/**
+ * When a resolved place list already constrains `location_city`, drop sibling
+ * country-only clauses before `buildFilter` ORs them — otherwise a city chip
+ * "Toronto" paired with country "Canada" (or typed "Toronto, Canada" with a
+ * bare Canada alternative) widens to every Canadian posting, including
+ * Halifax, St. John's, Vancouver, and Den Haag rows mislabeled Canada.
+ * Idempotent. State/admin1 and multi-city ORs are preserved. A country clause
+ * that carries phrase-bound `workTypes` ("remote canada" beside "hybrid
+ * toronto") is an independent place intent and is kept, not folded onto the
+ * city. `remoteAnywhere` is never added.
+ */
+export function preferStrictCity(places: PlaceClause[]): PlaceClause[] {
+  if (!places.some(clauseHasCity)) return places;
+  if (!places.some(isDroppableCountryOnlyClause)) return places;
+  return places.filter((c) => !isDroppableCountryOnlyClause(c));
 }
 
 /** A region/continent phrase ("North America", "EMEA", ...) resolves to ONE
@@ -340,7 +372,7 @@ function ambiguousCityNames(gazetteer: Gazetteer): Set<string> {
   return names;
 }
 
-function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution | null {
+function resolveCity(normalized: string, gazetteer: Gazetteer, opts?: ResolvePlaceOptions): PlaceResolution | null {
   const matches = gazetteer.citiesByName.get(normalized);
   if (!matches || matches.length === 0) return null;
   // A bare name can be ambiguous worldwide (many "Springfield"s) — the
@@ -372,7 +404,9 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
     seen.add(key);
     candidates.push({ field: "location_city", value });
   }
-  for (const neighbor of radiusNeighbors(primary, gazetteer)) addCity(neighbor);
+  if (opts?.radius !== false) {
+    for (const neighbor of radiusNeighbors(primary, gazetteer)) addCity(neighbor);
+  }
   const country = gazetteer.countriesByIso2.get(primary.countryCode.toUpperCase());
   const ambiguous = ambiguousCityNames(gazetteer);
   const scoped = scopeCityCandidates(
@@ -536,13 +570,18 @@ const PLACE_ALIASES: Readonly<Record<string, PlaceAlias>> = {
  *  running against doesn't actually have the aliased entity (e.g. a small
  *  hand-built test fixture) — same fail-open shape every other resolver
  *  here has. */
-function resolveAlias(alias: PlaceAlias, wordsConsumed: number, gazetteer: Gazetteer): PlaceResolution | null {
+function resolveAlias(
+  alias: PlaceAlias,
+  wordsConsumed: number,
+  gazetteer: Gazetteer,
+  opts?: ResolvePlaceOptions,
+): PlaceResolution | null {
   if (alias.kind === "metro") {
     const candidates: PlaceCandidate[] = [];
     let entity: ResolvedPlaceEntity | undefined;
     let countryScope: PlaceCandidate[] = [];
     for (const name of alias.anchors) {
-      const r = resolveCity(name, gazetteer);
+      const r = resolveCity(name, gazetteer, opts);
       if (!r) continue;
       candidates.push({ field: "location_city", value: r.entity.name });
       if (!entity) {
@@ -552,8 +591,8 @@ function resolveAlias(alias: PlaceAlias, wordsConsumed: number, gazetteer: Gazet
     }
     return entity ? { entity, candidates, countryScope, wordsConsumed } : null;
   }
-  const resolver = alias.kind === "country" ? resolveCountry : resolveCity;
-  const r = resolver(alias.canonical, gazetteer);
+  const r =
+    alias.kind === "country" ? resolveCountry(alias.canonical, gazetteer) : resolveCity(alias.canonical, gazetteer, opts);
   return r ? { ...r, wordsConsumed } : null;
 }
 
@@ -577,6 +616,7 @@ export function resolvePlacePhrase(
   phrase: string,
   gazetteer: Gazetteer,
   guardCommonWords = false,
+  opts?: ResolvePlaceOptions,
 ): PlaceResolution | null {
   const normalized = phrase.trim().toLowerCase();
   // Runs BEFORE the alias lookup so a genuinely ambiguous alias key ("us",
@@ -586,7 +626,7 @@ export function resolvePlacePhrase(
   if (guardCommonWords && !normalized.includes(" ") && GUARD_WORDS.has(normalized)) return null;
 
   const alias = PLACE_ALIASES[normalized];
-  if (alias) return resolveAlias(alias, normalized.split(" ").length, gazetteer);
+  if (alias) return resolveAlias(alias, normalized.split(" ").length, gazetteer, opts);
 
   // Renamed-city redirect (CITY_NAME_VARIANTS) — same priority tier as
   // PLACE_ALIASES and for the same reason: must win outright over the
@@ -601,7 +641,7 @@ export function resolvePlacePhrase(
   // here has.
   const renamedCanonical = CITY_NAME_VARIANTS[normalized];
   if (renamedCanonical) {
-    const r = resolveCity(renamedCanonical, gazetteer);
+    const r = resolveCity(renamedCanonical, gazetteer, opts);
     return r ? { ...r, wordsConsumed: normalized.split(" ").length } : null;
   }
 
@@ -626,7 +666,7 @@ export function resolvePlacePhrase(
       wordsConsumed: normalized.split(" ").length,
     };
   }
-  return resolveCity(normalized, gazetteer);
+  return resolveCity(normalized, gazetteer, opts);
 }
 
 export interface PlaceScan {
@@ -649,7 +689,12 @@ export interface PlaceScan {
  * `guardCommonWords` passes straight through to `resolvePlacePhrase` on
  * every candidate phrase this scan tries (see that function's doc).
  */
-export function scanPlacePhrases(q: string, gazetteer: Gazetteer, guardCommonWords = false): PlaceScan {
+export function scanPlacePhrases(
+  q: string,
+  gazetteer: Gazetteer,
+  guardCommonWords = false,
+  opts?: ResolvePlaceOptions,
+): PlaceScan {
   const tokens = q.split(/[\s,;/\-–—()]+/).filter(Boolean);
   const resolutions: PlaceResolution[] = [];
   const kept: string[] = [];
@@ -657,7 +702,7 @@ export function scanPlacePhrases(q: string, gazetteer: Gazetteer, guardCommonWor
   while (i < tokens.length) {
     let matched: PlaceResolution | null = null;
     for (let len = Math.min(gazetteer.maxGram, tokens.length - i); len >= 1 && !matched; len--) {
-      matched = resolvePlacePhrase(tokens.slice(i, i + len).join(" "), gazetteer, guardCommonWords);
+      matched = resolvePlacePhrase(tokens.slice(i, i + len).join(" "), gazetteer, guardCommonWords, opts);
     }
     if (matched) {
       resolutions.push({ ...matched, startIndex: i });

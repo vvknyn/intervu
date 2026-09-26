@@ -12,7 +12,6 @@ import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
-import { TourTrigger } from "@/components/tour/TourTrigger";
 import { getSiteUrl, LANDING_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME } from "@/lib/seo/constants";
 import {
   buildJobSearchFaqJsonLd,
@@ -165,7 +164,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${display.variable} ${sans.variable} ${mono.variable} antialiased bg-background text-foreground`}
+        className={`${display.variable} ${sans.variable} ${mono.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box
@@ -206,14 +205,13 @@ export default function RootLayout({
                   pages rendered none. Page-level `<main>`s were converted to
                   `<div>` (classes untouched) so this is the only one; `tabIndex=
                   {-1}` lets the skip link above actually move focus here. */}
-              <main id="main" tabIndex={-1}>
+              <main id="main" tabIndex={-1} className="flex-1 flex flex-col">
               {children}
               </main>
               </SearchDockProvider>
               <Footer />
               <MobileTabBar />
               <TourOverlay />
-              <TourTrigger />
               <Toaster />
             </TourProvider>
             </IconDefaultsProvider>

@@ -1,4 +1,8 @@
 import type { NextConfig } from "next";
+import { applyWorkOsRedirectUriBridge } from "./src/lib/auth/workos-redirect-uri-env";
+
+// AuthKit only reads NEXT_PUBLIC_WORKOS_REDIRECT_URI; bridge before any route loads.
+applyWorkOsRedirectUriBridge();
 
 /**
  * Pragmatic Content-Security-Policy for the Intervu stack.

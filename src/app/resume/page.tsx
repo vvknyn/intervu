@@ -12,15 +12,16 @@ import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
 import { RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
-const RESUME_SUBCOPY = "Your one base resume. Connect your AI to tailor a version for each role.";
+const RESUME_SUBCOPY = "Get For you, Strong/Good/Stretch fit, Customize, and tailored PDFs for each role.";
 
 function ResumeHeader() {
-    return <PageHeader fullWidth sticky={false} title="Resume" description={RESUME_SUBCOPY} />;
+    return <PageHeader fullWidth sticky={false} title="One résumé unlocks your personalized job search." description={RESUME_SUBCOPY} />;
 }
 
 function ResumeAuthSkeleton() {
@@ -44,11 +45,11 @@ function ResumeAuthSkeleton() {
 export function SignedOutEmptyState({ onUploadClick }: { onUploadClick: () => void }) {
     return (
         <div className="py-8 text-left">
-            <h2 className="text-base font-semibold text-foreground">Add your base resume</h2>
+            <h2 className="text-base font-semibold text-foreground">One résumé unlocks your personalized job search.</h2>
             <p className="mt-1 text-sm text-foreground">{RESUME_UPLOAD_PROMISE}</p>
             <Button size="sm" onClick={onUploadClick} className="mt-4 rounded-ctl font-semibold">
                 <UploadSimple size={16} className="mr-1.5" aria-hidden />
-                Upload resume
+                Upload résumé
             </Button>
         </div>
     );
@@ -96,13 +97,19 @@ function ResumeContent() {
         }
     }, [user, authReady]);
 
-    // Edit/PDF gate an action whose label is NOT "sign in" (the click's
-    // intent is to edit/export, not to authenticate) — auto, same as the
-    // apply/save gates elsewhere. "Sign up to sync" and every `onLoginClick`
-    // below render nothing but a sign-in affordance — user.
-    const openAuth = (trigger: AuthGateTrigger) => {
-        setAuthTrigger(trigger);
-        setAuthOpen(true);
+    const openResumeAuth = () => {
+        setAuthTrigger("user");
+        recordAuthGateOpen({
+            storage: window.sessionStorage,
+            reason: "resume",
+            trigger: "user",
+            originSurface: "resume_page",
+        });
+        if (!localResume) {
+            gate({ kind: "upload", payload: true }, { originSurface: "resume_page", gateReason: "resume" });
+        } else {
+            setAuthOpen(true);
+        }
     };
 
     const handleImportResume = (data: ResumeData) => {
@@ -111,25 +118,9 @@ function ResumeContent() {
         setImportModalOpen(false);
     };
 
-    // THE single entry point for opening the résumé importer on this page —
-    // both the empty-state "Upload resume" button and the local-résumé
-    // "Replace" button go through this, not `setImportModalOpen(true)`
-    // directly, mirroring `beginResumeUpload` on /jobs (same shape: guard +
-    // `gate()` in the signed-out branch, direct open when already signed
-    // in). Sign-in is unconditional: a signed-out visitor never reaches the
-    // importer, even to replace a résumé that's already on this device
-    // (product ruling, 2026-09-17: résumé upload requires sign-in to grow
-    // signups). Review fix (2026-09-17): was a bare `openAuth("auto")` with
-    // no post-auth replay — the importer never opened after sign-in. Now
-    // routes through `gate({ kind: "upload" })`, the same pending-actions
-    // mechanism /jobs uses, so `handlers.upload` above reopens it exactly
-    // once, whichever way the user authenticates.
+    // Opens the importer for guests and signed-in users. Cloud sync (Edit,
+    // PDF, Sign up to sync) is the auth path — see `openResumeAuth`.
     const beginResumeUpload = () => {
-        if (!user) {
-            setAuthTrigger("auto");
-            gate({ kind: "upload", payload: true });
-            return;
-        }
         setImportModalOpen(true);
     };
 
@@ -157,7 +148,7 @@ function ResumeContent() {
                                 <div className="flex items-center gap-2.5">
                                     <FileText size={20} className="text-brand shrink-0" />
                                     <div>
-                                        <p className="text-sm font-semibold text-foreground">Local resume on this device</p>
+                                        <p className="text-sm font-semibold text-foreground">Local résumé on this device</p>
                                         <p className="text-xs text-muted-foreground">Create a free account to edit in the full builder, export formatted PDFs, and sync across devices.</p>
                                     </div>
                                 </div>
@@ -173,7 +164,7 @@ function ResumeContent() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => openAuth("auto")}
+                                        onClick={() => openResumeAuth()}
                                         className="rounded-ctl text-xs font-semibold"
                                     >
                                         <PencilSimple size={16} className="mr-1" />
@@ -182,7 +173,7 @@ function ResumeContent() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => openAuth("auto")}
+                                        onClick={() => openResumeAuth()}
                                         className="rounded-ctl text-xs font-semibold"
                                     >
                                         <DownloadSimple size={16} className="mr-1" />
@@ -190,7 +181,7 @@ function ResumeContent() {
                                     </Button>
                                     <Button
                                         size="sm"
-                                        onClick={() => openAuth("user")}
+                                        onClick={() => openResumeAuth()}
                                         className="rounded-ctl text-xs font-semibold"
                                     >
                                         Sign up to sync
@@ -205,7 +196,7 @@ function ResumeContent() {
                 ) : (
                     <YourResumeSection
                         user={user}
-                        onLoginClick={() => openAuth("user")}
+                        onLoginClick={() => openResumeAuth()}
                         embedded
                         onEditorActiveChange={setEditorOpen}
                     />
@@ -215,8 +206,8 @@ function ResumeContent() {
                     isOpen={importModalOpen}
                     onClose={() => setImportModalOpen(false)}
                     onImport={handleImportResume}
-                    title="Upload your base resume"
-                    description="Drop your existing resume to parse into your base profile."
+                    title="Upload your base résumé"
+                    description={RESUME_UPLOAD_PROMISE}
                     storageNote="Your résumé and the parsed result stay in this browser."
                 />
 

@@ -9,6 +9,7 @@ import {
     descriptionWaitCopy,
     descriptionWaitPhase,
 } from "@/lib/jobs/for-you/description-wait-copy";
+import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
 
 /**
  * Thin I/O wrapper around `descriptionWaitPhase`/`descriptionWaitCopy`
@@ -16,8 +17,15 @@ import {
  * owns only the elapsed-ms clock, not the copy decision. Remounts with the
  * rest of `ForYouPack` on every `key={activePack.id}` change (ForYouDeck.tsx),
  * so the clock always starts fresh for whichever card is loading.
+ *
+ * While start/wait: rotating quirky-encouraging JD lines (breaks spinner monotony).
+ * Stall/failed stay fixed — those are honesty signals, not ambience.
+ *
+ * `onRetry` is optional: when the copy ladder reaches "failed" (past the
+ * fetch deadline), a "Try again" control re-kicks the caller's hydrate
+ * instead of leaving "Couldn't load the full posting right now." forever.
  */
-export function DescriptionLoadingStatus() {
+export function DescriptionLoadingStatus({ onRetry }: { onRetry?: () => void } = {}) {
     const [elapsedMs, setElapsedMs] = useState(0);
 
     useEffect(() => {
@@ -32,13 +40,36 @@ export function DescriptionLoadingStatus() {
     const copy = descriptionWaitCopy(phase);
 
     if (phase === "failed") {
-        return <p className="text-sm text-muted-foreground">{copy}</p>;
+        return (
+            <div className="space-y-2" data-testid="for-you-jd-load-failed">
+                <p className="text-sm text-muted-foreground">{copy}</p>
+                {onRetry ? (
+                    <button
+                        type="button"
+                        onClick={onRetry}
+                        data-testid="for-you-jd-retry"
+                        className="text-sm font-semibold text-brand underline-offset-4 hover:underline"
+                    >
+                        Try again
+                    </button>
+                ) : null}
+            </div>
+        );
+    }
+
+    if (phase === "stall") {
+        return (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="for-you-jd-load-stall">
+                <CircleNotch size={16} className="animate-spin" aria-hidden />
+                {copy}
+            </p>
+        );
     }
 
     return (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CircleNotch size={16} className="animate-spin" aria-hidden />
-            {copy}
-        </p>
+        <RotatingLoadingCopy
+            variant="jd"
+            leading={<CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
+        />
     );
 }

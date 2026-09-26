@@ -39,7 +39,7 @@ describe("JobDetail guest chrome", () => {
         assert.doesNotMatch(src, />\s*Apply\s*</, "no surface should hardcode a bare, unlabeled Apply string");
         assert.doesNotMatch(src, /"Apply on Company Site"/, "no surface should re-type the label literal instead of importing it");
         assert.match(src, /\{APPLY_BUTTON_LABEL\}/, "every Apply surface must render the shared constant");
-        assert.equal(APPLY_BUTTON_LABEL, "Apply on Company Site");
+        assert.equal(APPLY_BUTTON_LABEL, "Apply on employer site");
     });
 
     it("save control is the shared row bookmark, not a labeled Save button", () => {

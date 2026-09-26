@@ -139,7 +139,10 @@
      search box landed underneath it. */
   --topbar-h: 48px;
   --jobs-sticky-offset: var(--topbar-h);
-  --jobs-filter-row-h: 36px;
+  /* Docked TopBar band min-height — must clear the For you/Search pill
+     (min-h-11) plus vertical padding. The band wraps; this floor keeps a
+     single line from collapsing under the pill. */
+  --jobs-filter-row-h: calc(2.75rem + 1rem);
   --jobs-bar-content-gap: 8px;
   --jobs-sticky-gap: 24px;
   /* Single source for the /jobs results list's horizontal inset. The results
@@ -685,6 +688,65 @@ h4 {
   animation: panel-enter var(--transition-fast) ease-out both;
 }
 
+/* Ambient Marquee & Scanline animations for landing background */
+@keyframes marquee-scroll-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes marquee-scroll-right {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes scanline-sweep {
+  0% {
+    transform: translateY(-20%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.5;
+  }
+  85% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(120%);
+    opacity: 0;
+  }
+}
+
+.animate-marquee-left {
+  animation: marquee-scroll-left 40s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-right {
+  animation: marquee-scroll-right 45s linear infinite;
+  will-change: transform;
+}
+
+.animate-scanline {
+  animation: scanline-sweep 7s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee-left,
+  .animate-marquee-right,
+  .animate-scanline {
+    animation: none;
+  }
+}
+
 /* Composes --topbar-h + --jobs-sticky-gap for any surface that sits below
    the fixed header with the same clearance the jobs list uses — a single
    chokepoint so the two tokens can move without hunting down every site
@@ -1028,4 +1090,9 @@ select {
 body[data-scroll-locked] [data-testid="mobile-search-cta"],
 body[data-scroll-locked] [data-testid="apply-return-prompt"] {
   display: none !important;
+}
+
+.landing-radial-mask {
+  background: radial-gradient(ellipse 900px 580px at 50% 50%, var(--background) 75%, transparent 100%);
+  opacity: 0.95;
 }

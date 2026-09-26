@@ -17,15 +17,13 @@ describe("for-you mobile chrome", () => {
         assert.doesNotMatch(src, /text-xs/, "segments use the chip text size (text-sm), not text-xs");
     });
 
-    it("ForYouHome's preference row wraps and its Edit link shares the toolbar's tap-target height", () => {
+    it("ForYouHome keeps pack navigation and skip controls at phone-friendly tap targets", () => {
         const src = readFileSync(join(FOR_YOU, "ForYouHome.tsx"), "utf8");
-        assert.match(src, /data-testid="for-you-preferences"/);
-        assert.match(src, /flex shrink-0 flex-wrap items-center gap-2/);
-        assert.match(src, /import \{ toolbarChipClass \} from "@\/lib\/jobs\/toolbar-control-height"/);
-        const editLinkBlock =
-            src.match(/<Link\s+href="\/settings"[\s\S]*?<\/Link>/)?.[0] ?? "";
-        assert.match(editLinkBlock, /toolbarChipClass/);
-        assert.match(editLinkBlock, /Edit preferences/);
+        assert.doesNotMatch(src, /for-you-preferences/, "preference chips are Search-only");
+        assert.match(src, /data-testid="for-you-skip"/);
+        assert.match(src, /data-testid="for-you-next"/);
+        assert.match(src, /data-testid="for-you-previous"/);
+        assert.match(src, /h-11 min-h-11[\s\S]*data-testid="for-you-skip"/);
     });
 
     it("LocalCustomizePanel dialog and footer actions are phone-friendly", () => {
@@ -58,5 +56,52 @@ describe("for-you mobile chrome", () => {
     it("ApplyIntentDialog uses dvh for mobile viewport height", () => {
         const src = readFileSync(join(JOBS, "ApplyIntentDialog.tsx"), "utf8");
         assert.match(src, /max-h-\[85dvh\]/);
+    });
+
+    it("ApplyIntentDialog uses p-0 shell with explicit px-6 zone padding", () => {
+        const src = readFileSync(join(JOBS, "ApplyIntentDialog.tsx"), "utf8");
+        assert.match(
+            src,
+            /DialogContent className="[^"]*\bp-0\b[^"]*"/,
+            "DialogContent must override primitive p-6 with p-0",
+        );
+        assert.match(src, /shrink-0 px-6 pt-6 pr-12/, "header zone must carry px-6");
+        assert.match(
+            src,
+            /overflow-y-auto px-6/,
+            "middle scroller must carry px-6",
+        );
+        assert.match(
+            src,
+            /border-t border-border px-6/,
+            "footer zone must carry px-6",
+        );
+    });
+
+    it("ForYouDeck exposes swipe navigate + touch-pan-y for phone deck", () => {
+        const src = readFileSync(join(FOR_YOU, "ForYouDeck.tsx"), "utf8");
+        assert.match(src, /onSwipeNavigate/);
+        assert.match(src, /touch-pan-y/);
+        assert.match(src, /resolveDeckSwipe/);
+        assert.match(src, /data-testid="for-you-deck"/);
+    });
+
+    it("CategoryHubGrid hub is touch-first with safe-area and full-width CTAs", () => {
+        const src = readFileSync(join(JOBS, "CategoryHubGrid.tsx"), "utf8");
+        assert.match(src, /data-testid="job-packs-hub"/);
+        assert.match(src, /safe-area-inset-bottom/);
+        assert.match(src, /touch-manipulation/);
+        assert.match(src, /min-h-11 w-full/);
+        assert.match(src, /min-h-\[5\.75rem\]/);
+    });
+
+    it("ApplyReturnPrompt is Yes / Not yet / Skip with thumb-sized targets", () => {
+        const src = readFileSync(join(JOBS, "ApplyReturnPrompt.tsx"), "utf8");
+        assert.match(src, />\s*Yes\s*</);
+        assert.match(src, />\s*Not yet\s*</);
+        assert.match(src, /data-testid="apply-return-skip"/);
+        assert.match(src, /min-h-11/);
+        assert.match(src, /safe-area-inset-bottom/);
+        assert.doesNotMatch(src, />\s*I applied\s*</);
     });
 });

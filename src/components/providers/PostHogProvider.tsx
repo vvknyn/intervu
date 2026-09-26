@@ -13,6 +13,7 @@ import {
 import { identityAction } from "@/lib/posthog-identity";
 import { captureEvent } from "@/lib/analytics/events";
 import { consumeSignupSignalFromDocumentCookie } from "@/lib/auth/authkit-signup-signal";
+import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from "@/lib/auth/gate-attempt";
 
 // intervu reuses subspace's PostHog project/key — no separate project, no
 // dashboard step. In-project demarcation is the `product` super property
@@ -67,7 +68,13 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       if (action === "identify" && uid) {
         posthog.identify(uid);
         const method = consumeSignupSignalFromDocumentCookie();
-        if (method) captureEvent("signup_completed", { method });
+        const attempt = readGateAttempt(window.sessionStorage);
+        if (method) {
+          captureEvent("signup_completed", { method, ...gateAttemptEventFields(attempt) });
+        }
+        // Login and signup both end the gate attempt. Clear after capture so a
+        // later unrelated account entry cannot inherit fit/save/tailor/resume.
+        if (method || attempt) clearGateAttempt(window.sessionStorage);
       }
       if (action === "reset") posthog.reset();
       identified = uid;

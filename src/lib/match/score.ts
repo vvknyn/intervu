@@ -82,8 +82,30 @@ export const MATCH_WEIGHTS: Readonly<Record<MatchComponentKey, number>> = {
     location: 0.10,
 };
 
-/** Chip renders with a brand-color outline at/above this total; below it, the default muted border. */
-export const MATCH_CHIP_BRAND_THRESHOLD = 75;
+/** Qualitative fit bands on the 0–100 integer `MatchScore.total` scale. */
+export type MatchBand = "stretch" | "good" | "strong";
+
+/** Lower bound (inclusive) for Good — Stretch is strictly below this. */
+export const MATCH_BAND_GOOD_MIN = 60;
+/** Lower bound (inclusive) for Strong — Good is 60–79 inclusive. */
+export const MATCH_BAND_STRONG_MIN = 80;
+
+/** Chip renders with a brand-color outline for Strong (≥80); below it, the default muted border. */
+export const MATCH_CHIP_BRAND_THRESHOLD = MATCH_BAND_STRONG_MIN;
+
+/** Maps a 0–100 match total to Stretch / Good / Strong. */
+export function matchBand(score: number): MatchBand {
+    if (!Number.isFinite(score)) return "stretch";
+    if (score >= MATCH_BAND_STRONG_MIN) return "strong";
+    if (score >= MATCH_BAND_GOOD_MIN) return "good";
+    return "stretch";
+}
+
+export function matchBandLabel(band: MatchBand): "Stretch" | "Good" | "Strong" {
+    if (band === "strong") return "Strong";
+    if (band === "good") return "Good";
+    return "Stretch";
+}
 
 /**
  * Years-of-experience → seniority label, upper-bound-inclusive per tier

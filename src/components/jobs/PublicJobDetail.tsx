@@ -10,6 +10,9 @@ import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { ApplyReturnPrompt, useApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
+import { GuestApplyTrackPrompt, type GuestApplyTrackRecord } from "@/components/jobs/GuestApplyTrackPrompt";
+import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
+import type { AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { fetchResumeData } from "@/actions/resume";
 import { JobDetail, JobDetailActionBar } from "@/components/jobs/JobDetail";
 import { JobDetailDocument } from "@/components/jobs/JobDetailDocument";
@@ -24,6 +27,7 @@ import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { shortDate } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
+import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
@@ -78,7 +82,11 @@ export function PublicJobDetail({
     const [goingAfter, setGoingAfter] = useState(false);
     const [applyIntentOpen, setApplyIntentOpen] = useState(false);
     const [user, setUser] = useState<User | null>(() => getCurrentUser());
+    const [authReady, setAuthReady] = useState(() => getCurrentUser() !== null);
+    const [resumeSettled, setResumeSettled] = useState(false);
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
+    const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
+    const [guestTrackPrompt, setGuestTrackPrompt] = useState<GuestApplyTrackRecord | null>(null);
     // Controls the report dialog from outside `ReportJobButton` so a
     // post-auth replay (see `useAuthGate` below) can reopen the exact
     // dialog the user was filling out before sign-in.
@@ -86,7 +94,14 @@ export function PublicJobDetail({
     const router = useRouter();
     const { byJobId } = usePursuits();
 
-    useEffect(() => onAuthChange(setUser), []);
+    useEffect(
+        () =>
+            onAuthChange((nextUser) => {
+                setUser(nextUser);
+                setAuthReady(true);
+            }),
+        [],
+    );
 
     // Same résumé read path `/jobs` uses (`fetchResumeData` →
     // `resume_last_updated`, see actions/resume.ts) so the detail-header chip
@@ -94,6 +109,8 @@ export function PublicJobDetail({
     const [resume, setResume] = useState<ResumeData | null>(null);
     const [resumeAsOfDate, setResumeAsOfDate] = useState<string | null>(null);
     useEffect(() => {
+        if (!authReady) return;
+
         if (!user) {
             if (readLocalAiEnabled()) {
                 const stored = readLocalAiResume();
@@ -109,24 +126,40 @@ export function PublicJobDetail({
                 setResume(null);
                 setResumeAsOfDate(null);
             }
+            setResumeSettled(true);
             return;
         }
+
         let cancelled = false;
+        setResumeSettled(false);
         fetchResumeData()
             .then(({ data, updatedAt }) => {
-                if (cancelled || !data || !resumeIsUsable(data)) return;
+                if (cancelled) return;
+                if (!data || !resumeIsUsable(data)) {
+                    setResume(null);
+                    setResumeAsOfDate(null);
+                    return;
+                }
                 setResume(data);
                 const ms = updatedAt ? Date.parse(updatedAt) : NaN;
                 setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
             })
             .catch(() => {
-                /* no résumé on file — no chip, no nagging */
+                if (!cancelled) {
+                    setResume(null);
+                    setResumeAsOfDate(null);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setResumeSettled(true);
             });
         return () => {
             cancelled = true;
         };
-    }, [user]);
+    }, [user, authReady]);
     const matchScore = resume ? scoreJobAgainstResume(resume, job) : null;
+    const matchScoreFor = (target: PublicJob) => (resume ? scoreJobAgainstResume(resume, target) : null);
+    const matchPending = !authReady || !resumeSettled;
 
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
@@ -177,8 +210,19 @@ export function PublicJobDetail({
         user,
     });
 
-    const openAuth = (reason: AuthGateReason | null = null) => {
+    const openAuth = (reason: AuthGateReason | null = null, trigger: AuthGateTrigger = "user") => {
+        const effectiveReason = reason ?? "generic";
+        if (trigger === "user" && effectiveReason !== "generic") {
+            recordAuthGateOpen({
+                storage: window.sessionStorage,
+                reason: effectiveReason,
+                trigger,
+                originSurface: "job_detail",
+                jobId: job.id,
+            });
+        }
         setAuthGateReason(reason);
+        setAuthTrigger(trigger);
         setAuthOpen(true);
     };
 
@@ -200,18 +244,21 @@ export function PublicJobDetail({
             });
             if (res.error) {
                 if (classifySentinel(res.error) === "auth") {
-                    openAuth("apply");
+                    openAuth("tracker", "user");
                 } else {
                     toast.error(`Could not save: ${res.error}`);
                 }
                 return;
             }
             invalidatePursuitsCache();
-            captureEvent("job_marked_applied", { job_id: target.id });
+            captureEvent("job_marked_applied", {
+                job_id: target.id,
+                ...matchAnalyticsProps(target.id === job.id ? matchScoreFor(job) : null),
+            });
             toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
-                openAuth("apply");
+                openAuth("tracker", "user");
             } else {
                 toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
             }
@@ -236,8 +283,6 @@ export function PublicJobDetail({
     // `<AuthPopover>` mount below hardcodes `trigger="auto"`.
     const handleOpenPosting = useGatedApply<PublicJob>({
         user,
-        gate,
-        setAuthGateReason,
         perform: (target) => {
             if (target.apply_url && shouldPromptApplyIntent()) {
                 setApplyIntentOpen(true);
@@ -245,12 +290,29 @@ export function PublicJobDetail({
             }
             openPostingNow(target);
         },
+        onGuestApplied: (target) => {
+            setGuestTrackPrompt({ jobId: target.id, title: target.title });
+        },
     });
+
+    const handleGuestTrackSignIn = () => {
+        setAuthGateReason("tracker");
+        setAuthTrigger("user");
+        recordAuthGateOpen({
+            storage: window.sessionStorage,
+            reason: "tracker",
+            trigger: "user",
+            originSurface: "job_detail",
+            jobId: job.id,
+        });
+        gate({ kind: "apply", payload: job }, { originSurface: "job_detail", gateReason: "tracker" });
+        setGuestTrackPrompt(null);
+    };
 
     const handleGoAfter = (target: PublicJob) => {
         if (!user) {
             if (getGuestSaveCount() >= 1) {
-                openAuth("save");
+                openAuth("save", "user");
                 return;
             }
             addGuestPursuit(target);
@@ -259,7 +321,10 @@ export function PublicJobDetail({
             // A guest's first save is a real save — same placement rule as
             // jobs/page.tsx's handleGoAfter: after the gate branch above (which
             // returns instead of saving), so a rejected click never counts.
-            captureEvent("job_saved", { job_id: target.id });
+            captureEvent("job_saved", {
+                job_id: target.id,
+                ...matchAnalyticsProps(matchScoreFor(target)),
+            });
             return;
         }
         void (async () => {
@@ -276,7 +341,10 @@ export function PublicJobDetail({
                 }
                 invalidatePursuitsCache();
                 toast.success(GUEST_SAVE_TOAST);
-                captureEvent("job_saved", { job_id: target.id });
+                captureEvent("job_saved", {
+                    job_id: target.id,
+                    ...matchAnalyticsProps(matchScoreFor(target)),
+                });
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     openAuth("save");
@@ -303,7 +371,15 @@ export function PublicJobDetail({
     // dialog once the user is back, same as Apply.
     const requireReportAuth = () => {
         setAuthGateReason("report");
-        gate({ kind: "report", payload: job });
+        setAuthTrigger("user");
+        recordAuthGateOpen({
+            storage: window.sessionStorage,
+            reason: "report",
+            trigger: "user",
+            originSurface: "job_detail",
+            jobId: job.id,
+        });
+        gate({ kind: "report", payload: job }, { originSurface: "job_detail", gateReason: "report" });
     };
 
     return (
@@ -312,20 +388,25 @@ export function PublicJobDetail({
                 job={job}
                 open={applyIntentOpen}
                 onOpenChange={setApplyIntentOpen}
-                onContinue={() => openPostingNow(job)}
+                onContinue={() => {
+                    if (user) armApplyReturnJob(job);
+                }}
             />
             <AuthPopover
                 open={authOpen}
                 onOpenChange={setAuthOpen}
                 onAuthed={onAuthed}
                 showTrigger={false}
-                trigger="auto"
+                trigger={authTrigger}
+                originSurface="job_detail"
+                jobId={job.id}
+                signedIn={Boolean(user)}
                 valueLine={
                     authGateReason
                         ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length)
                         : undefined
                 }
-                defaultTab={authGateReason === "apply" ? "signup" : "login"}
+                defaultTab={authGateReason === "tracker" ? "signup" : "login"}
                 reason={authGateReason ?? undefined}
             />
             {layout === "document" ? (
@@ -345,11 +426,14 @@ export function PublicJobDetail({
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
                     matchAsOfDate={resumeAsOfDate}
+                    matchPending={matchPending}
                     resume={resume}
                     onAcceptLocalTailor={(data) => {
                         setResume(data);
                         if (readLocalAiEnabled()) writeLocalAiResume(data);
                     }}
+                    onUploadResume={() => router.push("/resume")}
+                    onSignInToSync={() => openAuth("tailor", "user")}
                 />
             ) : (
                 <JobDetail
@@ -371,11 +455,14 @@ export function PublicJobDetail({
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
                     matchAsOfDate={resumeAsOfDate}
+                    matchPending={matchPending}
                     resume={resume}
                     onAcceptLocalTailor={(data) => {
                         setResume(data);
                         if (readLocalAiEnabled()) writeLocalAiResume(data);
                     }}
+                    onUploadResume={() => router.push("/resume")}
+                    onSignInToSync={() => openAuth("tailor", "user")}
                 />
             )}
             {/* Document layout already has its own sticky-rail Apply card at
@@ -394,8 +481,20 @@ export function PublicJobDetail({
                     onGoAfter={() => handleGoAfter(job)}
                     pursuit={byJobId.get(job.id)}
                     goingAfter={goingAfter}
+                    resume={resume}
+                    onAcceptLocalTailor={(data) => {
+                        setResume(data);
+                        if (readLocalAiEnabled()) writeLocalAiResume(data);
+                    }}
+                    onUploadResume={() => router.push("/resume")}
+                    onSignInToSync={() => openAuth("tailor", "user")}
                 />
             )}
+            <GuestApplyTrackPrompt
+                record={guestTrackPrompt}
+                onSignIn={handleGuestTrackSignIn}
+                onDismiss={() => setGuestTrackPrompt(null)}
+            />
             <ApplyReturnPrompt
                 record={applyReturnPrompt}
                 onMarkApplied={markApplyReturnApplied}

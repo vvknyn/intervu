@@ -152,10 +152,10 @@ test.describe("FOR-YOU-DECK — Skip advances exactly one card and survives a vi
         await expect(page.getByTestId("for-you-pack").first()).toBeVisible();
         const beforeToggle = await packIdentity(page);
 
-        await page.getByRole("tab", { name: "Search" }).click();
+        await page.getByRole("tab", { name: "Search all jobs" }).click();
         await expect(page.getByTestId("for-you-home")).toHaveCount(0);
 
-        await page.getByRole("tab", { name: "For you" }).click();
+        await page.getByRole("tab", { name: "For you · résumé" }).click();
         await waitForDeckReady(page);
         const afterToggle = await packIdentity(page);
 

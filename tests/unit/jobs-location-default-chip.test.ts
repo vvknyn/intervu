@@ -18,6 +18,10 @@ test("shouldShowLocationDefaultChip: hides once the searcher has chosen their ow
   assert.equal(shouldShowLocationDefaultChip("CA", ["Toronto"]), false);
 });
 
+test("shouldShowLocationDefaultChip: hides when Canada is chosen — stale US default chip must not show", () => {
+  assert.equal(shouldShowLocationDefaultChip("US", ["Canada"]), false);
+});
+
 test("shouldShowLocationDefaultChip: hides for every chosen place, not just the first", () => {
   // The case a `[0]`-only check would miss: the chip must not reappear
   // because some later entry is the interesting one.
@@ -89,4 +93,11 @@ test("buildDockedChips: remoteAnywhere=true appends \"· Remote\" to the chip la
 
   const undefinedRemote = buildDockedChips("CA", undefined, []);
   assert.equal(undefinedRemote[0].label, "Canada", "undefined must behave like false, not throw or say '· Remote'");
+});
+
+test("buildDockedChips: remoteAnywhere=true with a separate Remote work-type chip omits Remote from the country label", () => {
+  const chips = buildDockedChips("CA", true, [{ key: "work_type:remote", label: "Work mode · Remote" }]);
+  assert.equal(chips.length, 2);
+  assert.equal(chips[0].label, "Canada");
+  assert.equal(chips[1].label, "Work mode · Remote");
 });

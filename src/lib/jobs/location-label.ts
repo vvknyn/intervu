@@ -65,7 +65,7 @@ export function locationTriggerLabel(
     //
     // It deliberately has no `work_type`/remote check, because the server's
     // own gate doesn't either: `hasLocationSignal` (lib/geo/ip-default.ts)
-    // only looks at `suppressLocationDefault`/`places`/`facets.location_country`,
+    // only looks at `suppressLocationDefault`/`places`/location facets,
     // so picking "Remote" does NOT suppress the default server-side —
     // `buildFilter` (lib/jobs/meilisearch.ts) ANDs the `work_type = remote`
     // clause with the detected country's `places` clause, so results really
