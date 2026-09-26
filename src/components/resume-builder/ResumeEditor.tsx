@@ -261,12 +261,12 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             className={cn(
                 // Height subtracts only global chrome (TopBar + mobile tab bar).
                 // Page header/tabs are hidden while this editor is open.
-                "relative flex h-[calc(100dvh-7.25rem-env(safe-area-inset-bottom,0px))] min-h-0 flex-col overflow-hidden rounded-panel border border-border bg-card lg:h-[calc(100dvh-4.5rem)]",
+                "relative flex h-[calc(100dvh-7.25rem-env(safe-area-inset-bottom,0px))] min-h-0 flex-col overflow-hidden rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] lg:h-[calc(100dvh-4.5rem)]",
                 className,
             )}
         >
             {/* Top Toolbar */}
-            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 py-2.5 sm:px-6 sm:py-3">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-surface-2 px-3 py-2.5 shadow-[var(--shadow-bevel-highlight)] sm:px-6 sm:py-3">
                 <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                     <Button
                         type="button"
@@ -283,11 +283,11 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                             Live template editor
                         </span>
                         {hasUnsavedChanges ? (
-                            <span className="shrink-0 rounded-pill bg-muted px-2 py-0.5 text-xs font-semibold text-warn dark:text-warn border border-warn">
+                            <span className="shrink-0 rounded-pill bg-surface-3 px-2 py-0.5 text-xs font-semibold text-warn border border-warn">
                                 Unsaved
                             </span>
                         ) : (
-                            <span className="inline-flex shrink-0 items-center gap-1 rounded-pill bg-muted px-2 py-0.5 text-xs font-semibold text-live dark:text-live border border-live">
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-pill bg-surface-3 px-2 py-0.5 text-xs font-semibold text-live border border-live">
                                 <Check weight="bold" /> Saved
                             </span>
                         )}
@@ -317,7 +317,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         onClick={() => setShowDiffs(!showDiffs)}
                         className={cn(
                             "gap-1 text-xs rounded-ctl",
-                            showDiffs && "border-warn text-warn dark:text-warn",
+                            showDiffs && "border-warn text-warn",
                         )}
                         title="Toggle visual diff highlights"
                     >
@@ -371,14 +371,20 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             </div>
 
             {/* Mobile View Selector */}
-            <div className="flex lg:hidden border-b border-border bg-muted p-1">
+            <div
+                role="tablist"
+                aria-label="Editor or preview"
+                className="flex lg:hidden border-b border-border bg-muted p-0.5"
+            >
                 <button
                     type="button"
+                    role="tab"
+                    aria-selected={mobileTab === "edit"}
                     onClick={() => setMobileTab("edit")}
                     className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-ctl transition-colors",
+                        "flex-1 flex min-h-10 items-center justify-center gap-1.5 rounded-pill py-1.5 text-xs font-semibold transition-colors",
                         mobileTab === "edit"
-                            ? "bg-card text-foreground border border-border"
+                            ? "bg-surface text-foreground shadow-[var(--shadow-bevel-highlight)]"
                             : "text-muted-foreground hover:text-foreground",
                     )}
                 >
@@ -386,11 +392,13 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                 </button>
                 <button
                     type="button"
+                    role="tab"
+                    aria-selected={mobileTab === "preview"}
                     onClick={() => setMobileTab("preview")}
                     className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-ctl transition-colors",
+                        "flex-1 flex min-h-10 items-center justify-center gap-1.5 rounded-pill py-1.5 text-xs font-semibold transition-colors",
                         mobileTab === "preview"
-                            ? "bg-card text-foreground border border-border"
+                            ? "bg-surface text-foreground shadow-[var(--shadow-bevel-highlight)]"
                             : "text-muted-foreground hover:text-foreground",
                     )}
                 >
@@ -403,7 +411,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                 {/* Left Side: Editor */}
                 <div
                     className={cn(
-                        "w-full lg:w-1/2 flex-col overflow-hidden border-border lg:border-r bg-card",
+                        "w-full lg:w-1/2 flex-col overflow-hidden border-border lg:border-r bg-surface",
                         mobileTab === "edit" ? "flex" : "hidden lg:flex",
                     )}
                 >
@@ -418,7 +426,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                 {/* Right Side: Live Template Preview */}
                 <div
                     className={cn(
-                        "flex-1 bg-muted p-4 sm:p-6 lg:p-8 overflow-y-auto overflow-x-hidden items-start justify-center",
+                        "flex-1 bg-background p-4 sm:p-6 lg:p-8 overflow-y-auto overflow-x-hidden items-start justify-center",
                         mobileTab === "preview" ? "flex" : "hidden lg:flex",
                     )}
                 >
@@ -429,7 +437,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                             </span>
                             <div className="flex items-center gap-3">
                                 {showDiffs && (
-                                    <span className="text-xs text-warn dark:text-warn font-semibold flex items-center gap-1">
+                                    <span className="text-xs text-warn font-semibold flex items-center gap-1">
                                         <GitDiff />
                                         <span className="max-w-52 truncate">
                                             {compareBaseline ? `Comparing to "${compareBaseline.label}"` : "Comparing to last saved"}
@@ -464,7 +472,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
 
                 {/* Version History Drawer / Slide-Over */}
                 {versionsOpen && (
-                    <div className="absolute inset-y-0 right-0 z-40 w-full sm:w-96 bg-background border-l border-border flex flex-col animate-in slide-in-from-right duration-200">
+                    <div className="absolute inset-y-0 right-0 z-40 w-full sm:w-96 bg-surface-2 border-l border-border flex flex-col animate-in slide-in-from-right duration-200 shadow-[var(--shadow-overlay)]">
                         {/* Drawer Header */}
                         <div className="flex items-center justify-between border-b border-border p-4">
                             <div className="flex items-center gap-2">
@@ -485,7 +493,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         {/* Drawer Body */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-5">
                             {/* Save current state as named snapshot */}
-                            <div className="rounded-panel border border-border bg-card p-3.5 space-y-2.5">
+                            <div className="rounded-panel border border-border bg-surface p-3.5 space-y-2.5 shadow-[var(--shadow-bevel-highlight)]">
                                 <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                                     <BookmarkSimple />
                                     <span>Save Current as New Version</span>
@@ -541,7 +549,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         {versions.map((ver) => (
                                             <div
                                                 key={ver.id}
-                                                className="rounded-panel border border-border bg-card p-3 space-y-2 text-xs transition-colors hover:border-foreground"
+                                                className="rounded-panel border border-border bg-surface p-3 space-y-2 text-xs transition-colors hover:border-border-strong"
                                             >
                                                 <div className="flex items-start justify-between gap-2">
                                                     <span className="font-semibold text-foreground leading-tight">
@@ -599,7 +607,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => handleCompareVersion(ver)}
-                                                                className="h-7 text-xs gap-1 rounded-ctl flex-1 text-warn dark:text-warn"
+                                                                className="h-7 text-xs gap-1 rounded-ctl flex-1 text-warn"
                                                             >
                                                                 <GitDiff /> Compare
                                                             </Button>

@@ -70,13 +70,13 @@ function SectionWrapper({
             className={cn(
                 "relative group cursor-pointer transition-all duration-150 rounded-ctl p-1 -m-1",
                 isSelected
-                    ? "ring-2 ring-live bg-muted dark:bg-muted"
+                    ? "ring-2 ring-live bg-verdict-good-bg"
                     : isHovered
-                        ? "ring-1 ring-placeholder-text bg-muted dark:bg-border"
+                        ? "ring-1 ring-border-strong bg-verdict-good-bg"
                         : changeStatus === "modified"
-                            ? "bg-muted ring-1 ring-warn"
+                            ? "bg-verdict-caution-bg ring-1 ring-warn"
                             : changeStatus === "new"
-                                ? "bg-muted ring-1 ring-live"
+                                ? "bg-verdict-good-bg ring-1 ring-live"
                                 : "",
                 wrapperClass,
             )}
@@ -87,7 +87,7 @@ function SectionWrapper({
             {diffBadge}
             {children}
             {isHovered && !isSelected && (
-                <span className="absolute top-1 right-1 flex items-center gap-1 rounded-pill bg-foreground text-white px-1.5 py-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="absolute top-1 right-1 flex items-center gap-1 rounded-pill bg-surface-postcard-foreground text-surface-postcard px-1.5 py-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                     <PencilSimple /> Edit
                 </span>
             )}
@@ -219,15 +219,15 @@ export function LiveResumePreview({
         const changeStatus = getChangeStatus("summary");
         return (
             <SectionWrapper id="summary" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
-                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
+                <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Professional Summary
                 </h2>
                 {data.generatedSummary ? (
-                    <p className="text-xs leading-relaxed text-justify text-foreground dark:text-muted-foreground whitespace-pre-line">
+                    <p className="text-xs leading-relaxed text-justify text-surface-postcard-foreground whitespace-pre-line">
                         {data.generatedSummary}
                     </p>
                 ) : (
-                    <p className="text-placeholder-text italic text-xs text-center py-1">
+                    <p className="text-surface-postcard-muted italic text-xs text-center py-1">
                         Click to add professional summary
                     </p>
                 )}
@@ -241,11 +241,11 @@ export function LiveResumePreview({
         const changeStatus = getChangeStatus("skills");
         return (
             <SectionWrapper id="skills" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
-                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
+                <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Core Competencies
                 </h2>
                 {hasSkills ? (
-                    <div className="space-y-0.5 text-xs leading-snug text-foreground dark:text-muted-foreground">
+                    <div className="space-y-0.5 text-xs leading-snug text-surface-postcard-foreground">
                         {data.competencies.map((comp, index) => (
                             <div key={comp.category || index}>
                                 <span className="font-semibold">{comp.category}: </span>
@@ -254,7 +254,7 @@ export function LiveResumePreview({
                         ))}
                     </div>
                 ) : (
-                    <p className="text-placeholder-text italic text-xs text-center py-1">
+                    <p className="text-surface-postcard-muted italic text-xs text-center py-1">
                         Click to add core competencies & skills
                     </p>
                 )}
@@ -267,11 +267,11 @@ export function LiveResumePreview({
         if (!hasExp && !onEdit && removedExperiences.length === 0) return null;
         return (
             <SectionWrapper id="experience" className="mb-2.5" ctx={ctx}>
-                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
+                <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Professional Experience
                 </h2>
                 {hasExp || removedExperiences.length > 0 ? (
-                    <div className="space-y-2 text-foreground dark:text-muted-foreground">
+                    <div className="space-y-2 text-surface-postcard-foreground">
                         {data.experience.map((exp, index) => {
                             const itemStatus = getChangeStatus("experience", exp.id);
                             return (
@@ -280,9 +280,9 @@ export function LiveResumePreview({
                                     className={cn(
                                         "space-y-0.5 relative transition-colors rounded-panel",
                                         itemStatus === "modified" &&
-                                            "bg-muted border-l-2 border-warn pl-1 -ml-1",
+                                            "bg-verdict-caution-bg border-l-2 border-warn pl-1 -ml-1",
                                         itemStatus === "new" &&
-                                            "bg-muted border-l-2 border-live pl-1 -ml-1",
+                                            "bg-verdict-good-bg border-l-2 border-live pl-1 -ml-1",
                                     )}
                                 >
                                     <div className="flex justify-between items-baseline text-xs">
@@ -290,23 +290,23 @@ export function LiveResumePreview({
                                             <span className="font-semibold">{exp.role || "Job Title"}</span>
                                             {exp.company && (
                                                 <>
-                                                    <span className="mx-1 text-placeholder-text">|</span>
+                                                    <span className="mx-1 text-surface-postcard-muted">|</span>
                                                     <span className="">{exp.company}</span>
                                                 </>
                                             )}
                                             {itemStatus === "modified" && (
-                                                <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded-pill font-semibold">
+                                                <span className="ml-1.5 text-xs text-warn bg-verdict-caution-bg px-1 py-0.5 rounded-pill font-semibold">
                                                     Edited
                                                 </span>
                                             )}
                                             {itemStatus === "new" && (
-                                                <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded-pill font-semibold">
+                                                <span className="ml-1.5 text-xs text-live bg-verdict-good-bg px-1 py-0.5 rounded-pill font-semibold">
                                                     New
                                                 </span>
                                             )}
                                         </div>
                                         {exp.dates && (
-                                            <span className="text-xs italic text-muted-foreground dark:text-border whitespace-nowrap ml-2">
+                                            <span className="text-xs italic text-surface-postcard-muted whitespace-nowrap ml-2">
                                                 {exp.dates}
                                             </span>
                                         )}
@@ -318,7 +318,7 @@ export function LiveResumePreview({
                                                 .filter((line) => line.trim())
                                                 .map((line, i) => (
                                                     <li key={i} className="flex leading-snug">
-                                                        <span className="mr-1.5 text-muted-foreground shrink-0">•</span>
+                                                        <span className="mr-1.5 text-surface-postcard-muted shrink-0">•</span>
                                                         <span className="text-justify">{line.replace(/^[•\-\*]\s*/, "")}</span>
                                                     </li>
                                                 ))}
@@ -332,14 +332,14 @@ export function LiveResumePreview({
                         {removedExperiences.map((exp, index) => (
                             <div
                                 key={`removed-${exp.id || index}`}
-                                className="space-y-0.5 opacity-50 bg-muted border-l-2 border-danger-text pl-1 -ml-1 line-through"
+                                className="space-y-0.5 opacity-50 bg-verdict-risk-bg border-l-2 border-danger-text pl-1 -ml-1 line-through"
                             >
                                 <div className="flex justify-between items-baseline text-xs">
                                     <div>
                                         <span className="font-semibold">{exp.role || "Job Title"}</span>
                                         <span className="mx-1">|</span>
                                         <span>{exp.company || "Company"}</span>
-                                        <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded-pill font-semibold not-italic no-underline inline-block">
+                                        <span className="ml-1.5 text-xs text-danger-text bg-verdict-risk-bg px-1 py-0.5 rounded-pill font-semibold not-italic no-underline inline-block">
                                             Removed
                                         </span>
                                     </div>
@@ -351,7 +351,7 @@ export function LiveResumePreview({
                         ))}
                     </div>
                 ) : (
-                    <p className="text-placeholder-text italic text-xs text-center py-1">
+                    <p className="text-surface-postcard-muted italic text-xs text-center py-1">
                         Click to add professional experience
                     </p>
                 )}
@@ -364,11 +364,11 @@ export function LiveResumePreview({
         if (!hasEdu && !onEdit && removedEducations.length === 0) return null;
         return (
             <SectionWrapper id="education" className="mb-2.5" ctx={ctx}>
-                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
+                <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Education & Professional Development
                 </h2>
                 {hasEdu || removedEducations.length > 0 ? (
-                    <div className="space-y-1 text-xs text-foreground dark:text-muted-foreground">
+                    <div className="space-y-1 text-xs text-surface-postcard-foreground">
                         {data.education.map((edu, index) => {
                             const itemStatus = getChangeStatus("education", edu.id);
                             return (
@@ -377,38 +377,38 @@ export function LiveResumePreview({
                                     className={cn(
                                         "flex justify-between items-baseline leading-snug rounded-panel",
                                         itemStatus === "modified" &&
-                                            "bg-muted border-l-2 border-warn pl-1 -ml-1",
+                                            "bg-verdict-caution-bg border-l-2 border-warn pl-1 -ml-1",
                                         itemStatus === "new" &&
-                                            "bg-muted border-l-2 border-live pl-1 -ml-1",
+                                            "bg-verdict-good-bg border-l-2 border-live pl-1 -ml-1",
                                     )}
                                 >
                                     <div>
                                         <span className="font-semibold">{edu.degree}</span>
-                                        {edu.institution && <span className="text-muted-foreground"> | {edu.institution}</span>}
+                                        {edu.institution && <span className="text-surface-postcard-muted"> | {edu.institution}</span>}
                                         {itemStatus === "modified" && (
-                                            <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded-pill font-semibold">
+                                            <span className="ml-1.5 text-xs text-warn bg-verdict-caution-bg px-1 py-0.5 rounded-pill font-semibold">
                                                 Edited
                                             </span>
                                         )}
                                         {itemStatus === "new" && (
-                                            <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded-pill font-semibold">
+                                            <span className="ml-1.5 text-xs text-live bg-verdict-good-bg px-1 py-0.5 rounded-pill font-semibold">
                                                 New
                                             </span>
                                         )}
                                         {edu.gpa && (
-                                            <div className="text-xs text-muted-foreground">GPA: {edu.gpa}</div>
+                                            <div className="text-xs text-surface-postcard-muted">GPA: {edu.gpa}</div>
                                         )}
                                         {edu.honours?.length ? (
-                                            <div className="text-xs text-muted-foreground">Honours: {edu.honours.join(", ")}</div>
+                                            <div className="text-xs text-surface-postcard-muted">Honours: {edu.honours.join(", ")}</div>
                                         ) : null}
                                         {edu.coursework?.length ? (
-                                            <div className="text-xs text-muted-foreground">Relevant coursework: {edu.coursework.join(", ")}</div>
+                                            <div className="text-xs text-surface-postcard-muted">Relevant coursework: {edu.coursework.join(", ")}</div>
                                         ) : null}
                                         {edu.activities?.length ? (
-                                            <div className="text-xs text-muted-foreground">Activities: {edu.activities.join(", ")}</div>
+                                            <div className="text-xs text-surface-postcard-muted">Activities: {edu.activities.join(", ")}</div>
                                         ) : null}
                                     </div>
-                                    {edu.year && <span className="text-xs italic text-muted-foreground">({edu.year})</span>}
+                                    {edu.year && <span className="text-xs italic text-surface-postcard-muted">({edu.year})</span>}
                                 </div>
                             );
                         })}
@@ -416,12 +416,12 @@ export function LiveResumePreview({
                         {removedEducations.map((edu, index) => (
                             <div
                                 key={`removed-edu-${edu.id || index}`}
-                                className="flex justify-between items-baseline leading-snug opacity-50 bg-muted border-l-2 border-danger-text pl-1 -ml-1 line-through"
+                                className="flex justify-between items-baseline leading-snug opacity-50 bg-verdict-risk-bg border-l-2 border-danger-text pl-1 -ml-1 line-through"
                             >
                                 <div>
                                     <span className="font-semibold">{edu.degree}</span>
                                     {edu.institution && <span> | {edu.institution}</span>}
-                                    <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded-pill font-semibold not-italic no-underline inline-block">
+                                    <span className="ml-1.5 text-xs text-danger-text bg-verdict-risk-bg px-1 py-0.5 rounded-pill font-semibold not-italic no-underline inline-block">
                                         Removed
                                     </span>
                                 </div>
@@ -430,7 +430,7 @@ export function LiveResumePreview({
                         ))}
                     </div>
                 ) : (
-                    <p className="text-placeholder-text italic text-xs text-center py-1">
+                    <p className="text-surface-postcard-muted italic text-xs text-center py-1">
                         Click to add education & credentials
                     </p>
                 )}
@@ -443,11 +443,11 @@ export function LiveResumePreview({
         if (!hasProj && !onEdit && removedProjects.length === 0) return null;
         return (
             <SectionWrapper id="projects" className="mb-2.5" ctx={ctx}>
-                <h2 className="text-xs font-semibold text-center border-b border-foreground pb-0.5 mb-1">
+                <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Projects
                 </h2>
                 {hasProj || removedProjects.length > 0 ? (
-                    <div className="space-y-2 text-foreground dark:text-muted-foreground">
+                    <div className="space-y-2 text-surface-postcard-foreground">
                         {(data.projects ?? []).map((proj, index) => {
                             const itemStatus = getChangeStatus("projects", proj.id);
                             return (
@@ -456,9 +456,9 @@ export function LiveResumePreview({
                                     className={cn(
                                         "space-y-0.5 relative transition-colors rounded-panel",
                                         itemStatus === "modified" &&
-                                            "bg-muted border-l-2 border-warn pl-1 -ml-1",
+                                            "bg-verdict-caution-bg border-l-2 border-warn pl-1 -ml-1",
                                         itemStatus === "new" &&
-                                            "bg-muted border-l-2 border-live pl-1 -ml-1",
+                                            "bg-verdict-good-bg border-l-2 border-live pl-1 -ml-1",
                                     )}
                                 >
                                     <div className="flex justify-between items-baseline text-xs">
@@ -466,23 +466,23 @@ export function LiveResumePreview({
                                             <span className="font-semibold">{proj.role || "Project Name"}</span>
                                             {proj.company && (
                                                 <>
-                                                    <span className="mx-1 text-placeholder-text">|</span>
+                                                    <span className="mx-1 text-surface-postcard-muted">|</span>
                                                     <span className="">{proj.company}</span>
                                                 </>
                                             )}
                                             {itemStatus === "modified" && (
-                                                <span className="ml-1.5 text-xs text-warn bg-muted px-1 py-0.5 rounded-pill font-semibold">
+                                                <span className="ml-1.5 text-xs text-warn bg-verdict-caution-bg px-1 py-0.5 rounded-pill font-semibold">
                                                     Edited
                                                 </span>
                                             )}
                                             {itemStatus === "new" && (
-                                                <span className="ml-1.5 text-xs text-live bg-muted px-1 py-0.5 rounded-pill font-semibold">
+                                                <span className="ml-1.5 text-xs text-live bg-verdict-good-bg px-1 py-0.5 rounded-pill font-semibold">
                                                     New
                                                 </span>
                                             )}
                                         </div>
                                         {proj.dates && (
-                                            <span className="text-xs italic text-muted-foreground dark:text-border whitespace-nowrap ml-2">
+                                            <span className="text-xs italic text-surface-postcard-muted whitespace-nowrap ml-2">
                                                 {proj.dates}
                                             </span>
                                         )}
@@ -494,7 +494,7 @@ export function LiveResumePreview({
                                                 .filter((line) => line.trim())
                                                 .map((line, i) => (
                                                     <li key={i} className="flex leading-snug">
-                                                        <span className="mr-1.5 text-muted-foreground shrink-0">•</span>
+                                                        <span className="mr-1.5 text-surface-postcard-muted shrink-0">•</span>
                                                         <span className="text-justify">{line.replace(/^[•\-\*]\s*/, "")}</span>
                                                     </li>
                                                 ))}
@@ -507,7 +507,7 @@ export function LiveResumePreview({
                         {removedProjects.map((proj, index) => (
                             <div
                                 key={`removed-${proj.id || index}`}
-                                className="space-y-0.5 opacity-50 bg-muted border-l-2 border-danger-text pl-1 -ml-1 line-through"
+                                className="space-y-0.5 opacity-50 bg-verdict-risk-bg border-l-2 border-danger-text pl-1 -ml-1 line-through"
                             >
                                 <div className="flex justify-between items-baseline text-xs">
                                     <div>
@@ -518,7 +518,7 @@ export function LiveResumePreview({
                                                 <span>{proj.company}</span>
                                             </>
                                         )}
-                                        <span className="ml-1.5 text-xs text-danger-text bg-muted px-1 py-0.5 rounded-pill font-semibold not-italic no-underline inline-block">
+                                        <span className="ml-1.5 text-xs text-danger-text bg-verdict-risk-bg px-1 py-0.5 rounded-pill font-semibold not-italic no-underline inline-block">
                                             Removed
                                         </span>
                                     </div>
@@ -530,7 +530,7 @@ export function LiveResumePreview({
                         ))}
                     </div>
                 ) : (
-                    <p className="text-placeholder-text italic text-xs text-center py-1">
+                    <p className="text-surface-postcard-muted italic text-xs text-center py-1">
                         Click to add a project
                     </p>
                 )}
@@ -559,37 +559,43 @@ export function LiveResumePreview({
         <div
             className={cn(
                 printMode
-                    ? "bg-white text-foreground w-full"
+                    ? "bg-surface-postcard text-surface-postcard-foreground w-full"
                     // max-w-[8.5in]/min-h-[10.5in] below and the Times New Roman
                     // font simulate a real 8.5x11in printed page — a physical
                     // paper-dimension exception (not decorative), same class
                     // as the safe-area-inset/dvh calc exceptions elsewhere.
-                    : "bg-white text-foreground border border-border dark:border-border rounded-panel w-full max-w-[8.5in] mx-auto",
+                    : "bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)] rounded-panel w-full max-w-[8.5in] mx-auto",
                 className,
             )}
             style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}
         >
-            <div className={printMode ? "px-6 py-4 text-foreground" : "px-7 py-6 min-h-[10.5in] text-foreground"}>
+            <div
+                className={
+                    printMode
+                        ? "px-6 py-4 text-surface-postcard-foreground"
+                        : "px-7 py-6 min-h-[10.5in] text-surface-postcard-foreground"
+                }
+            >
                 {/* Header Section */}
-                <SectionWrapper id="header" className="text-center px-4 pb-2 mb-2.5 border-b border-foreground" changeStatus={headerChangeStatus} ctx={ctx}>
-                    <h1 className="text-xl font-semibold text-foreground mb-0.5">
+                <SectionWrapper id="header" className="text-center px-4 pb-2 mb-2.5 border-b border-surface-postcard-foreground" changeStatus={headerChangeStatus} ctx={ctx}>
+                    <h1 className="text-xl font-semibold text-surface-postcard-foreground mb-0.5">
                         {data.profile?.name || "Your Name"}
                     </h1>
                     {data.profile?.profession && (
-                        <div className="text-xs font-semibold text-foreground mb-1">
+                        <div className="text-xs font-semibold text-surface-postcard-foreground mb-1">
                             {data.profile.profession}
                         </div>
                     )}
-                    <div className="text-xs text-foreground flex flex-wrap items-center justify-center gap-x-1.5">
+                    <div className="text-xs text-surface-postcard-foreground flex flex-wrap items-center justify-center gap-x-1.5">
                         {contactItems.length > 0 ? (
                             contactItems.map((item, idx) => (
                                 <React.Fragment key={idx}>
-                                    {idx > 0 && <span className="text-placeholder-text">|</span>}
+                                    {idx > 0 && <span className="text-surface-postcard-muted">|</span>}
                                     <span>{item}</span>
                                 </React.Fragment>
                             ))
                         ) : (
-                            <span className="text-placeholder-text italic">Click to add contact details</span>
+                            <span className="text-surface-postcard-muted italic">Click to add contact details</span>
                         )}
                     </div>
                 </SectionWrapper>

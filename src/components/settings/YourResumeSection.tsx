@@ -218,7 +218,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
         );
         if (embedded) {
             return (
-                <div className="mb-3 rounded-panel border border-border bg-card p-4">
+                <div className="mb-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
                     {guestContent}
                 </div>
             );
@@ -288,7 +288,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
 
     if (embedded) {
         return (
-            <div className="mb-3 rounded-panel border border-border bg-card p-4">
+            <div className="mb-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
                 {content}
             </div>
         );
@@ -324,8 +324,8 @@ function ResumeSummaryBody({
 
     if (summary.source === "none") {
         return (
-            <div className="space-y-4 rounded-panel border border-border bg-card p-6 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-pill border border-border bg-muted text-foreground">
+            <div className="space-y-4 rounded-panel border border-border bg-surface p-6 text-center shadow-[var(--shadow-bevel-highlight)]">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-pill border border-border bg-surface-2 text-foreground shadow-[var(--shadow-bevel-inset)]">
                     <FileText size={24} />
                 </div>
                 <div className="space-y-1 max-w-sm mx-auto">
@@ -390,7 +390,7 @@ function ResumeSummaryBody({
     return (
         <div className="space-y-3">
             {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
-            <div className="max-h-96 overflow-y-auto bg-muted p-4">
+            <div className="max-h-96 overflow-y-auto rounded-panel border border-border bg-background p-4 sm:p-6">
                 <LiveResumePreview data={resumeData} />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">

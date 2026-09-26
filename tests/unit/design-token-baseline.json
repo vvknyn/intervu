@@ -20,7 +20,7 @@
     "size-arbitrary": 61,
     "padding-arbitrary": 14,
     "hex-literal": 0,
-    "shadow-utility": 20,
+    "shadow-utility": 19,
     "inline-style": 1
   },
   "yours": {
@@ -44,7 +44,7 @@
     "size-arbitrary": 8,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 0,
+    "shadow-utility": 27,
     "inline-style": 1
   },
   "tracker": {
@@ -68,7 +68,7 @@
     "size-arbitrary": 0,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 0,
+    "shadow-utility": 4,
     "inline-style": 0
   },
   "company": {

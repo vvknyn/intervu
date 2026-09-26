@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-    title: "Resume",
+    title: "Résumé",
     description: "Your base resume and any versions you've tailored for a specific role.",
     robots: { index: false, follow: false },
 };
