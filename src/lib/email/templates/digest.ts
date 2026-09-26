@@ -68,10 +68,10 @@ export function buildDigestEmail(model: DigestModel): { subject: string; html: s
         )
         .join("");
       return (
-        `<div style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:${C.brand};">${escapeHtml(countLabel(s))}</div>` +
+        `<div style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:${C.link};">${escapeHtml(countLabel(s))}</div>` +
         `<div style="margin:0 0 12px;font-size:17px;font-weight:700;letter-spacing:-0.01em;color:${C.ink};">${escapeHtml(SECTION_SUBJECT[s.kind](s.name))}</div>` +
         `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${C.line};border-radius:10px;margin:0 0 12px;">${rows}</table>` +
-        `<p style="margin:0 0 28px;"><a href="${s.seeAllHref}" style="font-size:13px;font-weight:600;color:${C.brand};text-decoration:none;">See all &rarr;</a></p>`
+        `<p style="margin:0 0 28px;"><a href="${s.seeAllHref}" style="font-size:13px;font-weight:600;color:${C.link};text-decoration:none;">See all &rarr;</a></p>`
       );
     })
     .join("");

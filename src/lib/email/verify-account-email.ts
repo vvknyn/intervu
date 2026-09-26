@@ -10,7 +10,7 @@
  * collected from someone who already has an account and may not remember
  * asking: what we'll send, and that ignoring it costs them nothing.
  */
-import { ctaButton, escapeHtml } from "./templates/base";
+import { ctaButton, escapeHtml, renderTransactionalEmailHtml } from "./templates/base";
 import { EMAIL_COLORS as C } from "./templates/palette";
 import { sendEmail } from "./send";
 
@@ -25,10 +25,18 @@ export function verifyAccountEmailContent(input: { verifyUrl: string }): {
     const ignoreLine = "If you didn't ask for this, ignore this email and nothing changes.";
 
     const text = [promiseLine, input.verifyUrl, ignoreLine].join("\n\n");
-    const html =
+    const bodyHtml =
         `<p style="margin:0 0 16px;">${escapeHtml(promiseLine)}</p>` +
         ctaButton(input.verifyUrl, "Confirm my email") +
         `<p style="margin:0;font-size:13px;color:${C.muted};">${escapeHtml(ignoreLine)}</p>`;
+    const siteUrl = (() => {
+        try {
+            return new URL(input.verifyUrl).origin;
+        } catch {
+            return undefined;
+        }
+    })();
+    const html = renderTransactionalEmailHtml({ bodyHtml, siteUrl });
 
     return { subject, text, html };
 }
