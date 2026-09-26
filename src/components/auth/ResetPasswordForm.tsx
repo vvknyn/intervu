@@ -7,6 +7,7 @@ import { CircleNotch, CheckCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
 
 export function ResetPasswordForm() {
     const router = useRouter();
@@ -67,25 +68,25 @@ export function ResetPasswordForm() {
 
     if (success) {
         return (
-            <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 below-topbar">
-                <div className="w-full max-w-100 rounded-panel border border-border bg-card p-8 text-center">
+            <AuthRouteLayout>
+                <AuthRaisedPanel className="text-center">
                     <div className="mb-6 flex justify-center">
                         <CheckCircle size={24} weight="fill" className="text-live" />
                     </div>
-                    <h2 className="text-xl font-semibold text-foreground mb-2">
+                    <h2 className="mb-2 text-xl font-semibold text-foreground">
                         Password updated
                     </h2>
                     <p className="text-sm text-muted-foreground">
                         Redirecting you to the app...
                     </p>
-                </div>
-            </div>
+                </AuthRaisedPanel>
+            </AuthRouteLayout>
         );
     }
 
     return (
-        <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 below-topbar">
-            <div className="w-full max-w-100 rounded-panel border border-border bg-card p-8">
+        <AuthRouteLayout>
+            <AuthRaisedPanel>
                 <div className="mb-8 text-center">
                     <h1 className="text-xl font-semibold text-foreground">
                         Set new password
@@ -112,7 +113,7 @@ export function ResetPasswordForm() {
                                 autoComplete="new-password"
                                 required
                                 minLength={6}
-                                className="rounded-ctl border border-border bg-card h-11 px-3 pr-14 text-base"
+                                className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"
                             />
                             <button
                                 type="button"
@@ -135,7 +136,7 @@ export function ResetPasswordForm() {
                                 autoComplete="new-password"
                                 required
                                 minLength={6}
-                                className="rounded-ctl border border-border bg-card h-11 px-3 pr-14 text-base"
+                                className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"
                             />
                             <button
                                 type="button"
@@ -164,7 +165,7 @@ export function ResetPasswordForm() {
                     </Button>
                 </form>
                 )}
-            </div>
-        </div>
+            </AuthRaisedPanel>
+        </AuthRouteLayout>
     );
 }

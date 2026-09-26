@@ -171,7 +171,7 @@ export function AuthPopover({
     if (!showTrigger) {
         return (
             <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-panel border border-border bg-card">
+                <DialogContent className="sm:max-w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain bg-surface-2 p-5 pt-7 sm:p-6 sm:pt-8">
                     <DialogTitle className="sr-only">{gateTitle ?? "Authentication"}</DialogTitle>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />
@@ -187,7 +187,7 @@ export function AuthPopover({
                     {AUTH_CTA_LABEL}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 sm:p-6 pt-7 sm:pt-8 rounded-panel border border-border bg-card">
+            <PopoverContent align="end" className="w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain bg-surface-2 p-5 pt-7 shadow-[var(--shadow-overlay)] sm:p-6 sm:pt-8">
                 <div>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />

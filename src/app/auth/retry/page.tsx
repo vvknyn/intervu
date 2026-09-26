@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AuthRetryClient } from "./auth-retry-client";
-import { RouteSuspenseFallback } from "@/components/ui/route-suspense-fallback";
+import { AuthRouteLoading } from "@/components/auth/auth-route-chrome";
 
 export const metadata: Metadata = {
     robots: { index: false, follow: false },
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function AuthRetryPage() {
     return (
-        <Suspense fallback={<RouteSuspenseFallback label="Loading" />}>
+        <Suspense fallback={<AuthRouteLoading label="Loading" />}>
             <AuthRetryClient />
         </Suspense>
     );

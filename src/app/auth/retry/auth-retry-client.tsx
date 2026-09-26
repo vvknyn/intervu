@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { Button } from "@/components/ui/button";
 import { validateNextParam } from "@/lib/auth/product-routes";
@@ -27,13 +28,15 @@ export function AuthRetryClient() {
     const retryHref = `/auth/start${next ? `?next=${encodeURIComponent(next)}` : ""}`;
 
     return (
-        <div className="mx-auto flex min-h-dvh max-w-120 flex-col items-center justify-center px-6 text-center">
-            <BrandLockup />
-            <h1 className="mt-4 text-xl font-semibold text-foreground">That sign-in link expired</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Try again.</p>
-            <Button asChild size="sm" className="mt-8">
-                <Link href={retryHref}>Try again</Link>
-            </Button>
-        </div>
+        <AuthRouteLayout>
+            <AuthRaisedPanel className="text-center">
+                <BrandLockup className="mx-auto w-fit" />
+                <h1 className="mt-4 text-xl font-semibold text-foreground">That sign-in link expired</h1>
+                <p className="mt-2 text-sm text-muted-foreground">Try again.</p>
+                <Button asChild size="lg" className="mt-8">
+                    <Link href={retryHref}>Try again</Link>
+                </Button>
+            </AuthRaisedPanel>
+        </AuthRouteLayout>
     );
 }
