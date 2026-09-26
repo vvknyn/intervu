@@ -655,7 +655,7 @@ export const DEFAULT_CATEGORY_HUBS: CategoryHubItem[] = [
     },
     {
         id: "ai",
-        label: "Artificial Intelligence",
+        label: "Artificial intelligence",
         countLabel: "",
         icon: Brain,
         badgeLabel: "AI & ML",
@@ -700,7 +700,7 @@ export const DEFAULT_CATEGORY_HUBS: CategoryHubItem[] = [
     },
     {
         id: "lead",
-        label: "Lead & Principal",
+        label: "Lead & principal",
         countLabel: "",
         icon: Crown,
         badgeLabel: "Leadership",
