@@ -27,10 +27,11 @@ const SERP_FILTERS_SRC = readFileSync(
 // `facetDistribution?.ghost_badge`, never referenced by name in
 // SerpFilters.tsx itself. The guard below has to scan that whole render
 // path, not SerpFilters.tsx alone, or it wrongly flags every bespoke-reader
-// key as unreferenced. (Formerly included GhostRadarCard.tsx — removed as dead code.)
+// key as unreferenced. FilterPanel.tsx holds ghost_badge / visa facet labels.
 const RENDER_PATH_SRC =
     SERP_FILTERS_SRC +
-    readFileSync(fileURLToPath(new URL("../../src/app/jobs/page.tsx", import.meta.url)), "utf8");
+    readFileSync(fileURLToPath(new URL("../../src/app/jobs/page.tsx", import.meta.url)), "utf8") +
+    readFileSync(fileURLToPath(new URL("../../src/components/jobs/FilterPanel.tsx", import.meta.url)), "utf8");
 
 // Phase 1-a #1: retry-policy decision — 5xx (transient) is retryable, 4xx
 // (the request itself is wrong) never is.
