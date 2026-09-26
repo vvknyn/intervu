@@ -17,7 +17,7 @@ type Postcard = {
 
 const POSTCARDS: Postcard[] = [
     {
-        title: "Remote AI roles",
+        title: "Remote AI Roles",
         meta: "Remote · Full-time",
         style: {
             top: "6%",
