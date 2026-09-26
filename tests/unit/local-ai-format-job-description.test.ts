@@ -6,7 +6,6 @@ import {
     hashJobDescription,
     jdSearchIndexSnippet,
     jdTemplateFilledSectionCount,
-    jdTemplateFilledSectionCount,
     jdTemplateHasContent,
     jdTemplateIsThin,
     resetJdFormatCacheForTests,
