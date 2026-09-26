@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Moon, Sun } from "@phosphor-icons/react";
@@ -8,7 +8,7 @@ import { onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
 import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { useTheme } from "@/components/providers/ThemeProvider";
-import { FOOTER_PROVENANCE_LINE, GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
+import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
 
 /** Quiet footer links — Research lives here (not primary nav). `fromCurrentPage`
  *  marks a link whose destination wants to know where the visitor was —
@@ -18,7 +18,6 @@ export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true 
     { label: "Research", href: "/research/ghost-jobs" },
     { label: "About", href: "/about" },
     { label: "Remote jobs", href: "/careers/remote-jobs" },
-    { label: "Canada jobs", href: "/careers/canada-jobs" },
     { label: "Company career pages", href: "/careers/company-career-pages" },
     { label: "Indeed alternative", href: "/indeed-alternative" },
     { label: "LinkedIn Jobs alternative", href: "/linkedin-jobs-alternative" },
@@ -94,20 +93,13 @@ export function FooterContent() {
                 they have to share its gutter or the frame is crooked. */}
             <div className="shell-row flex flex-col gap-2 sm:gap-2.5 py-3 sm:py-4">
                 <p className="max-w-md text-xs text-muted-foreground">
-                    {/* E1 (front-door redesign): link the screening clause to the
-                        proof page instead of just asserting it. Split on the
-                        single-source clause text (marketing-stats.ts) rather than
-                        a second hand-typed copy of the phrase. */}
-                    {FOOTER_PROVENANCE_LINE.split(GHOST_SCREENING_CLAUSE).map((part, i, parts) => (
-                        <Fragment key={i}>
-                            {part}
-                            {i < parts.length - 1 && (
-                                <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
-                                    {GHOST_SCREENING_CLAUSE}
-                                </Link>
-                            )}
-                        </Fragment>
-                    ))}
+                    {/* Provenance without the geo clause from marketing-stats — avoids
+                        the multi-country list on guest surfaces. */}
+                    Every listing is from companies&apos; own career pages,{" "}
+                    <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
+                        {GHOST_SCREENING_CLAUSE}
+                    </Link>
+                    . Never resold, never curated.
                 </p>
                 <FooterLinks>
                     {!user && mounted && (

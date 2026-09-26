@@ -105,14 +105,14 @@ function isAllRemoteStateEntries(parts: string[]): boolean {
 
 /** Decides the "Remote (<country>)" label from the actual set of codes in the
  *  list — never from the shape match alone. All-US codes -> "Remote (US)";
- *  all-Canada codes -> "Remote (Canada)"; anything else (a non-standard code,
+ *  all-Canada codes -> plain "Remote"; anything else (a non-standard code,
  *  or a mix of the two tables) -> plain "Remote", since guessing a country
  *  from a shape that doesn't uniquely belong to one would just move the
  *  false-positive from "US" to whichever country was guessed. */
 function remoteLabel(parts: string[]): string {
   const codes = parts.map((p) => REMOTE_STATE_ENTRY_RE.exec(p)![1]!.toUpperCase());
   if (codes.every((c) => US_STATE_CODES.has(c))) return "Remote (US)";
-  if (codes.every((c) => CANADA_PROVINCE_CODES.has(c))) return "Remote (Canada)";
+  if (codes.every((c) => CANADA_PROVINCE_CODES.has(c))) return "Remote";
   return "Remote";
 }
 

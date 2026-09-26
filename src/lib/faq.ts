@@ -17,10 +17,10 @@ export const JOB_SEARCH_FAQ: FaqItem[] = [
   {
     question: "How do I find the best remote and work-from-home jobs on Velai?",
     answer:
-      "Velai features a dedicated Remote filter and verified work-mode badges. Simply search for your desired role or tech stack (e.g. 'Software Engineer', 'AI Specialist', 'Data Analyst') and select the Remote filter to browse live, vetted work-from-home opportunities across Canada, the US, and worldwide.",
+      "Velai features a dedicated Remote filter and verified work-mode badges. Simply search for your desired role or tech stack (e.g. 'Software Engineer', 'AI Specialist', 'Data Analyst') and select the Remote filter to browse live, vetted work-from-home opportunities worldwide.",
   },
   {
-    question: "Are remote jobs in Canada and the United States verified on Velai?",
+    question: "Are remote jobs verified on Velai?",
     answer:
       "Yes, every remote listing is checked directly against the hiring company's live career portal. Velai records the posting's first-seen date, whether the employer's own page still lists the role, and the location and pay stated on the posting, and marks the role closed once it disappears from that page.",
   },
