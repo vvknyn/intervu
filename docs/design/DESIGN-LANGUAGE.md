@@ -206,15 +206,19 @@ Five roles. A component picks a role; it does not invent a size.
 | `text-meta` | Captions, labels, timestamps. |
 | `.mono-data` | Data strings, IDs, counts — the existing mono utility. |
 
-Fonts load once in `layout.tsx` via `next/font` and reach components only as `--font-display`,
-`--font-sans`, `--font-mono`. **Arbitrary sizes (`text-[28px]`, `text-[15px]`) are banned in new
-code.** The audit found five different mechanisms for an `h1` across public pages alone; that is
-what this table exists to stop.
+**Body/UI sans** is the deterministic system stack on `--font-sans` in `globals.css` (no body
+webfont). **Mono** and **Libre Franklin** (wordmark/OG only) still load via `next/font` in
+`layout.tsx` as `--font-mono` / `--font-display-face`. **`font-display`** aliases `--font-sans`.
+**Arbitrary sizes (`text-[28px]`, `text-[15px]`) are banned in new code.** The audit found five
+different mechanisms for an `h1` across public pages alone; that is what this table exists to stop.
 
 **OpenType on `body`:** `font-feature-settings: normal` only. Do not enable body-wide character
-variants (`cv*`) or stylistic sets (`ss*`) — Source Sans 3 mis-spaces common words when those
-features inherit everywhere. Letter-spacing for body and labels stays at the zeroed
+variants (`cv*`) or stylistic sets (`ss*`). Letter-spacing for body and labels stays at the zeroed
 `--tracking-*` tokens; only `--tracking-poster-hero` may tighten for the signed-out poster hero.
+
+**Typography guard (unit tests):** `--font-sans` must stay the system UI stack (no `--font-sans-face`
+/ Source Sans body webfont), alongside the existing checks for `font-feature-settings: normal` and
+bounded `--tracking-*` on body/label roles.
 
 ## Density — the rule that keeps marketing and app coherent
 
