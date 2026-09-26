@@ -3,6 +3,10 @@ import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { LegalDocHeader, LEGAL_H2 } from "@/components/legal/LegalDocHeader";
 import { TELEMETRY_LEDGER_FIELDS_DISCLOSED } from "@/lib/telemetry/public-disclosure";
+import {
+  ACCOUNT_SELF_SERVE_DELETION_FLOW,
+  PUBLIC_SUPPORT_EMAIL,
+} from "@/lib/legal/public-contact";
 
 export { TELEMETRY_LEDGER_FIELDS_DISCLOSED };
 
@@ -252,6 +256,17 @@ export default function PrivacyPage() {
           viewports we disable automatic survey UI so it does not overlap page content.
         </p>
 
+        <h2 className={LEGAL_H2}>Where data is processed</h2>
+        <p>
+          You may be in one country while our providers and infrastructure operate elsewhere. We have not verified
+          or published a single home region for every data store behind velai. PostHog product analytics are
+          processed in the United States — our app is configured to use PostHog&apos;s US cloud (
+          <code className="text-xs">us.posthog.com</code>). Other processing — including account data in Google
+          Cloud Firestore, search indexes, email delivery, sign-in through WorkOS, and databases we operate — may
+          run outside your country, including in the United States, without us naming a region we have not
+          confirmed in configuration.
+        </p>
+
         <h2 className={LEGAL_H2}>Retention &amp; deletion</h2>
         <p>
           We keep your account data for as long as your account is active. Search-activity records in Firestore —
@@ -260,21 +275,53 @@ export default function PrivacyPage() {
           follows the same 90-day deletion window. PostHog session replays are retained for 30 days in PostHog.
         </p>
         <p>
-          You can delete your account and everything tied to it at any time from{" "}
-          <Link href="/settings">account settings</Link> — it&apos;s self-serve, not a support ticket. Deletion
-          removes your account profile, tracked applications, resumes, prep answers, and search-activity profile
-          from our systems.
+          You can delete your account yourself from{" "}
+          <Link href="/settings">account settings</Link> — self-serve, not a support ticket. The flow is:{" "}
+          {ACCOUNT_SELF_SERVE_DELETION_FLOW}. When you confirm, this device&apos;s browser clears local storage
+          first, then our servers run the deletion; only if that succeeds do we sign you out and clear your session
+          cookie.
+        </p>
+        <p>
+          That server action removes your Firestore profile and every user-owned collection in our migration manifest
+          (for example applications, resumes, saved searches, prep answers, agent credentials, and email digest
+          state keyed to your account), deletes your WorkOS sign-in record, and — when your login email is a real
+          address, not a synthetic username-only address — runs our identity-forget path: global email suppression
+          for that address, deletion from our intervu identity store, and deletion of behavioural-ledger rows in
+          PostgreSQL keyed to your WorkOS user id.
+        </p>
+        <p>
+          Self-serve account deletion makes no call to PostHog to delete data and does not remove analytics
+          events or replay-derived data already stored there. Session replay recordings in PostHog are kept for
+          30 days, as described above, then expire under PostHog&apos;s rules. We have not confirmed a fixed
+          retention period for ordinary analytics events or heatmap data in PostHog. It does not remove contact-form messages,
+          connect-waitlist entries, or other records stored only by email without an account id. Anonymous search
+          logs and aggregate statistics are unaffected. Suppression entries for your address stay in place so we do
+          not resume email after you leave.
+        </p>
+        <p>
+          We do not offer a separate bulk export or machine-readable download of your stored account data. If you
+          need account-held data removed, use self-serve deletion above or email us for help removing waitlist or
+          contact-form records that are not tied to an account.
         </p>
 
         <h2 className={LEGAL_H2}>Your choices</h2>
         <p>
-          You control your data: edit or remove anything you&apos;ve created, delete your account outright, or
-          contact us with any question or request — including one we haven&apos;t anticipated here.
+          You can edit or delete content you created in the product. To remove your entire account, use the
+          self-serve flow in account settings ({ACCOUNT_SELF_SERVE_DELETION_FLOW}). For questions about privacy or
+          deletion, email{" "}
+          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
+            {PUBLIC_SUPPORT_EMAIL}
+          </a>{" "}
+          or use the <Link href="/contact">contact page</Link>.
         </p>
 
         <h2 className={LEGAL_H2}>Contact</h2>
         <p>
-          Questions: use the <Link href="/contact">contact page</Link>.
+          Questions: email{" "}
+          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
+            {PUBLIC_SUPPORT_EMAIL}
+          </a>{" "}
+          or use the <Link href="/contact">contact page</Link>.
         </p>
       </article>
       </div>
