@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { LEGAL_LINKS } from "@/components/layout/Footer";
 import { ELUTA_ALTERNATIVE, ELUTA_ALTERNATIVE_FAQ } from "@/lib/seo/alternatives";
+import { CAREER_HUBS } from "@/lib/seo/career-hubs";
 
 const ROOT = join(__dirname, "../..");
 
@@ -69,6 +70,13 @@ describe("reachable surfaces — no Canada marketing claims", () => {
     it("presentation/location.ts does not label all-Canada remote lists as Remote (Canada)", () => {
         const src = readFileSync(join(ROOT, "src/lib/presentation/location.ts"), "utf8");
         assert.doesNotMatch(src, /Remote \(Canada\)/);
+    });
+
+    it("career hub registry has no Canada marketing copy", () => {
+        const bundle = JSON.stringify(CAREER_HUBS);
+        assert.doesNotMatch(bundle, CANADA_RE);
+        assert.doesNotMatch(bundle, CANADA_GEO_MARKERS_RE);
+        assert.ok(!CAREER_HUBS.some((hub) => /canada|toronto|vancouver|montreal|calgary|ottawa/i.test(hub.slug)));
     });
 
     it("seo/constants.ts and faq.ts avoid numeric percent match claims", () => {

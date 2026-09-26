@@ -343,7 +343,7 @@ export function ConnectClient({
                   </li>
                   <li className="flex items-start gap-1.5">
                     <span className="text-brand font-semibold">✓</span>
-                    <span><span className="font-semibold text-foreground">Stateless queries:</span> Zero tracking and never used for model training.</span>
+                    <span><span className="font-semibold text-foreground">Your approval:</span> MCP access only works after you sign in and authorize the connection; revoke it anytime from account settings.</span>
                   </li>
                 </ul>
               </AccordionContent>
