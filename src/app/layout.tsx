@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Libre_Franklin, JetBrains_Mono } from "next/font/google";
+import { Libre_Franklin, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
@@ -38,10 +38,10 @@ import { LocalAiParamSync } from "@/components/providers/LocalAiParamSync";
  * default startup sans and JetBrains Mono is literally an IDE typeface; a
  * nurse reading a page set in them correctly concludes it is not for them.
  *
- * - Body/UI sans: the system stack in globals.css `--font-sans` (no next/font
- *   webfont). Small semibold labels had looked over-tracked under Source Sans 3
- *   even with normal OpenType settings; the stack is deterministic across OSes.
- * - Libre Franklin (display face variable): kept for intentional wordmark/OG use;
+ * - Source Sans 3 (body/UI): Concept A canonical sans — static 400/600 cuts from
+ *   next/font (not the default variable axis bundle) so small semibold labels keep
+ *   the face without the exaggerated post-`t` sidebearing the variable asset showed.
+ * - Libre Franklin (display face variable): kept for intentional OG use only;
  *   `font-display` consumers resolve to `--font-sans`, not this face.
  * - JetBrains Mono (mono): kept, but demoted to literal code — shell commands
  *   and MCP keys in Settings/Connect, where looking technical is correct
@@ -51,6 +51,13 @@ const display = Libre_Franklin({
   variable: "--font-display-face",
   subsets: ["latin"],
   display: "swap",
+});
+
+const sans = Source_Sans_3({
+  variable: "--font-sans-face",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "600"],
 });
 
 const mono = JetBrains_Mono({
@@ -143,7 +150,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${display.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         {/* Dark-mode FOUC guard (2026-08-15 mode toggle) — a synchronous
             script in <head> blocks first paint until it runs, so a returning
@@ -158,7 +165,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${display.variable} ${mono.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
+        className={`${display.variable} ${sans.variable} ${mono.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box

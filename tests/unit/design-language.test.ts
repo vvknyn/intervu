@@ -16,9 +16,8 @@ const ROOT = path.resolve(__dirname, "../..");
 const GLOBALS = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8");
 const LAYOUT = readFileSync(path.join(ROOT, "src/app/layout.tsx"), "utf8");
 
-/** Canonical body stack — must match @theme `--font-sans` in globals.css exactly. */
-const SYSTEM_UI_SANS_STACK =
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+/** Canonical body sans prefix — must match @theme `--font-sans` in globals.css exactly. */
+const SOURCE_SANS_SANS_PREFIX = 'var(--font-sans-face), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 /** Declarations only — never comment prose, which legitimately names colours. */
 function declarations(css: string): Array<{ name: string; value: string }> {
@@ -66,7 +65,7 @@ test("type scale: body default and theme tokens wired at the chokepoint", () => 
     assert.match(themeBlock, /--text-sm:\s*0\.875rem;/, "@theme must override --text-sm to 0.875rem (14px)");
 });
 
-test("body sans token: system UI stack only (no body webfont face)", () => {
+test("body sans token: Source Sans 3 via next/font static cuts", () => {
     const themeStart = GLOBALS.indexOf("@theme {");
     assert.ok(themeStart >= 0, "@theme block missing from globals.css");
     const themeEnd = GLOBALS.indexOf("\n}", themeStart);
@@ -75,19 +74,12 @@ test("body sans token: system UI stack only (no body webfont face)", () => {
     assert.ok(sans, "--font-sans must be declared in @theme");
     assert.equal(
         sans.value,
-        SYSTEM_UI_SANS_STACK,
-        "--font-sans must be the deterministic system UI stack (no next/font body face prefix)",
+        SOURCE_SANS_SANS_PREFIX,
+        "--font-sans must prefix with --font-sans-face (Source Sans 3) before system fallbacks",
     );
-    assert.doesNotMatch(
-        sans.value,
-        /source sans|font-sans-face|--font-sans-face/i,
-        "body sans must not reference Source Sans 3 or --font-sans-face",
-    );
-    assert.doesNotMatch(
-        LAYOUT,
-        /Source_Sans_3|--font-sans-face/,
-        "layout.tsx must not load a body sans webfont via next/font",
-    );
+    assert.match(LAYOUT, /Source_Sans_3/, "layout.tsx must load Source Sans 3 via next/font");
+    assert.match(LAYOUT, /variable:\s*"--font-sans-face"/, "Source Sans 3 must wire --font-sans-face");
+    assert.match(LAYOUT, /weight:\s*\[\s*"400"\s*,\s*"600"\s*\]/, "Source Sans 3 must use static 400/600 cuts, not default variable axis");
 });
 
 test("body typography: no global OpenType cv/ss feature overrides", () => {
@@ -98,12 +90,31 @@ test("body typography: no global OpenType cv/ss feature overrides", () => {
         /font-feature-settings:\s*normal\s*;/,
         "body must use font-feature-settings: normal — body-wide cv/ss overrides mis-space small labels",
     );
+    assert.match(
+        bodyBlock,
+        /font-variant-ligatures:\s*no-contextual\s*;/,
+        "body must disable contextual alternates (calt) without cv/ss feature overrides",
+    );
     assert.doesNotMatch(
         bodyBlock,
         /font-feature-settings:[^;]*\bcv\d+/,
         "body must not enable custom character variants globally",
     );
     assert.doesNotMatch(bodyBlock, /font-feature-settings:[^;]*\bss\d+/, "body must not enable stylistic sets globally");
+});
+
+test("wordmark lockup: warm white text token, never brand green on Velai", () => {
+    const brandMark = readFileSync(path.join(ROOT, "src/components/brand/BrandMark.tsx"), "utf8");
+    assert.match(brandMark, /BRAND_LOCKUP_WORDMARK_CLASS\s*=\s*"text-wordmark"/, "BrandLockup must use text-wordmark");
+    assert.doesNotMatch(
+        brandMark,
+        /BrandLockup[\s\S]*text-brand/,
+        "BrandLockup must not paint the wordmark with text-brand",
+    );
+    assert.match(brandMark, />\s*Velai\s*</, "wordmark copy must stay title-case Velai");
+    const wordmarkToken = declarations(GLOBALS).find((d) => d.name === "--wordmark-foreground");
+    assert.ok(wordmarkToken, "--wordmark-foreground must exist");
+    assert.equal(wordmarkToken.value, "var(--foreground)", "wordmark foreground aliases warm-white --foreground");
 });
 
 test("tracking tokens: body/label scale stays normal; poster hero may tighten only", () => {

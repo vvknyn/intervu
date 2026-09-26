@@ -64,17 +64,14 @@ export const EMAIL_COLORS = {
  * declares.
  */
 export const EMAIL_FONT_SANS =
-  "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
+  "'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
 
-/**
- * The wordmark, matched to `BrandLockup` — `font-bold uppercase
- * tracking-tight` at the lockup size. Uppercase and 700 are the whole
- * character of it; rendering "intervu" lowercase at 700, as this shell
- * first did, is a different wordmark next to identical typography.
- */
+/** Title-case wordmark — matched to `BrandLockup` (Source Sans 600, warm white). */
 export const EMAIL_WORDMARK = {
   text: "Velai",
   fontSize: BRAND_LOCKUP_WORDMARK_PX,
   fontWeight: 600,
   letterSpacing: "0em",
+  /** Warm white — matches in-app `text-wordmark` / `--foreground`. */
+  color: EMAIL_COLORS.ink,
 } as const;

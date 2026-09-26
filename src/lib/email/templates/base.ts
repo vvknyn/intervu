@@ -81,12 +81,12 @@ function preheaderBlock(text: string): string {
  * "velai velai" in every client that blocks images by default.
  */
 function header(siteUrl: string): string {
-  const { text, fontSize, fontWeight, letterSpacing } = EMAIL_WORDMARK;
+  const { text, fontSize, fontWeight, letterSpacing, color } = EMAIL_WORDMARK;
   return `<tr>
-        <td align="center" style="padding:32px 32px 24px;">
-          <a href="${siteUrl}" style="text-decoration:none;color:${C.ink};">
+        <td bgcolor="${C.page}" align="center" style="padding:32px 32px 24px;border-radius:12px 12px 0 0;">
+          <a href="${siteUrl}" style="text-decoration:none;color:${color};">
             <img src="${siteUrl}/velai-logo.png" width="28" height="28" alt="" style="border-radius:6px;vertical-align:middle;border:0;display:inline-block;" />
-            <span style="${FONT}font-size:${fontSize}px;font-weight:${fontWeight};letter-spacing:${letterSpacing};text-transform:uppercase;color:${C.ink};vertical-align:middle;padding-left:8px;">${text}</span>
+            <span style="${FONT}font-size:${fontSize}px;font-weight:${fontWeight};letter-spacing:${letterSpacing};color:${color};vertical-align:middle;padding-left:8px;">${text}</span>
           </a>
         </td>
       </tr>`;
