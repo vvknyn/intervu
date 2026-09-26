@@ -40,23 +40,18 @@ describe("yours tracker chrome", () => {
         assert.match(src, /size="display"/);
     });
 
-    it("lane rows wrap role titles up to two lines instead of one-line truncate", () => {
+    it("lane row role title shows full text — no truncate or line-clamp", () => {
         const src = readFileSync(PURSUIT_ROW, "utf8");
-        assert.match(src, /data-testid="pursuit-role-title"/);
-        assert.match(src, /tracker-role-title text-base font-semibold leading-snug text-foreground/);
-        assert.doesNotMatch(src, /truncate text-base font-semibold leading-snug text-foreground">\{pursuit\.position\}/);
+        const roleBlock = src.match(/data-testid="pursuit-role-title"[\s\S]*?\{pursuit\.position\}/)?.[0] ?? "";
+        assert.ok(roleBlock.length > 0, "expected pursuit role title block");
+        assert.match(roleBlock, /whitespace-normal/);
+        assert.doesNotMatch(roleBlock, /\btruncate\b/, "role title must not use truncate");
+        assert.doesNotMatch(roleBlock, /line-clamp/, "role title must not use line-clamp");
+        assert.doesNotMatch(roleBlock, /tracker-role-title/, "obsolete tracker-role-title utility removed");
         assert.match(src, /whitespace-normal/, "pursuit row button must not inherit single-line nowrap");
         const globals = readFileSync(join(__dirname, "..", "..", "src", "app", "globals.css"), "utf8");
-        assert.match(
-            globals,
-            /@utility tracker-role-title[\s\S]*-webkit-line-clamp:\s*2/,
-            "two-line clamp must be a Tailwind @utility so Next ships it",
-        );
-        assert.doesNotMatch(
-            globals,
-            /^\s*\.tracker-role-title\s*\{/m,
-            "plain .tracker-role-title rules are dropped from the Next CSS bundle",
-        );
+        assert.doesNotMatch(globals, /@utility tracker-role-title/, "no custom clamp utility for role titles");
+        assert.doesNotMatch(globals, /\.tracker-role-title/, "no legacy tracker-role-title CSS rule");
     });
 });
 
