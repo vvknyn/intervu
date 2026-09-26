@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { BrandMark } from "@/components/brand/BrandMark";
+import { BrandMark, BRAND_LOCKUP_WORDMARK_CLASS } from "@/components/brand/BrandMark";
 import { Button } from "@/components/ui/button";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { CATEGORY_HUB_PACK_COUNT } from "@/lib/jobs/category-hub-count";
@@ -137,7 +137,10 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
             <header className="relative z-20 flex items-center justify-between px-5 sm:px-10 lg:px-14 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
                 <div className="flex items-center gap-2.5" data-testid="concept-a-brand">
                     <BrandMark className="h-8 w-8" />
-                    <span data-rulebook-exempt className="text-title-sm sm:text-title font-semibold leading-none">
+                    <span
+                        data-rulebook-exempt
+                        className={[BRAND_LOCKUP_WORDMARK_CLASS, "text-title-sm sm:text-title font-semibold leading-none"].join(" ")}
+                    >
                         Velai
                     </span>
                 </div>

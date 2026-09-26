@@ -104,7 +104,7 @@ export function TopBar() {
             <div data-region="header" className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6">
                 <Link
                     href="/"
-                    className="flex shrink-0 items-center gap-2 text-brand transition-opacity hover:opacity-90"
+                    className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-90"
                     data-testid="topbar-logo"
                     data-rulebook-exempt
                 >
