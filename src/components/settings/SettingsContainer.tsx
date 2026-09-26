@@ -37,7 +37,7 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
     return (
         <Tabs value={tab} onValueChange={(v) => onChange(v as AccountTab)} className="mb-4">
             <TabsList variant="line">
-                <TabsTrigger value="resume">Resume</TabsTrigger>
+                <TabsTrigger value="resume">Résumé</TabsTrigger>
                 <TabsTrigger value="prefs">Preferences</TabsTrigger>
                 <TabsTrigger value="account">Account</TabsTrigger>
             </TabsList>
@@ -184,7 +184,7 @@ export function SettingsContainer() {
                 {tab === "prefs" && (
                     <>
                         <SettingsCard>
-                            <h2 className="mb-1 text-base font-semibold leading-snug">On-Device AI &amp; Privacy</h2>
+                            <h2 className="mb-1 text-base font-semibold leading-snug">On-device AI &amp; privacy</h2>
                             <p className="mb-4 text-sm text-muted-foreground">
                                 Run private AI parsing and tailoring directly in your browser. Zero cloud tracking — your résumé never leaves your device.
                             </p>

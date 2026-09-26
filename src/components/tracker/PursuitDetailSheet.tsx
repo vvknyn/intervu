@@ -153,7 +153,7 @@ function PursuitDetailBody({
                 </div>
                 <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
                     <SheetHeader className="min-w-0 flex-1 space-y-0 text-left">
-                        <SheetTitle className="truncate text-lg font-semibold">{pursuit.position}</SheetTitle>
+                        <SheetTitle className="line-clamp-2 text-lg font-semibold leading-snug">{pursuit.position}</SheetTitle>
                         <SheetDescription className="truncate text-meta">{pursuit.company_name}</SheetDescription>
                     </SheetHeader>
                     <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-muted-foreground transition-opacity hover:opacity-80">

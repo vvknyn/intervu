@@ -80,12 +80,12 @@ export type EmailColorRole = keyof typeof EMAIL_COLORS;
  * declares.
  */
 export const EMAIL_FONT_SANS =
-  "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
+  "'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
 
-/** Title-case wordmark — matched to `BrandLockup` (sans 600, tight tracking). */
+/** Title-case wordmark — matched to `BrandLockup` (Source Sans 600, warm white on band). */
 export const EMAIL_WORDMARK = {
   text: "Velai",
   fontSize: BRAND_LOCKUP_WORDMARK_PX,
   fontWeight: 600,
-  letterSpacing: "-0.02em",
+  letterSpacing: "0em",
 } as const;

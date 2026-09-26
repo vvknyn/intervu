@@ -3,7 +3,13 @@
 import { cn } from "@/lib/utils";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import type { Pursuit } from "@/lib/pursuits/types";
-import { daysInTracker, daysSinceUpdate, hasResumeLinked, isStalePursuit } from "@/lib/pursuits/tracker-display";
+import {
+    daysInTracker,
+    daysSinceUpdate,
+    hasResumeLinked,
+    isStalePursuit,
+    trackerResumeMetaLabel,
+} from "@/lib/pursuits/tracker-display";
 import { StageBadge } from "@/components/tracker/StageBadge";
 
 interface PursuitListRowProps {
@@ -34,13 +40,13 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
         >
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-4">
                 <div className="min-w-0">
-                    <div className="truncate text-base font-semibold leading-snug text-foreground">{pursuit.position}</div>
+                    <div className="line-clamp-2 text-base font-semibold leading-snug text-foreground">{pursuit.position}</div>
                     <div className="mt-1 truncate text-sm text-muted-foreground">{pursuit.company_name}</div>
                     <div className="mt-1 text-sm text-muted-foreground">
                         <DotSeparated
                             items={[
                                 `${days}d in tracker`,
-                                resumeLinked ? "resume linked" : "no resume",
+                                trackerResumeMetaLabel(resumeLinked),
                                 stale && `no update in ${daysSinceUpdate(pursuit)}d`,
                                 note,
                             ]}
