@@ -72,6 +72,7 @@ export function LandingOnboardingView({
     const [compactLiveRoleCount, setCompactLiveRoleCount] = useState<string>("~2.4M");
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const step2Ref = useRef<HTMLDivElement>(null);
 
     // Direct 1-click AuthKit navigation (bypasses redundant intermediate popover modals)
     const handleStartAuth = (provider?: string) => {
@@ -103,6 +104,24 @@ export function LandingOnboardingView({
             setStep(3);
         }
     }, [isAuthenticated, step]);
+
+    // After Concept A portal unmounts, settle Step 2 into the viewport.
+    // Double rAF waits for layout after body overflow unlock + card mount
+    // (real iPhone Safari can otherwise flash empty light-grey chrome).
+    useEffect(() => {
+        if (step !== 2) return;
+        let cancelled = false;
+        const id = requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (cancelled) return;
+                step2Ref.current?.scrollIntoView({ block: "center", inline: "nearest" });
+            });
+        });
+        return () => {
+            cancelled = true;
+            cancelAnimationFrame(id);
+        };
+    }, [step]);
 
     // Fetch live market role counts from Meilisearch
     useEffect(() => {
@@ -201,8 +220,8 @@ export function LandingOnboardingView({
         });
     };
 
-    // Public Step 1 = full-bleed Concept A (covers site chrome). Steps 2–3
-    // stay the real account + résumé gate in the light reading card.
+    // Public Step 1 = full-bleed Concept A (covers site chrome; spacer keeps
+    // parent height). Steps 2–3 stay the real account + résumé gate.
     if (step === 1) {
         return (
             <ConceptALanding
@@ -275,7 +294,11 @@ export function LandingOnboardingView({
 
                 {/* STATION 2: CREATE ACCOUNT FIRST (MANDATORY GATE) */}
                 {step === 2 && (
-                    <div className="space-y-3.5">
+                    <div
+                        ref={step2Ref}
+                        data-testid="landing-onboarding-step-2"
+                        className="space-y-3.5"
+                    >
                         <div className="space-y-1">
                             <h2 className="text-lg sm:text-xl font-semibold text-foreground">
                                 {isAuthenticated ? "Account connected" : "Create your free account"}

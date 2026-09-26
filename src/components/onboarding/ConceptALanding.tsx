@@ -123,8 +123,11 @@ export interface ConceptALandingProps {
 
 /**
  * Public signed-out Step 1 — full-bleed Concept A (charcoal poster + cream
- * postcard stack). Portaled to document.body so site TopBar / light grid
- * never show behind it. CTA still advances into the real auth + résumé gate.
+ * postcard stack). Portaled to document.body so site TopBar (z-50) / light
+ * grid never show behind it (in-tree fixed would lose to the parent z-10
+ * stacking context). An in-flow min-h-[100dvh] spacer keeps the landing
+ * parent from collapsing while Step 1 is up, so after CTA the Step 2 gate
+ * mounts into real height instead of empty light-grey chrome.
  */
 export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
     const [mounted, setMounted] = useState(false);
@@ -138,7 +141,16 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
         };
     }, []);
 
-    if (!mounted) return null;
+    const spacer = (
+        <div
+            className="min-h-[100dvh] w-full"
+            aria-hidden
+            data-testid="landing-onboarding-step-1-spacer"
+        />
+    );
+
+    // Spacer always in-flow (even pre-portal mount) so parent never collapses.
+    if (!mounted) return spacer;
 
     const face = (
         <div
@@ -208,5 +220,11 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
         </div>
     );
 
-    return createPortal(face, document.body);
+    return (
+        <>
+            {/* In-flow height while the face is portaled out of layout. */}
+            {spacer}
+            {createPortal(face, document.body)}
+        </>
+    );
 }
