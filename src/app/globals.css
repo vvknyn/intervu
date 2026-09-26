@@ -1138,14 +1138,12 @@ body[data-scroll-locked] [data-testid="apply-return-prompt"] {
   opacity: 0.95;
 }
 
-/** Tracker lane row — two-line role title; explicit box so line-clamp wins over button defaults. */
-.tracker-role-title {
+@utility tracker-role-title {
+  overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  overflow: hidden;
   white-space: normal;
-  overflow-wrap: anywhere;
 }
 
 /** Poster hero heading — clamp + tight tracking live in tokens, not utilities. */
