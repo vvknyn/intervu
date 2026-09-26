@@ -23,7 +23,15 @@ import { cn } from "@/lib/utils";
 const RESUME_SUBCOPY = "Get For you, Strong/Good/Stretch fit, Customize, and tailored PDFs for each role.";
 
 function ResumeHeader() {
-    return <PageHeader fullWidth sticky={false} title="One résumé unlocks your personalized job search." description={RESUME_SUBCOPY} />;
+    return (
+        <PageHeader
+            fullWidth
+            sticky={false}
+            size="display"
+            title="One résumé unlocks your personalized job search."
+            description={RESUME_SUBCOPY}
+        />
+    );
 }
 
 function ResumeAuthSkeleton() {
@@ -146,7 +154,7 @@ function ResumeContent() {
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 rounded-panel border border-border bg-surface-2 px-4 py-2.5 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
                                 <ShieldCheck size={16} className="text-live shrink-0" />
-                                <span className="font-semibold text-foreground">100% On-Device AI</span>
+                                <span className="font-semibold text-foreground">100% on-device AI</span>
                                 <span>— Parsed privately in your browser. Never stored in the cloud without an account.</span>
                             </div>
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
