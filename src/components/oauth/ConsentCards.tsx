@@ -9,8 +9,8 @@ import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
 /**
  * Brand lockup for the chrome-free /oauth surface — same mark/wordmark
- * treatment as `TopBar`'s `topbar-logo` (icon + uppercase wordmark, both
- * `text-brand`), reused here because `shouldHideSiteChrome` hides the TopBar
+ * treatment as `TopBar`'s `topbar-logo` (locked mark + warm-white wordmark),
+ * reused here because `shouldHideSiteChrome` hides the TopBar
  * on every route under here and each card needs its own identity in its place.
  */
 function ConsentBrand() {

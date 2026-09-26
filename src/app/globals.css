@@ -67,6 +67,9 @@
   --text-poster-hero: clamp(2.5rem, 7vw, 4.75rem);
   --text-poster-hero--line-height: 1.05;
   --tracking-poster-hero: -0.025em;
+  /* Static Source Sans 600: tiny negative tracking on small semibold labels only
+     (jobs hub chips/headings) — closes post-`t` sidebearing without tightening body. */
+  --tracking-label-semibold: -0.01em;
   --text-title: 1.75rem;
   --text-title--line-height: 2.25rem;
   --text-title-lg: 2rem;
@@ -579,6 +582,13 @@ body {
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Label-sized semibold (hub chips, meta headings) — token-backed sidebearing fix only. */
+@layer base {
+  :is(.text-xs, .text-sm, .text-meta, .text-caption, .text-body-sm).font-semibold {
+    letter-spacing: var(--tracking-label-semibold);
+  }
 }
 
 @media (max-width: 1023px) {
