@@ -215,13 +215,16 @@ mechanisms for an `h1` across public pages alone; that is what this table exists
 
 **OpenType on `body`:** `font-feature-settings: normal` only — no body-wide character variants
 (`cv*`) or stylistic sets (`ss*`). **`font-variant-ligatures: no-contextual`** disables contextual
-alternates without reintroducing banned feature overrides. Letter-spacing for body and labels stays
-at the zeroed `--tracking-*` tokens; only `--tracking-poster-hero` may tighten for the signed-out
-poster hero.
+alternates without reintroducing banned feature overrides. Letter-spacing for body copy stays at the
+zeroed `--tracking-*` scale tokens. **`--tracking-label-semibold`** (`-0.01em` today) applies only
+to label-sized semibold roles (`text-xs` / `text-sm` / meta/caption/body-sm + `font-semibold`) via
+`globals.css` — a minimal static Source Sans 600 sidebearing fix for jobs-hub labels, not a global
+tightening. **`--tracking-poster-hero`** may tighten further for the signed-out poster hero only.
 
 **Typography guard (unit tests):** `--font-sans` must keep the `--font-sans-face` prefix,
 `layout.tsx` must load Source Sans 3 at 400/600, and tests enforce `font-feature-settings: normal`,
-`font-variant-ligatures: no-contextual`, and bounded `--tracking-*` on body/label roles.
+`font-variant-ligatures: no-contextual`, bounded `--tracking-label-semibold`, and zeroed default
+`--tracking-*` tokens elsewhere.
 
 **Wordmark:** Title-case **Velai** beside the locked mark tile. Text uses **`text-wordmark`**
 (warm white, `#FAFAFA` / `--foreground`) everywhere in app chrome, auth, status pages, and email

@@ -10,10 +10,10 @@ import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { cn } from "@/lib/utils";
 
 /**
- * Brand lockup for the chrome-free /oauth surface — same title-case Velai
- * lockup as TopBar (mark on dark tile + wordmark), reused here because
- * `shouldHideSiteChrome` hides the TopBar on every route under here and
- * each card needs its own identity in its place.
+ * Brand lockup for the chrome-free /oauth surface — same title-case Velai lockup
+ * as TopBar (locked mark + warm-white wordmark), reused here because
+ * `shouldHideSiteChrome` hides the TopBar on every route under here and each
+ * card needs its own identity in its place.
  */
 function ConsentBrand() {
     return (
