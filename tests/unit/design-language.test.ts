@@ -14,6 +14,11 @@ import os from "node:os";
 
 const ROOT = path.resolve(__dirname, "../..");
 const GLOBALS = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8");
+const LAYOUT = readFileSync(path.join(ROOT, "src/app/layout.tsx"), "utf8");
+
+/** Canonical body stack — must match @theme `--font-sans` in globals.css exactly. */
+const SYSTEM_UI_SANS_STACK =
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 /** Declarations only — never comment prose, which legitimately names colours. */
 function declarations(css: string): Array<{ name: string; value: string }> {
@@ -61,13 +66,37 @@ test("type scale: body default and theme tokens wired at the chokepoint", () => 
     assert.match(themeBlock, /--text-sm:\s*0\.875rem;/, "@theme must override --text-sm to 0.875rem (14px)");
 });
 
+test("body sans token: system UI stack only (no body webfont face)", () => {
+    const themeStart = GLOBALS.indexOf("@theme {");
+    assert.ok(themeStart >= 0, "@theme block missing from globals.css");
+    const themeEnd = GLOBALS.indexOf("\n}", themeStart);
+    const themeBlock = GLOBALS.slice(themeStart, themeEnd + 2);
+    const sans = declarations(themeBlock).find((d) => d.name === "--font-sans");
+    assert.ok(sans, "--font-sans must be declared in @theme");
+    assert.equal(
+        sans.value,
+        SYSTEM_UI_SANS_STACK,
+        "--font-sans must be the deterministic system UI stack (no next/font body face prefix)",
+    );
+    assert.doesNotMatch(
+        sans.value,
+        /source sans|font-sans-face|--font-sans-face/i,
+        "body sans must not reference Source Sans 3 or --font-sans-face",
+    );
+    assert.doesNotMatch(
+        LAYOUT,
+        /Source_Sans_3|--font-sans-face/,
+        "layout.tsx must not load a body sans webfont via next/font",
+    );
+});
+
 test("body typography: no global OpenType cv/ss feature overrides", () => {
     const bodyBlock = GLOBALS.match(/body\s*\{[\s\S]*?\}/)?.[0] ?? "";
     assert.ok(bodyBlock.length > 0, "body { … } block missing from globals.css");
     assert.match(
         bodyBlock,
         /font-feature-settings:\s*normal\s*;/,
-        "body must use font-feature-settings: normal — body-wide cv/ss overrides split glyphs in Source Sans 3",
+        "body must use font-feature-settings: normal — body-wide cv/ss overrides mis-space small labels",
     );
     assert.doesNotMatch(
         bodyBlock,
