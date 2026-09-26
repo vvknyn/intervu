@@ -72,7 +72,7 @@ function PostcardCard({ title, meta, style }: Postcard) {
     return (
         <div
             className={cn(
-                "absolute w-[min(240px,58%)] sm:w-[260px] rounded-panel px-4 py-3.5 sm:px-5 sm:py-4",
+                "absolute w-[min(268px,72vw)] sm:w-[260px] rounded-panel px-4 py-3.5 sm:px-5 sm:py-4",
                 "bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]",
             )}
             style={style}
@@ -81,7 +81,10 @@ function PostcardCard({ title, meta, style }: Postcard) {
                 <BrandMark className="h-5 w-5 opacity-90" />
                 <span className="h-px flex-1 max-w-[72px] bg-border" aria-hidden />
             </div>
-            <p className="text-base sm:text-lg font-semibold leading-snug text-surface-postcard-foreground">
+            <p
+                data-testid="concept-a-postcard-title"
+                className="text-sm sm:text-lg font-semibold leading-snug text-surface-postcard-foreground whitespace-normal"
+            >
                 {title}
             </p>
             <p className="mt-1 text-caption sm:text-xs leading-snug text-surface-postcard-muted">{meta}</p>
@@ -177,7 +180,7 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
                 </div>
 
                 <div
-                    className="relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full lg:w-[54%]"
+                    className="relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full overflow-visible lg:w-[54%]"
                     aria-hidden
                 >
                     {POSTCARDS.map((card) => (

@@ -36,8 +36,9 @@ test("lean product loop includes jobs and résumé (signed-out header drops MCP 
   assert.equal(isLeanProductSurface("/connect"), false);
 });
 
-test("TopBar filters desktop /connect on lean surfaces including /resume", () => {
+test("TopBar filters desktop /connect on lean surfaces and when signed out", () => {
   const src = readFileSync(TOPBAR, "utf8");
   assert.match(src, /isLeanProductSurface\(pathname\)/);
-  assert.match(src, /leanSurface && t\.href === "\/connect"/);
+  assert.match(src, /leanSurface/);
+  assert.match(src, /authChrome !== "authenticated"/);
 });
