@@ -1138,14 +1138,6 @@ body[data-scroll-locked] [data-testid="apply-return-prompt"] {
   opacity: 0.95;
 }
 
-@utility tracker-role-title {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  white-space: normal;
-}
-
 /** Poster hero heading — clamp + tight tracking live in tokens, not utilities. */
 .text-poster-hero {
   font-size: var(--text-poster-hero);

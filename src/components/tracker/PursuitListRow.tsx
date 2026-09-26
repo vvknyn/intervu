@@ -42,7 +42,7 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
                 <div className="min-w-0">
                     <div
                         data-testid="pursuit-role-title"
-                        className="tracker-role-title text-base font-semibold leading-snug text-foreground"
+                        className="whitespace-normal text-base font-semibold leading-snug text-foreground"
                     >
                         {pursuit.position}
                     </div>
