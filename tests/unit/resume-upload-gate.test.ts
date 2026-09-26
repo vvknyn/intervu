@@ -49,6 +49,20 @@ test("Edit, PDF, and sync are explicit resume auth clicks, not auto nudges", () 
     assert.ok(editHits >= 3, `expected Edit, PDF, and sync to call openResumeAuth, found ${editHits}`);
 });
 
+test("résumé masthead uses display PageHeader so mobile shows the full hero title", () => {
+    assert.match(SOURCE, /function ResumeHeader\(\)/);
+    const headerStart = SOURCE.indexOf("function ResumeHeader()");
+    const headerEnd = SOURCE.indexOf("function ResumeAuthSkeleton", headerStart);
+    const headerBlock = SOURCE.slice(headerStart, headerEnd);
+    assert.match(headerBlock, /size="display"/);
+    assert.doesNotMatch(headerBlock, /truncate/);
+});
+
+test("local AI guest banner matches settings sentence case", () => {
+    assert.match(SOURCE, /100% on-device AI/);
+    assert.doesNotMatch(SOURCE, /100% On-Device AI/);
+});
+
 test("post-auth upload replay still reopens the importer exactly once via useAuthGate", () => {
     assert.match(SOURCE, /import \{ useAuthGate \} from "@\/components\/auth\/use-auth-gate";/);
     const handlersStart = SOURCE.indexOf("useAuthGate<never, never>({");
