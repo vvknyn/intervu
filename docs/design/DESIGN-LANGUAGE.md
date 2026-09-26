@@ -206,19 +206,27 @@ Five roles. A component picks a role; it does not invent a size.
 | `text-meta` | Captions, labels, timestamps. |
 | `.mono-data` | Data strings, IDs, counts — the existing mono utility. |
 
-**Body/UI sans** is the deterministic system stack on `--font-sans` in `globals.css` (no body
-webfont). **Mono** and **Libre Franklin** (wordmark/OG only) still load via `next/font` in
-`layout.tsx` as `--font-mono` / `--font-display-face`. **`font-display`** aliases `--font-sans`.
-**Arbitrary sizes (`text-[28px]`, `text-[15px]`) are banned in new code.** The audit found five
-different mechanisms for an `h1` across public pages alone; that is what this table exists to stop.
+**Body/UI sans** is **Source Sans 3** on `--font-sans` (`var(--font-sans-face)` from `next/font`
+in `layout.tsx`, **static weights 400 and 600** — not the default variable-axis bundle). System
+faces remain as fallbacks only. **Mono** and **Libre Franklin** (OG only) still load via `next/font`
+as `--font-mono` / `--font-display-face`. **`font-display`** aliases `--font-sans`. **Arbitrary
+sizes (`text-[28px]`, `text-[15px]`) are banned in new code.** The audit found five different
+mechanisms for an `h1` across public pages alone; that is what this table exists to stop.
 
-**OpenType on `body`:** `font-feature-settings: normal` only. Do not enable body-wide character
-variants (`cv*`) or stylistic sets (`ss*`). Letter-spacing for body and labels stays at the zeroed
-`--tracking-*` tokens; only `--tracking-poster-hero` may tighten for the signed-out poster hero.
+**OpenType on `body`:** `font-feature-settings: normal` only — no body-wide character variants
+(`cv*`) or stylistic sets (`ss*`). **`font-variant-ligatures: no-contextual`** disables contextual
+alternates without reintroducing banned feature overrides. Letter-spacing for body and labels stays
+at the zeroed `--tracking-*` tokens; only `--tracking-poster-hero` may tighten for the signed-out
+poster hero.
 
-**Typography guard (unit tests):** `--font-sans` must stay the system UI stack (no `--font-sans-face`
-/ Source Sans body webfont), alongside the existing checks for `font-feature-settings: normal` and
-bounded `--tracking-*` on body/label roles.
+**Typography guard (unit tests):** `--font-sans` must keep the `--font-sans-face` prefix,
+`layout.tsx` must load Source Sans 3 at 400/600, and tests enforce `font-feature-settings: normal`,
+`font-variant-ligatures: no-contextual`, and bounded `--tracking-*` on body/label roles.
+
+**Wordmark:** Title-case **Velai** beside the locked mark tile. Text uses **`text-wordmark`**
+(warm white, `#FAFAFA` / `--foreground`) everywhere in app chrome, auth, status pages, and email
+header band — never `--brand` green. The raster mark keeps its dark tile and green live dot; favicon
+and icon-only assets are unchanged.
 
 ## Density — the rule that keeps marketing and app coherent
 
