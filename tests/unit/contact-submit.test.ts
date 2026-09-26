@@ -23,7 +23,10 @@ describe("resolveContactGate", () => {
       turnstile: { status: "reject", reason: "invalid-token" },
       validated: validate(contactMessageSchema, { email: VALID_INPUT.email, message: VALID_INPUT.message }),
     });
-    assert.deepEqual(result, { proceed: false, result: { error: "Verification failed — please try again." } });
+    assert.deepEqual(result, {
+      proceed: false,
+      result: { error: "Verification failed — please try again.", status: 400 },
+    });
   });
 
   it("rejects on invalid input when Turnstile passes", () => {
@@ -33,6 +36,7 @@ describe("resolveContactGate", () => {
     });
     assert.equal(result.proceed, false);
     assert.ok(!result.proceed && "error" in result.result);
+    assert.equal(result.result.status, 400);
   });
 
   it("proceeds with the validated data when Turnstile passes (or is not configured) and input is valid", () => {
@@ -68,7 +72,7 @@ describe("submitContact — Turnstile reject", () => {
     process.env.TURNSTILE_SECRET_KEY = "test-secret";
     try {
       const result = await submitContact({ ...VALID_INPUT, turnstileToken: undefined });
-      assert.deepEqual(result, { error: "Verification failed — please try again." });
+      assert.deepEqual(result, { error: "Verification failed — please try again.", status: 400 });
     } finally {
       if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
       else process.env.TURNSTILE_SECRET_KEY = original;
