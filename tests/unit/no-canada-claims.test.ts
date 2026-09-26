@@ -5,7 +5,8 @@ import { join } from "node:path";
 
 const ROOT = join(__dirname, "../..");
 
-const CANADA_RE = /canada|canadian/i;
+const CANADA_RE = /canada|canadian|toronto|\bCAD\b/i;
+const NUMERIC_FIT_RE = /\d+\s*%\s*match/i;
 
 describe("reachable surfaces — no Canada marketing claims", () => {
     it("Footer.tsx has no Canada wording", () => {
@@ -56,5 +57,12 @@ describe("reachable surfaces — no Canada marketing claims", () => {
     it("presentation/location.ts does not label all-Canada remote lists as Remote (Canada)", () => {
         const src = readFileSync(join(ROOT, "src/lib/presentation/location.ts"), "utf8");
         assert.doesNotMatch(src, /Remote \(Canada\)/);
+    });
+
+    it("seo/constants.ts and faq.ts avoid numeric percent match claims", () => {
+        for (const rel of ["src/lib/seo/constants.ts", "src/lib/faq.ts"] as const) {
+            const src = readFileSync(join(ROOT, rel), "utf8");
+            assert.doesNotMatch(src, NUMERIC_FIT_RE, rel);
+        }
     });
 });
