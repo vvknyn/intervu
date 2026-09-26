@@ -25,7 +25,7 @@ export default function OauthConsentMockPage() {
         <div className="space-y-12 py-10">
             <ErrorCard message="redirect_uri is not registered for this client" />
             <LoggedOutCard returnTo={`/oauth/authorize?${consentParamsToQuery(FIXTURE_PARAMS)}`} />
-            <ConsentCard clientName="mcporter (intervu-cc-mcp)" params={FIXTURE_PARAMS} />
+            <ConsentCard clientName="mcporter (Velai MCP)" params={FIXTURE_PARAMS} />
         </div>
     );
 }

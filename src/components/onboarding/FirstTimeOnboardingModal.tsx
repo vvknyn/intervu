@@ -122,7 +122,7 @@ export function FirstTimeOnboardingModal({
                 <div className="sr-only">
                     <DialogTitle>First-time Onboarding</DialogTitle>
                     <DialogDescription>
-                        Orientation to the InterVU job discovery platform, local AI privacy, and resume onboarding.
+                        Orientation to the Velai job discovery platform, local AI privacy, and resume onboarding.
                     </DialogDescription>
                 </div>
 
