@@ -257,7 +257,7 @@ export function ForYouPack({
             data-testid="for-you-pack"
             className={cn(POSTCARD_SHELL, className)}
         >
-            <div className="border-b border-border/60 py-4 px-4 lg:py-6 lg:px-8">
+            <div className="border-b border-border py-4 px-4 lg:py-6 lg:px-8">
                 <div className="flex flex-col gap-4">
                     <div className="flex items-start gap-3">
                         <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
@@ -294,7 +294,7 @@ export function ForYouPack({
 
             <div className={cn("grid gap-6 py-4 px-4 lg:py-6 lg:px-8", hasAside && "lg:grid-cols-[280px_1fr]")}>
                 {hasAside && (
-                    <aside className="min-w-0 space-y-6 rounded-ctl border border-border/60 bg-surface-postcard p-4 shadow-[var(--shadow-bevel-inset)]">
+                    <aside className="min-w-0 space-y-6 rounded-ctl border border-border bg-surface-postcard p-4 shadow-[var(--shadow-bevel-inset)]">
                         <div>
                             <h3 className={SECTION_LABEL}>What we inferred</h3>
                             {reasons.bullets.length > 0 && (

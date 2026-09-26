@@ -82,7 +82,7 @@ function ForYouPackSkeleton({ withStatus = false }: { withStatus?: boolean } = {
                 />
             ) : null}
             <div className="flex flex-col overflow-hidden rounded-panel bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]">
-                <div className="border-b border-border/60 py-4 px-4 lg:py-6 lg:px-8">
+                <div className="border-b border-border py-4 px-4 lg:py-6 lg:px-8">
                     <div className="flex items-start gap-3">
                         <Skeleton className="size-10 shrink-0" />
                         <div className="flex-1 space-y-2">
@@ -98,7 +98,7 @@ function ForYouPackSkeleton({ withStatus = false }: { withStatus?: boolean } = {
                     </div>
                 </div>
                 <div className="grid gap-6 py-4 px-4 lg:grid-cols-[280px_1fr] lg:py-6 lg:px-8">
-                    <div className="hidden rounded-ctl border border-border/60 p-4 shadow-[var(--shadow-bevel-inset)] lg:block">
+                    <div className="hidden rounded-ctl border border-border p-4 shadow-[var(--shadow-bevel-inset)] lg:block">
                         <Skeleton className="h-3 w-20" />
                         <Skeleton className="mt-3 h-2 w-full" />
                         <Skeleton className="mt-4 h-3 w-24" />
