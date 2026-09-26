@@ -27,7 +27,7 @@ export function StageBadge({ status, className }: { status: PursuitStage; classN
     return (
         <span
             className={cn(
-                "inline-flex h-fit shrink-0 items-center rounded-pill px-2 py-0.5 text-xs font-semibold leading-none tabular-nums",
+                "inline-flex h-fit shrink-0 items-center rounded-pill border border-border px-2 py-0.5 text-xs font-semibold leading-none tabular-nums",
                 STAGE_PILL_CLASS[column],
                 className,
             )}

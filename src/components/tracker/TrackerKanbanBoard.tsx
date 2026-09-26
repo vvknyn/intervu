@@ -34,7 +34,7 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
                     <a
                         key={column}
                         href={`#${laneAnchor(column)}`}
-                        className="flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-border px-2.5 text-xs font-semibold text-muted-foreground"
+                        className="flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-border bg-surface-2 px-2.5 text-xs font-semibold text-muted-foreground shadow-[var(--shadow-bevel-highlight)]"
                     >
                         {label}
                         <span className="tabular-nums opacity-60">{groups[column].length}</span>
@@ -54,7 +54,7 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
                             key={column}
                             id={laneAnchor(column)}
                             aria-label={label}
-                            className="flex w-80 shrink-0 scroll-ml-0 snap-start flex-col rounded-panel border border-border bg-background md:w-auto md:min-w-0"
+                            className="flex w-80 shrink-0 scroll-ml-0 snap-start flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] md:w-auto md:min-w-0"
                         >
                             <header className="border-b border-border px-[var(--list-inset)] py-2">
                                 <h3 className="text-sm text-muted-foreground">

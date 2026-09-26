@@ -184,7 +184,7 @@ function PursuitDetailBody({
                     })}
                 </div>
 
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-panel bg-muted p-3.5">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-panel border border-border bg-surface-2 p-3.5 shadow-[var(--shadow-bevel-inset)]">
                     <div>
                         <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">In tracker</dt>
                         <dd className="text-xl font-semibold tabular-nums">{days}d</dd>

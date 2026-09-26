@@ -267,9 +267,9 @@
      --brand (Ledger palette, 2026-08-27) and never --live. */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
   --st-applied: var(--brand);             --st-applied-soft: var(--brand-tint-bg);
-  --st-intv: var(--warn);                 --st-intv-soft: 254 243 199;
+  --st-intv: var(--warn);                 --st-intv-soft: 38 31 16;
   --st-offer: var(--brand);               --st-offer-soft: var(--brand-tint-bg-alt);
-  --st-closed: var(--destructive);        --st-closed-soft: 255 241 242;
+  --st-closed: var(--destructive);        --st-closed-soft: 42 16 22;
 
   /* Sidebar width */
   --sb-w: 250px;

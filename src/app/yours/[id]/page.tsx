@@ -41,7 +41,7 @@ import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
     const versions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
     return (
-        <div className="rounded-panel border border-border bg-card p-6">
+        <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
             <div className="mb-3 text-xs text-muted-foreground">Resume used</div>
             {versions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No resume version on file for this application.</p>
@@ -283,7 +283,11 @@ export default function PursuitDetailPage() {
     if (loading) {
         return (
             <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
-                <div className="h-40 animate-pulse rounded-panel bg-card" />
+                <div className="space-y-4" role="status" aria-busy="true">
+                    <span className="sr-only">Loading pursuit…</span>
+                    <div aria-hidden className="skeleton-bar h-32 rounded-panel" />
+                    <div aria-hidden className="skeleton-bar h-24 rounded-panel" />
+                </div>
             </PageLayout>
         );
     }
@@ -323,7 +327,7 @@ export default function PursuitDetailPage() {
     return (
         <PageLayout header={<PageHeader title={companyName} description={pursuit.position} actions={backLink} />}>
             <div className="space-y-6">
-                <div className="rounded-panel border border-border bg-card p-6">
+                <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
                     {/* Clickable only when a live posting is actually linked. A
                         manual pursuit has no `job_id`, so it renders as plain
                         text — offering a click that could only open an apology
@@ -354,7 +358,7 @@ export default function PursuitDetailPage() {
 
                 <ResumeUsedCard pursuit={pursuit} />
 
-                <div className="rounded-panel border border-border bg-card p-6">
+                <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
                     {/* Tailoring moved to MCP 2026-08-02 — the in-app
                         /resume-tailor link is gone; the quiet handoff note
                         replaces it (same pattern as the "prep" note below). */}
@@ -388,7 +392,7 @@ export default function PursuitDetailPage() {
                                 type="date"
                                 value={interviewDate}
                                 onChange={(e) => setInterviewDate(e.target.value)}
-                                className="h-11 w-auto rounded-ctl border-border bg-card text-base"
+                                className="h-11 w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
                                 aria-label="Interview date"
                             />
                             <Button
@@ -413,7 +417,7 @@ export default function PursuitDetailPage() {
                 </div>
 
                 {snapshot?.description && (
-                    <div className="rounded-panel border border-border bg-card p-6">
+                    <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
                         <div className="mb-2 text-xs font-semibold">About this role</div>
                         <p className="whitespace-pre-line text-base leading-relaxed text-muted-foreground">
                             {snapshot.description}
@@ -485,7 +489,7 @@ export default function PursuitDetailPage() {
                                     <button
                                         type="button"
                                         onClick={() => gatedOpenPosting(pursuit.job_url!)}
-                                        className="mt-3 text-sm text-brand underline underline-offset-2"
+                                        className="mt-3 text-sm text-live underline underline-offset-2"
                                     >
                                         Open posting
                                     </button>

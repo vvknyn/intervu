@@ -88,7 +88,7 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
         <Link
             href={href}
             data-testid="history-row"
-            className="grid rounded-none bg-card px-[var(--list-inset)] pt-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+            className="grid rounded-none bg-transparent px-[var(--list-inset)] pt-4 transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live"
         >
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-4">
                 <div className="min-w-0">
@@ -127,10 +127,12 @@ export function HistoryList({
     if (loading) return <HistoryLoading />;
     if (entries.length === 0) return <HistoryEmptyState />;
     return (
-        <div className="divide-y divide-border border-t border-border">
-            {entries.map((view) => (
-                <HistoryRow key={view.id} view={view} stage={byJobId.get(view.job_id)} />
-            ))}
+        <div className="overflow-hidden rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]">
+            <div className="divide-y divide-border border-t border-border">
+                {entries.map((view) => (
+                    <HistoryRow key={view.id} view={view} stage={byJobId.get(view.job_id)} />
+                ))}
+            </div>
         </div>
     );
 }
@@ -140,16 +142,22 @@ export function HistoryList({
  *  not one flat block standing in for the whole row. */
 function HistoryLoading() {
     return (
-        <div aria-hidden className="divide-y divide-border border-t border-border">
-            {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="px-[var(--list-inset)] pt-4">
-                    <div className="space-y-1.5 border-b border-border pb-4">
-                        <div className="skeleton-bar h-4 w-2/3" />
-                        <div className="skeleton-bar h-3 w-1/3" />
-                        <div className="skeleton-bar h-3 w-24" />
+        <div
+            className="overflow-hidden rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]"
+            role="status"
+            aria-busy="true"
+        >
+            <div aria-hidden className="divide-y divide-border border-t border-border">
+                {[0, 1, 2, 3, 4].map((i) => (
+                    <div key={i} className="px-[var(--list-inset)] pt-4">
+                        <div className="space-y-1.5 border-b border-border pb-4">
+                            <div className="skeleton-bar h-4 w-2/3" />
+                            <div className="skeleton-bar h-3 w-1/3" />
+                            <div className="skeleton-bar h-3 w-24" />
+                        </div>
                     </div>
-                </div>
-            ))}
+                ))}
+            </div>
             <span className="sr-only">Loading your history…</span>
         </div>
     );
