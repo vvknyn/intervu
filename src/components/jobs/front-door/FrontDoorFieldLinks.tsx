@@ -1,6 +1,6 @@
 "use client";
 
-import { indexCategories } from "@/components/jobs/LandingMarketingShowcase";
+import { indexCategories } from "@/lib/jobs/index-categories";
 import { DotSeparated } from "@/components/ui/dot-separated";
 
 /**
