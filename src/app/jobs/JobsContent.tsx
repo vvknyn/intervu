@@ -1011,13 +1011,10 @@ function ListTail({
 export type JobsContentProps = {
     /** Skip SSR Step 1 — open onboarding at steps 2–3 (auth/résumé gate). */
     onboardingInitialStep?: 1 | 2 | 3;
-    /** Replay sign-in affordance from Concept A header after bundle loads. */
-    openAuthOnMount?: boolean;
 };
 
 export function JobsContent({
     onboardingInitialStep,
-    openAuthOnMount = false,
 }: JobsContentProps) {
     const router = useRouter();
     const pathname = usePathname();
@@ -1937,13 +1934,6 @@ export function JobsContent({
 
     const signedIn = isConfirmedSignedIn(authReady, user);
     const signedOut = isConfirmedSignedOut(authReady, user);
-
-    useEffect(() => {
-        if (!openAuthOnMount) return;
-        setAuthTrigger("user");
-        setAuthGateReason("resume");
-        setAuthOpen(true);
-    }, [openAuthOnMount, setAuthOpen]);
 
     // Refetch rule: only the search-affecting subset should trigger a fetch.
     // `jobId` is deliberately omitted here, so opening/closing a job (a `job`-
@@ -6151,11 +6141,6 @@ export function JobsContent({
                                 userName={user?.displayName}
                                 onComplete={handleOnboardingComplete}
                                 onSkip={handleOnboardingSkip}
-                                onOpenAuth={() => {
-                                    setAuthTrigger("user");
-                                    setAuthGateReason("resume");
-                                    setAuthOpen(true);
-                                }}
                             />
                         </div>
                     </div>

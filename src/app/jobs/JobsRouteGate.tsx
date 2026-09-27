@@ -81,7 +81,7 @@ export default function JobsRouteGate() {
                 onSignIn={() => {
                     requireAuthKitSoon();
                     hideJobsSsrLanding();
-                    setEntry({ onboardingInitialStep: 2, openAuthOnMount: true });
+                    setEntry({ onboardingInitialStep: 2 });
                 }}
             />
             <div id="jobs-route-gate-inert" data-testid="jobs-route-loading-inert" className="hidden" aria-hidden />
