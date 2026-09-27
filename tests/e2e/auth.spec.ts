@@ -119,27 +119,21 @@ test.describe('AUTH - Authentication Tests', () => {
   });
 
   /**
-   * TC-AUTH-006: Guest mode allows access to all features
+   * TC-AUTH-006: Guest mode allows public product surfaces
    *
-   * Verifies unauthenticated users can still use the application.
+   * Unauthenticated visitors can reach open routes (/jobs, /yours). Gated
+   * routes such as /settings are covered by TC-AUTH-007.
    */
-  test('TC-AUTH-006: Guest mode allows access to all features', async ({ page }) => {
-    // Can access the front door without auth
+  test('TC-AUTH-006: Guest mode allows public product surfaces', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveURL('/jobs');
 
-    // Signed-out /jobs at rest shows Concept A — not the SERP search chrome yet
     await page.goto('/jobs');
     await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('concept-a-landing')).toBeVisible();
 
-    // Can access yours without auth
     await page.goto('/yours');
     await expect(page).toHaveURL('/yours');
-
-    // Can access settings without auth
-    await page.goto('/settings');
-    await expect(page).toHaveURL('/settings');
   });
 
   /**
