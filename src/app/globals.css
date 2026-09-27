@@ -811,6 +811,7 @@ h4 {
 
 /* The ranked deck is two panes. Body stays viewport-tall so the list cannot
    grow the page; the list and the open role scroll inside the frame. */
+html:has([data-testid="for-you-home"]),
 body:has([data-testid="for-you-home"]) {
   height: 100svh;
   max-height: 100svh;

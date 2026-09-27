@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CircleNotch, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
@@ -139,6 +139,8 @@ export function ForYouHome({
     const [rowHeight, setRowHeight] = useState(DECK_ROW_ESTIMATE_PX);
     const listRef = useRef<HTMLDivElement>(null);
     const listScrollMemory = useRef(0);
+    const phoneScrollRestore = useRef(0);
+    const freezeListScroll = useRef(false);
     const scrollFrame = useRef(0);
     const rowMeasured = useRef(false);
     const lastScrolledIndex = useRef(0);
@@ -329,24 +331,32 @@ export function ForYouHome({
         rowHeight,
     });
 
+    const rememberListScroll = () => {
+        phoneScrollRestore.current = listRef.current?.scrollTop ?? listScrollTop;
+    };
+
     const selectRow = (index: number) => {
         onActiveIndexChange(index);
         if (window.matchMedia("(max-width: 1279px)").matches) {
-            listScrollMemory.current = listRef.current?.scrollTop ?? listScrollTop;
+            freezeListScroll.current = true;
             setPhoneRole(true);
         }
     };
 
     const backToList = () => {
-        const top = listScrollMemory.current;
+        setListScrollTop(phoneScrollRestore.current);
         setPhoneRole(false);
-        window.requestAnimationFrame(() => {
-            if (listRef.current) listRef.current.scrollTop = top;
-            setListScrollTop(top);
-        });
     };
 
+    useLayoutEffect(() => {
+        if (phoneRole || !freezeListScroll.current) return;
+        const el = listRef.current;
+        if (el) el.scrollTop = phoneScrollRestore.current;
+        freezeListScroll.current = false;
+    }, [phoneRole, listScrollTop]);
+
     const onListScroll = (event: { currentTarget: HTMLDivElement }) => {
+        if (freezeListScroll.current || phoneRole || event.currentTarget.clientHeight === 0) return;
         listScrollMemory.current = event.currentTarget.scrollTop;
         if (scrollFrame.current) return;
         scrollFrame.current = window.requestAnimationFrame(() => {
@@ -518,6 +528,7 @@ export function ForYouHome({
                         role="listbox"
                         aria-label="Ranked roles"
                         data-testid="for-you-list-scroll"
+                        onPointerDown={rememberListScroll}
                         onScroll={onListScroll}
                         className={cn(
                             "min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] xl:h-full xl:max-h-full",
