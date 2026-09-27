@@ -13,8 +13,9 @@ describe("for-you mobile chrome", () => {
         const src = readFileSync(join(FOR_YOU, "ForYouHome.tsx"), "utf8");
         assert.doesNotMatch(src, /for-you-preferences/, "preference chips are Search-only");
         assert.match(src, /data-testid="for-you-skip"/);
-        assert.match(src, /data-testid="for-you-next"/);
-        assert.match(src, /data-testid="for-you-previous"/);
+        assert.match(src, /<JobCard/);
+        assert.doesNotMatch(src, /data-testid="for-you-next"/);
+        assert.doesNotMatch(src, /data-testid="for-you-previous"/);
         assert.match(src, /h-11 min-h-11[\s\S]*data-testid="for-you-skip"/);
     });
 

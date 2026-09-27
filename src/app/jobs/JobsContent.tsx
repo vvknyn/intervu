@@ -322,6 +322,7 @@ import {
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
+import { isCanadaDeckJob } from "@/lib/jobs/for-you/canada-deck";
 import {
     formatAllPackHubLabels,
     formatHubCorpusLine,
@@ -2866,7 +2867,10 @@ export function JobsContent({
     const forYouPacks = useMemo(
         () =>
             orderForYouJobsByBand(
-                renderedClusters.map((c) => c.primary).filter(hasLiveApplyUrl),
+                renderedClusters
+                    .map((c) => c.primary)
+                    .filter(hasLiveApplyUrl)
+                    .filter((job) => !isCanadaDeckJob(job)),
                 matchScores ? (job) => matchScores.get(job.id) ?? null : null,
                 result?.effectiveQ,
             ),

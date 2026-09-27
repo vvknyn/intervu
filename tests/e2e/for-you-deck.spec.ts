@@ -60,25 +60,19 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
         expect(await restingPackTitle(page)).toBe(initialJob);
     });
 
-    test("TC-DECK-004: Next and Previous buttons navigate between jobs", async ({ page }) => {
+    test("TC-DECK-004: choosing another row changes the open role", async ({ page }) => {
         await waitForMockDeckReady(page);
 
-        const nextBtn = page.getByTestId("for-you-next");
-        const prevBtn = page.getByTestId("for-you-previous");
-
-        await expect(prevBtn).toBeDisabled();
         const firstJob = await restingPackTitle(page);
-
-        await nextBtn.click();
+        const rows = page.getByTestId("job-row");
+        await rows.nth(1).click();
         await waitForDeckRestingState(page);
         const secondJob = await restingPackTitle(page);
         expect(secondJob).not.toBe(firstJob);
-        await expect(prevBtn).toBeEnabled();
 
-        await prevBtn.click();
+        await rows.nth(0).click();
         await waitForDeckRestingState(page);
         await expect(deckRestingPackHeading(page)).toHaveText(firstJob, { timeout: 5000 });
-        await expect(prevBtn).toBeDisabled();
     });
 
     test("TC-DECK-005: keyboard shortcuts navigate between jobs", async ({ page }) => {
@@ -100,7 +94,7 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
         await waitForMockDeckReady(page);
 
         const firstJob = await restingPackTitle(page);
-        await page.getByTestId("for-you-next").click();
+        await page.getByTestId("job-row").nth(1).click();
         await waitForDeckRestingState(page);
         await expect(deckRestingPackHeading(page)).not.toHaveText(firstJob, { timeout: 5000 });
     });
@@ -112,19 +106,11 @@ test.describe("FOR-YOU-DECK — mock fixture hint banner", () => {
         await page.emulateMedia({ reducedMotion: "no-preference" });
     });
 
-    test("TC-DECK-006: first-run instruction banner shows and dismisses on Got it", async ({ page }) => {
+    test("TC-DECK-006: the deck has no coach strip", async ({ page }) => {
         await page.goto(FOR_YOU_DECK_MOCK_PATH);
         await waitForDeckRestingState(page);
-
-        const hint = page.getByText("Getting around");
-        await expect(hint).toBeVisible();
-
-        await page.getByRole("button", { name: "Got it" }).click();
-        await expect(hint).toHaveCount(0);
-
-        await page.reload();
-        await waitForDeckRestingState(page);
         await expect(page.getByText("Getting around")).toHaveCount(0);
+        await expect(page.getByTestId("job-row").first()).toBeVisible();
     });
 });
 

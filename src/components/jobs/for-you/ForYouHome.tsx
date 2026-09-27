@@ -1,27 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CaretLeft, CaretRight, CircleNotch, UploadSimple } from "@phosphor-icons/react";
+import { CircleNotch, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
-import { ProgressBar } from "@/components/ui/progress-bar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     JOBS_SESSION_FRAME_CLASS,
-    ForYouDeckSkeleton,
     JobsSessionLoadingShell,
 } from "@/components/layout/jobs-session-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
-import { Kbd } from "@/components/ui/kbd";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { ForYouDeck } from "@/components/jobs/for-you/ForYouDeck";
+import { JobCard } from "@/components/jobs/JobCard";
+import { JobDetail } from "@/components/jobs/JobDetail";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { resolveDeckShortcut } from "@/lib/jobs/for-you/deck-keyboard";
-import { readForYouHintDismissed, writeForYouHintDismissed } from "@/lib/jobs/for-you/first-run-hint";
+import { resolveDescriptionHydration } from "@/lib/jobs/for-you/description-pane-state";
+import { prefetchIndexesAhead } from "@/lib/jobs/for-you/deck-active-job";
 import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -32,20 +32,15 @@ import {
     FOR_YOU_DOWNLOAD_LABEL,
     FOR_YOU_UPLOAD_PDF_EMPTY,
 } from "@/lib/jobs/resume-cta-copy";
-import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
-import { locationText } from "@/lib/jobs/presentation";
 import type { Pursuit } from "@/lib/pursuits/types";
 
 export { JOBS_SESSION_FRAME_CLASS, JOBS_SESSION_FRAME_CLASS as FOR_YOU_HOME_FRAME_CLASS };
 
-/** For-you frame grows with the pack deck — document scroll, not a nested
- *  100dvh trap. JD scroll stays inside each postcard (`data-pack-scroll`). */
+/** For-you frame grows with the ranked list — document scroll, not a nested
+ *  viewport trap. Same list + detail materials as Search. */
 
-/** Recurring quiet text-link button shape (Replace / Upload résumé / Got
- *  it) — one class, not three copies that can drift apart. */
-const TEXT_LINK_BUTTON_CLASS =
-    "inline-flex min-h-11 items-center text-xs font-semibold text-foreground transition-colors hover:text-brand";
+const REPLACE_RESUME_CLASS =
+    "text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground";
 
 export interface ForYouHomeProps {
     visiblePacks: PublicJob[];
@@ -84,6 +79,23 @@ export interface ForYouHomeProps {
     saveSuccessPulse?: boolean;
 }
 
+function RankedListSkeleton() {
+    return (
+        <div className="overflow-hidden rounded-panel border border-border bg-surface" aria-hidden>
+            {Array.from({ length: 6 }, (_, index) => (
+                <div key={index} className="flex gap-3 border-b border-border px-[var(--list-inset)] py-4 last:border-b-0">
+                    <Skeleton className="size-10 shrink-0" />
+                    <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-1/2" />
+                        <Skeleton className="h-3 w-1/3" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export function ForYouHome({
     visiblePacks,
     activeIndex,
@@ -117,17 +129,11 @@ export function ForYouHome({
 }: ForYouHomeProps) {
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
-    const [hintDismissed, setHintDismissed] = useState(true);
     const [proofLoading, setProofLoading] = useState(false);
+    const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set());
 
     useEffect(() => {
-        setHintDismissed(readForYouHintDismissed());
         setProofLoading(readPacksProofLoading());
-    }, []);
-
-    const dismissHint = useCallback(() => {
-        writeForYouHintDismissed();
-        setHintDismissed(true);
     }, []);
 
     const prewarmDraft = useCallback(
@@ -151,6 +157,25 @@ export function ForYouHome({
         const next = visiblePacks[activeIndex + 1];
         if (next) void prewarmDraft(next);
     }, [activeJob, activeIndex, visiblePacks, prewarmDraft]);
+
+    useEffect(() => {
+        const job = visiblePacks[activeIndex];
+        if (job) onActivePackChange(job.id);
+        for (const index of prefetchIndexesAhead(activeIndex, visiblePacks.length, 3)) {
+            onActivePackChange(visiblePacks[index].id);
+        }
+    }, [activeIndex, visiblePacks, onActivePackChange]);
+
+    useEffect(() => {
+        const job = visiblePacks[activeIndex];
+        if (!job) return;
+        setOpenedIds((prev) => {
+            if (prev.has(job.id)) return prev;
+            const next = new Set(prev);
+            next.add(job.id);
+            return next;
+        });
+    }, [activeIndex, visiblePacks]);
 
     const exportPdfForJob = useCallback(
         async (job: PublicJob, data: ResumeData) => {
@@ -236,92 +261,41 @@ export function ForYouHome({
     }, [onActiveIndexChange, onSkip]);
 
     const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
+    const activeHydration = activeJob
+        ? resolveDescriptionHydration(activeJob, hydratedJobs.get(activeJob.id))
+        : null;
 
     return (
         <div className={cn(JOBS_SESSION_FRAME_CLASS, "state-opacity-in")} data-testid="for-you-home">
             {(canNavigate || (hasUsableResume && onReplaceResume)) && (
-                <div className="mb-4 flex shrink-0 flex-wrap items-center justify-end gap-3 pt-1">
-                    {canNavigate && (
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                aria-label="Previous role"
-                                data-testid="for-you-previous"
-                                className="h-11 w-11"
-                                onClick={() => onActiveIndexChange(Math.max(activeIndex - 1, 0))}
-                                disabled={activeIndex === 0}
-                            >
-                                <CaretLeft size={16} weight="bold" aria-hidden />
-                            </Button>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <p
-                                    className="text-xs text-muted-foreground tabular-nums"
-                                    data-testid="for-you-deck-position"
-                                >
-                                    {activeIndex + 1} of {visiblePacks.length}
-                                </p>
-                                <ProgressBar
-                                    progress={((activeIndex + 1) / visiblePacks.length) * 100}
-                                    className="w-16"
-                                />
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                aria-label="Next role"
-                                data-testid="for-you-next"
-                                className="h-11 w-11"
-                                onClick={() =>
-                                    onActiveIndexChange(Math.min(activeIndex + 1, visiblePacks.length - 1))
-                                }
-                                disabled={activeIndex === visiblePacks.length - 1}
-                            >
-                                <CaretRight size={16} weight="bold" aria-hidden />
-                            </Button>
-                            <span className="hidden items-center gap-1 text-muted-foreground lg:flex">
-                                <Kbd>Left</Kbd>
-                                <Kbd>K</Kbd>
-                                <span className="text-xs" aria-hidden>/</span>
-                                <Kbd>J</Kbd>
-                                <Kbd>Right</Kbd>
-                            </span>
-                        </div>
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                    {canNavigate ? (
+                        <p
+                            className="text-xs text-muted-foreground tabular-nums"
+                            data-testid="for-you-deck-position"
+                        >
+                            {activeIndex + 1} of {visiblePacks.length}
+                        </p>
+                    ) : (
+                        <span />
                     )}
-                    {hasUsableResume && onReplaceResume && (
+                    {hasUsableResume && onReplaceResume ? (
                         <button
                             type="button"
                             data-testid="jobs-replace-resume"
                             onClick={onReplaceResume}
-                            className={TEXT_LINK_BUTTON_CLASS}
+                            className={REPLACE_RESUME_CLASS}
                         >
                             Replace résumé
                         </button>
-                    )}
+                    ) : null}
                 </div>
             )}
 
-            {canNavigate && !hintDismissed && (
-                <Alert className="mb-4 shrink-0">
-                    <AlertTitle>Getting around</AlertTitle>
-                    <AlertDescription>
-                        <p>
-                            Scroll the card to read the role. Use Next and Previous (or{" "}
-                            <Kbd className="align-middle">Left</Kbd> and <Kbd className="align-middle">Right</Kbd>) to
-                            move between matches. Skip removes a role from this list.
-                        </p>
-                        <button type="button" onClick={dismissHint} className={cn(TEXT_LINK_BUTTON_CLASS, "text-brand")}>
-                            Got it
-                        </button>
-                    </AlertDescription>
-                </Alert>
-            )}
-
             {showLoading ? (
-                <div data-testid="for-you-loading" className="state-opacity-in">
-                    <ForYouDeckSkeleton tone="postcard" withStatus />
+                <div data-testid="for-you-loading" className="state-opacity-in space-y-3">
+                    <RotatingLoadingCopy variant="deck" className="px-1 text-xs font-semibold" />
+                    <RankedListSkeleton />
                 </div>
             ) : visiblePacks.length === 0 ? (
                 <ConceptAEmptyPageSlot placement="page" className="flex-1" data-testid="for-you-empty-wrap">
@@ -344,24 +318,111 @@ export function ForYouHome({
                     />
                 </ConceptAEmptyPageSlot>
             ) : (
-                <ForYouDeck
-                    packs={visiblePacks}
-                    activeIndex={activeIndex}
-                    matchScores={matchScores}
-                    resume={resume}
-                    nowMs={nowMs}
-                    hydratedJobs={hydratedJobs}
-                    onActivePackChange={onActivePackChange}
-                    onRetryDescription={onRetryDescription}
-                    firstReveal={firstRevealEnter}
-                    onSwipeNavigate={(direction) => {
-                        if (direction === "previous") {
-                            onActiveIndexChange(Math.max(activeIndex - 1, 0));
-                        } else {
-                            onActiveIndexChange(Math.min(activeIndex + 1, visiblePacks.length - 1));
-                        }
-                    }}
-                />
+                <div
+                    data-testid="for-you-deck"
+                    className={cn(
+                        "flex min-h-0 flex-col gap-4",
+                        "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:items-start",
+                        firstRevealEnter && "state-opacity-in",
+                    )}
+                >
+                    {activeHydration && activeJob ? (
+                        <div
+                            data-testid="for-you-pack"
+                            className="flex min-w-0 flex-col overflow-hidden rounded-panel border border-border bg-surface xl:order-2"
+                        >
+                            <div data-testid="for-you-deck-save" className="min-w-0">
+                                <JobDetail
+                                    job={activeHydration.job}
+                                    now={nowMs}
+                                    source="serp"
+                                    signedIn
+                                    onOpenPosting={() => onOpenPosting(activeHydration.job)}
+                                    onGoAfter={() => onGoAfter?.(activeHydration.job)}
+                                    pursuit={activePursuit}
+                                    saveSuccessPulse={saveSuccessPulse}
+                                    className="border-0 bg-transparent"
+                                    collapseDescription={false}
+                                    descriptionPending={activeHydration.descriptionPending}
+                                    onRetryDescription={
+                                        onRetryDescription
+                                            ? () => onRetryDescription(activeHydration.job.id)
+                                            : undefined
+                                    }
+                                    matchScore={matchScores?.get(activeJob.id) ?? null}
+                                    resume={resume}
+                                    onUploadResume={onReplaceResume}
+                                />
+                            </div>
+                            <div className="flex flex-col gap-2 border-t border-border p-4">
+                                {!resume && onReplaceResume ? (
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-muted-foreground">{FOR_YOU_UPLOAD_PDF_EMPTY}</p>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            data-testid="for-you-upload-resume"
+                                            onClick={onReplaceResume}
+                                            className="inline-flex items-center gap-1.5 font-normal"
+                                        >
+                                            <UploadSimple size={16} weight="bold" aria-hidden />
+                                            Upload résumé
+                                        </Button>
+                                    </div>
+                                ) : null}
+                                <div className="flex gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-11 min-h-11 flex-1 lg:flex-none"
+                                    data-testid="for-you-download-apply"
+                                    onClick={handleDownloadApply}
+                                    disabled={applying || !resume}
+                                >
+                                    {applying ? (
+                                        <>
+                                            <CircleNotch size={16} className="mr-2 animate-spin" aria-hidden />
+                                            Preparing…
+                                        </>
+                                    ) : (
+                                        FOR_YOU_DOWNLOAD_LABEL
+                                    )}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-11 min-h-11 flex-1 lg:flex-none"
+                                    data-testid="for-you-skip"
+                                    onClick={onSkip}
+                                    disabled={applying}
+                                >
+                                    Skip
+                                </Button>
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    <div
+                        role="listbox"
+                        aria-label="Ranked roles"
+                        className="flex min-h-0 min-w-0 flex-1 flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]"
+                    >
+                        {visiblePacks.map((job, index) => (
+                            <JobCard
+                                key={job.id}
+                                job={job}
+                                active={index === activeIndex}
+                                opened={openedIds.has(job.id) && index !== activeIndex}
+                                onClick={() => onActiveIndexChange(index)}
+                                now={nowMs}
+                                matchScore={matchScores?.get(job.id) ?? null}
+                                position={index + 1}
+                            />
+                        ))}
+                    </div>
+                </div>
             )}
 
             {visiblePacks.length > 0 && !showLoading && (showingLine || (hasMore && onLoadMore)) && (
@@ -392,86 +453,12 @@ export function ForYouHome({
                     ) : null}
                 </div>
             )}
-
-            {visiblePacks.length > 0 && !showLoading && activeJob && (
-                <div className="mt-3" data-testid="for-you-mcp-handoff">
-                    <McpHandoffNote
-                        variant="intelligence"
-                        job={{
-                            id: activeJob.id,
-                            title: activeJob.title,
-                            company: activeJob.company || "Unknown company",
-                            location: locationText(activeJob) || null,
-                        }}
-                    />
-                </div>
-            )}
-
-            {visiblePacks.length > 0 && !showLoading && (
-                <div className="mt-4 shrink-0 border-t border-border pt-4">
-                    {!resume && onReplaceResume && (
-                        <div className="mb-3 space-y-2">
-                            <p className="text-xs text-muted-foreground">{FOR_YOU_UPLOAD_PDF_EMPTY}</p>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                data-testid="for-you-upload-resume"
-                                onClick={onReplaceResume}
-                                className="inline-flex items-center gap-1.5 font-normal"
-                            >
-                                <UploadSimple size={16} weight="bold" aria-hidden />
-                                Upload résumé
-                            </Button>
-                        </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                        <Button
-                            type="button"
-                            className="h-11 min-h-11 flex-1 lg:flex-none"
-                            data-testid="for-you-download-apply"
-                            onClick={handleDownloadApply}
-                            disabled={applying || !resume}
-                        >
-                            {applying ? (
-                                <>
-                                    <CircleNotch size={16} className="mr-2 animate-spin" aria-hidden />
-                                    Preparing…
-                                </>
-                            ) : (
-                                FOR_YOU_DOWNLOAD_LABEL
-                            )}
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="h-11 min-h-11 flex-1 lg:flex-none"
-                            data-testid="for-you-skip"
-                            onClick={onSkip}
-                            disabled={applying}
-                        >
-                            Skip
-                        </Button>
-                        {onGoAfter && activeJob ? (
-                            <span data-testid="for-you-deck-save" className="shrink-0">
-                                <RowBookmarkButton
-                                    pursuit={activePursuit}
-                                    onGoAfter={() => onGoAfter(activeJob)}
-                                    successPulse={saveSuccessPulse}
-                                />
-                            </span>
-                        ) : null}
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
 
 /** Neutral first-paint column while résumé presence is still unknown.
- *  Same frame as For you — never Search chrome. Same skeleton shape as the
- *  loading state (`ForYouDeckSkeleton`) so the visitor never sees a
- *  different "card shape" appear mid-load. */
+ *  Same frame as For you — never Search chrome. */
 export function ForYouHomePending() {
     return (
         <div className={cn(JOBS_SESSION_FRAME_CLASS, "state-opacity-in")} data-testid="for-you-home-pending">

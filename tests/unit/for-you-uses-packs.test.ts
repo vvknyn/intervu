@@ -9,13 +9,15 @@ const FOR_YOU_HOME_SRC = readFileSync(
 );
 const FOR_YOU_DIR = join(__dirname, "../../src/components/jobs/for-you");
 
-test("ForYouHome renders the pack deck, not Search list+detail primitives", () => {
-    assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/for-you\/ForYouDeck"/);
-    assert.match(FOR_YOU_HOME_SRC, /<ForYouDeck/);
-    assert.doesNotMatch(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/JobCard"/);
-    assert.doesNotMatch(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/JobDetail"/);
-    assert.doesNotMatch(FOR_YOU_HOME_SRC, /JobCard/);
-    assert.doesNotMatch(FOR_YOU_HOME_SRC, /JobDetail/);
+test("ForYouHome uses the jobs list and detail, not the postcard coach", () => {
+    assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/JobCard"/);
+    assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/JobDetail"/);
+    assert.match(FOR_YOU_HOME_SRC, /<JobCard/);
+    assert.match(FOR_YOU_HOME_SRC, /<JobDetail/);
+    assert.doesNotMatch(FOR_YOU_HOME_SRC, /Getting around/);
+    assert.doesNotMatch(FOR_YOU_HOME_SRC, /ProgressBar/);
+    assert.doesNotMatch(FOR_YOU_HOME_SRC, /<Kbd/);
+    assert.doesNotMatch(FOR_YOU_HOME_SRC, /<ForYouDeck/);
 });
 
 test("ForYouHome does not mount Search-only chrome (ranked header or preference chips)", () => {
