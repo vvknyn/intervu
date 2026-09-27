@@ -6,6 +6,11 @@ import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-c
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { Button } from "@/components/ui/button";
 import { validateNextParam } from "@/lib/auth/product-routes";
+import {
+    AUTH_RETRY_BODY,
+    AUTH_RETRY_BUTTON_LABEL,
+    AUTH_RETRY_HEADLINE,
+} from "@/lib/auth/auth-retry-copy";
 
 /**
  * Landing spot for every way /auth/callback can fail — a stale bookmark
@@ -31,10 +36,10 @@ export function AuthRetryClient() {
         <AuthRouteLayout>
             <AuthRaisedPanel className="text-center">
                 <BrandLockup className="mx-auto w-fit" />
-                <h1 className="mt-4 text-xl font-semibold text-foreground">That sign-in link expired</h1>
-                <p className="mt-2 text-sm text-muted-foreground">Try again.</p>
-                <Button asChild size="lg" className="mt-8">
-                    <Link href={retryHref}>Try again</Link>
+                <h1 className="mt-4 text-xl font-semibold text-foreground">{AUTH_RETRY_HEADLINE}</h1>
+                <p className="mt-2 text-sm text-muted-foreground">{AUTH_RETRY_BODY}</p>
+                <Button asChild size="lg" className="mt-8 min-h-11">
+                    <Link href={retryHref}>{AUTH_RETRY_BUTTON_LABEL}</Link>
                 </Button>
             </AuthRaisedPanel>
         </AuthRouteLayout>

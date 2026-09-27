@@ -10,11 +10,11 @@ import { test, expect, type Page } from '@playwright/test';
  * over a hidden `TopBar`, so tests had to target FrontDoorNav's separate
  * `landing-login` trigger. `FrontDoorNav` is deleted — `TopBar` is now the
  * only nav on every route, front door included — so `/`'s real, clickable
- * login entry point is the same `topbar-login` trigger every other page
- * uses.
+ * login entry point is `topbar-signin` on marketing routes (and lean
+ * surfaces use the same test id with a filled treatment).
  */
 function frontDoorLogin(page: Page) {
-  return page.getByTestId('topbar-alerts-cta');
+  return page.getByTestId('topbar-signin');
 }
 
 test.describe('AUTH - Authentication Tests', () => {
@@ -30,7 +30,7 @@ test.describe('AUTH - Authentication Tests', () => {
 
     // Desktop: look for "Log in" in the side rail
     const loginButton = page.locator(
-      'button:has-text("Get job alerts"), button:has-text("Log in"), a:has-text("Log in"), button:has-text("login")',
+      'button:has-text("Sign in"), button:has-text("Log in"), a:has-text("Log in"), button:has-text("login")',
     );
     const isVisible = await loginButton.first().isVisible().catch(() => false);
 

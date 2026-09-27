@@ -165,6 +165,21 @@ export function isStalePursuit(
     return p.status === "applied" && daysSinceUpdate(p, nowMs) >= thresholdDays;
 }
 
+/**
+ * Row meta facts for PursuitListRow — omit dead values (`0d in tracker`,
+ * `no résumé`) until they carry meaning.
+ */
+export function pursuitRowMetaItems(p: Pursuit, nowMs: number = Date.now()): string[] {
+    const items: string[] = [];
+    const days = daysInTracker(p, nowMs);
+    if (days > 0) items.push(`${days}d in tracker`);
+    if (hasResumeLinked(p)) items.push(trackerResumeMetaLabel(true));
+    if (isStalePursuit(p, nowMs)) items.push(`no update in ${daysSinceUpdate(p, nowMs)}d`);
+    const note = p.note?.trim();
+    if (note) items.push(note);
+    return items;
+}
+
 /** Applications marked applied since `sinceMs` (spec B3, pattern
  *  Self-Monitoring). `applied_at`-based, not stage-based, so re-tracking an
  *  older applied pursuit doesn't retroactively count it. Missing/unparseable

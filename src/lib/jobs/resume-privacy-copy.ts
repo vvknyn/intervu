@@ -4,8 +4,11 @@
  * job search sends derived role/skill phrases to Meilisearch, not the full file.
  */
 
-/** /resume PageHeader + signed-out empty state title. */
+/** /resume PageHeader — the one primary headline on the signed-out page. */
 export const RESUME_PAGE_HEADLINE = "One résumé unlocks your personalized job search.";
+
+/** Signed-out empty state only — supportive h2, not a second page headline. */
+export const RESUME_SIGNED_OUT_EMPTY_TITLE = "You're one upload away.";
 
 /** /resume PageHeader description — plain English, no product codenames. */
 export const RESUME_PAGE_SUBCOPY =

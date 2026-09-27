@@ -7,6 +7,7 @@ import {
     matchesTrackerFilter,
     matchesTrackerSearch,
     trackerStatusLabel,
+    pursuitRowMetaItems,
     trackerResumeMetaLabel,
     visibleTrackerBoardColumns,
 } from "../../src/lib/pursuits/tracker-display";
@@ -42,6 +43,18 @@ test("matchesTrackerSearch matches company or role case-insensitively", () => {
 test("trackerResumeMetaLabel spells résumé with accent in row meta", () => {
     assert.equal(trackerResumeMetaLabel(false), "no résumé");
     assert.equal(trackerResumeMetaLabel(true), "résumé linked");
+});
+
+test("pursuitRowMetaItems omits zero-day tracker age and unlinked résumé line", () => {
+    const now = Date.parse("2026-06-01T12:00:00.000Z");
+    const iso = new Date(now).toISOString();
+    assert.deepEqual(
+        pursuitRowMetaItems(
+            pursuit({ created_at: iso, updated_at: iso }),
+            now,
+        ),
+        [],
+    );
 });
 
 test("countByTrackerFilter and trackerStatusLabel stay aligned", () => {

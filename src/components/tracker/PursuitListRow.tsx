@@ -3,13 +3,7 @@
 import { cn } from "@/lib/utils";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import type { Pursuit } from "@/lib/pursuits/types";
-import {
-    daysInTracker,
-    daysSinceUpdate,
-    hasResumeLinked,
-    isStalePursuit,
-    trackerResumeMetaLabel,
-} from "@/lib/pursuits/tracker-display";
+import { pursuitRowMetaItems } from "@/lib/pursuits/tracker-display";
 import { StageBadge } from "@/components/tracker/StageBadge";
 
 interface PursuitListRowProps {
@@ -23,10 +17,7 @@ interface PursuitListRowProps {
  *  to a single content column) — selected/hover both read `bg-surface-hover`
  *  only (§2: "selected = hover tint, nothing else"), no accent-colored edge. */
 export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps) {
-    const days = daysInTracker(pursuit);
-    const resumeLinked = hasResumeLinked(pursuit);
-    const note = pursuit.note?.trim();
-    const stale = isStalePursuit(pursuit);
+    const metaItems = pursuitRowMetaItems(pursuit);
 
     return (
         <button
@@ -47,16 +38,11 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
                         {pursuit.position}
                     </div>
                     <div className="mt-1 truncate text-sm text-muted-foreground">{pursuit.company_name}</div>
-                    <div className="mt-1 text-sm text-muted-foreground">
-                        <DotSeparated
-                            items={[
-                                `${days}d in tracker`,
-                                trackerResumeMetaLabel(resumeLinked),
-                                stale && `no update in ${daysSinceUpdate(pursuit)}d`,
-                                note,
-                            ]}
-                        />
-                    </div>
+                    {metaItems.length > 0 ? (
+                        <div className="mt-1 text-sm text-muted-foreground">
+                            <DotSeparated items={metaItems} />
+                        </div>
+                    ) : null}
                 </div>
                 <StageBadge status={pursuit.status} className="self-start" />
             </div>

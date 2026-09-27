@@ -257,44 +257,45 @@ export function TopBar() {
                             signingOut={signingOut}
                             onSignOut={handleSignOut}
                         />
+                    ) : leanSurface ? (
+                        <>
+                            <Button
+                                type="button"
+                                data-testid="topbar-signin"
+                                onClick={() => {
+                                    setAuthTab("login");
+                                    setAuthPopoverOpen(true);
+                                }}
+                                className={cn("min-h-11 rounded-ctl", CHROME_FOCUS_VISIBLE)}
+                            >
+                                {AUTH_CTA_LABEL}
+                            </Button>
+                        </>
                     ) : (
                         <>
-                        {/* Same AuthPopover as the alerts CTA below, opened on
-                            its login tab — one auth system, two tabs. This is
-                            deliberately NOT a second auth component: the branch
-                            it sits in has already resolved that nobody is
-                            signed in, so anything re-deciding that here could
-                            only contradict it. Visible at every width — on
-                            mobile it is the "auth affordance pinned right" the
-                            component contract above promises, since the alerts
-                            CTA is desktop-only. */}
-                        {/* The one filled brand control in the header (ACCENT
-                            DISCIPLINE) — reuses the shared Button's `default`
-                            variant rather than a one-off filled treatment. */}
-                        <Button
-                            type="button"
-                            data-testid="topbar-signin"
-                            onClick={() => {
-                                setAuthTab("login");
-                                setAuthPopoverOpen(true);
-                            }}
-                            className={cn("rounded-ctl", CHROME_FOCUS_VISIBLE)}
-                        >
-                            {AUTH_CTA_LABEL}
-                        </Button>
-                        {/* Plain nav link, not a control — Sign in is the
-                            header's one filled action. Kept hidden to declutter header. */}
-                        <button
-                            type="button"
-                            data-testid="topbar-alerts-cta"
-                            onClick={() => {
-                                setAuthTab("signup");
-                                setAuthPopoverOpen(true);
-                            }}
-                            className="hidden"
-                        >
-                            Get job alerts
-                        </button>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                data-testid="topbar-signin"
+                                onClick={() => {
+                                    setAuthTab("login");
+                                    setAuthPopoverOpen(true);
+                                }}
+                                className={cn("min-h-11 rounded-ctl font-normal text-muted-foreground", CHROME_FOCUS_VISIBLE)}
+                            >
+                                {AUTH_CTA_LABEL}
+                            </Button>
+                            <Button
+                                type="button"
+                                data-testid="topbar-create-account"
+                                onClick={() => {
+                                    setAuthTab("signup");
+                                    setAuthPopoverOpen(true);
+                                }}
+                                className={cn("min-h-11 rounded-ctl", CHROME_FOCUS_VISIBLE)}
+                            >
+                                Create account
+                            </Button>
                         </>
                     )}
                     </div>

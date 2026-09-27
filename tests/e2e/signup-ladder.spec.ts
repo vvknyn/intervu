@@ -1,17 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * TEST GROUP: SIGNUP-LADDER - TopBar value-first CTA (wave-2, 2026-08-20 audit)
+ * TEST GROUP: SIGNUP-LADDER - TopBar auth CTA contract (Batch 4)
  *
- * The signed-out header's only CTA used to be a bare "Log in" — an ask with
- * no value attached. It now leads with a single "Get job alerts"
- * (data-testid="topbar-alerts-cta", inverted-ink primary). Login lives on
- * the auth dialog's own tab — a second header button was a competing CTA.
- * Signed-in visitors see neither — the avatar menu replaces the CTA.
- *
- * Signed-in state is faked via the same dev-only `__INTERVU_E2E_AUTH__` hook
- * coin-balance.spec.ts uses (src/lib/firebase/client-auth.ts) — real
- * Firebase never runs in this suite.
+ * Lean product surfaces (/jobs, /resume): one filled Sign in (topbar-signin).
+ * Signed-out marketing routes: quiet ghost Sign in + green Create account.
+ * Signed-in visitors see the avatar menu — no header auth CTAs.
  */
 async function signInAsMock(page: Page) {
   await page.addInitScript(() => {
@@ -32,30 +26,40 @@ async function signInAsMock(page: Page) {
   });
 }
 
-test.describe('SIGNUP-LADDER - TopBar value-first CTA', () => {
-  test('TC-LADDER-001: signed-out header has one "Get job alerts" primary', async ({ page }) => {
+test.describe('SIGNUP-LADDER - TopBar auth CTA contract', () => {
+  test('TC-LADDER-001: lean /jobs shows one filled Sign in', async ({ page }) => {
     await page.goto('/jobs');
     await page.waitForLoadState('networkidle');
 
-    const alertsCta = page.getByTestId('topbar-alerts-cta');
-    await expect(alertsCta).toBeVisible();
-    await expect(alertsCta).toHaveText('Get job alerts');
-    await expect(page.getByTestId('topbar-login')).toHaveCount(0);
+    const signIn = page.getByTestId('topbar-signin');
+    await expect(signIn).toBeVisible();
+    await expect(signIn).toHaveText('Sign in');
+    await expect(page.getByTestId('topbar-create-account')).toHaveCount(0);
 
-    // Opens straight into the signup tab — where the alerts/tracker value
-    // line the header just promised is what actually renders.
-    await alertsCta.click();
+    await signIn.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+
+  test('TC-LADDER-002: marketing /about shows Sign in + Create account', async ({ page }) => {
+    await page.goto('/about');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByTestId('topbar-signin')).toBeVisible();
+    await expect(page.getByTestId('topbar-create-account')).toBeVisible();
+    await expect(page.getByTestId('topbar-create-account')).toHaveText('Create account');
+
+    await page.getByTestId('topbar-create-account').click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByText('Create your account')).toBeVisible();
   });
 
-  test('TC-LADDER-002: signed-in header shows neither CTA', async ({ page }) => {
+  test('TC-LADDER-003: signed-in header shows neither auth CTA', async ({ page }) => {
     await signInAsMock(page);
     await page.goto('/jobs');
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('topbar-avatar')).toBeVisible();
-    await expect(page.getByTestId('topbar-alerts-cta')).not.toBeVisible();
-    await expect(page.getByTestId('topbar-login')).not.toBeVisible();
+    await expect(page.getByTestId('topbar-signin')).not.toBeVisible();
+    await expect(page.getByTestId('topbar-create-account')).not.toBeVisible();
   });
 });

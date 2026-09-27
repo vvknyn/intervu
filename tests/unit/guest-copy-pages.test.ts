@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { TRACKER_PAGE_SUBCOPY } from "../../src/lib/pursuits/tracker-voice-copy";
 
 const PAGE = join(__dirname, "..", "..", "src", "app", "watch", "anywhere", "page.tsx");
 const YOURS = join(__dirname, "..", "..", "src", "app", "yours", "page.tsx");
@@ -23,10 +24,12 @@ describe("yours tracker chrome", () => {
         assert.match(src, /overflow-x-auto/);
     });
 
-    it("tracker subtitle is a complete sentence", () => {
+    it("tracker subtitle communicates journey and control without agent jargon", () => {
         const src = readFileSync(YOURS, "utf8");
-        assert.match(src, /Agent drafts still stop before they(?:'|&apos;)re sent\./);
-        assert.doesNotMatch(src, /Agent drafts still stop before send\./);
+        assert.match(src, /TRACKER_PAGE_SUBCOPY/);
+        assert.match(TRACKER_PAGE_SUBCOPY, /from saved to offer/i);
+        assert.match(TRACKER_PAGE_SUBCOPY, /You decide what gets sent/i);
+        assert.doesNotMatch(TRACKER_PAGE_SUBCOPY, /Agent|records|submissions/i);
     });
 
     it("search placeholder fits narrow tracker chrome", () => {
