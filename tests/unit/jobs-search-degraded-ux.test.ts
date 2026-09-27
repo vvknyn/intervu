@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   isOperatorSearchNote,
   isSearchUnhealthy,
+  jobsNotConnectedPanelCopy,
   userFacingSearchErrorMessage,
   SEARCH_UNAVAILABLE_MESSAGE,
 } from "../../src/lib/jobs/result-state";
@@ -49,6 +50,25 @@ describe("jobs search degraded UX helpers", () => {
     );
   });
 
+  it("jobsNotConnectedPanelCopy hides operator env detail outside development", () => {
+    const prod = jobsNotConnectedPanelCopy({
+      isDev: false,
+      operatorNote: "Set MEILISEARCH_HOST (production)",
+    });
+    assert.equal(prod.body, SEARCH_UNAVAILABLE_MESSAGE);
+    assert.equal(prod.operatorDetail, null);
+    assert.match(prod.title, /can't load results/i);
+    assert.doesNotMatch(prod.body, /MEILISEARCH_HOST/i);
+    assert.doesNotMatch(prod.body, /\bvelai\b/);
+
+    const dev = jobsNotConnectedPanelCopy({
+      isDev: true,
+      operatorNote: "Set MEILISEARCH_HOST",
+    });
+    assert.match(dev.body, /Velai/);
+    assert.equal(dev.operatorDetail, "Set MEILISEARCH_HOST");
+  });
+
   it("shouldShowSearchAlertCapture suppresses when search is unhealthy", () => {
     assert.equal(
       shouldShowSearchAlertCapture({
@@ -70,10 +90,22 @@ describe("jobs page wiring", () => {
     assert.match(src, /canUseSearchPersistenceActions = canSaveSearch && !searchUnhealthy/);
     assert.match(src, /userFacingSearchErrorMessage\(searchError\)/);
     assert.match(src, /disabled=\{searchUnhealthy\}/);
-    assert.doesNotMatch(
-      src.slice(src.indexOf('resultsPanel === "not-connected"'), src.indexOf('resultsPanel === "error"')),
-      /result\?\.note/,
+    const notConnected = src.slice(
+      src.indexOf('resultsPanel === "not-connected"'),
+      src.indexOf('resultsPanel === "error"'),
     );
+    assert.match(src, /notConnectedPanel = jobsNotConnectedPanelCopy/);
+    assert.match(notConnected, /border-brand/);
+    assert.doesNotMatch(notConnected, /border-foreground/);
+    assert.doesNotMatch(notConnected, /\bvelai\b/);
     assert.match(src, /variant="link"[\s\S]*Try again/);
+  });
+});
+
+describe("TopBar lean Sign in focus", () => {
+  it("uses emphasized chrome focus ring on filled brand CTA", () => {
+    const src = readFileSync(join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx"), "utf8");
+    const leanSignIn = src.slice(src.indexOf("leanSurface ?"), src.indexOf(") : (", src.indexOf("leanSurface ?")));
+    assert.match(leanSignIn, /CHROME_FOCUS_ON_BRAND/);
   });
 });

@@ -184,6 +184,7 @@ import {
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
     degradedResultsNote,
+    jobsNotConnectedPanelCopy,
     unmatchedPlaceNote,
     buildZeroResultPayload,
     resolveEndOfListState,
@@ -4764,6 +4765,10 @@ function JobsContent() {
         loading,
         hitCount: hits.length,
     });
+    const notConnectedPanel = jobsNotConnectedPanelCopy({
+        isDev: process.env.NODE_ENV === "development",
+        operatorNote: result?.note ?? null,
+    });
 
     const searchAlertFilterCount = activeEntries.length;
     const searchAlertQueryLength = query.trim().length;
@@ -6560,12 +6565,17 @@ function JobsContent() {
                                     </div>
                                 </div>
                             ) : resultsPanel === "not-connected" ? (
-                                <div className="border-l-2 border-foreground px-[var(--list-inset)] py-6 pl-4 text-left">
-                                    <p className="text-xs text-foreground">Job search is being connected.</p>
-                                    <p className="mt-1.5 max-w-md text-xs text-muted-foreground">
-                                        We&apos;re wiring velai up to Subspace&apos;s live job corpus — including the posting check
-                                        that flags roles that aren&apos;t really hiring.
-                                    </p>
+                                <div
+                                    role="status"
+                                    className="border-l-2 border-brand px-[var(--list-inset)] py-6 pl-4 text-left"
+                                >
+                                    <p className="text-xs text-foreground">{notConnectedPanel.title}</p>
+                                    <p className="mt-1.5 max-w-md text-xs text-muted-foreground">{notConnectedPanel.body}</p>
+                                    {notConnectedPanel.operatorDetail && (
+                                        <p className="mt-2 max-w-md font-mono text-xs text-muted-foreground">
+                                            {notConnectedPanel.operatorDetail}
+                                        </p>
+                                    )}
                                 </div>
                             ) : resultsPanel === "error" ? (
                                 // Deliverable 1 — the only remaining hard-stop state: a

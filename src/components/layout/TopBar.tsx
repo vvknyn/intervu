@@ -23,7 +23,7 @@ import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
-import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
+import { cn, CHROME_FOCUS_ON_BRAND, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
@@ -267,7 +267,7 @@ export function TopBar() {
                                     setAuthTab("login");
                                     setAuthPopoverOpen(true);
                                 }}
-                                className={cn("min-h-11 rounded-ctl", CHROME_FOCUS_VISIBLE)}
+                                className={cn("min-h-11 rounded-ctl", CHROME_FOCUS_ON_BRAND)}
                             >
                                 {AUTH_CTA_LABEL}
                             </Button>
