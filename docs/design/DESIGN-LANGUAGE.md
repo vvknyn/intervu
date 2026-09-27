@@ -270,6 +270,25 @@ Known debt, to be repaid rather than extended (from the 2026-08-04 audit):
 **Rule: any PR touching one of those files fixes it to the primitive on the way past.** No new
 hand-rolled buttons, cards, or switches.
 
+## Visual QA capture fidelity (Playwright / Chromium PNG)
+
+Design screenshots and visual-QA runs use **headless Chromium on Linux** in CI and cloud agents.
+Default FreeType font hinting there can **split label glyphs in PNGs** while DOM, computed styles,
+and macOS Chromium/WebKit captures stay clean — this is a **capture-engine artifact**, not product
+CSS. **`--font-render-hinting=none`** on Linux headless Chromium launch fixes it; **headed Xvfb
+does not** (pixels match broken default hinting).
+
+**Do not** remove **`--tracking-label-semibold`** (`-0.01em` on label-sized semibold roles) or
+change Source Sans 3 static **400/600** cuts when chasing screenshot diffs.
+
+Shared helper: `scripts/design/linux-chromium-visual-qa.cjs` (`linuxChromiumVisualQaLaunchOptions`).
+Wired in `playwright.config.ts`, `scripts/gate-walk-signed-in.mjs`, design `studio/render.mjs`
+frame captures, and PNG proof scripts — **not** production PDF/runtime launches unless they take a
+fidelity PNG. **Ad hoc captures on Linux:** `chromium.launch(linuxChromiumVisualQaLaunchOptions())`.
+Firefox/WebKit and non-Linux hosts skip the flag automatically.
+
+Guard: `tests/unit/linux-chromium-visual-qa.test.ts`.
+
 ## Definition of done for a design change
 
 1. Values changed in `globals.css`, not in components.
