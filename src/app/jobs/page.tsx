@@ -251,6 +251,7 @@ import {
     writeLastJobsHomeView,
 } from "@/lib/jobs/for-you/last-home-view";
 import { ForYouHome, ForYouHomePending } from "@/components/jobs/for-you/ForYouHome";
+import { JobsHomeViewTransition } from "@/components/jobs/for-you/JobsHomeViewTransition";
 import { QuietSearchLink } from "@/components/jobs/for-you/QuietSearchLink";
 import { PacksHomeIntroModal } from "@/components/jobs/for-you/PacksHomeIntroModal";
 import {
@@ -6156,6 +6157,7 @@ function JobsContent() {
                         dockedExtrasMount,
                     )}
 
+                <JobsHomeViewTransition surface={resolvedHomeView}>
                 {showForYouHome ? (
                     <div className={cn("mt-4", cappedContentClass)}>
                         {/* Packs home = CategoryHubGrid by default. Do NOT gate on atRest —
@@ -6909,6 +6911,7 @@ function JobsContent() {
                 )}
                 </>
                 )}
+                </JobsHomeViewTransition>
 
                 {/* Closing pitch after the live feed — one mount, same
                     `showsFrontDoorBand` gate as before. Source order is the

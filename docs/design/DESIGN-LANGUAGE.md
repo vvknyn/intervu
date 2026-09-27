@@ -210,7 +210,7 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
 | Base / panel | `--transition-base` / `--transition-panel` (150ms) | Colour, chips, dialogs |
 | Enter | `--transition-enter` (200ms) | Mount/reveal (`.enter-reveal`, `.panel-enter`) |
 | Deck | `--transition-deck` (220ms) + `--motion-deck-shift` (12%) | For-you pack index — `.deck-enter-*` / `.deck-exit-*` on commit; drag-follow reads `computeDeckDragOffset`; reduced motion = instant index swap (no follow/slide) |
-| Page | `--transition-page` (180ms) | Home view column crossfade (later batches) |
+| Page | `--transition-page` (180ms) | For you ↔ Search column — `.jobs-home-view-crossfade` (opacity only; first paint skipped) |
 | Easing | `--ease-standard` | `cubic-bezier(0.4, 0, 0.2, 1)` default |
 
 - **Guard:** `tests/unit/design-language.test.ts` enforces the three rules above against the
