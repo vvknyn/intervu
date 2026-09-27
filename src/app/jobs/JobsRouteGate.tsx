@@ -36,8 +36,13 @@ function isPostAuthJobsLanding(): boolean {
     return hasPostAuthResumeGateParam(`${window.location.pathname}${window.location.search}`);
 }
 
-function promoteJobsEntry(prev: JobsContentProps | null): JobsContentProps {
-    return prev ?? {};
+function promoteJobsEntry(prev: JobsContentProps | null, props?: JobsContentProps): JobsContentProps {
+    if (prev) return prev;
+    return props ?? {};
+}
+
+function postAuthEntryProps(): JobsContentProps {
+    return { onboardingInitialStep: 2 };
 }
 
 /**
@@ -50,9 +55,11 @@ export default function JobsRouteGate() {
         readOnboardingCompletedFromStorage,
         () => false,
     );
-    const [entry, setEntry] = useState<JobsContentProps | null>(() =>
-        readOnboardingCompletedFromStorage() || isPostAuthJobsLanding() ? {} : null,
-    );
+    const [entry, setEntry] = useState<JobsContentProps | null>(() => {
+        if (readOnboardingCompletedFromStorage()) return {};
+        if (isPostAuthJobsLanding()) return postAuthEntryProps();
+        return null;
+    });
 
     useEffect(() => {
         if (onboardingDismissed) {
@@ -66,7 +73,7 @@ export default function JobsRouteGate() {
         requireAuthKitSoon();
         hideJobsSsrLanding();
         revalidateClientSession();
-        setEntry((prev) => promoteJobsEntry(prev));
+        setEntry((prev) => promoteJobsEntry(prev, postAuthEntryProps()));
     }, []);
 
     useEffect(() => {
@@ -75,7 +82,7 @@ export default function JobsRouteGate() {
             requireAuthKitSoon();
             hideJobsSsrLanding();
             revalidateClientSession();
-            setEntry((prev) => promoteJobsEntry(prev));
+            setEntry((prev) => promoteJobsEntry(prev, postAuthEntryProps()));
         });
         return unsub;
     }, []);
