@@ -186,7 +186,6 @@ describe("Customize dialog contract", () => {
                 onOpenPosting: noop,
                 onGoAfter: noop,
                 pursuit: undefined,
-                goingAfter: false,
                 signedIn: true,
                 resume,
             }),
@@ -206,7 +205,6 @@ describe("Customize dialog contract", () => {
                 onOpenPosting: noop,
                 onGoAfter: noop,
                 pursuit: undefined,
-                goingAfter: false,
                 resume,
             }),
         );

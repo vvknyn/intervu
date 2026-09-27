@@ -336,7 +336,7 @@ export function ForYouDeck({
     return (
         <div
             ref={shellRef}
-            className={cn("relative min-h-[min(72dvh,720px)] touch-pan-y", className)}
+            className={cn("for-you-deck-shell relative touch-pan-y", className)}
             data-testid="for-you-deck"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}

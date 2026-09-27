@@ -66,7 +66,6 @@ function renderDetail(onSkip?: () => void): string {
             onOpenPosting: noop,
             onGoAfter: noop,
             pursuit: undefined,
-            goingAfter: false,
             signedIn: true,
             onSkip,
         }),

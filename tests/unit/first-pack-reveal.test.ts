@@ -6,23 +6,56 @@ import {
     armFirstPackReveal,
     consumeFirstPackReveal,
     FIRST_PACK_REVEAL_KEY,
+    setFirstPackRevealStorageForTests,
 } from "../../src/lib/jobs/for-you/first-pack-reveal";
+
+function makeMemorySessionStorage(): Storage {
+    const map = new Map<string, string>();
+    return {
+        get length() {
+            return map.size;
+        },
+        clear() {
+            map.clear();
+        },
+        getItem(key: string) {
+            return map.get(key) ?? null;
+        },
+        key(index: number) {
+            return [...map.keys()][index] ?? null;
+        },
+        removeItem(key: string) {
+            map.delete(key);
+        },
+        setItem(key: string, value: string) {
+            map.set(key, value);
+        },
+    };
+}
 
 describe("first-pack-reveal session latch", () => {
     beforeEach(() => {
-        sessionStorage.clear();
+        setFirstPackRevealStorageForTests(makeMemorySessionStorage());
     });
 
     afterEach(() => {
-        sessionStorage.clear();
+        setFirstPackRevealStorageForTests(undefined);
     });
 
     it("arms and consumes once", () => {
+        const storage = makeMemorySessionStorage();
+        setFirstPackRevealStorageForTests(storage);
         armFirstPackReveal();
-        assert.equal(sessionStorage.getItem(FIRST_PACK_REVEAL_KEY), "1");
+        assert.equal(storage.getItem(FIRST_PACK_REVEAL_KEY), "1");
         assert.equal(consumeFirstPackReveal(), true);
         assert.equal(consumeFirstPackReveal(), false);
-        assert.equal(sessionStorage.getItem(FIRST_PACK_REVEAL_KEY), null);
+        assert.equal(storage.getItem(FIRST_PACK_REVEAL_KEY), null);
+    });
+
+    it("consume is false when storage unavailable", () => {
+        setFirstPackRevealStorageForTests(null);
+        armFirstPackReveal();
+        assert.equal(consumeFirstPackReveal(), false);
     });
 
     it("jobs page wires arm on onboarding complete and import", () => {

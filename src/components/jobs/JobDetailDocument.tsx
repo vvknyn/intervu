@@ -229,7 +229,6 @@ export interface JobDetailDocumentProps {
     onOpenPosting: () => void;
     onGoAfter: () => void;
     pursuit: Pursuit | undefined;
-    goingAfter: boolean;
     saveSuccessPulse?: boolean;
     signedIn?: boolean;
     onRequestSignIn?: () => void;
@@ -282,7 +281,6 @@ export function JobDetailDocument({
     onOpenPosting,
     onGoAfter,
     pursuit,
-    goingAfter,
     saveSuccessPulse = false,
     signedIn = true,
     onRequestSignIn,
@@ -481,7 +479,6 @@ export function JobDetailDocument({
                 <RowBookmarkButton
                     pursuit={pursuit}
                     onGoAfter={onGoAfter}
-                    goingAfter={goingAfter}
                     successPulse={saveSuccessPulse}
                 />
                 {resume != null ? (
@@ -668,7 +665,6 @@ export function JobDetailDocument({
                     onOpenPosting={onOpenPosting}
                     onGoAfter={onGoAfter}
                     pursuit={pursuit}
-                    goingAfter={goingAfter}
                     saveSuccessPulse={saveSuccessPulse}
                     resume={resume}
                     onAcceptLocalTailor={onAcceptLocalTailor}

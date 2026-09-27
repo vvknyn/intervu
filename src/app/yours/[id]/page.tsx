@@ -451,7 +451,6 @@ export default function PursuitDetailPage() {
                                "In Yours ✓" state instead of a "Go after this job" CTA
                                — you are already here because you went after it. */
                             pursuit={pursuit}
-                            goingAfter={false}
                             onGoAfter={() => {}}
                             onOpenPosting={() => {
                                 const href = pursuit.job_url ?? detail.job?.apply_url;

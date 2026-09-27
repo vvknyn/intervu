@@ -35,9 +35,20 @@ import { test, expect, type Page } from "@playwright/test";
 
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
+const PACKS_HOME_INTRO_KEY = "velai-packs-home-intro-v1";
+
+/** Dismiss packs-home intro when it appears (storage seed usually skips it). */
+async function dismissPacksHomeIntro(page: Page) {
+    const gotIt = page.getByTestId("packs-home-intro-got-it");
+    if (await gotIt.isVisible({ timeout: 1500 }).catch(() => false)) {
+        await gotIt.click();
+        await expect(gotIt).toHaveCount(0, { timeout: 5000 });
+    }
+}
 
 /** Hub-first product default — open the all-matches pack before deck assertions. */
 async function openDeckFromHub(page: Page) {
+    await dismissPacksHomeIntro(page);
     const browse = page.getByTestId("hub-browse-all-matches");
     if ((await browse.count()) > 0) {
         await browse.click();
@@ -94,15 +105,16 @@ const SEEDED_RESUME = {
  *  purpose (see the file-level doc comment). */
 async function seedForYouEntry(page: Page) {
     await page.addInitScript(
-        ([enabledKey, resumeKey, resume]) => {
+        ([enabledKey, resumeKey, introKey, resume]) => {
             try {
                 window.localStorage.setItem(enabledKey as string, "1");
                 window.localStorage.setItem(resumeKey as string, JSON.stringify(resume));
+                window.localStorage.setItem(introKey as string, "1");
             } catch {
                 /* private mode */
             }
         },
-        [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, SEEDED_RESUME] as const,
+        [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, PACKS_HOME_INTRO_KEY, SEEDED_RESUME] as const,
     );
 }
 

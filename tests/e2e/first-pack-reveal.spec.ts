@@ -4,6 +4,7 @@ const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 const ONBOARDING_KEY = "velai.onboarding.completed";
 const FIRST_REVEAL_KEY = "velai.firstPackReveal";
+const PACKS_HOME_INTRO_KEY = "velai-packs-home-intro-v1";
 
 const SEEDED_RESUME = {
     data: {
@@ -34,20 +35,32 @@ const SEEDED_RESUME = {
 test.describe("first pack reveal latch", () => {
     test("armed session opens deck from hub after fit resolves", async ({ page }) => {
         await page.addInitScript(
-            ([enabledKey, resumeKey, onboardingKey, revealKey, resume]) => {
+            ([enabledKey, resumeKey, onboardingKey, introKey, revealKey, resume]) => {
                 try {
                     window.localStorage.setItem(enabledKey as string, "1");
                     window.localStorage.setItem(resumeKey as string, JSON.stringify(resume));
                     window.localStorage.setItem(onboardingKey as string, "1");
+                    window.localStorage.setItem(introKey as string, "1");
                     window.sessionStorage.setItem(revealKey as string, "1");
                 } catch {
                     /* private mode */
                 }
             },
-            [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, ONBOARDING_KEY, FIRST_REVEAL_KEY, SEEDED_RESUME] as const,
+            [
+                LOCAL_AI_ENABLED_KEY,
+                LOCAL_AI_RESUME_KEY,
+                ONBOARDING_KEY,
+                PACKS_HOME_INTRO_KEY,
+                FIRST_REVEAL_KEY,
+                SEEDED_RESUME,
+            ] as const,
         );
 
         await page.goto("/jobs");
+        const introGotIt = page.getByTestId("packs-home-intro-got-it");
+        if (await introGotIt.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await introGotIt.click();
+        }
         await expect(page.getByTestId("for-you-deck")).toBeVisible({ timeout: 25_000 });
         await expect(page.getByTestId("for-you-download-apply")).toBeFocused({ timeout: 10_000 });
     });

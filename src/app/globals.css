@@ -296,6 +296,7 @@
   --motion-press-scale: 0.98;
   --motion-lift-y: -1px;
   --motion-deck-shift: 12%;
+  --for-you-deck-min-height: min(72dvh, 720px);
 
   /* Elevation — Tailwind named scale stays `none`; sanctioned semantic shadows
      below (Concept A skeuomorphic, 2026-09-26). See DESIGN-LANGUAGE.md. */
@@ -782,6 +783,10 @@ h4 {
 
 .enter-reveal {
   animation: panel-enter var(--transition-enter) var(--ease-standard) both;
+}
+
+.for-you-deck-shell {
+  min-height: var(--for-you-deck-min-height);
 }
 
 /* For-you deck index transitions — transform/opacity only (no stacked peek). */

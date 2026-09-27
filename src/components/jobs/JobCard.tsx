@@ -63,7 +63,6 @@ export function JobCard({
     matchAsOfDate = null,
     pursuit,
     onGoAfter,
-    goingAfter = false,
     saveSuccessPulse = false,
     position,
 }: {
@@ -104,7 +103,6 @@ export function JobCard({
      *  simply doesn't render without a save handler rather than faking one. */
     pursuit?: Pursuit;
     onGoAfter?: () => void;
-    goingAfter?: boolean;
     saveSuccessPulse?: boolean;
     /** 1-based index of this row in the current search's rendered list
      *  (`hits`, jobs/page.tsx) — stamped as `data-position` for
@@ -326,7 +324,6 @@ export function JobCard({
                             <RowBookmarkButton
                                 pursuit={pursuit}
                                 onGoAfter={onGoAfter}
-                                goingAfter={goingAfter}
                                 successPulse={saveSuccessPulse}
                             />
                         </span>

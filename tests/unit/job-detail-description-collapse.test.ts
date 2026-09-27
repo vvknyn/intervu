@@ -80,7 +80,6 @@ function renderDetail(job: PublicJob, collapseDescription?: boolean): string {
             onOpenPosting: noop,
             onGoAfter: noop,
             pursuit: undefined,
-            goingAfter: false,
             signedIn: true,
             collapseDescription,
         }),

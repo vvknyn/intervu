@@ -28,6 +28,8 @@ const OUT =
 
 const LOCAL_AI_ENABLED_KEY = 'velai.localAi.enabled';
 const LOCAL_AI_RESUME_KEY = 'velai.localAi.resume';
+/** Gate-walk only — must exceed product apply-return threshold (10_000 ms). */
+const APPLY_AWAY_MS = 11_000;
 const SEEDED_RESUME = {
   data: {
     profile: {
@@ -224,7 +226,7 @@ async function navigateHubToPrompt(page) {
     const popupPromise = page.waitForEvent('popup', { timeout: 30000 }).catch(() => null);
     await dl.click().catch(() => {});
     const popup = await popupPromise;
-    await page.waitForTimeout(11_000);
+    await page.waitForTimeout(APPLY_AWAY_MS);
     if (popup) await popup.close().catch(() => {});
     await page.bringToFront();
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -422,7 +424,7 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
     const popupPromise = page.waitForEvent('popup', { timeout: 30000 }).catch(() => null);
     await dl.click().catch(() => {});
     const popup = await popupPromise;
-    await page.waitForTimeout(11_000);
+    await page.waitForTimeout(APPLY_AWAY_MS);
     if (popup) await popup.close().catch(() => {});
     await page.bringToFront();
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));

@@ -63,7 +63,7 @@ describe("for-you postcard layout", () => {
         assert.match(deck, /key=\{pack\.id\}/, "pack slots keyed by job id");
         assert.match(deck, /showCross/, "dual-card render is commit-only, not a resting stack");
         assert.doesNotMatch(deck, /flex-1 overflow-hidden/);
-        assert.match(deck, /min-h-\[min\(72dvh/, "fixed min-height prevents commit-time CLS");
+        assert.match(deck, /for-you-deck-shell/, "named deck shell min-height prevents commit-time CLS");
     });
 
     it("JD column only is the inner scroller — header and fit/why stay outside data-pack-scroll", () => {
@@ -80,7 +80,7 @@ describe("for-you postcard layout", () => {
         );
         const scrollIdx = pack.indexOf("data-pack-scroll");
         const asideIdx = pack.indexOf("<aside");
-        const headerIdx = pack.indexOf("border-b border-border bg-muted");
+        const headerIdx = pack.indexOf("border-b border-border py-4 px-4 lg:py-6 lg:px-8");
         assert.ok(headerIdx < scrollIdx, "pack header must render before the JD scroller");
         assert.ok(asideIdx < scrollIdx, "fit/why aside must render before the JD scroller");
         assert.doesNotMatch(pack, /max-h-\[40%\]/);
@@ -97,7 +97,7 @@ describe("for-you postcard layout", () => {
         );
         assert.match(pack, /flex flex-col gap-4/, "header inner layout must be a column with gap-4");
         assert.match(pack, /break-words/, "title h2 must break long words");
-        const headerBlock = pack.match(/border-b border-border bg-muted[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
+        const headerBlock = pack.match(/border-b border-border py-4 px-4 lg:py-6 lg:px-8[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
         assert.ok(headerBlock.length > 0, "pack header block not found");
         const identityRow = headerBlock.match(/<div className="flex items-start gap-3">[\s\S]*?<\/div>/)?.[0] ?? "";
         assert.ok(identityRow.length > 0, "identity row not found");
@@ -113,7 +113,7 @@ describe("for-you postcard layout", () => {
         const pack = source("ForYouPack.tsx");
         assert.match(
             pack,
-            /border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8/,
+            /border-b border-border py-4 px-4 lg:py-6 lg:px-8/,
             "pack header must use px-4 lg:px-8",
         );
         assert.match(
@@ -134,7 +134,7 @@ describe("for-you postcard layout", () => {
         );
         assert.match(
             skeletonBlock,
-            /border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8/,
+            /border-b border-border py-4 px-4 lg:py-6 lg:px-8/,
             "skeleton header must match pack horizontal inset",
         );
         assert.match(

@@ -40,14 +40,17 @@ describe("optimistic save / applied ordering", () => {
         const src = readFileSync(PAGE, "utf8");
         const saveBlock = src.match(/const handleGoAfter = \(job: PublicJob\) => \{[\s\S]*?^\    \};/m)?.[0] ?? "";
         assert.ok(saveBlock.length > 0);
-        assert.match(saveBlock, /triggerSavePulse\(job\.id\)/);
-        assert.match(saveBlock, /goAfterJobAction\(job\)/);
-        assert.match(saveBlock, /toast\.success\(GUEST_SAVE_TOAST\)/);
-        const toastIdx = saveBlock.indexOf("toast.success(GUEST_SAVE_TOAST)");
-        const actionIdx = saveBlock.indexOf("goAfterJobAction(job)");
+        const signedInBlock =
+            saveBlock.match(/if \(saveInFlightRef\.current\.has\(job\.id\)\)[\s\S]*$/m)?.[0] ?? "";
+        assert.ok(signedInBlock.length > 0, "signed-in save path must exist after guest branch");
+        assert.match(signedInBlock, /triggerSavePulse\(job\.id\)/);
+        assert.match(signedInBlock, /goAfterJobAction\(job\)/);
+        assert.match(signedInBlock, /toast\.success\(GUEST_SAVE_TOAST\)/);
+        const toastIdx = signedInBlock.indexOf("toast.success(GUEST_SAVE_TOAST)");
+        const actionIdx = signedInBlock.indexOf("goAfterJobAction(job)");
         assert.ok(toastIdx > actionIdx, "success toast must follow server action");
         assert.doesNotMatch(
-            saveBlock.slice(0, actionIdx),
+            signedInBlock.slice(0, actionIdx),
             /hapticTap\("success"\)/,
             "no success haptic before server call for signed-in",
         );

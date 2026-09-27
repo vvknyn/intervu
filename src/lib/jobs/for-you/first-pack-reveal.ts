@@ -4,7 +4,17 @@
  */
 export const FIRST_PACK_REVEAL_KEY = "velai.firstPackReveal";
 
-function getStorage(): Storage | null {
+type FirstPackRevealStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+/** Test-only override — undefined means use sessionStorage when available. */
+let storageOverride: FirstPackRevealStorage | null | undefined;
+
+export function setFirstPackRevealStorageForTests(storage: FirstPackRevealStorage | null | undefined): void {
+    storageOverride = storage;
+}
+
+function getStorage(): FirstPackRevealStorage | null {
+    if (storageOverride !== undefined) return storageOverride;
     if (typeof globalThis.sessionStorage === "undefined") return null;
     return globalThis.sessionStorage;
 }

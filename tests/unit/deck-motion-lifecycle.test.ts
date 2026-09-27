@@ -25,8 +25,8 @@ describe("deck motion lifecycle (pure)", () => {
     });
 
     it("accepts only matching animationend on the layer element", () => {
-        const layer = { id: "layer" };
-        const child = { id: "child" };
+        const layer = new EventTarget();
+        const child = new EventTarget();
         assert.equal(
             shouldAcceptDeckAnimationEnd({
                 phase: "commit-out",
