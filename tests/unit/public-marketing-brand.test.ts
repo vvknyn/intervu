@@ -82,7 +82,7 @@ describe("public marketing copy — Velai brand only", () => {
 
     it("transactional email shell renders VELAI wordmark, not intervu", () => {
         const palette = readFileSync(join(ROOT, "src/lib/email/templates/palette.ts"), "utf8");
-        assert.match(palette, /text:\s*"VELAI"/);
+        assert.match(palette, /text:\s*"Velai"/);
         assert.doesNotMatch(palette, /text:\s*"intervu"/i);
     });
 });
