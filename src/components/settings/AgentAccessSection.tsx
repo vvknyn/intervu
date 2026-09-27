@@ -14,6 +14,9 @@ import {
 } from "@/actions/agent-access";
 import { Copy, Check, Trash, CircleNotch, WarningCircle } from "@phosphor-icons/react";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
+import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
+import { SettingsSectionLoading } from "@/components/settings/SettingsSectionLoading";
+import { SETTINGS_AGENT_ACCESS_LOAD_ERROR, resetSettingsLoadErrorDedup } from "@/lib/settings/settings-load-error";
 
 function formatDate(ts: number | null): string {
     if (ts == null) return "Never used";
@@ -67,14 +70,18 @@ interface AgentAccessSectionProps {
  * a manual token by hand, and revoke access. Mirrors SettingsContainer's
  * section/divider conventions.
  */
+type LoadStatus = "loading" | "ready" | "error";
+
 export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionProps) {
     const [credentials, setCredentials] = useState<AgentCredentialSummary[] | null>(null);
+    const [loadStatus, setLoadStatus] = useState<LoadStatus>("loading");
     const [generating, setGenerating] = useState(false);
     const [newSecret, setNewSecret] = useState<string | null>(null);
     const [revokingId, setRevokingId] = useState<string | null>(null);
     const [label, setLabel] = useState("");
 
     const loadCredentials = useCallback(async () => {
+        setLoadStatus("loading");
         // Right after a fresh sign-in, the client's `user` can flip truthy a
         // beat before the server session cookie finishes syncing (see
         // syncSessionCookie in client-auth.ts) — this component only ever
@@ -86,17 +93,20 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             const res = await listAgentCredentialsAction();
             if (!res.error) {
                 setCredentials(res.data ?? []);
+                setLoadStatus("ready");
+                resetSettingsLoadErrorDedup();
                 return;
             }
             if (attempt < 3) await new Promise((r) => setTimeout(r, 400));
         }
-        toast.error("Couldn't load your connected agents. Try refreshing the page.");
         setCredentials([]);
+        setLoadStatus("error");
     }, []);
 
     useEffect(() => {
         if (!user) {
             setCredentials(null);
+            setLoadStatus("loading");
             return;
         }
         loadCredentials();
@@ -172,20 +182,26 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             </p>
 
             <div className="space-y-2 mb-6">
-                {credentials === null && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                        <CircleNotch size={16} className="animate-spin" />
-                        Loading...
+                {loadStatus === "loading" && (
+                    <SettingsSectionLoading label="Loading connected agents…" />
+                )}
+
+                {loadStatus === "error" && (
+                    <div className="space-y-2">
+                        <SettingsInlineError>{SETTINGS_AGENT_ACCESS_LOAD_ERROR}</SettingsInlineError>
+                        <Button variant="outline" size="sm" className="rounded-ctl" onClick={() => void loadCredentials()}>
+                            Try again
+                        </Button>
                     </div>
                 )}
 
-                {credentials !== null && credentials.length === 0 && (
+                {loadStatus === "ready" && credentials !== null && credentials.length === 0 && (
                     <p className="py-8 text-sm text-foreground">
                         No agents connected yet. Generate a token or connect an app below.
                     </p>
                 )}
 
-                {credentials?.map((c) => (
+                {loadStatus === "ready" && credentials?.map((c) => (
                     <div
                         key={c.id}
                         className="flex items-center justify-between gap-4 rounded-panel border border-border bg-surface-2 p-3 shadow-[var(--shadow-bevel-highlight)]"

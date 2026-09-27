@@ -8,6 +8,8 @@ import { PageLayout } from "@/components/layout/PageLayout";
  * single markup either site imports, so there is nothing left to drift
  * between them.
  */
+const SETTINGS_LOADING_LABEL_ID = "settings-page-loading-label";
+
 export function SettingsLoading() {
     return (
         <PageLayout fullWidth>
@@ -16,9 +18,12 @@ export function SettingsLoading() {
                     className="flex flex-col items-center justify-center gap-3 rounded-panel border border-border bg-surface p-10 text-muted-foreground shadow-[var(--shadow-bevel-highlight)]"
                     role="status"
                     aria-busy="true"
+                    aria-labelledby={SETTINGS_LOADING_LABEL_ID}
                 >
-                    <div className="h-5 w-5 animate-spin rounded-pill border-2 border-live border-t-transparent" />
-                    <p className="text-sm">Loading account…</p>
+                    <div className="h-5 w-5 animate-spin rounded-pill border-2 border-live border-t-transparent" aria-hidden />
+                    <p id={SETTINGS_LOADING_LABEL_ID} className="text-sm">
+                        Loading account…
+                    </p>
                 </div>
             </div>
         </PageLayout>
