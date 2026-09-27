@@ -29,15 +29,27 @@ export const BRAND_LOCKUP_WORDMARK_PX = 28;
 /** Warm-white lockup text — matches landing poster foreground, never brand green. */
 export const BRAND_LOCKUP_WORDMARK_CLASS = "text-wordmark";
 
-export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
+export function BrandMark({
+    className = "h-7 w-7",
+    pixelSize,
+    priority = false,
+}: {
+    className?: string;
+    /** Intrinsic width/height — must match rendered CSS size to avoid CLS. */
+    pixelSize?: number;
+    priority?: boolean;
+}) {
+    const px = pixelSize ?? BRAND_LOCKUP_MARK_PX;
     return (
         // eslint-disable-next-line @next/next/no-img-element -- brand lockup must match email/favicon raster exactly; next/image would re-encode
         <img
             src={LOCKED_MARK_SRC}
             alt=""
             aria-hidden
-            width={BRAND_LOCKUP_MARK_PX}
-            height={BRAND_LOCKUP_MARK_PX}
+            width={px}
+            height={px}
+            fetchPriority={priority ? "high" : undefined}
+            decoding={priority ? "sync" : "async"}
             className={["shrink-0 object-contain", className].filter(Boolean).join(" ")}
             draggable={false}
         />

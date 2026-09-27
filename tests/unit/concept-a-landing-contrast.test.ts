@@ -8,8 +8,9 @@ import {
 } from "./concept-a-landing-stack-parse";
 
 const SRC = readFileSync("src/components/onboarding/ConceptALanding.tsx", "utf8");
+const FACE = readFileSync("src/components/onboarding/ConceptALandingFace.tsx", "utf8");
 const GLOBALS = readFileSync("src/app/globals.css", "utf8");
-const POSTCARD = extractPostcardCardFunction(SRC);
+const POSTCARD = extractPostcardCardFunction(FACE);
 
 test("Concept A postcards render real titles, meta, and Live label", () => {
   assert.match(POSTCARD, /data-testid=\{`concept-a-postcard-\$\{index\}-title`\}/);
@@ -25,7 +26,7 @@ test("Concept A postcards render real titles, meta, and Live label", () => {
 });
 
 test("Concept A postcard copy renders inside decorative aria-hidden stack", () => {
-  const stackOpen = extractPostcardStackOpenTag(SRC);
+  const stackOpen = extractPostcardStackOpenTag(FACE);
   assert.match(stackOpen, /\baria-hidden\b/, "stack opening tag must be aria-hidden");
   assert.match(stackOpen, /role="presentation"/, "stack opening tag must be presentational");
 
@@ -35,7 +36,7 @@ test("Concept A postcard copy renders inside decorative aria-hidden stack", () =
     "indexed title test id is defined on PostcardCard",
   );
 
-  const stackBody = extractPostcardStackBody(SRC);
+  const stackBody = extractPostcardStackBody(FACE);
   assert.match(stackBody, /POSTCARDS\.map\(\(card, index\)/, "all postcards mount from stack map");
   assert.match(stackBody, /<PostcardCard/, "PostcardCard renders inside stack");
 });
@@ -63,13 +64,13 @@ test("Concept A does not hide main or use design-lint file exemption", () => {
 });
 
 test("Concept A keeps poster texture and real postcard stack", () => {
-  assert.match(SRC, /poster-noise/);
-  assert.match(SRC, /Remote AI Roles/);
-  assert.match(SRC, /overflow-visible/);
+  assert.match(FACE, /poster-noise/);
+  assert.match(readFileSync("src/components/onboarding/concept-a-postcards.ts", "utf8"), /Remote AI Roles/);
+  assert.match(FACE, /overflow-visible/);
 });
 
 test("Concept A hero copy column has no opaque poster plate", () => {
-  const heroBlock = SRC.match(/Skip the job[\s\S]*?Start with your résumé/)?.[0] ?? "";
+  const heroBlock = FACE.match(/Skip the job[\s\S]*?Start with your résumé/)?.[0] ?? "";
   assert.ok(heroBlock.length > 0, "hero copy block must exist");
   assert.doesNotMatch(heroBlock, /\bbg-surface-poster\b/, "hero column must not paint its own poster fill");
 });
@@ -90,12 +91,11 @@ test("Concept A poster-noise keeps solid root fill and pseudo texture layer", ()
   assert.match(GLOBALS, /\.poster-noise::before[\s\S]*background-image:/);
 });
 
-test("Concept A landing portal stays fixed; spacer collapses after mount", () => {
-  assert.match(SRC, /data-testid="concept-a-landing"[\s\S]*?fixed inset-0/);
-  assert.match(SRC, /mounted \? "h-0 min-h-0" : "min-h-\[100dvh\]"/);
+test("Concept A landing face stays fixed; client spacer reserves height until SSR detect", () => {
+  assert.match(FACE, /data-testid="concept-a-landing"[\s\S]*?fixed inset-0/);
   assert.match(
     SRC,
-    /className=\{cn\("w-full", mounted \? "h-0 min-h-0" : "min-h-\[100dvh\]"\)\}[\s\S]*?data-testid="landing-onboarding-step-1-spacer"/,
+    /min-h-\[100dvh\][\s\S]*data-testid="landing-onboarding-step-1-spacer"/,
   );
 });
 

@@ -1489,11 +1489,26 @@ body[data-scroll-locked] [data-testid="apply-return-prompt"] {
     url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
 }
 
-/* Step 1 Concept A portal — hide in-flow site chrome; landing supplies its own header/sign-in. */
+/* Step 1 Concept A — hide in-flow site chrome before hydration (html class set in head). */
+html.concept-a-landing-pending [data-testid="topbar"],
+html.concept-a-landing-pending [data-testid="mobile-tabbar"],
+html.concept-a-landing-pending [data-testid="site-footer"],
 body.concept-a-landing-active [data-testid="topbar"],
 body.concept-a-landing-active [data-testid="mobile-tabbar"],
 body.concept-a-landing-active [data-testid="site-footer"] {
   display: none !important;
+}
+
+/* SSR shell hidden once onboarding is done or jobs app leaves landing mode. */
+html.velai-onboarding-complete #concept-a-ssr,
+html.velai-jobs-skip-landing #concept-a-ssr {
+  display: none !important;
+}
+
+html.concept-a-landing-pending #main,
+body.concept-a-landing-active #main {
+  min-height: 100dvh;
+  overflow: clip;
 }
 
 /* Concept A landing postcard fan — mobile viewport containment (POSTCARDS % geometry unchanged). */

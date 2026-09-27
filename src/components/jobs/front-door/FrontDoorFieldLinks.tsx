@@ -1,6 +1,9 @@
 "use client";
 
+import { useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { indexCategories } from "@/lib/jobs/index-categories";
+import { jobsBrowseSearchHref } from "@/lib/jobs/prefetch-jobs-route";
 import { DotSeparated } from "@/components/ui/dot-separated";
 
 /**
@@ -18,6 +21,24 @@ import { DotSeparated } from "@/components/ui/dot-separated";
  * where that chip row no longer mounts at all.
  */
 export function FrontDoorFieldLinks({ onSelectQuery }: { onSelectQuery: (q: string) => void }) {
+    const router = useRouter();
+    const prefetchQuery = useCallback(
+        (q: string) => {
+            try {
+                router.prefetch(jobsBrowseSearchHref(q));
+            } catch {
+                /* prefetch is best-effort */
+            }
+        },
+        [router],
+    );
+
+    useEffect(() => {
+        for (const cat of indexCategories.slice(0, 3)) {
+            prefetchQuery(cat.q);
+        }
+    }, [prefetchQuery]);
+
     return (
         <div className="mx-auto mt-2 max-w-[960px] text-center">
             <p className="mb-1 text-xs font-semibold text-muted-foreground">Browse by field</p>
@@ -28,6 +49,8 @@ export function FrontDoorFieldLinks({ onSelectQuery }: { onSelectQuery: (q: stri
                             key={cat.q}
                             type="button"
                             onClick={() => onSelectQuery(cat.q)}
+                            onMouseEnter={() => prefetchQuery(cat.q)}
+                            onFocus={() => prefetchQuery(cat.q)}
                             className="text-foreground underline-offset-4 hover:underline"
                         >
                             {cat.title}

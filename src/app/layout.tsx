@@ -2,17 +2,18 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Libre_Franklin, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { TopBar } from "@/components/layout/TopBar";
 import { SearchDockProvider } from "@/components/layout/SearchDockContext";
 import { Footer } from "@/components/layout/Footer";
 import { IconDefaultsProvider } from "@/components/providers/IconDefaultsProvider";
-import { PostHogProvider } from "@/components/providers/PostHogProvider";
+import { DeferredPostHogProvider } from "@/components/providers/DeferredPostHogProvider";
+import { DeferredAuthKitProvider } from "@/components/providers/DeferredAuthKitProvider";
+import { IdleDeferredWidgets } from "@/components/providers/IdleDeferredWidgets";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
-import { TourOverlay } from "@/components/tour/TourOverlay";
 import { getSiteUrl, LANDING_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME } from "@/lib/seo/constants";
+import { JOBS_ONBOARDING_HEAD_SCRIPT } from "@/lib/jobs/onboarding-first-paint";
 import {
   buildJobSearchFaqJsonLd,
   buildOrganizationJsonLd,
@@ -20,10 +21,6 @@ import {
   buildWebsiteJsonLd,
   serializeJsonLd,
 } from "@/lib/seo/jsonld";
-import { Toaster } from "@/lib/toast";
-import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
-import { LocalAiParamSync } from "@/components/providers/LocalAiParamSync";
-import { OfflineShell } from "@/components/layout/offline-shell";
 
 /**
  * Three faces, each named for the ROLE it plays rather than the vendor that
@@ -52,19 +49,28 @@ const display = Libre_Franklin({
   variable: "--font-display-face",
   subsets: ["latin"],
   display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+  weight: ["600", "700"],
 });
 
 const sans = Source_Sans_3({
   variable: "--font-sans-face",
   subsets: ["latin"],
-  display: "swap",
+  // optional: hero/subline use metric-matched fallback on first paint (LCP).
+  display: "optional",
   weight: ["400", "600"],
+  preload: true,
+  adjustFontFallback: true,
 });
 
 const mono = JetBrains_Mono({
   variable: "--font-mono-face",
   subsets: ["latin"],
   display: "swap",
+  weight: ["400"],
+  preload: false,
+  adjustFontFallback: false,
 });
 
 const SITE_TITLE = SITE_NAME;
@@ -144,7 +150,6 @@ const rootJsonLd = [
   ...(faqJsonLd ? [faqJsonLd] : []),
 ];
 
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -169,6 +174,7 @@ export default function RootLayout({
             __html: `(function(){try{document.documentElement.classList.add("dark");localStorage.setItem("intervu-mode","dark");}catch(e){document.documentElement.classList.add("dark");}})();`,
           }}
         />
+        <script dangerouslySetInnerHTML={{ __html: JOBS_ONBOARDING_HEAD_SCRIPT }} />
       </head>
       <body
         className={`${display.variable} ${sans.variable} ${mono.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
@@ -181,11 +187,8 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
         />
-        <AuthKitProvider>
-        <PostHogProvider>
-          <Suspense fallback={null}>
-            <LocalAiParamSync />
-          </Suspense>
+        <DeferredAuthKitProvider>
+        <DeferredPostHogProvider>
           <ThemeProvider>
             <IconDefaultsProvider>
             <TourProvider>
@@ -218,14 +221,12 @@ export default function RootLayout({
               </SearchDockProvider>
               <Footer />
               <MobileTabBar />
-              <TourOverlay />
-              <Toaster />
-              <OfflineShell />
+              <IdleDeferredWidgets />
             </TourProvider>
             </IconDefaultsProvider>
           </ThemeProvider>
-        </PostHogProvider>
-        </AuthKitProvider>
+        </DeferredPostHogProvider>
+        </DeferredAuthKitProvider>
       </body>
     </html>
   );
