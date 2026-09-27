@@ -36,6 +36,12 @@ export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 export const SIGNUP_SUBCOPY =
     "Get job alerts, saved searches, and an application tracker — on any device.";
 
+/** Under the unlock line on fit and résumé sign-in cards. */
+export const AUTH_GATE_RESUME_ACCOUNT_LINE =
+    "We read your résumé in this browser. Signing in saves the structured version with your account, not the original file.";
+
+const FIT_RESUME_GATE_BODY = `${AUTH_GATE_RESUME_UNLOCK_BODY}\n\n${AUTH_GATE_RESUME_ACCOUNT_LINE}`;
+
 interface AuthGateCopy {
     title?: string;
     body: string;
@@ -54,7 +60,7 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
     },
     fit: {
         title: "Create your free account, then upload your résumé.",
-        body: AUTH_GATE_RESUME_UNLOCK_BODY,
+        body: FIT_RESUME_GATE_BODY,
     },
     report: { body: "Sign in to report an issue with this listing." },
     tailor: {
@@ -62,7 +68,7 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
     },
     resume: {
         title: "Create your free account, then upload your résumé.",
-        body: AUTH_GATE_RESUME_UNLOCK_BODY,
+        body: FIT_RESUME_GATE_BODY,
     },
     tracker: {
         title: "Sign in to track this application",

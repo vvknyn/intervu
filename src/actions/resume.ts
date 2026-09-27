@@ -1,5 +1,6 @@
 "use server";
 
+import { FieldValue } from "firebase-admin/firestore";
 import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData } from "@/types/resume";
@@ -82,16 +83,14 @@ export async function saveResumeData(
 
         console.log("[Resume] Saving resume data for:", user.uid);
 
-        // 1. Generate text representation for RAG/Context (Dashboard compatibility)
-        const resumeText = resumeDataToText(resumeData);
-
         const db = getAdminDb();
 
-        // 2. Try to update everything first (resume_data + resume_text)
+        // Structured save is the canonical copy. Drop any plain-text twin
+        // from an earlier save so both are not kept after this succeeds.
         try {
             const updateData: Record<string, any> = {
                 resume_data: resumeData,
-                resume_text: resumeText,
+                resume_text: FieldValue.delete(),
                 resume_last_updated: new Date().toISOString()
             };
 
@@ -103,15 +102,13 @@ export async function saveResumeData(
             return {}; // Success
 
         } catch (e: any) {
-            // If error, fall back to resume_text only
+            // Structured write failed. Text-only is the remaining copy.
             console.warn("[Resume] Primary save failed, attempting fallback to resume_text only:", e.message);
         }
 
-        // 3. Fallback: Save ONLY resume_text (and text-based fields) for Dashboard compatibility
-        // This ensures the "Resume Required" state is cleared even if structured storage fails
         try {
             await db.collection("profiles").doc(user.uid).update({
-                resume_text: resumeText,
+                resume_text: resumeDataToText(resumeData),
             });
         } catch (fallbackError: any) {
             console.error("[Resume] Fallback Save Error:", fallbackError);

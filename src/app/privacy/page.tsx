@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "September 26, 2026";
+const LAST_UPDATED = "September 27, 2026";
 
 /**
  * Plain-language Firestore storage categories for /privacy, each tied to the
@@ -196,12 +196,23 @@ export default function PrivacyPage() {
 
         <h2 className={LEGAL_H2}>AI processing</h2>
         <p>
-          Some features — résumé parsing (when you upload one) and résumé tailoring — work by sending the relevant
-          text (your résumé, a job description) to an AI provider to generate a response. We use OpenRouter and Groq
-          for this. That text is sent transiently to generate your result; it is not stored by us for any
-          purpose beyond producing that response, and we don&apos;t use it to train anything. Each provider is
-          bound by its own data-handling terms, which govern how they process the request while it&apos;s with
-          them.
+          We read your résumé in your browser and do not send it to a cloud AI to interpret it. Optional models, if
+          you allow a download, run in that browser. We do not keep the original file.
+        </p>
+        <p>
+          If you have an account, we store the structured résumé with that account until you delete the résumé or
+          the account. Deleting the account removes that copy from our database. It does not delete analytics or
+          replays already stored in PostHog.
+        </p>
+        <p>
+          Strong, Good, and Stretch are calculated from your résumé and each job&apos;s public details. On the
+          website that calculation runs in your browser. A connected assistant can also ask our servers to calculate
+          it from the résumé saved on the account. Finding jobs sends role and skill phrases to our search index,
+          not your full résumé.
+        </p>
+        <p>
+          Interview-prep search parsing can send the search text you typed to OpenRouter. Audio transcription can
+          send a recording to Groq. Those requests are not your résumé.
         </p>
 
         <h2 className={LEGAL_H2}>Connected AI clients</h2>

@@ -4,6 +4,7 @@
  * posts it here for print-to-pdf (same pipeline as Job Apply / Playwright gold).
  *
  * Soft-fails when the printed PDF has no extractable text (never pretends success).
+ * The posted HTML is used to print the response bytes and is not written to storage.
  */
 import { NextResponse } from "next/server";
 import { htmlToChromePdf } from "@/lib/resume/chrome-print-pdf";

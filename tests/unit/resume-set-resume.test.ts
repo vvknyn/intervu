@@ -1,5 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
     validateResumeData,
@@ -258,6 +260,40 @@ describe("validateResumeUploadText", () => {
     it("a too-long error message states the real cap, not a hand-copied number that can drift", () => {
         const result = validateResumeUploadText("x".repeat(AGENT.RESUME_TEXT_MAX_CHARS + 1));
         assert.ok(!result.ok && result.error.includes(AGENT.RESUME_TEXT_MAX_CHARS.toLocaleString()));
+    });
+});
+
+describe("clearBaseResumeForUser", () => {
+    it("deletes every resume_history document, then the profile résumé fields", () => {
+        const src = readFileSync(join(__dirname, "../../src/lib/resume/set-resume.ts"), "utf8");
+        const start = src.indexOf("export async function clearBaseResumeForUser");
+        const end = src.indexOf("export type ResumeUploadTextValidation");
+        assert.ok(start >= 0 && end > start);
+        const fn = src.slice(start, end);
+        assert.match(fn, /deleteResumeHistoryForUser\(uid\)/);
+        assert.match(fn, /resume_text: FieldValue\.delete\(\)/);
+        assert.match(fn, /resume_data: FieldValue\.delete\(\)/);
+        const helperStart = src.indexOf("async function deleteResumeHistoryForUser");
+        const helper = src.slice(helperStart, start);
+        assert.match(helper, /collection\("resume_history"\)/);
+        assert.match(helper, /batch\.delete\(doc\.ref\)/);
+        assert.doesNotMatch(fn + helper, /Never touches/);
+    });
+});
+
+describe("saveResumeData", () => {
+    it("drops resume_text when resume_data saves, and still writes resume_text on the text-only fallback", () => {
+        const src = readFileSync(join(__dirname, "../../src/actions/resume.ts"), "utf8");
+        const start = src.indexOf("export async function saveResumeData");
+        const end = src.indexOf("function resumeDataToText");
+        assert.ok(start >= 0 && end > start);
+        const fn = src.slice(start, end);
+        const successAt = fn.indexOf("resume_text: FieldValue.delete()");
+        const fallbackAt = fn.indexOf("resume_text: resumeDataToText(resumeData)");
+        assert.ok(successAt >= 0, "successful structured save must delete resume_text");
+        assert.ok(fallbackAt > successAt, "text-only fallback must still store resume_text");
+        const beforeReturn = fn.slice(0, fn.indexOf("return {}; // Success"));
+        assert.equal(beforeReturn.includes("resumeDataToText"), false);
     });
 });
 
