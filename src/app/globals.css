@@ -918,6 +918,21 @@ h4 {
   animation: state-opacity-in var(--transition-enter) var(--ease-standard) both;
 }
 
+/** For you ↔ Search main column — opacity only (no translate; keeps masthead/LCP stable). */
+@keyframes jobs-home-view-crossfade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.jobs-home-view-crossfade {
+  animation: jobs-home-view-crossfade-in var(--transition-page) var(--ease-standard) both;
+}
+
 .for-you-deck-shell {
   min-height: var(--for-you-deck-min-height);
 }

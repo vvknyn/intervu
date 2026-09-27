@@ -9,3 +9,4 @@ export {
   getPrefersReducedMotionServerSnapshot,
 } from "./interaction-contract";
 export { hapticTap, type HapticKind } from "./haptic";
+export { shouldAnimateJobsHomeViewSwap } from "./home-view-transition";
