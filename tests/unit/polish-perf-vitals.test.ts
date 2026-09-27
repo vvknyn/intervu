@@ -26,10 +26,38 @@ const ONBOARDING_PAINT = readFileSync(path.join(ROOT, "src/lib/jobs/onboarding-f
 test("body sans preloads with static cuts; display/mono defer preload", () => {
     assert.match(LAYOUT, /Source_Sans_3[\s\S]*preload:\s*true/);
     assert.match(LAYOUT, /Source_Sans_3[\s\S]*adjustFontFallback:\s*true/);
+    assert.match(LAYOUT, /Source_Sans_3[\s\S]*display:\s*"optional"/);
     assert.match(LAYOUT, /Libre_Franklin[\s\S]*preload:\s*false/);
     assert.match(LAYOUT, /JetBrains_Mono[\s\S]*preload:\s*false/);
     assert.match(LAYOUT, /DeferredPostHogProvider/);
+    assert.match(LAYOUT, /DeferredAuthKitProvider/);
+    assert.match(LAYOUT, /IdleDeferredWidgets/);
+    assert.doesNotMatch(LAYOUT, /import "\.\/elite-signal\.css"/);
+    assert.match(JOBS_CONTENT, /import "@\/app\/elite-signal\.css"/);
     assert.match(LAYOUT, /JOBS_ONBOARDING_HEAD_SCRIPT/);
+});
+
+test("Concept A hero h1 is visible on first paint (no enter-reveal on LCP)", () => {
+    const critical = readFileSync(
+        path.join(ROOT, "src/app/jobs/jobs-landing-critical.css.ts"),
+        "utf8",
+    );
+    assert.match(critical, /#concept-a-ssr h1/);
+    assert.doesNotMatch(CONCEPT_A_FACE, /enter-reveal/);
+    assert.doesNotMatch(CONCEPT_A_FACE, /panel-enter/);
+});
+
+test("PostHog and AuthKit defer until load or idle", () => {
+    const posthogDefer = readFileSync(
+        path.join(ROOT, "src/components/providers/DeferredPostHogProvider.tsx"),
+        "utf8",
+    );
+    const authDefer = readFileSync(
+        path.join(ROOT, "src/components/providers/DeferredAuthKitProvider.tsx"),
+        "utf8",
+    );
+    assert.match(posthogDefer, /scheduleAfterLoadOrIdle/);
+    assert.match(authDefer, /scheduleAfterLoadOrIdle/);
 });
 
 test("Concept A landing holds #main height while Step 1 body class is active", () => {

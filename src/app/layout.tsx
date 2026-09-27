@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Libre_Franklin, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { TopBar } from "@/components/layout/TopBar";
 import { SearchDockProvider } from "@/components/layout/SearchDockContext";
 import { Footer } from "@/components/layout/Footer";
 import { IconDefaultsProvider } from "@/components/providers/IconDefaultsProvider";
 import { DeferredPostHogProvider } from "@/components/providers/DeferredPostHogProvider";
+import { DeferredAuthKitProvider } from "@/components/providers/DeferredAuthKitProvider";
+import { IdleDeferredWidgets } from "@/components/providers/IdleDeferredWidgets";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
-import { TourOverlay } from "@/components/tour/TourOverlay";
 import { getSiteUrl, LANDING_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME } from "@/lib/seo/constants";
 import { JOBS_ONBOARDING_HEAD_SCRIPT } from "@/lib/jobs/onboarding-first-paint";
 import {
@@ -21,10 +21,6 @@ import {
   buildWebsiteJsonLd,
   serializeJsonLd,
 } from "@/lib/seo/jsonld";
-import { Toaster } from "@/lib/toast";
-import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
-import { LocalAiParamSync } from "@/components/providers/LocalAiParamSync";
-import { OfflineShell } from "@/components/layout/offline-shell";
 
 /**
  * Three faces, each named for the ROLE it plays rather than the vendor that
@@ -61,7 +57,8 @@ const display = Libre_Franklin({
 const sans = Source_Sans_3({
   variable: "--font-sans-face",
   subsets: ["latin"],
-  display: "swap",
+  // optional: hero/subline use metric-matched fallback on first paint (LCP).
+  display: "optional",
   weight: ["400", "600"],
   preload: true,
   adjustFontFallback: true,
@@ -190,11 +187,8 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
         />
-        <AuthKitProvider>
+        <DeferredAuthKitProvider>
         <DeferredPostHogProvider>
-          <Suspense fallback={null}>
-            <LocalAiParamSync />
-          </Suspense>
           <ThemeProvider>
             <IconDefaultsProvider>
             <TourProvider>
@@ -227,14 +221,12 @@ export default function RootLayout({
               </SearchDockProvider>
               <Footer />
               <MobileTabBar />
-              <TourOverlay />
-              <Toaster />
-              <OfflineShell />
+              <IdleDeferredWidgets />
             </TourProvider>
             </IconDefaultsProvider>
           </ThemeProvider>
         </DeferredPostHogProvider>
-        </AuthKitProvider>
+        </DeferredAuthKitProvider>
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import "@/app/elite-signal.css";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";

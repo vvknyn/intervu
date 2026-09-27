@@ -10,6 +10,7 @@ import {
     subscribeOnboardingCompleted,
 } from "@/lib/jobs/onboarding-first-paint";
 import type { JobsContentProps } from "@/app/jobs/JobsContent";
+import { requireAuthKitSoon } from "@/lib/perf/schedule-after-load-or-idle";
 
 const JobsContent = dynamic(
     () => import("@/app/jobs/JobsContent").then((m) => ({ default: m.JobsContent })),
@@ -50,6 +51,7 @@ export default function JobsRouteGate() {
 
     useEffect(() => {
         if (onboardingDismissed) {
+            requireAuthKitSoon();
             setEntry((prev) => prev ?? {});
         }
     }, [onboardingDismissed]);
@@ -77,10 +79,14 @@ export default function JobsRouteGate() {
     return (
         <>
             <ConceptALandingHydration
-                onStart={() => setEntry({ onboardingInitialStep: 2 })}
-                onSignIn={() =>
-                    setEntry({ onboardingInitialStep: 2, openAuthOnMount: true })
-                }
+                onStart={() => {
+                    requireAuthKitSoon();
+                    setEntry({ onboardingInitialStep: 2 });
+                }}
+                onSignIn={() => {
+                    requireAuthKitSoon();
+                    setEntry({ onboardingInitialStep: 2, openAuthOnMount: true });
+                }}
             />
             <div id="jobs-route-gate-inert" data-testid="jobs-route-loading-inert" className="hidden" aria-hidden />
         </>
