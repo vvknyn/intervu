@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import { linuxChromiumVisualQaLaunchOptions } from './scripts/design/linux-chromium-visual-qa.cjs';
+
+/** Headless Linux Chromium needs `--font-render-hinting=none` for faithful label PNGs. */
+const CHROMIUM_LAUNCH = linuxChromiumVisualQaLaunchOptions();
 
 /** Specs that need the explicit desktop-1440 / mobile-390 viewport projects
  *  below — one list, so the two projects can't drift onto different spec
@@ -46,19 +50,19 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], launchOptions: CHROMIUM_LAUNCH },
     },
     // Explicit viewport projects for VIEWPORT_SPECS only — scoped with
     // testMatch so they don't run every other spec in the repo a second and
     // third time.
     {
       name: 'desktop-1440',
-      use: { viewport: { width: 1440, height: 900 } },
+      use: { viewport: { width: 1440, height: 900 }, launchOptions: CHROMIUM_LAUNCH },
       testMatch: VIEWPORT_SPECS,
     },
     {
       name: 'mobile-390',
-      use: { viewport: { width: 390, height: 844 } },
+      use: { viewport: { width: 390, height: 844 }, launchOptions: CHROMIUM_LAUNCH },
       testMatch: VIEWPORT_SPECS,
     },
   ],
