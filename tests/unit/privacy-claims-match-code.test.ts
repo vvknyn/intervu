@@ -1,5 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { diffDisclosedCollections, liveFirestoreCollections, scanFirestoreCollections } from "../support/firestore-collection-scan";
 
@@ -12,7 +14,21 @@ import { diffDisclosedCollections, liveFirestoreCollections, scanFirestoreCollec
 if (!process.env.NEXT_PUBLIC_SITE_URL) {
     process.env.NEXT_PUBLIC_SITE_URL = "https://example.test";
 }
-const { FIRESTORE_COLLECTIONS_DISCLOSED } = require("@/app/privacy/page") as typeof import("@/app/privacy/page");
+const {
+    FIRESTORE_COLLECTIONS_DISCLOSED,
+    FIRESTORE_STORAGE_CATEGORIES,
+} = require("@/app/privacy/page") as typeof import("@/app/privacy/page");
+
+const PRIVACY_PAGE_PATH = join(__dirname, "../../src/app/privacy/page.tsx");
+
+function privacyPageSource(): string {
+    return readFileSync(PRIVACY_PAGE_PATH, "utf8");
+}
+
+function privacyArticleSource(): string {
+    const src = privacyPageSource();
+    return src.split("<article")[1]?.split("</article>")[0] ?? "";
+}
 
 /**
  * /privacy's storage claims already drifted once: it said search activity
@@ -54,13 +70,13 @@ describe("privacy page Firestore disclosure matches code", () => {
             undisclosed,
             [],
             `/privacy does not disclose these live Firestore collections: ${undisclosed.join(", ")}. ` +
-                "Add them to FIRESTORE_COLLECTIONS_DISCLOSED in src/app/privacy/page.tsx.",
+                "Add them to FIRESTORE_STORAGE_CATEGORIES in src/app/privacy/page.tsx.",
         );
         assert.deepEqual(
             stale,
             [],
             `/privacy discloses these collections but nothing in src/ writes them any more: ${stale.join(", ")}. ` +
-                "Remove them from FIRESTORE_COLLECTIONS_DISCLOSED — this is the direction that forces the page " +
+                "Remove them from FIRESTORE_STORAGE_CATEGORIES — this is the direction that forces the page " +
                 "to update when the Firestore exit lands.",
         );
     });
@@ -96,5 +112,74 @@ describe("privacy page Firestore disclosure matches code", () => {
             FIRESTORE_COLLECTIONS_DISCLOSED.length,
             FIRESTORE_COLLECTIONS_DISCLOSED.join(", "),
         );
+    });
+
+    it("FIRESTORE_STORAGE_CATEGORIES maps every disclosed collection id exactly once", () => {
+        const labels = new Set<string>();
+        const flattened: string[] = [];
+        for (const category of FIRESTORE_STORAGE_CATEGORIES) {
+            assert.ok(category.label.trim().length > 0, "each category needs a plain-language label");
+            assert.ok(category.collections.length > 0, `category "${category.label}" must list collections`);
+            assert.ok(!labels.has(category.label), `duplicate category label: ${category.label}`);
+            labels.add(category.label);
+            for (const collectionId of category.collections) {
+                assert.match(
+                    collectionId,
+                    /^[A-Za-z_][A-Za-z0-9_]*$/,
+                    `invalid Firestore collection id "${collectionId}" in category "${category.label}"`,
+                );
+                flattened.push(collectionId);
+            }
+        }
+        assert.deepEqual(
+            [...flattened].sort(),
+            [...FIRESTORE_COLLECTIONS_DISCLOSED].sort(),
+            "FIRESTORE_COLLECTIONS_DISCLOSED must stay derived from FIRESTORE_STORAGE_CATEGORIES",
+        );
+        assert.equal(
+            new Set(flattened).size,
+            flattened.length,
+            "each collection id must appear in exactly one category",
+        );
+    });
+
+    it("privacy article renders category.label for every category and never exposes collection ids", () => {
+        const article = privacyArticleSource();
+        assert.match(
+            article,
+            /FIRESTORE_STORAGE_CATEGORIES\.map\(\s*\(\s*category\s*\)\s*=>/,
+            "article must map FIRESTORE_STORAGE_CATEGORIES",
+        );
+        assert.match(article, /\{category\.label\}/, "article must render category.label");
+        assert.doesNotMatch(article, /category\.collections/, "article must not reference category.collections");
+        assert.doesNotMatch(
+            article,
+            /FIRESTORE_COLLECTIONS_DISCLOSED/,
+            "article must not reference FIRESTORE_COLLECTIONS_DISCLOSED",
+        );
+        assert.doesNotMatch(
+            article,
+            /Firestore collections these storage claims cover today are:/i,
+            "article must not use the raw comma-separated collection dump",
+        );
+        assert.doesNotMatch(
+            article,
+            /FIRESTORE_COLLECTIONS_DISCLOSED\.join/,
+            "article must not join FIRESTORE_COLLECTIONS_DISCLOSED into copy",
+        );
+        assert.doesNotMatch(
+            article,
+            /category\.collections\.join|collections\.join\(\s*["'],?\s*["']\s*\)/,
+            "article must not join category collection ids into copy",
+        );
+
+        for (const collectionId of FIRESTORE_COLLECTIONS_DISCLOSED) {
+            const escaped = collectionId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            assert.doesNotMatch(
+                article,
+                new RegExp(`["'\`]${escaped}["'\`]`),
+                `quoted Firestore collection id "${collectionId}" must not appear in article JSX`,
+            );
+        }
     });
 });
