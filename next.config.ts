@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 import { applyWorkOsRedirectUriBridge } from "./src/lib/auth/workos-redirect-uri-env";
+import {
+  CANADA_CAREER_REDIRECT_DESTINATION,
+  REMOVED_CANADA_CAREER_SLUGS,
+} from "./src/lib/seo/canada-career-redirects";
 
 // AuthKit only reads NEXT_PUBLIC_WORKOS_REDIRECT_URI; bridge before any route loads.
 applyWorkOsRedirectUriBridge();
@@ -193,6 +197,11 @@ const nextConfig: NextConfig = {
         destination: "/",
         permanent: true,
       },
+      ...REMOVED_CANADA_CAREER_SLUGS.map((slug) => ({
+        source: `/careers/${slug}`,
+        destination: CANADA_CAREER_REDIRECT_DESTINATION,
+        permanent: true,
+      })),
     ];
   },
 };

@@ -164,7 +164,6 @@ export const CURATED_SEARCH_SEEDS = [
     "Product Manager",
     "Data Scientist",
     "Remote Frontend Developer",
-    "Canada Remote",
     "Product Designer",
     "DevOps Engineer",
 ];

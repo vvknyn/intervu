@@ -1,4 +1,10 @@
 import { RESUME_UPLOAD_AUTH_CTA, RESUME_UPLOAD_CTA } from "@/lib/auth/auth-gate-copy";
+import {
+    FRONT_DOOR_RESUME_CARD_SUBCOPY,
+    RESUME_UPLOAD_PROMISE,
+} from "@/lib/jobs/resume-privacy-copy";
+
+export { FRONT_DOOR_RESUME_CARD_SUBCOPY, RESUME_UPLOAD_PROMISE };
 
 /**
  * Shared résumé-upload CTA copy — the /jobs front door, /resume empty state,
@@ -9,10 +15,6 @@ import { RESUME_UPLOAD_AUTH_CTA, RESUME_UPLOAD_CTA } from "@/lib/auth/auth-gate-
 export function resumeUploadCtaLabel(next: "auth" | "importer"): string {
     return next === "auth" ? RESUME_UPLOAD_AUTH_CTA : RESUME_UPLOAD_CTA;
 }
-
-/** Beside the importer control — not the front-door card subcopy. */
-export const RESUME_UPLOAD_PROMISE =
-    "Upload a PDF or Word résumé. We parse it privately, then show what was accepted before scoring jobs.";
 
 export const RESUME_UPLOAD_SIGNIN_LINE =
     "Sign in to sync your résumé and tracker across devices.";
@@ -34,10 +36,6 @@ export const RANK_SECONDARY_COPY =
 
 /** Post-signup résumé gate modal title — distinct from rank-by-fit entry. */
 export const POST_SIGNUP_RESUME_GATE_TITLE = "Upload your résumé";
-
-/** Front-door résumé band card subcopy (not the upload promise). */
-export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
-    "Create a free account, upload one résumé, and unlock For you, fit bands, Customize, and tailored PDFs.";
 
 /** For you deck download CTA. */
 export const FOR_YOU_DOWNLOAD_LABEL = "Download tailored PDF & open application";

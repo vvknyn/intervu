@@ -42,7 +42,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
     const { slug } = await params;
     const found = await load(slug);
-    if (!found) return { title: "Job not found", robots: { index: false, follow: false } };
+    if (!found) notFound();
 
     const { job, path } = found;
     const company = displayCompanyFor(job);

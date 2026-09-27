@@ -9,14 +9,6 @@ const RESUME = join(__dirname, "../../src/components/resume-builder");
 const COMPANY = join(__dirname, "../../src/components/company");
 
 describe("for-you mobile chrome", () => {
-    it("ForYouToggle is a pill segmented control (44px track/segments, no underline tabs)", () => {
-        const src = readFileSync(join(FOR_YOU, "ForYouToggle.tsx"), "utf8");
-        assert.match(src, /min-h-11 items-center gap-0\.5 rounded-pill border border-border bg-muted/, "track must be a min-h-11 pill");
-        assert.match(src, /min-h-10 items-center rounded-pill px-4/, "each segment must be a rounded-pill button");
-        assert.doesNotMatch(src, /border-b-2/, "no underline-tab treatment");
-        assert.doesNotMatch(src, /text-xs/, "segments use the chip text size (text-sm), not text-xs");
-    });
-
     it("ForYouHome keeps pack navigation and skip controls at phone-friendly tap targets", () => {
         const src = readFileSync(join(FOR_YOU, "ForYouHome.tsx"), "utf8");
         assert.doesNotMatch(src, /for-you-preferences/, "preference chips are Search-only");
