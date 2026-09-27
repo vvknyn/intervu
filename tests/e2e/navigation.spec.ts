@@ -23,27 +23,16 @@ test.describe('NAV - Navigation Tests', () => {
   /**
    * TC-NAV-001: Home page loads successfully
    *
-   * Verifies the jobs search page (`/jobs` — moved off `/` by the
-   * automation-first front door, 2026-08-03) loads with core elements:
-   * - Logo and brand name "Intervu"
-   * - Search input field
-   * - Analyze button
+   * Signed-out /jobs at rest: Concept A landing poster (Velai brand), not legacy SERP chrome.
    */
   test('TC-NAV-001: Home page loads successfully', async ({ page }) => {
     await page.goto('/jobs');
 
-    // Wait for page to hydrate
     await page.waitForLoadState('networkidle');
 
-    // Verify brand name is visible
-    await expect(page.locator('text=Intervu').first()).toBeVisible({ timeout: 10000 });
-
-    // Verify search input exists
-    await expect(page.locator('input[type="text"]').first()).toBeVisible({ timeout: 10000 });
-
-    // Verify there are buttons on the page
-    const buttons = page.locator('button');
-    await expect(buttons.first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('concept-a-landing')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('concept-a-brand')).toContainText('Velai');
+    await expect(page.getByTestId('concept-a-sign-in')).toBeVisible({ timeout: 10000 });
   });
 
   /**

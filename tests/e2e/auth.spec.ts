@@ -128,9 +128,10 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await expect(page).toHaveURL('/jobs');
 
-    // Can access the jobs SERP (search chrome lives here now) without auth
+    // Signed-out /jobs at rest shows Concept A — not the SERP search chrome yet
     await page.goto('/jobs');
-    await expect(page.locator('input[type="text"]').first()).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByTestId('concept-a-landing')).toBeVisible();
 
     // Can access yours without auth
     await page.goto('/yours');
@@ -150,9 +151,8 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    // Should see "login" link for unauthenticated users
-    const loginLink = page.locator('button:has-text("login"), a:has-text("login")');
-    await expect(loginLink.first()).toBeVisible({ timeout: 5000 });
+    await expect(page).toHaveURL(/\/login\?next=/);
+    await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible({ timeout: 5000 });
   });
 
   /**
@@ -221,22 +221,18 @@ test.describe('AUTH - Authentication Tests', () => {
    * Guest users can enter a search query and trigger analysis without logging in.
    */
   test('TC-AUTH-011: Guest search works without login', async ({ page }) => {
-    // Search chrome lives on /jobs now (front door has no search input).
-    await page.goto('/jobs');
-    await page.evaluate(() => {
-      localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test_key_123456789012345' }));
-    });
-    await page.reload();
+    // Non-at-rest SERP — query in URL exposes search combobox without dismissing Concept A
+    await page.goto('/jobs?q=designer');
     await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
-    await searchInput.fill('Google, Software Engineer, Technical');
+    const searchInput = page.getByRole('combobox', { name: 'Search jobs' });
+    await expect(searchInput).toBeVisible({ timeout: 10000 });
+    await searchInput.fill('designer');
 
-    // Should be able to press Enter without errors
     await searchInput.press('Enter');
     await page.waitForTimeout(1000);
 
-    // Page should not crash
+    await expect(page).toHaveURL(/\/jobs\?.*q=designer/);
     await expect(page.locator('body')).toBeVisible();
   });
 });

@@ -55,7 +55,7 @@ test.describe('SIGNUP-LADDER - TopBar auth CTA contract', () => {
 
     await marketingTopBarCreateAccount(page).click();
     await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByText('Create your account')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Create account', level: 1 })).toBeVisible();
   });
 
   test('TC-LADDER-003: signed-in header shows neither auth CTA', async ({ page }) => {
