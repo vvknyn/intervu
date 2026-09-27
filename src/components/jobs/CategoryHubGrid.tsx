@@ -26,6 +26,8 @@ import {
     User,
 } from "@phosphor-icons/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { jobsBrowseSearchHref, jobsForYouHubHref } from "@/lib/jobs/prefetch-jobs-route";
 import { cn } from "@/lib/utils";
 import { matchBandLabel } from "@/lib/match/score";
 import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
@@ -760,6 +762,7 @@ export function CategoryHubGrid({
     hubRemovalsLine = null,
     className,
 }: CategoryHubGridProps) {
+    const router = useRouter();
     const [modalCategory, setModalCategory] = useState<CategoryHubItem | null>(null);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [viewMode, setViewMode] = useState<"shuffle" | "list">("shuffle");
@@ -771,6 +774,15 @@ export function CategoryHubGrid({
     useEffect(() => {
         setProofLoading(readPacksProofLoading());
     }, []);
+
+    useEffect(() => {
+        try {
+            router.prefetch(jobsForYouHubHref());
+            router.prefetch(jobsBrowseSearchHref(""));
+        } catch {
+            /* prefetch is best-effort */
+        }
+    }, [router]);
     const [profileName, setProfileName] = useState("");
     const [profileRole, setProfileRole] = useState("");
     const [profileYears, setProfileYears] = useState(0);
@@ -1025,10 +1037,21 @@ export function CategoryHubGrid({
 
             {/* 8-Card Category Grid — interactive cards, Velai navy */}
             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 sm:gap-3.5">
-                {DEFAULT_CATEGORY_HUBS.map((category) => {
+                {DEFAULT_CATEGORY_HUBS.map((category, hubIndex) => {
                     const Icon = category.icon;
                     const isSelected = (modalCategory?.id ?? activeCategoryId) === category.id;
                     const countLabel = resolveCountLabel(category);
+                    const prefetchAdjacentHub = () => {
+                        const next = DEFAULT_CATEGORY_HUBS[hubIndex + 1] ?? DEFAULT_CATEGORY_HUBS[0];
+                        try {
+                            router.prefetch(jobsForYouHubHref());
+                            if (next?.id === "all") {
+                                router.prefetch(jobsBrowseSearchHref(""));
+                            }
+                        } catch {
+                            /* prefetch is best-effort */
+                        }
+                    };
 
                     return (
                         <button
@@ -1036,6 +1059,8 @@ export function CategoryHubGrid({
                             key={category.id}
                             data-testid={`hub-pack-card-${category.id}`}
                             onClick={() => handleCategoryClick(category)}
+                            onMouseEnter={prefetchAdjacentHub}
+                            onFocus={prefetchAdjacentHub}
                             className={cn(
                                 "flex flex-col rounded-panel border bg-surface shadow-[var(--shadow-bevel-highlight)] min-h-[5.75rem] cursor-pointer gap-0 py-3 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live sm:py-4 md:min-h-0 md:active:scale-100",
                                 isSelected

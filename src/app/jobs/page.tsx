@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -140,8 +141,7 @@ import { hasLiveApplyUrl, isKnownDeadApplyUrl, probeApplyUrl } from "@/lib/jobs/
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
-import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
-import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
+import { JobsListSplash } from "@/components/jobs/JobsListSplash";
 import type { ResumeFunnelReason } from "@/lib/analytics/resume-funnel";
 import {
     applyLocalAiSearchParam,
@@ -162,9 +162,26 @@ import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorField
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
-import { LandingAnimatedBackground } from "@/components/marketing/LandingAnimatedBackground";
 import { LandingOnboardingView } from "@/components/onboarding/LandingOnboardingView";
-import { CategoryHubGrid } from "@/components/jobs/CategoryHubGrid";
+
+const LandingAnimatedBackground = dynamic(
+    () => import("@/components/marketing/LandingAnimatedBackground").then((m) => m.LandingAnimatedBackground),
+    { ssr: false },
+);
+const CategoryHubGrid = dynamic(
+    () => import("@/components/jobs/CategoryHubGrid").then((m) => m.CategoryHubGrid),
+    { loading: () => null },
+);
+const JobDetail = dynamic(() => import("@/components/jobs/JobDetail").then((m) => m.JobDetail));
+const JobDetailActionBar = dynamic(() =>
+    import("@/components/jobs/JobDetail").then((m) => m.JobDetailActionBar),
+);
+const JobDetailSkeleton = dynamic(() =>
+    import("@/components/jobs/JobDetail").then((m) => m.JobDetailSkeleton),
+);
+const ResumeImportModal = dynamic(() =>
+    import("@/components/resume-builder/ResumeImportModal").then((m) => m.ResumeImportModal),
+);
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { isSameOpenJob } from "@/lib/jobs/is-same-open-job";
@@ -688,53 +705,6 @@ const MAX_REACHABLE = 100_000;
 /** Jobs opened in a session before the résumé is offered (Screen 9). Three is
  *  the point where someone is demonstrably reading rather than glancing. */
 const RESUME_MOMENT_OPENS = 3;
-
-/**
- * One skeleton row shaped like `JobCard` below (same grid, same avatar/
- * title/meta proportions) — kept next to `JobsListSplash`, its only caller,
- * so the two shapes can't silently drift apart.
- */
-function JobCardSkeleton() {
-    return (
-        // rounded-none: KEEP — mirrors the real row's flush shape (JobCard below).
-        <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-surface pt-4">
-            <div className="self-start">
-                <div className="skeleton-bar h-12 w-12 rounded-panel" />
-            </div>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 border-b border-border pb-4">
-                <div className="min-w-0 space-y-2">
-                    <div className="skeleton-bar h-4 w-3/4" />
-                    <div className="skeleton-bar h-3 w-1/3" />
-                </div>
-                <div className="skeleton-bar h-5 w-14 self-start" />
-                <div className="col-span-full flex gap-2">
-                    <div className="skeleton-bar h-3 w-24" />
-                    <div className="skeleton-bar h-3 w-16" />
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/** Left-aligned loading line shown while the ledger's first page loads —
- *  no centered card, no decorative icon (anti-marker 5/6). Job 1a
- *  (2026-08-01) added 5 shaped skeleton rows below the existing copy line
- *  (kept verbatim) so the wait reads as "results are shaped like this,
- *  arriving" instead of a bare sentence. */
-function JobsListSplash() {
-    return (
-        <div className="px-[var(--list-inset)]">
-            <p className="pt-8 text-sm text-muted-foreground">
-                Finding live roles… checking each posting is still active.
-            </p>
-            <div className="mt-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <JobCardSkeleton key={i} />
-                ))}
-            </div>
-        </div>
-    );
-}
 
 /* ----------------------------- results mode ----------------------------- */
 

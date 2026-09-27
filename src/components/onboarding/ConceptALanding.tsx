@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { BrandMark, BRAND_LOCKUP_WORDMARK_CLASS } from "@/components/brand/BrandMark";
 import { Button } from "@/components/ui/button";
@@ -92,7 +92,7 @@ function PostcardCard({
             style={style}
         >
             <div className="mb-3 flex items-center gap-2">
-                <BrandMark className="h-5 w-5 opacity-90" />
+                <BrandMark className="h-5 w-5 opacity-90" pixelSize={20} />
                 <span className="h-px flex-1 max-w-[72px] bg-border" aria-hidden />
             </div>
             <p
@@ -137,8 +137,11 @@ export interface ConceptALandingProps {
 export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
     const [mounted, setMounted] = useState(false);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         setMounted(true);
+    }, []);
+
+    useEffect(() => {
         const prev = document.body.style.overflow;
         document.body.style.overflow = "hidden";
         document.body.classList.add(CONCEPT_A_LANDING_BODY_CLASS);
@@ -168,7 +171,7 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
         >
             <header className="relative z-20 flex items-center justify-between px-5 sm:px-10 lg:px-14 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
                 <div className="flex items-center gap-2.5" data-testid="concept-a-brand">
-                    <BrandMark className="h-8 w-8" />
+                    <BrandMark className="h-8 w-8" pixelSize={32} priority />
                     <span
                         data-rulebook-exempt
                         className={[BRAND_LOCKUP_WORDMARK_CLASS, "text-title-sm sm:text-title font-semibold leading-none"].join(" ")}

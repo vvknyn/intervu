@@ -52,6 +52,9 @@ const display = Libre_Franklin({
   variable: "--font-display-face",
   subsets: ["latin"],
   display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+  weight: ["600", "700"],
 });
 
 const sans = Source_Sans_3({
@@ -59,12 +62,17 @@ const sans = Source_Sans_3({
   subsets: ["latin"],
   display: "swap",
   weight: ["400", "600"],
+  preload: true,
+  adjustFontFallback: true,
 });
 
 const mono = JetBrains_Mono({
   variable: "--font-mono-face",
   subsets: ["latin"],
   display: "swap",
+  weight: ["400"],
+  preload: false,
+  adjustFontFallback: false,
 });
 
 const SITE_TITLE = SITE_NAME;

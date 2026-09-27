@@ -1481,6 +1481,13 @@ body.concept-a-landing-active [data-testid="site-footer"] {
   display: none !important;
 }
 
+/* Step 1 portal collapses its in-flow spacer after mount — hold #main height so
+   the document landmark does not shift (mobile CLS). */
+body.concept-a-landing-active #main {
+  min-height: 100dvh;
+  overflow: clip;
+}
+
 /* Concept A landing postcard fan — mobile viewport containment (POSTCARDS % geometry unchanged). */
 .concept-a-postcard-stack {
   --concept-a-postcard-stack-canvas-width: 265px;
