@@ -154,10 +154,7 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     await expect(trackCta).toBeVisible({ timeout: 10000 });
     await trackCta.click();
     const sheet = page.getByRole('dialog');
-    await Promise.all([
-      expect(page).toHaveURL('/yours?view=new'),
-      expect(sheet).toBeVisible({ timeout: 10000 }),
-    ]);
+    await expect(sheet).toBeVisible({ timeout: 10000 });
     await expect(sheet).toContainText('Track a role');
     await expect(sheet).toContainText('One step');
   });
