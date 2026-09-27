@@ -12,7 +12,7 @@ import {
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
 } from "@/lib/jobs/recent-searches";
-import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
+import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 
 interface SearchAutocompleteProps {
     value: string;
@@ -378,7 +378,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         onClick={() => onClear?.()}
                         className={cn(
                             "absolute right-1.5 z-30 flex h-10 w-10 items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5 lg:h-6 lg:w-6",
-                            CHROME_FOCUS_VISIBLE,
+                            CONTROL_FOCUS_VISIBLE,
                         )}
                     >
                         <X size={20} aria-hidden />
