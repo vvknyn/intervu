@@ -4,7 +4,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { writeAdmittedRows } from "../../src/app/api/telemetry/route";
 import type { Queryable } from "../../src/lib/pg/pool";
+import { ANALYTICS_EVENTS } from "../../src/lib/analytics/event-names";
 import type { TelemetryRow } from "../../src/lib/telemetry/types";
+
+const FIXTURE_EVENT_NAME = Object.values(ANALYTICS_EVENTS)[0];
 
 /**
  * THE MEASURED DEFECT (prod DB box, 2026-09-09): `insertRows`'s
@@ -38,7 +41,7 @@ function makeRow(id: string): TelemetryRow {
     session_id: "s1",
     visitor_id: null,
     user_id: null,
-    event_name: "test_event",
+    event_name: FIXTURE_EVENT_NAME,
     source: null,
     query_id: null,
     job_id: null,

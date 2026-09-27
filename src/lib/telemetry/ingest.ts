@@ -13,10 +13,11 @@
  * here):
  *   2. batch length > MAX_BATCH_SIZE -> caller returns 400
  *   3. oversized props -> drop that event only
- *   4. event_name shape -> unknown names are ALLOWED, only the pattern is enforced
+ *   4. event_name shape + allowlist (ANALYTICS_EVENTS wire names)
  *   5. occurred_at outside the clock-skew window -> clamp + flag, never drop
  *   (in-batch duplicate event_id -> drop the repeat, keep the first)
  */
+import { ANALYTICS_EVENTS } from "@/lib/analytics/event-names";
 import { SEARCH_ENGINE_BOTS, AI_ANSWER_ENGINE_BOTS } from "@/lib/shield/robots-policy";
 import type { TelemetryRejection, TelemetryRow } from "./types";
 import { ENVELOPE_COLUMN_RULES, isPlainObject, LEDGER_COLUMN_RULES } from "./column-rules";
@@ -33,10 +34,12 @@ export const MAX_BATCH_SIZE = 50;
 /** Guard 3: `JSON.stringify(props).length` over this drops only that event. */
 export const MAX_PROPS_LENGTH = 4096;
 
-/** Guard 4: shape-only. New event names must land without a migration, so
- *  this is never a name list — any lowercase snake_case string in range
- *  passes, unknown or not. */
+/** Guard 4: snake_case shape, then membership in the product analytics wire
+ *  vocabulary (`ANALYTICS_EVENTS`). Client ledger events flow through
+ *  `captureEvent` → `trackToLedger`, which only ever emits those values. */
 export const EVENT_NAME_PATTERN = /^[a-z][a-z0-9_]{2,63}$/;
+
+export const ALLOWED_TELEMETRY_EVENT_NAMES = new Set<string>(Object.values(ANALYTICS_EVENTS));
 
 /** Guard 5: `occurred_at` further than this from server `now` (either
  *  direction) is untrustworthy client-clock skew, not a real timestamp. */
@@ -111,6 +114,10 @@ function parseEvent(raw: unknown, now: number, userId: string | null): ParsedEve
 
   if (!EVENT_NAME_PATTERN.test(eventName)) {
     return { rejection: { event_id: eventId, reason: "invalid_event_name" } };
+  }
+
+  if (!ALLOWED_TELEMETRY_EVENT_NAMES.has(eventName)) {
+    return { rejection: { event_id: eventId, reason: "unknown_event_name" } };
   }
 
   const skewed = Math.abs(now - occurredAtMs) > CLOCK_SKEW_WINDOW_MS;

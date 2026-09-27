@@ -10,6 +10,7 @@
 import { getAdminDb } from "@/lib/firebase/admin";
 import { validate, contactMessageSchema, isHoneypotTripped, type ValidateResult } from "@/lib/validation";
 import { sendEmail } from "@/lib/email/send";
+import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 import { verifyTurnstile, type TurnstileResult } from "@/lib/shield/turnstile";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
@@ -37,7 +38,7 @@ export interface ContactSubmitInput {
   context?: ContactContext;
 }
 
-export type ContactSubmitResult = { success: true } | { error: string };
+export type ContactSubmitResult = { success: true } | { error: string; status: number };
 
 type ContactData = { name?: string; email: string; message: string };
 
@@ -110,10 +111,13 @@ export function resolveContactGate(input: {
   validated: ValidateResult<ContactData>;
 }): { proceed: true; data: ContactData } | { proceed: false; result: ContactSubmitResult } {
   if (input.turnstile.status === "reject") {
-    return { proceed: false, result: { error: "Verification failed — please try again." } };
+    return {
+      proceed: false,
+      result: { error: "Verification failed — please try again.", status: 400 },
+    };
   }
   if (!input.validated.ok) {
-    return { proceed: false, result: { error: input.validated.error } };
+    return { proceed: false, result: { error: input.validated.error, status: 400 } };
   }
   return { proceed: true, data: input.validated.data };
 }
@@ -134,7 +138,7 @@ export async function notifyContactSubmission(
 ): Promise<void> {
   const { subject, text } = buildContactNotificationEmail(data, path, kind, context);
   const result = await sendEmail({
-    to: "hello@thesubspace.io",
+    to: PUBLIC_SUPPORT_EMAIL,
     subject,
     text,
     kind: "transactional",
@@ -175,7 +179,10 @@ export async function submitContact(input: ContactSubmitInput): Promise<ContactS
       .get();
 
     if (recentSnapshot.size >= RATE_LIMIT_MAX) {
-      return { error: "Too many messages from this email in the last hour. Try again later." };
+      return {
+        error: "Too many messages from this email in the last hour. Try again later.",
+        status: 429,
+      };
     }
   } catch (error) {
     // Best-effort only (e.g. missing composite index) — never block a
@@ -199,6 +206,6 @@ export async function submitContact(input: ContactSubmitInput): Promise<ContactS
     return { success: true };
   } catch (error) {
     console.error("[Contact] Submit error:", error);
-    return { error: "Failed to send your message. Please try again." };
+    return { error: "Failed to send your message. Please try again.", status: 500 };
   }
 }

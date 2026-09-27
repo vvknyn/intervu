@@ -19,6 +19,7 @@ import { ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeEducation
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
+import { RESUME_IMPORT_PARSE_LINE } from "@/lib/jobs/resume-privacy-copy";
 import {
     canAcceptLocalParse,
     LOCAL_PARSE_ACCEPT_MIN,
@@ -449,7 +450,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     The download can be large, but it only happens once.
                 </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                    Your résumé is read on your device, never on our servers. {storageNote}
+                    {RESUME_IMPORT_PARSE_LINE} {storageNote}
                 </p>
                 {!decided && (
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">

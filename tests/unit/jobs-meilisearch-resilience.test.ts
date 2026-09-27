@@ -27,11 +27,11 @@ const SERP_FILTERS_SRC = readFileSync(
 // `facetDistribution?.ghost_badge`, never referenced by name in
 // SerpFilters.tsx itself. The guard below has to scan that whole render
 // path, not SerpFilters.tsx alone, or it wrongly flags every bespoke-reader
-// key as unreferenced.
+// key as unreferenced. FilterPanel.tsx holds ghost_badge / visa facet labels.
 const RENDER_PATH_SRC =
     SERP_FILTERS_SRC +
     readFileSync(fileURLToPath(new URL("../../src/app/jobs/page.tsx", import.meta.url)), "utf8") +
-    readFileSync(fileURLToPath(new URL("../../src/components/jobs/GhostRadarCard.tsx", import.meta.url)), "utf8");
+    readFileSync(fileURLToPath(new URL("../../src/components/jobs/FilterPanel.tsx", import.meta.url)), "utf8");
 
 // Phase 1-a #1: retry-policy decision — 5xx (transient) is retryable, 4xx
 // (the request itself is wrong) never is.
@@ -107,7 +107,7 @@ test("F6: buildSearchBody requests no facets at all when withFacets is falsy", (
     assert.equal(body.facets, undefined);
 });
 
-test("F6 guard: every REQUESTED_FACET_KEYS member is referenced somewhere in the render path (SerpFilters.tsx's generic FacetGroups, or a bespoke reader in page.tsx/GhostRadarCard.tsx)", () => {
+test("F6 guard: every REQUESTED_FACET_KEYS member is referenced somewhere in the render path (SerpFilters.tsx's generic FacetGroups, or a bespoke reader in page.tsx)", () => {
     for (const key of REQUESTED_FACET_KEYS) {
         assert.ok(RENDER_PATH_SRC.includes(key), `render path never references "${key}" — drop it from REQUESTED_FACET_KEYS if it's truly unrendered (this is exactly the "source" bug this fix closes)`);
     }

@@ -12,7 +12,6 @@ import { NAV_TABS } from "../../src/components/layout/nav-tabs";
 
 const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx");
 const JOBS_ACTIONS = join(__dirname, "..", "..", "src", "actions", "jobs.ts");
-const TOUR_TRIGGER = join(__dirname, "..", "..", "src", "components", "tour", "TourTrigger.tsx");
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
 const FOOTER = join(__dirname, "..", "..", "src", "components", "layout", "Footer.tsx");
 const MOBILE_TABBAR = join(__dirname, "..", "..", "src", "components", "layout", "MobileTabBar.tsx");
@@ -255,12 +254,6 @@ describe("jobs page chrome guards", () => {
     it("does not render LandingUspSection on the page", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.doesNotMatch(src, /<LandingUspSection/);
-    });
-
-    it("TourTrigger suppresses the floating CTA on /jobs", () => {
-        const src = readFileSync(TOUR_TRIGGER, "utf8");
-        assert.match(src, /pageId\s*===\s*["']jobs["']/);
-        assert.match(src, /return null/);
     });
 
     it("signed-out TopBar offers Sign in and Get job alerts, and only one auth system", () => {

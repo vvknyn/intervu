@@ -8,6 +8,7 @@ import { allowConnectWaitlistRequest } from "@/lib/shield/rate-limit";
 import { verifyTurnstile } from "@/lib/shield/turnstile";
 import { CONNECT_CLIENTS, CONNECT_CLIENT_IDS } from "@/lib/connect-clients";
 import { sendWaitlistConfirmation } from "@/lib/email/waitlist-confirmation";
+import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 
 /**
  * Waitlist capture for /connect (MCP pairing is live; this collects "notify
@@ -74,7 +75,7 @@ export async function joinConnectWaitlist(input: {
   } catch (error) {
     console.error("Error joining connect waitlist:", error);
     return {
-      error: "Couldn't save that — email us at hello@thesubspace.io and we'll add you.",
+      error: `Couldn't save that — email us at ${PUBLIC_SUPPORT_EMAIL} and we'll add you.`,
     };
   }
 }

@@ -149,6 +149,11 @@ export const JOBS_LOCATION_MAX_REQUESTS = 90;
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the location route's own store. */
 export const allowJobsLocationRequest = createIpRateLimiter(JOBS_LOCATION_WINDOW_MS, JOBS_LOCATION_MAX_REQUESTS);
 
+/** Retry-After value (seconds) for jobs typeahead 429 responses. */
+export function typeaheadRetryAfterHeader(windowMs: number): Record<string, string> {
+  return { "Retry-After": String(Math.ceil(windowMs / 1000)) };
+}
+
 /**
  * Per-IP sliding-window rate limit for `signUp` (actions/auth.ts) — its own
  * store: creating a brand-new account is a different concern from every

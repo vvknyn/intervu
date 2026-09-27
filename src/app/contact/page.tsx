@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { ContactForm } from "@/components/contact/ContactForm";
 import { RouteSuspenseFallback } from "@/components/ui/route-suspense-fallback";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 
 const TITLE = "Contact";
 const DESCRIPTION = "Reach the velai team — questions, feedback, or a listing to correct.";
@@ -19,7 +20,7 @@ export default function ContactPage() {
       <header>
         <h1 className="font-display text-title-lg font-semibold text-foreground">Contact</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          We read everything that comes through here, and we reply from hello@thesubspace.io (Subspace, our job data partner).
+          We read everything that comes through here, and we reply from {PUBLIC_SUPPORT_EMAIL} (Subspace, our job data partner).
         </p>
       </header>
 

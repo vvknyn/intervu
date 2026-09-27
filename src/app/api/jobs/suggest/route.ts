@@ -21,11 +21,15 @@
  */
 import { NextResponse } from "next/server";
 import { suggestJobs } from "@/lib/jobs/search";
-import { getClientIp } from "@/lib/shield/client-ip";
-import { allowJobsSuggestRequest } from "@/lib/shield/rate-limit";
+import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
+import { allowJobsSuggestRequest, JOBS_SUGGEST_WINDOW_MS, typeaheadRetryAfterHeader } from "@/lib/shield/rate-limit";
 import type { JobSuggestions } from "@/lib/jobs/types";
 
 const EMPTY_SUGGESTIONS: JobSuggestions = { titles: [], companies: [] };
+
+export function jobsSuggestRateLimitedBody(): JobSuggestions & { rate_limited: true } {
+  return { ...EMPTY_SUGGESTIONS, rate_limited: true };
+}
 
 /**
  * Pure: parse + cap the raw `q` search param. Same posture toward
@@ -41,9 +45,12 @@ export async function GET(request: Request): Promise<NextResponse> {
   const q = resolveSuggestQuery(new URL(request.url).searchParams.get("q"));
   if (!q) return NextResponse.json(EMPTY_SUGGESTIONS);
 
-  const ip = await getClientIp();
+  const ip = resolveClientIpFromHeaders(request.headers);
   if (!allowJobsSuggestRequest(ip)) {
-    return NextResponse.json(EMPTY_SUGGESTIONS, { status: 429 });
+    return NextResponse.json(jobsSuggestRateLimitedBody(), {
+      status: 429,
+      headers: typeaheadRetryAfterHeader(JOBS_SUGGEST_WINDOW_MS),
+    });
   }
 
   const suggestions = await suggestJobs(q);
