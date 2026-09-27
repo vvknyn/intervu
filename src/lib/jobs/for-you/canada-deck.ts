@@ -21,6 +21,16 @@ type CanadaDeckJob = Pick<
     "company" | "location" | "location_city" | "location_state" | "location_country"
 >;
 
+const CANADA_COUNTRY_FACET = /^(?:ca|can|canada|canadian)$/i;
+
+/** Drop Canada from a résumé-derived country facet so the deck is not scoped to it. */
+export function omitCanadaCountryFacet(facets: {
+    location_country?: string[];
+}): { location_country?: string[] } {
+    const kept = (facets.location_country ?? []).filter((country) => !CANADA_COUNTRY_FACET.test(country.trim()));
+    return kept.length > 0 ? { location_country: kept } : {};
+}
+
 /**
  * Signed-in deck exclusion. Reuses `isCanadaJobContext` (country field and
  * company suffix) and also drops raw location breadcrumbs that say Canada

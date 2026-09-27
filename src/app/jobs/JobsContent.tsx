@@ -322,7 +322,7 @@ import {
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
-import { isCanadaDeckJob } from "@/lib/jobs/for-you/canada-deck";
+import { isCanadaDeckJob, omitCanadaCountryFacet } from "@/lib/jobs/for-you/canada-deck";
 import {
     formatAllPackHubLabels,
     formatHubCorpusLine,
@@ -2944,7 +2944,7 @@ export function JobsContent({
                 const { q, facets: derived } = buildMatchQuery(resume);
                 const derivedWithLocation = {
                     ...derived,
-                    ...deriveResumeLocationFacets(resume.profile?.location),
+                    ...omitCanadaCountryFacet(deriveResumeLocationFacets(resume.profile?.location)),
                 };
                 const merged = mergeFacets({}, derivedWithLocation);
                 const scoredById = new Map<string, ScoredHubHit>();
@@ -4460,7 +4460,7 @@ export function JobsContent({
         const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
         const derivedWithLocation = userPickedLocation
             ? derived
-            : { ...derived, ...deriveResumeLocationFacets(r.profile?.location) };
+            : { ...derived, ...omitCanadaCountryFacet(deriveResumeLocationFacets(r.profile?.location)) };
         const merged = mergeFacets(facets, derivedWithLocation);
         setFacets(merged);
         setQueryDraft(q);

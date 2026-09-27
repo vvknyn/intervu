@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isCanadaDeckJob } from "../../src/lib/jobs/for-you/canada-deck";
+import { isCanadaDeckJob, omitCanadaCountryFacet } from "../../src/lib/jobs/for-you/canada-deck";
 
 const base = {
     company: "Northbeam",
@@ -20,6 +20,14 @@ describe("isCanadaDeckJob", () => {
         assert.equal(isCanadaDeckJob({ ...base, location_country: "Canada" }), true);
         assert.equal(isCanadaDeckJob({ ...base, location_country: "CA" }), true);
         assert.equal(isCanadaDeckJob({ ...base, location_country: "CAN" }), true);
+    });
+
+    it("omits Canada from a résumé country facet and keeps other countries", () => {
+        assert.deepEqual(omitCanadaCountryFacet({ location_country: ["Canada"] }), {});
+        assert.deepEqual(omitCanadaCountryFacet({ location_country: ["CA", "United States"] }), {
+            location_country: ["United States"],
+        });
+        assert.deepEqual(omitCanadaCountryFacet({}), {});
     });
 
     it("keeps US places, including California", () => {
