@@ -9,6 +9,7 @@ import { Footer } from "@/components/layout/Footer";
 import { IconDefaultsProvider } from "@/components/providers/IconDefaultsProvider";
 import { DeferredPostHogProvider } from "@/components/providers/DeferredPostHogProvider";
 import { DeferredAuthKitProvider } from "@/components/providers/DeferredAuthKitProvider";
+import { PostAuthSessionRefresh } from "@/components/auth/PostAuthSessionRefresh";
 import { IdleDeferredWidgets } from "@/components/providers/IdleDeferredWidgets";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
@@ -188,6 +189,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
         />
         <DeferredAuthKitProvider>
+        <PostAuthSessionRefresh />
         <DeferredPostHogProvider>
           <ThemeProvider>
             <IconDefaultsProvider>

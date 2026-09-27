@@ -1926,7 +1926,11 @@ export function JobsContent({
     // Landing stays on the session resolved at mount. The first deep link
     // (a query or a selected job) re-checks the live cookie once, so a
     // session resurrected after sign-out cannot stick on that view.
-    const deepLinkedSession = Boolean(query.trim() || searchParams.get("job"));
+    const deepLinkedSession = Boolean(
+        query.trim() ||
+            searchParams.get("job") ||
+            searchParams.get(POST_AUTH_RESUME_GATE_PARAM) === POST_AUTH_RESUME_GATE_VALUE,
+    );
     useEffect(() => {
         if (!deepLinkedSession) return;
         revalidateClientSession();
