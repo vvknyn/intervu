@@ -17,8 +17,14 @@ import {
     type AgentPreferences,
     type AgentPreferencesPatch,
 } from "@/actions/agent-preferences";
-import { CircleNotch, Trash } from "@phosphor-icons/react";
+import { Trash } from "@phosphor-icons/react";
 import { Switch } from "@/components/settings/Switch";
+import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
+import { SettingsSectionLoading } from "@/components/settings/SettingsSectionLoading";
+import {
+    SETTINGS_AGENT_PREFERENCES_LOAD_ERROR,
+    resetSettingsLoadErrorDedup,
+} from "@/lib/settings/settings-load-error";
 
 /** Sentinel Select value for "no preference" — Radix's `Select.Item` can't
  *  take an empty-string value, and `experienceLevel`/`employmentType`/
@@ -131,6 +137,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
             if (!res.error && res.data) {
                 seedFrom(res.data);
                 setStatus("ready");
+                resetSettingsLoadErrorDedup();
                 return;
             }
             if (attempt < 3) await new Promise((r) => setTimeout(r, 400));
@@ -139,8 +146,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
         // this card's Save always writes the whole search+answers state, so
         // rendering it from unseeded local state would risk overwriting a
         // real saved section with blanks. Stay in "error" with a manual
-        // retry instead.
-        toast.error("Couldn't load your agent's answers. Try refreshing the page.");
+        // retry instead — inline alert only (P1-8), no duplicate toast.
         setStatus("error");
     }, [seedFrom]);
 
@@ -229,17 +235,12 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                 </>
             )}
 
-            {status === "loading" && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                    <CircleNotch size={16} className="animate-spin" />
-                    Loading...
-                </div>
-            )}
+            {status === "loading" && <SettingsSectionLoading label="Loading agent answers…" />}
 
             {status === "error" && (
                 <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Couldn&apos;t load your agent&apos;s answers.</p>
-                    <Button variant="outline" size="sm" onClick={loadPreferences}>
+                    <SettingsInlineError>{SETTINGS_AGENT_PREFERENCES_LOAD_ERROR}</SettingsInlineError>
+                    <Button variant="outline" size="sm" className="rounded-ctl" onClick={loadPreferences}>
                         Try again
                     </Button>
                 </div>

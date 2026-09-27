@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SettingsLoading } from "@/components/settings/SettingsLoading";
 import { SETTINGS_MESSAGES } from "@/lib/copy";
+import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
 import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
 import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesSection";
@@ -61,11 +62,12 @@ export function SettingsContainer() {
     const [user, setUser] = useState<User | null>(null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
-    const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState("");
+    const [deleteError, setDeleteError] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const isSigningOut = useRef(false);
+    const deleteTriggerRef = useRef<HTMLButtonElement>(null);
     const [resetEmail, setResetEmail] = useState("");
     const [isResetting, setIsResetting] = useState(false);
     const [resetMessage, setResetMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -99,7 +101,7 @@ export function SettingsContainer() {
             localStorage.clear();
             const result = await deleteAccount();
             if (result.error) {
-                setMessage({ type: "error", text: result.error });
+                setDeleteError(result.error);
                 setIsDeleting(false);
                 return;
             }
@@ -108,7 +110,9 @@ export function SettingsContainer() {
             // `handleSignOut` above uses).
             await signOut();
         } catch (e: unknown) {
-            setMessage({ type: "error", text: e instanceof Error ? e.message : "Failed to delete account." });
+            setDeleteError(
+                e instanceof Error ? e.message : SETTINGS_MESSAGES.accountDeleteFailed,
+            );
             setIsDeleting(false);
         }
     };
@@ -164,11 +168,6 @@ export function SettingsContainer() {
                         <div className="mb-5">
                             <PageHeader title="Settings" description={ACCOUNT_SUBCOPY} bare size="display" />
                         </div>
-                        {message && (
-                            <div className={`mb-4 text-sm ${message.type === "success" ? "text-foreground" : "text-danger-text"}`}>
-                                {message.text}
-                            </div>
-                        )}
                         <TabBar tab={tab} onChange={selectTab} />
                     </>
                 )}
@@ -241,9 +240,13 @@ export function SettingsContainer() {
                             <h2 className="mb-1 text-base font-semibold leading-snug">Danger zone</h2>
                             <p className="mb-4 text-sm text-muted-foreground">Permanent. No recovery.</p>
                             <Button
+                                ref={deleteTriggerRef}
                                 variant="outline"
-                                onClick={() => setShowDeleteDialog(true)}
-                                className="h-11 rounded-ctl text-danger-text hover:text-danger-text"
+                                onClick={() => {
+                                    setDeleteError(null);
+                                    setShowDeleteDialog(true);
+                                }}
+                                className="h-11 rounded-ctl border-danger-text bg-transparent text-danger-text hover:bg-danger-text/10"
                             >
                                 Delete account
                             </Button>
@@ -257,10 +260,19 @@ export function SettingsContainer() {
                     open={showDeleteDialog}
                     onOpenChange={(open) => {
                         setShowDeleteDialog(open);
-                        if (!open) setDeleteConfirmText("");
+                        if (!open) {
+                            setDeleteConfirmText("");
+                            setDeleteError(null);
+                        }
                     }}
                 >
-                    <DialogContent className="rounded-panel">
+                    <DialogContent
+                        className="rounded-panel"
+                        onCloseAutoFocus={(event) => {
+                            event.preventDefault();
+                            deleteTriggerRef.current?.focus();
+                        }}
+                    >
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
                                 <WarningOctagon size={20} className="text-danger-text" />
@@ -278,17 +290,19 @@ export function SettingsContainer() {
                                 value={deleteConfirmText}
                                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                                 placeholder="Type DELETE to confirm"
+                                aria-invalid={deleteError ? true : undefined}
                             />
+                            {deleteError && <SettingsInlineError>{deleteError}</SettingsInlineError>}
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={isDeleting} className="h-11 rounded-ctl">
                                 Cancel
                             </Button>
                             <Button
-                                variant="outline"
+                                variant="destructive"
                                 onClick={handleDeleteAccount}
                                 disabled={deleteConfirmText !== "DELETE" || isDeleting}
-                                className="h-11 gap-2 rounded-ctl text-danger-text hover:text-danger-text"
+                                className="h-11 gap-2 rounded-ctl"
                             >
                                 {isDeleting ? <CircleNotch size={16} className="animate-spin" /> : <Trash size={16} />}
                                 {isDeleting ? "Deleting…" : "Delete Forever"}
