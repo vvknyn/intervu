@@ -361,7 +361,7 @@ export function LandingOnboardingView({
                                 <div className="p-2.5 rounded-ctl border border-border bg-muted text-xs space-y-1">
                                     <p className="font-semibold text-foreground">Why sign-in is required:</p>
                                     <p className="text-muted-foreground leading-snug">
-                                        All role recommendations, compensation analysis, and tailored resumes are private and tied securely to your verified account.
+                                        All role recommendations, compensation analysis, and tailored résumés are private and tied securely to your verified account.
                                     </p>
                                 </div>
                             </>

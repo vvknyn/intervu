@@ -10,8 +10,28 @@ import {
 
 const ROOT = join(__dirname, "..", "..");
 
+const ONBOARDING_PROSE_FILES = [
+    "src/components/onboarding/ConceptALanding.tsx",
+    "src/components/onboarding/FirstTimeOnboardingModal.tsx",
+    "src/components/onboarding/LandingOnboardingView.tsx",
+    "src/components/onboarding/onboarding-step-label.tsx",
+];
+
+/** Standalone lowercase product name — not velai.app URLs or code identifiers. */
+const STANDALONE_LOWERCASE_VELAI = /(?<![@./a-z0-9-])\bvelai\b(?![a-z0-9.-])/;
+
+const CODE_RESUME_MARKERS =
+    /parseResume|ResumeData|parsedResume|initialParsedResume|resume-privacy|types\/resume|\bresume:/;
+
 function read(rel: string): string {
     return readFileSync(join(ROOT, rel), "utf8");
+}
+
+function onboardingProseLines(rel: string): string[] {
+    return read(rel)
+        .split("\n")
+        .filter((line) => !/^\s*import /.test(line))
+        .filter((line) => !CODE_RESUME_MARKERS.test(line));
 }
 
 describe("Phase 2 — voice onboarding batch", () => {
@@ -29,22 +49,37 @@ describe("Phase 2 — voice onboarding batch", () => {
         assert.match(mock, /HISTORY_EMPTY_DESCRIPTION/);
     });
 
-    it("P2-10 onboarding step numbering uses Concept A plain index label", () => {
+    it("P2-10 onboarding step label reads Step N of M on every step", () => {
         const label = read("src/components/onboarding/onboarding-step-label.tsx");
-        assert.match(label, /font-semibold tabular-nums/);
-        assert.match(label, /\{step\}\./);
-        assert.doesNotMatch(label, /Step \{step\}/);
+        assert.match(label, /Step <span className="font-semibold tabular-nums">\{step\}<\/span> of \{total\}/);
 
         const landing = read("src/components/onboarding/LandingOnboardingView.tsx");
-        assert.match(landing, /OnboardingStepLabel step=\{step\}/);
-        assert.doesNotMatch(landing, /Step \{step\} of 3/);
+        assert.match(landing, /<OnboardingStepLabel step=\{step\} \/>/);
 
         const modal = read("src/components/onboarding/FirstTimeOnboardingModal.tsx");
-        assert.match(modal, /OnboardingStepLabel step=\{step\}/);
-        assert.doesNotMatch(modal, /Step \{step\} of 3/);
+        assert.match(modal, /<OnboardingStepLabel step=\{step\} \/>/);
 
         const conceptA = read("src/components/onboarding/ConceptALanding.tsx");
         assert.doesNotMatch(conceptA, /OnboardingStepLabel/);
+    });
+
+    it("onboarding user-visible copy uses Velai casing and résumé spelling", () => {
+        for (const rel of ONBOARDING_PROSE_FILES) {
+            const lines = onboardingProseLines(rel);
+            for (const line of lines) {
+                assert.doesNotMatch(
+                    line,
+                    STANDALONE_LOWERCASE_VELAI,
+                    `${rel}: standalone lowercase velai in prose — use Velai`,
+                );
+                const withoutAccent = line.replace(/résumé/gi, "");
+                assert.doesNotMatch(
+                    withoutAccent,
+                    /\bresumes?\b/i,
+                    `${rel}: unaccented resume(s) in user-facing copy — use résumé`,
+                );
+            }
+        }
     });
 
     it("P2-11 stacked auth dialog returns focus to opener on close", () => {
