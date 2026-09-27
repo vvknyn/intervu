@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowSquareOut } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, Minus, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
@@ -1107,7 +1107,13 @@ export function JobDetail({
                                             )}
                                             aria-hidden={s.status !== "unknown"}
                                         >
-                                            {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unfavorable" ? "—" : null}
+                                            {relistCaution ? (
+                                                <Warning size={14} weight="bold" />
+                                            ) : s.status === "favorable" ? (
+                                                <Check size={14} weight="bold" />
+                                            ) : s.status === "unfavorable" ? (
+                                                <Minus size={14} weight="bold" />
+                                            ) : null}
                                         </span>
                                         <div className="min-w-0 flex-1 leading-snug">
                                             {/* `s.kind` (job-detail-facts.ts) is always lowercase

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, MapPin } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
 import { getCompanyRailAction, getRelatedJobsAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
@@ -196,7 +196,13 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
                                             )}
                                             aria-hidden={s.status !== "unknown"}
                                         >
-                                            {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unfavorable" ? "—" : null}
+                                            {relistCaution ? (
+                                                <Warning size={14} weight="bold" />
+                                            ) : s.status === "favorable" ? (
+                                                <Check size={14} weight="bold" />
+                                            ) : s.status === "unfavorable" ? (
+                                                <Minus size={14} weight="bold" />
+                                            ) : null}
                                         </span>
                                         <div className="min-w-0 flex-1 leading-snug">
                                             {/* `s.kind` (job-detail-facts.ts) is always

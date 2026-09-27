@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { CaretDown } from "@phosphor-icons/react";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { chipVariants } from "@/components/ui/chip";
 import { buildFitReasonRows, fitReasonSourcesFromComponents } from "@/lib/jobs/for-you/fit-reasons";
@@ -55,9 +56,11 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
                 <span className="text-sm font-semibold text-foreground">Why this fits</span>
                 <span className="flex items-center gap-2">
                     <MatchChip score={score} asOfDate={asOfDate} jobId={jobId} />
-                    <span className="text-xs text-muted-foreground transition-transform group-open:rotate-180" aria-hidden>
-                        ▾
-                    </span>
+                    <CaretDown
+                        size={14}
+                        aria-hidden
+                        className="text-muted-foreground transition-transform group-open:rotate-180"
+                    />
                 </span>
             </summary>
 
