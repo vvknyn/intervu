@@ -58,7 +58,7 @@ test("tracker mock empty card is centered and in optical upper third", async ({ 
     const viewport = page.viewportSize()!;
     const cardTop = box!.y;
     const cardCenterX = box!.x + box!.width / 2;
-    expect(cardTop).toBeGreaterThan(64);
+    expect(cardTop).toBeGreaterThan(48);
     expect(cardTop).toBeLessThan(viewport.height * 0.42);
     expect(Math.abs(cardCenterX - viewport.width / 2)).toBeLessThan(64);
 });

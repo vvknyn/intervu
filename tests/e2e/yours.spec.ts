@@ -51,12 +51,14 @@ test.describe('YOURS - Guest, no pursuits', () => {
     await expect(page.locator('text=404')).not.toBeVisible();
   });
 
-  test('TC-YOURS-002: Guest empty state shows track and login actions', async ({ page }) => {
+  test('TC-YOURS-002: Guest empty state hierarchy — header track vs empty CTAs', async ({ page }) => {
     await page.goto('/yours');
     const empty = page.getByTestId('yours-guest-empty');
     await expect(empty).toBeVisible({ timeout: 10000 });
-    await expect(empty.getByRole('button', { name: /track a role/i })).toBeVisible();
-    await expect(empty.getByRole('button', { name: 'Log in' })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('button', { name: /track a role/i })).toBeVisible();
+    await expect(empty.getByRole('link', { name: /browse verified roles/i })).toBeVisible();
+    await expect(empty.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await expect(empty.getByRole('button', { name: /track a role/i })).toHaveCount(0);
   });
 
   for (const viewport of [
@@ -81,10 +83,10 @@ test.describe('YOURS - Guest, no pursuits', () => {
   }
 
   test('TC-YOURS-003: TopBar Tracker tab is visible with zero pursuits', async ({ page }) => {
-    await page.goto('/');
-    const link = page.getByTestId('topbar-tracker');
-    await expect(link).toBeVisible();
-    await expect(link).toHaveAttribute('href', '/yours');
+    await page.goto('/yours');
+    const link = page.getByTestId('topbar-tracker').or(page.getByTestId('mobile-topbar-tracker'));
+    await expect(link.first()).toBeVisible({ timeout: 10000 });
+    await expect(link.first()).toHaveAttribute('href', '/yours');
   });
 
   test('TC-YOURS-004: Unknown pursuit id shows not-found', async ({ page }) => {
@@ -114,10 +116,10 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
   });
 
   test('TC-YOURS-006: TopBar Yours link appears with a pursuit present', async ({ page }) => {
-    await page.goto('/');
-    const link = page.getByTestId('topbar-tracker');
-    await expect(link).toBeVisible({ timeout: 10000 });
-    await expect(link).toHaveAttribute('href', '/yours');
+    await page.goto('/yours');
+    const link = page.getByTestId('topbar-tracker').or(page.getByTestId('mobile-topbar-tracker'));
+    await expect(link.first()).toBeVisible({ timeout: 10000 });
+    await expect(link.first()).toHaveAttribute('href', '/yours');
   });
 
   test('TC-YOURS-007: Row click opens the detail sheet below xl', async ({ page }) => {
@@ -137,11 +139,11 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/yours');
     await page.getByTestId('pursuit-row').first().click();
-    await expect(page).toHaveURL(/\/yours\/[^/?]+$/);
-    // Two "Acme Corp" headings render (PageHeader's h1 + the page body's own
-    // identity h1) — .first() is enough to prove the full page loaded.
-    await expect(page.getByRole('heading', { name: 'Acme Corp' }).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Staff Engineer').first()).toBeVisible();
+    await expect(page).toHaveURL('/yours/guest-e2e-1');
+    await expect(page.getByTestId('pursuit-stage')).toBeVisible({ timeout: 10000 });
+    const main = page.getByRole('main');
+    await expect(main.getByRole('heading', { name: 'Acme Corp' }).first()).toBeVisible();
+    await expect(main.getByText('Staff Engineer').first()).toBeVisible();
   });
 
   test('TC-YOURS-008: Track a role opens the add sheet', async ({ page }) => {
