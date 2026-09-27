@@ -6587,7 +6587,7 @@ export function JobsContent({
                                         ))}
                                     </div>
                                 </div>
-) : resultsPanel === "not-connected" ? (
+                            ) : resultsPanel === "not-connected" ? (
                                 <div
                                     role="status"
                                     className="border-l-2 border-brand px-[var(--list-inset)] py-6 pl-4 text-left"
@@ -6600,7 +6600,6 @@ export function JobsContent({
                                         </p>
                                     )}
                                 </div>
-                            ) : resultsPanel === "error"
                             ) : resultsPanel === "error" ? (
                                 // Deliverable 1 — the only remaining hard-stop state: a
                                 // search genuinely has no results available at all (a

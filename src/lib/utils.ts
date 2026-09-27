@@ -17,10 +17,7 @@ export const CONTROL_FOCUS_VISIBLE =
 export const CHROME_FOCUS_VISIBLE = "designed-focus-ring focus-visible:outline-none";
 
 /** Filled brand chrome (e.g. lean TopBar Sign in) — double ring for contrast on `bg-brand`. */
-export const CHROME_FOCUS_ON_BRAND = cn(
-    CHROME_FOCUS_VISIBLE,
-    "focus-visible:shadow-[0_0_0_2px_rgb(var(--background)),0_0_0_4px_rgb(var(--live))]",
-);
+export const CHROME_FOCUS_ON_BRAND = `${CHROME_FOCUS_VISIBLE} focus-visible:shadow-[0_0_0_2px_rgb(var(--background)),0_0_0_4px_rgb(var(--live))]`;
 
 // tailwind-merge's default config only recognizes Tailwind's own T-shirt
 // size suffixes (sm/lg/xl/...) as members of the `rounded-*` conflict

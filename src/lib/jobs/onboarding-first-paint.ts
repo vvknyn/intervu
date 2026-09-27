@@ -20,6 +20,8 @@ export function writeOnboardingCompletedInStorage(): void {
     try {
         window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
         document.documentElement.classList.add(ONBOARDING_COMPLETE_HTML_CLASS);
+        document.documentElement.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
+        document.documentElement.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
         window.dispatchEvent(new Event("velai-onboarding-storage"));
     } catch {
         /* private mode */

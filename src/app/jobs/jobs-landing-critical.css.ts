@@ -8,4 +8,6 @@ html.concept-a-landing-pending [data-testid="mobile-tabbar"],
 html.concept-a-landing-pending [data-testid="site-footer"]{display:none!important}
 html.concept-a-landing-pending #main{min-height:100dvh;overflow:clip}
 html.concept-a-landing-pending #jobs-route-gate-inert{display:none!important}
+html.velai-jobs-skip-landing #concept-a-ssr,
+html.velai-onboarding-complete #concept-a-ssr{display:none!important}
 `.trim();

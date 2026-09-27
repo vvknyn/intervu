@@ -20,7 +20,11 @@ const JobsContent = dynamic(
 function hideLandingShell() {
     const root = document.documentElement;
     root.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
-    root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+    // Keep lean chrome hidden until onboarding is done — avoids landing Sign in
+    // stacking with TopBar Sign in while steps 2–3 run.
+    if (readOnboardingCompletedFromStorage()) {
+        root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+    }
     document.body.classList.remove("concept-a-landing-active");
 }
 
