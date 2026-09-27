@@ -97,6 +97,13 @@ for (const viewport of VIEWPORTS) {
                 };
 
                 const innerHeight = window.innerHeight;
+                const innerWidth = window.innerWidth;
+                const rootStyle = getComputedStyle(root);
+                const rootRect = root.getBoundingClientRect();
+                const spacer = document.querySelector(
+                    '[data-testid="landing-onboarding-step-1-spacer"]',
+                ) as HTMLElement | null;
+                const spacerHeight = spacer?.getBoundingClientRect().height ?? 0;
 
                 return {
                     bodyClassActive: document.body.classList.contains("concept-a-landing-active"),
@@ -104,6 +111,15 @@ for (const viewport of VIEWPORTS) {
                     docScrollHeight: document.documentElement.scrollHeight,
                     bodyScrollHeight: document.body.scrollHeight,
                     innerHeight,
+                    innerWidth,
+                    rootPosition: rootStyle.position,
+                    rootRect: {
+                        left: rootRect.left,
+                        top: rootRect.top,
+                        width: rootRect.width,
+                        height: rootRect.height,
+                    },
+                    spacerHeight,
                     heroColAlpha: heroColBg?.a ?? 1,
                     rootBg,
                     heroOpaqueBg: opaqueBackgroundAt(h1),
@@ -115,6 +131,12 @@ for (const viewport of VIEWPORTS) {
             }
 
             expect(layout.bodyClassActive).toBe(true);
+            expect(layout.rootPosition).toBe("fixed");
+            expect(layout.rootRect.left).toBeLessThanOrEqual(1);
+            expect(layout.rootRect.top).toBeLessThanOrEqual(1);
+            expect(layout.rootRect.width).toBeGreaterThanOrEqual(layout.innerWidth - 2);
+            expect(layout.rootRect.height).toBeGreaterThanOrEqual(layout.innerHeight - 2);
+            expect(layout.spacerHeight).toBeLessThanOrEqual(1);
             for (const row of layout.chrome) {
                 expect(row.display, `${row.id} display`).toBe("none");
                 expect(row.height, `${row.id} layout height`).toBe(0);

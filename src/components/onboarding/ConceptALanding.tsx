@@ -131,8 +131,8 @@ export interface ConceptALandingProps {
 /**
  * Public signed-out Step 1 — full-bleed Concept A (charcoal poster + cream
  * postcard stack). Portaled to document.body so site TopBar never shows behind
- * it. An in-flow min-h-[100dvh] spacer keeps the landing parent from
- * collapsing while Step 1 is up.
+ * it. An in-flow spacer uses min-h-[100dvh] only until mount, then collapses
+ * so document height stays viewport-sized while the fixed portal is open.
  */
 export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
     const [mounted, setMounted] = useState(false);
@@ -150,7 +150,7 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
 
     const spacer = (
         <div
-            className="min-h-[100dvh] w-full"
+            className={cn("w-full", mounted ? "h-0 min-h-0" : "min-h-[100dvh]")}
             aria-hidden
             data-testid="landing-onboarding-step-1-spacer"
         />

@@ -75,13 +75,27 @@ test("Concept A hero copy column has no opaque poster plate", () => {
 });
 
 test("Concept A poster-noise keeps solid root fill and pseudo texture layer", () => {
-  assert.match(GLOBALS, /\.poster-noise\s*\{[\s\S]*background-color:\s*rgb\(var\(--surface-poster\)\)/);
+  const posterNoiseRoot =
+    GLOBALS.match(/\.poster-noise\s*\{[^}]*\}/)?.[0] ??
+    "";
+  assert.ok(posterNoiseRoot.length > 0, ".poster-noise root rule must exist");
+  assert.match(posterNoiseRoot, /background-color:\s*rgb\(var\(--surface-poster\)\)/);
+  assert.doesNotMatch(posterNoiseRoot, /background-image:/, "grain/vignette must not live on .poster-noise root");
+  assert.doesNotMatch(
+    posterNoiseRoot,
+    /position:\s*relative/,
+    "fixed portal is the pseudo-layer containing block",
+  );
   assert.match(GLOBALS, /\.poster-noise::before\s*\{[\s\S]*pointer-events:\s*none/);
   assert.match(GLOBALS, /\.poster-noise::before[\s\S]*background-image:/);
-  assert.doesNotMatch(
-    GLOBALS,
-    /\.poster-noise\s*\{[\s\S]*?background-image:/,
-    "grain/vignette must not live on .poster-noise root",
+});
+
+test("Concept A landing portal stays fixed; spacer collapses after mount", () => {
+  assert.match(SRC, /data-testid="concept-a-landing"[\s\S]*?fixed inset-0/);
+  assert.match(SRC, /mounted \? "h-0 min-h-0" : "min-h-\[100dvh\]"/);
+  assert.match(
+    SRC,
+    /className=\{cn\("w-full", mounted \? "h-0 min-h-0" : "min-h-\[100dvh\]"\)\}[\s\S]*?data-testid="landing-onboarding-step-1-spacer"/,
   );
 });
 

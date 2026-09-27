@@ -1223,7 +1223,6 @@ body[data-scroll-locked] [data-testid="apply-return-prompt"] {
 
 /* Concept A poster grain + vignette — solid token fill on root for contrast; texture in ::before. */
 .poster-noise {
-  position: relative;
   background-color: rgb(var(--surface-poster));
 }
 
