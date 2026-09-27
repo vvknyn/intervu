@@ -49,9 +49,9 @@ npm run test:report
 | Test ID | Description |
 |---------|-------------|
 | TC-NAV-001 | Home page loads successfully |
-| TC-NAV-002 | Navigate to Resume Builder via menu |
-| TC-NAV-003 | Navigate to Resume Tailor via menu |
-| TC-NAV-004 | Navigate to Applications via menu |
+| TC-NAV-002 | ~~Navigate to Resume Builder via menu~~ (route removed / redirected) |
+| TC-NAV-003 | ~~Navigate to Resume Tailor via menu~~ (route removed / redirected) |
+| TC-NAV-004 | ~~Navigate to Applications via menu~~ (route removed / redirected) |
 | TC-NAV-005 | Navigate to Settings via menu |
 | TC-NAV-006 | Logo click returns to home |
 | TC-NAV-007 | Direct URL access to all pages |

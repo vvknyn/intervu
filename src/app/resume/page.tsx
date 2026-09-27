@@ -13,12 +13,17 @@ import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
-import { RESUME_UPLOAD_PROMISE } from "@/lib/jobs/resume-cta-copy";
+import {
+    RESUME_IMPORT_STORAGE_NOTE,
+    RESUME_LOCAL_DEVICE_BANNER_BODY,
+    RESUME_LOCAL_DEVICE_BANNER_LABEL,
+    RESUME_PAGE_HEADLINE,
+    RESUME_PAGE_SUBCOPY,
+    RESUME_UPLOAD_PROMISE,
+} from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-
-const RESUME_SUBCOPY = "Get For you, Strong/Good/Stretch fit, Customize, and tailored PDFs for each role.";
 
 function ResumeHeader() {
     return (
@@ -26,8 +31,8 @@ function ResumeHeader() {
             fullWidth
             sticky={false}
             size="display"
-            title="One résumé unlocks your personalized job search."
-            description={RESUME_SUBCOPY}
+            title={RESUME_PAGE_HEADLINE}
+            description={RESUME_PAGE_SUBCOPY}
         />
     );
 }
@@ -53,7 +58,7 @@ function ResumeAuthSkeleton() {
 export function SignedOutEmptyState({ onUploadClick }: { onUploadClick: () => void }) {
     return (
         <div className="py-8 text-left">
-            <h2 className="text-base font-semibold text-foreground">One résumé unlocks your personalized job search.</h2>
+            <h2 className="text-base font-semibold text-foreground">{RESUME_PAGE_HEADLINE}</h2>
             <p className="mt-1 text-sm text-foreground">{RESUME_UPLOAD_PROMISE}</p>
             <Button size="sm" onClick={onUploadClick} className="mt-4 rounded-ctl font-semibold">
                 <UploadSimple size={16} className="mr-1.5" aria-hidden />
@@ -149,8 +154,8 @@ function ResumeContent() {
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 rounded-panel border border-border bg-surface-2 px-4 py-2.5 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
                                 <ShieldCheck size={16} className="text-live shrink-0" />
-                                <span className="font-semibold text-foreground">100% on-device AI</span>
-                                <span>— Parsed privately in your browser. Never stored in the cloud without an account.</span>
+                                <span className="font-semibold text-foreground">{RESUME_LOCAL_DEVICE_BANNER_LABEL}</span>
+                                <span>— {RESUME_LOCAL_DEVICE_BANNER_BODY}</span>
                             </div>
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
                                 <div className="flex items-center gap-2.5">
@@ -216,7 +221,7 @@ function ResumeContent() {
                     onImport={handleImportResume}
                     title="Upload your base résumé"
                     description={RESUME_UPLOAD_PROMISE}
-                    storageNote="Your résumé and the parsed result stay in this browser."
+                    storageNote={RESUME_IMPORT_STORAGE_NOTE}
                 />
 
                 <AuthPopover

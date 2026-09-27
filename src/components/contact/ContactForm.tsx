@@ -8,13 +8,14 @@ import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 
 const DEFAULT_ERROR = "Failed to send your message. Please try again.";
 
 /** Every error path — server-reported or client-caught — must leave a
  *  person somewhere to go, not just a dead end in the form. */
 function withEscapeHatch(message?: string | null): string {
-    return `${message ?? DEFAULT_ERROR} — or email us directly at hello@thesubspace.io`;
+    return `${message ?? DEFAULT_ERROR} — or email us directly at ${PUBLIC_SUPPORT_EMAIL}`;
 }
 
 export function ContactForm() {
@@ -91,7 +92,7 @@ export function ContactForm() {
             <Alert variant="live" className="mt-8">
                 <AlertTitle>Message sent successfully</AlertTitle>
                 <AlertDescription>
-                    Got it — we read everything and reply directly from hello@thesubspace.io.
+                    Got it — we read everything and reply directly from {PUBLIC_SUPPORT_EMAIL}.
                 </AlertDescription>
             </Alert>
         );

@@ -29,17 +29,17 @@ describe("seo/jsonld", () => {
     // or the structured data starts asserting something no reader can see.
     const items = buildCompanyFaqItems({
       companyName: "Acme",
-      hiringAnswer: "intervu isn't tracking any live open roles right now.",
+      hiringAnswer: "velai isn't tracking any live open roles right now.",
     });
     assert.equal(items.length, 1);
     assert.equal(items[0]!.question, "Is Acme hiring?");
-    assert.equal(items[0]!.answer, "intervu isn't tracking any live open roles right now.");
+    assert.equal(items[0]!.answer, "velai isn't tracking any live open roles right now.");
   });
 
   it("buildCompanyFaqItems never emits a ghost-flagged-share question — that stat is follower-gated on the page, structured data must not leak gated content to crawlers", () => {
     const items = buildCompanyFaqItems({
       companyName: "Beta",
-      hiringAnswer: "Yes — 1 open role is live on intervu right now.",
+      hiringAnswer: "Yes — 1 open role is live on velai right now.",
     });
     // Positive control: the ungated hiring question is still present.
     assert.ok(items.some((i) => i.question === "Is Beta hiring?"));
@@ -67,7 +67,7 @@ describe("seo/jsonld", () => {
     assert.equal(jsonLd!.mainEntity[0]!.acceptedAnswer.text, "A1");
   });
 
-  it("buildJobSearchFaqJsonLd includes questions comparing Intervu to Indeed and LinkedIn", () => {
+  it("buildJobSearchFaqJsonLd includes questions comparing Velai to Indeed and LinkedIn", () => {
     const jsonLd = buildJobSearchFaqJsonLd();
     assert.ok(jsonLd);
     assert.equal(jsonLd["@type"], "FAQPage");

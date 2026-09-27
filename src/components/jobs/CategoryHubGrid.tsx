@@ -565,7 +565,7 @@ export const CATEGORY_JOBS_CATALOG: Record<string, RoleDetailListing[]> = {
                 "Solid understanding of the DOM, browser layout algorithms, and keyboard navigation.",
             ],
             fitReasons: [
-                "96% background match with 1-click tailored resume readiness.",
+                "Strong fit for your background in React and design systems.",
             ],
             benefits: [
                 "Fast-track interview process with verified hiring manager response.",
@@ -956,7 +956,7 @@ export function CategoryHubGrid({
                 className,
             )}
         >
-            {/* Welcome banner — Iconiq-calm Velai panel */}
+            {/* Welcome banner — Concept A calm Velai panel */}
             <div className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-4 sm:p-7">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="space-y-1">
@@ -1023,7 +1023,7 @@ export function CategoryHubGrid({
                 </div>
             </div>
 
-            {/* 8-Card Category Grid — Iconiq interactive cards, Velai navy */}
+            {/* 8-Card Category Grid — interactive cards, Velai navy */}
             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 sm:gap-3.5">
                 {DEFAULT_CATEGORY_HUBS.map((category) => {
                     const Icon = category.icon;

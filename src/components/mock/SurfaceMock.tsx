@@ -114,7 +114,7 @@ function MiniSerp() {
             </div>
             <div className="hidden min-w-0 flex-1 flex-col gap-1.5 border border-border bg-card p-2.5 xl:flex">
                 <div className="text-xs font-semibold text-foreground">Group Product Manager — Home Financing</div>
-                <div className="mono-data text-xs text-muted-foreground">Bank of Montreal · Toronto, ON</div>
+                <div className="mono-data text-xs text-muted-foreground">Meridian Health · Austin, TX</div>
                 <p className="text-xs leading-relaxed text-muted-foreground">
                     BMO Financial Group&apos;s expected target for the first year in this position. Total
                     compensation will vary based on the pay type of the position and may include
@@ -230,9 +230,9 @@ function GroundBand({ option }: { option: GroundOption }) {
                     style={{ background: `rgb(${option.card})` }}
                 >
                     <div className="text-xs font-semibold text-foreground">Senior Product Manager, B2B</div>
-                    <div className="mono-data text-xs text-muted-foreground">Okta · Toronto, ON, CAN · Hybrid</div>
+                    <div className="mono-data text-xs text-muted-foreground">Okta · Denver, CO, USA · Hybrid</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                        <span className={cn(chipVariants({ active: true }), "mono-data")}>CAD 146k–200k/yr</span>
+                        <span className={cn(chipVariants({ active: true }), "mono-data")}>USD 146k–200k/yr</span>
                         <span className={cn(chipVariants({ active: false }), "mono-data")}>Hybrid</span>
                         <span className={cn(chipVariants({ active: false }), "mono-data")}>6d ago</span>
                     </div>

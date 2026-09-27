@@ -30,8 +30,12 @@ import {
     planLocationQuery,
     prioritizeCountryMatch,
 } from "@/lib/jobs/location-suggest";
-import { getClientIp } from "@/lib/shield/client-ip";
-import { allowJobsLocationRequest } from "@/lib/shield/rate-limit";
+import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
+import {
+    allowJobsLocationRequest,
+    JOBS_LOCATION_WINDOW_MS,
+    typeaheadRetryAfterHeader,
+} from "@/lib/shield/rate-limit";
 import type { LocationQueryPlan, LocationSuggestGroup } from "@/lib/jobs/location-suggest";
 import type { FacetHit } from "@/lib/geo/corpus-values";
 
@@ -40,6 +44,10 @@ export interface LocationSuggestResponse {
 }
 
 const EMPTY: LocationSuggestResponse = { groups: [] };
+
+export function jobsLocationRateLimitedBody(): LocationSuggestResponse & { rate_limited: true } {
+    return { ...EMPTY, rate_limited: true };
+}
 
 /**
  * Pure: parse + cap the raw `q`. Mirrors `resolveSuggestQuery`'s posture
@@ -105,9 +113,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     const q = resolveLocationQuery(new URL(request.url).searchParams.get("q"));
     if (!q) return NextResponse.json(EMPTY);
 
-    const ip = await getClientIp();
+    const ip = resolveClientIpFromHeaders(request.headers);
     if (!allowJobsLocationRequest(ip)) {
-        return NextResponse.json(EMPTY, { status: 429 });
+        return NextResponse.json(jobsLocationRateLimitedBody(), {
+            status: 429,
+            headers: typeaheadRetryAfterHeader(JOBS_LOCATION_WINDOW_MS),
+        });
     }
 
     // Work-mode words typed into this box ("remote can") are not part of any
