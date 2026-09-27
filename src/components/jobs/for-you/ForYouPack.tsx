@@ -54,7 +54,10 @@ const JD_SCROLL_CLASS =
     "min-w-0 overflow-y-auto max-h-[min(60dvh,640px)] custom-scrollbar";
 
 /** Employer-stated fact — quiet/neutral, same chip primitive everywhere. */
-const STATED_CHIP_CLASS = cn(chipVariants({ active: false }), "h-7 px-2.5 text-xs");
+const STATED_CHIP_CLASS = cn(
+    chipVariants({ active: false }),
+    "h-7 px-2.5 text-xs bg-background text-[rgb(var(--foreground))]",
+);
 
 /**
  * Product-derived/inferred chip — reuses the chip primitive's own "active"
@@ -82,7 +85,7 @@ function FitReadout({ score, strong }: { score: MatchScore; strong: boolean }) {
             <p
                 className={cn(
                     "text-title-sm font-semibold",
-                    strong ? "text-live" : "text-surface-postcard-foreground",
+                    strong ? "text-live-on-postcard" : "text-surface-postcard-foreground",
                 )}
             >
                 {label}
@@ -263,7 +266,7 @@ export function ForYouPack({
                         <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
                         <div className="min-w-0 flex-1">
                             <p className={SECTION_LABEL}>{company}</p>
-                            <h2 className="break-words text-title-sm font-semibold text-foreground lg:text-title">
+                            <h2 className="break-words text-title-sm font-semibold text-surface-postcard-foreground lg:text-title">
                                 {displayJob.title}
                             </h2>
                             {place && <p className="mt-0.5 text-sm text-surface-postcard-muted">{place}</p>}

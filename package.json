@@ -98,6 +98,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "axe-core": "^4.13.0",
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.1.5",

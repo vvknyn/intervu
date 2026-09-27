@@ -227,6 +227,8 @@
   --surface-postcard: 244 240 230;
   --surface-postcard-foreground: 12 26 51;
   --surface-postcard-muted: 82 82 82;
+  /* Live accent on cream paper — `--live` fails WCAG AA on `--surface-postcard`. */
+  --live-on-postcard: 8 82 46;
   --surface-mark-tile: 20 23 32;
 
   /* Soft Signal accents */
@@ -469,6 +471,7 @@
   --color-surface-postcard: rgb(var(--surface-postcard));
   --color-surface-postcard-foreground: rgb(var(--surface-postcard-foreground));
   --color-surface-postcard-muted: rgb(var(--surface-postcard-muted));
+  --color-live-on-postcard: rgb(var(--live-on-postcard));
   --color-surface-mark-tile: rgb(var(--surface-mark-tile));
   /* Elevation: none (DESIGN-LANGUAGE.md "Tokens"). Separation comes from a
      1px --border and whitespace, so every key in the shadow scale resolves to
@@ -539,6 +542,16 @@
   --color-sidebar-ring: rgb(var(--sidebar-ring));
 }
 
+/* Paper reading context — rebind semantic foreground tokens for prose blocks that
+   opt in with `.surface-paper` (JD bodies, résumé preview). Not on the whole
+   postcard shell: fact chips keep canvas `bg-background` + canvas ink. */
+.surface-paper {
+  --foreground: var(--surface-postcard-foreground);
+  --muted-foreground: var(--surface-postcard-muted);
+  --color-foreground: rgb(var(--surface-postcard-foreground));
+  --color-muted-foreground: rgb(var(--surface-postcard-muted));
+  color: rgb(var(--surface-postcard-foreground));
+}
 
 /* Base Styles */
 html {
