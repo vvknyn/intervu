@@ -27,6 +27,8 @@ import { DotSeparated } from "@/components/ui/dot-separated";
 import { StageBadge } from "@/components/tracker/StageBadge";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import type { JobView } from "@/lib/views/types";
+import { posterListPanelClassName } from "@/components/layout/route-loading";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /** Exported so `/mock/history` (fixture preview — `useViewed()` has no
  *  guest fallback, so the real route can't show filled/empty states
@@ -44,26 +46,29 @@ export function HistoryHeader() {
 
 function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
     return (
-        <div className="py-8 text-left">
-            <p className="text-sm text-foreground">Sign in to see your history.</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-                We keep track of every job you open so you can find your way back to it.
-            </p>
-            <Button className="mt-3 rounded-ctl font-semibold" onClick={onLoginClick}>
-                {AUTH_CTA_LABEL}
-            </Button>
-        </div>
+        <EmptyState
+            title="Sign in to see your history."
+            description="We keep track of every job you open so you can find your way back to it."
+            actions={
+                <Button className="rounded-ctl font-semibold" onClick={onLoginClick}>
+                    {AUTH_CTA_LABEL}
+                </Button>
+            }
+        />
     );
 }
 
 function HistoryEmptyState() {
     return (
-        <div data-testid="history-empty" className="py-8 text-left">
-            <p className="text-sm text-foreground">Jobs you open will show up here.</p>
-            <Button asChild className="mt-3 rounded-ctl font-semibold">
-                <Link href="/jobs">Browse verified roles</Link>
-            </Button>
-        </div>
+        <EmptyState
+            testId="history-empty"
+            title="Jobs you open will show up here."
+            actions={
+                <Button asChild className="rounded-ctl font-semibold">
+                    <Link href="/jobs">Browse verified roles</Link>
+                </Button>
+            }
+        />
     );
 }
 
@@ -127,7 +132,7 @@ export function HistoryList({
     if (loading) return <HistoryLoading />;
     if (entries.length === 0) return <HistoryEmptyState />;
     return (
-        <div className="overflow-hidden rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]">
+        <div className={posterListPanelClassName}>
             <div className="divide-y divide-border border-t border-border">
                 {entries.map((view) => (
                     <HistoryRow key={view.id} view={view} stage={byJobId.get(view.job_id)} />
@@ -142,11 +147,7 @@ export function HistoryList({
  *  not one flat block standing in for the whole row. */
 function HistoryLoading() {
     return (
-        <div
-            className="overflow-hidden rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]"
-            role="status"
-            aria-busy="true"
-        >
+        <div className={posterListPanelClassName} role="status" aria-busy="true">
             <div aria-hidden className="divide-y divide-border border-t border-border">
                 {[0, 1, 2, 3, 4].map((i) => (
                     <div key={i} className="px-[var(--list-inset)] pt-4">

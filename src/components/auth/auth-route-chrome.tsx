@@ -26,11 +26,13 @@ export function AuthRouteLayout({
 export function AuthRaisedPanel({
     children,
     className,
-}: {
-    children: React.ReactNode;
-    className?: string;
-}) {
-    return <div className={cn(authRaisedPanelClassName, "p-6 sm:p-8", className)}>{children}</div>;
+    ...rest
+}: React.ComponentProps<"div">) {
+    return (
+        <div className={cn(authRaisedPanelClassName, "p-6 sm:p-8", className)} {...rest}>
+            {children}
+        </div>
+    );
 }
 
 /** Suspense fallback for `/login`, `/auth/retry`, and other chrome-free auth routes. */

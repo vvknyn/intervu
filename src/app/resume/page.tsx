@@ -23,6 +23,8 @@ import {
 } from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
+import { InlinePlaceholderPanel } from "@/components/layout/route-loading";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 
 function ResumeHeader() {
@@ -39,14 +41,13 @@ function ResumeHeader() {
 
 function ResumeAuthSkeleton() {
     return (
-        <div className="space-y-4 rounded-panel border border-border bg-surface p-8 shadow-[var(--shadow-bevel-highlight)]" role="status" aria-busy="true">
-            <span className="sr-only">Loading resume</span>
-            <div aria-hidden className="mx-auto max-w-sm space-y-3">
+        <InlinePlaceholderPanel label="Loading resume" className="space-y-4">
+            <div className="mx-auto max-w-sm space-y-3">
                 <div className="skeleton-bar mx-auto h-12 w-12" />
                 <div className="skeleton-bar mx-auto h-4 w-48" />
                 <div className="skeleton-bar mx-auto h-3 w-full" />
             </div>
-        </div>
+        </InlinePlaceholderPanel>
     );
 }
 
@@ -57,14 +58,18 @@ function ResumeAuthSkeleton() {
 // be a sideways tangent the conveyor rule forbids.
 export function SignedOutEmptyState({ onUploadClick }: { onUploadClick: () => void }) {
     return (
-        <div className="py-8 text-left">
-            <h2 className="text-base font-semibold text-foreground">{RESUME_PAGE_HEADLINE}</h2>
-            <p className="mt-1 text-sm text-foreground">{RESUME_UPLOAD_PROMISE}</p>
-            <Button size="sm" onClick={onUploadClick} className="mt-4 rounded-ctl font-semibold">
-                <UploadSimple size={16} className="mr-1.5" aria-hidden />
-                Upload résumé
-            </Button>
-        </div>
+        <EmptyState
+            titled
+            title={RESUME_PAGE_HEADLINE}
+            description={<span className="text-foreground">{RESUME_UPLOAD_PROMISE}</span>}
+            actionsClassName="mt-4"
+            actions={
+                <Button size="sm" onClick={onUploadClick} className="rounded-ctl font-semibold">
+                    <UploadSimple size={16} className="mr-1.5" aria-hidden />
+                    Upload résumé
+                </Button>
+            }
+        />
     );
 }
 
