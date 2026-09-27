@@ -160,6 +160,7 @@ import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorField
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
+import { LandingAnimatedBackground } from "@/components/marketing/LandingAnimatedBackground";
 import { LandingOnboardingView } from "@/components/onboarding/LandingOnboardingView";
 import { CategoryHubGrid } from "@/components/jobs/CategoryHubGrid";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
@@ -5934,12 +5935,10 @@ function JobsContent() {
                     pristine gate — so the rest of the centered hero can't
                     disagree with this piece about whether it's showing. */}
                 {showLandingOnboarding ? (
-                    <div
-                        data-testid="landing-onboarding-shell"
-                        className="relative w-full flex-1 flex flex-col justify-start sm:justify-center items-center py-0"
-                    >
-                        {/* Step 1 portals full-bleed Concept A — no ambient grid here
-                            (axe flags h1 as partially obscured when this layer overlaps). */}
+                    <div className="relative w-full flex-1 flex flex-col justify-start sm:justify-center items-center py-0">
+                        {/* Concept A Step 1 portals full-bleed over this; grid
+                            remains for steps 2–3 auth + résumé gate. */}
+                        <LandingAnimatedBackground />
                         <div className={cn("relative z-10 w-full px-2 sm:px-4", cappedContentClass)}>
                             <LandingOnboardingView
                                 isAuthenticated={Boolean(user)}

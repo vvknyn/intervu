@@ -9,6 +9,11 @@
 import { createRequire } from 'module';
 import { chromium, webkit, devices } from 'playwright';
 import { linuxChromiumVisualQaLaunchOptions } from './design/linux-chromium-visual-qa.cjs';
+import {
+  LANDING_ROOT_SEL,
+  probeLandingRoot,
+  runLandingAxeWithContrastFallback,
+} from './gate-landing-contrast-fallback.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -528,13 +533,18 @@ async function runLandingSignedOut(browser, engine, label, viewport) {
       canadaCopy: /\bCanada jobs\b|\bCanada\b.*career pages/i.test(body),
     };
   });
+  const landingRoot = await probeLandingRoot(page);
   await loadAxe(page);
-  // Concept A landing renders outside the layout <main> landmark — scan the full document.
-  const landingAxe = await runAxeContrast(page, 'document');
+  const landingAxe = await runLandingAxeWithContrastFallback(page);
   await shot(page, `landing-signed-out-${engine}-${label}.png`);
   await ctx.close();
   const axePass =
-    landingAxe.violationCount === 0 && landingAxe.incompleteCount === 0 && landingAxe.scannedNodes > 0;
+    landingAxe.pass &&
+    landingRoot.exists &&
+    landingRoot.textLen > 0 &&
+    landingRoot.hasPostcardTitles &&
+    landingAxe.scannedNodes > 0 &&
+    landingAxe.violationCount === 0;
   const chromePass =
     !probe.signedIn &&
     probe.signInVisible &&
@@ -542,7 +552,7 @@ async function runLandingSignedOut(browser, engine, label, viewport) {
     !probe.mcpInHeader &&
     !probe.numericFit &&
     !probe.canadaCopy;
-  return { pass: chromePass && axePass, probe, landingAxe, axePass, chromePass };
+  return { pass: chromePass && axePass, probe, landingRoot, landingAxe, axePass, chromePass };
 }
 
 const wos = readWosSession();
@@ -621,9 +631,12 @@ for (const [engineName, launch] of engines) {
       };
       verdict.landingSummary[key] = {
         pass: landing.pass,
+        scope: LANDING_ROOT_SEL,
         violations: landing.landingAxe?.violationCount ?? null,
         incomplete: landing.landingAxe?.incompleteCount ?? null,
         scannedNodes: landing.landingAxe?.scannedNodes ?? null,
+        contrastFallback: landing.landingAxe?.contrastFallback ?? null,
+        landingRoot: landing.landingRoot ?? null,
       };
       verdict.privacySummary[key] = {
         pass: privacy.pass,

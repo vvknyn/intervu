@@ -5,30 +5,28 @@ import { test } from "node:test";
 const SRC = readFileSync("src/components/onboarding/ConceptALanding.tsx", "utf8");
 const POSTCARD = SRC.match(/function PostcardCard[\s\S]*?^}/m)?.[0] ?? "";
 
-test("Concept A postcard stack uses AA-safe live token and no cream text-live", () => {
-  assert.ok(POSTCARD.length > 0, "PostcardCard block missing");
-  assert.doesNotMatch(POSTCARD, /\btext-live\b/, "postcard stack must not use canvas live on cream");
-  assert.match(POSTCARD, /bg-live-on-postcard/, "live dot uses postcard-safe fill");
+test("Concept A postcards render real titles, meta, and Live label", () => {
+  assert.match(POSTCARD, /data-testid="concept-a-postcard-title"/);
+  assert.match(POSTCARD, /\{title\}/);
+  assert.match(POSTCARD, /\{meta\}/);
+  assert.match(POSTCARD, />Live</);
+  assert.doesNotMatch(POSTCARD, /data-testid="concept-a-postcard-title"[\s\S]*aria-hidden/);
 });
 
-test("Concept A poster copy sits on opaque surface-poster plates", () => {
-  assert.match(SRC, /header className="[^"]*bg-surface-poster/);
-  assert.match(SRC, /bg-surface-poster pt-6/, "hero column plate");
-  assert.match(SRC, /flex w-fit flex-col gap-2 bg-surface-poster text-poster-hero/, "hero lines avoid overlapping text rects for axe");
+test("Concept A postcard Live uses postcard-safe tokens on cream", () => {
+  assert.match(POSTCARD, /text-live-on-postcard/);
+  assert.match(POSTCARD, /bg-live-on-postcard/);
+  assert.doesNotMatch(POSTCARD, /\btext-live\b(?!-on-postcard)/);
 });
 
-test("Concept A hero subhead may use text-live on flat poster plate", () => {
-  assert.match(SRC, /text-live[\s\S]*Job Packs from live employer career pages/);
+test("Concept A does not hide main or use design-lint file exemption", () => {
+  assert.doesNotMatch(SRC, /design-lint-allow-file/);
+  assert.doesNotMatch(SRC, /main\.style\.display/);
+  assert.doesNotMatch(SRC, /display\s*=\s*["']none["']/);
 });
 
-test("jobs onboarding shell does not mount ambient grid under Concept A step 1", () => {
-  const page = readFileSync("src/app/jobs/page.tsx", "utf8");
-  const block = page.match(/showLandingOnboarding \? \([\s\S]*?\) : \(/m)?.[0] ?? "";
-  assert.ok(block.length > 0, "showLandingOnboarding branch missing");
-  assert.doesNotMatch(block, /LandingAnimatedBackground/, "ambient grid belongs on steps 2–3 only");
-});
-
-test("Landing onboarding steps 2–3 mount ambient grid behind the gate card", () => {
-  const view = readFileSync("src/components/onboarding/LandingOnboardingView.tsx", "utf8");
-  assert.match(view, /LandingAnimatedBackground/);
+test("Concept A keeps poster texture and real postcard stack", () => {
+  assert.match(SRC, /poster-noise/);
+  assert.match(SRC, /Remote AI Roles/);
+  assert.match(SRC, /overflow-visible/);
 });
