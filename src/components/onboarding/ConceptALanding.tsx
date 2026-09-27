@@ -90,7 +90,7 @@ function PostcardCard({ title, meta, style }: Postcard) {
             <p className="mt-1 text-caption sm:text-xs leading-snug text-surface-postcard-muted">{meta}</p>
             <div className="mt-3.5 flex items-center gap-1.5">
                 <span className="size-1.5 rounded-pill bg-live instrument-breathe" aria-hidden />
-                <span className="text-caption font-semibold text-live">Live</span>
+                <span className="text-caption font-semibold text-live-on-postcard">Live</span>
             </div>
         </div>
     );
