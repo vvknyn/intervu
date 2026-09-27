@@ -286,20 +286,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         );
     };
 
-    // Shared by handleDownloadAndParse (explicit click) and handleParse
-    // (implicit grant when Parse is hit before a download decision) so the
-    // consent-grant sequence lives in exactly one place.
+    // Implicit grant when Parse is hit before a download decision — one place
+    // for the consent-grant sequence.
     const grantConsent = () => {
         grantLocalAiConsent();
         setLocalAiConsent(true);
-    };
-
-    const handleDownloadAndParse = () => {
-        grantConsent();
-        setConsentDeclined(false);
-        // Fire-and-forget warm-up: by the time a file is picked and Parse is
-        // clicked, initLocalAiLadder's singleton is likely already resolved.
-        void initLocalAiLadder();
     };
 
     const handleSkipDownload = () => {
@@ -432,15 +423,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setEditedData({ ...editedData, education: newEdu });
     };
 
-    // Privacy/consent block — always shown (founder rule: résumé
-    // interpretation never happens on our servers). Before a download
-    // decision is made it offers "Download and parse" (on-device model,
-    // best quality) or "Skip the download" (heuristic rules, no download,
-    // still 100% on-device either way).
+    // Privacy/consent block — explanation + optional basic-parsing link only.
+    // The one green parse/download primary lives in the modal footer (no extra
+    // first-visit step); footer label is "Download model & parse" until consent
+    // is stored or the visitor opts into basic parsing via the link below.
     const renderPrivacyConsent = () => {
         const decided = localAiConsent || consentDeclined;
         return (
-            <div className="rounded-panel p-3.5 border border-border bg-surface-2 space-y-2.5 shadow-[var(--shadow-bevel-inset)]">
+            <div className="space-y-2 rounded-panel border border-border bg-surface-2 p-4 shadow-[var(--shadow-bevel-inset)]">
                 <div className="flex items-center gap-2 text-sm font-semibold">
                     <Cpu size={16} className="text-live shrink-0" />
                     <span>Parsed on your device</span>
@@ -452,20 +442,17 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 <p className="text-xs text-muted-foreground leading-relaxed">
                     {RESUME_IMPORT_PARSE_LINE} {storageNote}
                 </p>
-                {!decided && (
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
-                        <Button type="button" size="sm" onClick={handleDownloadAndParse}>
-                            Download and parse
-                        </Button>
-                        <button
-                            type="button"
-                            onClick={handleSkipDownload}
-                            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-                        >
-                            Skip the download (basic parsing)
-                        </button>
-                    </div>
-                )}
+                {!decided ? (
+                    <Button
+                        type="button"
+                        variant="link"
+                        data-testid="resume-import-skip-download"
+                        onClick={handleSkipDownload}
+                        className="inline-flex h-auto min-h-11 justify-start px-0 py-2 text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    >
+                        Skip the download (basic parsing)
+                    </Button>
+                ) : null}
             </div>
         );
     };
@@ -615,7 +602,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                 </h4>
                             </div>
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <Label className="text-xs">Name</Label>
                                     <Input
                                         value={editedData.profile.name || ""}
@@ -623,7 +610,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                         className="h-8 text-base md:text-sm"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <Label className="text-xs">Profession</Label>
                                     <Input
                                         value={editedData.profile.profession}
@@ -631,7 +618,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                         className="h-8 text-base md:text-sm"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <Label className="text-xs">Years of Experience</Label>
                                     <Input
                                         type="number"
@@ -640,7 +627,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                         className="h-8 text-base md:text-sm"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <Label className="text-xs">Location</Label>
                                     <Input
                                         value={editedData.profile.location}
@@ -648,7 +635,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                         className="h-8 text-base md:text-sm"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <Label className="text-xs">Email</Label>
                                     <Input
                                         value={editedData.profile.email}
@@ -656,7 +643,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                         className="h-8 text-base md:text-sm"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <Label className="text-xs">Phone</Label>
                                     <Input
                                         value={editedData.profile.phone}
@@ -664,7 +651,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                         className="h-8 text-base md:text-sm"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     <Label className="text-xs">LinkedIn</Label>
                                     <Input
                                         value={editedData.profile.linkedin || ""}
@@ -727,7 +714,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </div>
                             <div className="space-y-3">
                                 {editedData.competencies.map((comp, idx) => (
-                                    <div key={idx} className="space-y-1.5">
+                                    <div key={idx} className="space-y-2">
                                         <Label className="text-xs">{comp.category}</Label>
                                         <Input
                                             value={comp.skills.join(', ')}
@@ -852,10 +839,15 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             <Button variant="outline" className="h-11 min-h-11" onClick={handleClose} disabled={isProcessing}>
                                 Cancel
                             </Button>
-                            <Button className="h-11 min-h-11" onClick={handleParse} disabled={!canProceed() || isProcessing}>
+                            <Button
+                                className="h-11 min-h-11"
+                                data-testid="resume-import-parse-primary"
+                                onClick={handleParse}
+                                disabled={!canProceed() || isProcessing}
+                            >
                                 {isProcessing ? (
                                     <>
-                                        <div className="w-4 h-4 rounded-pill border-2 border-background border-t-transparent animate-spin mr-2" />
+                                        <div className="mr-2 h-4 w-4 animate-spin rounded-pill border-2 border-background border-t-transparent" />
                                         Processing...
                                     </>
                                 ) : (

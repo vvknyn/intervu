@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { groupPursuitsByBoardColumn, TRACKER_BOARD_COLUMNS } from "@/lib/pursuits/tracker-display";
 import { PursuitListRow } from "@/components/tracker/PursuitListRow";
@@ -29,12 +29,18 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
 
     return (
         <div data-testid="tracker-kanban">
-            <div className="mb-2 flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:hidden">
+            <div
+                data-testid="tracker-stage-rail"
+                className="mb-2 flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:hidden"
+            >
                 {TRACKER_BOARD_COLUMNS.map(({ column, label }) => (
                     <a
                         key={column}
                         href={`#${laneAnchor(column)}`}
-                        className="flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-border bg-surface-2 px-2.5 text-xs font-semibold text-muted-foreground shadow-[var(--shadow-bevel-highlight)]"
+                        className={cn(
+                            "flex h-11 min-h-11 shrink-0 snap-start items-center gap-2 whitespace-nowrap rounded-pill border border-border bg-surface-2 px-3 text-xs font-semibold text-muted-foreground shadow-[var(--shadow-bevel-highlight)]",
+                            CHROME_FOCUS_VISIBLE,
+                        )}
                     >
                         {label}
                         <span className="tabular-nums opacity-60">{groups[column].length}</span>
@@ -59,7 +65,7 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
                             <header className="border-b border-border px-[var(--list-inset)] py-2">
                                 <h3 className="text-sm text-muted-foreground">
                                     {label}
-                                    <span className="ml-1.5 font-semibold text-foreground tabular-nums">{items.length}</span>
+                                    <span className="ml-2 font-semibold text-foreground tabular-nums">{items.length}</span>
                                 </h3>
                             </header>
                             <div className="flex flex-col divide-y divide-border">

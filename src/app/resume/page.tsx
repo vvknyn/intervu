@@ -19,6 +19,7 @@ import {
     RESUME_LOCAL_DEVICE_BANNER_LABEL,
     RESUME_PAGE_HEADLINE,
     RESUME_PAGE_SUBCOPY,
+    RESUME_SIGNED_OUT_EMPTY_TITLE,
     RESUME_UPLOAD_PROMISE,
 } from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData } from "@/types/resume";
@@ -60,12 +61,17 @@ export function SignedOutEmptyState({ onUploadClick }: { onUploadClick: () => vo
     return (
         <EmptyState
             titled
-            title={RESUME_PAGE_HEADLINE}
+            title={RESUME_SIGNED_OUT_EMPTY_TITLE}
             description={<span className="text-foreground">{RESUME_UPLOAD_PROMISE}</span>}
             actionsClassName="mt-4"
             actions={
-                <Button size="sm" onClick={onUploadClick} className="rounded-ctl font-semibold">
-                    <UploadSimple size={16} className="mr-1.5" aria-hidden />
+                <Button
+                    size="lg"
+                    onClick={onUploadClick}
+                    data-testid="resume-signed-out-upload"
+                    className="min-h-11 rounded-ctl font-semibold"
+                >
+                    <UploadSimple size={16} className="mr-2" aria-hidden />
                     Upload résumé
                 </Button>
             }
@@ -157,13 +163,13 @@ function ResumeContent() {
                 ) : !user ? (
                     localResume ? (
                         <div className="space-y-4">
-                            <div className="flex items-center gap-2 rounded-panel border border-border bg-surface-2 px-4 py-2.5 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
+                            <div className="flex items-center gap-2 rounded-panel border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
                                 <ShieldCheck size={16} className="text-live shrink-0" />
                                 <span className="font-semibold text-foreground">{RESUME_LOCAL_DEVICE_BANNER_LABEL}</span>
                                 <span>— {RESUME_LOCAL_DEVICE_BANNER_BODY}</span>
                             </div>
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
-                                <div className="flex items-center gap-2.5">
+                                <div className="flex items-center gap-2">
                                     <FileText size={20} className="text-live shrink-0" />
                                     <div>
                                         <p className="text-sm font-semibold text-foreground">Local résumé on this device</p>

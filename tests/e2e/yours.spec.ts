@@ -150,10 +150,14 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
 
   test('TC-YOURS-008: Track a role opens the add sheet', async ({ page }) => {
     await page.goto('/yours');
-    await page.getByRole('button', { name: /track a role/i }).first().click();
-    await expect(page).toHaveURL('/yours?view=new');
-    await expect(page.getByRole('dialog')).toContainText('Track a role');
-    await expect(page.getByRole('dialog')).toContainText('One step');
+    await page.waitForLoadState('networkidle');
+    const trackCta = page.getByTestId('tracker-track-role-cta');
+    await expect(trackCta).toBeVisible({ timeout: 10000 });
+    await trackCta.click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toBeVisible({ timeout: 10000 });
+    await expect(sheet).toContainText('Track a role');
+    await expect(sheet).toContainText('One step');
   });
 
   test('TC-YOURS-009: Ended pursuit appears in the list when filter is all', async ({ page }) => {

@@ -1,21 +1,12 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { clickVisibleSignIn, visibleSignInLocator } from './helpers/signed-out-auth-entry';
 
 /**
  * TEST GROUP: AUTH - Authentication Tests
  *
- * Tests authentication flows including sign in, sign up, sign out,
- * guest mode, and login form validation.
- *
- * One visual world (2026-08-04): `/` used to render its own `FrontDoorNav`
- * over a hidden `TopBar`, so tests had to target FrontDoorNav's separate
- * `landing-login` trigger. `FrontDoorNav` is deleted — `TopBar` is now the
- * only nav on every route, front door included — so `/`'s real, clickable
- * login entry point is the same `topbar-login` trigger every other page
- * uses.
+ * Signed-out login entry: Concept A poster Sign in on /jobs when visible,
+ * otherwise visible TopBar `topbar-signin` (marketing routes).
  */
-function frontDoorLogin(page: Page) {
-  return page.getByTestId('topbar-alerts-cta');
-}
 
 test.describe('AUTH - Authentication Tests', () => {
 
@@ -28,21 +19,8 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Desktop: look for "Log in" in the side rail
-    const loginButton = page.locator(
-      'button:has-text("Get job alerts"), button:has-text("Log in"), a:has-text("Log in"), button:has-text("login")',
-    );
-    const isVisible = await loginButton.first().isVisible().catch(() => false);
-
-    if (!isVisible) {
-      // Mobile: check bottom nav
-      await page.setViewportSize({ width: 375, height: 667 });
-      await page.reload();
-      const mobileLogin = page.locator('button:has-text("Login"), button:has-text("Log in")');
-      await expect(mobileLogin.first()).toBeVisible({ timeout: 5000 });
-    } else {
-      expect(isVisible).toBeTruthy();
-    }
+    const loginButton = await visibleSignInLocator(page);
+    await expect(loginButton).toBeVisible({ timeout: 10000 });
   });
 
   /**
@@ -55,9 +33,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Click login button (sidebar or nav)
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
 
       // Verify auth form appears (password input or dialog)
       const authForm = page.locator('input[type="password"], [role="dialog"]');
@@ -74,9 +52,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
       await page.waitForTimeout(500);
 
       // Should have both username/email and password inputs
@@ -97,9 +75,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
 
       const passwordField = page.locator('input[type="password"]');
       await expect(passwordField.first()).toHaveAttribute('type', 'password');
@@ -115,9 +93,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
       await page.waitForTimeout(500);
 
       // Try to submit without filling fields — scoped to the auth dialog:
@@ -141,26 +119,21 @@ test.describe('AUTH - Authentication Tests', () => {
   });
 
   /**
-   * TC-AUTH-006: Guest mode allows access to all features
+   * TC-AUTH-006: Guest mode allows public product surfaces
    *
-   * Verifies unauthenticated users can still use the application.
+   * Unauthenticated visitors can reach open routes (/jobs, /yours). Gated
+   * routes such as /settings are covered by TC-AUTH-007.
    */
-  test('TC-AUTH-006: Guest mode allows access to all features', async ({ page }) => {
-    // Can access the front door without auth
+  test('TC-AUTH-006: Guest mode allows public product surfaces', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveURL('/jobs');
 
-    // Can access the jobs SERP (search chrome lives here now) without auth
     await page.goto('/jobs');
-    await expect(page.locator('input[type="text"]').first()).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByTestId('concept-a-landing')).toBeVisible();
 
-    // Can access yours without auth
     await page.goto('/yours');
     await expect(page).toHaveURL('/yours');
-
-    // Can access settings without auth
-    await page.goto('/settings');
-    await expect(page).toHaveURL('/settings');
   });
 
   /**
@@ -172,9 +145,8 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    // Should see "login" link for unauthenticated users
-    const loginLink = page.locator('button:has-text("login"), a:has-text("login")');
-    await expect(loginLink.first()).toBeVisible({ timeout: 5000 });
+    await expect(page).toHaveURL(/\/login\?next=/);
+    await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible({ timeout: 5000 });
   });
 
   /**
@@ -186,9 +158,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
       await expect(page.locator('input[type="password"]').first()).toBeVisible({ timeout: 5000 });
 
       // Press Escape
@@ -210,9 +182,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
       await page.waitForTimeout(500);
 
       const signUp = page.locator('button:has-text("Create account"), a:has-text("Create account")');
@@ -242,23 +214,39 @@ test.describe('AUTH - Authentication Tests', () => {
    *
    * Guest users can enter a search query and trigger analysis without logging in.
    */
-  test('TC-AUTH-011: Guest search works without login', async ({ page }) => {
-    // Search chrome lives on /jobs now (front door has no search input).
-    await page.goto('/jobs');
-    await page.evaluate(() => {
-      localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test_key_123456789012345' }));
-    });
-    await page.reload();
+  /**
+   * TC-AUTH-012: Auth callback retry is one generic message for every failure class
+   *
+   * `reason` is debug-only — copy must not branch on it.
+   */
+  test('TC-AUTH-012: Auth retry shows generic copy and Start again', async ({ page }) => {
+    await page.goto('/auth/retry?reason=direct_hit');
     await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
-    await searchInput.fill('Google, Software Engineer, Technical');
+    await expect(
+      page.getByRole('heading', { level: 1, name: "We couldn't finish signing you in" }),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: 'Start again' })).toBeVisible();
+    await expect(page.locator('body')).toContainText(
+      "It happens sometimes. Try again and you'll be right back where you were.",
+    );
+    await expect(page.locator('body')).not.toContainText('direct_hit');
+    await expect(page.locator('body')).not.toContainText('exchange_failed');
+  });
 
-    // Should be able to press Enter without errors
+  test('TC-AUTH-011: Guest search works without login', async ({ page }) => {
+    // Non-at-rest SERP — query in URL exposes search combobox without dismissing Concept A
+    await page.goto('/jobs?q=designer');
+    await page.waitForLoadState('networkidle');
+
+    const searchInput = page.getByRole('combobox', { name: 'Search jobs' });
+    await expect(searchInput).toBeVisible({ timeout: 10000 });
+    await searchInput.fill('designer');
+
     await searchInput.press('Enter');
     await page.waitForTimeout(1000);
 
-    // Page should not crash
+    await expect(page).toHaveURL(/\/jobs\?.*q=designer/);
     await expect(page.locator('body')).toBeVisible();
   });
 });

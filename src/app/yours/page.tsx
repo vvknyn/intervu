@@ -21,6 +21,15 @@ import { syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
 import { countAppliedSince, matchesTrackerSearch } from "@/lib/pursuits/tracker-display";
 import {
+    TRACKER_EMPTY_DESCRIPTION,
+    TRACKER_EMPTY_TITLE,
+    TRACKER_EXPORT_CSV_LABEL,
+    TRACKER_FILTER_EMPTY,
+    TRACKER_PAGE_SUBCOPY,
+    TRACKER_PAGE_TITLE,
+    TRACKER_PRIMARY_CTA,
+} from "@/lib/pursuits/tracker-voice-copy";
+import {
     DEFAULT_DAILY_APPLY_GOAL,
     countAppliedToday,
 } from "@/lib/pursuits/daily-apply-plan";
@@ -33,11 +42,16 @@ import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 import { posterInlinePanelClassName } from "@/components/layout/route-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 
-const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before they're sent.";
-
 function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
     return (
-        <PageHeader fullWidth sticky={false} size="display" title="Tracker" description={TRACKER_SUBCOPY} actions={actions} />
+        <PageHeader
+            fullWidth
+            sticky={false}
+            size="display"
+            title={TRACKER_PAGE_TITLE}
+            description={TRACKER_PAGE_SUBCOPY}
+            actions={actions}
+        />
     );
 }
 
@@ -97,8 +111,8 @@ function TrackerEmptyState({
     return (
         <ConceptAEmptyState
             testId={user ? "yours-empty" : "yours-guest-empty"}
-            title="Your tracker is empty."
-            description="Save roles while browsing verified jobs, then pick up where you left off here."
+            title={TRACKER_EMPTY_TITLE}
+            description={TRACKER_EMPTY_DESCRIPTION}
             actions={
                 <Button asChild variant="outline" size="sm" className="rounded-ctl font-semibold">
                     <Link href="/jobs">Browse verified roles</Link>
@@ -292,22 +306,27 @@ function YoursContent() {
             header={
                 <TrackerHeader
                     actions={
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                            <Button
+                                size="sm"
+                                className="order-1 min-h-11 w-full rounded-ctl sm:order-2 sm:w-auto"
+                                data-testid="tracker-track-role-cta"
+                                onClick={openAdd}
+                            >
+                                {TRACKER_PRIMARY_CTA}
+                            </Button>
                             {pursuits.length > 0 && (
                                 <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="ghost"
                                     size="sm"
-                                    className="rounded-ctl"
+                                    className="order-2 min-h-11 w-full rounded-ctl font-normal text-muted-foreground sm:order-1 sm:w-auto"
                                     data-testid="tracker-export-csv"
                                     onClick={() => downloadTrackerExport(pursuits, "csv")}
                                 >
-                                    Export CSV
+                                    {TRACKER_EXPORT_CSV_LABEL}
                                 </Button>
                             )}
-                            <Button size="sm" className="rounded-ctl" onClick={openAdd}>
-                                Track a role
-                            </Button>
                         </div>
                     }
                 />
@@ -345,9 +364,9 @@ function YoursContent() {
                         </ConceptAEmptyPageSlot>
                     ) : (
                         <div className="py-8 text-left text-sm text-muted-foreground">
-                            Nothing in this lane.{" "}
-                            <Button variant="outline" size="sm" className="ml-1.5 rounded-ctl" onClick={openAdd}>
-                                Track a role
+                            {TRACKER_FILTER_EMPTY}{" "}
+                            <Button variant="outline" size="sm" className="ml-2 min-h-11 rounded-ctl" onClick={openAdd}>
+                                {TRACKER_PRIMARY_CTA}
                             </Button>
                         </div>
                     )

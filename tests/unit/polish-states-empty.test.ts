@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { TRACKER_FILTER_EMPTY } from "../../src/lib/pursuits/tracker-voice-copy";
 
 const ROOT = join(__dirname, "../..");
 
@@ -67,7 +68,9 @@ describe("polish batch 3 — states and empties", () => {
             /pursuits\.length === 0[\s\S]*data-testid="tracker-search"/,
             "empty tracker must not render search",
         );
-        assert.match(yours, /Nothing in this lane/);
+        assert.equal(TRACKER_FILTER_EMPTY, "Nothing in this lane.");
+        assert.match(yours, /TRACKER_FILTER_EMPTY/);
+        assert.match(yours, /\{TRACKER_FILTER_EMPTY\}/);
     });
 
     it("tracker and history use after-controls slot; for-you uses page placement", () => {

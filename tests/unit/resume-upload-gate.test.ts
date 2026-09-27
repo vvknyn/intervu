@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { RESUME_LOCAL_DEVICE_BANNER_LABEL } from "../../src/lib/jobs/resume-privacy-copy";
 
 /**
  * /resume upload contract: a usable résumé does not require an account.
@@ -58,9 +59,10 @@ test("résumé masthead uses display PageHeader so mobile shows the full hero ti
     assert.doesNotMatch(headerBlock, /truncate/);
 });
 
-test("local AI guest banner matches settings sentence case", () => {
-    assert.match(SOURCE, /100% on-device AI/);
-    assert.doesNotMatch(SOURCE, /100% On-Device AI/);
+test("local résumé guest banner uses canonical on-device privacy label", () => {
+    assert.match(SOURCE, /RESUME_LOCAL_DEVICE_BANNER_LABEL/);
+    assert.equal(RESUME_LOCAL_DEVICE_BANNER_LABEL, "Parsed on this device");
+    assert.doesNotMatch(SOURCE, /100% on-device AI/);
 });
 
 test("post-auth upload replay still reopens the importer exactly once via useAuthGate", () => {
