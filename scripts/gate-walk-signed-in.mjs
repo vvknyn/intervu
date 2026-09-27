@@ -3,6 +3,7 @@
  * Requires wos-session value in /tmp/velai-wos-session.txt or WOS_SESSION env.
  */
 import { chromium, devices } from 'playwright';
+import { linuxChromiumVisualQaLaunchOptions } from './design/linux-chromium-visual-qa.cjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -170,7 +171,7 @@ if (!wos) {
   process.exit(2);
 }
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch(linuxChromiumVisualQaLaunchOptions({ headless: true }));
 try {
   const iconDesktop = await runIcon(browser, 'desktop', { width: 1280, height: 800 }, wos);
   const iconMobile = await runIcon(browser, 'mobile', { width: 390, height: 844 }, wos);
