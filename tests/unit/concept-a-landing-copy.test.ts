@@ -26,8 +26,9 @@ describe("Concept A landing postcard copy", () => {
 
     it("postcard titles are not truncated at mobile widths", () => {
         const src = readFileSync(LANDING, "utf8");
-        const titleBlock = src.match(/data-testid="concept-a-postcard-title"[\s\S]*?\{title\}/)?.[0] ?? "";
-        assert.ok(titleBlock.length > 0, "postcard title must expose concept-a-postcard-title test id");
+        const titleBlock =
+            src.match(/data-testid=\{`concept-a-postcard-\$\{index\}-title`\}[\s\S]*?\{title\}/)?.[0] ?? "";
+        assert.ok(titleBlock.length > 0, "postcard title must expose indexed concept-a-postcard title test id");
         assert.doesNotMatch(titleBlock, /\btruncate\b/, "postcard titles must not truncate");
         assert.doesNotMatch(titleBlock, /line-clamp-\d/, "postcard titles must show full copy");
         assert.match(titleBlock, /whitespace-normal/, "postcard titles must allow normal wrapping");

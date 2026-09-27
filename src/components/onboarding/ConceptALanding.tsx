@@ -15,7 +15,8 @@ type Postcard = {
     style: CSSProperties;
 };
 
-const POSTCARDS: Postcard[] = [
+/** Owner-approved fan geometry — guarded by unit tests; do not recompose without review. */
+export const POSTCARDS = [
     {
         title: "Remote AI Roles",
         meta: "Remote · Full-time",
@@ -66,11 +67,17 @@ const POSTCARDS: Postcard[] = [
             zIndex: 5,
         },
     },
-];
+] as const satisfies readonly Postcard[];
 
-function PostcardCard({ title, meta, style }: Postcard) {
+function PostcardCard({
+    title,
+    meta,
+    style,
+    index,
+}: Postcard & { index: number }) {
     return (
         <div
+            data-testid={`concept-a-postcard-${index}`}
             className={cn(
                 "absolute w-[min(268px,72vw)] sm:w-[260px] rounded-panel px-4 py-3.5 sm:px-5 sm:py-4",
                 "bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]",
@@ -82,15 +89,28 @@ function PostcardCard({ title, meta, style }: Postcard) {
                 <span className="h-px flex-1 max-w-[72px] bg-border" aria-hidden />
             </div>
             <p
-                data-testid="concept-a-postcard-title"
+                data-testid={`concept-a-postcard-${index}-title`}
                 className="text-sm sm:text-lg font-semibold leading-snug text-surface-postcard-foreground whitespace-normal"
             >
                 {title}
             </p>
-            <p className="mt-1 text-caption sm:text-xs leading-snug text-surface-postcard-muted">{meta}</p>
+            <p
+                data-testid={`concept-a-postcard-${index}-meta`}
+                className="mt-1 text-caption sm:text-xs leading-snug text-surface-postcard-muted"
+            >
+                {meta}
+            </p>
             <div className="mt-3.5 flex items-center gap-1.5">
-                <span className="size-1.5 rounded-pill bg-live-on-postcard instrument-breathe" aria-hidden />
-                <span className="text-caption font-semibold text-live-on-postcard">Live</span>
+                <span
+                    className="size-1.5 rounded-pill bg-live-on-postcard instrument-breathe"
+                    aria-hidden
+                />
+                <span
+                    data-testid={`concept-a-postcard-${index}-live`}
+                    className="text-caption font-semibold text-live-on-postcard"
+                >
+                    Live
+                </span>
             </div>
         </div>
     );
@@ -182,9 +202,11 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
                 <div
                     className="relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full overflow-visible lg:w-[54%]"
                     aria-hidden
+                    role="presentation"
+                    data-testid="concept-a-postcard-stack"
                 >
-                    {POSTCARDS.map((card) => (
-                        <PostcardCard key={card.title} {...card} />
+                    {POSTCARDS.map((card, index) => (
+                        <PostcardCard key={card.title} {...card} index={index} />
                     ))}
                 </div>
             </div>
