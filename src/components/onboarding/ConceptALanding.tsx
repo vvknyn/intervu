@@ -69,6 +69,9 @@ export const POSTCARDS = [
     },
 ] as const satisfies readonly Postcard[];
 
+export const CONCEPT_A_POSTCARD_CLASS = "concept-a-postcard";
+export const CONCEPT_A_POSTCARD_STACK_CLASS = "concept-a-postcard-stack";
+
 function PostcardCard({
     title,
     meta,
@@ -79,7 +82,8 @@ function PostcardCard({
         <div
             data-testid={`concept-a-postcard-${index}`}
             className={cn(
-                "absolute w-[min(268px,72vw)] sm:w-[260px] rounded-panel px-4 py-3.5 sm:px-5 sm:py-4",
+                "absolute rounded-panel px-4 py-3.5 sm:px-5 sm:py-4",
+                CONCEPT_A_POSTCARD_CLASS,
                 "bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]",
             )}
             style={style}
@@ -200,7 +204,10 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
                 </div>
 
                 <div
-                    className="relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full overflow-visible lg:w-[54%]"
+                    className={cn(
+                        "relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full overflow-visible lg:w-[54%]",
+                        CONCEPT_A_POSTCARD_STACK_CLASS,
+                    )}
                     aria-hidden
                     role="presentation"
                     data-testid="concept-a-postcard-stack"

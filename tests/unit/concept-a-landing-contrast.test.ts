@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+    extractPostcardCardFunction,
     extractPostcardStackBody,
     extractPostcardStackOpenTag,
 } from "./concept-a-landing-stack-parse";
 
 const SRC = readFileSync("src/components/onboarding/ConceptALanding.tsx", "utf8");
-const POSTCARD = SRC.match(/function PostcardCard[\s\S]*?^}/m)?.[0] ?? "";
+const POSTCARD = extractPostcardCardFunction(SRC);
 
 test("Concept A postcards render real titles, meta, and Live label", () => {
   assert.match(POSTCARD, /data-testid=\{`concept-a-postcard-\$\{index\}-title`\}/);
@@ -37,6 +38,16 @@ test("Concept A postcard Live uses postcard-safe tokens on cream", () => {
   assert.match(POSTCARD, /text-live-on-postcard/);
   assert.match(POSTCARD, /bg-live-on-postcard/);
   assert.doesNotMatch(POSTCARD, /\btext-live\b(?!-on-postcard)/);
+});
+
+test("Concept A postcard title typography stays unscaled on all breakpoints", () => {
+  const titleLine =
+    POSTCARD.match(
+      /data-testid=\{`concept-a-postcard-\$\{index\}-title`\}[\s\S]*?className="([^"]+)"/,
+    )?.[1] ?? "";
+  assert.ok(titleLine.length > 0, "title className must be present");
+  assert.doesNotMatch(titleLine, /\bscale-\[/, "postcard titles must not scale");
+  assert.doesNotMatch(titleLine, /\btext-\[/, "postcard titles must not use arbitrary text size");
 });
 
 test("Concept A does not hide main or use design-lint file exemption", () => {

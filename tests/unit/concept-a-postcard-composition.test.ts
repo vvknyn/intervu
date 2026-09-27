@@ -2,10 +2,18 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { POSTCARDS } from "@/components/onboarding/ConceptALanding";
-import { extractPostcardStackOpenTag } from "./concept-a-landing-stack-parse";
+import {
+    CONCEPT_A_POSTCARD_CLASS,
+    CONCEPT_A_POSTCARD_STACK_CLASS,
+    POSTCARDS,
+} from "@/components/onboarding/ConceptALanding";
+import {
+    extractPostcardCardFunction,
+    extractPostcardStackOpenTag,
+} from "./concept-a-landing-stack-parse";
 
 const LANDING = join(__dirname, "../../src/components/onboarding/ConceptALanding.tsx");
+const GLOBALS = join(__dirname, "../../src/app/globals.css");
 
 /** Owner-approved fan — any drift fails CI until owner re-approves. */
 const APPROVED_POSTCARD_LAYOUT = [
@@ -46,5 +54,36 @@ describe("Concept A landing postcard composition (owner-approved)", () => {
         assert.match(stackOpen, /data-testid="concept-a-postcard-stack"/, "stack test id on opening tag");
         assert.match(stackOpen, /\baria-hidden\b/, "stack is aria-hidden");
         assert.match(stackOpen, /role="presentation"/, "stack is presentational");
+        assert.match(stackOpen, new RegExp(CONCEPT_A_POSTCARD_STACK_CLASS), "stack uses named layout class");
+    });
+
+    it("uses named CSS width/translate contract on mobile; lg restores staging card width", () => {
+        const src = readFileSync(LANDING, "utf8");
+        const cardFn = extractPostcardCardFunction(src);
+        assert.match(cardFn, new RegExp(CONCEPT_A_POSTCARD_CLASS), "PostcardCard uses concept-a-postcard class");
+        assert.doesNotMatch(cardFn, /w-\[min\(268px/, "card width must not use arbitrary Tailwind");
+        assert.doesNotMatch(cardFn, /sm:w-\[260px\]/, "desktop width belongs in globals.css lg rule");
+
+        const globals = readFileSync(GLOBALS, "utf8");
+        const mobileStack = globals.match(/\.concept-a-postcard-stack\s*\{[\s\S]*?\}/)?.[0] ?? "";
+        assert.match(mobileStack, /--concept-a-postcard-stack-canvas-width:\s*265px/, "mobile canvas 265px");
+        assert.match(mobileStack, /--concept-a-postcard-stack-shift-x:\s*-26px/, "mobile stack shift -26px");
+        assert.match(mobileStack, /translateX\(var\(--concept-a-postcard-stack-shift-x\)\)/, "uniform stack translate");
+
+        const mobileCard = globals.match(/\.concept-a-postcard\s*\{[\s\S]*?\}/)?.[0] ?? "";
+        assert.match(mobileCard, /--concept-a-postcard-width:\s*253px/, "mobile card width 253px");
+
+        const lgBlock =
+            globals.match(/@media \(min-width: 1024px\)\s*\{[\s\S]*?\.concept-a-postcard-stack[\s\S]*?\}/)?.[0] ??
+            "";
+        assert.match(lgBlock, /--concept-a-postcard-stack-shift-x:\s*0/, "lg stack shift reset");
+        assert.match(lgBlock, /transform:\s*none/, "lg stack transform none");
+        assert.match(lgBlock, /width:\s*unset/, "lg stack width defers to layout utilities");
+
+        const lgCard =
+            globals.match(
+                /@media \(min-width: 1024px\)\s*\{[\s\S]*?\.concept-a-postcard\s*\{[\s\S]*?\}/,
+            )?.[0] ?? "";
+        assert.match(lgCard, /--concept-a-postcard-width:\s*260px/, "lg card width 260px (staging sm:w-[260px])");
     });
 });
