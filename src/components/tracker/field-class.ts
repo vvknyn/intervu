@@ -6,4 +6,4 @@
  * is exactly the class of bug §2/§5 (design-language.md) rule out.
  */
 export const TRACKER_FIELD_CLASS =
-    "rounded-ctl border-transparent bg-muted focus-visible:border-border-strong focus-visible:bg-background";
+    "rounded-ctl border border-border bg-surface-2 shadow-[var(--shadow-bevel-inset)] focus-visible:border-border-strong";

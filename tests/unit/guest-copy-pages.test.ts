@@ -6,6 +6,7 @@ import { join } from "node:path";
 const PAGE = join(__dirname, "..", "..", "src", "app", "watch", "anywhere", "page.tsx");
 const YOURS = join(__dirname, "..", "..", "src", "app", "yours", "page.tsx");
 const TRACKER_BOARD = join(__dirname, "..", "..", "src", "components", "tracker", "TrackerKanbanBoard.tsx");
+const PURSUIT_ROW = join(__dirname, "..", "..", "src", "components", "tracker", "PursuitListRow.tsx");
 const CONTACT = join(__dirname, "..", "..", "src", "app", "contact", "page.tsx");
 
 describe("watch anywhere copy", () => {
@@ -26,6 +27,31 @@ describe("yours tracker chrome", () => {
         const src = readFileSync(YOURS, "utf8");
         assert.match(src, /Agent drafts still stop before they(?:'|&apos;)re sent\./);
         assert.doesNotMatch(src, /Agent drafts still stop before send\./);
+    });
+
+    it("search placeholder fits narrow tracker chrome", () => {
+        const src = readFileSync(YOURS, "utf8");
+        assert.match(src, /Search tracker…/);
+        assert.doesNotMatch(src, /Search company or role/);
+    });
+
+    it("tracker header uses display masthead with stacked actions on narrow viewports", () => {
+        const src = readFileSync(YOURS, "utf8");
+        assert.match(src, /size="display"/);
+    });
+
+    it("lane row role title shows full text — no truncate or line-clamp", () => {
+        const src = readFileSync(PURSUIT_ROW, "utf8");
+        const roleBlock = src.match(/data-testid="pursuit-role-title"[\s\S]*?\{pursuit\.position\}/)?.[0] ?? "";
+        assert.ok(roleBlock.length > 0, "expected pursuit role title block");
+        assert.match(roleBlock, /whitespace-normal/);
+        assert.doesNotMatch(roleBlock, /\btruncate\b/, "role title must not use truncate");
+        assert.doesNotMatch(roleBlock, /line-clamp/, "role title must not use line-clamp");
+        assert.doesNotMatch(roleBlock, /tracker-role-title/, "obsolete tracker-role-title utility removed");
+        assert.match(src, /whitespace-normal/, "pursuit row button must not inherit single-line nowrap");
+        const globals = readFileSync(join(__dirname, "..", "..", "src", "app", "globals.css"), "utf8");
+        assert.doesNotMatch(globals, /@utility tracker-role-title/, "no custom clamp utility for role titles");
+        assert.doesNotMatch(globals, /\.tracker-role-title/, "no legacy tracker-role-title CSS rule");
     });
 });
 

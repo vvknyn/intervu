@@ -127,6 +127,11 @@ export function hasResumeLinked(p: Pursuit): boolean {
     );
 }
 
+/** PursuitListRow meta — keep résumé accented; single source for tracker row copy. */
+export function trackerResumeMetaLabel(linked: boolean): string {
+    return linked ? "résumé linked" : "no résumé";
+}
+
 /** Threshold (days) beyond which an unanswered application is flagged stale
  *  on the tracker (spec B2, "honest re-engagement — facts only"). */
 export const STALE_APPLICATION_THRESHOLD_DAYS = 14;

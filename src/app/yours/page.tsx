@@ -35,7 +35,7 @@ const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still st
 
 function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
     return (
-        <PageHeader fullWidth sticky={false} title="Tracker" description={TRACKER_SUBCOPY} actions={actions} />
+        <PageHeader fullWidth sticky={false} size="display" title="Tracker" description={TRACKER_SUBCOPY} actions={actions} />
     );
 }
 
@@ -43,15 +43,21 @@ function YoursLoading() {
     return (
         <PageLayout fullWidth header={<TrackerHeader />}>
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 py-8 sm:px-8 xl:px-10">
-                <div aria-hidden className="space-y-4">
-                    <div className="skeleton-bar h-9 w-full max-w-md" />
-                    <div className="flex gap-3 overflow-hidden">
-                        {[0, 1, 2, 3, 4].map((i) => (
-                            <div key={i} className="skeleton-bar h-64 w-5/6 max-w-80 shrink-0 md:w-full" />
-                        ))}
+                <div
+                    className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]"
+                    role="status"
+                    aria-busy="true"
+                >
+                    <div aria-hidden className="space-y-4">
+                        <div className="skeleton-bar h-9 w-full max-w-md" />
+                        <div className="flex gap-3 overflow-hidden">
+                            {[0, 1, 2, 3, 4].map((i) => (
+                                <div key={i} className="skeleton-bar h-64 w-5/6 max-w-80 shrink-0 md:w-full" />
+                            ))}
+                        </div>
                     </div>
+                    <span className="sr-only">Loading your tracker…</span>
                 </div>
-                <span className="sr-only">Loading your tracker…</span>
             </div>
         </PageLayout>
     );
@@ -71,7 +77,7 @@ function AppliedThisWeekBadge({
 }) {
     if (count < 1 && appliedToday < 1) return null;
     return (
-        <span className="text-xs font-semibold text-brand" data-testid="yours-apply-pace">
+        <span className="text-xs font-semibold text-live" data-testid="yours-apply-pace">
             {appliedToday > 0 || count > 0 ? (
                 <>
                     Today {appliedToday}/{dailyGoal}
@@ -106,7 +112,7 @@ function TrackerEmptyState({
                     <button
                         type="button"
                         onClick={onLoginClick}
-                        className="font-semibold text-brand underline-offset-4 hover:underline"
+                        className="font-semibold text-live underline-offset-4 hover:underline"
                     >
                         {AUTH_CTA_LABEL}
                     </button>{" "}
@@ -319,8 +325,8 @@ function YoursContent() {
                             type="search"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search company or role in your tracker..."
-                            className="h-11 rounded-ctl border-border bg-card pl-9 text-base"
+                            placeholder="Search tracker…"
+                            className="h-11 rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
                         />
                     </div>
                     <AppliedThisWeekBadge count={appliedThisWeek} appliedToday={appliedToday} />
