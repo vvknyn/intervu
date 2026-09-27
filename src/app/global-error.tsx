@@ -9,6 +9,7 @@ import { useEffect } from "react";
 import "./globals.css";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { routeStatusPanelClassName } from "@/components/layout/route-status-chrome";
+import { conceptAEmptyMaxClassName } from "@/components/ui/concept-a-empty-state";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +31,7 @@ export default function GlobalError({
                 <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-5 pb-12">
                     <div
                         data-testid="global-error-boundary"
-                        className={cn(routeStatusPanelClassName, "enter-reveal p-6 text-center sm:p-8")}
+                        className={cn(routeStatusPanelClassName, conceptAEmptyMaxClassName, "enter-reveal p-6 text-center sm:p-8")}
                     >
                         <BrandLockup className="mx-auto w-fit" />
                         <h1 className="mt-4 text-title-sm font-semibold text-foreground">Something went wrong</h1>

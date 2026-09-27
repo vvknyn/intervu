@@ -13,6 +13,7 @@ const BATCH3_SOURCES = [
     "src/components/ui/empty-state.tsx",
     "src/components/layout/jobs-session-loading.tsx",
     "src/components/layout/offline-shell.tsx",
+    "src/components/layout/route-status-chrome.tsx",
     "src/components/jobs/for-you/ForYouHome.tsx",
     "src/components/mock/EmptyStatesMock.tsx",
     "src/app/jobs/loading.tsx",
@@ -96,11 +97,29 @@ describe("polish batch 3 — design contract", () => {
         assert.doesNotMatch(ill, /#[0-9a-fA-F]{3,8}/);
     });
 
-    it("Concept A empty poster uses AuthRaisedPanel (sanctioned raised chrome)", () => {
+    it("Concept A empty uses AuthRaisedPanel and centered max-width block", () => {
         const empty = read("src/components/ui/concept-a-empty-state.tsx");
         assert.match(empty, /AuthRaisedPanel/);
+        assert.match(empty, /conceptAEmptyMaxClassName/);
+        assert.match(empty, /text-center/);
+        assert.match(empty, /layout="poster"/);
+        assert.doesNotMatch(empty, /text-left/);
         assert.doesNotMatch(empty, /shadow-\[/);
         assert.doesNotMatch(empty, /p-10|p-12/);
+        assert.match(GLOBALS, /\.concept-a-empty-max[\s\S]*text-align:\s*center/);
+        assert.match(GLOBALS, /\.concept-a-empty-page-slot/);
+    });
+
+    it("404/error use in-flow route status shell inside main (not auth full-viewport)", () => {
+        const chrome = read("src/components/layout/route-status-chrome.tsx");
+        assert.match(chrome, /routeStatusInFlowClassName/);
+        assert.match(chrome, /routeStatusUpperSlotClassName/);
+        assert.doesNotMatch(chrome, /AuthRouteLayout/);
+        assert.match(GLOBALS, /\.route-status-in-flow[\s\S]*background-color:\s*rgb\(var\(--background\)\)/);
+        const notFound = read("src/app/not-found.tsx");
+        assert.match(notFound, /RouteStatusLayout/);
+        assert.doesNotMatch(notFound, /<main/);
+        assert.doesNotMatch(notFound, /min-h-dvh/);
     });
 
     it("offline shell uses AuthRaisedPanel and has no forceVisible API", () => {

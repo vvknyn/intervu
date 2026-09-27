@@ -58,13 +58,22 @@ describe("polish batch 3 — states and empties", () => {
         assert.match(read("src/components/jobs/for-you/ForYouHome.tsx"), /ConceptAEmptyState[\s\S]*for-you-empty/);
     });
 
-    it("search zero-results uses compact ConceptAEmptyState and keeps chip testids", () => {
+    it("tracker and history empties use ConceptAEmptyPageSlot (upper-third placement)", () => {
+        assert.match(read("src/app/yours/page.tsx"), /ConceptAEmptyPageSlot[\s\S]*TrackerEmptyState/);
+        assert.match(read("src/app/yours/history/page.tsx"), /ConceptAEmptyPageSlot[\s\S]*HistoryEmptyState/);
+    });
+
+    it("search zero-results uses compact centered ConceptAEmptyState and keeps chip testids", () => {
         const page = read("src/app/jobs/page.tsx");
         assert.match(page, /ConceptAEmptyState[\s\S]*density="compact"/);
+        assert.doesNotMatch(page, /ConceptAEmptyState[\s\S]*layout="inline"/);
+        assert.match(page, /justify-center text-center/);
         assert.match(page, /No roles match\./);
         assert.match(page, /empty-state-clear-chip/);
         assert.match(page, /data-testid="search-empty-results"/);
-        assert.match(read("src/components/mock/EmptyStatesMock.tsx"), /ConceptAEmptyState[\s\S]*search-empty-results/);
+        const mock = read("src/components/mock/EmptyStatesMock.tsx");
+        assert.match(mock, /ConceptAEmptyState[\s\S]*search-empty-results/);
+        assert.doesNotMatch(mock, /layout="inline"/);
     });
 
     it("session loading status is prominent with live indicator", () => {

@@ -31,7 +31,7 @@ import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
 import { AUTH_CTA_LABEL, formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 import { posterInlinePanelClassName } from "@/components/layout/route-loading";
-import { ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before they're sent.";
 
@@ -96,7 +96,6 @@ function TrackerEmptyState({
     const guestCount = listGuestPursuits().length;
     return (
         <ConceptAEmptyState
-            layout="inline"
             testId={user ? "yours-empty" : "yours-guest-empty"}
             title="Your tracker is empty."
             description="Save roles while browsing verified jobs, then pick up where you left off here."
@@ -107,7 +106,7 @@ function TrackerEmptyState({
             }
             footer={
                 !user ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-center text-xs text-muted-foreground">
                         {guestCount > 0 && <>{guestKeepLine(guestCount)} </>}
                         <button
                             type="button"
@@ -335,10 +334,12 @@ function YoursContent() {
 
                 {filtered.length === 0 ? (
                     pursuits.length === 0 ? (
-                        <TrackerEmptyState
-                            user={!!user}
-                            onLoginClick={() => setAuthPopoverOpen(true)}
-                        />
+                        <ConceptAEmptyPageSlot>
+                            <TrackerEmptyState
+                                user={!!user}
+                                onLoginClick={() => setAuthPopoverOpen(true)}
+                            />
+                        </ConceptAEmptyPageSlot>
                     ) : (
                         <div className="py-8 text-left text-sm text-muted-foreground">
                             Nothing in this lane.{" "}

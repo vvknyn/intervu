@@ -18,7 +18,8 @@ import {
     Bell,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { posterListInsetClassName } from "@/components/layout/route-loading";
 import { Input } from "@/components/ui/input";
 import {
     DropdownMenu,
@@ -902,17 +903,18 @@ function EmptyResults({
         ? "Remove a filter or reset below to widen what we can show you."
         : "Try another search or pick a popular role below to keep browsing.";
     return (
-        <div className="px-[var(--list-inset)] text-left" data-testid="search-empty-results">
-            <ConceptAEmptyState
-                layout="inline"
-                density="compact"
-                titled
-                title={emptyTitle}
-                description={emptyDescription}
-            />
+        <div className={posterListInsetClassName} data-testid="search-empty-results">
+            <ConceptAEmptyPageSlot className="pb-4 pt-6">
+                <ConceptAEmptyState
+                    density="compact"
+                    titled
+                    title={emptyTitle}
+                    description={emptyDescription}
+                />
+            </ConceptAEmptyPageSlot>
             {(hasQuery || hasFilters) && (
                 <ActiveFilterActions
-                    className="mt-2"
+                    className="mt-2 justify-center text-center"
                     entries={entries}
                     onClearEntry={onClearEntry}
                     onClearFilters={onClearFilters}
@@ -926,7 +928,7 @@ function EmptyResults({
                 <button
                     type="button"
                     onClick={onRevealGhosts}
-                    className="mt-2 text-xs text-foreground underline underline-offset-2"
+                    className="mt-2 w-full text-center text-xs text-foreground underline underline-offset-2"
                 >
                     {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
                 </button>

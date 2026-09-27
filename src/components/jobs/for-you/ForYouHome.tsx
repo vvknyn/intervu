@@ -10,7 +10,7 @@ import {
     ForYouDeckSkeleton,
     JobsSessionLoadingShell,
 } from "@/components/layout/jobs-session-loading";
-import { ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { Kbd } from "@/components/ui/kbd";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -324,7 +324,7 @@ export function ForYouHome({
                     <ForYouDeckSkeleton tone="postcard" withStatus />
                 </div>
             ) : visiblePacks.length === 0 ? (
-                <div className="flex flex-1 flex-col justify-center" data-testid="for-you-empty-wrap">
+                <ConceptAEmptyPageSlot className="flex-1" data-testid="for-you-empty-wrap">
                     <ConceptAEmptyState
                         testId="for-you-empty"
                         title="No ranked roles to show right now."
@@ -342,7 +342,7 @@ export function ForYouHome({
                             ) : undefined
                         }
                     />
-                </div>
+                </ConceptAEmptyPageSlot>
             ) : (
                 <ForYouDeck
                     packs={visiblePacks}

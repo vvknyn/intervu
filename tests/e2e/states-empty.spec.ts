@@ -32,9 +32,18 @@ test("mock empty surfaces respect reduced motion", async ({ page }) => {
     await expect(visibleStatus.locator(".bg-live")).toBeVisible();
 });
 
-test("404 keeps enter-reveal panel", async ({ page }) => {
+test("404 mock keeps enter-reveal panel", async ({ page }) => {
     await page.goto("/mock/empty-states?surface=404");
     await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.locator(".route-status-in-flow")).toBeVisible();
+});
+
+test("unknown route 404 keeps TopBar and single main landmark", async ({ page }) => {
+    await page.goto("/this-route-does-not-exist-615");
+    await expect(page.getByTestId("topbar")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.locator("main#main")).toHaveCount(1);
+    await expect(page.locator(".route-status-in-flow")).toBeVisible();
 });
 
 for (const viewport of [
@@ -47,5 +56,6 @@ for (const viewport of [
         await expect(page.getByTestId("search-empty-results")).toBeVisible();
         await expect(page.getByRole("heading", { name: "No roles match." })).toBeVisible();
         await expect(page.getByTestId("empty-state-clear-chip")).toBeVisible();
+        await expect(page.locator(".concept-a-empty-max").first()).toBeVisible();
     });
 }

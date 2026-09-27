@@ -851,7 +851,45 @@ h4 {
   max-height: min(60dvh, 640px);
 }
 
-/** Status-route mock canvas — shorter than `min-h-dvh` for gallery fixtures. */
+/** Concept A empty block — one centered column width for illustration + copy + CTA. */
+.concept-a-empty-max {
+  width: 100%;
+  max-width: 25rem;
+  margin-inline: auto;
+  text-align: center;
+}
+
+/** Tracker/history/search empty placement — optical upper third, safe-area aware. */
+.concept-a-empty-page-slot {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: clamp(1.5rem, 16dvh, 9rem);
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+/** In-flow 404/error — seamless with app shell background inside `<main>`. */
+.route-status-in-flow {
+  display: flex;
+  width: 100%;
+  flex: 1 1 auto;
+  flex-direction: column;
+  background-color: rgb(var(--background));
+}
+
+.route-status-upper-slot {
+  display: flex;
+  width: 100%;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  padding-inline: 1.25rem;
+  padding-top: clamp(1.5rem, 16dvh, 9rem);
+  padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px));
+}
+
+/** Status-route mock canvas — shorter than full viewport for gallery fixtures. */
 .route-status-fixture-min {
   min-height: 50dvh;
 }
