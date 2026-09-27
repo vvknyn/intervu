@@ -18,6 +18,12 @@ import { posterListInsetClassName, shellMaxWidthClassName } from "@/components/l
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { notFound } from "next/navigation";
+import {
+    HISTORY_EMPTY_DESCRIPTION,
+    HISTORY_EMPTY_TITLE,
+    TRACKER_EMPTY_DESCRIPTION,
+    TRACKER_EMPTY_TITLE,
+} from "@/lib/pursuits/tracker-voice-copy";
 
 function MockSearchZeroChips() {
     return (
@@ -72,8 +78,8 @@ export function EmptyStatesMock({ surface }: { surface: string | null }) {
                 <ConceptAEmptyPageSlot placement="after-controls">
                     <ConceptAEmptyState
                         testId="yours-empty"
-                        title="Your tracker is empty."
-                        description="Save roles while browsing verified jobs, then pick up where you left off here."
+                        title={TRACKER_EMPTY_TITLE}
+                        description={TRACKER_EMPTY_DESCRIPTION}
                         actions={
                             <Button asChild variant="outline" size="sm">
                                 <Link href="/jobs">Browse verified roles</Link>
@@ -86,10 +92,10 @@ export function EmptyStatesMock({ surface }: { surface: string | null }) {
                 <ConceptAEmptyPageSlot placement="after-controls">
                     <ConceptAEmptyState
                         testId="history-empty"
-                        title="Jobs you open will show up here."
-                        description="Open a role from Search or For you and we'll keep the trail warm for you."
+                        title={HISTORY_EMPTY_TITLE}
+                        description={HISTORY_EMPTY_DESCRIPTION}
                         actions={
-                            <Button asChild size="sm">
+                            <Button asChild variant="outline" size="sm">
                                 <Link href="/jobs">Browse verified roles</Link>
                             </Button>
                         }

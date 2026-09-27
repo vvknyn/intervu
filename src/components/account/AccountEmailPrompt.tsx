@@ -13,10 +13,13 @@
  */
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
 import { requestAccountEmailAction } from "@/actions/account-email";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
+
+const EMAIL_FIELD_LABEL = "Email for job alerts";
 
 export interface AccountEmailPromptProps {
     state: EmailNudgeState;
@@ -71,19 +74,20 @@ export function AccountEmailPrompt({
                     Click the link in that email and we&apos;ll start sending your job alerts there.
                     Wrong address? Enter a different one below.
                 </p>
-                <form onSubmit={(e) => void submit(e)} className="mt-3 flex flex-wrap items-center gap-2">
-                    <Input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        // 16px, not text-sm: iOS Safari zooms the viewport on
-                    // focus for any control under 16px, and the page never
-                    // zooms back out (tests/unit/mobile-zoom.test.ts).
-                    className="h-9 w-full max-w-[260px] text-base"
-                        data-testid="account-email-input"
-                    />
+                <form onSubmit={(e) => void submit(e)} className="mt-3 flex flex-wrap items-end gap-2">
+                    <Field label={EMAIL_FIELD_LABEL} htmlFor="account-email-input-pending" className="min-w-[200px] flex-1">
+                        <Input
+                            id="account-email-input-pending"
+                            type="email"
+                            required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="you@example.com"
+                            autoComplete="email"
+                            className="h-9 w-full max-w-[260px] text-base"
+                            data-testid="account-email-input"
+                        />
+                    </Field>
                     <Button type="submit" size="sm" disabled={submitting} data-testid="account-email-submit">
                         {submitting ? "Sending…" : "Send again"}
                     </Button>
@@ -99,19 +103,20 @@ export function AccountEmailPrompt({
                 You signed up with a username, so we have no way to reach you. Add an address and
                 we&apos;ll send new roles from your saved searches and followed companies.
             </p>
-            <form onSubmit={(e) => void submit(e)} className="mt-3 flex flex-wrap items-center gap-2">
-                <Input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    // 16px, not text-sm: iOS Safari zooms the viewport on
-                    // focus for any control under 16px, and the page never
-                    // zooms back out (tests/unit/mobile-zoom.test.ts).
-                    className="h-9 w-full max-w-[260px] text-base"
-                    data-testid="account-email-input"
-                />
+            <form onSubmit={(e) => void submit(e)} className="mt-3 flex flex-wrap items-end gap-2">
+                <Field label={EMAIL_FIELD_LABEL} htmlFor="account-email-input-needs" className="min-w-[200px] flex-1">
+                    <Input
+                        id="account-email-input-needs"
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        autoComplete="email"
+                        className="h-9 w-full max-w-[260px] text-base"
+                        data-testid="account-email-input"
+                    />
+                </Field>
                 <Button type="submit" size="sm" disabled={submitting} data-testid="account-email-submit">
                     {submitting ? "Sending…" : "Send confirmation"}
                 </Button>
