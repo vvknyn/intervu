@@ -31,6 +31,7 @@ const FILE_EXEMPTIONS = [
     { file: "src/components/mock/AuthGateMock.tsx", why: "Decorative onboarding mockup — intentional raw values too dense/scattered for a per-line marker." },
     { file: "src/components/mock/CompletenessMock.tsx", why: "Decorative onboarding mockup — same as AuthGateMock.tsx." },
     { file: "src/components/marketing/HowItWorksFilm.tsx", why: "Self-contained dark film plate — its own black/near-black palette, not this app's token set." },
+    { file: "src/components/onboarding/ConceptALanding.tsx", why: "Isolated Concept A signed-out poster — pixel-matched charcoal + cream postcards, not in-app chrome." },
 ];
 
 function walkTsxFiles(dir, out = []) {

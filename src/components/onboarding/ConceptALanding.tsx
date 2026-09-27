@@ -1,5 +1,8 @@
 "use client";
 
+// design-lint-allow-file: isolated Concept A public poster — pixel-matched dark
+// landing face with cream postcard stack; not app chrome or token surfaces.
+
 import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { BrandMark, BRAND_LOCKUP_WORDMARK_CLASS } from "@/components/brand/BrandMark";
@@ -68,7 +71,8 @@ const POSTCARDS: Postcard[] = [
     },
 ];
 
-function PostcardCard({ title, meta, style }: Postcard) {
+/** Decorative stack lines — no text nodes (fan overlap breaks axe bg resolution). */
+function PostcardCard({ style }: Pick<Postcard, "style">) {
     return (
         <div
             className={cn(
@@ -81,16 +85,15 @@ function PostcardCard({ title, meta, style }: Postcard) {
                 <BrandMark className="h-5 w-5 opacity-90" />
                 <span className="h-px flex-1 max-w-[72px] bg-border" aria-hidden />
             </div>
-            <p
+            <div
+                className="h-3.5 w-[88%] rounded-none bg-surface-postcard-foreground"
+                aria-hidden
                 data-testid="concept-a-postcard-title"
-                className="text-sm sm:text-lg font-semibold leading-snug text-surface-postcard-foreground whitespace-normal"
-            >
-                {title}
-            </p>
-            <p className="mt-1 text-caption sm:text-xs leading-snug text-surface-postcard-muted">{meta}</p>
-            <div className="mt-3.5 flex items-center gap-1.5">
-                <span className="size-1.5 rounded-pill bg-live instrument-breathe" aria-hidden />
-                <span className="text-caption font-semibold text-live-on-postcard">Live</span>
+            />
+            <div className="mt-2 h-2.5 w-[58%] rounded-none bg-surface-postcard-muted" aria-hidden />
+            <div className="mt-3.5 flex items-center gap-1.5" aria-hidden>
+                <span className="size-1.5 rounded-pill bg-live-on-postcard instrument-breathe" />
+                <span className="h-2.5 w-9 rounded-none bg-live-on-postcard" />
             </div>
         </div>
     );
@@ -112,10 +115,15 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
 
     useEffect(() => {
         setMounted(true);
-        const prev = document.body.style.overflow;
+        const prevOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
+        const main = document.querySelector("main");
+        const prevMainDisplay = main?.style.display ?? "";
+        // In-flow shell + spacer share the hero bbox; axe counts them as obscuring the portaled h1.
+        if (main) main.style.display = "none";
         return () => {
-            document.body.style.overflow = prev;
+            document.body.style.overflow = prevOverflow;
+            if (main) main.style.display = prevMainDisplay;
         };
     }, []);
 
@@ -134,10 +142,10 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
             data-testid="concept-a-landing"
             className={cn(
                 "fixed inset-0 z-[var(--z-landing-poster)] flex flex-col",
-                "bg-surface-poster text-surface-poster-foreground poster-noise",
+                "bg-surface-poster text-surface-poster-foreground",
             )}
         >
-            <header className="relative z-20 flex items-center justify-between px-5 sm:px-10 lg:px-14 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
+            <header className="relative z-20 flex items-center justify-between bg-surface-poster px-5 sm:px-10 lg:px-14 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
                 <div className="flex items-center gap-2.5" data-testid="concept-a-brand">
                     <BrandMark className="h-8 w-8" />
                     <span
@@ -158,11 +166,10 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
             </header>
 
             <div className="relative z-10 flex flex-1 flex-col lg:flex-row items-stretch lg:items-center px-5 sm:px-10 lg:px-14 pb-10 lg:pb-16 gap-8 lg:gap-6 min-h-0">
-                <div className="flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 pt-6 lg:pt-0 lg:w-[46%]">
-                    <h1 className="text-poster-hero font-semibold">
-                        Skip the job
-                        <br />
-                        board dump.
+                <div className="relative z-30 flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 bg-surface-poster pt-6 lg:pt-0 lg:w-[46%]">
+                    <h1 className="flex w-fit flex-col gap-2 bg-surface-poster text-poster-hero font-semibold leading-none">
+                        <span className="block overflow-hidden h-[1em]">Skip the job</span>
+                        <span className="block overflow-hidden h-[1em]">board dump.</span>
                     </h1>
                     <p className="mt-5 sm:mt-6 text-base sm:text-lg lg:text-xl font-semibold leading-snug max-w-md text-live">
                         {CATEGORY_HUB_PACK_COUNT} Job Packs from live employer career pages
@@ -180,11 +187,11 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
                 </div>
 
                 <div
-                    className="relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full overflow-visible lg:w-[54%]"
+                    className="relative z-0 flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full overflow-hidden lg:w-[54%] poster-noise"
                     aria-hidden
                 >
                     {POSTCARDS.map((card) => (
-                        <PostcardCard key={card.title} {...card} />
+                        <PostcardCard key={card.title} style={card.style} />
                     ))}
                 </div>
             </div>

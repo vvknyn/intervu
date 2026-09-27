@@ -31,6 +31,7 @@ import {
 } from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData, ResumeProfile } from "@/types/resume";
 import { ConceptALanding } from "@/components/onboarding/ConceptALanding";
+import { LandingAnimatedBackground } from "@/components/marketing/LandingAnimatedBackground";
 
 export interface LandingOnboardingViewProps {
     onComplete: (data: {
@@ -246,10 +247,9 @@ export function LandingOnboardingView({
     }
 
     return (
-        <div className={cn(
-            "mx-auto w-full relative z-10 max-w-[760px]",
-            className,
-        )}>
+        <div className={cn("relative mx-auto w-full max-w-[760px]", className)}>
+            <LandingAnimatedBackground />
+            <div className="relative z-10 mx-auto w-full max-w-[760px]">
             {/* Unified Solid Reading Card — steps 2–3 (auth + résumé gate) */}
             <div className="relative z-10 space-y-3 rounded-panel border border-border bg-surface p-3.5 shadow-[var(--shadow-bevel-highlight)] sm:p-5">
                 {/* Header Kicker */}
@@ -660,6 +660,7 @@ export function LandingOnboardingView({
                         )}
                     </div>
                 )}
+            </div>
             </div>
         </div>
     );
