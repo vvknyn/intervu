@@ -13,7 +13,11 @@ import { createServer } from "node:http";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { chromium } from "playwright";
+
+const require = createRequire(import.meta.url);
+const { linuxChromiumVisualQaLaunchOptions } = require("../../../../scripts/design/linux-chromium-visual-qa.cjs");
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -61,7 +65,7 @@ const outDir = join(here, ".frames", FILM);
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(linuxChromiumVisualQaLaunchOptions());
 const page = await browser.newPage({
   viewport: { width: WIDTH, height: HEIGHT },
   deviceScaleFactor: 1,
