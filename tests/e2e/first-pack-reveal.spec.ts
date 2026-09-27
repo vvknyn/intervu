@@ -1,67 +1,17 @@
 import { test, expect } from "@playwright/test";
+import { FOR_YOU_DECK_MOCK_PATH, seedDeckMockHintDismissed, waitForMockDeckReady } from "./for-you-deck-mock.helpers";
 
-const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
-const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
-const ONBOARDING_KEY = "velai.onboarding.completed";
-const FIRST_REVEAL_KEY = "velai.firstPackReveal";
-const PACKS_HOME_INTRO_KEY = "velai-packs-home-intro-v1";
-
-const SEEDED_RESUME = {
-    data: {
-        profile: {
-            name: "Alex Rivera",
-            profession: "Software Engineer",
-            yearsOfExperience: 6,
-            location: "Remote",
-            email: "alex.rivera@example.com",
-        },
-        experience: [
-            {
-                id: "exp-1",
-                company: "Acme Corp",
-                role: "Senior Software Engineer",
-                dates: "2021-Present",
-                description: "Built services in TypeScript and Python.",
-            },
-        ],
-        competencies: [{ category: "Languages", skills: ["TypeScript", "Python"] }],
-        education: [],
-        generatedSummary: "Software engineer.",
-    },
-    updatedAt: new Date().toISOString(),
-    sourceLabel: "e2e-seed",
-};
-
-test.describe("first pack reveal latch", () => {
-    test("armed session opens deck from hub after fit resolves", async ({ page }) => {
-        await page.addInitScript(
-            ([enabledKey, resumeKey, onboardingKey, introKey, revealKey, resume]) => {
-                try {
-                    window.localStorage.setItem(enabledKey as string, "1");
-                    window.localStorage.setItem(resumeKey as string, JSON.stringify(resume));
-                    window.localStorage.setItem(onboardingKey as string, "1");
-                    window.localStorage.setItem(introKey as string, "1");
-                    window.sessionStorage.setItem(revealKey as string, "1");
-                } catch {
-                    /* private mode */
-                }
-            },
-            [
-                LOCAL_AI_ENABLED_KEY,
-                LOCAL_AI_RESUME_KEY,
-                ONBOARDING_KEY,
-                PACKS_HOME_INTRO_KEY,
-                FIRST_REVEAL_KEY,
-                SEEDED_RESUME,
-            ] as const,
-        );
-
-        await page.goto("/jobs");
-        const introGotIt = page.getByTestId("packs-home-intro-got-it");
-        if (await introGotIt.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await introGotIt.click();
-        }
-        await expect(page.getByTestId("for-you-deck")).toBeVisible({ timeout: 25_000 });
+test.describe("first pack reveal — mock fixture", () => {
+    test("firstRevealEnter + focus lands on download/apply CTA", async ({ page }) => {
+        await seedDeckMockHintDismissed(page);
+        await page.goto(`${FOR_YOU_DECK_MOCK_PATH}?firstRevealEnter=1&firstRevealFocus=1`);
+        await expect(page.getByTestId("for-you-deck")).toBeVisible({ timeout: 15_000 });
+        await expect(page.locator('[data-testid="for-you-deck"] .enter-reveal')).toBeVisible();
         await expect(page.getByTestId("for-you-download-apply")).toBeFocused({ timeout: 10_000 });
+    });
+
+    test("deck shell is ready without hub or session latch", async ({ page }) => {
+        await waitForMockDeckReady(page);
+        await expect(page.getByTestId("for-you-deck-position")).toContainText("1 of 3");
     });
 });

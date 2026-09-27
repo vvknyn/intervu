@@ -46,7 +46,8 @@ export interface ForYouPackProps {
  * verbatim from the house convention (BoardComparisonTable.tsx, careers hub).
  */
 const SECTION_LABEL = "text-xs font-semibold text-surface-postcard-muted";
-const POSTCARD_SHELL =
+/** Shared postcard chrome for pack + skeleton — single source for rounded-panel shell. */
+export const POSTCARD_SHELL =
     "flex flex-col overflow-hidden rounded-panel bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]";
 
 /** JD column — the only inner scroller; capped so wheel events chain to the page at the ends. */

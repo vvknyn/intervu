@@ -92,8 +92,13 @@ describe("for-you postcard layout", () => {
         const pack = source("ForYouPack.tsx");
         assert.match(
             pack,
-            /data-testid="for-you-pack"[\s\S]*?rounded-panel/,
-            "pack root must use rounded-panel",
+            /export const POSTCARD_SHELL[\s\S]*?rounded-panel/,
+            "POSTCARD_SHELL must include rounded-panel",
+        );
+        assert.match(
+            pack,
+            /className=\{cn\(POSTCARD_SHELL, className\)\}/,
+            "pack root must compose POSTCARD_SHELL",
         );
         assert.match(pack, /flex flex-col gap-4/, "header inner layout must be a column with gap-4");
         assert.match(pack, /break-words/, "title h2 must break long words");
