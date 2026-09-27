@@ -123,14 +123,27 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
 
     it("signed-out upload and skip-download controls meet 44px touch targets", () => {
         const resume = readFileSync(join(ROOT, "src/app/resume/page.tsx"), "utf8");
-        const uploadBlock = sliceBetween(resume, 'data-testid="resume-signed-out-upload"', "Upload résumé");
-        assert.match(uploadBlock, /min-h-11/);
-        assert.match(uploadBlock, /size="lg"/);
+        const uploadTestId = 'data-testid="resume-signed-out-upload"';
+        const uploadIdx = resume.indexOf(uploadTestId);
+        assert.notStrictEqual(uploadIdx, -1, uploadTestId);
+        const uploadButtonStart = resume.lastIndexOf("<Button", uploadIdx);
+        assert.notStrictEqual(uploadButtonStart, -1, "upload Button opener");
+        const uploadButtonEnd = resume.indexOf("</Button>", uploadIdx);
+        assert.notStrictEqual(uploadButtonEnd, -1, "upload Button closer");
+        const uploadButton = resume.slice(uploadButtonStart, uploadButtonEnd);
+        assert.match(uploadButton, /size="lg"/);
+        assert.match(uploadButton, /min-h-11/);
+        assert.match(uploadButton, /resume-signed-out-upload/);
 
         const modal = readFileSync(IMPORT_MODAL, "utf8");
-        const skipBlock = sliceBetween(modal, 'data-testid="resume-import-skip-download"', "Skip the download");
-        assert.match(skipBlock, /min-h-11/);
-        assert.match(skipBlock, /variant="link"/);
+        const skipTestId = 'data-testid="resume-import-skip-download"';
+        const skipIdx = modal.indexOf(skipTestId);
+        assert.notStrictEqual(skipIdx, -1, skipTestId);
+        const skipButtonStart = modal.lastIndexOf("<Button", skipIdx);
+        const skipButtonEnd = modal.indexOf("</Button>", skipIdx);
+        const skipButton = modal.slice(skipButtonStart, skipButtonEnd);
+        assert.match(skipButton, /min-h-11/);
+        assert.match(skipButton, /variant="link"/);
     });
 });
 
