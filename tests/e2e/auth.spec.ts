@@ -214,6 +214,26 @@ test.describe('AUTH - Authentication Tests', () => {
    *
    * Guest users can enter a search query and trigger analysis without logging in.
    */
+  /**
+   * TC-AUTH-012: Auth callback retry is one generic message for every failure class
+   *
+   * `reason` is debug-only — copy must not branch on it.
+   */
+  test('TC-AUTH-012: Auth retry shows generic copy and Start again', async ({ page }) => {
+    await page.goto('/auth/retry?reason=direct_hit');
+    await page.waitForLoadState('networkidle');
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: "We couldn't finish signing you in" }),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: 'Start again' })).toBeVisible();
+    await expect(page.locator('body')).toContainText(
+      "It happens sometimes. Try again and you'll be right back where you were.",
+    );
+    await expect(page.locator('body')).not.toContainText('direct_hit');
+    await expect(page.locator('body')).not.toContainText('exchange_failed');
+  });
+
   test('TC-AUTH-011: Guest search works without login', async ({ page }) => {
     // Non-at-rest SERP — query in URL exposes search combobox without dismissing Concept A
     await page.goto('/jobs?q=designer');

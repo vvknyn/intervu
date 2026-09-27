@@ -148,18 +148,27 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
 });
 
 describe("Phase 2 batch 4 — auth retry", () => {
-    it("body is explanatory and does not duplicate the button label", () => {
+    it("generic honest copy — owner body, distinct Start again button", () => {
+        assert.equal(AUTH_RETRY_HEADLINE, "We couldn't finish signing you in");
+        assert.equal(
+            AUTH_RETRY_BODY,
+            "It happens sometimes. Try again and you'll be right back where you were.",
+        );
+        assert.equal(AUTH_RETRY_BUTTON_LABEL, "Start again");
         assert.notEqual(AUTH_RETRY_BODY.trim(), AUTH_RETRY_BUTTON_LABEL);
-        assert.doesNotMatch(AUTH_RETRY_BODY, /Try again/i);
-        assert.equal(AUTH_RETRY_BUTTON_LABEL, "Try again");
+        assert.doesNotMatch(AUTH_RETRY_BODY, /Start again/i);
+        assert.match(AUTH_RETRY_BODY, /Try again/i);
     });
 
-    it("client uses copy module — no literal Try again in source", () => {
+    it("client uses copy module — no literal retry copy in source", () => {
         const src = readFileSync(join(ROOT, "src/app/auth/retry/auth-retry-client.tsx"), "utf8");
         assert.match(src, /AUTH_RETRY_BODY/);
         assert.match(src, /AUTH_RETRY_BUTTON_LABEL/);
+        assert.match(src, /AUTH_RETRY_HEADLINE/);
+        assert.doesNotMatch(src, /searchParams\.get\(["']reason["']\)/);
         assert.equal((src.match(/Try again/g) ?? []).length, 0);
-        assert.equal(AUTH_RETRY_HEADLINE, "That sign-in link expired");
+        assert.equal((src.match(/Start again/g) ?? []).length, 0);
+        assert.equal((src.match(/That sign-in link expired/g) ?? []).length, 0);
     });
 });
 

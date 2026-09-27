@@ -19,6 +19,10 @@ import {
   followPersistValueLine,
 } from "../../src/lib/follows/persist-copy";
 import { GUEST_AUTH_STRINGS } from "../../src/lib/auth/auth-gate-copy";
+import {
+  AUTH_RETRY_BODY,
+  AUTH_RETRY_HEADLINE,
+} from "../../src/lib/auth/auth-retry-copy";
 import { TRACKER_PAGE_SUBCOPY } from "../../src/lib/pursuits/tracker-voice-copy";
 import { RESUME_UPLOAD_PROMISE } from "../../src/lib/jobs/resume-privacy-copy";
 import {
@@ -61,6 +65,8 @@ const GUEST_STRINGS: Record<string, string> = {
   FOLLOW_EMAIL_SENT_LINE: followEmailSentLine(),
   FOLLOW_EMAIL_VERIFIED_LINE: followEmailVerifiedLine("Example Co"),
   ...GUEST_AUTH_STRINGS,
+  AUTH_RETRY_HEADLINE,
+  AUTH_RETRY_BODY,
   TRACKER_PAGE_SUBCOPY,
   INDEED_ALTERNATIVE_DESCRIPTION: INDEED_ALTERNATIVE.description,
   LINKEDIN_JOBS_ALTERNATIVE_DESCRIPTION: LINKEDIN_JOBS_ALTERNATIVE.description,
