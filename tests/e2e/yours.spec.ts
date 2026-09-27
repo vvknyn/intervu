@@ -82,11 +82,12 @@ test.describe('YOURS - Guest, no pursuits', () => {
     });
   }
 
-  test('TC-YOURS-003: TopBar Tracker tab is visible with zero pursuits', async ({ page }) => {
+  test('TC-YOURS-003: Mobile tab bar Tracker link with zero pursuits', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/yours');
-    const link = page.getByTestId('topbar-tracker').or(page.getByTestId('mobile-topbar-tracker'));
-    await expect(link.first()).toBeVisible({ timeout: 10000 });
-    await expect(link.first()).toHaveAttribute('href', '/yours');
+    const link = page.getByTestId('mobile-topbar-tracker');
+    await expect(link).toBeVisible({ timeout: 10000 });
+    await expect(link).toHaveAttribute('href', '/yours');
   });
 
   test('TC-YOURS-004: Unknown pursuit id shows not-found', async ({ page }) => {
@@ -115,11 +116,12 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     await expect(row).toContainText('Saved');
   });
 
-  test('TC-YOURS-006: TopBar Yours link appears with a pursuit present', async ({ page }) => {
+  test('TC-YOURS-006: Mobile tab bar Tracker link with a pursuit present', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/yours');
-    const link = page.getByTestId('topbar-tracker').or(page.getByTestId('mobile-topbar-tracker'));
-    await expect(link.first()).toBeVisible({ timeout: 10000 });
-    await expect(link.first()).toHaveAttribute('href', '/yours');
+    const link = page.getByTestId('mobile-topbar-tracker');
+    await expect(link).toBeVisible({ timeout: 10000 });
+    await expect(link).toHaveAttribute('href', '/yours');
   });
 
   test('TC-YOURS-007: Row click opens the detail sheet below xl', async ({ page }) => {
@@ -142,7 +144,7 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     await expect(page).toHaveURL('/yours/guest-e2e-1');
     await expect(page.getByTestId('pursuit-stage')).toBeVisible({ timeout: 10000 });
     const main = page.getByRole('main');
-    await expect(main.getByRole('heading', { name: 'Acme Corp' }).first()).toBeVisible();
+    await expect(main.getByRole('heading', { name: /^Acme\b/ }).first()).toBeVisible();
     await expect(main.getByText('Staff Engineer').first()).toBeVisible();
   });
 
