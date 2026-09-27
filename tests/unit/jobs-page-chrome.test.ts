@@ -15,6 +15,7 @@ const JOBS_ACTIONS = join(__dirname, "..", "..", "src", "actions", "jobs.ts");
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
 const FOOTER = join(__dirname, "..", "..", "src", "components", "layout", "Footer.tsx");
 const MOBILE_TABBAR = join(__dirname, "..", "..", "src", "components", "layout", "MobileTabBar.tsx");
+const JOBCARD = join(__dirname, "..", "..", "src", "components", "jobs", "JobCard.tsx");
 const YOURS_PAGE = join(__dirname, "..", "..", "src", "app", "yours", "page.tsx");
 
 describe("jobs USP copy: single source for tour and landing", () => {
@@ -290,19 +291,21 @@ describe("jobs page chrome guards", () => {
     });
 
     it("SERP renders exactly one h1 — masthead branch or sr-only fallback, never both", () => {
-        // The masthead and the sr-only fallback are the two arms of one
-        // ternary (2026-08-26 front-door redesign), so at most one can ever
-        // be in the DOM at a time — this is the guard against ever co-mounting
-        // two heroes, kept as a structural check rather than a component-name
-        // check now that the masthead is inline markup, not a component.
+        // Advanced-search home: `{atRest ? visible masthead : sr-only}` inside
+        // one gate; every other search-home path falls back to a single sr-only
+        // h1 (or null at rest on the non-advanced branch). At most one h1
+        // mounts — guarded by mutually exclusive ternary arms, not two heroes.
         const src = readFileSync(PAGE, "utf8");
-        const mastheadStart = src.indexOf("{atRest && showSearchHome ? (");
-        const fallbackH1 = src.indexOf('<h1 className="sr-only">Jobs</h1>');
-        assert.notStrictEqual(mastheadStart, -1, "masthead ternary anchor moved — update this test");
-        assert.notStrictEqual(fallbackH1, -1, "sr-only fallback h1 anchor moved — update this test");
-        assert.ok(fallbackH1 > mastheadStart, "sr-only h1 should be the ternary's else branch");
+        const advancedGate = src.indexOf("{showSearchHome && showAdvancedSearch && !showLandingOnboarding ? (");
+        assert.notStrictEqual(advancedGate, -1, "advanced-search masthead gate moved — update this test");
+        const atRestMasthead = src.indexOf("{atRest ? (", advancedGate);
+        assert.notStrictEqual(atRestMasthead, -1, "at-rest masthead ternary moved — update this test");
+        const visibleH1 = src.indexOf('<h1 className="text-xl font-semibold text-foreground">', atRestMasthead);
+        assert.notStrictEqual(visibleH1, -1, "visible masthead h1 moved — update this test");
+        const srOnlyH1 = '<h1 className="sr-only">Jobs</h1>';
+        assert.ok((src.match(new RegExp(srOnlyH1.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length >= 2);
         const h1Count = (src.match(/<h1[\s>]/g) || []).length;
-        assert.equal(h1Count, 2, "expected exactly two <h1> literals — masthead branch + sr-only fallback");
+        assert.equal(h1Count, 3, "visible masthead h1 + two sr-only fallback literals");
     });
 
     it("loading splash copy uses readable status text size", () => {
@@ -363,7 +366,7 @@ describe("jobs page chrome guards", () => {
         const src = readFileSync(PAGE, "utf8");
         const replay = src.slice(
             src.indexOf("function JobsTourReplayButton"),
-            src.indexOf("function JobCard"),
+            src.indexOf("function JobCardSkeleton"),
         );
         assert.match(replay, /toolbarControlHeight/);
         assert.doesNotMatch(replay, /h-9 w-9/);
@@ -382,11 +385,14 @@ describe("jobs page chrome guards", () => {
         // end of the results list, asserted absent from this branch
         // elsewhere).
         const src = readFileSync(PAGE, "utf8");
-        const start = src.indexOf("{atRest && showSearchHome ? (");
-        const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
-        assert.notStrictEqual(start, -1);
+        const advancedGate = src.indexOf("{showSearchHome && showAdvancedSearch && !showLandingOnboarding ? (");
+        assert.notStrictEqual(advancedGate, -1);
+        const atRestMasthead = src.indexOf("{atRest ? (", advancedGate);
+        assert.notStrictEqual(atRestMasthead, -1);
+        const end = src.indexOf('<h1 className="sr-only">Jobs</h1>', atRestMasthead);
         assert.notStrictEqual(end, -1);
-        const branch = src.slice(start, end);
+        const branch = src.slice(atRestMasthead, end);
+        assert.match(branch, /Live from employer career pages/);
         assert.match(branch, /JOBS_USP\.mastheadTitle/);
         assert.match(branch, /JOBS_USP\.searchDescription/);
         assert.doesNotMatch(branch, /\{resultCountLine\}/, "the hero's own count line was cut (D1) — it duplicated the results list heading");
@@ -419,8 +425,7 @@ describe("jobs page chrome guards", () => {
     });
 
     it("JobCard uses word marks, not TRUST_CHIP glyphs", () => {
-        const src = readFileSync(PAGE, "utf8");
-        const jobCard = src.slice(src.indexOf("function JobCard"), src.indexOf("function JobCardSkeleton"));
+        const jobCard = readFileSync(JOBCARD, "utf8");
         assert.doesNotMatch(jobCard, /TRUST_CHIP/);
         assert.doesNotMatch(jobCard, /✕/);
         assert.doesNotMatch(jobCard, /⟳/);

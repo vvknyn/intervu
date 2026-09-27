@@ -13,7 +13,7 @@ function Card({ className, interactive = false, ...props }: CardProps) {
       data-slot="card"
       data-interactive={interactive ? "" : undefined}
       className={cn(
-        "bg-background text-foreground flex flex-col gap-4 rounded-panel border border-border p-4 shadow-[var(--shadow-bevel-highlight)]",
+        "bg-background text-foreground flex flex-col gap-4 rounded-panel border border-border p-4",
         interactive && "interactive-lift designed-press cursor-pointer",
         className
       )}

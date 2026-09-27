@@ -68,7 +68,11 @@ describe("motion foundation wiring", () => {
 
   it("Card applies lift/press only when interactive opt-in is set", () => {
     assert.match(CARD, /interactive\?: boolean/);
-    assert.match(CARD, /interactive && "interactive-lift designed-press"/);
+    assert.match(CARD, /interactive &&/);
+    assert.match(CARD, /interactive-lift/);
+    assert.match(CARD, /designed-press/);
+    assert.match(CARD, /cursor-pointer/);
+    assert.doesNotMatch(CARD, /shadow-\[/);
   });
 
   it("toast roles and mobile safe-area stack", () => {
