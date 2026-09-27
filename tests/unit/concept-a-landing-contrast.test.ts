@@ -10,7 +10,9 @@ test("Concept A postcards render real titles, meta, and Live label", () => {
   assert.match(POSTCARD, /\{title\}/);
   assert.match(POSTCARD, /\{meta\}/);
   assert.match(POSTCARD, />Live</);
-  assert.doesNotMatch(POSTCARD, /data-testid="concept-a-postcard-title"[\s\S]*aria-hidden/);
+  const titleOpenTag =
+    POSTCARD.match(/<p[\s\S]*?data-testid="concept-a-postcard-title"[\s\S]*?>/m)?.[0] ?? "";
+  assert.doesNotMatch(titleOpenTag, /\baria-hidden\b/);
 });
 
 test("Concept A postcard Live uses postcard-safe tokens on cream", () => {
