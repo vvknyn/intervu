@@ -10,6 +10,19 @@ const AGENT_ACCESS = join(ROOT, "src/components/settings/AgentAccessSection.tsx"
 const AGENT_PREFS = join(ROOT, "src/components/settings/AgentPreferencesSection.tsx");
 const INLINE = join(ROOT, "src/components/settings/SettingsInlineError.tsx");
 const TOAST = join(ROOT, "src/lib/toast.tsx");
+const EMAIL_PREFS = join(ROOT, "src/components/settings/EmailPreferencesSection.tsx");
+const RESUME_SECTION = join(ROOT, "src/components/settings/YourResumeSection.tsx");
+
+const SETTINGS_PROSE_FILES = [
+    SETTINGS,
+    LOADING,
+    AGENT_ACCESS,
+    AGENT_PREFS,
+    EMAIL_PREFS,
+    RESUME_SECTION,
+    INLINE,
+    join(ROOT, "src/components/settings/SettingsSectionLoading.tsx"),
+];
 
 describe("Phase 2 batch — settings feedback + account deletion", () => {
     it("SettingsLoading exposes a labeled status region", () => {
@@ -34,8 +47,26 @@ describe("Phase 2 batch — settings feedback + account deletion", () => {
         assert.match(prefs, /SettingsInlineError/);
     });
 
-    it("delete confirm uses destructive token and keeps errors in the dialog", () => {
+    it("settings prose uses title-case Velai, not lowercase velai", () => {
+        for (const file of SETTINGS_PROSE_FILES) {
+            const src = readFileSync(file, "utf8");
+            const hits = src
+                .split("\n")
+                .filter(
+                    (line) =>
+                        /\bvelai\b/.test(line) &&
+                        !line.includes("velai.app") &&
+                        !line.includes("velai.onboarding") &&
+                        !line.includes("@velai"),
+                );
+            assert.equal(hits.length, 0, `lowercase velai in ${file}: ${hits.join(" | ")}`);
+        }
+        assert.match(readFileSync(EMAIL_PREFS, "utf8"), /Which emails Velai sends you/);
+    });
+
+    it("delete trigger and confirm use destructive styling", () => {
         const src = readFileSync(SETTINGS, "utf8");
+        assert.match(src, /border-danger-text/);
         assert.match(src, /variant="destructive"/);
         assert.match(src, /deleteError/);
         assert.match(src, /onCloseAutoFocus/);

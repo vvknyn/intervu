@@ -8,6 +8,7 @@ import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { Switch } from "@/components/settings/Switch";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function EmailPreferencesSection({ user }: { user: User | null }) {
     const [prefs, setPrefs] = useState<EmailPreferences | null>(null);
@@ -46,7 +47,7 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
     return (
         <div>
             <h2 className="mb-1 text-base font-semibold leading-snug">Email</h2>
-            <p className="mb-4 text-sm text-muted-foreground">Which emails velai sends you.</p>
+            <p className="mb-4 text-sm text-muted-foreground">Which emails Velai sends you.</p>
 
             {prefs ? (
                 prefs.needsEmail ? (
@@ -69,14 +70,25 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                             <p className="text-sm">Weekly digest</p>
                             <p className="text-xs text-muted-foreground">
                                 New roles from your followed companies and saved searches.
-                                {prefs.blockedGlobally && " Blocked — you've unsubscribed from all velai emails."}
+                                {prefs.blockedGlobally && " Blocked — you've unsubscribed from all Velai emails."}
                             </p>
                         </div>
                         <Switch checked={prefs.digestEnabled} onChange={() => void toggleDigest()} disabled={saving} aria-label="Weekly digest" />
                     </div>
                 )
             ) : (
-                <p className="text-xs text-muted-foreground">Loading…</p>
+                <div
+                    className="flex items-center justify-between gap-4"
+                    role="status"
+                    aria-busy="true"
+                    aria-label="Loading email preferences"
+                >
+                    <div className="min-w-0 flex-1 space-y-2">
+                        <Skeleton className="h-4 w-28 rounded-ctl" />
+                        <Skeleton className="h-3 w-full max-w-sm rounded-ctl" />
+                    </div>
+                    <Skeleton className="h-6 w-11 shrink-0 rounded-pill" />
+                </div>
             )}
         </div>
     );

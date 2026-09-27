@@ -135,8 +135,8 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             title: `Disconnect ${displayName(credential)}?`,
             description:
                 credential.kind === "oauth"
-                    ? "This disconnects the app entirely, including its ability to silently refresh its own access — it won't be able to reach your velai account anymore. You can always connect it again later."
-                    : "It won't be able to reach your velai account anymore. You can always connect it again later.",
+                    ? "This disconnects the app entirely, including its ability to silently refresh its own access — it won't be able to reach your Velai account anymore. You can always connect it again later."
+                    : "It won't be able to reach your Velai account anymore. You can always connect it again later.",
             confirmLabel: "Disconnect",
             destructive: true,
         });
@@ -164,7 +164,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                     <button onClick={onLoginClick} className="text-foreground underline underline-offset-2 hover:underline">
                         {AUTH_CTA_LABEL}
                     </button>{" "}
-                    to connect Claude or another AI agent to your velai account.
+                    to connect Claude or another AI agent to your Velai account.
                 </p>
             </section>
         );
@@ -178,7 +178,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             <h2 className="text-base font-semibold mb-1">Connected agents</h2>
             <p className="text-sm text-muted-foreground mb-4">
                 Let Claude or another AI agent search jobs and update your tracker on your behalf. It can never see your
-                resume, stories, or anything else in your account.
+                résumé, stories, or anything else in your account.
             </p>
 
             <div className="space-y-2 mb-6">
@@ -187,9 +187,14 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 )}
 
                 {loadStatus === "error" && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         <SettingsInlineError>{SETTINGS_AGENT_ACCESS_LOAD_ERROR}</SettingsInlineError>
-                        <Button variant="outline" size="sm" className="rounded-ctl" onClick={() => void loadCredentials()}>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-ctl border-danger-text text-danger-text hover:bg-danger-text/10"
+                            onClick={() => void loadCredentials()}
+                        >
                             Try again
                         </Button>
                     </div>

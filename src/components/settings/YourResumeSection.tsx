@@ -207,7 +207,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
     if (!user) {
         const guestContent = (
             <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-                <h2 className="text-base font-semibold leading-snug mb-1">Your resume</h2>
+                <h2 className="text-base font-semibold leading-snug mb-1">Your résumé</h2>
                 <p className="text-sm text-muted-foreground">
                     <button onClick={onLoginClick} className="text-foreground underline underline-offset-2 hover:underline">
                         {AUTH_CTA_LABEL}
@@ -240,7 +240,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
 
     const content = (
         <section className={embedded ? undefined : "pt-6 border-t border-border"}>
-            <h2 className="text-base font-semibold leading-snug mb-1">Your resume</h2>
+            <h2 className="text-base font-semibold leading-snug mb-1">Your résumé</h2>
             <p className="text-sm text-muted-foreground mb-4">
                 {embedded
                     ? "One base file. Edit the template in the browser, or upload a PDF or Word file."
@@ -256,7 +256,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
 
             {status === "error" && (
                 <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Couldn&apos;t load your resume.</p>
+                    <p className="text-sm text-muted-foreground">Couldn&apos;t load your résumé.</p>
                     <Button variant="outline" size="sm" onClick={() => setRetryToken((t) => t + 1)}>
                         Try again
                     </Button>
@@ -471,7 +471,7 @@ function ResumeUploadForm({
                     setText(e.target.value);
                     setFileName(null);
                 }}
-                placeholder="Paste your resume text here, or choose a file below…"
+                placeholder="Paste your résumé text here, or choose a file below…"
                 className="min-h-40 font-sans"
                 disabled={busy}
             />
