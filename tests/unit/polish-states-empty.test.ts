@@ -20,6 +20,8 @@ describe("polish batch 3 — states and empties", () => {
     it("session shell exposes warm loading copy and session paper slot", () => {
         const shell = read("src/components/layout/jobs-session-loading.tsx");
         assert.match(shell, /Loading your session…/);
+        assert.match(shell, /data-testid="jobs-session-loading-status"/);
+        assert.match(shell, /sr-only[\s\S]*Loading your session…/);
         assert.match(shell, /for-you-deck-paper-raised/);
         assert.match(shell, /poster-noise/);
         assert.match(shell, /role="status"/);

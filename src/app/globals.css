@@ -851,6 +851,11 @@ h4 {
   max-height: min(60dvh, 640px);
 }
 
+/** Status-route mock canvas — shorter than `min-h-dvh` for gallery fixtures. */
+.route-status-fixture-min {
+  min-height: 50dvh;
+}
+
 /** Opacity-only reveal for session/pending → content swaps (no layout shift). */
 @keyframes state-opacity-in {
   from {

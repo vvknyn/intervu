@@ -56,6 +56,13 @@ describe("polish batch 3 — design contract", () => {
         assert.doesNotMatch(session, /max-h-\[/);
     });
 
+    it("404 mock uses route status fixture min-height class", () => {
+        const mock = read("src/components/mock/EmptyStatesMock.tsx");
+        assert.match(mock, /routeStatusFixtureMinClassName/);
+        assert.doesNotMatch(mock, /min-h-\[50dvh\]/);
+        assert.match(GLOBALS, /\.route-status-fixture-min[\s\S]*min-height:\s*50dvh/);
+    });
+
     it("jobs route loader uses named shell width and list inset classes", () => {
         const loading = read("src/app/jobs/loading.tsx");
         assert.match(loading, /posterListInsetClassName/);

@@ -35,7 +35,12 @@ export function ForYouDeckSkeleton({
         <div className="space-y-3">
             {withStatus || statusLabel ? (
                 statusLabel ? (
-                    <p className="px-1 text-xs font-semibold text-muted-foreground">{statusLabel}</p>
+                    <p
+                        className="px-1 text-xs font-semibold text-muted-foreground"
+                        data-testid="jobs-session-loading-status"
+                    >
+                        {statusLabel}
+                    </p>
                 ) : (
                     <RotatingLoadingCopy variant="deck" className="px-1 text-xs font-semibold" />
                 )

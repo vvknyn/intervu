@@ -26,7 +26,9 @@ test("mock empty surfaces respect reduced motion", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/mock/empty-states?surface=session-loading");
     await expect(page.getByTestId("jobs-session-loading")).toBeVisible();
-    await expect(page.getByText("Loading your session…")).toBeVisible();
+    const visibleStatus = page.getByTestId("jobs-session-loading-status");
+    await expect(visibleStatus).toBeVisible();
+    await expect(visibleStatus).toHaveText("Loading your session…");
 });
 
 test("404 keeps enter-reveal panel", async ({ page }) => {

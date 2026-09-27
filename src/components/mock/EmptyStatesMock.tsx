@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { BrandLockup } from "@/components/brand/BrandMark";
-import { RouteStatusLayout, RouteStatusPanel } from "@/components/layout/route-status-chrome";
+import {
+    RouteStatusLayout,
+    RouteStatusPanel,
+    routeStatusFixtureMinClassName,
+} from "@/components/layout/route-status-chrome";
 import { OfflineShellPanel } from "@/components/layout/offline-shell";
 import { ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { JOBS_SESSION_FRAME_CLASS, JobsSessionLoadingShell } from "@/components/layout/jobs-session-loading";
@@ -125,7 +129,7 @@ export function EmptyStatesMock({ surface }: { surface: string | null }) {
             )}
             {surface === "offline" && <OfflineShellPanel />}
             {surface === "404" && (
-                <RouteStatusLayout className="min-h-[50dvh]">
+                <RouteStatusLayout className={routeStatusFixtureMinClassName}>
                     <RouteStatusPanel className="enter-reveal text-center">
                         <BrandLockup className="mx-auto w-fit" />
                         <p className="mt-4 text-xs text-muted-foreground">404</p>
