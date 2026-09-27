@@ -443,14 +443,15 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     {RESUME_IMPORT_PARSE_LINE} {storageNote}
                 </p>
                 {!decided ? (
-                    <button
+                    <Button
                         type="button"
+                        variant="link"
                         data-testid="resume-import-skip-download"
                         onClick={handleSkipDownload}
-                        className="pt-2 text-left text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+                        className="inline-flex h-auto min-h-11 justify-start px-0 py-2 text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
                     >
                         Skip the download (basic parsing)
-                    </button>
+                    </Button>
                 ) : null}
             </div>
         );

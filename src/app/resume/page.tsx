@@ -65,7 +65,12 @@ export function SignedOutEmptyState({ onUploadClick }: { onUploadClick: () => vo
             description={<span className="text-foreground">{RESUME_UPLOAD_PROMISE}</span>}
             actionsClassName="mt-4"
             actions={
-                <Button size="sm" onClick={onUploadClick} className="rounded-ctl font-semibold">
+                <Button
+                    size="lg"
+                    onClick={onUploadClick}
+                    data-testid="resume-signed-out-upload"
+                    className="min-h-11 rounded-ctl font-semibold"
+                >
                     <UploadSimple size={16} className="mr-2" aria-hidden />
                     Upload résumé
                 </Button>

@@ -120,6 +120,18 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
         const footer = sliceBetween(src, 'data-testid="resume-import-parse-primary"', "onClick={handleParse}");
         assert.ok(footer.length > 0);
     });
+
+    it("signed-out upload and skip-download controls meet 44px touch targets", () => {
+        const resume = readFileSync(join(ROOT, "src/app/resume/page.tsx"), "utf8");
+        const uploadBlock = sliceBetween(resume, 'data-testid="resume-signed-out-upload"', "Upload résumé");
+        assert.match(uploadBlock, /min-h-11/);
+        assert.match(uploadBlock, /size="lg"/);
+
+        const modal = readFileSync(IMPORT_MODAL, "utf8");
+        const skipBlock = sliceBetween(modal, 'data-testid="resume-import-skip-download"', "Skip the download");
+        assert.match(skipBlock, /min-h-11/);
+        assert.match(skipBlock, /variant="link"/);
+    });
 });
 
 describe("Phase 2 batch 4 — auth retry", () => {
