@@ -43,6 +43,7 @@ export function RowBookmarkButton({
                     disabled
                     aria-label="Saved"
                     title="Saved"
+                    data-testid="job-save-optimistic"
                     className={cn("text-foreground", className)}
                 >
                     {filled}
@@ -54,6 +55,7 @@ export function RowBookmarkButton({
                 href={`/yours/${pursuit.id}`}
                 aria-label="Saved — view in Yours"
                 title="Saved"
+                data-testid="job-save-confirmed"
                 className={buttonVariants({
                     variant: "ghost",
                     size: "icon-lg",
@@ -71,6 +73,7 @@ export function RowBookmarkButton({
             onClick={onGoAfter}
             aria-label="Save this job"
             title="Save"
+            data-testid="job-save-trigger"
             className={cn("text-muted-foreground hover:text-foreground", successPulse && "success-pulse", className)}
         >
             <BookmarkSimple size={20} />

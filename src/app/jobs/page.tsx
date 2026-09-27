@@ -6209,6 +6209,17 @@ function JobsContent() {
                                 loadingMore={loadingMore}
                                 hasMore={hasMore}
                                 resultTotal={result?.total ?? null}
+                                activePursuit={
+                                    forYouDeck.activeJob
+                                        ? pursuitsByJobIdMerged.get(forYouDeck.activeJob.id)
+                                        : undefined
+                                }
+                                onGoAfter={handleGoAfter}
+                                saveSuccessPulse={
+                                    forYouDeck.activeJob
+                                        ? savePulseJobIds.has(forYouDeck.activeJob.id)
+                                        : false
+                                }
                             />
                         )}
                     </div>

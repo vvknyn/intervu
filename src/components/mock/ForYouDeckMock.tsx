@@ -1,14 +1,17 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ForYouHome } from "@/components/jobs/for-you/ForYouHome";
 import {
     MOCK_FOR_YOU_DECK_JOBS,
     MOCK_FOR_YOU_DECK_NOW_MS,
     MOCK_FOR_YOU_DECK_RESUME,
+    MOCK_FOR_YOU_SAVE_DELAY_MS,
     mockForYouDeckMatchScores,
 } from "@/lib/jobs/for-you/mock-deck-fixtures";
+import { buildOptimisticPursuit } from "@/lib/pursuits/optimistic-pursuit";
+import type { Pursuit } from "@/lib/pursuits/types";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -26,6 +29,10 @@ function ForYouDeckMockInner() {
     const [packs, setPacks] = useState<PublicJob[]>(() => [...MOCK_FOR_YOU_DECK_JOBS]);
     const [activeIndex, setActiveIndex] = useState(0);
     const [firstRevealFocusDone, setFirstRevealFocusDone] = useState(false);
+    const [confirmedPursuits, setConfirmedPursuits] = useState<Map<string, Pursuit>>(() => new Map());
+    const [optimisticPursuits, setOptimisticPursuits] = useState<Map<string, Pursuit>>(() => new Map());
+    const [savePulseJobIds, setSavePulseJobIds] = useState<Set<string>>(() => new Set());
+    const saveInFlightRef = useRef<Set<string>>(new Set());
 
     const activeJob = packs[activeIndex] ?? null;
     const matchScores = useMemo(() => mockForYouDeckMatchScores(), []);
@@ -33,6 +40,16 @@ function ForYouDeckMockInner() {
         () => new Map(packs.map((job) => [job.id, { job, descriptionPending: false }] as const)),
         [packs],
     );
+
+    const pursuitsByJobIdMerged = useMemo(() => {
+        const merged = new Map(confirmedPursuits);
+        for (const [jobId, pursuit] of optimisticPursuits) {
+            merged.set(jobId, pursuit);
+        }
+        return merged;
+    }, [confirmedPursuits, optimisticPursuits]);
+
+    const activePursuit = activeJob ? pursuitsByJobIdMerged.get(activeJob.id) : undefined;
 
     const handleSkip = useCallback(() => {
         setPacks((prev) => {
@@ -44,6 +61,37 @@ function ForYouDeckMockInner() {
             return next;
         });
     }, [activeIndex]);
+
+    const handleGoAfter = useCallback((job: PublicJob) => {
+        if (saveInFlightRef.current.has(job.id)) return;
+        if (pursuitsByJobIdMerged.has(job.id)) return;
+        saveInFlightRef.current.add(job.id);
+        setOptimisticPursuits((prev) => {
+            const next = new Map(prev);
+            next.set(job.id, buildOptimisticPursuit(job));
+            return next;
+        });
+        setSavePulseJobIds((prev) => new Set(prev).add(job.id));
+        void (async () => {
+            await new Promise((resolve) => setTimeout(resolve, MOCK_FOR_YOU_SAVE_DELAY_MS));
+            const serverRow: Pursuit = {
+                ...buildOptimisticPursuit(job),
+                id: `mock-pursuit-${job.id}`,
+                user_id: "mock-user",
+            };
+            setOptimisticPursuits((prev) => {
+                const next = new Map(prev);
+                next.delete(job.id);
+                return next;
+            });
+            setConfirmedPursuits((prev) => {
+                const next = new Map(prev);
+                next.set(job.id, serverRow);
+                return next;
+            });
+            saveInFlightRef.current.delete(job.id);
+        })();
+    }, [pursuitsByJobIdMerged]);
 
     return (
         <div className="mx-auto w-full max-w-3xl px-4 py-6" data-testid="for-you-deck-mock-root">
@@ -68,6 +116,9 @@ function ForYouDeckMockInner() {
                 firstRevealEnter={firstRevealEnter}
                 firstRevealDeckFocus={firstRevealFocus && !firstRevealFocusDone}
                 onFirstRevealFocusDone={() => setFirstRevealFocusDone(true)}
+                activePursuit={activePursuit}
+                onGoAfter={handleGoAfter}
+                saveSuccessPulse={activeJob ? savePulseJobIds.has(activeJob.id) : false}
             />
         </div>
     );

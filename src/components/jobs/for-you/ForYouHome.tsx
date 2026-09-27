@@ -29,7 +29,9 @@ import {
     FOR_YOU_UPLOAD_PDF_EMPTY,
 } from "@/lib/jobs/resume-cta-copy";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
+import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { locationText } from "@/lib/jobs/presentation";
+import type { Pursuit } from "@/lib/pursuits/types";
 
 /** For-you frame grows with the pack deck — document scroll, not a nested
  *  100dvh trap. JD scroll stays inside each postcard (`data-pack-scroll`). */
@@ -71,6 +73,10 @@ export interface ForYouHomeProps {
     /** CRAFT-3 — focus deck primary CTA once after first-pack auto-reveal. */
     firstRevealDeckFocus?: boolean;
     onFirstRevealFocusDone?: () => void;
+    /** Active pack save — same RowBookmarkButton / optimistic overlay contract as SERP rows. */
+    activePursuit?: Pursuit;
+    onGoAfter?: (job: PublicJob) => void;
+    saveSuccessPulse?: boolean;
 }
 
 /** Placeholder shape for both the loading state and the pre-résumé shell —
@@ -149,6 +155,9 @@ export function ForYouHome({
     firstRevealEnter = false,
     firstRevealDeckFocus = false,
     onFirstRevealFocusDone,
+    activePursuit,
+    onGoAfter,
+    saveSuccessPulse = false,
 }: ForYouHomeProps) {
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
@@ -317,11 +326,11 @@ export function ForYouHome({
                                 <CaretRight size={16} weight="bold" aria-hidden />
                             </Button>
                             <span className="hidden items-center gap-1 text-muted-foreground lg:flex">
-                                <Kbd>←</Kbd>
+                                <Kbd>Left</Kbd>
                                 <Kbd>K</Kbd>
                                 <span className="text-xs" aria-hidden>/</span>
                                 <Kbd>J</Kbd>
-                                <Kbd>→</Kbd>
+                                <Kbd>Right</Kbd>
                             </span>
                         </div>
                     )}
@@ -344,8 +353,8 @@ export function ForYouHome({
                     <AlertDescription>
                         <p>
                             Scroll the card to read the role. Use Next and Previous (or{" "}
-                            <Kbd className="align-middle">←</Kbd> <Kbd className="align-middle">→</Kbd>) to move
-                            between matches. Skip removes a role from this list.
+                            <Kbd className="align-middle">Left</Kbd> and <Kbd className="align-middle">Right</Kbd>) to
+                            move between matches. Skip removes a role from this list.
                         </p>
                         <button type="button" onClick={dismissHint} className={cn(TEXT_LINK_BUTTON_CLASS, "text-brand")}>
                             Got it
@@ -454,7 +463,7 @@ export function ForYouHome({
                             </Button>
                         </div>
                     )}
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
                         <Button
                             type="button"
                             className="h-11 min-h-11 flex-1 lg:flex-none"
@@ -481,6 +490,15 @@ export function ForYouHome({
                         >
                             Skip
                         </Button>
+                        {onGoAfter && activeJob ? (
+                            <span data-testid="for-you-deck-save" className="shrink-0">
+                                <RowBookmarkButton
+                                    pursuit={activePursuit}
+                                    onGoAfter={() => onGoAfter(activeJob)}
+                                    successPulse={saveSuccessPulse}
+                                />
+                            </span>
+                        ) : null}
                     </div>
                 </div>
             )}

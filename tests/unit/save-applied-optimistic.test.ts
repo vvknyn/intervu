@@ -69,6 +69,21 @@ describe("optimistic save / applied ordering", () => {
         );
     });
 
+    it("ForYouHome deck uses shared handleGoAfter, merged pursuit, and save pulse", () => {
+        const src = readFileSync(PAGE, "utf8");
+        const deckHome =
+            src.match(
+                /<ForYouHome[\s\S]*?visiblePacks=\{forYouDeck\.visiblePacks\}[\s\S]*?\/>/m,
+            )?.[0] ?? "";
+        assert.ok(deckHome.length > 0, "ForYouHome deck mount not found");
+        assert.match(deckHome, /activePursuit=\{/);
+        assert.match(deckHome, /pursuitsByJobIdMerged\.get\(forYouDeck\.activeJob\.id\)/);
+        assert.match(deckHome, /onGoAfter=\{handleGoAfter\}/);
+        assert.match(deckHome, /saveSuccessPulse=\{/);
+        assert.match(deckHome, /savePulseJobIds\.has\(forYouDeck\.activeJob\.id\)/);
+        assert.doesNotMatch(deckHome, /onGoAfter=\{[^h]/, "deck must not define a separate save handler");
+    });
+
     it("does not delete optimistic overlay immediately on invalidate alone", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.match(src, /pruneConfirmedOptimisticPursuits/);

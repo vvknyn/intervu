@@ -9,6 +9,9 @@ import type { ResumeData } from "@/types/resume";
 
 export const MOCK_FOR_YOU_DECK_NOW_MS = Date.UTC(2026, 8, 20, 12, 0, 0);
 
+/** Mock signed-in save latency — long enough for e2e to observe optimistic UI. */
+export const MOCK_FOR_YOU_SAVE_DELAY_MS = 600;
+
 const hoursAgo = (h: number) => new Date(MOCK_FOR_YOU_DECK_NOW_MS - h * 3_600_000).toISOString();
 
 function baseJob(overrides: Partial<PublicJob> & Pick<PublicJob, "id" | "title" | "company">): PublicJob {
