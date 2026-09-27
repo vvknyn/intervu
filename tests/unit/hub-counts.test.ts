@@ -238,6 +238,16 @@ describe("resolveHubRoleCountLabels", () => {
         assert.equal(labels.ai, "1 role");
         assert.equal(labels.good, "0 roles");
         assert.equal(formatHubRoleCount(1), "1 role");
+
+        const partial = resolveHubRoleCountLabels({
+            loading: false,
+            probing: true,
+            poolTotal: 503,
+            scored,
+        });
+        assert.equal(partial.all, "503 roles");
+        assert.equal(partial.remote, "1 role");
+        assert.equal(partial.good, "0 roles");
     });
 });
 

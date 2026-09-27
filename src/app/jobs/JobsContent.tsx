@@ -2922,11 +2922,19 @@ export function JobsContent({
         forYouDeck.setActiveIndex,
     ]);
 
-    // Progressive quiet fit probe — every pack gets live Strong·Good counts that
-    // climb as deeper pages score. Corpus total (~N pool) surfaces on the hub.
-    // On settle, diff localStorage last-seen counts for honest removal cues.
+    // Same résumé content must not restart the probe. A new object identity
+    // (parallel fetches of the saved résumé) was cancelling the in-flight
+    // search before it could paint category counts.
+    const hubResumeKey =
+        resume && hasUsableResume
+            ? `${buildMatchQuery(resume).q}\0${resume.profile?.location ?? ""}`
+            : "";
+
+    // Progressive quiet fit probe — every pack gets live role counts from the
+    // first scored page. Deeper pages only refine the sample. On settle, diff
+    // localStorage last-seen counts for honest removal cues.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || !hasUsableResume || !resume) {
+        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume) {
             return;
         }
         let cancelled = false;
@@ -2948,6 +2956,7 @@ export function JobsContent({
                 const merged = mergeFacets({}, derivedWithLocation);
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
+                let unavailableRetries = 0;
 
                 for (let step = 0; step < HUB_PROBE_LIMITS.length; step++) {
                     if (cancelled) return;
@@ -2963,20 +2972,31 @@ export function JobsContent({
                     });
                     if (cancelled) return;
                     if (isUnavailableJobsResult(r)) {
+                        if (unavailableRetries < 1) {
+                            unavailableRetries += 1;
+                            step -= 1;
+                            await new Promise((resolve) => setTimeout(resolve, 1500));
+                            continue;
+                        }
                         setHubFitProbe({
                             loading: false,
                             probing: false,
-                            total: null,
-                            scored: [],
+                            total: poolTotal,
+                            scored: [...scoredById.values()],
                             removalsLine: null,
                         });
                         return;
                     }
                     poolTotal = r.total;
-                    for (const h of r.hits) {
+                    for (const h of r.hits ?? []) {
                         if (scoredById.has(h.id)) continue;
-                        const s = scoreJobAgainstResume(resume, h);
-                        if (s) scoredById.set(h.id, { job: h, score: s });
+                        let scoredHit: ScoredHubHit["score"] | null = null;
+                        try {
+                            scoredHit = scoreJobAgainstResume(resume, h);
+                        } catch {
+                            scoredHit = null;
+                        }
+                        if (scoredHit) scoredById.set(h.id, { job: h, score: scoredHit });
                     }
                     const scored = [...scoredById.values()];
                     const isLast = step === HUB_PROBE_LIMITS.length - 1;
@@ -3016,13 +3036,13 @@ export function JobsContent({
                 });
             } catch {
                 if (!cancelled) {
-                    setHubFitProbe({
+                    setHubFitProbe((prev) => ({
                         loading: false,
                         probing: false,
-                        total: null,
-                        scored: [],
-                        removalsLine: null,
-                    });
+                        total: prev.total,
+                        scored: prev.scored,
+                        removalsLine: prev.removalsLine,
+                    }));
                 }
             }
         })();
@@ -3030,7 +3050,7 @@ export function JobsContent({
         return () => {
             cancelled = true;
         };
-    }, [showForYouHome, forYouPackDeckOpen, hasUsableResume, resume]);
+    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey]);
 
     const hubCountLabels = useMemo(() => {
         const deckScored: ScoredHubHit[] | null =
@@ -4449,6 +4469,22 @@ export function JobsContent({
         // so pack-open → postcard can apply fit and leave the loading gate.
         return readLocalFallback();
     };
+
+    // Hub pack counts need the saved résumé in memory. Mount no longer
+    // auto-fetches it, so the probe effect (which bails without `resume`)
+    // never started and every category sat on an empty count. One in-flight
+    // fetch: a new `user` object must not launch a second download that
+    // replaces `resume` and cancels the count probe.
+    const hubResumeLoadRef = useRef(false);
+    useEffect(() => {
+        if (!showForYouHome || forYouPackDeckOpen) return;
+        if (resume && resumeIsUsable(resume)) return;
+        if (hubResumeLoadRef.current) return;
+        hubResumeLoadRef.current = true;
+        void resolveUsableResume().then((loaded) => {
+            if (!loaded) hubResumeLoadRef.current = false;
+        });
+    }, [showForYouHome, forYouPackDeckOpen, user, resume]);
 
     // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
     // pipeline (`buildMatchQuery` → query + seniority facet), but expressed

@@ -194,9 +194,10 @@ export function formatHubRoleCount(total: number): string {
 /**
  * Visible count for every hub category.
  * "All" uses the search total. Other packs count non-Canada jobs in the
- * probe. Canada roles stay out of the per-pack numbers.
- * Before the probe has a total, every card shows an ellipsis so the count
- * slot does not disappear.
+ * probe sample. Canada roles stay out of the per-pack numbers.
+ * A partial probe still paints counts — waiting for the last page hid
+ * every card on an ellipsis. Before any total or sample exists, the
+ * slot stays an ellipsis so it does not disappear.
  */
 export function resolveHubRoleCountLabels(input: {
     loading: boolean;
@@ -211,7 +212,7 @@ export function resolveHubRoleCountLabels(input: {
         input.poolTotal != null && Number.isFinite(input.poolTotal) && input.poolTotal >= 0
             ? Math.floor(input.poolTotal)
             : null;
-    const settled = !input.loading && !input.probing && (pool != null || input.scored.length > 0);
+    const hasSample = input.scored.length > 0;
     const labels: Partial<Record<string, string>> = {};
 
     for (const packId of HUB_PACK_IDS) {
@@ -219,7 +220,7 @@ export function resolveHubRoleCountLabels(input: {
             labels[packId] = formatHubRoleCount(pool);
             continue;
         }
-        if (!settled) {
+        if (!hasSample) {
             labels[packId] = "…";
             continue;
         }
