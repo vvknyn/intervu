@@ -3,6 +3,10 @@ import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 import { LegalDocHeader, LEGAL_H2 } from "@/components/legal/LegalDocHeader";
+import {
+  ACCOUNT_SELF_SERVE_DELETION_FLOW,
+  PUBLIC_SUPPORT_EMAIL,
+} from "@/lib/legal/public-contact";
 
 const TITLE = "Terms of Service";
 const DESCRIPTION = "The terms for using velai, including how we frame posting-check and risk signals.";
@@ -13,7 +17,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/terms", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "August 27, 2026";
+const LAST_UPDATED = "September 26, 2026";
 
 export default function TermsPage() {
   return (
@@ -70,7 +74,12 @@ export default function TermsPage() {
         <h2 className={LEGAL_H2}>Account termination</h2>
         <p>
           We may suspend or close an account that violates these terms or that we determine, in good faith, is
-          being used to abuse the service. You may close your account at any time from account settings.
+          being used to abuse the service. You may close your account at any time from{" "}
+          <Link href="/settings">account settings</Link> ({ACCOUNT_SELF_SERVE_DELETION_FLOW}). What that action
+          removes on our servers — and what it does not (including PostHog analytics and email-only records) — is
+          spelled out under Retention &amp; deletion in our{" "}
+          <Link href="/privacy">Privacy Policy</Link>. We do not provide a separate bulk download of stored account
+          data.
         </p>
 
         <h2 className={LEGAL_H2}>Changes</h2>
@@ -78,7 +87,11 @@ export default function TermsPage() {
 
         <h2 className={LEGAL_H2}>Contact</h2>
         <p>
-          Questions: use the <Link href="/contact">contact page</Link>.
+          Questions: email{" "}
+          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
+            {PUBLIC_SUPPORT_EMAIL}
+          </a>{" "}
+          or use the <Link href="/contact">contact page</Link>.
         </p>
       </article>
       </div>

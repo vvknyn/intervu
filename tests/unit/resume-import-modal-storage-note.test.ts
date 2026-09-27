@@ -2,6 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+import { RESUME_IMPORT_STORAGE_NOTE } from "@/lib/jobs/resume-privacy-copy";
+
+const STORAGE_NOTE_BY_IDENTIFIER: Record<string, string> = {
+    RESUME_IMPORT_STORAGE_NOTE,
+};
 
 /**
  * `storageNote` (ResumeImportModal.tsx) is a required prop precisely
@@ -36,9 +41,15 @@ function extractStorageNotes(source: string): string[] {
     const tags = source.match(/<ResumeImportModal\s[\s\S]*?\/>/g) ?? [];
     assert.ok(tags.length > 0, "<ResumeImportModal> JSX call site not found");
     return tags.map((tag) => {
-        const match = tag.match(/storageNote="([^"]*)"/);
-        assert.ok(match, "<ResumeImportModal> call site has no storageNote attribute");
-        return match[1];
+        const literal = tag.match(/storageNote="([^"]*)"/);
+        if (literal) return literal[1];
+        const bound = tag.match(/storageNote=\{([A-Z_][A-Z0-9_]*)\}/);
+        if (bound) {
+            const resolved = STORAGE_NOTE_BY_IDENTIFIER[bound[1]!];
+            assert.ok(resolved, `<ResumeImportModal> storageNote={${bound[1]}} is not registered in this test`);
+            return resolved;
+        }
+        assert.fail("<ResumeImportModal> call site has no storageNote attribute");
     });
 }
 

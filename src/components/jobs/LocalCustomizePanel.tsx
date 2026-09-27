@@ -31,6 +31,7 @@ import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
 import { toast, confirmToast } from "@/lib/toast";
 import { CUSTOMIZE_READY_HEADER, SIGN_IN_TO_SYNC_LABEL } from "@/lib/jobs/resume-cta-copy";
+import { LOCAL_CUSTOMIZE_PRIVACY_BADGE } from "@/lib/jobs/resume-privacy-copy";
 
 export interface LocalCustomizePanelProps {
     job: PublicJob;
@@ -195,7 +196,7 @@ export function LocalCustomizePanel({
                             <DialogHeader className="space-y-1 text-left">
                                 <div className="flex items-center gap-1.5 text-xs text-brand font-semibold">
                                     <ShieldCheck size={16} />
-                                    <span>100% On-Device AI: Private to your browser</span>
+                                    <span>{LOCAL_CUSTOMIZE_PRIVACY_BADGE}</span>
                                 </div>
                                 <DialogTitle className="break-words text-base font-semibold leading-snug text-foreground">
                                     {CUSTOMIZE_READY_HEADER}

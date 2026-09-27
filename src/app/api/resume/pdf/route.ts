@@ -15,6 +15,13 @@ export const dynamic = "force-dynamic";
 
 const MAX_HTML_CHARS = 1_500_000;
 
+const RESUME_PDF_UNAVAILABLE_MESSAGE =
+    "Could not generate a text PDF (Chromium print blocked or unavailable). Try again, or download will fall back to the text layout.";
+
+export function buildResumePdfUnavailableBody(): { error: string } {
+    return { error: RESUME_PDF_UNAVAILABLE_MESSAGE };
+}
+
 async function pdfHasExtractableText(bytes: Buffer): Promise<boolean> {
     try {
         const { extractText } = await import("unpdf");
@@ -63,14 +70,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     } catch (err) {
         const message = err instanceof Error ? err.message : "Chrome print-to-pdf failed.";
         console.error("[api/resume/pdf]", message);
-        return NextResponse.json(
-            {
-                error:
-                    "Could not generate a text PDF (Chromium print blocked or unavailable). Try again, or download will fall back to the text layout.",
-                detail: message,
-            },
-            { status: 503 },
-        );
+        return NextResponse.json(buildResumePdfUnavailableBody(), { status: 503 });
     }
 
     if (!(await pdfHasExtractableText(pdf))) {

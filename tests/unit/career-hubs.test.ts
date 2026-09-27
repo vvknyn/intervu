@@ -23,13 +23,6 @@ describe("career intent hubs", () => {
       "skilled-trades-jobs",
       "tech-jobs",
       "entry-level-jobs",
-      "canada-jobs",
-      "toronto-jobs",
-      "vancouver-jobs",
-      "montreal-jobs",
-      "calgary-jobs",
-      "ottawa-jobs",
-      "remote-jobs-canada",
       "open-positions",
       "company-career-pages",
     ];
@@ -64,15 +57,14 @@ describe("career intent hubs", () => {
   });
 
   it("careerHubJobsHref encodes location facets for /jobs deep links", () => {
-    const canada = getCareerHub("canada-jobs");
-    assert.ok(canada?.jobsFacets);
-    const href = careerHubJobsHref(canada!);
+    const href = careerHubJobsHref({ jobsFacets: { location_country: "United States" } });
     assert.ok(href);
-    assert.match(href, /country=Canada/);
+    assert.match(href, /country=United/);
 
-    const toronto = getCareerHub("toronto-jobs");
-    assert.ok(toronto?.jobsFacets);
-    assert.match(careerHubJobsHref(toronto!)!, /city=Toronto/);
+    assert.match(
+      careerHubJobsHref({ jobsFacets: { location_city: "Chicago" } })!,
+      /city=Chicago/,
+    );
 
     assert.equal(careerHubJobsHref({ jobsFacets: undefined }), null);
   });
