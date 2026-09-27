@@ -13,7 +13,8 @@ import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/conce
 import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { JobCard } from "@/components/jobs/JobCard";
-import { JobDetail } from "@/components/jobs/JobDetail";
+import { DeckRoleDetail } from "@/components/jobs/for-you/DeckRoleDetail";
+import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
@@ -267,30 +268,18 @@ export function ForYouHome({
 
     return (
         <div className={cn(JOBS_SESSION_FRAME_CLASS, "state-opacity-in")} data-testid="for-you-home">
-            {(canNavigate || (hasUsableResume && onReplaceResume)) && (
-                <div className="mb-3 flex items-baseline justify-between gap-3">
-                    {canNavigate ? (
-                        <p
-                            className="text-xs text-muted-foreground tabular-nums"
-                            data-testid="for-you-deck-position"
-                        >
-                            {activeIndex + 1} of {visiblePacks.length}
-                        </p>
-                    ) : (
-                        <span />
-                    )}
-                    {hasUsableResume && onReplaceResume ? (
-                        <button
-                            type="button"
-                            data-testid="jobs-replace-resume"
-                            onClick={onReplaceResume}
-                            className={REPLACE_RESUME_CLASS}
-                        >
-                            Replace résumé
-                        </button>
-                    ) : null}
+            {hasUsableResume && onReplaceResume ? (
+                <div className="mb-3 flex justify-end">
+                    <button
+                        type="button"
+                        data-testid="jobs-replace-resume"
+                        onClick={onReplaceResume}
+                        className={REPLACE_RESUME_CLASS}
+                    >
+                        Replace résumé
+                    </button>
                 </div>
-            )}
+            ) : null}
 
             {showLoading ? (
                 <div data-testid="for-you-loading" className="state-opacity-in space-y-3">
@@ -318,6 +307,18 @@ export function ForYouHome({
                     />
                 </ConceptAEmptyPageSlot>
             ) : (
+                <>
+                {activeJob ? (
+                    <McpHandoffNote
+                        className="mb-4"
+                        job={{
+                            id: activeJob.id,
+                            title: activeJob.title ?? "",
+                            company: activeJob.company ?? "",
+                            location: activeJob.location,
+                        }}
+                    />
+                ) : null}
                 <div
                     data-testid="for-you-deck"
                     className={cn(
@@ -329,20 +330,16 @@ export function ForYouHome({
                     {activeHydration && activeJob ? (
                         <div
                             data-testid="for-you-pack"
-                            className="flex min-w-0 flex-col overflow-hidden rounded-panel border border-border bg-surface xl:order-2"
+                            className="flex min-w-0 flex-col rounded-panel border border-border bg-surface xl:order-2"
                         >
                             <div data-testid="for-you-deck-save" className="min-w-0">
-                                <JobDetail
+                                <DeckRoleDetail
                                     job={activeHydration.job}
                                     now={nowMs}
-                                    source="serp"
-                                    signedIn
                                     onOpenPosting={() => onOpenPosting(activeHydration.job)}
                                     onGoAfter={() => onGoAfter?.(activeHydration.job)}
                                     pursuit={activePursuit}
                                     saveSuccessPulse={saveSuccessPulse}
-                                    className="border-0 bg-transparent"
-                                    collapseDescription={false}
                                     descriptionPending={activeHydration.descriptionPending}
                                     onRetryDescription={
                                         onRetryDescription
@@ -421,37 +418,37 @@ export function ForYouHome({
                                 position={index + 1}
                             />
                         ))}
+                        {(showingLine || (hasMore && onLoadMore)) && (
+                            <div
+                                className="flex flex-col items-center gap-2 border-t border-border px-3 py-3"
+                                data-testid="for-you-show-more-wrap"
+                            >
+                                {showingLine ? (
+                                    <p
+                                        className="text-xs text-muted-foreground"
+                                        data-testid="for-you-showing-total"
+                                    >
+                                        {showingLine}
+                                    </p>
+                                ) : null}
+                                {hasMore && onLoadMore ? (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        data-testid="for-you-show-more"
+                                        onClick={() => void onLoadMore()}
+                                        disabled={loadingMore}
+                                        className="text-xs font-semibold"
+                                    >
+                                        {loadingMore ? "Loading more…" : "Show more matches"}
+                                    </Button>
+                                ) : null}
+                            </div>
+                        )}
                     </div>
                 </div>
-            )}
-
-            {visiblePacks.length > 0 && !showLoading && (showingLine || (hasMore && onLoadMore)) && (
-                <div
-                    className="mt-4 flex flex-col items-center gap-2"
-                    data-testid="for-you-show-more-wrap"
-                >
-                    {showingLine ? (
-                        <p
-                            className="text-xs text-muted-foreground"
-                            data-testid="for-you-showing-total"
-                        >
-                            {showingLine}
-                        </p>
-                    ) : null}
-                    {hasMore && onLoadMore ? (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            data-testid="for-you-show-more"
-                            onClick={() => void onLoadMore()}
-                            disabled={loadingMore}
-                            className="text-xs font-semibold"
-                        >
-                            {loadingMore ? "Loading more…" : "Show more matches"}
-                        </Button>
-                    ) : null}
-                </div>
+                </>
             )}
         </div>
     );

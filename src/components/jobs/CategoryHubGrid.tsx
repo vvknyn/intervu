@@ -1075,8 +1075,8 @@ export function CategoryHubGrid({
                                 {countLabel ? (
                                     <span
                                         className={cn(
-                                            "mono-data inline-flex max-w-36 truncate rounded-pill bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground",
-                                            hubMatching && "opacity-90",
+                                            "shrink-0 font-semibold tabular-nums text-xs text-foreground",
+                                            hubMatching && "opacity-80",
                                         )}
                                         data-testid={`hub-pack-count-${category.id}`}
                                         data-matching={hubMatching ? "true" : undefined}

@@ -30,6 +30,13 @@ describe("isCanadaDeckJob", () => {
         assert.deepEqual(omitCanadaCountryFacet({}), {});
     });
 
+    it("drops Toronto and other Canada places that never say Canada", () => {
+        assert.equal(isCanadaDeckJob({ ...base, location: "Toronto" }), true);
+        assert.equal(isCanadaDeckJob({ ...base, location_city: "Toronto", location: "Toronto, ON" }), true);
+        assert.equal(isCanadaDeckJob({ ...base, location: "Vancouver, BC" }), true);
+        assert.equal(isCanadaDeckJob({ ...base, location_state: "ON", location: "London, ON" }), true);
+    });
+
     it("keeps US places, including California", () => {
         assert.equal(
             isCanadaDeckJob({

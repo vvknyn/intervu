@@ -324,10 +324,9 @@ import {
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { isCanadaDeckJob, omitCanadaCountryFacet } from "@/lib/jobs/for-you/canada-deck";
 import {
-    formatAllPackHubLabels,
     formatHubCorpusLine,
-    formatHubCountLabel,
     HUB_PROBE_LIMITS,
+    resolveHubRoleCountLabels,
     packBandTotalsFromSources,
     resolveAllPackHubCounts,
     type ScoredHubHit,
@@ -3043,16 +3042,17 @@ export function JobsContent({
                       })
                       .filter((x): x is ScoredHubHit => x != null)
                 : null;
-        const scored = deckScored && deckScored.length > 0 ? deckScored : hubFitProbe.scored;
-        const pool =
-            fitActive && result?.total != null ? result.total : hubFitProbe.total;
-        const sources = resolveAllPackHubCounts({
+        // The hub probe owns category counts. The open deck's current page
+        // must not replace them — that page is a slice, and swapping it in
+        // blanked every pack the slice did not happen to contain.
+        const scored = hubFitProbe.scored.length > 0 ? hubFitProbe.scored : (deckScored ?? []);
+        const pool = hubFitProbe.total ?? (fitActive && result?.total != null ? result.total : null);
+        return resolveHubRoleCountLabels({
             loading: hubFitProbe.loading && scored.length === 0,
             probing: hubFitProbe.probing,
             poolTotal: pool,
             scored,
         });
-        return formatAllPackHubLabels(sources);
     }, [fitActive, matchScores, result?.total, result?.hits, hubFitProbe]);
 
     const hubCorpusLine = useMemo(

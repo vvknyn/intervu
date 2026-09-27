@@ -5,6 +5,7 @@
  */
 import { matchBand, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
+import { isCanadaDeckJob } from "@/lib/jobs/for-you/canada-deck";
 import {
     HUB_PACK_IDS,
     jobMatchesHubPack,
@@ -181,6 +182,54 @@ export function packBandTotalsFromSources(
         }
     }
     return out;
+}
+
+/** Card pill — a job count, same noun as the jobs-page result line. */
+export function formatHubRoleCount(total: number): string {
+    if (!Number.isFinite(total) || total < 0) return "";
+    const n = Math.floor(total);
+    return n === 1 ? "1 role" : `${n.toLocaleString()} roles`;
+}
+
+/**
+ * Visible count for every hub category.
+ * "All" uses the search total. Other packs count non-Canada jobs in the
+ * probe. Canada roles stay out of the per-pack numbers.
+ * Before the probe has a total, every card shows an ellipsis so the count
+ * slot does not disappear.
+ */
+export function resolveHubRoleCountLabels(input: {
+    loading: boolean;
+    probing: boolean;
+    poolTotal: number | null | undefined;
+    scored: ScoredHubHit[];
+    nowMs?: number;
+}): Partial<Record<string, string>> {
+    const nowMs = input.nowMs ?? Date.now();
+    const kept = input.scored.filter((hit) => !isCanadaDeckJob(hit.job));
+    const pool =
+        input.poolTotal != null && Number.isFinite(input.poolTotal) && input.poolTotal >= 0
+            ? Math.floor(input.poolTotal)
+            : null;
+    const settled = !input.loading && !input.probing && (pool != null || input.scored.length > 0);
+    const labels: Partial<Record<string, string>> = {};
+
+    for (const packId of HUB_PACK_IDS) {
+        if (packId === "all" && pool != null) {
+            labels[packId] = formatHubRoleCount(pool);
+            continue;
+        }
+        if (!settled) {
+            labels[packId] = "…";
+            continue;
+        }
+        const n =
+            packId === "all"
+                ? kept.length
+                : kept.filter((hit) => jobMatchesHubPack(hit.job, packId, nowMs)).length;
+        labels[packId] = formatHubRoleCount(n);
+    }
+    return labels;
 }
 
 export function formatAllPackHubLabels(

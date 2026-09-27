@@ -41,7 +41,8 @@ describe("jobs homeView routing — For you cannot fall through to Search SERP",
 
     it("ForYouHome is the jobs list and detail — no coach strip or preference chips", () => {
         assert.match(FOR_YOU_HOME_SRC, /JobCard/);
-        assert.match(FOR_YOU_HOME_SRC, /JobDetail/);
+        assert.match(FOR_YOU_HOME_SRC, /DeckRoleDetail/);
+        assert.doesNotMatch(FOR_YOU_HOME_SRC, /Why this fits/);
         assert.doesNotMatch(FOR_YOU_HOME_SRC, /Getting around/);
         assert.doesNotMatch(FOR_YOU_HOME_SRC, /for-you-result-line/);
         assert.doesNotMatch(FOR_YOU_HOME_SRC, /for-you-preferences/);

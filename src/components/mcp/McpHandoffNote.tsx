@@ -1,6 +1,11 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { McpHandoffActions } from "@/components/mcp/McpHandoffActions";
 import { type JobHandoffInput } from "@/lib/mcp/job-handoff";
+import { readMcpHandoffNoteDismissed, writeMcpHandoffNoteDismissed } from "@/lib/mcp/handoff-note-dismiss";
 import { cn } from "@/lib/utils";
 
 /**
@@ -50,15 +55,52 @@ export function McpHandoffNote({
     className?: string;
 }) {
     const copy = VARIANT_COPY[variant];
+    const dismissible = variant === "intelligence";
+    const [dismissed, setDismissed] = useState<boolean | null>(dismissible ? null : false);
+
+    useEffect(() => {
+        if (!dismissible) return;
+        try {
+            setDismissed(readMcpHandoffNoteDismissed(window.localStorage));
+        } catch {
+            setDismissed(false);
+        }
+    }, [dismissible]);
+
+    if (dismissible && dismissed !== false) return null;
+
+    const dismiss = () => {
+        try {
+            writeMcpHandoffNoteDismissed(window.localStorage);
+        } catch {
+            /* private mode — hide for this view anyway */
+        }
+        setDismissed(true);
+    };
+
+    const dismissButton = dismissible ? (
+        <button
+            type="button"
+            aria-label="Dismiss"
+            data-testid="mcp-handoff-dismiss"
+            onClick={dismiss}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-ctl text-muted-foreground hover:bg-background hover:text-foreground"
+        >
+            <X size={16} aria-hidden />
+        </button>
+    ) : null;
 
     if (!job) {
         return (
-            <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
-                {copy.heading && <p className="mb-1 font-semibold text-foreground">{copy.heading}</p>}
-                {copy.sentence}{" "}
-                <Link href="/connect" className="font-semibold text-brand underline underline-offset-4 hover:text-brand">
-                    Connect it once
-                </Link>
+            <div className={cn("flex items-start gap-2 rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
+                <div className="min-w-0 flex-1">
+                    {copy.heading && <p className="mb-1 font-semibold text-foreground">{copy.heading}</p>}
+                    {copy.sentence}{" "}
+                    <Link href="/connect" className="font-semibold text-brand underline underline-offset-4 hover:text-brand">
+                        Connect it once
+                    </Link>
+                </div>
+                {dismissButton}
             </div>
         );
     }
@@ -71,6 +113,7 @@ export function McpHandoffNote({
                     {copy.sentence}
                 </p>
                 <McpHandoffActions job={job} />
+                {dismissButton}
             </div>
         </div>
     );

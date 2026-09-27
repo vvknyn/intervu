@@ -11,9 +11,11 @@ const FOR_YOU_DIR = join(__dirname, "../../src/components/jobs/for-you");
 
 test("ForYouHome uses the jobs list and detail, not the postcard coach", () => {
     assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/JobCard"/);
-    assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/JobDetail"/);
+    assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/for-you\/DeckRoleDetail"/);
     assert.match(FOR_YOU_HOME_SRC, /<JobCard/);
-    assert.match(FOR_YOU_HOME_SRC, /<JobDetail/);
+    assert.match(FOR_YOU_HOME_SRC, /<DeckRoleDetail/);
+    assert.doesNotMatch(FOR_YOU_HOME_SRC, /Why this fits/);
+    assert.doesNotMatch(FOR_YOU_HOME_SRC, /FitReasons/);
     assert.doesNotMatch(FOR_YOU_HOME_SRC, /Getting around/);
     assert.doesNotMatch(FOR_YOU_HOME_SRC, /ProgressBar/);
     assert.doesNotMatch(FOR_YOU_HOME_SRC, /<Kbd/);

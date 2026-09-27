@@ -8,6 +8,21 @@ import type { PublicJob } from "@/lib/jobs/types";
  */
 const CANADA_SEGMENT = /^(?:can|canada|canadian)$/i;
 
+/**
+ * Places that name Canada even when the country word is missing.
+ * `CA` stays out: in a place string it is California.
+ * Province codes are whole segments (`ON`, `BC`), not substrings.
+ */
+const CANADA_CITY = /\b(?:toronto|montréal|montreal|vancouver|calgary|ottawa|edmonton|winnipeg|mississauga|brampton)\b/i;
+const CANADA_PROVINCE =
+    /^(?:ontario|british columbia|quebec|québec|alberta|manitoba|saskatchewan|nova scotia|new brunswick|newfoundland(?: and labrador)?|prince edward island|pei|yukon|nunavut|northwest territories|on|bc|qc|ab|mb|sk|ns|nb|nl|pe|nt|nu|yt)$/i;
+
+function mentionsCanadaPlace(value: string | null | undefined): boolean {
+    if (!value) return false;
+    if (CANADA_CITY.test(value)) return true;
+    return segments(value).some((part) => CANADA_PROVINCE.test(part));
+}
+
 function segments(value: string | null | undefined): string[] {
     if (!value) return [];
     return value
@@ -41,7 +56,9 @@ export function isCanadaDeckJob(job: CanadaDeckJob): boolean {
     const country = Array.isArray(job.location_country)
         ? job.location_country.join(" ")
         : job.location_country;
-    return [job.location, job.location_city, job.location_state, country].some((field) =>
-        segments(field ?? undefined).some((part) => CANADA_SEGMENT.test(part)),
+    return [job.location, job.location_city, job.location_state, country].some(
+        (field) =>
+            segments(field ?? undefined).some((part) => CANADA_SEGMENT.test(part)) ||
+            mentionsCanadaPlace(field ?? undefined),
     );
 }

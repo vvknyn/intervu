@@ -5,6 +5,8 @@ import {
     formatAllPackHubLabels,
     formatHubCorpusLine,
     formatHubCountLabel,
+    formatHubRoleCount,
+    resolveHubRoleCountLabels,
     packBandTotalsFromSources,
     resolveAllMatchesHubCount,
     resolveAllPackHubCounts,
@@ -202,6 +204,40 @@ describe("resolveAllPackHubCounts", () => {
         });
         assert.equal(sources.all.kind, "loading");
         assert.equal(sources.remote.kind, "loading");
+    });
+});
+
+describe("resolveHubRoleCountLabels", () => {
+    it("shows a role count on every pack and keeps Toronto out of the sample", () => {
+        const toronto = job({ id: "to", title: "Engineer", work_type: "remote" });
+        toronto.location = "Toronto, ON";
+        const scored = [
+            {
+                job: job({ id: "us", title: "ML Engineer", work_type: "remote", tags: ["ai"] }),
+                score: score(90),
+            },
+            { job: toronto, score: score(80) },
+        ];
+        const pending = resolveHubRoleCountLabels({
+            loading: true,
+            probing: true,
+            poolTotal: null,
+            scored: [],
+        });
+        assert.equal(pending.all, "…");
+        assert.equal(pending.remote, "…");
+
+        const labels = resolveHubRoleCountLabels({
+            loading: false,
+            probing: false,
+            poolTotal: 503,
+            scored,
+        });
+        assert.equal(labels.all, "503 roles");
+        assert.equal(labels.remote, "1 role");
+        assert.equal(labels.ai, "1 role");
+        assert.equal(labels.good, "0 roles");
+        assert.equal(formatHubRoleCount(1), "1 role");
     });
 });
 
