@@ -1,18 +1,11 @@
-import {
-    posterListInsetClassName,
-    RouteLoadingFrame,
-    shellMaxWidthClassName,
-} from "@/components/layout/route-loading";
-import { JobsListSplash } from "@/components/jobs/JobsListSplash";
-import { cn } from "@/lib/utils";
-
+/** Route transition placeholder — must not shift #main during Concept A Step 1. */
 export default function Loading() {
     return (
-        <RouteLoadingFrame
-            label="Loading jobs"
-            className={cn("mx-auto w-full pb-16", shellMaxWidthClassName, posterListInsetClassName)}
-        >
-            <JobsListSplash />
-        </RouteLoadingFrame>
+        <div
+            id="jobs-route-gate-inert"
+            data-testid="jobs-route-loading-inert"
+            className="hidden"
+            aria-hidden
+        />
     );
 }

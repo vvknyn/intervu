@@ -16,6 +16,8 @@ const CONCEPT_A_FACE = readFileSync(
 );
 const BRAND = readFileSync(path.join(ROOT, "src/components/brand/BrandMark.tsx"), "utf8");
 const JOBS_PAGE = readFileSync(path.join(ROOT, "src/app/jobs/page.tsx"), "utf8");
+const JOBS_GATE = readFileSync(path.join(ROOT, "src/app/jobs/JobsRouteGate.tsx"), "utf8");
+const JOBS_CONTENT = readFileSync(path.join(ROOT, "src/app/jobs/JobsContent.tsx"), "utf8");
 const LOADING = readFileSync(path.join(ROOT, "src/app/jobs/loading.tsx"), "utf8");
 const SPLASH = readFileSync(path.join(ROOT, "src/components/jobs/JobsListSplash.tsx"), "utf8");
 const JOBS_LAYOUT = readFileSync(path.join(ROOT, "src/app/jobs/layout.tsx"), "utf8");
@@ -37,9 +39,16 @@ test("Concept A landing holds #main height while Step 1 body class is active", (
 
 test("jobs layout SSR-paints Concept A before client /jobs bundle", () => {
     assert.match(JOBS_LAYOUT, /ConceptALandingStatic/);
-    assert.match(JOBS_LAYOUT, /JOBS_ONBOARDING_FIRST_PAINT_SCRIPT/);
+    assert.match(JOBS_LAYOUT, /JOBS_LANDING_CRITICAL_CSS/);
     assert.match(ONBOARDING_PAINT, /concept-a-landing-active/);
     assert.match(ONBOARDING_PAINT, /velai-onboarding-complete/);
+});
+
+test("signed-out /jobs entry is server page + thin route gate", () => {
+    assert.doesNotMatch(JOBS_PAGE, /"use client"/);
+    assert.match(JOBS_PAGE, /JobsRouteGate/);
+    assert.match(JOBS_GATE, /import\("@\/app\/jobs\/JobsContent"\)/);
+    assert.match(JOBS_GATE, /ConceptALandingHydration/);
 });
 
 test("Concept A brand marks declare intrinsic sizes matching rendered slots", () => {
@@ -49,16 +58,17 @@ test("Concept A brand marks declare intrinsic sizes matching rendered slots", ()
     assert.match(BRAND, /fetchPriority=\{priority \? "high" : undefined\}/);
 });
 
-test("jobs route loading and in-page splash share one skeleton component", () => {
-    assert.match(LOADING, /JobsListSplash/);
-    assert.match(JOBS_PAGE, /JobsListSplash/);
+test("jobs route loading stays inert during Concept A; in-page splash unchanged", () => {
+    assert.match(LOADING, /jobs-route-loading-inert/);
+    assert.match(JOBS_CONTENT, /JobsListSplash/);
     assert.match(SPLASH, /Finding live roles… checking each posting is still active/);
-    assert.doesNotMatch(JOBS_PAGE, /function JobsListSplash\(/);
+    assert.doesNotMatch(JOBS_CONTENT, /function JobsListSplash\(/);
 });
 
-test("heavy jobs modules load via dynamic import on the client page", () => {
-    assert.match(JOBS_PAGE, /import\("@\/components\/jobs\/CategoryHubGrid"\)/);
-    assert.match(JOBS_PAGE, /import\("@\/components\/jobs\/JobDetail"\)/);
-    assert.match(JOBS_PAGE, /import\("@\/components\/resume-builder\/ResumeImportModal"\)/);
-    assert.match(JOBS_PAGE, /const JobDetail = dynamic\(/);
+test("heavy jobs modules load via dynamic import in JobsContent", () => {
+    assert.match(JOBS_CONTENT, /import\("@\/components\/jobs\/CategoryHubGrid"\)/);
+    assert.match(JOBS_CONTENT, /import\("@\/components\/jobs\/JobDetail"\)/);
+    assert.match(JOBS_CONTENT, /import\("@\/components\/resume-builder\/ResumeImportModal"\)/);
+    assert.match(JOBS_CONTENT, /const JobDetail = dynamic\(/);
+    assert.match(JOBS_CONTENT, /const ForYouHome = dynamic\(/);
 });
