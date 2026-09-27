@@ -2,12 +2,19 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+type CardProps = React.ComponentProps<"div"> & {
+  /** When true, applies lift/press motion — static paper cards stay inert. */
+  interactive?: boolean
+}
+
+function Card({ className, interactive = false, ...props }: CardProps) {
   return (
     <div
       data-slot="card"
+      data-interactive={interactive ? "" : undefined}
       className={cn(
         "bg-background text-foreground flex flex-col gap-4 rounded-panel border border-border p-4",
+        interactive && "interactive-lift designed-press cursor-pointer",
         className
       )}
       {...props}

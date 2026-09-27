@@ -17,7 +17,7 @@ const buttonVariants = cva(
     // border-width for CONTROL_FOCUS_VISIBLE's `focus-visible:border-foreground`
     // to actually paint against — without it, preflight's 0-width border
     // means that focus-visible color swap is a silent no-op.
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-ctl border border-transparent text-sm font-normal transition-colors disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:size-4 [&_svg]:shrink-0",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-ctl border border-transparent text-sm font-normal designed-press disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:size-4 [&_svg]:shrink-0",
     CONTROL_FOCUS_VISIBLE,
   ),
   {

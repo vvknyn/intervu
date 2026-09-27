@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Moon, Sun, CircleNotch } from "@phosphor-icons/react";
+import { CircleNotch } from "@phosphor-icons/react";
 import type { User } from "@/lib/firebase/client-auth";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import {
@@ -46,10 +46,6 @@ export interface AccountMenuProps {
     active: boolean;
     signingOut: boolean;
     onSignOut: () => void;
-    mode: "light" | "dark";
-    /** Defers the dark-mode row until after hydration — see ThemeProvider. */
-    mounted: boolean;
-    toggleMode: () => void;
 }
 
 /**
@@ -63,7 +59,7 @@ export interface AccountMenuProps {
  * the 32px `UserAvatar` inside it is the visible mark, matching the mark's
  * own 32px in the brand lockup.
  */
-export function AccountMenu({ user, active, signingOut, onSignOut, mode, mounted, toggleMode }: AccountMenuProps) {
+export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenuProps) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -74,7 +70,7 @@ export function AccountMenu({ user, active, signingOut, onSignOut, mode, mounted
                     aria-label="Account menu"
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 focus-visible:outline-2 focus-visible:outline-live focus-visible:-outline-offset-2",
+                        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 designed-focus-ring focus-visible:outline-none",
                         active && "ring-2 ring-live",
                     )}
                 >
@@ -96,23 +92,6 @@ export function AccountMenu({ user, active, signingOut, onSignOut, mode, mounted
                 <DropdownMenuItem asChild className="text-muted-foreground">
                     <Link href="/privacy">Privacy & Terms</Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {mounted && (
-                    <DropdownMenuItem
-                        onSelect={(e) => {
-                            e.preventDefault();
-                            toggleMode();
-                        }}
-                    >
-                        <span className="flex w-full items-center gap-2">
-                            {mode === "dark" ? <Sun /> : <Moon />}
-                            <span>Dark mode</span>
-                            <span className="ml-auto text-xs text-muted-foreground">
-                                {mode === "dark" ? "On" : "Off"}
-                            </span>
-                        </span>
-                    </DropdownMenuItem>
-                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                     onSelect={onSignOut}

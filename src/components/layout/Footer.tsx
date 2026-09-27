@@ -1,13 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Moon, Sun } from "@phosphor-icons/react";
-import { onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
 import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
-import { useTheme } from "@/components/providers/ThemeProvider";
 import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
 
 /** Quiet footer links — Research lives here (not primary nav). `fromCurrentPage`
@@ -50,8 +46,7 @@ function withFromParam(href: string, pathname: string): string {
  * mobile sheet), which sit below or beside the infinite result feed where
  * the global `Footer` never scrolls into view. `children` lets a caller
  * (only `FooterContent` today) append something into the same `<nav>` —
- * used here for the dark-mode toggle so the global footer's DOM is
- * unchanged, not a mechanism for future filter-surface callers to grow.
+ * append chrome into the same `<nav>` when needed.
  */
 export function FooterLinks({ children }: { children?: React.ReactNode }) {
     const pathname = usePathname();
@@ -76,14 +71,6 @@ export function FooterLinks({ children }: { children?: React.ReactNode }) {
 
 /** Compact 1-line footer links — removed from filter panels; use `FooterContent`. */
 export function FooterContent() {
-    const [user, setUser] = useState<User | null>(null);
-    const { mode, toggleMode, mounted } = useTheme();
-
-    useEffect(() => {
-        const unsubscribe = onAuthChange(setUser);
-        return () => unsubscribe();
-    }, []);
-
     return (
         <footer
             data-testid="site-footer"
@@ -101,19 +88,7 @@ export function FooterContent() {
                     </Link>
                     . Never resold, never curated.
                 </p>
-                <FooterLinks>
-                    {!user && mounted && (
-                        <button
-                            type="button"
-                            onClick={toggleMode}
-                            aria-label={mode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-                            className="inline-flex items-center gap-1.5 transition-colors duration-100 hover:text-foreground"
-                        >
-                            {mode === "dark" ? <Sun /> : <Moon />}
-                            <span>Dark mode {mode === "dark" ? "on" : "off"}</span>
-                        </button>
-                    )}
-                </FooterLinks>
+                <FooterLinks />
                 <p className="max-w-md text-xs text-muted-foreground">
                     Job data by{" "}
                     <a

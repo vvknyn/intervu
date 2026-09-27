@@ -94,6 +94,7 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /data-testid="apply-return-skip"/);
         assert.match(src, /min-h-11/);
         assert.match(src, /safe-area-inset-bottom/);
+        assert.match(src, /aria-live="polite"/);
         assert.doesNotMatch(src, />\s*I applied\s*</);
     });
 });

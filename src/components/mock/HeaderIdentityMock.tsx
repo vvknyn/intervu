@@ -39,9 +39,6 @@ function HeaderStrip({ user }: { user: User }) {
                 active={false}
                 signingOut={false}
                 onSignOut={() => {}}
-                mode="light"
-                mounted
-                toggleMode={() => {}}
             />
         </div>
     );

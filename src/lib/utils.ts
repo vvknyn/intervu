@@ -10,7 +10,11 @@ export const RADIUS_TOKENS = ["ctl", "panel", "pill"] as const
 // focus-visible treatment every control primitive (Input, Select, Textarea,
 // Button, Tabs) applies. One exported constant so a future control can't
 // reintroduce its own ad hoc outline/ring and drift from the others.
-export const CONTROL_FOCUS_VISIBLE = "focus-visible:border-foreground focus-visible:outline-none"
+export const CONTROL_FOCUS_VISIBLE =
+  "designed-focus focus-visible:border-foreground focus-visible:outline-none";
+
+/** Tab bar and icon-only controls — live ring, offset for thumb targets. */
+export const CHROME_FOCUS_VISIBLE = "designed-focus-ring focus-visible:outline-none";
 
 // tailwind-merge's default config only recognizes Tailwind's own T-shirt
 // size suffixes (sm/lg/xl/...) as members of the `rounded-*` conflict

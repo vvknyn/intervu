@@ -23,8 +23,7 @@ import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
-import { useTheme } from "@/components/providers/ThemeProvider";
-import { cn } from "@/lib/utils";
+import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
@@ -43,8 +42,6 @@ export function TopBar() {
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [authTab, setAuthTab] = useState<"login" | "signup">("login");
     const [signingOut, setSigningOut] = useState(false);
-    const { mode, toggleMode, mounted } = useTheme();
-
     useEffect(() => {
         const unsubscribe = onAuthChange((u) => setUser(u));
         return () => unsubscribe();
@@ -259,9 +256,6 @@ export function TopBar() {
                             active={accountActive}
                             signingOut={signingOut}
                             onSignOut={handleSignOut}
-                            mode={mode}
-                            mounted={mounted}
-                            toggleMode={toggleMode}
                         />
                     ) : (
                         <>
@@ -284,7 +278,7 @@ export function TopBar() {
                                 setAuthTab("login");
                                 setAuthPopoverOpen(true);
                             }}
-                            className="rounded-ctl"
+                            className={cn("rounded-ctl", CHROME_FOCUS_VISIBLE)}
                         >
                             {AUTH_CTA_LABEL}
                         </Button>

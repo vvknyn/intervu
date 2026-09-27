@@ -142,20 +142,23 @@ export function Toaster() {
 
     return (
         <>
-            <div className="pointer-events-none fixed bottom-4 right-4 z-[var(--z-toast)] flex w-full max-w-sm flex-col gap-2">
+            <div className="pointer-events-none fixed inset-x-4 bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+1rem)] z-[var(--z-toast)] flex flex-col items-end gap-2 lg:inset-x-auto lg:bottom-4 lg:right-4">
                 {items.map((t) => {
                     const meta = VARIANT_META[t.variant];
+                    const isError = t.variant === "error";
                     return (
                         <div
                             key={t.id}
-                            role="status"
-                            className={`pointer-events-auto flex items-start gap-2.5 rounded-none border bg-background px-4 py-3 text-sm  animate-in slide-in-from-bottom-2 fade-in ${meta.cls}`}
+                            role={isError ? "alert" : "status"}
+                            aria-live={isError ? "assertive" : "polite"}
+                            className={`pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-none border bg-background px-4 py-3 text-sm enter-reveal ${meta.cls}`}
                         >
                             {meta.icon}
                             <span className="flex-1 leading-snug text-foreground">{t.message}</span>
                             <button
+                                type="button"
                                 onClick={() => dismissToast(t.id)}
-                                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                                className="designed-focus shrink-0 rounded-ctl text-muted-foreground transition-colors hover:text-foreground focus-visible:border-foreground"
                                 aria-label="Dismiss"
                             >
                                 <X weight="bold" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent } from "react";
+import { Fragment, useState, useEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent, useId } from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import {
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
 } from "@/lib/jobs/recent-searches";
-import { cn } from "@/lib/utils";
+import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 
 interface SearchAutocompleteProps {
     value: string;
@@ -174,6 +174,8 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
 
     const inputRef = useRef<HTMLInputElement>(null);
     const anchorRef = useRef<HTMLDivElement>(null);
+    const listboxId = useId().replace(/:/g, "");
+    const optionId = (index: number) => `${listboxId}-option-${index}`;
     const showSuggestLoading = Boolean(suggest) && isOpen && value.trim().length > 0 && suggestLoading;
     const showClear = Boolean(onClear) && value.length > 0;
     const dropdownOpen = isOpen && (suggestions.length > 0 || showSuggestLoading);
@@ -311,6 +313,14 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 <Input
                     ref={inputRef}
                     type="text"
+                    role="combobox"
+                    aria-haspopup="listbox"
+                    aria-expanded={dropdownOpen}
+                    aria-controls={dropdownOpen ? listboxId : undefined}
+                    aria-activedescendant={
+                        dropdownOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined
+                    }
+                    aria-autocomplete="list"
                     aria-label={ariaLabel}
                     placeholder={placeholder}
                     className={cn(
@@ -366,7 +376,10 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         // of what a mousedown handler does.
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onClear?.()}
-                        className="absolute right-1.5 z-30 flex h-10 w-10 items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5 lg:h-6 lg:w-6"
+                        className={cn(
+                            "absolute right-1.5 z-30 flex h-10 w-10 items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5 lg:h-6 lg:w-6",
+                            CHROME_FOCUS_VISIBLE,
+                        )}
                     >
                         <X size={20} aria-hidden />
                     </button>
@@ -387,7 +400,12 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                             width: overlayRect.width,
                         }}
                     >
-                        <ul role="listbox" aria-label="Search suggestions" className="max-h-[300px] overflow-y-auto py-2">
+                        <ul
+                            id={listboxId}
+                            role="listbox"
+                            aria-label="Search suggestions"
+                            className="max-h-[300px] overflow-y-auto py-2"
+                        >
                             {showSuggestLoading && (
                                 <li role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
                                     <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />
@@ -406,6 +424,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                             </li>
                                         )}
                                         <li
+                                            id={optionId(index)}
                                             role="option"
                                             aria-selected={index === activeIndex}
                                             className={cn(
