@@ -22,7 +22,6 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
-import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { buildReturnTo } from "@/lib/jobs/pending-actions";
 import {
     LANDING_DEVICE_STORAGE_NOTE,
@@ -80,28 +79,24 @@ export function LandingOnboardingView({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const step2Ref = useRef<HTMLDivElement>(null);
 
-    // Direct 1-click AuthKit navigation (bypasses redundant intermediate popover modals)
-    const handleStartAuth = (provider?: string) => {
+    const redirectToAuthStart = (mode: "login" | "signup", provider?: string) => {
         const params = new URLSearchParams();
         const next = typeof window !== "undefined"
             ? new URLSearchParams(window.location.search).get("next") || buildReturnTo(window.location)
             : "/jobs";
         if (next) params.set("next", next);
-        params.set("mode", "signup");
+        params.set("mode", mode);
         if (provider) params.set("provider", provider);
         const query = params.toString();
         window.location.href = `/auth/start${query ? `?${query}` : ""}`;
     };
 
+    const handleStartAuth = (provider?: string) => {
+        redirectToAuthStart("signup", provider);
+    };
+
     const handleSignIn = () => {
-        const params = new URLSearchParams();
-        const next = typeof window !== "undefined"
-            ? new URLSearchParams(window.location.search).get("next") || buildReturnTo(window.location)
-            : "/jobs";
-        if (next) params.set("next", next);
-        params.set("mode", "login");
-        const query = params.toString();
-        window.location.href = `/auth/start${query ? `?${query}` : ""}`;
+        redirectToAuthStart("login");
     };
 
     // Auto-advance to Step 3 if user authenticates while on Step 2
@@ -234,142 +229,119 @@ export function LandingOnboardingView({
         return (
             <ConceptALanding
                 onStart={() => setStep(isAuthenticated ? 3 : 2)}
-                onSignIn={() => {
-                    // Drop full-bleed portal first so AuthPopover / step-2 gate
-                    // are not trapped under z-[100].
-                    setStep(2);
-                    if (onOpenAuth) {
-                        requestAnimationFrame(() => onOpenAuth());
-                    } else {
-                        handleSignIn();
-                    }
-                }}
+                onSignIn={() => setStep(2)}
             />
         );
     }
+
+    // Pre-account sign-in — not an onboarding step (no progress chrome).
+    if (step === 2 && !isAuthenticated) {
+        return (
+            <div className={cn("relative z-10 mx-auto w-full max-w-[440px]", className)}>
+                <div
+                    ref={step2Ref}
+                    data-testid="landing-onboarding-step-2"
+                    className="space-y-6 rounded-panel border border-border bg-card p-6 shadow-[var(--shadow-bevel-highlight)] sm:p-8"
+                >
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setStep(1)}
+                        className="gap-1.5 -ml-2 text-muted-foreground hover:text-foreground"
+                    >
+                        <ArrowLeft size={16} aria-hidden />
+                        Back
+                    </Button>
+
+                    <div className="space-y-2">
+                        <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
+                            Create your free account
+                        </h2>
+                        <p className="text-sm leading-relaxed text-muted-foreground">
+                            Sign in to save matches, tailored résumés, and applications to your private Velai profile.
+                        </p>
+                    </div>
+
+                    <div className="space-y-3">
+                        <Button
+                            type="button"
+                            size="lg"
+                            className="w-full gap-2.5 text-sm font-semibold"
+                            onClick={() => redirectToAuthStart("login", "GoogleOAuth")}
+                        >
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                            </svg>
+                            Continue with Google
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="lg"
+                            className="w-full text-sm font-semibold"
+                            onClick={() => redirectToAuthStart("login")}
+                        >
+                            Continue with email
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const resumeOnboardingStep = step === 2 ? 1 : 2;
 
     return (
         <div className={cn(
             "mx-auto w-full relative z-10 max-w-[760px]",
             className,
         )}>
-            {/* Unified Solid Reading Card — steps 2–3 (auth + résumé gate) */}
+            {/* Post-account onboarding (résumé gate) */}
             <div className="relative z-10 space-y-3 rounded-panel border border-border bg-surface p-3.5 shadow-[var(--shadow-bevel-highlight)] sm:p-5">
-                {/* Header Kicker */}
-                <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-border">
+                <div className="flex items-center justify-between gap-2 border-b border-border pb-1.5">
                     <div className="flex items-center gap-1.5 text-xs">
                         <span className="h-2 w-2 rounded-pill bg-live" />
                         <span className="font-semibold text-foreground">Getting started</span>
                         <span className="text-muted-foreground">·</span>
-                        <OnboardingStepLabel step={step} />
+                        <OnboardingStepLabel step={resumeOnboardingStep} total={2} />
                     </div>
-
-                    <div className="flex items-center gap-2 text-xs">
-                        {isAuthenticated ? (
-                            <span className="text-xs font-semibold truncate max-w-[130px] sm:max-w-none text-muted-foreground">
-                                {userName || userEmail || "Account"} ✓
-                            </span>
-                        ) : (
-                            <div className="flex items-center gap-1 text-xs">
-                                <span className="text-muted-foreground hidden sm:inline">Already have an account?</span>
-                                <button
-                                    type="button"
-                                    onClick={onOpenAuth ?? handleSignIn}
-                                    className="font-semibold text-foreground hover:underline"
-                                >
-                                    {AUTH_CTA_LABEL}
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <span className="max-w-[130px] truncate text-xs font-semibold text-muted-foreground sm:max-w-none">
+                        {userName || userEmail || "Account"} ✓
+                    </span>
                 </div>
 
-                {/* Native Segmented Progress Bar */}
-                <div className="grid grid-cols-3 gap-1.5 w-full">
-                    <div className={cn(
-                        "h-1 rounded-pill transition-colors duration-200",
-                        step >= 1 ? "bg-live" : "bg-muted",
-                    )} />
-                    <div className={cn(
-                        "h-1 rounded-pill transition-colors duration-200",
-                        step >= 2 ? "bg-live" : "bg-muted",
-                    )} />
-                    <div className={cn(
-                        "h-1 rounded-pill transition-colors duration-200",
-                        step >= 3 ? "bg-live" : "bg-muted",
-                    )} />
+                <div className="grid w-full grid-cols-2 gap-1.5">
+                    <div className={cn("h-1 rounded-pill transition-colors duration-200", resumeOnboardingStep >= 1 ? "bg-live" : "bg-muted")} />
+                    <div className={cn("h-1 rounded-pill transition-colors duration-200", resumeOnboardingStep >= 2 ? "bg-live" : "bg-muted")} />
                 </div>
 
-                {/* STATION 2: CREATE ACCOUNT FIRST (MANDATORY GATE) */}
-                {step === 2 && (
+                {step === 2 && isAuthenticated && (
                     <div
                         ref={step2Ref}
                         data-testid="landing-onboarding-step-2"
                         className="space-y-3.5"
                     >
                         <div className="space-y-1">
-                            <h2 className="text-lg sm:text-xl font-semibold text-foreground">
-                                {isAuthenticated ? "Account connected" : "Create your free account"}
-                            </h2>
+                            <h2 className="text-lg font-semibold text-foreground sm:text-xl">Account connected</h2>
                             <p className="text-xs text-muted-foreground">
-                                {isAuthenticated
-                                    ? "Your account is verified and ready. Proceed to upload your résumé for private matching."
-                                    : "Sign in or create an account to unlock tailored job categories, private matching, and 1-click apply."}
+                                Your account is verified. Upload your résumé next for private matching.
                             </p>
                         </div>
 
-                        {isAuthenticated ? (
-                            <div className="p-3 rounded-ctl border border-border bg-muted text-xs space-y-1.5">
-                                <div className="flex items-center gap-2 text-live">
-                                    <Check size={16} />
-                                    <span className="font-semibold text-foreground">
-                                        Signed in as {userName || userEmail || "your account"}
-                                    </span>
-                                </div>
-                                <p className="text-muted-foreground">
-                                    Your matched roles, salary benchmarks, and applications will sync to this profile.
-                                </p>
+                        <div className="space-y-1.5 rounded-ctl border border-border bg-muted p-3 text-xs">
+                            <div className="flex items-center gap-2 text-live">
+                                <Check size={16} />
+                                <span className="font-semibold text-foreground">
+                                    Signed in as {userName || userEmail || "your account"}
+                                </span>
                             </div>
-                        ) : (
-                            <>
-                                <div className="space-y-2.5 pt-1">
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        size="lg"
-                                        className="w-full gap-2.5 text-xs font-semibold"
-                                        onClick={() => handleStartAuth("GoogleOAuth")}
-                                    >
-                                        <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
-                                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                                        </svg>
-                                        Continue with Google
-                                    </Button>
+                        </div>
 
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        size="lg"
-                                        className="w-full text-xs font-semibold"
-                                        onClick={() => handleStartAuth()}
-                                    >
-                                        Continue with email
-                                    </Button>
-                                </div>
-
-                                <div className="p-2.5 rounded-ctl border border-border bg-muted text-xs space-y-1">
-                                    <p className="font-semibold text-foreground">Why sign-in is required:</p>
-                                    <p className="text-muted-foreground leading-snug">
-                                        All role recommendations, compensation analysis, and tailored résumés are private and tied securely to your verified account.
-                                    </p>
-                                </div>
-                            </>
-                        )}
-
-                        <div className="flex items-center justify-between pt-2 border-t border-border">
+                        <div className="flex items-center justify-between border-t border-border pt-2">
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -378,23 +350,13 @@ export function LandingOnboardingView({
                             >
                                 <ArrowLeft size={16} /> Back
                             </Button>
-                            {isAuthenticated ? (
-                                <Button
-                                    size="sm"
-                                    onClick={() => setStep(3)}
-                                    className="gap-1.5 text-xs font-semibold"
-                                >
-                                    Next: Upload résumé <ArrowRight size={16} />
-                                </Button>
-                            ) : (
-                                <Button
-                                    size="sm"
-                                    onClick={() => handleStartAuth("GoogleOAuth")}
-                                    className="gap-1.5 text-xs font-semibold"
-                                >
-                                    {AUTH_CTA_LABEL} <ArrowRight size={16} />
-                                </Button>
-                            )}
+                            <Button
+                                size="sm"
+                                onClick={() => setStep(3)}
+                                className="gap-1.5 text-xs font-semibold"
+                            >
+                                Next: Upload résumé <ArrowRight size={16} />
+                            </Button>
                         </div>
                     </div>
                 )}
