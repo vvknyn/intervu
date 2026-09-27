@@ -27,13 +27,19 @@ import { cn } from "@/lib/utils";
 
 function ResumeHeader() {
     return (
-        <PageHeader fullWidth sticky={false} title={RESUME_PAGE_HEADLINE} description={RESUME_PAGE_SUBCOPY} />
+        <PageHeader
+            fullWidth
+            sticky={false}
+            size="display"
+            title={RESUME_PAGE_HEADLINE}
+            description={RESUME_PAGE_SUBCOPY}
+        />
     );
 }
 
 function ResumeAuthSkeleton() {
     return (
-        <div className="space-y-4 rounded-panel border border-border bg-card p-8" role="status" aria-busy="true">
+        <div className="space-y-4 rounded-panel border border-border bg-surface p-8 shadow-[var(--shadow-bevel-highlight)]" role="status" aria-busy="true">
             <span className="sr-only">Loading resume</span>
             <div aria-hidden className="mx-auto max-w-sm space-y-3">
                 <div className="skeleton-bar mx-auto h-12 w-12" />
@@ -146,14 +152,14 @@ function ResumeContent() {
                 ) : !user ? (
                     localResume ? (
                         <div className="space-y-4">
-                            <div className="flex items-center gap-2 rounded-panel border border-border bg-muted px-4 py-2.5 text-xs text-muted-foreground">
-                                <ShieldCheck size={16} className="text-brand shrink-0" />
+                            <div className="flex items-center gap-2 rounded-panel border border-border bg-surface-2 px-4 py-2.5 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
+                                <ShieldCheck size={16} className="text-live shrink-0" />
                                 <span className="font-semibold text-foreground">{RESUME_LOCAL_DEVICE_BANNER_LABEL}</span>
                                 <span>— {RESUME_LOCAL_DEVICE_BANNER_BODY}</span>
                             </div>
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-panel border border-border bg-card p-4">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
                                 <div className="flex items-center gap-2.5">
-                                    <FileText size={20} className="text-brand shrink-0" />
+                                    <FileText size={20} className="text-live shrink-0" />
                                     <div>
                                         <p className="text-sm font-semibold text-foreground">Local résumé on this device</p>
                                         <p className="text-xs text-muted-foreground">Create a free account to edit in the full builder, export formatted PDFs, and sync across devices.</p>

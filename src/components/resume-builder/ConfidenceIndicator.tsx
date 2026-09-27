@@ -17,9 +17,9 @@ interface ConfidenceIndicatorProps {
  */
 export function ConfidenceIndicator({ score, showLabel = true, size = 'md', className }: ConfidenceIndicatorProps) {
     const getConfidenceLevel = (score: number) => {
-        if (score >= 90) return { level: 'high', label: 'High confidence', color: 'bg-live', textColor: 'text-live dark:text-live', bgColor: 'bg-muted dark:bg-muted', borderColor: 'border-muted dark:border-live' };
-        if (score >= 70) return { level: 'medium', label: 'Review suggested', color: 'bg-warn', textColor: 'text-warn dark:text-warn', bgColor: 'bg-muted dark:bg-muted', borderColor: 'border-muted dark:border-warn' };
-        return { level: 'low', label: 'Manual edit required', color: 'bg-danger-text', textColor: 'text-danger-text dark:text-danger-text', bgColor: 'bg-muted dark:bg-muted', borderColor: 'border-muted dark:border-danger-text' };
+        if (score >= 90) return { level: 'high', label: 'High confidence', color: 'bg-live', textColor: 'text-live', bgColor: 'bg-surface-2', borderColor: 'border-live' };
+        if (score >= 70) return { level: 'medium', label: 'Review suggested', color: 'bg-warn', textColor: 'text-warn', bgColor: 'bg-surface-2', borderColor: 'border-warn' };
+        return { level: 'low', label: 'Manual edit required', color: 'bg-danger-text', textColor: 'text-danger-text', bgColor: 'bg-surface-2', borderColor: 'border-danger-text' };
     };
 
     const { level, label, color, textColor, bgColor, borderColor } = getConfidenceLevel(score);
@@ -64,9 +64,9 @@ interface ConfidenceBadgeProps {
  */
 export function ConfidenceBadge({ score, section, className }: ConfidenceBadgeProps) {
     const getColor = (score: number) => {
-        if (score >= 90) return 'text-live dark:text-live';
-        if (score >= 70) return 'text-warn dark:text-warn';
-        return 'text-danger-text dark:text-danger-text';
+        if (score >= 90) return 'text-live';
+        if (score >= 70) return 'text-warn';
+        return 'text-danger-text';
     };
 
     const getDot = (score: number) => {
@@ -101,19 +101,19 @@ export function WarningBanner({ warnings, className, onDismiss }: WarningBannerP
     return (
         <div
             className={cn(
-                "relative w-full rounded-panel border-0 border-l-2 border-l-warn bg-muted p-4",
+                "relative w-full rounded-panel border-0 border-l-2 border-l-warn bg-surface-2 p-4",
                 className
             )}
         >
             <div className="flex items-start gap-3">
-                <svg className="w-4 h-4 shrink-0 mt-0.5 text-warn dark:text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 shrink-0 mt-0.5 text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <div className="flex-1 min-w-0">
-                    <h4 className="text-sm text-warn dark:text-muted-foreground mb-1">
+                    <h4 className="text-sm text-warn mb-1">
                         Parsing Warnings
                     </h4>
-                    <ul className="text-xs text-warn dark:text-warn space-y-1">
+                    <ul className="text-xs text-warn space-y-1">
                         {warnings.map((warning, idx) => (
                             <li key={idx} className="flex items-start gap-1.5">
                                 <span className="text-warn mt-0.5">•</span>
@@ -125,7 +125,7 @@ export function WarningBanner({ warnings, className, onDismiss }: WarningBannerP
                 {onDismiss && (
                     <button
                         onClick={onDismiss}
-                        className="text-warn dark:text-warn hover:text-warn dark:hover:text-muted-foreground transition-colors"
+                        className="text-warn hover:text-muted-foreground transition-colors"
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

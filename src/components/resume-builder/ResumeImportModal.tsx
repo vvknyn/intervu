@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfidenceIndicator, ConfidenceBadge, WarningBanner } from "./ConfidenceIndicator";
 import { ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ParsedResumeResult } from "@/types/resume";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
@@ -50,7 +51,7 @@ interface ResumeImportModalProps {
      */
     confirmLabel?: string;
     /**
-     * Dialog title override. Defaults to the icon + "Import Resume" — the
+     * Dialog title override. Defaults to the icon + "Import résumé" — the
      * resume-builder's own mount stays byte-identical. /jobs (ITEM J,
      * 2026-08-15) passes its own: the "best match" sort tab used to summon
      * this modal with zero explanation, so a caller that knows WHY it's
@@ -99,15 +100,15 @@ type InputMethod = 'file' | 'paste';
 export function ResumeParsingStep() {
     return (
         <div className="py-12 text-center space-y-4">
-            <div className="w-16 h-16 rounded-pill bg-muted flex items-center justify-center mx-auto animate-pulse">
-                <Cpu size={24} weight="fill" className="text-brand" />
+            <div className="w-16 h-16 rounded-pill bg-surface-2 flex items-center justify-center mx-auto animate-pulse shadow-[var(--shadow-bevel-inset)]">
+                <Cpu size={24} weight="fill" className="text-live" />
             </div>
             <div>
                 <p className="text-foreground">Parsing your résumé...</p>
                 <p className="text-sm text-muted-foreground mt-1">Structuring on this device — no cloud LLM</p>
             </div>
-            <div className="w-48 h-1 rounded-pill bg-secondary mx-auto overflow-hidden">
-                <div className="h-full w-full rounded-pill bg-primary animate-pulse" />
+            <div className="w-48 h-1 rounded-pill bg-surface-3 mx-auto overflow-hidden">
+                <div className="h-full w-full rounded-pill bg-live animate-pulse" />
             </div>
         </div>
     );
@@ -439,9 +440,9 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const renderPrivacyConsent = () => {
         const decided = localAiConsent || consentDeclined;
         return (
-            <div className="rounded-panel p-3.5 border border-border bg-muted space-y-2.5">
+            <div className="rounded-panel p-3.5 border border-border bg-surface-2 space-y-2.5 shadow-[var(--shadow-bevel-inset)]">
                 <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Cpu size={16} className="text-brand shrink-0" />
+                    <Cpu size={16} className="text-live shrink-0" />
                     <span>Parsed on your device</span>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
@@ -473,42 +474,29 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         <div className="space-y-6">
             {renderPrivacyConsent()}
 
-            {/* Method Toggle - Segmented Control Style */}
-            <div className="flex border-b border-border">
-                <button
-                    onClick={() => setInputMethod('file')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm transition-all relative ${inputMethod === 'file'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                >
-                    <Upload size={16} weight={inputMethod === 'file' ? 'fill' : 'regular'} />
-                    Upload File
-                    {inputMethod === 'file' && (
-                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground" />
-                    )}
-                </button>
-                <button
-                    onClick={() => setInputMethod('paste')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm transition-all relative ${inputMethod === 'paste'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                >
-                    <ClipboardText size={16} weight={inputMethod === 'paste' ? 'fill' : 'regular'} />
-                    Paste Text
-                    {inputMethod === 'paste' && (
-                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground" />
-                    )}
-                </button>
-            </div>
+            <Tabs
+                value={inputMethod}
+                onValueChange={(v) => setInputMethod(v as InputMethod)}
+                className="gap-4"
+            >
+                <TabsList variant="block" className="grid w-full grid-cols-2">
+                    <TabsTrigger value="file" className="gap-2">
+                        <Upload size={16} weight={inputMethod === "file" ? "fill" : "regular"} />
+                        Upload file
+                    </TabsTrigger>
+                    <TabsTrigger value="paste" className="gap-2">
+                        <ClipboardText size={16} weight={inputMethod === "paste" ? "fill" : "regular"} />
+                        Paste text
+                    </TabsTrigger>
+                </TabsList>
+            </Tabs>
 
             {inputMethod === 'file' ? (
                 <div
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onClick={() => fileInputRef.current?.click()}
-                    className="rounded-panel border border-border p-8 text-center cursor-pointer hover:border-brand hover:bg-muted transition-colors"
+                    className="rounded-panel border border-border bg-surface p-8 text-center cursor-pointer hover:border-live hover:bg-surface-2 transition-colors shadow-[var(--shadow-bevel-highlight)]"
                 >
                     <input
                         ref={fileInputRef}
@@ -519,8 +507,8 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     />
                     {selectedFile ? (
                         <div className="space-y-2">
-                            <div className="w-12 h-12 rounded-pill bg-muted flex items-center justify-center mx-auto">
-                                <FileText size={24} weight="duotone" className="text-brand" />
+                            <div className="w-12 h-12 rounded-pill bg-surface-2 flex items-center justify-center mx-auto shadow-[var(--shadow-bevel-inset)]">
+                                <FileText size={24} weight="duotone" className="text-live" />
                             </div>
                             <p className="text-foreground">{selectedFile.name}</p>
                             <p className="text-xs text-muted-foreground">
@@ -538,7 +526,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            <div className="w-12 h-12 rounded-pill bg-secondary flex items-center justify-center mx-auto">
+                            <div className="w-12 h-12 rounded-pill bg-surface-2 flex items-center justify-center mx-auto shadow-[var(--shadow-bevel-inset)]">
                                 <Upload size={24} weight="duotone" className="text-muted-foreground" />
                             </div>
                             <div>
@@ -568,7 +556,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             )}
 
             {error && (
-                <div className="rounded-panel p-3 bg-muted border border-danger-text text-danger-text text-sm flex items-center gap-2">
+                <div className="rounded-panel p-3 bg-surface-2 border border-danger-text text-danger-text text-sm flex items-center gap-2">
                     <Warning size={16} weight="bold" />
                     {error}
                 </div>
@@ -588,7 +576,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     </div>
                     <div className="text-right">
                         {engineLabel && (
-                            <p className="text-xs text-brand font-semibold">{engineLabel}</p>
+                            <p className="text-xs text-live font-semibold">{engineLabel}</p>
                         )}
                         <p className="text-xs text-muted-foreground">
                             Review and edit before saving
@@ -605,7 +593,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
                 {localParseBlocked && (
                     <div className="px-6">
-                        <div className="rounded-panel p-3 bg-muted border border-warn text-warn text-sm flex items-start gap-2">
+                        <div className="rounded-panel p-3 bg-surface-2 border border-warn text-warn text-sm flex items-start gap-2">
                             <Warning size={16} weight="bold" className="shrink-0 mt-0.5" />
                             <span>
                                 Confidence is {reviewConfidence.overall}% — needs to be above{" "}
@@ -697,7 +685,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </div>
                             <div className="space-y-4">
                                 {editedData.experience.map((exp, idx) => (
-                                    <div key={exp.id} className="rounded-panel p-3 bg-muted space-y-2">
+                                    <div key={exp.id} className="rounded-panel p-3 bg-surface-2 space-y-2 shadow-[var(--shadow-bevel-inset)]">
                                         <div className="grid grid-cols-2 gap-2">
                                             <Input
                                                 value={exp.company}
@@ -762,7 +750,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </div>
                             <div className="space-y-3">
                                 {editedData.education.map((edu, idx) => (
-                                    <div key={edu.id} className="rounded-panel p-3 bg-muted space-y-2">
+                                    <div key={edu.id} className="rounded-panel p-3 bg-surface-2 space-y-2 shadow-[var(--shadow-bevel-inset)]">
                                         <Input
                                             value={edu.degree}
                                             onChange={(e) => updateEducation(idx, 'degree', e.target.value)}
@@ -824,17 +812,17 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="flex w-full max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-panel bg-white max-h-[90dvh] dark:bg-muted sm:max-w-2xl">
+            <DialogContent className="flex w-full max-w-[calc(100%-1rem)] flex-col overflow-hidden max-h-[90dvh] sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         {title ? (
                             title
                         ) : (
                             <>
-                                <div className="w-8 h-8 rounded-panel bg-muted flex items-center justify-center">
-                                    <Upload weight="bold" className="text-brand" />
+                                <div className="w-8 h-8 rounded-panel bg-surface-2 flex items-center justify-center shadow-[var(--shadow-bevel-inset)]">
+                                    <Upload weight="bold" className="text-live" />
                                 </div>
-                                Import Resume
+                                Import résumé
                             </>
                         )}
                     </DialogTitle>

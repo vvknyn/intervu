@@ -110,7 +110,7 @@ function SectionHeader({ section, nav }: { section: NavigableSection; nav: Secti
                 >
                     <CaretLeft size={20} weight="bold" />
                 </button>
-                <div className="flex h-8 w-8 items-center justify-center rounded-panel border border-border bg-muted text-foreground">
+                <div className="flex h-8 w-8 items-center justify-center rounded-panel border border-border bg-surface-2 text-foreground shadow-[var(--shadow-bevel-inset)]">
                     <Icon size={18} />
                 </div>
                 <div>
@@ -250,9 +250,9 @@ export function EditingPanel({
                                 key={sec}
                                 type="button"
                                 onClick={() => onNavigateSection(sec)}
-                                className="flex items-start gap-3 rounded-panel border border-border bg-card p-3.5 text-left transition-all hover:border-foreground hover:bg-muted"
+                                className="flex items-start gap-3 rounded-panel border border-border bg-surface p-3.5 text-left transition-all hover:border-border-strong hover:bg-surface-2"
                             >
-                                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-panel border border-border bg-muted text-foreground">
+                                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-panel border border-border bg-surface-2 text-foreground shadow-[var(--shadow-bevel-inset)]">
                                     <Icon size={16} />
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -269,7 +269,7 @@ export function EditingPanel({
                 </div>
 
                 {/* Section Ordering */}
-                <div className="rounded-panel border border-border bg-card p-4 space-y-3">
+                <div className="rounded-panel border border-border bg-surface p-4 space-y-3 shadow-[var(--shadow-bevel-highlight)]">
                     <div className="flex items-center justify-between border-b border-border pb-2">
                         <div className="flex items-center gap-2">
                             <ListNumbers size={16} className="text-muted-foreground" />
@@ -279,7 +279,7 @@ export function EditingPanel({
                             <button
                                 type="button"
                                 onClick={resetSectionOrder}
-                                className="text-xs text-brand hover:underline"
+                                className="text-xs text-live hover:underline"
                             >
                                 Reset to Auto
                             </button>
@@ -292,7 +292,7 @@ export function EditingPanel({
                         {currentSectionOrder.map((sec, idx) => (
                             <div
                                 key={sec}
-                                className="flex items-center justify-between rounded-ctl border border-border bg-background px-3 py-2 text-xs"
+                                className="flex items-center justify-between rounded-ctl border border-border bg-surface-2 px-3 py-2 text-xs shadow-[var(--shadow-bevel-inset)]"
                             >
                                 <span className="text-xs text-foreground">{sec}</span>
                                 <div className="flex items-center gap-1">
@@ -510,7 +510,7 @@ export function EditingPanel({
                         {competencies.map((cat, catIdx) => (
                             <div
                                 key={catIdx}
-                                className="rounded-panel border border-border bg-card p-4 space-y-3"
+                                className="rounded-panel border border-border bg-surface p-4 space-y-3 shadow-[var(--shadow-bevel-highlight)]"
                             >
                                 <div className="flex items-center justify-between gap-2">
                                     <Input
@@ -534,7 +534,7 @@ export function EditingPanel({
                                     {cat.skills.map((skill, skillIdx) => (
                                         <span
                                             key={skillIdx}
-                                            className="inline-flex items-center gap-1 rounded-pill border border-border bg-muted px-2 py-0.5 text-xs text-foreground"
+                                            className="inline-flex items-center gap-1 rounded-pill border border-border bg-surface-2 px-2 py-0.5 text-xs text-foreground"
                                         >
                                             {skill}
                                             <button
@@ -635,7 +635,7 @@ export function EditingPanel({
                         {experience.map((exp, idx) => (
                             <div
                                 key={exp.id || idx}
-                                className="rounded-panel border border-border bg-card p-4 space-y-3"
+                                className="rounded-panel border border-border bg-surface p-4 space-y-3 shadow-[var(--shadow-bevel-highlight)]"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
                                     <span className="text-xs font-semibold text-muted-foreground">
@@ -746,7 +746,7 @@ export function EditingPanel({
                         {projects.map((proj, idx) => (
                             <div
                                 key={proj.id || idx}
-                                className="rounded-panel border border-border bg-card p-4 space-y-3"
+                                className="rounded-panel border border-border bg-surface p-4 space-y-3 shadow-[var(--shadow-bevel-highlight)]"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
                                     <span className="text-xs font-semibold text-muted-foreground">
@@ -870,7 +870,7 @@ export function EditingPanel({
                         {education.map((edu, idx) => (
                             <div
                                 key={edu.id || idx}
-                                className="rounded-panel border border-border bg-card p-4 space-y-3"
+                                className="rounded-panel border border-border bg-surface p-4 space-y-3 shadow-[var(--shadow-bevel-highlight)]"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
                                     <span className="text-xs font-semibold text-muted-foreground">
