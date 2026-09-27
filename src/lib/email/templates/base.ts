@@ -70,26 +70,37 @@ function preheaderBlock(text: string): string {
 }
 
 /**
- * Brand lockup: the app mark beside the wordmark, centred, sized to the
- * ratio `BrandLockup` uses (28px mark, 28px wordmark).
- *
- * The mark is a hosted PNG (public/velai-logo.png) — the locked product
- * mark (soft paper card, navy brackets, one bigger green live dot). Same
- * file BrandMark / favicon / PWA use. SVG does not render in Gmail/Outlook.
- *
- * Its `alt` is deliberately EMPTY — the wordmark next to it is real text, so
- * alt text here would read the brand twice to a screen reader and print
- * "velai velai" in every client that blocks images by default.
+ * Charcoal header band: hosted mark + title-case Velai lockup (Concept A).
+ * Mark is `public/velai-logo.png` — same raster as in-app chrome; SVG is
+ * unreliable in Gmail/Outlook. Empty `alt` so screen readers do not hear the
+ * brand twice beside the text wordmark.
  */
-function header(siteUrl: string): string {
-  const { text, fontSize, fontWeight, letterSpacing, color } = EMAIL_WORDMARK;
+function headerBand(siteUrl: string): string {
+  const { text, fontSize, fontWeight, letterSpacing } = EMAIL_WORDMARK;
   return `<tr>
-        <td bgcolor="${C.page}" align="center" style="padding:32px 32px 24px;border-radius:12px 12px 0 0;">
-          <a href="${siteUrl}" style="text-decoration:none;color:${color};">
+        <td align="center" bgcolor="${C.band}" style="padding:28px 32px 24px;background-color:${C.band};">
+          <a href="${siteUrl}" style="text-decoration:none;color:${C.bandInk};">
             <img src="${siteUrl}/velai-logo.png" width="28" height="28" alt="" style="border-radius:6px;vertical-align:middle;border:0;display:inline-block;" />
-            <span style="${FONT}font-size:${fontSize}px;font-weight:${fontWeight};letter-spacing:${letterSpacing};color:${color};vertical-align:middle;padding-left:8px;">${text}</span>
+            <span style="${FONT}font-size:${fontSize}px;font-weight:${fontWeight};letter-spacing:${letterSpacing};color:${C.bandInk};vertical-align:middle;padding-left:8px;">${text}</span>
           </a>
         </td>
+      </tr>`;
+}
+
+/** Minimal band for transactional mail (no site link when origin unknown). */
+function transactionalHeaderBand(siteUrl?: string): string {
+  const { text, fontSize, fontWeight, letterSpacing } = EMAIL_WORDMARK;
+  const mark = siteUrl
+    ? `<img src="${siteUrl}/velai-logo.png" width="28" height="28" alt="" style="border-radius:6px;vertical-align:middle;border:0;display:inline-block;" />`
+    : "";
+  const inner =
+    mark +
+    `<span style="${FONT}font-size:${fontSize}px;font-weight:${fontWeight};letter-spacing:${letterSpacing};color:${C.bandInk};vertical-align:middle;${mark ? "padding-left:8px;" : ""}">${text}</span>`;
+  const wrapped = siteUrl
+    ? `<a href="${siteUrl}" style="text-decoration:none;color:${C.bandInk};">${inner}</a>`
+    : inner;
+  return `<tr>
+        <td align="center" bgcolor="${C.band}" style="padding:28px 32px 20px;background-color:${C.band};">${wrapped}</td>
       </tr>`;
 }
 
@@ -107,7 +118,7 @@ function footer(siteUrl: string, unsubscribeUrl: string): string {
     `<a href="${href}" style="color:${C.muted};text-decoration:none;">${label}</a>`;
   const separator = `<span style="color:${C.faint};"> &nbsp;&middot;&nbsp; </span>`;
   return `<tr>
-        <td style="padding:0 32px 32px;">
+        <td bgcolor="${C.card}" style="padding:0 32px 32px;background-color:${C.card};">
           <div style="border-top:1px solid ${C.line};padding-top:20px;${FONT}font-size:12px;line-height:1.6;color:${C.muted};">
             <p style="margin:0 0 10px;">Job postings taken straight from employers &mdash; never a job board, never an agency repost.</p>
             <p style="margin:0 0 10px;">
@@ -140,14 +151,14 @@ function footer(siteUrl: string, unsubscribeUrl: string): string {
 export function ctaButton(href: string, label: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 24px;">
         <tr>
-          <td bgcolor="${C.brand}" style="border-radius:8px;">
-            <a href="${href}" style="display:inline-block;padding:11px 22px;${FONT}font-size:15px;font-weight:600;color:${C.onBrand};text-decoration:none;border-radius:8px;">${label}</a>
+          <td bgcolor="${C.brand}" style="border-radius:9999px;background-color:${C.brand};">
+            <a href="${href}" style="display:inline-block;padding:12px 24px;${FONT}font-size:15px;font-weight:600;color:${C.onBrand};text-decoration:none;border-radius:9999px;">${label}</a>
           </td>
         </tr>
       </table>`;
 }
 
-export function renderEmailShellHtml(input: EmailShellInput): string {
+function shellOpen(preheader: string): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -158,32 +169,63 @@ export function renderEmailShellHtml(input: EmailShellInput): string {
          grey-on-charcoal this design never gets to check. -->
     <meta name="color-scheme" content="light" />
     <meta name="supported-color-schemes" content="light" />
-    <title>${input.heading}</title>
   </head>
   <body style="margin:0;padding:0;background-color:${C.page};-webkit-font-smoothing:antialiased;">
-    ${preheaderBlock(input.preheader)}
+    ${preheaderBlock(preheader)}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${C.page};">
       <tr>
         <td align="center" style="padding:32px 12px;">
-          <table role="presentation" width="${CARD_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${CARD_WIDTH}px;background-color:${C.card};border:1px solid ${C.line};border-radius:12px;">
-            ${header(input.siteUrl)}
-            <tr>
-              <td style="padding:0 32px 8px;">
-                <h1 style="margin:0;${FONT}font-size:26px;line-height:1.25;font-weight:700;letter-spacing:-0.02em;color:${C.ink};">${input.heading}</h1>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:16px 32px 24px;${FONT}font-size:15px;line-height:1.6;color:${C.ink};">
-                ${input.bodyHtml}
-              </td>
-            </tr>
-            ${footer(input.siteUrl, input.unsubscribeUrl)}
-          </table>
+          <table role="presentation" width="${CARD_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${CARD_WIDTH}px;border:1px solid ${C.line};border-radius:14px;overflow:hidden;">`;
+}
+
+function shellClose(): string {
+  return `          </table>
         </td>
       </tr>
     </table>
   </body>
 </html>`;
+}
+
+export function renderEmailShellHtml(input: EmailShellInput): string {
+  return (
+    shellOpen(input.preheader).replace(
+      /<\/head>/,
+      `<title>${escapeHtml(input.heading)}</title>\n  </head>`,
+    ) +
+    headerBand(input.siteUrl) +
+    `<tr>
+              <td bgcolor="${C.card}" style="padding:0 32px 8px;background-color:${C.card};">
+                <h1 style="margin:0;${FONT}font-size:26px;line-height:1.25;font-weight:600;letter-spacing:-0.02em;color:${C.ink};">${escapeHtml(input.heading)}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td bgcolor="${C.card}" style="padding:16px 32px 8px;background-color:${C.card};${FONT}font-size:15px;line-height:1.6;color:${C.ink};">
+                ${input.bodyHtml}
+              </td>
+            </tr>
+            ${footer(input.siteUrl, input.unsubscribeUrl)}` +
+    shellClose()
+  );
+}
+
+/** Transactional / verify kinds: same Concept A band + paper card, no unsubscribe footer. */
+export function renderTransactionalEmailHtml(input: {
+  bodyHtml: string;
+  preheader?: string;
+  siteUrl?: string;
+}): string {
+  const preheader = input.preheader ?? "";
+  return (
+    shellOpen(preheader) +
+    transactionalHeaderBand(input.siteUrl) +
+    `<tr>
+              <td bgcolor="${C.card}" style="padding:28px 32px 32px;background-color:${C.card};${FONT}font-size:15px;line-height:1.6;color:${C.ink};">
+                ${input.bodyHtml}
+              </td>
+            </tr>` +
+    shellClose()
+  );
 }
 
 export function renderEmailShellText(input: Omit<EmailShellInput, "bodyHtml"> & { bodyText: string }): string {

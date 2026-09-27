@@ -3,32 +3,21 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { EMAIL_COLORS, EMAIL_COLOR_TOKENS, EMAIL_TOKEN_SOURCE } from "@/lib/email/templates/palette";
+import {
+  EMAIL_COLORS,
+  EMAIL_COLOR_TOKENS,
+  EMAIL_TOKEN_SOURCE,
+  paperLineHex,
+} from "@/lib/email/templates/palette";
 
 /**
  * Email cannot use CSS variables, so `palette.ts` keeps a hard-coded copy of
- * the product's design tokens. A copy with nothing checking it is a copy that
- * goes stale, and this one did: the Swiss Tinted Glass redesign (#217, merged
- * 2026-08-17) moved `--brand` from emerald `16 149 106` to International
- * Klein Blue `0 47 167` and shifted the neutrals off the slate ramp. Every
- * email kept rendering and every test kept passing while the brand colour was
- * simply wrong — the failure had no symptom anyone could trip over.
- *
- * These two tests give it one. The first pins each literal to the token it
- * claims to copy; the second stops a literal being written anywhere else,
- * because a value that isn't in `palette.ts` is a value the first test
- * cannot see.
+ * the product's design tokens. These tests pin each literal to the token it
+ * claims to copy; the second stops a literal being written anywhere else.
  */
 
 const REPO_ROOT = join(__dirname, "..", "..");
 
-/**
- * The first `:root` block only. `globals.css` has a second one inside a media
- * query and a `.dark` block right after, both of which redeclare the same
- * names — matching a token anywhere in the file would pick up whichever came
- * last. Brace counting rather than "read until `.dark`" so this keeps working
- * when a block is added between them.
- */
 function lightThemeBlock(css: string): string {
   const open = css.indexOf("{", css.indexOf(":root"));
   let depth = 0;
@@ -39,10 +28,8 @@ function lightThemeBlock(css: string): string {
   throw new Error("unbalanced braces in :root");
 }
 
-/** Tokens are stored as space-separated RGB channels for Tailwind's
- *  `rgb(var(--x) / <alpha>)` form, so they need converting to compare. */
 function tokenHex(block: string, token: string): string {
-  const match = block.match(new RegExp(`${token}\\s*:\\s*(\\d{1,3})\\s+(\\d{1,3})\\s+(\\d{1,3})\\s*;`));
+  const match = block.match(new RegExp(`${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*(\\d{1,3})\\s+(\\d{1,3})\\s+(\\d{1,3})\\s*;`));
   assert.ok(match, `${token} is not declared as an RGB triple in ${EMAIL_TOKEN_SOURCE}`);
   return `#${match.slice(1, 4).map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
 }
@@ -60,25 +47,24 @@ describe("email palette tracks globals.css", () => {
       );
     });
   }
+
+  it("line still equals 12% postcard foreground over postcard fill", () => {
+    const fg = tokenHex(block, "--surface-postcard-foreground");
+    const bg = tokenHex(block, "--surface-postcard");
+    assert.equal(
+      EMAIL_COLORS.line,
+      paperLineHex(fg, bg),
+      "paper rule line must track the postcard ink/fill pair in globals.css",
+    );
+  });
 });
 
-/**
- * Block comments and whole-line `//` comments only. Stripping `//` wherever
- * it appears would eat the one in `https://` and take the rest of that line's
- * markup with it. Comments have to go because the templates legitimately
- * DISCUSS colours they must not use — the note in `base.ts` about the brand
- * mark's three conflicting dot values is the reason this guard would
- * otherwise fail on a correct file.
- */
 function scannableSource(source: string): string {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n")
     .filter((line) => !line.trimStart().startsWith("//"))
     .join("\n")
-    // HTML numeric entities (`&#8203;`, `&#39;`) look exactly like short hex
-    // colours. Dropping them by shape instead — "all digits" — would also
-    // drop #002FA7's all-digit cousins, so drop them by syntax.
     .replace(/&#\d+;?/g, "");
 }
 

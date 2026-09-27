@@ -111,7 +111,7 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): { subject: string; 
     ),
     ctaButton(`${input.siteUrl}/jobs`, "Start searching"),
     `<p style="margin:0;font-size:14px;color:${C.muted};">${outroLead} ` +
-      `<a href="${contactUrl}" style="color:${C.brand};text-decoration:underline;">Tell us</a>.</p>`,
+      `<a href="${contactUrl}" style="color:${C.link};text-decoration:underline;">Tell us</a>.</p>`,
   ].join("");
 
   return {

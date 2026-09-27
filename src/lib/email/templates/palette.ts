@@ -14,9 +14,9 @@
  * fails when the two disagree. Changing a token on the site now breaks a
  * test instead of quietly shipping an off-brand email.
  *
- * Light values only, on purpose: the shell sets `color-scheme: light` to opt
- * out of the automatic inversion Apple Mail and Outlook apply, so the dark
- * half of the token set never renders.
+ * Concept A (2026-09-26): charcoal poster header band + cream postcard body.
+ * The shell sets `color-scheme: light` so clients do not auto-invert the
+ * paper layer into unreadable grey-on-charcoal.
  */
 
 import { BRAND_LOCKUP_WORDMARK_PX } from "@/components/brand/BrandMark";
@@ -26,34 +26,50 @@ export const EMAIL_TOKEN_SOURCE = "src/app/globals.css";
 
 /**
  * Which `globals.css` custom property each email colour role is a copy of.
- * The roles are named for their job in an email rather than borrowing the
- * site's names, because the mapping is not always one-to-one — `faint` does
- * duty for both the unsubscribe line and the `·` separators, which on the
- * site are two different treatments.
+ * Roles are named for their job in mail HTML, not the site's token names.
  */
 export const EMAIL_COLOR_TOKENS = {
-  ink: "--foreground",
-  muted: "--muted-foreground",
-  faint: "--faint",
-  line: "--border",
   page: "--background",
-  card: "--card",
+  band: "--surface-poster",
+  bandInk: "--surface-poster-foreground",
+  card: "--surface-postcard",
+  ink: "--surface-postcard-foreground",
+  muted: "--surface-postcard-muted",
+  faint: "--surface-postcard-muted",
   brand: "--brand",
   onBrand: "--brand-foreground",
+  link: "--brand-muted",
 } as const;
 
-export type EmailColorRole = keyof typeof EMAIL_COLOR_TOKENS;
+/** 12% `--surface-postcard-foreground` over `--surface-postcard` (paper rule). */
+export function paperLineHex(postcardForeground: string, postcard: string): string {
+  const parse = (hex: string) => {
+    const h = hex.replace("#", "");
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)] as const;
+  };
+  const [fr, fg, fb] = parse(postcardForeground);
+  const [br, bg, bb] = parse(postcard);
+  const a = 0.12;
+  const mix = (f: number, b: number) => Math.round(f * a + b * (1 - a));
+  const toHex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${toHex(mix(fr, br))}${toHex(mix(fg, bg))}${toHex(mix(fb, bb))}`.toUpperCase();
+}
 
 export const EMAIL_COLORS = {
-  ink: "#FAFAFA",
-  muted: "#9CA3AF",
-  faint: "#737A87",
-  line: "#2D323E",
   page: "#0B0D12",
-  card: "#141720",
+  band: "#0B0D12",
+  bandInk: "#FAFAFA",
+  card: "#F4F0E6",
+  ink: "#0C1A33",
+  muted: "#525252",
+  faint: "#525252",
+  line: paperLineHex("#0C1A33", "#F4F0E6"),
   brand: "#0E9F4E",
   onBrand: "#0B0D12",
-} as const satisfies Record<EmailColorRole, string>;
+  link: "#108E48",
+} as const;
+
+export type EmailColorRole = keyof typeof EMAIL_COLORS;
 
 /**
  * `--font-sans` from `globals.css` with the next/font variable dropped —
@@ -66,12 +82,10 @@ export const EMAIL_COLORS = {
 export const EMAIL_FONT_SANS =
   "'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
 
-/** Title-case wordmark — matched to `BrandLockup` (Source Sans 600, warm white). */
+/** Title-case wordmark — matched to `BrandLockup` (Source Sans 600, warm white on band). */
 export const EMAIL_WORDMARK = {
   text: "Velai",
   fontSize: BRAND_LOCKUP_WORDMARK_PX,
   fontWeight: 600,
   letterSpacing: "0em",
-  /** Warm white — matches in-app `text-wordmark` / `--foreground`. */
-  color: EMAIL_COLORS.ink,
 } as const;

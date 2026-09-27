@@ -12,7 +12,7 @@
  * already owns this app's reset UI, and `resetPassword({token, newPassword})`
  * only needs the bare token, not WorkOS's hosted page.
  */
-import { ctaButton, escapeHtml } from "./templates/base";
+import { ctaButton, escapeHtml, renderTransactionalEmailHtml } from "./templates/base";
 import { EMAIL_COLORS as C } from "./templates/palette";
 import { sendEmail, type SendEmailResult } from "./send";
 
@@ -27,11 +27,19 @@ export function passwordResetEmailContent(input: { resetUrl: string }): {
     const ignoreLine = "If you didn't ask for this, ignore this email and your password stays the same.";
 
     const text = [promiseLine, input.resetUrl, expiryLine, ignoreLine].join("\n\n");
-    const html =
+    const bodyHtml =
         `<p style="margin:0 0 16px;">${escapeHtml(promiseLine)}</p>` +
         ctaButton(input.resetUrl, "Choose a new password") +
         `<p style="margin:0 0 8px;font-size:13px;color:${C.muted};">${escapeHtml(expiryLine)}</p>` +
         `<p style="margin:0;font-size:13px;color:${C.muted};">${escapeHtml(ignoreLine)}</p>`;
+    const siteUrl = (() => {
+        try {
+            return new URL(input.resetUrl).origin;
+        } catch {
+            return undefined;
+        }
+    })();
+    const html = renderTransactionalEmailHtml({ bodyHtml, siteUrl });
 
     return { subject, text, html };
 }
