@@ -131,17 +131,25 @@ describe("for-you postcard layout", () => {
 
     it("ForYouHome skeleton and empty state use rounded-panel", () => {
         const home = source("ForYouHome.tsx");
-        const skeletonBlock = home.match(/function ForYouPackSkeleton[\s\S]*?^}/m)?.[0] ?? "";
-        assert.ok(skeletonBlock.length > 0, "ForYouPackSkeleton not found");
+        const skeletonBlock = readFileSync(
+            join(__dirname, "../../src/components/layout/jobs-session-loading.tsx"),
+            "utf8",
+        );
+        assert.match(skeletonBlock, /ForYouDeckSkeleton/);
         assert.match(
             skeletonBlock,
-            /overflow-hidden rounded-panel/,
-            "skeleton root must use rounded-panel",
+            /for-you-deck-paper-postcard/,
+            "skeleton paper slot must use postcard shell class",
         );
         assert.match(
             skeletonBlock,
+            /border-b border-border py-4 px-4 lg:py-6 lg:px-8/,
+            "skeleton header must match pack horizontal inset",
+        );
+        assert.match(
+            source("ForYouPack.tsx"),
             /POSTCARD_HEADER_DIVIDER/,
-            "skeleton header must match pack postcard divider",
+            "live pack header must use postcard divider token",
         );
         assert.match(
             skeletonBlock,
@@ -150,8 +158,8 @@ describe("for-you postcard layout", () => {
         );
         assert.match(
             home,
-            /data-testid="for-you-empty"[\s\S]*?rounded-panel/,
-            "empty state must use rounded-panel",
+            /ConceptAEmptyState[\s\S]*for-you-empty/,
+            "empty state must use shared Concept A empty",
         );
     });
 

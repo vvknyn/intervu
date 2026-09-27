@@ -802,6 +802,70 @@ h4 {
   animation: panel-enter var(--transition-enter) var(--ease-standard) both;
 }
 
+/** Shared /jobs for-you column — pending, loaded deck, and empty share this footprint (no CLS). */
+.jobs-session-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: min(72dvh, 720px);
+}
+
+/** Paper slot only — matches live ForYouPack postcard shell geometry. */
+.for-you-deck-paper-postcard {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background-color: rgb(var(--surface-postcard));
+  color: rgb(var(--surface-postcard-foreground));
+  box-shadow: var(--shadow-postcard);
+}
+
+/** Session pending slot — raised surface on poster ground (not full-viewport cream). */
+.for-you-deck-paper-raised {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgb(var(--border));
+  background-color: rgb(var(--surface));
+  color: rgb(var(--foreground));
+  box-shadow: var(--shadow-bevel-highlight);
+}
+
+.for-you-deck-fit-inset {
+  box-shadow: var(--shadow-bevel-inset);
+}
+
+/** Capped page width from `--shell-max` — use instead of `max-w-[var(--shell-max)]`. */
+.shell-max-width {
+  max-width: var(--shell-max);
+}
+
+/** Poster list horizontal inset — single chokepoint for `--list-inset` (SERP rows, route loaders). */
+.poster-list-inset-x {
+  padding-inline: var(--list-inset);
+}
+
+/** JD column cap in for-you deck skeleton — matches ForYouPack `max-h-[min(60dvh,640px)]` geometry. */
+.jobs-session-scroll {
+  max-height: min(60dvh, 640px);
+}
+
+/** Opacity-only reveal for session/pending → content swaps (no layout shift). */
+@keyframes state-opacity-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.state-opacity-in {
+  animation: state-opacity-in var(--transition-enter) var(--ease-standard) both;
+}
+
 .for-you-deck-shell {
   min-height: var(--for-you-deck-min-height);
 }

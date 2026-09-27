@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 export default function NotFound() {
     return (
         <RouteStatusLayout>
-            <RouteStatusPanel className="text-center">
+            <RouteStatusPanel className="enter-reveal text-center">
                 <BrandLockup className="mx-auto w-fit" />
                 <p className="mt-4 text-xs text-muted-foreground">404</p>
                 <h1 className="mt-1 text-title-sm font-semibold text-foreground">Page not found</h1>

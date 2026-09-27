@@ -30,7 +30,7 @@ export default function Error({
         <RouteStatusLayout>
             <RouteStatusPanel
                 data-testid="error-boundary"
-                className="text-center"
+                className="enter-reveal text-center"
             >
                 <BrandLockup className="mx-auto w-fit" />
                 <h1 className="mt-4 text-title-sm font-semibold text-foreground">Something went wrong</h1>

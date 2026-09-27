@@ -18,6 +18,7 @@ import {
     Bell,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { ConceptAEmptyIllustration } from "@/components/ui/concept-a-empty-illustration";
 import { Input } from "@/components/ui/input";
 import {
     DropdownMenu,
@@ -897,7 +898,8 @@ function EmptyResults({
     const hasQuery = query.trim().length > 0;
     const hasFilters = entries.length > 0 || !!locationDefault;
     return (
-        <div className="px-[var(--list-inset)] py-8 text-left">
+        <div className="px-[var(--list-inset)] py-8 text-left" data-testid="search-empty-results">
+            <ConceptAEmptyIllustration className="mb-4" />
             <p className="text-sm text-foreground">
                 {hasFilters ? "Nothing matches these filters." : "No roles match."}
             </p>

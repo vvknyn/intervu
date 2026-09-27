@@ -28,6 +28,7 @@ import { StageBadge } from "@/components/tracker/StageBadge";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import type { JobView } from "@/lib/views/types";
 import { posterListPanelClassName } from "@/components/layout/route-loading";
+import { ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { EmptyState } from "@/components/ui/empty-state";
 
 /** Exported so `/mock/history` (fixture preview — `useViewed()` has no
@@ -60,9 +61,11 @@ function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
 
 function HistoryEmptyState() {
     return (
-        <EmptyState
+        <ConceptAEmptyState
+            layout="inline"
             testId="history-empty"
             title="Jobs you open will show up here."
+            description="Open a role from Search or For you and we'll keep the trail warm for you."
             actions={
                 <Button asChild className="rounded-ctl font-semibold">
                     <Link href="/jobs">Browse verified roles</Link>

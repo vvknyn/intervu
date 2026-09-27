@@ -31,7 +31,7 @@ import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
 import { AUTH_CTA_LABEL, formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 import { posterInlinePanelClassName } from "@/components/layout/route-loading";
-import { EmptyState } from "@/components/ui/empty-state";
+import { ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before they're sent.";
 
@@ -95,7 +95,8 @@ function TrackerEmptyState({
 }) {
     const guestCount = listGuestPursuits().length;
     return (
-        <EmptyState
+        <ConceptAEmptyState
+            layout="inline"
             testId={user ? "yours-empty" : "yours-guest-empty"}
             title="Your tracker is empty."
             description="Save roles while browsing verified jobs, then pick up where you left off here."

@@ -5,13 +5,16 @@ import { CaretLeft, CaretRight, CircleNotch, UploadSimple } from "@phosphor-icon
 import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
 import { ProgressBar } from "@/components/ui/progress-bar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
+import {
+    JOBS_SESSION_FRAME_CLASS,
+    ForYouDeckSkeleton,
+    JobsSessionLoadingShell,
+} from "@/components/layout/jobs-session-loading";
+import { ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { Kbd } from "@/components/ui/kbd";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ForYouDeck } from "@/components/jobs/for-you/ForYouDeck";
-import { POSTCARD_HEADER_DIVIDER, POSTCARD_ON_CREAM_BORDER } from "@/components/jobs/for-you/ForYouPack";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
@@ -34,9 +37,10 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { locationText } from "@/lib/jobs/presentation";
 import type { Pursuit } from "@/lib/pursuits/types";
 
+export { JOBS_SESSION_FRAME_CLASS, JOBS_SESSION_FRAME_CLASS as FOR_YOU_HOME_FRAME_CLASS };
+
 /** For-you frame grows with the pack deck — document scroll, not a nested
  *  100dvh trap. JD scroll stays inside each postcard (`data-pack-scroll`). */
-export const FOR_YOU_HOME_FRAME_CLASS = "flex flex-col";
 
 /** Recurring quiet text-link button shape (Replace / Upload résumé / Got
  *  it) — one class, not three copies that can drift apart. */
@@ -78,60 +82,6 @@ export interface ForYouHomeProps {
     activePursuit?: Pursuit;
     onGoAfter?: (job: PublicJob) => void;
     saveSuccessPulse?: boolean;
-}
-
-/** Placeholder shape for both the loading state and the pre-résumé shell —
- *  one skeleton, reused, so the two never drift into different "card
- *  shapes." Only `<div>`s: no headings or interactive elements, since the
- *  pre-résumé shell must stay free of both (first-paint spec rule). */
-function ForYouPackSkeleton({ withStatus = false }: { withStatus?: boolean } = {}) {
-    return (
-        <div className="space-y-3">
-            {withStatus ? (
-                <RotatingLoadingCopy
-                    variant="deck"
-                    className="px-1 text-xs font-semibold"
-                />
-            ) : null}
-            <div className="flex flex-col overflow-hidden rounded-panel bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]">
-                <div className={POSTCARD_HEADER_DIVIDER}>
-                    <div className="flex items-start gap-3">
-                        <Skeleton className="size-10 shrink-0" />
-                        <div className="flex-1 space-y-2">
-                            <Skeleton className="h-3 w-24" />
-                            <Skeleton className="h-5 w-2/3" />
-                            <Skeleton className="h-3 w-40" />
-                        </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                        <Skeleton className="h-7 w-20" />
-                        <Skeleton className="h-7 w-24" />
-                        <Skeleton className="h-7 w-16" />
-                    </div>
-                </div>
-                <div className="grid gap-6 py-4 px-4 lg:grid-cols-[280px_1fr] lg:py-6 lg:px-8">
-                    <div
-                        className={cn(
-                            "hidden rounded-ctl border p-4 shadow-[var(--shadow-bevel-inset)] lg:block",
-                            POSTCARD_ON_CREAM_BORDER,
-                        )}
-                    >
-                        <Skeleton className="h-3 w-20" />
-                        <Skeleton className="mt-3 h-2 w-full" />
-                        <Skeleton className="mt-4 h-3 w-24" />
-                        <Skeleton className="mt-2 h-2 w-full" />
-                    </div>
-                    <div className="max-h-[min(60dvh,640px)] space-y-3">
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-5/6" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-2/3" />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 }
 
 export function ForYouHome({
@@ -288,7 +238,7 @@ export function ForYouHome({
     const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
 
     return (
-        <div className={FOR_YOU_HOME_FRAME_CLASS} data-testid="for-you-home">
+        <div className={cn(JOBS_SESSION_FRAME_CLASS, "state-opacity-in")} data-testid="for-you-home">
             {(canNavigate || (hasUsableResume && onReplaceResume)) && (
                 <div className="mb-4 flex shrink-0 flex-wrap items-center justify-end gap-3 pt-1">
                     {canNavigate && (
@@ -370,22 +320,28 @@ export function ForYouHome({
             )}
 
             {showLoading ? (
-                <div data-testid="for-you-loading">
-                    <ForYouPackSkeleton withStatus />
+                <div data-testid="for-you-loading" className="state-opacity-in">
+                    <ForYouDeckSkeleton tone="postcard" withStatus />
                 </div>
             ) : visiblePacks.length === 0 ? (
-                <div
-                    data-testid="for-you-empty"
-                    className="flex flex-col items-center justify-center gap-4 rounded-panel border border-border bg-surface p-12 text-center shadow-[var(--shadow-bevel-highlight)]"
-                >
-                    <p className="text-sm text-muted-foreground">
-                        No ranked roles to show right now. Try Search to browse the full list.
-                    </p>
-                    {showSearchCta && (
-                        <Button type="button" variant="outline" onClick={() => onHomeViewChange("search")}>
-                            Go to Search
-                        </Button>
-                    )}
+                <div className="flex flex-1 flex-col justify-center" data-testid="for-you-empty-wrap">
+                    <ConceptAEmptyState
+                        testId="for-you-empty"
+                        title="No ranked roles to show right now."
+                        description="Try Search to browse the full list—we'll keep your place here."
+                        actions={
+                            showSearchCta ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    data-testid="for-you-empty-search-cta"
+                                    onClick={() => onHomeViewChange("search")}
+                                >
+                                    Go to Search
+                                </Button>
+                            ) : undefined
+                        }
+                    />
                 </div>
             ) : (
                 <ForYouDeck
@@ -514,12 +470,12 @@ export function ForYouHome({
 
 /** Neutral first-paint column while résumé presence is still unknown.
  *  Same frame as For you — never Search chrome. Same skeleton shape as the
- *  loading state (`ForYouPackSkeleton`) so the visitor never sees a
+ *  loading state (`ForYouDeckSkeleton`) so the visitor never sees a
  *  different "card shape" appear mid-load. */
 export function ForYouHomePending() {
     return (
-        <div className={FOR_YOU_HOME_FRAME_CLASS} data-testid="for-you-home-pending">
-            <ForYouPackSkeleton />
+        <div className={cn(JOBS_SESSION_FRAME_CLASS, "state-opacity-in")} data-testid="for-you-home-pending">
+            <JobsSessionLoadingShell />
         </div>
     );
 }
