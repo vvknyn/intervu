@@ -66,6 +66,11 @@ export interface ForYouHomeProps {
     hasMore?: boolean;
     /** Known corpus total for optional "N of ~total · Strong first" near Show more. */
     resultTotal?: number | null;
+    /** CRAFT-3 — enter-reveal on first pack after auto-reveal. */
+    firstRevealEnter?: boolean;
+    /** CRAFT-3 — focus deck primary CTA once after first-pack auto-reveal. */
+    firstRevealDeckFocus?: boolean;
+    onFirstRevealFocusDone?: () => void;
 }
 
 /** Placeholder shape for both the loading state and the pre-résumé shell —
@@ -141,6 +146,9 @@ export function ForYouHome({
     loadingMore = false,
     hasMore = false,
     resultTotal = null,
+    firstRevealEnter = false,
+    firstRevealDeckFocus = false,
+    onFirstRevealFocusDone,
 }: ForYouHomeProps) {
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
@@ -223,6 +231,16 @@ export function ForYouHome({
 
     const showLoading = proofLoading || fitResolving || loading || !fitActive;
     const canNavigate = !showLoading && visiblePacks.length > 0;
+
+    useEffect(() => {
+        if (!firstRevealDeckFocus || showLoading || visiblePacks.length === 0) return;
+        const id = window.requestAnimationFrame(() => {
+            const el = document.querySelector<HTMLElement>('[data-testid="for-you-download-apply"]');
+            el?.focus({ preventScroll: true });
+            onFirstRevealFocusDone?.();
+        });
+        return () => window.cancelAnimationFrame(id);
+    }, [firstRevealDeckFocus, showLoading, visiblePacks.length, onFirstRevealFocusDone]);
 
     const shortcutStateRef = useRef({ activeIndex, packsLength: visiblePacks.length, canNavigate, applying });
     shortcutStateRef.current = { activeIndex, packsLength: visiblePacks.length, canNavigate, applying };
@@ -364,6 +382,7 @@ export function ForYouHome({
                     hydratedJobs={hydratedJobs}
                     onActivePackChange={onActivePackChange}
                     onRetryDescription={onRetryDescription}
+                    firstReveal={firstRevealEnter}
                     onSwipeNavigate={(direction) => {
                         if (direction === "previous") {
                             onActiveIndexChange(Math.max(activeIndex - 1, 0));

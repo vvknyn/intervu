@@ -230,6 +230,7 @@ export interface JobDetailDocumentProps {
     onGoAfter: () => void;
     pursuit: Pursuit | undefined;
     goingAfter: boolean;
+    saveSuccessPulse?: boolean;
     signedIn?: boolean;
     onRequestSignIn?: () => void;
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
@@ -282,6 +283,7 @@ export function JobDetailDocument({
     onGoAfter,
     pursuit,
     goingAfter,
+    saveSuccessPulse = false,
     signedIn = true,
     onRequestSignIn,
     onOpenRelated,
@@ -476,7 +478,12 @@ export function JobDetailDocument({
                     ghost bookmark control every other surface (JobDetail's
                     action row, JobCard's row) already uses — one chokepoint,
                     no independent restyle. */}
-                <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
+                <RowBookmarkButton
+                    pursuit={pursuit}
+                    onGoAfter={onGoAfter}
+                    goingAfter={goingAfter}
+                    successPulse={saveSuccessPulse}
+                />
                 {resume != null ? (
                     <LocalCustomizePanel
                         job={job}
@@ -662,6 +669,7 @@ export function JobDetailDocument({
                     onGoAfter={onGoAfter}
                     pursuit={pursuit}
                     goingAfter={goingAfter}
+                    saveSuccessPulse={saveSuccessPulse}
                     resume={resume}
                     onAcceptLocalTailor={onAcceptLocalTailor}
                     onUploadResume={onUploadResume}

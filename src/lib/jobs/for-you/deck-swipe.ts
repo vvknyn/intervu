@@ -9,6 +9,16 @@ export const DECK_SWIPE_MAX_DY_RATIO = 0.75;
 
 export type DeckSwipeDirection = "previous" | "next" | null;
 
+/** Max horizontal follow as a fraction of deck width — mirrors `--motion-deck-shift`. */
+export const DECK_DRAG_MAX_SHIFT_RATIO = 0.12;
+
+/** Clamp live drag offset for deck follow (pure, unit-testable). */
+export function computeDeckDragOffset(dx: number, containerWidth: number): number {
+    if (!Number.isFinite(containerWidth) || containerWidth <= 0) return 0;
+    const maxShift = containerWidth * DECK_DRAG_MAX_SHIFT_RATIO;
+    return Math.max(-maxShift, Math.min(maxShift, dx));
+}
+
 /** Decide swipe direction from a completed touch/pointer gesture. */
 export function resolveDeckSwipe(input: {
     dx: number;

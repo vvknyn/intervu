@@ -49,15 +49,21 @@ describe("for-you postcard layout", () => {
         );
     });
 
-    it("ForYouDeck renders only the active pack (no stacked peeking cards, no gesture hijack)", () => {
+    it("ForYouDeck renders one resting pack — swipe allowed, no wheel hijack or permanent stacked peek", () => {
         const deck = source("ForYouDeck.tsx");
-        assert.doesNotMatch(deck, /onTouchStart/);
-        assert.doesNotMatch(deck, /onTouchEnd/);
+        assert.match(deck, /resolveDeckSwipe/);
+        assert.match(deck, /touch-pan-y/);
+        assert.match(deck, /onTouchStart/);
+        assert.match(deck, /onTouchEnd/);
+        assert.match(deck, /computeDeckDragOffset/);
+        assert.match(deck, /onAnimationEnd/);
+        assert.match(deck, /shouldActivateDeckHorizontalDrag/);
         assert.doesNotMatch(deck, /shouldPackGestureAdvanceDeck/);
         assert.doesNotMatch(deck, /addEventListener\("wheel"/);
-        assert.match(deck, /key=\{activePack\.id\}/, "keyed by job id so a new job starts at scrollTop 0");
+        assert.match(deck, /key=\{pack\.id\}/, "pack slots keyed by job id");
+        assert.match(deck, /showCross/, "dual-card render is commit-only, not a resting stack");
         assert.doesNotMatch(deck, /flex-1 overflow-hidden/);
-        assert.doesNotMatch(deck, /min-h-\[min\(72dvh/, "deck must not mimic a viewport-height trap");
+        assert.match(deck, /min-h-\[min\(72dvh/, "fixed min-height prevents commit-time CLS");
     });
 
     it("JD column only is the inner scroller — header and fit/why stay outside data-pack-scroll", () => {

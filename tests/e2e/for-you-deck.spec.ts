@@ -36,6 +36,16 @@ import { test, expect, type Page } from "@playwright/test";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
+/** Hub-first product default — open the all-matches pack before deck assertions. */
+async function openDeckFromHub(page: Page) {
+    const browse = page.getByTestId("hub-browse-all-matches");
+    if ((await browse.count()) > 0) {
+        await browse.click();
+    } else {
+        await page.getByTestId("hub-pack-card-all").click();
+    }
+}
+
 /** Generic enough to match real postings in whatever jobs index this runs
  *  against, without depending on any fixture/seed data existing. */
 const SEEDED_RESUME = {
@@ -105,6 +115,12 @@ function packIdentity(page: Page) {
 }
 
 async function waitForDeckReady(page: Page) {
+    await expect(page.getByTestId("job-packs-hub").or(page.getByTestId("for-you-home"))).toBeVisible({
+        timeout: 20_000,
+    });
+    if ((await page.getByTestId("for-you-deck").count()) === 0) {
+        await openDeckFromHub(page);
+    }
     await expect(page.getByTestId("for-you-home")).toBeVisible({ timeout: 20_000 });
     // Loading/empty are mutually exclusive with a rendered deck; give the
     // résumé-match fetch time to resolve into real packs.

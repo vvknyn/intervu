@@ -295,6 +295,7 @@
   --transition-page: 180ms;
   --motion-press-scale: 0.98;
   --motion-lift-y: -1px;
+  --motion-deck-shift: 12%;
 
   /* Elevation — Tailwind named scale stays `none`; sanctioned semantic shadows
      below (Concept A skeuomorphic, 2026-09-26). See DESIGN-LANGUAGE.md. */
@@ -781,6 +782,104 @@ h4 {
 
 .enter-reveal {
   animation: panel-enter var(--transition-enter) var(--ease-standard) both;
+}
+
+/* For-you deck index transitions — transform/opacity only (no stacked peek). */
+@keyframes deck-slide-out-next {
+  to {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--motion-deck-shift)));
+  }
+}
+
+@keyframes deck-slide-out-previous {
+  to {
+    opacity: 0;
+    transform: translateX(var(--motion-deck-shift));
+  }
+}
+
+@keyframes deck-slide-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(var(--motion-deck-shift));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes deck-slide-in-previous {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--motion-deck-shift)));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.deck-card-layer {
+  will-change: transform, opacity;
+}
+
+.deck-exit-next {
+  animation: deck-slide-out-next var(--transition-deck) var(--ease-out-exit) forwards;
+}
+
+.deck-exit-previous {
+  animation: deck-slide-out-previous var(--transition-deck) var(--ease-out-exit) forwards;
+}
+
+.deck-enter-next {
+  animation: deck-slide-in-next var(--transition-deck) var(--ease-standard) both;
+}
+
+.deck-enter-previous {
+  animation: deck-slide-in-previous var(--transition-deck) var(--ease-standard) both;
+}
+
+@keyframes success-pulse-keyframes {
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.success-pulse {
+  animation: success-pulse-keyframes var(--transition-enter) var(--ease-standard);
+}
+
+.first-pack-reveal-handoff {
+  background: rgb(var(--surface-poster));
+  animation: first-pack-handoff-fade var(--transition-enter) var(--ease-standard) forwards;
+  pointer-events: none;
+}
+
+@keyframes first-pack-handoff-fade {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-exit-next,
+  .deck-exit-previous,
+  .deck-enter-next,
+  .deck-enter-previous,
+  .first-pack-reveal-handoff,
+  .success-pulse {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }
 
 .designed-focus:focus-visible {
