@@ -66,7 +66,6 @@ function renderDetail(job: PublicJob): string {
             onOpenPosting: noop,
             onGoAfter: noop,
             pursuit: undefined,
-            goingAfter: false,
             signedIn: true,
         }),
     );

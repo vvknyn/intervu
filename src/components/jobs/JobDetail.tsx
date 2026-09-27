@@ -314,7 +314,7 @@ export function JobDetailActionBar({
     onOpenPosting,
     onGoAfter,
     pursuit,
-    goingAfter,
+    saveSuccessPulse = false,
     signedIn = true,
     className,
     resume,
@@ -329,7 +329,7 @@ export function JobDetailActionBar({
      *  same contract as `JobDetail`'s own prop (see there); drives the same
      *  bookmark control rendered inline above. */
     pursuit: Pursuit | undefined;
-    goingAfter: boolean;
+    saveSuccessPulse?: boolean;
     /** When false, guest chrome still shows "Apply" (auth is a separate step). */
     signedIn?: boolean;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
@@ -381,7 +381,11 @@ export function JobDetailActionBar({
             ) : null}
             {/* Same 40px icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}
-            <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
+            <RowBookmarkButton
+                pursuit={pursuit}
+                onGoAfter={onGoAfter}
+                successPulse={saveSuccessPulse}
+            />
         </div>
     );
 }
@@ -437,7 +441,7 @@ export function JobDetail({
     onOpenPosting,
     onGoAfter,
     pursuit,
-    goingAfter,
+    saveSuccessPulse = false,
     variants = [],
     onClose,
     className,
@@ -487,7 +491,7 @@ export function JobDetail({
     onGoAfter: () => void;
     /** The existing pursuit for this job, if the user already went after it. */
     pursuit: Pursuit | undefined;
-    goingAfter: boolean;
+    saveSuccessPulse?: boolean;
     /** This job's OTHER cluster variants (same normalized title + company,
      *  different location — `lib/jobs/cluster.ts`) — feeds the header's
      *  "also in" chip. Empty for the ordinary non-clustered case. */
@@ -915,7 +919,7 @@ export function JobDetail({
                         <RowBookmarkButton
                             pursuit={pursuit}
                             onGoAfter={onGoAfter}
-                            goingAfter={goingAfter}
+                            successPulse={saveSuccessPulse}
                             className="rounded-ctl border border-border bg-surface"
                         />
                         {/* ReportJobButton hardcodes its own trigger content

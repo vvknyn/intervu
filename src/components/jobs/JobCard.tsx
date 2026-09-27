@@ -63,7 +63,7 @@ export function JobCard({
     matchAsOfDate = null,
     pursuit,
     onGoAfter,
-    goingAfter = false,
+    saveSuccessPulse = false,
     position,
 }: {
     job: PublicJob;
@@ -103,7 +103,7 @@ export function JobCard({
      *  simply doesn't render without a save handler rather than faking one. */
     pursuit?: Pursuit;
     onGoAfter?: () => void;
-    goingAfter?: boolean;
+    saveSuccessPulse?: boolean;
     /** 1-based index of this row in the current search's rendered list
      *  (`hits`, jobs/page.tsx) — stamped as `data-position` for
      *  `useResultImpressions` to read off the DOM (SPEC §5's position-
@@ -321,7 +321,11 @@ export function JobCard({
                 <span className="flex items-center gap-1">
                     {onGoAfter && (
                         <span data-rulebook-exempt>
-                            <RowBookmarkButton pursuit={pursuit} onGoAfter={onGoAfter} goingAfter={goingAfter} />
+                            <RowBookmarkButton
+                                pursuit={pursuit}
+                                onGoAfter={onGoAfter}
+                                successPulse={saveSuccessPulse}
+                            />
                         </span>
                     )}
                 </span>

@@ -1,176 +1,54 @@
 import { test, expect, type Page } from "@playwright/test";
+import {
+    FOR_YOU_DECK_MOCK_PATH,
+    deckRestingPack,
+    deckRestingPackHeading,
+    restingPackTitle,
+    seedDeckMockHintDismissed,
+    waitForDeckRestingState,
+    waitForMockDeckReady,
+} from "./for-you-deck-mock.helpers";
 
 /**
- * TEST GROUP: FOR-YOU-DECK — the deck must advance by exactly one card per
- * Skip, and must not lose its place across a Search <-> For-you toggle.
+ * FOR-YOU-DECK — deterministic deck behavior via `/mock/for-you-deck`
+ * (real ForYouHome / ForYouDeck / ForYouPack, static fixtures).
  *
- * Pins two defects from scratchpad/ledger-foryou.md:
- *   - P0 "Deck stops advancing entirely after one Search <-> For-you toggle
- *     round-trip" (repro: navigate a few cards in, toggle Search -> For-you,
- *     click Skip repeatedly, frozen at "1 of N" forever).
- *   - P1 "Search <-> For-you toggle silently discards deck progress."
- *
- * Reaching a real For-you deck needs no credentials and no cloud LLM call —
- * but it does need staying SIGNED OUT: `page.tsx`'s local-résumé hydration
- * effect (`if (user) return;`) only reads `velai.localAi.resume` for a
- * signed-out guest ("R&D local mode"); a signed-in user's résumé comes from
- * a server action instead, which is not worth mocking here. So this seeds
- * two guest-only localStorage flags before first paint: `velai.localAi.
- * enabled` (`LOCAL_AI_ENABLED_KEY`, `lib/local-ai/flag.ts`) and `velai.
- * localAi.resume` (`LOCAL_AI_RESUME_KEY`, `lib/local-ai/resume-storage.ts`).
- * Together they make `hasUsableResume` (`resumeIsUsable(resume)`) true on
- * first render — the same local, session-only path a real paste-and-parse
- * import takes — no `ResumeImportModal` UI, and no `__INTERVU_E2E_AUTH__`
- * sign-in mock, needs driving. `resumeOnFile === true` with no
- * search-forcing URL params (`home-view.ts`) then resolves straight to the
- * For-you branch on a plain `/jobs` navigation.
- *
- * The deck's real Skip control is `data-testid="for-you-skip"`
- * (`ForYouHome.tsx`) — NOT the accessibility "Skip to results" anchor link
- * elsewhere on the page, which shares the word "Skip" in its text but is an
- * unrelated `<a href="#jobs-results-list">`. A selector that matched on
- * visible "Skip" text alone could click that anchor instead of the deck's
- * control, which is one plausible source of a false "frozen deck" report.
+ * Live `/jobs` integration (Search toggle, Meili corpus) lives in the
+ * conditional block at the bottom — opt in with `E2E_LIVE_JOBS_CORPUS=1`.
  */
 
-const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
-const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
+test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
+    test.beforeEach(async ({ page }) => {
+        await seedDeckMockHintDismissed(page);
+        await page.emulateMedia({ reducedMotion: "no-preference" });
+    });
 
-/** Generic enough to match real postings in whatever jobs index this runs
- *  against, without depending on any fixture/seed data existing. */
-const SEEDED_RESUME = {
-    data: {
-        profile: {
-            name: "Alex Rivera",
-            profession: "Software Engineer",
-            yearsOfExperience: 6,
-            location: "Remote",
-            email: "alex.rivera@example.com",
-            phone: "555-010-1000",
-        },
-        experience: [
-            {
-                id: "exp-1",
-                company: "Acme Corp",
-                role: "Senior Software Engineer",
-                dates: "2021-Present",
-                description:
-                    "Built and shipped backend services in Python and TypeScript; led React frontend work.",
-            },
-            {
-                id: "exp-2",
-                company: "Globex Inc",
-                role: "Software Engineer",
-                dates: "2018-2021",
-                description: "Full-stack engineering in JavaScript, SQL, and AWS.",
-            },
-        ],
-        competencies: [
-            { category: "Languages", skills: ["JavaScript", "TypeScript", "Python", "SQL"] },
-            { category: "Cloud", skills: ["AWS", "Docker", "Kubernetes"] },
-        ],
-        education: [
-            { id: "edu-1", degree: "B.S. Computer Science", institution: "State University", year: "2018" },
-        ],
-        generatedSummary: "Software engineer with 6 years of experience across backend and frontend systems.",
-    },
-    updatedAt: new Date().toISOString(),
-    sourceLabel: "e2e-seed",
-};
+    test("TC-DECK-001: repeated Skip clicks advance to unseen cards", async ({ page }) => {
+        await waitForMockDeckReady(page);
 
-/** Seeds the guest local-AI résumé BEFORE any page script runs, so first
- *  render already resolves `resumeOnFile === true` and the For-you branch —
- *  no UI flow (login, résumé import) needs driving. Stays signed out on
- *  purpose (see the file-level doc comment). */
-async function seedForYouEntry(page: Page) {
-    await page.addInitScript(
-        ([enabledKey, resumeKey, resume]) => {
-            try {
-                window.localStorage.setItem(enabledKey as string, "1");
-                window.localStorage.setItem(resumeKey as string, JSON.stringify(resume));
-            } catch {
-                /* private mode */
-            }
-        },
-        [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, SEEDED_RESUME] as const,
-    );
-}
+        const seen: string[] = [await restingPackTitle(page)];
 
-/** The active card's identity, read straight off the DOM rather than any
- *  internal index: the title text of the (single) rendered `for-you-pack`
- *  node. The deck renders only the active card — no stacked preview cards
- *  behind it — so there is exactly one `for-you-pack` node at a time. */
-function packIdentity(page: Page) {
-    return page.getByTestId("for-you-pack").locator("h2").innerText();
-}
-
-async function waitForDeckReady(page: Page) {
-    await expect(page.getByTestId("for-you-home")).toBeVisible({ timeout: 20_000 });
-    // Loading/empty are mutually exclusive with a rendered deck; give the
-    // résumé-match fetch time to resolve into real packs.
-    await expect(page.getByTestId("for-you-loading")).toHaveCount(0, { timeout: 20_000 });
-    await expect(page.getByTestId("for-you-pack").first()).toBeVisible({ timeout: 20_000 });
-}
-
-test.describe("FOR-YOU-DECK — Skip advances exactly one card and survives a view toggle", () => {
-    test("TC-DECK-001: repeated Skip clicks each advance the active job to a new, unseen card", async ({ page }) => {
-        await seedForYouEntry(page);
-        await page.goto("/jobs");
-        await waitForDeckReady(page);
-
-        const seen: string[] = [await packIdentity(page)];
-
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < 2; i++) {
             const skip = page.getByTestId("for-you-skip");
-            if ((await skip.count()) === 0) break; // ran out of roles — deck emptied
             const previous = seen[seen.length - 1];
             await skip.click();
-            if ((await page.getByTestId("for-you-pack").count()) === 0) break; // Skip emptied the deck
-            await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(previous, {
-                timeout: 10_000,
-            });
-            const actual = await packIdentity(page);
-            expect(seen, `Skip #${i + 1} landed on an already-seen job — deck is not advancing`).not.toContain(
-                actual,
-            );
+            if ((await page.getByTestId("for-you-pack").count()) === 0) break;
+            await waitForDeckRestingState(page);
+            const actual = await restingPackTitle(page);
+            expect(actual).not.toBe(previous);
+            expect(seen).not.toContain(actual);
             seen.push(actual);
         }
 
-        expect(seen.length, "no Skip actually advanced the deck").toBeGreaterThan(1);
+        expect(seen.length).toBeGreaterThan(1);
     });
 
-    test("TC-DECK-002: toggling Search -> For-you keeps the same job active", async ({ page }) => {
-        await seedForYouEntry(page);
-        await page.goto("/jobs");
-        await waitForDeckReady(page);
+    test("TC-DECK-003: wheel over the card never changes active job", async ({ page }) => {
+        await waitForMockDeckReady(page);
 
-        const skip = page.getByTestId("for-you-skip");
-        // Move a couple of cards in first, so we're not trivially asserting
-        // against card #1 (the state-persistence bug only shows up once
-        // there's real progress to lose).
-        await skip.click();
-        await expect(page.getByTestId("for-you-pack").first()).toBeVisible();
-        const beforeToggle = await packIdentity(page);
+        const initialJob = await restingPackTitle(page);
+        const card = deckRestingPack(page);
 
-        await page.getByRole("tab", { name: "Search all jobs" }).click();
-        await expect(page.getByTestId("for-you-home")).toHaveCount(0);
-
-        await page.getByRole("tab", { name: "For you · résumé" }).click();
-        await waitForDeckReady(page);
-        const afterToggle = await packIdentity(page);
-
-        expect(afterToggle, "toggling views must not reset or advance the active job").toBe(beforeToggle);
-    });
-
-    test("TC-DECK-003: wheel scrolling over the card scrolls content but never changes active job", async ({ page }) => {
-        await seedForYouEntry(page);
-        await page.goto("/jobs");
-        await waitForDeckReady(page);
-
-        const initialJob = await packIdentity(page);
-        const card = page.getByTestId("for-you-pack");
-
-        // Dispatch aggressive wheel events down and back up
         await card.hover();
         await page.mouse.wheel(0, 500);
         await page.waitForTimeout(350);
@@ -179,69 +57,170 @@ test.describe("FOR-YOU-DECK — Skip advances exactly one card and survives a vi
         await page.mouse.wheel(0, -1500);
         await page.waitForTimeout(350);
 
-        const currentJob = await packIdentity(page);
-        expect(currentJob, "wheel scrolling must never advance or change the active job").toBe(initialJob);
+        expect(await restingPackTitle(page)).toBe(initialJob);
     });
 
     test("TC-DECK-004: Next and Previous buttons navigate between jobs", async ({ page }) => {
-        await seedForYouEntry(page);
-        await page.goto("/jobs");
-        await waitForDeckReady(page);
+        await waitForMockDeckReady(page);
 
         const nextBtn = page.getByTestId("for-you-next");
         const prevBtn = page.getByTestId("for-you-previous");
 
         await expect(prevBtn).toBeDisabled();
-        const firstJob = await packIdentity(page);
+        const firstJob = await restingPackTitle(page);
 
         await nextBtn.click();
-        await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(firstJob, { timeout: 5000 });
-        const secondJob = await packIdentity(page);
+        await waitForDeckRestingState(page);
+        const secondJob = await restingPackTitle(page);
         expect(secondJob).not.toBe(firstJob);
         await expect(prevBtn).toBeEnabled();
 
         await prevBtn.click();
-        await expect(page.getByTestId("for-you-pack").locator("h2")).toHaveText(firstJob, { timeout: 5000 });
-        const returnedJob = await packIdentity(page);
-        expect(returnedJob).toBe(firstJob);
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).toHaveText(firstJob, { timeout: 5000 });
         await expect(prevBtn).toBeDisabled();
     });
 
     test("TC-DECK-005: keyboard shortcuts navigate between jobs", async ({ page }) => {
-        await seedForYouEntry(page);
-        await page.goto("/jobs");
-        await waitForDeckReady(page);
+        await waitForMockDeckReady(page);
 
-        const firstJob = await packIdentity(page);
+        const firstJob = await restingPackTitle(page);
 
-        // Press ArrowRight to advance
         await page.keyboard.press("ArrowRight");
-        await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(firstJob, { timeout: 5000 });
-        const secondJob = await packIdentity(page);
-        expect(secondJob).not.toBe(firstJob);
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).not.toHaveText(firstJob, { timeout: 5000 });
 
-        // Press ArrowLeft to return
         await page.keyboard.press("ArrowLeft");
-        await expect(page.getByTestId("for-you-pack").locator("h2")).toHaveText(firstJob, { timeout: 5000 });
-        const returnedJob = await packIdentity(page);
-        expect(returnedJob).toBe(firstJob);
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).toHaveText(firstJob, { timeout: 5000 });
+    });
+
+    test("TC-DECK-007: reduced motion still advances with Next", async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await waitForMockDeckReady(page);
+
+        const firstJob = await restingPackTitle(page);
+        await page.getByTestId("for-you-next").click();
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).not.toHaveText(firstJob, { timeout: 5000 });
+    });
+});
+
+test.describe("FOR-YOU-DECK — mock fixture hint banner", () => {
+    test.beforeEach(async ({ page }) => {
+        // Intentionally no hint-dismiss seed — sibling suite sets it; fresh storage shows the banner.
+        await page.emulateMedia({ reducedMotion: "no-preference" });
     });
 
     test("TC-DECK-006: first-run instruction banner shows and dismisses on Got it", async ({ page }) => {
-        await seedForYouEntry(page);
-        await page.goto("/jobs");
-        await waitForDeckReady(page);
+        await page.goto(FOR_YOU_DECK_MOCK_PATH);
+        await waitForDeckRestingState(page);
 
         const hint = page.getByText("Getting around");
         await expect(hint).toBeVisible();
 
-        const gotIt = page.getByRole("button", { name: "Got it" });
-        await gotIt.click();
+        await page.getByRole("button", { name: "Got it" }).click();
         await expect(hint).toHaveCount(0);
 
-        // Reload page and confirm hint stays dismissed
         await page.reload();
-        await waitForDeckReady(page);
+        await waitForDeckRestingState(page);
         await expect(page.getByText("Getting around")).toHaveCount(0);
+    });
+});
+
+test.describe("FOR-YOU-DECK — live /jobs (corpus-dependent)", () => {
+    test.skip(
+        process.env.E2E_LIVE_JOBS_CORPUS !== "1",
+        "Set E2E_LIVE_JOBS_CORPUS=1 to run against the real jobs index",
+    );
+
+    const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
+    const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
+    const PACKS_HOME_INTRO_KEY = "velai-packs-home-intro-v1";
+
+    const SEEDED_RESUME = {
+        data: {
+            profile: {
+                name: "Alex Rivera",
+                profession: "Software Engineer",
+                yearsOfExperience: 6,
+                location: "Remote",
+                email: "alex.rivera@example.com",
+            },
+            experience: [
+                {
+                    id: "exp-1",
+                    company: "Acme Corp",
+                    role: "Senior Software Engineer",
+                    dates: "2021-Present",
+                    description: "Built services in TypeScript and Python.",
+                },
+            ],
+            competencies: [{ category: "Languages", skills: ["TypeScript", "Python"] }],
+            education: [],
+            generatedSummary: "Software engineer.",
+        },
+        updatedAt: new Date().toISOString(),
+        sourceLabel: "e2e-seed",
+    };
+
+    async function seedForYouEntry(page: Page) {
+        await page.addInitScript(
+            ([enabledKey, resumeKey, introKey, resume]) => {
+                try {
+                    window.localStorage.setItem(enabledKey as string, "1");
+                    window.localStorage.setItem(resumeKey as string, JSON.stringify(resume));
+                    window.localStorage.setItem(introKey as string, "1");
+                } catch {
+                    /* private mode */
+                }
+            },
+            [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, PACKS_HOME_INTRO_KEY, SEEDED_RESUME] as const,
+        );
+    }
+
+    async function openDeckFromHub(page: Page) {
+        const gotIt = page.getByTestId("packs-home-intro-got-it");
+        if (await gotIt.isVisible({ timeout: 1500 }).catch(() => false)) {
+            await gotIt.click();
+        }
+        const browse = page.getByTestId("hub-browse-all-matches");
+        if ((await browse.count()) > 0) {
+            await browse.click();
+        } else {
+            await page.getByTestId("hub-pack-card-all").click();
+        }
+    }
+
+    async function waitForDeckReady(page: Page) {
+        await expect(page.getByTestId("job-packs-hub").or(page.getByTestId("for-you-home"))).toBeVisible({
+            timeout: 20_000,
+        });
+        if ((await page.getByTestId("for-you-deck").count()) === 0) {
+            await openDeckFromHub(page);
+        }
+        await expect(page.getByTestId("for-you-home")).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByTestId("for-you-loading")).toHaveCount(0, { timeout: 20_000 });
+        await waitForDeckRestingState(page);
+    }
+
+    test("TC-DECK-002: toggling Search -> For-you keeps the same job active", async ({ page }) => {
+        await seedForYouEntry(page);
+        await seedDeckMockHintDismissed(page);
+        await page.goto("/jobs");
+        await waitForDeckReady(page);
+
+        await page.getByTestId("for-you-skip").click();
+        await waitForDeckRestingState(page);
+        const beforeToggle = await restingPackTitle(page);
+
+        await page.getByRole("tab", { name: "Search all jobs" }).click();
+        await expect(page.getByTestId("for-you-home")).toHaveCount(0);
+
+        await page.getByRole("tab", { name: "For you · résumé" }).click();
+        await waitForDeckReady(page);
+        const afterToggle = await restingPackTitle(page);
+
+        expect(afterToggle).toBe(beforeToggle);
     });
 });

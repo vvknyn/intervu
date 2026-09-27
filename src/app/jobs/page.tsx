@@ -54,7 +54,7 @@ import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
 import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
-import { hasReachedStage, buildJobSnapshot } from "@/lib/pursuits/types";
+import { hasReachedStage, buildJobSnapshot, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, hasUsableResumeOnFile, saveResumeData } from "@/actions/resume";
 import { pickExceptionJit } from "@/lib/jobs/should-show-relist-jit";
@@ -253,6 +253,16 @@ import {
     readPacksHomeIntroDismissed,
     writePacksHomeIntroDismissed,
 } from "@/lib/jobs/for-you/packs-home-intro";
+import {
+    armFirstPackReveal,
+    consumeFirstPackReveal,
+} from "@/lib/jobs/for-you/first-pack-reveal";
+import { hapticTap } from "@/lib/motion/haptic";
+import { MOTION_DURATION_MS, prefersReducedMotion } from "@/lib/motion/interaction-contract";
+import {
+    buildOptimisticPursuit,
+    pruneConfirmedOptimisticPursuits,
+} from "@/lib/pursuits/optimistic-pursuit";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import {
     formatAllPackHubLabels,
@@ -1644,8 +1654,39 @@ function JobsContent() {
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
     const { byJobId: pursuitsByJobId, pursuits } = usePursuits();
+    const [optimisticPursuits, setOptimisticPursuits] = useState<Map<string, Pursuit>>(() => new Map());
+    const pursuitsByJobIdMerged = useMemo(() => {
+        const merged = new Map(pursuitsByJobId);
+        for (const [jobId, pursuit] of optimisticPursuits) {
+            merged.set(jobId, pursuit);
+        }
+        return merged;
+    }, [pursuitsByJobId, optimisticPursuits]);
     const { viewedIds, markViewed } = useViewed();
-    const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
+    const saveInFlightRef = useRef<Set<string>>(new Set());
+    const [savePulseJobIds, setSavePulseJobIds] = useState<Set<string>>(() => new Set());
+    const [pendingFirstPackReveal, setPendingFirstPackReveal] = useState(false);
+    const [firstRevealHandoff, setFirstRevealHandoff] = useState(false);
+    const [firstRevealEnter, setFirstRevealEnter] = useState(false);
+    const [firstRevealDeckFocus, setFirstRevealDeckFocus] = useState(false);
+    const firstPackRevealAttemptedRef = useRef(false);
+
+    const triggerSavePulse = useCallback((jobId: string) => {
+        if (prefersReducedMotion()) return;
+        setSavePulseJobIds((prev) => new Set(prev).add(jobId));
+        window.setTimeout(() => {
+            setSavePulseJobIds((prev) => {
+                const next = new Set(prev);
+                next.delete(jobId);
+                return next;
+            });
+        }, MOTION_DURATION_MS.enter + 20);
+    }, []);
+
+    useEffect(() => {
+        setOptimisticPursuits((prev) => pruneConfirmedOptimisticPursuits(prev, pursuitsByJobId));
+    }, [pursuitsByJobId]);
+
     const guestPursuitSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
 
@@ -1783,6 +1824,7 @@ function JobsContent() {
             } else {
                 writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
             }
+            armFirstPackReveal();
         }
     };
 
@@ -2786,6 +2828,51 @@ function JobsContent() {
     );
     const forYouDeck = useForYouDeck(forYouPacks);
 
+    useEffect(() => {
+        if (!showForYouHome || firstPackRevealAttemptedRef.current) return;
+        if (!consumeFirstPackReveal()) return;
+        firstPackRevealAttemptedRef.current = true;
+        setPendingFirstPackReveal(true);
+    }, [showForYouHome]);
+
+    useEffect(() => {
+        if (!pendingFirstPackReveal || !hasUsableResume) return;
+        let cancelled = false;
+        void resolveAndApplyFit().then((applied) => {
+            if (cancelled || applied) return;
+            setPendingFirstPackReveal(false);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [pendingFirstPackReveal, hasUsableResume]);
+
+    useEffect(() => {
+        if (!pendingFirstPackReveal || fitResolving || loading || !fitActive) return;
+        if (forYouDeck.visiblePacks.length === 0) {
+            setPendingFirstPackReveal(false);
+            return;
+        }
+        setHubSelectedCategoryId(undefined);
+        setForYouPackDeckOpen(true);
+        forYouDeck.setActiveIndex(0);
+        if (!prefersReducedMotion()) {
+            setFirstRevealHandoff(true);
+            window.setTimeout(() => setFirstRevealHandoff(false), MOTION_DURATION_MS.enter);
+            setFirstRevealEnter(true);
+            window.setTimeout(() => setFirstRevealEnter(false), MOTION_DURATION_MS.enter);
+        }
+        setFirstRevealDeckFocus(true);
+        setPendingFirstPackReveal(false);
+    }, [
+        pendingFirstPackReveal,
+        fitResolving,
+        loading,
+        fitActive,
+        forYouDeck.visiblePacks.length,
+        forYouDeck.setActiveIndex,
+    ]);
+
     // Progressive quiet fit probe — every pack gets live Strong·Good counts that
     // climb as deeper pages score. Corpus total (~N pool) surfaces on the hub.
     // On settle, diff localStorage last-seen counts for honest removal cues.
@@ -3280,7 +3367,7 @@ function JobsContent() {
             }),
         [detailJob?.id, hydratedDetail, deadJobResolved],
     );
-    const detailPursuit = detailJob ? pursuitsByJobId.get(detailJob.id) : undefined;
+    const detailPursuit = detailJob ? pursuitsByJobIdMerged.get(detailJob.id) : undefined;
 
     const mainJobsTourActive = tourActive && tourPageId === "jobs";
 
@@ -3958,6 +4045,26 @@ function JobsContent() {
     };
 
     const doMarkApplied = async (job: ApplyReturnJob) => {
+        if (saveInFlightRef.current.has(job.id)) return;
+        const prior = pursuitsByJobId.get(job.id);
+        saveInFlightRef.current.add(job.id);
+        setOptimisticPursuits((prev) => {
+            const next = new Map(prev);
+            next.set(
+                job.id,
+                buildOptimisticPursuit(
+                    {
+                        id: job.id,
+                        title: job.title,
+                        company: job.company,
+                        apply_url: job.apply_url,
+                    } as PublicJob,
+                    "applied",
+                ),
+            );
+            return next;
+        });
+        triggerSavePulse(job.id);
         try {
             const res = await markJobAppliedAction({
                 company: job.company ?? "",
@@ -3966,7 +4073,12 @@ function JobsContent() {
                 jobId: job.id,
             });
             if (res.error) {
-                // Session may have expired between login and save → reopen auth.
+                setOptimisticPursuits((prev) => {
+                    const next = new Map(prev);
+                    if (prior) next.set(job.id, prior);
+                    else next.delete(job.id);
+                    return next;
+                });
                 if (classifySentinel(res.error) === "auth") {
                     setAuthTrigger("auto");
                     setAuthOpen(true);
@@ -3976,18 +4088,27 @@ function JobsContent() {
                 return;
             }
             invalidatePursuitsCache();
+            if (!prefersReducedMotion()) hapticTap("success");
+            toast.success("Applied — nice work");
             captureEvent("job_marked_applied", {
                 job_id: job.id,
                 ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
             });
-            toast.success("Marked as applied");
         } catch (e) {
+            setOptimisticPursuits((prev) => {
+                const next = new Map(prev);
+                if (prior) next.set(job.id, prior);
+                else next.delete(job.id);
+                return next;
+            });
             if (classifySentinel(e) === "auth") {
                 setAuthTrigger("auto");
                 setAuthOpen(true);
             } else {
                 toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
             }
+        } finally {
+            saveInFlightRef.current.delete(job.id);
         }
     };
 
@@ -4001,7 +4122,7 @@ function JobsContent() {
     const { prompt: applyReturnPrompt, arm: armApplyReturnJob, markApplied: markApplyReturnApplied, dismiss: dismissApplyReturn } =
         useApplyReturnPrompt({
             isAlreadyApplied: (jobId) => {
-                const pursuit = pursuitsByJobId.get(jobId);
+                const pursuit = pursuitsByJobIdMerged.get(jobId);
                 return !!pursuit && hasReachedStage(pursuit, "applied");
             },
             onMarkApplied: doMarkApplied,
@@ -4021,23 +4142,35 @@ function JobsContent() {
             addGuestPursuit(job);
             const newCount = recordGuestSave();
             setGuestSaveCount(newCount);
+            if (!prefersReducedMotion()) hapticTap("success");
+            triggerSavePulse(job.id);
             toast.success(GUEST_SAVE_TOAST);
-            // A guest's first save is a real save, so it counts. Fired here and
-            // not at the top of the handler: the branch above this one opens the
-            // auth popover instead of saving, and counting that click would
-            // inflate saves with the exact clicks the gate rejected.
             captureEvent("job_saved", {
                 job_id: job.id,
                 ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
             });
             return;
         }
+        if (saveInFlightRef.current.has(job.id)) return;
+        if (pursuitsByJobIdMerged.has(job.id)) return;
+        const prior = pursuitsByJobId.get(job.id);
+        saveInFlightRef.current.add(job.id);
+        setOptimisticPursuits((prev) => {
+            const next = new Map(prev);
+            next.set(job.id, buildOptimisticPursuit(job));
+            return next;
+        });
+        triggerSavePulse(job.id);
         void (async () => {
-            setGoingAfterId(job.id);
             try {
                 const res = await goAfterJobAction(job);
                 if (res.error) {
-                    // Session may have expired between login and save → reopen auth.
+                    setOptimisticPursuits((prev) => {
+                        const next = new Map(prev);
+                        if (prior) next.set(job.id, prior);
+                        else next.delete(job.id);
+                        return next;
+                    });
                     if (classifySentinel(res.error) === "auth") {
                         setAuthTrigger("auto");
                         setAuthOpen(true);
@@ -4047,15 +4180,19 @@ function JobsContent() {
                     return;
                 }
                 invalidatePursuitsCache();
+                if (!prefersReducedMotion()) hapticTap("success");
                 toast.success(GUEST_SAVE_TOAST);
-                // The signed-in save, counted only once the action came back
-                // clean — the `res.error` branch above returns, and a thrown
-                // error lands in the catch, so neither reaches this line.
                 captureEvent("job_saved", {
                     job_id: job.id,
                     ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
                 });
             } catch (e) {
+                setOptimisticPursuits((prev) => {
+                    const next = new Map(prev);
+                    if (prior) next.set(job.id, prior);
+                    else next.delete(job.id);
+                    return next;
+                });
                 if (classifySentinel(e) === "auth") {
                     setAuthTrigger("auto");
                     setAuthOpen(true);
@@ -4063,7 +4200,7 @@ function JobsContent() {
                     toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
                 }
             } finally {
-                setGoingAfterId(null);
+                saveInFlightRef.current.delete(job.id);
             }
         })();
     };
@@ -4586,6 +4723,8 @@ function JobsContent() {
             // Stale-guard check (see `handleUploadClick`'s doc comment): a
             // sort choice made while the modal was open must win, not this.
             if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data);
+        } else {
+            armFirstPackReveal();
         }
     };
 
@@ -4792,9 +4931,9 @@ function JobsContent() {
                 showMatchTeaser={showMatchTeaser}
                 onMatchTeaserClick={handleFitRankUploadGate}
                 matchAsOfDate={resumeAsOfDate}
-                pursuit={pursuitsByJobId.get(j.id)}
+                pursuit={pursuitsByJobIdMerged.get(j.id)}
                 onGoAfter={() => handleGoAfter(j)}
-                goingAfter={goingAfterId === j.id}
+                saveSuccessPulse={savePulseJobIds.has(j.id)}
                 position={rank >= 0 ? rank + 1 : undefined}
             />
         );
@@ -4859,7 +4998,7 @@ function JobsContent() {
                     onOpenRelated={openJob}
                     variants={detailVariants}
                     pursuit={detailPursuit}
-                    goingAfter={goingAfterId === detailJob.id}
+                    saveSuccessPulse={savePulseJobIds.has(detailJob.id)}
                     onClose={onClose}
                     reportJobEnabled={reportJobEnabled}
                     reportDialogOpen={reportDialogOpen}
@@ -4886,7 +5025,7 @@ function JobsContent() {
                     onOpenPosting={() => handleOpenPosting(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
                     pursuit={detailPursuit}
-                    goingAfter={goingAfterId === detailJob.id}
+                    saveSuccessPulse={savePulseJobIds.has(detailJob.id)}
                     resume={resume}
                     onAcceptLocalTailor={(data) => {
                         setResume(data);
@@ -5397,6 +5536,13 @@ function JobsContent() {
             className={showLandingOnboarding ? "flex flex-1 flex-col" : "min-h-screen"}
             // className="min-h-screen"
         >
+            {firstRevealHandoff ? (
+                <div
+                    className="first-pack-reveal-handoff fixed inset-0 z-[var(--z-modal)]"
+                    aria-hidden
+                    data-testid="first-pack-reveal-handoff"
+                />
+            ) : null}
             {/* `data-shell="bleed"` is this page ASKING for the full window;
                 globals.css turns that into `--shell-max: none` for the header
                 and footer too, so all three left edges stay together. Each
@@ -6056,10 +6202,24 @@ function JobsContent() {
                                 showSearchCta={resumeOnFile === true}
                                 onReplaceResume={beginResumeUpload}
                                 hasUsableResume={hasUsableResume}
+                                firstRevealEnter={firstRevealEnter}
+                                firstRevealDeckFocus={firstRevealDeckFocus}
+                                onFirstRevealFocusDone={() => setFirstRevealDeckFocus(false)}
                                 onLoadMore={() => void loadMore()}
                                 loadingMore={loadingMore}
                                 hasMore={hasMore}
                                 resultTotal={result?.total ?? null}
+                                activePursuit={
+                                    forYouDeck.activeJob
+                                        ? pursuitsByJobIdMerged.get(forYouDeck.activeJob.id)
+                                        : undefined
+                                }
+                                onGoAfter={handleGoAfter}
+                                saveSuccessPulse={
+                                    forYouDeck.activeJob
+                                        ? savePulseJobIds.has(forYouDeck.activeJob.id)
+                                        : false
+                                }
                             />
                         )}
                     </div>

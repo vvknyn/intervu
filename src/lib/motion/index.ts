@@ -4,4 +4,8 @@ export {
   MOTION_EASE,
   MOTION_SCALE,
   prefersReducedMotion,
+  subscribePrefersReducedMotion,
+  getPrefersReducedMotionSnapshot,
+  getPrefersReducedMotionServerSnapshot,
 } from "./interaction-contract";
+export { hapticTap, type HapticKind } from "./haptic";

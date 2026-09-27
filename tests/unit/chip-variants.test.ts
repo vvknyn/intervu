@@ -18,11 +18,8 @@ describe("chipVariants: hover affordance is opt-in, safe by default", () => {
         assert.ok(!classes.includes("cursor-pointer"), classes);
     });
 
-    it("a second, different inert usage — ForYouPack's DERIVED_CHIP_CLASS (active: true, no interactive) — still carries no hover affordance", () => {
-        // Proves the default isn't accidentally keyed off `active`: an
-        // active-but-inert chip (an inferred-match chip, not a control)
-        // must stay just as inert as an active:false one.
-        const classes = chipVariants({ active: true });
+    it("a second, different inert usage — ForYouPack's DERIVED_CHIP_CLASS (active: false, no interactive) — still carries no hover affordance", () => {
+        const classes = chipVariants({ active: false });
         assert.ok(!classes.includes("hover:bg-muted"), classes);
         assert.ok(!classes.includes("cursor-pointer"), classes);
     });

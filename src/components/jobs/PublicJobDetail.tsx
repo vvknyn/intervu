@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { goAfterJobAction } from "@/actions/application";
 import { markJobAppliedAction } from "@/actions/jobs";
@@ -31,8 +31,14 @@ import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
-import { hasReachedStage } from "@/lib/pursuits/types";
+import { hasReachedStage, type Pursuit } from "@/lib/pursuits/types";
+import {
+    buildOptimisticPursuit,
+    pruneConfirmedOptimisticPursuits,
+} from "@/lib/pursuits/optimistic-pursuit";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
+import { hapticTap } from "@/lib/motion/haptic";
+import { MOTION_DURATION_MS, prefersReducedMotion } from "@/lib/motion/interaction-contract";
 import { readLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
@@ -79,7 +85,9 @@ export function PublicJobDetail({
 }: PublicJobDetailProps) {
     const effectiveSource: EventSource = source ?? (layout === "document" ? "direct" : "serp");
     const [nowMs] = useState(() => Date.now());
-    const [goingAfter, setGoingAfter] = useState(false);
+    const [optimisticPursuits, setOptimisticPursuits] = useState<Map<string, Pursuit>>(() => new Map());
+    const [savePulse, setSavePulse] = useState(false);
+    const saveInFlightRef = useRef<Set<string>>(new Set());
     const [applyIntentOpen, setApplyIntentOpen] = useState(false);
     const [user, setUser] = useState<User | null>(() => getCurrentUser());
     const [authReady, setAuthReady] = useState(() => getCurrentUser() !== null);
@@ -93,6 +101,23 @@ export function PublicJobDetail({
     const [reportDialogOpen, setReportDialogOpen] = useState(false);
     const router = useRouter();
     const { byJobId } = usePursuits();
+    const pursuitsByJobId = useMemo(() => {
+        const merged = new Map(byJobId);
+        for (const [jobId, pursuit] of optimisticPursuits) {
+            merged.set(jobId, pursuit);
+        }
+        return merged;
+    }, [byJobId, optimisticPursuits]);
+
+    useEffect(() => {
+        setOptimisticPursuits((prev) => pruneConfirmedOptimisticPursuits(prev, byJobId));
+    }, [byJobId]);
+
+    const triggerSavePulse = useCallback(() => {
+        if (prefersReducedMotion()) return;
+        setSavePulse(true);
+        window.setTimeout(() => setSavePulse(false), MOTION_DURATION_MS.enter + 20);
+    }, []);
 
     useEffect(
         () =>
@@ -235,6 +260,15 @@ export function PublicJobDetail({
     };
 
     const doMarkApplied = async (target: ApplyReturnJob) => {
+        if (saveInFlightRef.current.has(target.id)) return;
+        const prior = byJobId.get(target.id);
+        saveInFlightRef.current.add(target.id);
+        setOptimisticPursuits((prev) => {
+            const next = new Map(prev);
+            next.set(target.id, buildOptimisticPursuit(target as PublicJob, "applied"));
+            return next;
+        });
+        triggerSavePulse();
         try {
             const res = await markJobAppliedAction({
                 company: target.company ?? "",
@@ -243,6 +277,12 @@ export function PublicJobDetail({
                 jobId: target.id,
             });
             if (res.error) {
+                setOptimisticPursuits((prev) => {
+                    const next = new Map(prev);
+                    if (prior) next.set(target.id, prior);
+                    else next.delete(target.id);
+                    return next;
+                });
                 if (classifySentinel(res.error) === "auth") {
                     openAuth("tracker", "user");
                 } else {
@@ -251,17 +291,26 @@ export function PublicJobDetail({
                 return;
             }
             invalidatePursuitsCache();
+            if (!prefersReducedMotion()) hapticTap("success");
+            toast.success("Applied — nice work");
             captureEvent("job_marked_applied", {
                 job_id: target.id,
                 ...matchAnalyticsProps(target.id === job.id ? matchScoreFor(job) : null),
             });
-            toast.success("Marked as applied");
         } catch (e) {
+            setOptimisticPursuits((prev) => {
+                const next = new Map(prev);
+                if (prior) next.set(target.id, prior);
+                else next.delete(target.id);
+                return next;
+            });
             if (classifySentinel(e) === "auth") {
                 openAuth("tracker", "user");
             } else {
                 toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
             }
+        } finally {
+            saveInFlightRef.current.delete(target.id);
         }
     };
 
@@ -272,7 +321,7 @@ export function PublicJobDetail({
     const { prompt: applyReturnPrompt, arm: armApplyReturnJob, markApplied: markApplyReturnApplied, dismiss: dismissApplyReturn } =
         useApplyReturnPrompt({
             isAlreadyApplied: (jobId) => {
-                const pursuit = byJobId.get(jobId);
+                const pursuit = pursuitsByJobId.get(jobId);
                 return !!pursuit && hasReachedStage(pursuit, "applied");
             },
             onMarkApplied: doMarkApplied,
@@ -317,6 +366,8 @@ export function PublicJobDetail({
             }
             addGuestPursuit(target);
             recordGuestSave();
+            if (!prefersReducedMotion()) hapticTap("success");
+            triggerSavePulse();
             toast.success(GUEST_SAVE_TOAST);
             // A guest's first save is a real save — same placement rule as
             // jobs/page.tsx's handleGoAfter: after the gate branch above (which
@@ -327,11 +378,26 @@ export function PublicJobDetail({
             });
             return;
         }
+        if (saveInFlightRef.current.has(target.id)) return;
+        if (pursuitsByJobId.has(target.id)) return;
+        const prior = byJobId.get(target.id);
+        saveInFlightRef.current.add(target.id);
+        setOptimisticPursuits((prev) => {
+            const next = new Map(prev);
+            next.set(target.id, buildOptimisticPursuit(target));
+            return next;
+        });
+        triggerSavePulse();
         void (async () => {
-            setGoingAfter(true);
             try {
                 const res = await goAfterJobAction(target);
                 if (res.error) {
+                    setOptimisticPursuits((prev) => {
+                        const next = new Map(prev);
+                        if (prior) next.set(target.id, prior);
+                        else next.delete(target.id);
+                        return next;
+                    });
                     if (classifySentinel(res.error) === "auth") {
                         openAuth("save");
                     } else {
@@ -340,19 +406,26 @@ export function PublicJobDetail({
                     return;
                 }
                 invalidatePursuitsCache();
+                if (!prefersReducedMotion()) hapticTap("success");
                 toast.success(GUEST_SAVE_TOAST);
                 captureEvent("job_saved", {
                     job_id: target.id,
                     ...matchAnalyticsProps(matchScoreFor(target)),
                 });
             } catch (e) {
+                setOptimisticPursuits((prev) => {
+                    const next = new Map(prev);
+                    if (prior) next.set(target.id, prior);
+                    else next.delete(target.id);
+                    return next;
+                });
                 if (classifySentinel(e) === "auth") {
                     openAuth("save");
                 } else {
                     toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
                 }
             } finally {
-                setGoingAfter(false);
+                saveInFlightRef.current.delete(target.id);
             }
         })();
     };
@@ -415,8 +488,8 @@ export function PublicJobDetail({
                     now={nowMs}
                     source={effectiveSource}
                     signedIn={Boolean(user)}
-                    pursuit={byJobId.get(job.id)}
-                    goingAfter={goingAfter}
+                    pursuit={pursuitsByJobId.get(job.id)}
+                    saveSuccessPulse={savePulse}
                     reportJobEnabled={reportJobEnabled}
                     reportDialogOpen={reportDialogOpen}
                     onReportDialogOpenChange={setReportDialogOpen}
@@ -441,8 +514,8 @@ export function PublicJobDetail({
                     now={nowMs}
                     source={effectiveSource}
                     signedIn={Boolean(user)}
-                    pursuit={byJobId.get(job.id)}
-                    goingAfter={goingAfter}
+                    pursuit={pursuitsByJobId.get(job.id)}
+                    saveSuccessPulse={savePulse}
                     reportJobEnabled={reportJobEnabled}
                     reportDialogOpen={reportDialogOpen}
                     onReportDialogOpenChange={setReportDialogOpen}
@@ -479,8 +552,8 @@ export function PublicJobDetail({
                     signedIn={Boolean(user)}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
-                    pursuit={byJobId.get(job.id)}
-                    goingAfter={goingAfter}
+                    pursuit={pursuitsByJobId.get(job.id)}
+                    saveSuccessPulse={savePulse}
                     resume={resume}
                     onAcceptLocalTailor={(data) => {
                         setResume(data);

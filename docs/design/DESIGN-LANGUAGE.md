@@ -209,7 +209,7 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
 | Press | `--transition-press` (100ms) | Buttons, `.designed-press` active scale |
 | Base / panel | `--transition-base` / `--transition-panel` (150ms) | Colour, chips, dialogs |
 | Enter | `--transition-enter` (200ms) | Mount/reveal (`.enter-reveal`, `.panel-enter`) |
-| Deck | `--transition-deck` (220ms) | For-you pack index (later batches) |
+| Deck | `--transition-deck` (220ms) + `--motion-deck-shift` (12%) | For-you pack index — `.deck-enter-*` / `.deck-exit-*` on commit; drag-follow reads `computeDeckDragOffset`; reduced motion = instant index swap (no follow/slide) |
 | Page | `--transition-page` (180ms) | Home view column crossfade (later batches) |
 | Easing | `--ease-standard` | `cubic-bezier(0.4, 0, 0.2, 1)` default |
 

@@ -49,15 +49,21 @@ describe("for-you postcard layout", () => {
         );
     });
 
-    it("ForYouDeck renders only the active pack (no stacked peeking cards, no gesture hijack)", () => {
+    it("ForYouDeck renders one resting pack — swipe allowed, no wheel hijack or permanent stacked peek", () => {
         const deck = source("ForYouDeck.tsx");
-        assert.doesNotMatch(deck, /onTouchStart/);
-        assert.doesNotMatch(deck, /onTouchEnd/);
+        assert.match(deck, /resolveDeckSwipe/);
+        assert.match(deck, /touch-pan-y/);
+        assert.match(deck, /onTouchStart/);
+        assert.match(deck, /onTouchEnd/);
+        assert.match(deck, /computeDeckDragOffset/);
+        assert.match(deck, /onAnimationEnd/);
+        assert.match(deck, /shouldActivateDeckHorizontalDrag/);
         assert.doesNotMatch(deck, /shouldPackGestureAdvanceDeck/);
         assert.doesNotMatch(deck, /addEventListener\("wheel"/);
-        assert.match(deck, /key=\{activePack\.id\}/, "keyed by job id so a new job starts at scrollTop 0");
+        assert.match(deck, /key=\{pack\.id\}/, "pack slots keyed by job id");
+        assert.match(deck, /showCross/, "dual-card render is commit-only, not a resting stack");
         assert.doesNotMatch(deck, /flex-1 overflow-hidden/);
-        assert.doesNotMatch(deck, /min-h-\[min\(72dvh/, "deck must not mimic a viewport-height trap");
+        assert.match(deck, /for-you-deck-shell/, "named deck shell min-height prevents commit-time CLS");
     });
 
     it("JD column only is the inner scroller — header and fit/why stay outside data-pack-scroll", () => {
@@ -74,7 +80,7 @@ describe("for-you postcard layout", () => {
         );
         const scrollIdx = pack.indexOf("data-pack-scroll");
         const asideIdx = pack.indexOf("<aside");
-        const headerIdx = pack.indexOf("border-b border-border bg-muted");
+        const headerIdx = pack.indexOf("POSTCARD_HEADER_DIVIDER");
         assert.ok(headerIdx < scrollIdx, "pack header must render before the JD scroller");
         assert.ok(asideIdx < scrollIdx, "fit/why aside must render before the JD scroller");
         assert.doesNotMatch(pack, /max-h-\[40%\]/);
@@ -86,12 +92,17 @@ describe("for-you postcard layout", () => {
         const pack = source("ForYouPack.tsx");
         assert.match(
             pack,
-            /data-testid="for-you-pack"[\s\S]*?rounded-panel/,
-            "pack root must use rounded-panel",
+            /export const POSTCARD_SHELL[\s\S]*?rounded-panel/,
+            "POSTCARD_SHELL must include rounded-panel",
+        );
+        assert.match(
+            pack,
+            /className=\{cn\(POSTCARD_SHELL, className\)\}/,
+            "pack root must compose POSTCARD_SHELL",
         );
         assert.match(pack, /flex flex-col gap-4/, "header inner layout must be a column with gap-4");
         assert.match(pack, /break-words/, "title h2 must break long words");
-        const headerBlock = pack.match(/border-b border-border bg-muted[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
+        const headerBlock = pack.match(/POSTCARD_HEADER_DIVIDER[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
         assert.ok(headerBlock.length > 0, "pack header block not found");
         const identityRow = headerBlock.match(/<div className="flex items-start gap-3">[\s\S]*?<\/div>/)?.[0] ?? "";
         assert.ok(identityRow.length > 0, "identity row not found");
@@ -107,9 +118,10 @@ describe("for-you postcard layout", () => {
         const pack = source("ForYouPack.tsx");
         assert.match(
             pack,
-            /border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8/,
-            "pack header must use px-4 lg:px-8",
+            /POSTCARD_HEADER_DIVIDER/,
+            "pack header must use shared postcard divider + px-4 lg:px-8",
         );
+        assert.match(pack, /POSTCARD_ON_CREAM_BORDER/, "pack exports cream-paper border token");
         assert.match(
             pack,
             /grid gap-6 py-4 px-4 lg:py-6 lg:px-8/,
@@ -128,8 +140,8 @@ describe("for-you postcard layout", () => {
         );
         assert.match(
             skeletonBlock,
-            /border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8/,
-            "skeleton header must match pack horizontal inset",
+            /POSTCARD_HEADER_DIVIDER/,
+            "skeleton header must match pack postcard divider",
         );
         assert.match(
             skeletonBlock,

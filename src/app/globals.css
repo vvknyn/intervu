@@ -295,6 +295,8 @@
   --transition-page: 180ms;
   --motion-press-scale: 0.98;
   --motion-lift-y: -1px;
+  --motion-deck-shift: 12%;
+  --for-you-deck-min-height: min(72dvh, 720px);
 
   /* Elevation — Tailwind named scale stays `none`; sanctioned semantic shadows
      below (Concept A skeuomorphic, 2026-09-26). See DESIGN-LANGUAGE.md. */
@@ -556,14 +558,31 @@
 }
 
 /* Paper reading context — rebind semantic foreground tokens for prose blocks that
-   opt in with `.surface-paper` (JD bodies, résumé preview). Not on the whole
-   postcard shell: fact chips keep canvas `bg-background` + canvas ink. */
+   opt in with `.surface-paper` (JD bodies, résumé preview). ForYouPack fact
+   chips use explicit postcard ink/tint classes instead of canvas tokens. */
 .surface-paper {
   --foreground: var(--surface-postcard-foreground);
   --muted-foreground: var(--surface-postcard-muted);
   --color-foreground: rgb(var(--surface-postcard-foreground));
   --color-muted-foreground: rgb(var(--surface-postcard-muted));
   color: rgb(var(--surface-postcard-foreground));
+}
+
+/* ForYouPack cream-paper chrome — fixed alpha on semantic postcard/live RGB tokens. */
+.paper-on-cream-border {
+  border-color: rgb(var(--surface-postcard-foreground) / 0.15);
+}
+
+.paper-fact-chip {
+  border-color: rgb(var(--surface-postcard-foreground) / 0.15);
+  background-color: rgb(var(--surface-postcard-foreground) / 0.05);
+  color: rgb(var(--surface-postcard-muted));
+}
+
+.paper-inferred-chip {
+  border-color: rgb(var(--live-on-postcard) / 0.25);
+  background-color: rgb(var(--live-on-postcard) / 0.1);
+  color: rgb(var(--live-on-postcard));
 }
 
 /* Base Styles */
@@ -781,6 +800,108 @@ h4 {
 
 .enter-reveal {
   animation: panel-enter var(--transition-enter) var(--ease-standard) both;
+}
+
+.for-you-deck-shell {
+  min-height: var(--for-you-deck-min-height);
+}
+
+/* For-you deck index transitions — transform/opacity only (no stacked peek). */
+@keyframes deck-slide-out-next {
+  to {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--motion-deck-shift)));
+  }
+}
+
+@keyframes deck-slide-out-previous {
+  to {
+    opacity: 0;
+    transform: translateX(var(--motion-deck-shift));
+  }
+}
+
+@keyframes deck-slide-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(var(--motion-deck-shift));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes deck-slide-in-previous {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--motion-deck-shift)));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.deck-card-layer {
+  will-change: transform, opacity;
+}
+
+.deck-exit-next {
+  animation: deck-slide-out-next var(--transition-deck) var(--ease-out-exit) forwards;
+}
+
+.deck-exit-previous {
+  animation: deck-slide-out-previous var(--transition-deck) var(--ease-out-exit) forwards;
+}
+
+.deck-enter-next {
+  animation: deck-slide-in-next var(--transition-deck) var(--ease-standard) both;
+}
+
+.deck-enter-previous {
+  animation: deck-slide-in-previous var(--transition-deck) var(--ease-standard) both;
+}
+
+@keyframes success-pulse-keyframes {
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.success-pulse {
+  animation: success-pulse-keyframes var(--transition-enter) var(--ease-standard);
+}
+
+.first-pack-reveal-handoff {
+  background: rgb(var(--surface-poster));
+  animation: first-pack-handoff-fade var(--transition-enter) var(--ease-standard) forwards;
+  pointer-events: none;
+}
+
+@keyframes first-pack-handoff-fade {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-exit-next,
+  .deck-exit-previous,
+  .deck-enter-next,
+  .deck-enter-previous,
+  .first-pack-reveal-handoff,
+  .success-pulse {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }
 
 .designed-focus:focus-visible {

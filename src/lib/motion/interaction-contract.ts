@@ -46,3 +46,19 @@ export function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+/** `useSyncExternalStore` subscription — client snapshot always reads live media query. */
+export function subscribePrefersReducedMotion(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+export function getPrefersReducedMotionSnapshot(): boolean {
+  return prefersReducedMotion();
+}
+
+export function getPrefersReducedMotionServerSnapshot(): boolean {
+  return false;
+}
