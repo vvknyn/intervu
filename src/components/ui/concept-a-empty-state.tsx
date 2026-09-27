@@ -6,8 +6,21 @@ import { EmptyState, type EmptyStateProps } from "@/components/ui/empty-state";
 /** Shared reading width for every Concept A empty block (illustration + copy + CTA). */
 export const conceptAEmptyMaxClassName = "concept-a-empty-max";
 
-/** In-page empty placement — optical upper third, safe-area aware (tracker, history, search). */
+/** Base in-page empty slot — pair with a placement modifier class. */
 export const conceptAEmptyPageSlotClassName = "concept-a-empty-page-slot";
+
+/** Full-frame / deck placement — optical upper third. */
+export const conceptAEmptyPageSlotPageClassName = "concept-a-empty-page-slot--page";
+
+/** Below route controls (tracker tabs, search row). */
+export const conceptAEmptyPageSlotAfterControlsClassName = "concept-a-empty-page-slot--after-controls";
+
+export type ConceptAEmptyPagePlacement = "page" | "after-controls";
+
+const PLACEMENT_CLASS: Record<ConceptAEmptyPagePlacement, string> = {
+    page: conceptAEmptyPageSlotPageClassName,
+    "after-controls": conceptAEmptyPageSlotAfterControlsClassName,
+};
 
 export type ConceptAEmptyStateProps = EmptyStateProps & {
     illustration?: React.ReactNode;
@@ -53,11 +66,22 @@ export function ConceptAEmptyState({
 
 export function ConceptAEmptyPageSlot({
     children,
+    placement,
     className,
     ...rest
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & {
+    /** When set, applies a named top offset; omit for caller-controlled padding (e.g. search pt-6). */
+    placement?: ConceptAEmptyPagePlacement;
+}) {
     return (
-        <div className={cn(conceptAEmptyPageSlotClassName, className)} {...rest}>
+        <div
+            className={cn(
+                conceptAEmptyPageSlotClassName,
+                placement ? PLACEMENT_CLASS[placement] : undefined,
+                className,
+            )}
+            {...rest}
+        >
             {children}
         </div>
     );

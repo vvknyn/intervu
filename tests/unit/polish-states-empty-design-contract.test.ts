@@ -107,7 +107,17 @@ describe("polish batch 3 — design contract", () => {
         assert.doesNotMatch(empty, /shadow-\[/);
         assert.doesNotMatch(empty, /p-10|p-12/);
         assert.match(GLOBALS, /\.concept-a-empty-max[\s\S]*text-align:\s*center/);
-        assert.match(GLOBALS, /\.concept-a-empty-page-slot/);
+        assert.match(GLOBALS, /\.concept-a-empty-page-slot--page/);
+        assert.match(GLOBALS, /\.concept-a-empty-page-slot--after-controls[\s\S]*padding-top:\s*2rem/);
+    });
+
+    it("Concept A canvas: :root and .dark share --background token", () => {
+        assert.match(GLOBALS, /--background:\s*11\s+13\s+18/);
+        const darkBlock = GLOBALS.match(/\.dark\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+        assert.match(darkBlock, /--background:\s*11\s+13\s+18/);
+        assert.doesNotMatch(darkBlock, /--background:\s*8\s+9\s+12/);
+        const layout = read("src/app/layout.tsx");
+        assert.match(layout, /#0B0D12/);
     });
 
     it("404/error use in-flow route status shell inside main (not auth full-viewport)", () => {

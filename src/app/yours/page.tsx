@@ -334,7 +334,7 @@ function YoursContent() {
 
                 {filtered.length === 0 ? (
                     pursuits.length === 0 ? (
-                        <ConceptAEmptyPageSlot>
+                        <ConceptAEmptyPageSlot placement="after-controls">
                             <TrackerEmptyState
                                 user={!!user}
                                 onLoginClick={() => setAuthPopoverOpen(true)}

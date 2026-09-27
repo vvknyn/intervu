@@ -69,7 +69,7 @@ export function EmptyStatesMock({ surface }: { surface: string | null }) {
             data-testid={`mock-empty-${surface}`}
         >
             {surface === "tracker" && (
-                <ConceptAEmptyPageSlot>
+                <ConceptAEmptyPageSlot placement="after-controls">
                     <ConceptAEmptyState
                         testId="yours-empty"
                         title="Your tracker is empty."
@@ -83,7 +83,7 @@ export function EmptyStatesMock({ surface }: { surface: string | null }) {
                 </ConceptAEmptyPageSlot>
             )}
             {surface === "history" && (
-                <ConceptAEmptyPageSlot>
+                <ConceptAEmptyPageSlot placement="after-controls">
                     <ConceptAEmptyState
                         testId="history-empty"
                         title="Jobs you open will show up here."
@@ -97,7 +97,7 @@ export function EmptyStatesMock({ surface }: { surface: string | null }) {
                 </ConceptAEmptyPageSlot>
             )}
             {surface === "for-you" && (
-                <ConceptAEmptyPageSlot className="flex-1">
+                <ConceptAEmptyPageSlot placement="page" className="flex-1">
                     <ConceptAEmptyState
                         testId="for-you-empty"
                         title="No ranked roles to show right now."
@@ -111,7 +111,7 @@ export function EmptyStatesMock({ surface }: { surface: string | null }) {
                 </ConceptAEmptyPageSlot>
             )}
             {surface === "for-you-blocked" && (
-                <ConceptAEmptyPageSlot className="flex-1">
+                <ConceptAEmptyPageSlot placement="page" className="flex-1">
                     <ConceptAEmptyState
                         testId="for-you-empty-blocked"
                         title="We can't rank roles without a résumé on file."

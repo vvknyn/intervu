@@ -58,13 +58,21 @@ describe("polish batch 3 — states and empties", () => {
         assert.match(read("src/components/jobs/for-you/ForYouHome.tsx"), /ConceptAEmptyState[\s\S]*for-you-empty/);
     });
 
-    it("tracker and history empties use ConceptAEmptyPageSlot (upper-third placement)", () => {
-        assert.match(read("src/app/yours/page.tsx"), /ConceptAEmptyPageSlot[\s\S]*TrackerEmptyState/);
-        assert.match(read("src/app/yours/history/page.tsx"), /ConceptAEmptyPageSlot[\s\S]*HistoryEmptyState/);
+    it("tracker and history use after-controls slot; for-you uses page placement", () => {
+        assert.match(read("src/app/yours/page.tsx"), /ConceptAEmptyPageSlot[\s\S]*placement="after-controls"[\s\S]*TrackerEmptyState/);
+        assert.match(
+            read("src/app/yours/history/page.tsx"),
+            /ConceptAEmptyPageSlot[\s\S]*placement="after-controls"[\s\S]*HistoryEmptyState/,
+        );
+        assert.match(read("src/components/jobs/for-you/ForYouHome.tsx"), /ConceptAEmptyPageSlot[\s\S]*placement="page"/);
+        const mock = read("src/components/mock/EmptyStatesMock.tsx");
+        assert.match(mock, /surface === "tracker"[\s\S]*placement="after-controls"/);
+        assert.match(mock, /surface === "history"[\s\S]*placement="after-controls"/);
     });
 
     it("search zero-results uses compact centered ConceptAEmptyState and keeps chip testids", () => {
         const page = read("src/app/jobs/page.tsx");
+        assert.match(page, /ConceptAEmptyPageSlot[\s\S]*className="pb-4 pt-6"/);
         assert.match(page, /ConceptAEmptyState[\s\S]*density="compact"/);
         assert.doesNotMatch(page, /ConceptAEmptyState[\s\S]*layout="inline"/);
         assert.match(page, /justify-center text-center/);

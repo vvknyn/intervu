@@ -46,6 +46,23 @@ test("unknown route 404 keeps TopBar and single main landmark", async ({ page })
     await expect(page.locator(".route-status-in-flow")).toBeVisible();
 });
 
+test("tracker mock empty card is centered and in optical upper third", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/mock/empty-states?surface=tracker");
+    const card = page.getByTestId("yours-empty");
+    await expect(card).toBeVisible();
+    await expect(card).toHaveClass(/concept-a-empty-max/);
+    await expect(page.locator(".concept-a-empty-page-slot--after-controls")).toBeVisible();
+    const box = await card.boundingBox();
+    expect(box).not.toBeNull();
+    const viewport = page.viewportSize()!;
+    const cardTop = box!.y;
+    const cardCenterX = box!.x + box!.width / 2;
+    expect(cardTop).toBeGreaterThan(64);
+    expect(cardTop).toBeLessThan(viewport.height * 0.42);
+    expect(Math.abs(cardCenterX - viewport.width / 2)).toBeLessThan(64);
+});
+
 for (const viewport of [
     { name: "desktop", width: 1440, height: 900 },
     { name: "mobile", width: 390, height: 844 },

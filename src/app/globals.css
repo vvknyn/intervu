@@ -322,8 +322,8 @@
 }
 
 .dark {
-  /* Dark theme — deeper charcoal; same Concept A accent and shadow language. */
-  --background: 8 9 12;
+  /* Dark theme — same Concept A canvas as :root (#0B0D12); cards/surfaces stay elevated. */
+  --background: 11 13 18;
   --foreground: 245 245 245;
   --card: 16 18 24;
   --card-foreground: 245 245 245;
@@ -859,14 +859,23 @@ h4 {
   text-align: center;
 }
 
-/** Tracker/history/search empty placement — optical upper third, safe-area aware. */
+/** Concept A empty slot — shared centering; placement modifiers set top offset. */
 .concept-a-empty-page-slot {
   display: flex;
   width: 100%;
   flex-direction: column;
   align-items: center;
-  padding-top: clamp(1.5rem, 16dvh, 9rem);
   padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+/** Deck / full-frame empties — optical upper third, safe-area aware. */
+.concept-a-empty-page-slot--page {
+  padding-top: clamp(1.5rem, 16dvh, 9rem);
+}
+
+/** Tracker/history — below tabs + search controls (8pt grid). */
+.concept-a-empty-page-slot--after-controls {
+  padding-top: 2rem;
 }
 
 /** In-flow 404/error — seamless with app shell background inside `<main>`. */

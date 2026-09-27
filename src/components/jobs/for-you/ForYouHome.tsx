@@ -324,7 +324,7 @@ export function ForYouHome({
                     <ForYouDeckSkeleton tone="postcard" withStatus />
                 </div>
             ) : visiblePacks.length === 0 ? (
-                <ConceptAEmptyPageSlot className="flex-1" data-testid="for-you-empty-wrap">
+                <ConceptAEmptyPageSlot placement="page" className="flex-1" data-testid="for-you-empty-wrap">
                     <ConceptAEmptyState
                         testId="for-you-empty"
                         title="No ranked roles to show right now."

@@ -134,7 +134,7 @@ export function HistoryList({
     if (loading) return <HistoryLoading />;
     if (entries.length === 0) {
         return (
-            <ConceptAEmptyPageSlot>
+            <ConceptAEmptyPageSlot placement="after-controls">
                 <HistoryEmptyState />
             </ConceptAEmptyPageSlot>
         );
