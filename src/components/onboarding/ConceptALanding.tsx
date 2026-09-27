@@ -89,8 +89,8 @@ function PostcardCard({ title, meta, style }: Postcard) {
             </p>
             <p className="mt-1 text-caption sm:text-xs leading-snug text-surface-postcard-muted">{meta}</p>
             <div className="mt-3.5 flex items-center gap-1.5">
-                <span className="size-1.5 rounded-pill bg-live instrument-breathe" aria-hidden />
-                <span className="text-caption font-semibold text-live">Live</span>
+                <span className="size-1.5 rounded-pill bg-live-on-postcard instrument-breathe" aria-hidden />
+                <span className="text-caption font-semibold text-live-on-postcard">Live</span>
             </div>
         </div>
     );
@@ -158,7 +158,7 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
             </header>
 
             <div className="relative z-10 flex flex-1 flex-col lg:flex-row items-stretch lg:items-center px-5 sm:px-10 lg:px-14 pb-10 lg:pb-16 gap-8 lg:gap-6 min-h-0">
-                <div className="flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 pt-6 lg:pt-0 lg:w-[46%]">
+                <div className="flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 bg-surface-poster pt-6 lg:pt-0 lg:w-[46%]">
                     <h1 className="text-poster-hero font-semibold">
                         Skip the job
                         <br />

@@ -160,8 +160,8 @@ import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorField
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
-import { LandingOnboardingView } from "@/components/onboarding/LandingOnboardingView";
 import { LandingAnimatedBackground } from "@/components/marketing/LandingAnimatedBackground";
+import { LandingOnboardingView } from "@/components/onboarding/LandingOnboardingView";
 import { CategoryHubGrid } from "@/components/jobs/CategoryHubGrid";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";

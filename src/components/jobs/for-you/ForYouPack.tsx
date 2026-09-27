@@ -197,7 +197,7 @@ export function ForYouPack({
                     target="_blank"
                     rel="noopener noreferrer"
                     data-testid="for-you-jd-apply-link"
-                    className="inline-flex text-sm font-semibold text-live underline-offset-4 hover:underline"
+                    className="inline-flex text-sm font-semibold text-live-on-postcard underline-offset-4 hover:underline"
                 >
                     Apply at {company || "company"}
                 </a>
@@ -215,7 +215,7 @@ export function ForYouPack({
                     target="_blank"
                     rel="noopener noreferrer"
                     data-testid="for-you-jd-apply-link"
-                    className="inline-flex text-sm font-semibold text-live underline-offset-4 hover:underline"
+                    className="inline-flex text-sm font-semibold text-live-on-postcard underline-offset-4 hover:underline"
                 >
                     Apply at {company || "company"}
                 </a>
