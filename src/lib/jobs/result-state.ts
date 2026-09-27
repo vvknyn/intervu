@@ -22,6 +22,26 @@ import type { JobSearchResult, PublicJob } from "./types";
 export const SEARCH_UNAVAILABLE_MESSAGE =
     "Search is temporarily unavailable — this usually clears within a minute. Try again in a moment.";
 
+/** Signed-out / unconfigured backend panel — production uses degraded-search tone (#618). */
+export function jobsNotConnectedPanelCopy(input: {
+    isDev: boolean;
+    operatorNote?: string | null;
+}): { title: string; body: string; operatorDetail: string | null } {
+    if (input.isDev) {
+        return {
+            title: "Job search is being connected.",
+            body:
+                "We're wiring Velai up to Subspace's live job corpus — including the posting check that flags roles that aren't really hiring.",
+            operatorDetail: input.operatorNote?.trim() || null,
+        };
+    }
+    return {
+        title: "We can't load results right now.",
+        body: SEARCH_UNAVAILABLE_MESSAGE,
+        operatorDetail: null,
+    };
+}
+
 /** Operator/setup notes from backends — must never be shown in product UI. */
 const OPERATOR_SEARCH_NOTE_PATTERN =
     /MEILISEARCH_HOST|JOBS_PREVIEW_FROM_SNAPSHOT|SUBSPACE_API_KEY/i;
