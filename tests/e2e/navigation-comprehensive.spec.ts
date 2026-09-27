@@ -8,7 +8,8 @@ import { test as authTest } from './helpers/auth-gate';
  * The shell is:
  * - TopBar (data-testid="topbar") on every page — wordmark, "All jobs"
  *   (data-testid="topbar-alljobs"), and an auth-conditional avatar
- *   (data-testid="topbar-avatar") or Sign in (data-testid="topbar-signin").
+ *   (data-testid="topbar-avatar") or visible Sign in (Concept A poster or
+ *   data-testid="topbar-signin" on marketing routes).
  * - The old 6-item desktop sidebar and mobile bottom tab bar are deleted,
  *   not hidden. Nav destinations (Resumes, Yours, Library,
  *   Settings) live inside the signed-in avatar's dropdown menu instead.

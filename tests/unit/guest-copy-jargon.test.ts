@@ -20,6 +20,7 @@ import {
 } from "../../src/lib/follows/persist-copy";
 import { GUEST_AUTH_STRINGS } from "../../src/lib/auth/auth-gate-copy";
 import { TRACKER_PAGE_SUBCOPY } from "../../src/lib/pursuits/tracker-voice-copy";
+import { RESUME_UPLOAD_PROMISE } from "../../src/lib/jobs/resume-privacy-copy";
 import {
   ELUTA_ALTERNATIVE,
   INDEED_ALTERNATIVE,
@@ -39,7 +40,6 @@ const BANNED: readonly RegExp[] = [
   /openclaw/i,
   /\bmcp\b/i,
   /\bagents?\b/i,
-  /\bskills?\b/i,
   /whatsapp/i,
   /\bconnectors?\b/i,
   /self-host/i,
@@ -81,6 +81,14 @@ test("guest-surface strings carry no machinery jargon", () => {
       assert.doesNotMatch(value, pattern, `${name} must not match ${pattern}`);
     }
   }
+});
+
+test("everyday job-search skills wording is allowed; agent machinery is not", () => {
+  assert.match(RESUME_UPLOAD_PROMISE, /skill/i);
+  for (const pattern of BANNED) {
+    assert.doesNotMatch(RESUME_UPLOAD_PROMISE, pattern, `skills phrasing must not trip ${pattern}`);
+  }
+  assert.match("Try our AI agents", /\bagents?\b/i);
 });
 
 /**

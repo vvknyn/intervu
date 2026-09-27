@@ -37,12 +37,23 @@ function sliceBetween(src: string, start: string, end: string): string {
     return src.slice(from, to);
 }
 
+function topBarAuthButtonBlock(src: string, testId: string, occurrence: number): string {
+    let from = 0;
+    let idx = -1;
+    for (let i = 0; i <= occurrence; i++) {
+        idx = src.indexOf(`data-testid="${testId}"`, from);
+        assert.notStrictEqual(idx, -1, `${testId} occurrence ${i} missing`);
+        from = idx + 1;
+    }
+    return src.slice(Math.max(0, idx - 160), idx + 480);
+}
+
 function signedOutTopBarBranches(src: string): { lean: string; marketing: string } {
     const leanStart = src.indexOf(") : leanSurface ?");
     assert.notStrictEqual(leanStart, -1, "leanSurface branch missing");
     const marketingStart = src.indexOf(") : (", leanStart);
     assert.notStrictEqual(marketingStart, -1, "marketing branch missing");
-    const marketingEnd = src.indexOf(")}", marketingStart);
+    const marketingEnd = src.indexOf("                    )}", marketingStart);
     assert.notStrictEqual(marketingEnd, -1, "marketing branch end missing");
     return {
         lean: src.slice(leanStart, marketingStart),
@@ -130,15 +141,32 @@ describe("Phase 2 batch 4 — auth retry", () => {
 describe("Phase 2 batch 4 — marketing TopBar", () => {
     it("lean /jobs: filled Sign in only; marketing: ghost Sign in + Create account", () => {
         const src = readFileSync(TOPBAR, "utf8");
-        const { lean, marketing } = signedOutTopBarBranches(src);
+        const { lean } = signedOutTopBarBranches(src);
         assert.match(lean, /topbar-signin/);
         assert.doesNotMatch(lean, /topbar-create-account/);
         assert.doesNotMatch(lean, /variant="ghost"/);
-        assert.match(marketing, /topbar-signin/);
-        assert.match(marketing, /topbar-create-account/);
-        assert.match(marketing, /variant="ghost"/);
-        assert.match(marketing, /setAuthTab\("signup"\)/);
+
+        const leanSignIn = topBarAuthButtonBlock(src, "topbar-signin", 0);
+        assert.doesNotMatch(leanSignIn, /variant="ghost"/);
+        assert.match(leanSignIn, /setAuthTab\("login"\)/);
+
+        const marketingSignIn = topBarAuthButtonBlock(src, "topbar-signin", 1);
+        assert.match(marketingSignIn, /variant="ghost"/);
+        assert.match(marketingSignIn, /setAuthTab\("login"\)/);
+
+        const marketingCreate = topBarAuthButtonBlock(src, "topbar-create-account", 0);
+        assert.match(marketingCreate, /Create account/);
+        assert.match(marketingCreate, /setAuthTab\("signup"\)/);
+        assert.doesNotMatch(marketingCreate, /variant="ghost"/);
+
         assert.doesNotMatch(src, /topbar-alerts-cta/);
+    });
+
+    it("e2e helper targets visible Concept A Sign in before TopBar on lean surfaces", () => {
+        const src = readFileSync(join(ROOT, "tests/e2e/helpers/signed-out-auth-entry.ts"), "utf8");
+        assert.match(src, /concept-a-sign-in/);
+        assert.match(src, /visibleSignInLocator/);
+        assert.match(src, /marketingTopBarCreateAccount/);
     });
 });
 

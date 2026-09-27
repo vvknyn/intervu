@@ -1,21 +1,12 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { clickVisibleSignIn, visibleSignInLocator } from './helpers/signed-out-auth-entry';
 
 /**
  * TEST GROUP: AUTH - Authentication Tests
  *
- * Tests authentication flows including sign in, sign up, sign out,
- * guest mode, and login form validation.
- *
- * One visual world (2026-08-04): `/` used to render its own `FrontDoorNav`
- * over a hidden `TopBar`, so tests had to target FrontDoorNav's separate
- * `landing-login` trigger. `FrontDoorNav` is deleted — `TopBar` is now the
- * only nav on every route, front door included — so `/`'s real, clickable
- * login entry point is `topbar-signin` on marketing routes (and lean
- * surfaces use the same test id with a filled treatment).
+ * Signed-out login entry: Concept A poster Sign in on /jobs when visible,
+ * otherwise visible TopBar `topbar-signin` (marketing routes).
  */
-function frontDoorLogin(page: Page) {
-  return page.getByTestId('topbar-signin');
-}
 
 test.describe('AUTH - Authentication Tests', () => {
 
@@ -28,21 +19,8 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Desktop: look for "Log in" in the side rail
-    const loginButton = page.locator(
-      'button:has-text("Sign in"), button:has-text("Log in"), a:has-text("Log in"), button:has-text("login")',
-    );
-    const isVisible = await loginButton.first().isVisible().catch(() => false);
-
-    if (!isVisible) {
-      // Mobile: check bottom nav
-      await page.setViewportSize({ width: 375, height: 667 });
-      await page.reload();
-      const mobileLogin = page.locator('button:has-text("Login"), button:has-text("Log in")');
-      await expect(mobileLogin.first()).toBeVisible({ timeout: 5000 });
-    } else {
-      expect(isVisible).toBeTruthy();
-    }
+    const loginButton = await visibleSignInLocator(page);
+    await expect(loginButton).toBeVisible({ timeout: 10000 });
   });
 
   /**
@@ -55,9 +33,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Click login button (sidebar or nav)
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
 
       // Verify auth form appears (password input or dialog)
       const authForm = page.locator('input[type="password"], [role="dialog"]');
@@ -74,9 +52,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
       await page.waitForTimeout(500);
 
       // Should have both username/email and password inputs
@@ -97,9 +75,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
 
       const passwordField = page.locator('input[type="password"]');
       await expect(passwordField.first()).toHaveAttribute('type', 'password');
@@ -115,9 +93,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
       await page.waitForTimeout(500);
 
       // Try to submit without filling fields — scoped to the auth dialog:
@@ -186,9 +164,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
       await expect(page.locator('input[type="password"]').first()).toBeVisible({ timeout: 5000 });
 
       // Press Escape
@@ -210,9 +188,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = frontDoorLogin(page);
+    const loginButton = await visibleSignInLocator(page);
     if (await loginButton.isVisible()) {
-      await loginButton.click();
+      await clickVisibleSignIn(page);
       await page.waitForTimeout(500);
 
       const signUp = page.locator('button:has-text("Create account"), a:has-text("Create account")');
