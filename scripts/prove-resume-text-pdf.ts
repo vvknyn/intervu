@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
+import { linuxChromiumVisualQaLaunchOptions } from "./design/linux-chromium-visual-qa.cjs";
 import { extractText, getDocumentProxy } from "unpdf";
 import { htmlToChromePdf } from "../src/lib/resume/chrome-print-pdf";
 import { resumeDataFromPlainText } from "../src/lib/resume/structure-resume-text";
@@ -65,7 +66,7 @@ async function main() {
     }
 
     // PNG preview of the HTML page (same document printed to PDF)
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(linuxChromiumVisualQaLaunchOptions({ headless: true }));
     try {
         const page = await browser.newPage({ viewport: { width: 816, height: 1056 } });
         await page.setContent(html, { waitUntil: "networkidle" });
