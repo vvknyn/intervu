@@ -8,6 +8,7 @@ import {
 } from "./concept-a-landing-stack-parse";
 
 const SRC = readFileSync("src/components/onboarding/ConceptALanding.tsx", "utf8");
+const GLOBALS = readFileSync("src/app/globals.css", "utf8");
 const POSTCARD = extractPostcardCardFunction(SRC);
 
 test("Concept A postcards render real titles, meta, and Live label", () => {
@@ -65,4 +66,33 @@ test("Concept A keeps poster texture and real postcard stack", () => {
   assert.match(SRC, /poster-noise/);
   assert.match(SRC, /Remote AI Roles/);
   assert.match(SRC, /overflow-visible/);
+});
+
+test("Concept A hero copy column has no opaque poster plate", () => {
+  const heroBlock = SRC.match(/Skip the job[\s\S]*?Start with your résumé/)?.[0] ?? "";
+  assert.ok(heroBlock.length > 0, "hero copy block must exist");
+  assert.doesNotMatch(heroBlock, /\bbg-surface-poster\b/, "hero column must not paint its own poster fill");
+});
+
+test("Concept A poster-noise keeps solid root fill and pseudo texture layer", () => {
+  assert.match(GLOBALS, /\.poster-noise\s*\{[\s\S]*background-color:\s*rgb\(var\(--surface-poster\)\)/);
+  assert.match(GLOBALS, /\.poster-noise::before\s*\{[\s\S]*pointer-events:\s*none/);
+  assert.match(GLOBALS, /\.poster-noise::before[\s\S]*background-image:/);
+  assert.doesNotMatch(
+    GLOBALS,
+    /\.poster-noise\s*\{[\s\S]*?background-image:/,
+    "grain/vignette must not live on .poster-noise root",
+  );
+});
+
+test("Concept A Step 1 toggles documented body class for scoped site chrome hide", () => {
+  assert.match(SRC, /export const CONCEPT_A_LANDING_BODY_CLASS = "concept-a-landing-active"/);
+  assert.match(SRC, /document\.body\.classList\.add\(CONCEPT_A_LANDING_BODY_CLASS\)/);
+  assert.match(SRC, /document\.body\.classList\.remove\(CONCEPT_A_LANDING_BODY_CLASS\)/);
+  const chromeHide = GLOBALS.match(
+    /body\.concept-a-landing-active \[data-testid="topbar"\][\s\S]*?\{[\s\S]*?display:\s*none/,
+  )?.[0];
+  assert.ok(chromeHide, "globals must hide topbar while Step 1 body class is active");
+  assert.match(chromeHide!, /\[data-testid="mobile-tabbar"\]/);
+  assert.match(chromeHide!, /\[data-testid="site-footer"\]/);
 });

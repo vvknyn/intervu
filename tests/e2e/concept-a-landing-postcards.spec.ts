@@ -53,6 +53,78 @@ for (const viewport of VIEWPORTS) {
             expect(clipped.hits, JSON.stringify(clipped, null, 2)).toEqual([]);
         });
 
+        test("Step 1 hides site chrome, fits viewport height, hero shares poster root fill", async ({ page }) => {
+            const layout = await page.evaluate(() => {
+                const parseRgb = (raw: string) => {
+                    const m = raw.match(/rgba?\(([^)]+)\)/);
+                    if (!m) return { r: 0, g: 0, b: 0, a: 0 };
+                    const parts = m[1].split(",").map((p) => p.trim());
+                    return {
+                        r: Number(parts[0]),
+                        g: Number(parts[1]),
+                        b: Number(parts[2]),
+                        a: parts.length > 3 ? Number(parts[3]) : 1,
+                    };
+                };
+
+                const chromeTestIds = ["topbar", "mobile-tabbar", "site-footer"] as const;
+                const chrome = chromeTestIds.map((id) => {
+                    const el = document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
+                    const style = el ? getComputedStyle(el) : null;
+                    return {
+                        id,
+                        display: style?.display ?? null,
+                        height: el?.getBoundingClientRect().height ?? 0,
+                    };
+                });
+
+                const root = document.querySelector('[data-testid="concept-a-landing"]') as HTMLElement | null;
+                const h1 = root?.querySelector("h1") as HTMLElement | null;
+                if (!root || !h1) return { error: "landing or hero missing" as const };
+
+                const heroCol = h1.parentElement as HTMLElement | null;
+                const heroColBg = heroCol ? parseRgb(getComputedStyle(heroCol).backgroundColor) : null;
+                const rootBg = parseRgb(getComputedStyle(root).backgroundColor);
+
+                const opaqueBackgroundAt = (el: HTMLElement) => {
+                    let node: HTMLElement | null = el;
+                    while (node && root.contains(node)) {
+                        const bg = parseRgb(getComputedStyle(node).backgroundColor);
+                        if (bg.a >= 0.95) return bg;
+                        node = node.parentElement;
+                    }
+                    return rootBg;
+                };
+
+                const innerHeight = window.innerHeight;
+
+                return {
+                    bodyClassActive: document.body.classList.contains("concept-a-landing-active"),
+                    chrome,
+                    docScrollHeight: document.documentElement.scrollHeight,
+                    bodyScrollHeight: document.body.scrollHeight,
+                    innerHeight,
+                    heroColAlpha: heroColBg?.a ?? 1,
+                    rootBg,
+                    heroOpaqueBg: opaqueBackgroundAt(h1),
+                };
+            });
+
+            if ("error" in layout) {
+                throw new Error(layout.error);
+            }
+
+            expect(layout.bodyClassActive).toBe(true);
+            for (const row of layout.chrome) {
+                expect(row.display, `${row.id} display`).toBe("none");
+                expect(row.height, `${row.id} layout height`).toBe(0);
+            }
+            expect(layout.docScrollHeight).toBeLessThanOrEqual(layout.innerHeight + 4);
+            expect(layout.bodyScrollHeight).toBeLessThanOrEqual(layout.innerHeight + 4);
+            expect(layout.heroColAlpha).toBeLessThan(0.05);
+            expect(layout.heroOpaqueBg).toEqual(layout.rootBg);
+        });
+
         test("front card title/meta/Live stay inside viewport and card; Live meets AA contrast", async ({
             page,
         }) => {

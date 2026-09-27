@@ -1221,12 +1221,28 @@ body[data-scroll-locked] [data-testid="apply-return-prompt"] {
   letter-spacing: var(--tracking-poster-hero);
 }
 
-/* Concept A poster grain + vignette — token-backed, shared with landing. */
+/* Concept A poster grain + vignette — solid token fill on root for contrast; texture in ::before. */
 .poster-noise {
+  position: relative;
   background-color: rgb(var(--surface-poster));
+}
+
+.poster-noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background-image:
     radial-gradient(ellipse 80% 60% at 70% 40%, rgb(255 255 255 / 0.03), transparent 60%),
     url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* Step 1 Concept A portal — hide in-flow site chrome; landing supplies its own header/sign-in. */
+body.concept-a-landing-active [data-testid="topbar"],
+body.concept-a-landing-active [data-testid="mobile-tabbar"],
+body.concept-a-landing-active [data-testid="site-footer"] {
+  display: none !important;
 }
 
 /* Concept A landing postcard fan — mobile viewport containment (POSTCARDS % geometry unchanged). */

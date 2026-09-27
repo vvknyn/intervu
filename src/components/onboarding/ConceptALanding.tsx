@@ -72,6 +72,9 @@ export const POSTCARDS = [
 export const CONCEPT_A_POSTCARD_CLASS = "concept-a-postcard";
 export const CONCEPT_A_POSTCARD_STACK_CLASS = "concept-a-postcard-stack";
 
+/** Document body class while Step 1 portal is mounted; pairs with globals.css site-chrome hide. */
+export const CONCEPT_A_LANDING_BODY_CLASS = "concept-a-landing-active";
+
 function PostcardCard({
     title,
     meta,
@@ -138,8 +141,10 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
         setMounted(true);
         const prev = document.body.style.overflow;
         document.body.style.overflow = "hidden";
+        document.body.classList.add(CONCEPT_A_LANDING_BODY_CLASS);
         return () => {
             document.body.style.overflow = prev;
+            document.body.classList.remove(CONCEPT_A_LANDING_BODY_CLASS);
         };
     }, []);
 
@@ -182,7 +187,7 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
             </header>
 
             <div className="relative z-10 flex flex-1 flex-col lg:flex-row items-stretch lg:items-center px-5 sm:px-10 lg:px-14 pb-10 lg:pb-16 gap-8 lg:gap-6 min-h-0">
-                <div className="flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 bg-surface-poster pt-6 lg:pt-0 lg:w-[46%]">
+                <div className="flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 pt-6 lg:pt-0 lg:w-[46%]">
                     <h1 className="text-poster-hero font-semibold">
                         Skip the job
                         <br />
