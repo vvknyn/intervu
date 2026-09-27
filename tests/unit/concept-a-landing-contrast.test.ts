@@ -16,7 +16,11 @@ test("Concept A postcards render real titles, meta, and Live label", () => {
   assert.match(POSTCARD, /data-testid=\{`concept-a-postcard-\$\{index\}-live`\}/);
   assert.match(POSTCARD, /\{title\}/);
   assert.match(POSTCARD, /\{meta\}/);
-  assert.match(POSTCARD, />Live</);
+  assert.match(
+    POSTCARD,
+    /data-testid=\{`concept-a-postcard-\$\{index\}-live`\}[\s\S]*>\s*Live\s*</,
+    "Live label text must follow indexed live test id (whitespace-tolerant JSX)",
+  );
 });
 
 test("Concept A postcard copy renders inside decorative aria-hidden stack", () => {
@@ -24,14 +28,15 @@ test("Concept A postcard copy renders inside decorative aria-hidden stack", () =
   assert.match(stackOpen, /\baria-hidden\b/, "stack opening tag must be aria-hidden");
   assert.match(stackOpen, /role="presentation"/, "stack opening tag must be presentational");
 
+  assert.match(
+    POSTCARD,
+    /data-testid=\{`concept-a-postcard-\$\{index\}-title`\}/,
+    "indexed title test id is defined on PostcardCard",
+  );
+
   const stackBody = extractPostcardStackBody(SRC);
   assert.match(stackBody, /POSTCARDS\.map\(\(card, index\)/, "all postcards mount from stack map");
   assert.match(stackBody, /<PostcardCard/, "PostcardCard renders inside stack");
-  assert.match(
-    stackBody,
-    /data-testid=\{`concept-a-postcard-\$\{index\}-title`\}/,
-    "indexed title test id is emitted from stack children",
-  );
 });
 
 test("Concept A postcard Live uses postcard-safe tokens on cream", () => {
