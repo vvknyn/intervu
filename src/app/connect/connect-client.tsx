@@ -20,6 +20,7 @@ import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-ha
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { TREND_CAUTION } from "@/components/trends/chart-palette";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
+import { CONNECT_FAQ_NO_MCP_NEEDED } from "@/lib/jobs/resume-privacy-copy";
 
 const MCP_CLIENTS = CONNECT_CLIENTS.filter((c) => c.kind === "mcp");
 
@@ -309,7 +310,7 @@ export function ConnectClient({
                   <div>
                     <p className="font-semibold text-foreground">Do I need an AI to search jobs on Velai?</p>
                     <p className="mt-0.5">
-                      No. Velai&apos;s job search, resume fit matching, and application tracker work 100% in your browser without connecting any tools. This page is an optional power feature for people who use AI assistants.
+                      {CONNECT_FAQ_NO_MCP_NEEDED}
                     </p>
                   </div>
                   <div>
@@ -343,7 +344,7 @@ export function ConnectClient({
                   </li>
                   <li className="flex items-start gap-1.5">
                     <span className="text-brand font-semibold">✓</span>
-                    <span><span className="font-semibold text-foreground">Stateless queries:</span> Zero tracking and never used for model training.</span>
+                    <span><span className="font-semibold text-foreground">Your approval:</span> MCP access only works after you sign in and authorize the connection; revoke it anytime from account settings.</span>
                   </li>
                 </ul>
               </AccordionContent>

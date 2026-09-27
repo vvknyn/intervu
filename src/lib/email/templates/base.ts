@@ -1,4 +1,5 @@
 import { EMAIL_COLORS as C, EMAIL_FONT_SANS, EMAIL_WORDMARK } from "./palette";
+import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 
 /**
  * The one HTML/text shell every non-transactional template wraps its body
@@ -92,22 +93,16 @@ function header(siteUrl: string): string {
       </tr>`;
 }
 
-/** CAN-SPAM postal line when `EMAIL_POSTAL_ADDRESS` is set at runtime. */
-export function readEmailPostalAddress(): string | undefined {
-  const value = process.env.EMAIL_POSTAL_ADDRESS?.trim();
-  return value ? value : undefined;
-}
-
 /**
- * Footer. Physical postal address is env-driven (`EMAIL_POSTAL_ADDRESS`) —
- * omitted when unset (never invented). CAN-SPAM requires a real mailing
- * address on commercial email; set it in production.
+ * Footer. Carries no physical postal address on purpose — inventing one
+ * would be worse than omitting it. CAN-SPAM requires a real mailing address
+ * on commercial email, and that is a fact only Vivek can supply.
  *
  * The contact link, not a reply invitation: `intervuhq.com` publishes no MX
  * record, so mail sent back to the from-address fails at the sender's own
  * server. Guarded by `tests/unit/email-no-reply-channel.test.ts`.
  */
-function footer(siteUrl: string, unsubscribeUrl: string, postalAddress?: string): string {
+function footer(siteUrl: string, unsubscribeUrl: string): string {
   const link = (href: string, label: string) =>
     `<a href="${href}" style="color:${C.muted};text-decoration:none;">${label}</a>`;
   const separator = `<span style="color:${C.faint};"> &nbsp;&middot;&nbsp; </span>`;
@@ -122,11 +117,9 @@ function footer(siteUrl: string, unsubscribeUrl: string, postalAddress?: string)
               ${separator}
               ${link(`${siteUrl}/contact`, "Contact")}
             </p>
-            ${
-              postalAddress
-                ? `<p style="margin:0 0 10px;color:${C.faint};">${escapeHtml(postalAddress)}</p>`
-                : ""
-            }
+            <p style="margin:0 0 10px;">
+              Questions: ${link(`mailto:${PUBLIC_SUPPORT_EMAIL}`, PUBLIC_SUPPORT_EMAIL)}
+            </p>
             <p style="margin:0;color:${C.faint};">
               <a href="${unsubscribeUrl}" style="color:${C.faint};text-decoration:underline;">Unsubscribe</a> &mdash; takes effect immediately.
             </p>
@@ -155,7 +148,6 @@ export function ctaButton(href: string, label: string): string {
 }
 
 export function renderEmailShellHtml(input: EmailShellInput): string {
-  const postalAddress = readEmailPostalAddress();
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -185,7 +177,7 @@ export function renderEmailShellHtml(input: EmailShellInput): string {
                 ${input.bodyHtml}
               </td>
             </tr>
-            ${footer(input.siteUrl, input.unsubscribeUrl, postalAddress)}
+            ${footer(input.siteUrl, input.unsubscribeUrl)}
           </table>
         </td>
       </tr>
@@ -195,8 +187,7 @@ export function renderEmailShellHtml(input: EmailShellInput): string {
 }
 
 export function renderEmailShellText(input: Omit<EmailShellInput, "bodyHtml"> & { bodyText: string }): string {
-  const postalAddress = readEmailPostalAddress();
-  const lines = [
+  return [
     EMAIL_WORDMARK.text,
     "",
     input.heading,
@@ -208,10 +199,8 @@ export function renderEmailShellText(input: Omit<EmailShellInput, "bodyHtml"> & 
     `Search roles: ${input.siteUrl}/jobs`,
     `Your tracker: ${input.siteUrl}/yours`,
     `Contact: ${input.siteUrl}/contact`,
-  ];
-  if (postalAddress) {
-    lines.push("", postalAddress);
-  }
-  lines.push("", `Unsubscribe (takes effect immediately): ${input.unsubscribeUrl}`);
-  return lines.join("\n");
+    `Email: ${PUBLIC_SUPPORT_EMAIL}`,
+    "",
+    `Unsubscribe (takes effect immediately): ${input.unsubscribeUrl}`,
+  ].join("\n");
 }

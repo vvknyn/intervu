@@ -10,6 +10,7 @@
 import { getAdminDb } from "@/lib/firebase/admin";
 import { validate, contactMessageSchema, isHoneypotTripped, type ValidateResult } from "@/lib/validation";
 import { sendEmail } from "@/lib/email/send";
+import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 import { verifyTurnstile, type TurnstileResult } from "@/lib/shield/turnstile";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
@@ -137,7 +138,7 @@ export async function notifyContactSubmission(
 ): Promise<void> {
   const { subject, text } = buildContactNotificationEmail(data, path, kind, context);
   const result = await sendEmail({
-    to: "hello@thesubspace.io",
+    to: PUBLIC_SUPPORT_EMAIL,
     subject,
     text,
     kind: "transactional",

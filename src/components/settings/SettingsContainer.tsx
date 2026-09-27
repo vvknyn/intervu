@@ -19,6 +19,7 @@ import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesS
 import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesSection";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LocalAiSettingsSection } from "@/components/settings/LocalAiSettingsSection";
+import { SETTINGS_LOCAL_AI_INTRO } from "@/lib/jobs/resume-privacy-copy";
 import { cn } from "@/lib/utils";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
@@ -182,7 +183,7 @@ export function SettingsContainer() {
                         <SettingsCard>
                             <h2 className="mb-1 text-base font-semibold leading-snug">On-Device AI &amp; Privacy</h2>
                             <p className="mb-4 text-sm text-muted-foreground">
-                                Run private AI parsing and tailoring directly in your browser. Zero cloud tracking — your résumé never leaves your device.
+                                {SETTINGS_LOCAL_AI_INTRO}
                             </p>
                             <LocalAiSettingsSection />
                         </SettingsCard>
