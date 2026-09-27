@@ -1037,13 +1037,13 @@ export function CategoryHubGrid({
                             data-testid={`hub-pack-card-${category.id}`}
                             onClick={() => handleCategoryClick(category)}
                             className={cn(
-                                "rounded-panel border bg-surface shadow-[var(--shadow-bevel-highlight)] min-h-24 cursor-pointer gap-0 py-4 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live sm:min-h-0 sm:active:scale-100",
+                                "flex flex-col rounded-panel border bg-surface shadow-[var(--shadow-bevel-highlight)] min-h-[5.75rem] cursor-pointer gap-0 py-3 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live sm:py-4 md:min-h-0 md:active:scale-100",
                                 isSelected
                                     ? "border-live ring-1 ring-live"
                                     : "border-border",
                             )}
                         >
-                            <div className="flex items-center justify-between gap-2 px-4 mb-3">
+                            <div className="flex shrink-0 items-center justify-between gap-2 px-4 mb-2 sm:mb-3">
                                 <div className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted text-foreground">
                                     <Icon size={16} />
                                 </div>
@@ -1060,7 +1060,10 @@ export function CategoryHubGrid({
                                     </span>
                                 ) : null}
                             </div>
-                            <h3 className="px-3 text-sm font-semibold leading-snug text-foreground sm:px-4 sm:text-xs">
+                            <h3
+                                data-testid={`hub-pack-title-${category.id}`}
+                                className="min-h-[2.75rem] flex-1 px-3 text-sm font-semibold leading-snug text-foreground whitespace-normal break-words sm:min-h-[2.5rem] sm:px-4 sm:text-xs"
+                            >
                                 {category.label}
                             </h3>
                         </button>

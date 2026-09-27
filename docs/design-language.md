@@ -44,3 +44,5 @@ Reference surface: `/jobs` search (`src/app/jobs/page.tsx`, `src/components/jobs
 
 ## 8. Enforcement
 `tests/unit/design-language.test.ts` + `scripts/design/banned-classes.cjs` keep banning arbitrary values. A per-surface ratchet (`design-token-baseline.json`) pins the count of off-token classes per surface (`rounded-none`, size-named radii, `text-[`, `h-[`, `w-[`, `p-[`, hex, `shadow-`, `style={{`); a count may only go down, and a PR that lowers it must lower the baseline too.
+
+**Linux headless Chromium PNG captures:** use `linuxChromiumVisualQaLaunchOptions()` from `scripts/design/linux-chromium-visual-qa.cjs` (see `docs/design/DESIGN-LANGUAGE.md` § Visual QA capture fidelity). Default hinting splits labels in screenshots; `--font-render-hinting=none` fixes capture only — not a CSS change. Headed Xvfb does not fix it.
