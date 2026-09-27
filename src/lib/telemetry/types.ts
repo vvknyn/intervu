@@ -66,6 +66,7 @@ export interface TelemetryRow {
 export const TELEMETRY_REJECTION_REASONS = [
   "invalid_shape",
   "invalid_event_name",
+  "unknown_event_name",
   "props_too_large",
   "duplicate_event_id",
   "rate_limited",

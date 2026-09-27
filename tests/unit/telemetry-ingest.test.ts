@@ -86,7 +86,7 @@ test("a batch over the cap is a class of events processBatch never sees — the 
   assert.equal(isBatchTooLarge(big), true);
 });
 
-test("an unknown-but-well-formed event_name is accepted — new signals need no migration", () => {
+test("a well-formed event_name outside ANALYTICS_EVENTS is dropped with unknown_event_name", () => {
   const knownId = uuid();
   const unknownId = uuid();
   const events = [
@@ -95,8 +95,20 @@ test("an unknown-but-well-formed event_name is accepted — new signals need no 
   ];
   const { rows, rejections } = processBatch(events, NOW);
 
-  assert.equal(rejections.length, 0);
-  assert.deepEqual(new Set(rows.map((r) => r.event_id)), new Set([knownId, unknownId]));
+  assert.deepEqual(rows.map((r) => r.event_id), [knownId]);
+  assert.deepEqual(rejections, [{ event_id: unknownId, reason: "unknown_event_name" }]);
+});
+
+test("every ANALYTICS_EVENTS wire name passes the allowlist when shape-valid", async () => {
+  const { ALLOWED_TELEMETRY_EVENT_NAMES } = await import("../../src/lib/telemetry/ingest");
+  const { ANALYTICS_EVENTS } = await import("../../src/lib/analytics/event-names");
+  for (const wireName of Object.values(ANALYTICS_EVENTS)) {
+    const eventId = uuid();
+    const { rows, rejections } = processBatch([validEvent({ event_id: eventId, event_name: wireName })], NOW);
+    assert.equal(rejections.length, 0, wireName);
+    assert.equal(rows[0]?.event_name, wireName);
+    assert.equal(ALLOWED_TELEMETRY_EVENT_NAMES.has(wireName), true);
+  }
 });
 
 test("a malformed event_name is rejected, its well-formed neighbour survives", () => {
@@ -104,7 +116,7 @@ test("a malformed event_name is rejected, its well-formed neighbour survives", (
   const goodId = uuid();
   const events = [
     validEvent({ event_id: badId, event_name: "Bad-Name!" }),
-    validEvent({ event_id: goodId, event_name: "ok_name" }),
+    validEvent({ event_id: goodId, event_name: "job_viewed" }),
   ];
   const { rows, rejections } = processBatch(events, NOW);
 
@@ -207,7 +219,7 @@ test("guard order: bad event_name + oversized props -> props_too_large (guard 3 
 test("guard order: valid event_name + oversized props -> props_too_large (no regression)", () => {
   const eventId = uuid();
   const { rejections } = processBatch(
-    [validEvent({ event_id: eventId, event_name: "ok_name", props: { blob: "x".repeat(MAX_PROPS_LENGTH) } })],
+    [validEvent({ event_id: eventId, event_name: "job_viewed", props: { blob: "x".repeat(MAX_PROPS_LENGTH) } })],
     NOW,
   );
   assert.deepEqual(rejections, [{ event_id: eventId, reason: "props_too_large" }]);
