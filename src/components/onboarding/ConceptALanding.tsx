@@ -15,7 +15,8 @@ type Postcard = {
     style: CSSProperties;
 };
 
-const POSTCARDS: Postcard[] = [
+/** Owner-approved fan geometry — guarded by unit tests; do not recompose without review. */
+export const POSTCARDS = [
     {
         title: "Remote AI Roles",
         meta: "Remote · Full-time",
@@ -66,13 +67,26 @@ const POSTCARDS: Postcard[] = [
             zIndex: 5,
         },
     },
-];
+] as const satisfies readonly Postcard[];
 
-function PostcardCard({ title, meta, style }: Postcard) {
+export const CONCEPT_A_POSTCARD_CLASS = "concept-a-postcard";
+export const CONCEPT_A_POSTCARD_STACK_CLASS = "concept-a-postcard-stack";
+
+/** Document body class while Step 1 portal is mounted; pairs with globals.css site-chrome hide. */
+export const CONCEPT_A_LANDING_BODY_CLASS = "concept-a-landing-active";
+
+function PostcardCard({
+    title,
+    meta,
+    style,
+    index,
+}: Postcard & { index: number }) {
     return (
         <div
+            data-testid={`concept-a-postcard-${index}`}
             className={cn(
-                "absolute w-[min(268px,72vw)] sm:w-[260px] rounded-panel px-4 py-3.5 sm:px-5 sm:py-4",
+                "absolute rounded-panel px-4 py-3.5 sm:px-5 sm:py-4",
+                CONCEPT_A_POSTCARD_CLASS,
                 "bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]",
             )}
             style={style}
@@ -82,15 +96,28 @@ function PostcardCard({ title, meta, style }: Postcard) {
                 <span className="h-px flex-1 max-w-[72px] bg-border" aria-hidden />
             </div>
             <p
-                data-testid="concept-a-postcard-title"
+                data-testid={`concept-a-postcard-${index}-title`}
                 className="text-sm sm:text-lg font-semibold leading-snug text-surface-postcard-foreground whitespace-normal"
             >
                 {title}
             </p>
-            <p className="mt-1 text-caption sm:text-xs leading-snug text-surface-postcard-muted">{meta}</p>
+            <p
+                data-testid={`concept-a-postcard-${index}-meta`}
+                className="mt-1 text-caption sm:text-xs leading-snug text-surface-postcard-muted"
+            >
+                {meta}
+            </p>
             <div className="mt-3.5 flex items-center gap-1.5">
-                <span className="size-1.5 rounded-pill bg-live-on-postcard instrument-breathe" aria-hidden />
-                <span className="text-caption font-semibold text-live-on-postcard">Live</span>
+                <span
+                    className="size-1.5 rounded-pill bg-live-on-postcard instrument-breathe"
+                    aria-hidden
+                />
+                <span
+                    data-testid={`concept-a-postcard-${index}-live`}
+                    className="text-caption font-semibold text-live-on-postcard"
+                >
+                    Live
+                </span>
             </div>
         </div>
     );
@@ -104,8 +131,8 @@ export interface ConceptALandingProps {
 /**
  * Public signed-out Step 1 — full-bleed Concept A (charcoal poster + cream
  * postcard stack). Portaled to document.body so site TopBar never shows behind
- * it. An in-flow min-h-[100dvh] spacer keeps the landing parent from
- * collapsing while Step 1 is up.
+ * it. An in-flow spacer uses min-h-[100dvh] only until mount, then collapses
+ * so document height stays viewport-sized while the fixed portal is open.
  */
 export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
     const [mounted, setMounted] = useState(false);
@@ -114,14 +141,16 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
         setMounted(true);
         const prev = document.body.style.overflow;
         document.body.style.overflow = "hidden";
+        document.body.classList.add(CONCEPT_A_LANDING_BODY_CLASS);
         return () => {
             document.body.style.overflow = prev;
+            document.body.classList.remove(CONCEPT_A_LANDING_BODY_CLASS);
         };
     }, []);
 
     const spacer = (
         <div
-            className="min-h-[100dvh] w-full"
+            className={cn("w-full", mounted ? "h-0 min-h-0" : "min-h-[100dvh]")}
             aria-hidden
             data-testid="landing-onboarding-step-1-spacer"
         />
@@ -158,7 +187,7 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
             </header>
 
             <div className="relative z-10 flex flex-1 flex-col lg:flex-row items-stretch lg:items-center px-5 sm:px-10 lg:px-14 pb-10 lg:pb-16 gap-8 lg:gap-6 min-h-0">
-                <div className="flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 bg-surface-poster pt-6 lg:pt-0 lg:w-[46%]">
+                <div className="flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 pt-6 lg:pt-0 lg:w-[46%]">
                     <h1 className="text-poster-hero font-semibold">
                         Skip the job
                         <br />
@@ -180,11 +209,16 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
                 </div>
 
                 <div
-                    className="relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full overflow-visible lg:w-[54%]"
+                    className={cn(
+                        "relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full overflow-visible lg:w-[54%]",
+                        CONCEPT_A_POSTCARD_STACK_CLASS,
+                    )}
                     aria-hidden
+                    role="presentation"
+                    data-testid="concept-a-postcard-stack"
                 >
-                    {POSTCARDS.map((card) => (
-                        <PostcardCard key={card.title} {...card} />
+                    {POSTCARDS.map((card, index) => (
+                        <PostcardCard key={card.title} {...card} index={index} />
                     ))}
                 </div>
             </div>

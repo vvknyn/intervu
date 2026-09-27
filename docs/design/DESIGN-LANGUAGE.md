@@ -32,6 +32,11 @@ happens again.
    use a dark skeuomorphic tile or transparency (`--surface-mark-tile`).
 4. **One z-index ladder** in `globals.css` (`--z-topbar` … `--z-toast`); call sites consume
    `z-[var(--z-topbar)]` (and the other named ladder steps), not ad-hoc numbers.
+5. **Concept A landing postcard fan (owner-approved).** The signed-out Step 1 stack is exactly
+   five overlapping cream postcards in the approved fan geometry. Back-card overlap and partial
+   coverage are intentional depth — not bugs. Do not recompose, change card count, or alter
+   placement/rotation/z-order without owner review. Treat only **viewport clipping** of a card
+   body and **front-card readability** (title, meta, Live on the highest-z card) as defects.
 
 See `docs/design-language-rollout.md` (project store) for phased surface rollout and WCAG targets.
 

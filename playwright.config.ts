@@ -7,7 +7,11 @@ const CHROMIUM_LAUNCH = linuxChromiumVisualQaLaunchOptions();
 /** Specs that need the explicit desktop-1440 / mobile-390 viewport projects
  *  below — one list, so the two projects can't drift onto different spec
  *  sets. */
-const VIEWPORT_SPECS = [/jobs-first-paint\.spec\.ts/, /for-you-deck\.spec\.ts/];
+const VIEWPORT_SPECS = [
+  /jobs-first-paint\.spec\.ts/,
+  /for-you-deck\.spec\.ts/,
+  /concept-a-landing-postcards\.spec\.ts/,
+];
 
 /**
  * Intervu E2E Test Configuration

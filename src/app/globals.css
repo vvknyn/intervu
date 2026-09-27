@@ -1221,10 +1221,51 @@ body[data-scroll-locked] [data-testid="apply-return-prompt"] {
   letter-spacing: var(--tracking-poster-hero);
 }
 
-/* Concept A poster grain + vignette — token-backed, shared with landing. */
+/* Concept A poster grain + vignette — solid token fill on root for contrast; texture in ::before. */
 .poster-noise {
   background-color: rgb(var(--surface-poster));
+}
+
+.poster-noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background-image:
     radial-gradient(ellipse 80% 60% at 70% 40%, rgb(255 255 255 / 0.03), transparent 60%),
     url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* Step 1 Concept A portal — hide in-flow site chrome; landing supplies its own header/sign-in. */
+body.concept-a-landing-active [data-testid="topbar"],
+body.concept-a-landing-active [data-testid="mobile-tabbar"],
+body.concept-a-landing-active [data-testid="site-footer"] {
+  display: none !important;
+}
+
+/* Concept A landing postcard fan — mobile viewport containment (POSTCARDS % geometry unchanged). */
+.concept-a-postcard-stack {
+  --concept-a-postcard-stack-canvas-width: 265px;
+  --concept-a-postcard-stack-shift-x: -26px;
+  width: var(--concept-a-postcard-stack-canvas-width);
+  transform: translateX(var(--concept-a-postcard-stack-shift-x));
+}
+
+.concept-a-postcard {
+  --concept-a-postcard-width: 253px;
+  width: var(--concept-a-postcard-width);
+}
+
+@media (min-width: 1024px) {
+  .concept-a-postcard-stack {
+    --concept-a-postcard-stack-shift-x: 0;
+    width: unset;
+    transform: none;
+  }
+
+  .concept-a-postcard {
+    --concept-a-postcard-width: 260px;
+    width: var(--concept-a-postcard-width);
+  }
 }

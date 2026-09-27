@@ -11,7 +11,8 @@ export async function probeLandingRoot(page) {
     return {
       exists: !!root,
       textLen: text.length,
-      hasPostcardTitles: (root?.querySelectorAll('[data-testid="concept-a-postcard-title"]').length ?? 0) >= 1,
+      hasPostcardTitles:
+        (root?.querySelectorAll('[data-testid^="concept-a-postcard-"][data-testid$="-title"]').length ?? 0) >= 1,
     };
   }, LANDING_ROOT_SEL);
 }
