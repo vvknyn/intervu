@@ -50,26 +50,34 @@ const SECTION_LABEL = "text-xs font-semibold text-surface-postcard-muted";
 export const POSTCARD_SHELL =
     "flex flex-col overflow-hidden rounded-panel bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]";
 
+/** Cream-paper dividers — see `.paper-on-cream-border` in globals.css. */
+export const POSTCARD_ON_CREAM_BORDER = "paper-on-cream-border";
+
+/** Pack header divider + horizontal inset (shared with skeleton). */
+export const POSTCARD_HEADER_DIVIDER = cn(
+    "border-b py-4 px-4 lg:py-6 lg:px-8",
+    POSTCARD_ON_CREAM_BORDER,
+);
+
 /** JD column — the only inner scroller; capped so wheel events chain to the page at the ends. */
 const JD_SCROLL_CLASS =
     "min-w-0 overflow-y-auto max-h-[min(60dvh,640px)] custom-scrollbar";
 
-/** Employer-stated fact — quiet/neutral, same chip primitive everywhere. */
-const STATED_CHIP_CLASS = cn(
+/** Employer-stated fact — quiet on cream paper (outline/tint + paper ink), noninteractive. */
+export const STATED_CHIP_CLASS = cn(
     chipVariants({ active: false }),
-    "h-7 px-2.5 text-xs bg-background text-foreground",
+    "paper-fact-chip h-7 gap-1.5 px-2.5 text-xs font-medium",
 );
 
 /**
- * Product-derived/inferred chip — reuses the chip primitive's own "active"
- * treatment (brand blade + tinted fill) so a computed inference is visually
- * distinct from an employer-stated fact, not just a different text color.
+ * Product-derived/inferred chip — deep-green paper tint, lighter than filled
+ * controls; distinct from employer-stated facts.
  */
-const DERIVED_CHIP_CLASS = cn(
-    chipVariants({ active: true }),
+export const DERIVED_CHIP_CLASS = cn(
+    chipVariants({ active: false }),
     // Long inferred titles (e.g. "Technical Account Manager | …") must stay
     // inside the FIT column — override chip `shrink-0` / `whitespace-nowrap`.
-    "h-auto min-h-7 max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 py-1 text-xs",
+    "paper-inferred-chip h-auto min-h-7 max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 py-1 text-xs font-normal",
 );
 
 /**
@@ -261,7 +269,7 @@ export function ForYouPack({
             data-testid="for-you-pack"
             className={cn(POSTCARD_SHELL, className)}
         >
-            <div className="border-b border-border py-4 px-4 lg:py-6 lg:px-8">
+            <div className={POSTCARD_HEADER_DIVIDER}>
                 <div className="flex flex-col gap-4">
                     <div className="flex items-start gap-3">
                         <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
@@ -283,9 +291,14 @@ export function ForYouPack({
                             {factChips.map((chip) => {
                                 const Icon = FACT_CHIP_ICON[chip.kind];
                                 return (
-                                    <span key={chip.kind} className={cn(STATED_CHIP_CLASS, "gap-1.5")}>
+                                    <span key={chip.kind} className={STATED_CHIP_CLASS}>
                                         {Icon && (
-                                            <Icon size={16} weight="bold" className="shrink-0" aria-hidden />
+                                            <Icon
+                                                size={16}
+                                                weight="regular"
+                                                className="shrink-0 text-surface-postcard-muted"
+                                                aria-hidden
+                                            />
                                         )}
                                         {chip.label}
                                     </span>
@@ -298,7 +311,12 @@ export function ForYouPack({
 
             <div className={cn("grid gap-6 py-4 px-4 lg:py-6 lg:px-8", hasAside && "lg:grid-cols-[280px_1fr]")}>
                 {hasAside && (
-                    <aside className="min-w-0 space-y-6 rounded-ctl border border-border bg-surface-postcard p-4 shadow-[var(--shadow-bevel-inset)]">
+                    <aside
+                        className={cn(
+                            "min-w-0 space-y-6 rounded-ctl border bg-surface-postcard p-4 shadow-[var(--shadow-bevel-inset)]",
+                            POSTCARD_ON_CREAM_BORDER,
+                        )}
+                    >
                         <div>
                             <h3 className={SECTION_LABEL}>What we inferred</h3>
                             {reasons.bullets.length > 0 && (

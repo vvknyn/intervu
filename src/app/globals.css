@@ -558,14 +558,31 @@
 }
 
 /* Paper reading context — rebind semantic foreground tokens for prose blocks that
-   opt in with `.surface-paper` (JD bodies, résumé preview). Not on the whole
-   postcard shell: fact chips keep canvas `bg-background` + canvas ink. */
+   opt in with `.surface-paper` (JD bodies, résumé preview). ForYouPack fact
+   chips use explicit postcard ink/tint classes instead of canvas tokens. */
 .surface-paper {
   --foreground: var(--surface-postcard-foreground);
   --muted-foreground: var(--surface-postcard-muted);
   --color-foreground: rgb(var(--surface-postcard-foreground));
   --color-muted-foreground: rgb(var(--surface-postcard-muted));
   color: rgb(var(--surface-postcard-foreground));
+}
+
+/* ForYouPack cream-paper chrome — fixed alpha on semantic postcard/live RGB tokens. */
+.paper-on-cream-border {
+  border-color: rgb(var(--surface-postcard-foreground) / 0.15);
+}
+
+.paper-fact-chip {
+  border-color: rgb(var(--surface-postcard-foreground) / 0.15);
+  background-color: rgb(var(--surface-postcard-foreground) / 0.05);
+  color: rgb(var(--surface-postcard-muted));
+}
+
+.paper-inferred-chip {
+  border-color: rgb(var(--live-on-postcard) / 0.25);
+  background-color: rgb(var(--live-on-postcard) / 0.1);
+  color: rgb(var(--live-on-postcard));
 }
 
 /* Base Styles */

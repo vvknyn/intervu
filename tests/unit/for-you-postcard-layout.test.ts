@@ -80,7 +80,7 @@ describe("for-you postcard layout", () => {
         );
         const scrollIdx = pack.indexOf("data-pack-scroll");
         const asideIdx = pack.indexOf("<aside");
-        const headerIdx = pack.indexOf("border-b border-border py-4 px-4 lg:py-6 lg:px-8");
+        const headerIdx = pack.indexOf("POSTCARD_HEADER_DIVIDER");
         assert.ok(headerIdx < scrollIdx, "pack header must render before the JD scroller");
         assert.ok(asideIdx < scrollIdx, "fit/why aside must render before the JD scroller");
         assert.doesNotMatch(pack, /max-h-\[40%\]/);
@@ -102,7 +102,7 @@ describe("for-you postcard layout", () => {
         );
         assert.match(pack, /flex flex-col gap-4/, "header inner layout must be a column with gap-4");
         assert.match(pack, /break-words/, "title h2 must break long words");
-        const headerBlock = pack.match(/border-b border-border py-4 px-4 lg:py-6 lg:px-8[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
+        const headerBlock = pack.match(/POSTCARD_HEADER_DIVIDER[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? "";
         assert.ok(headerBlock.length > 0, "pack header block not found");
         const identityRow = headerBlock.match(/<div className="flex items-start gap-3">[\s\S]*?<\/div>/)?.[0] ?? "";
         assert.ok(identityRow.length > 0, "identity row not found");
@@ -118,9 +118,10 @@ describe("for-you postcard layout", () => {
         const pack = source("ForYouPack.tsx");
         assert.match(
             pack,
-            /border-b border-border py-4 px-4 lg:py-6 lg:px-8/,
-            "pack header must use px-4 lg:px-8",
+            /POSTCARD_HEADER_DIVIDER/,
+            "pack header must use shared postcard divider + px-4 lg:px-8",
         );
+        assert.match(pack, /POSTCARD_ON_CREAM_BORDER/, "pack exports cream-paper border token");
         assert.match(
             pack,
             /grid gap-6 py-4 px-4 lg:py-6 lg:px-8/,
@@ -139,8 +140,8 @@ describe("for-you postcard layout", () => {
         );
         assert.match(
             skeletonBlock,
-            /border-b border-border py-4 px-4 lg:py-6 lg:px-8/,
-            "skeleton header must match pack horizontal inset",
+            /POSTCARD_HEADER_DIVIDER/,
+            "skeleton header must match pack postcard divider",
         );
         assert.match(
             skeletonBlock,
