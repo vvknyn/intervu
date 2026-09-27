@@ -58,6 +58,18 @@ describe("polish batch 3 — states and empties", () => {
         assert.match(read("src/components/jobs/for-you/ForYouHome.tsx"), /ConceptAEmptyState[\s\S]*for-you-empty/);
     });
 
+    it("zero-data tracker hides search and lane chrome; populated keeps them", () => {
+        const yours = read("src/app/yours/page.tsx");
+        assert.match(yours, /pursuits\.length > 0[\s\S]*data-testid="tracker-search"/);
+        assert.match(yours, /pursuits\.length === 0[\s\S]*TrackerEmptyState/);
+        assert.doesNotMatch(
+            yours,
+            /pursuits\.length === 0[\s\S]*data-testid="tracker-search"/,
+            "empty tracker must not render search",
+        );
+        assert.match(yours, /Nothing in this lane/);
+    });
+
     it("tracker and history use after-controls slot; for-you uses page placement", () => {
         assert.match(read("src/app/yours/page.tsx"), /ConceptAEmptyPageSlot[\s\S]*placement="after-controls"[\s\S]*TrackerEmptyState/);
         assert.match(

@@ -108,7 +108,7 @@ describe("polish batch 3 — design contract", () => {
         assert.doesNotMatch(empty, /p-10|p-12/);
         assert.match(GLOBALS, /\.concept-a-empty-max[\s\S]*text-align:\s*center/);
         assert.match(GLOBALS, /\.concept-a-empty-page-slot--page/);
-        assert.match(GLOBALS, /\.concept-a-empty-page-slot--after-controls[\s\S]*padding-top:\s*2rem/);
+        assert.match(GLOBALS, /\.concept-a-empty-page-slot--after-controls[\s\S]*padding-top:\s*1rem/);
     });
 
     it("Concept A canvas: :root and .dark share --background token", () => {

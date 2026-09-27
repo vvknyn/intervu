@@ -315,22 +315,25 @@ function YoursContent() {
         >
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
                 <TrackerTabs active="tracker" />
-                <div className="mb-4 mt-4 flex flex-wrap items-center gap-3">
-                    <div className="relative min-w-0 flex-1">
-                        <MagnifyingGlass
-                            size={16}
-                            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-                        />
-                        <Input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search tracker…"
-                            className="h-11 rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
-                        />
+                {pursuits.length > 0 ? (
+                    <div className="mb-4 mt-4 flex flex-wrap items-center gap-3">
+                        <div className="relative min-w-0 flex-1">
+                            <MagnifyingGlass
+                                size={16}
+                                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                            />
+                            <Input
+                                type="search"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search tracker…"
+                                data-testid="tracker-search"
+                                className="h-11 rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
+                            />
+                        </div>
+                        <AppliedThisWeekBadge count={appliedThisWeek} appliedToday={appliedToday} />
                     </div>
-                    <AppliedThisWeekBadge count={appliedThisWeek} appliedToday={appliedToday} />
-                </div>
+                ) : null}
 
                 {filtered.length === 0 ? (
                     pursuits.length === 0 ? (

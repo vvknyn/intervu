@@ -875,7 +875,7 @@ h4 {
 
 /** Tracker/history — below tabs + search controls (8pt grid). */
 .concept-a-empty-page-slot--after-controls {
-  padding-top: 2rem;
+  padding-top: 1rem;
 }
 
 /** In-flow 404/error — seamless with app shell background inside `<main>`. */

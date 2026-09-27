@@ -59,6 +59,27 @@ test.describe('YOURS - Guest, no pursuits', () => {
     await expect(empty.getByRole('button', { name: 'Log in' })).toBeVisible();
   });
 
+  for (const viewport of [
+    { name: 'desktop', width: 1440, height: 900 },
+    { name: 'mobile', width: 390, height: 844 },
+  ] as const) {
+    test(`TC-YOURS-002b: Guest empty hides filter chrome and sits upper-third (${viewport.name})`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto('/yours');
+      const empty = page.getByTestId('yours-guest-empty');
+      await expect(empty).toBeVisible({ timeout: 10000 });
+      await expect(page.getByTestId('tracker-search')).toHaveCount(0);
+      await expect(page.getByTestId('tracker-kanban')).toHaveCount(0);
+      const box = await empty.boundingBox();
+      expect(box).not.toBeNull();
+      const v = page.viewportSize()!;
+      expect(box!.y).toBeGreaterThan(48);
+      expect(box!.y).toBeLessThan(v.height * 0.42);
+      const centerX = box!.x + box!.width / 2;
+      expect(Math.abs(centerX - v.width / 2)).toBeLessThan(72);
+    });
+  }
+
   test('TC-YOURS-003: TopBar Tracker tab is visible with zero pursuits', async ({ page }) => {
     await page.goto('/');
     const link = page.getByTestId('topbar-tracker');
@@ -83,6 +104,8 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
 
   test('TC-YOURS-005: Pursuit row shows company, role, and status', async ({ page }) => {
     await page.goto('/yours');
+    await expect(page.getByTestId('tracker-search')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('tracker-kanban')).toBeVisible({ timeout: 10000 });
     const row = page.getByTestId('pursuit-row').first();
     await expect(row).toBeVisible({ timeout: 10000 });
     await expect(row).toContainText('Acme Corp');
