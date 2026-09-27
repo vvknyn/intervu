@@ -178,7 +178,7 @@ export default function PrivacyPage() {
           Subspace&apos;s Jobs API (thesubspace.io) to refresh and fill job descriptions — we send job identifiers
           only, not your résumé or search queries. If you report a listing while signed in and reporting is enabled,
           we send Subspace&apos;s flags API the job URL, job title, the report category you chose (mapped to
-          Subspace&apos;s schema), any notes you add, and your Velai user id as <code className="text-xs">reporter_key</code>.
+          Subspace&apos;s schema), any notes you add, and your Velai user id as <code className="text-xs text-foreground">reporter_key</code>.
         </p>
         <p>
           We don&apos;t buy marketing profiles about you from data brokers.
@@ -236,7 +236,7 @@ export default function PrivacyPage() {
           Alongside PostHog (below), we keep a separate behavioural ledger in a PostgreSQL database we run. Your
           browser batches product events to our telemetry API — the same catalogue of actions we use to understand
           search and apply funnels. Each row can include: {TELEMETRY_LEDGER_FIELDS_DISCLOSED.join(", ")}. The{" "}
-          <code className="text-xs">props</code> field holds event-specific metadata (for example query length or
+          <code className="text-xs text-foreground">props</code> field holds event-specific metadata (for example query length or
           filter counts — not the full text of what you typed). When you&apos;re signed in, our server stamps your
           user id on each row; guests send only session and visitor ids generated in the browser. We use this
           ledger to improve search quality and to compute aggregate statistics. Rows are deleted after 90 days.
@@ -253,9 +253,9 @@ export default function PrivacyPage() {
           We use PostHog for product analytics — page views, clicks, and searches — so we can see what&apos;s
           working and fix what isn&apos;t. Velai shares one PostHog project with thesubspace.io; we tell events
           apart with a product tag in the analytics payload, not a separate project. PostHog&apos;s US cloud (
-          <code className="text-xs">us.posthog.com</code>, configured as our analytics UI host) processes the data
+          <code className="text-xs text-foreground">us.posthog.com</code>, configured as our analytics UI host) processes the data
           as our processor under their own DPA terms. Browser requests are sent through our own{" "}
-          <code className="text-xs">/ph</code> proxy path rather than directly to third-party analytics domains.
+          <code className="text-xs text-foreground">/ph</code> proxy path rather than directly to third-party analytics domains.
         </p>
         <p>
           PostHog runs cookieless on Velai: no analytics cookie is set. What PostHog needs to hold on to lives in
@@ -287,7 +287,7 @@ export default function PrivacyPage() {
           You may be in one country while our providers and infrastructure operate elsewhere. We have not verified
           or published a single home region for every data store behind Velai. PostHog product analytics are
           processed in the United States — our app is configured to use PostHog&apos;s US cloud (
-          <code className="text-xs">us.posthog.com</code>). Other processing — including account data in Google
+          <code className="text-xs text-foreground">us.posthog.com</code>). Other processing — including account data in Google
           Cloud Firestore, search indexes, email delivery, sign-in through WorkOS, and databases we operate — may
           run outside your country, including in the United States, without us naming a region we have not
           confirmed in configuration.

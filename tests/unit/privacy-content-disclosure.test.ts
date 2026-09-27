@@ -52,6 +52,19 @@ describe("privacy article — owner-confirmed analytics & processors", () => {
     assert.match(visible, /\bVelai\b/, "expected at least one Velai brand reference");
   });
 
+  it("inline code labels in the article use text-foreground for card contrast", () => {
+    const article = privacyArticle();
+    const classNames = [...article.matchAll(/<code className="([^"]+)">/g)].map((m) => m[1]!);
+    assert.ok(classNames.length >= 5, "expected inline code labels in /privacy article");
+    for (const className of classNames) {
+      assert.match(
+        className,
+        /\btext-foreground\b/,
+        `<code className="${className}"> must include text-foreground for AA contrast on bg-card`,
+      );
+    }
+  });
+
   it("uses résumé spelling consistently for résumé nouns in the article", () => {
     const articleText = privacyArticle()
       .replace(/<[^>]+>/g, " ")
