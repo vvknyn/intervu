@@ -16,7 +16,8 @@ import {
   JOBS_SUGGEST_WINDOW_MS,
   typeaheadRetryAfterHeader,
 } from "../../src/lib/shield/rate-limit";
-import { renderEmailShellHtml, renderEmailShellText, readEmailPostalAddress } from "../../src/lib/email/templates/base";
+import { renderEmailShellHtml, renderEmailShellText } from "../../src/lib/email/templates/base";
+import { PUBLIC_SUPPORT_EMAIL } from "../../src/lib/legal/public-contact";
 import { processBatch } from "../../src/lib/telemetry/ingest";
 
 describe("POST /api/resume/pdf — 503 body", () => {
@@ -116,7 +117,7 @@ describe("jobs typeahead — 429 Retry-After and rate_limited flag", () => {
   });
 });
 
-describe("email shell — EMAIL_POSTAL_ADDRESS", () => {
+describe("email shell — public support contact (no postal address)", () => {
   const shell = {
     siteUrl: "https://velai.app",
     unsubscribeUrl: "https://velai.app/unsub?t=1",
@@ -126,34 +127,13 @@ describe("email shell — EMAIL_POSTAL_ADDRESS", () => {
     bodyText: "Body",
   };
 
-  it("omits postal address when env is unset", () => {
-    const original = process.env.EMAIL_POSTAL_ADDRESS;
-    delete process.env.EMAIL_POSTAL_ADDRESS;
-    try {
-      assert.equal(readEmailPostalAddress(), undefined);
-      const html = renderEmailShellHtml({ ...shell, bodyHtml: shell.bodyHtml });
-      const text = renderEmailShellText({ ...shell, bodyText: shell.bodyText });
-      assert.doesNotMatch(html, /123 Main/);
-      assert.doesNotMatch(text, /123 Main/);
-    } finally {
-      if (original === undefined) delete process.env.EMAIL_POSTAL_ADDRESS;
-      else process.env.EMAIL_POSTAL_ADDRESS = original;
-    }
-  });
-
-  it("renders postal address in HTML and plain text when env is set", () => {
-    const original = process.env.EMAIL_POSTAL_ADDRESS;
-    process.env.EMAIL_POSTAL_ADDRESS = "123 Main St, Austin TX 78701";
-    try {
-      assert.equal(readEmailPostalAddress(), "123 Main St, Austin TX 78701");
-      const html = renderEmailShellHtml({ ...shell, bodyHtml: shell.bodyHtml });
-      const text = renderEmailShellText({ ...shell, bodyText: shell.bodyText });
-      assert.match(html, /123 Main St, Austin TX 78701/);
-      assert.match(text, /123 Main St, Austin TX 78701/);
-    } finally {
-      if (original === undefined) delete process.env.EMAIL_POSTAL_ADDRESS;
-      else process.env.EMAIL_POSTAL_ADDRESS = original;
-    }
+  it("renders hello@thesubspace.io in HTML and plain text footers", () => {
+    const html = renderEmailShellHtml({ ...shell, bodyHtml: shell.bodyHtml });
+    const text = renderEmailShellText({ ...shell, bodyText: shell.bodyText });
+    assert.match(html, new RegExp(PUBLIC_SUPPORT_EMAIL));
+    assert.match(text, new RegExp(PUBLIC_SUPPORT_EMAIL));
+    assert.doesNotMatch(html, /123 Main/);
+    assert.doesNotMatch(text, /123 Main/);
   });
 });
 
