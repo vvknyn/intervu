@@ -232,6 +232,7 @@ export function TopBar() {
                                     data-nav-current={active ? "true" : undefined}
                                     className={cn(
                                         "whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors",
+                                        CHROME_FOCUS_VISIBLE,
                                         active
                                             ? "font-semibold text-foreground"
                                             : "font-normal text-muted-foreground hover:text-foreground",
