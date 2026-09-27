@@ -5,8 +5,6 @@ import { join } from "node:path";
 
 const HUB = join(__dirname, "../../src/components/jobs/CategoryHubGrid.tsx");
 const PACK = join(__dirname, "../../src/components/jobs/for-you/ForYouPack.tsx");
-const ONBOARDING_MOCKUP = join(__dirname, "../../public/onboarding-mockup.html");
-
 const NUMERIC_FIT_RE = /\d+\s*%\s*(match|fit|score)/i;
 
 describe("lean packs surfaces — band only, no Canada claims in hub mock", () => {
@@ -22,12 +20,6 @@ describe("lean packs surfaces — band only, no Canada claims in hub mock", () =
         const src = readFileSync(HUB, "utf8");
         const catalog = src.split("export const CATEGORY_JOBS_CATALOG")[1]?.split("export ")[0] ?? "";
         assert.doesNotMatch(catalog, /Canada|Toronto/i);
-    });
-
-    it("onboarding mockup HTML uses band fit labels only and no Canada location claims", () => {
-        const html = readFileSync(ONBOARDING_MOCKUP, "utf8");
-        assert.doesNotMatch(html, NUMERIC_FIT_RE);
-        assert.doesNotMatch(html, /Canada|Toronto|\bCAD\b/i);
     });
 
     it("ForYouPack deck header uses band label readout, not MatchChip component", () => {

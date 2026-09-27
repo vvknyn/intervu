@@ -24,6 +24,11 @@ import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { buildReturnTo } from "@/lib/jobs/pending-actions";
+import {
+    LANDING_DEVICE_STORAGE_NOTE,
+    LANDING_PROFILE_PRIVACY_NOTE,
+    LANDING_UPLOAD_PRIVACY_NOTE,
+} from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData, ResumeProfile } from "@/types/resume";
 import { ConceptALanding } from "@/components/onboarding/ConceptALanding";
 
@@ -496,7 +501,7 @@ export function LandingOnboardingView({
                                 {/* Privacy Note */}
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground p-2 rounded-ctl border border-border bg-muted">
                                     <ShieldCheck size={16} className="text-live shrink-0" />
-                                    <span>100% private guarantee: Your details stay on your device and are used only for finding your matches.</span>
+                                    <span>{LANDING_PROFILE_PRIVACY_NOTE}</span>
                                 </div>
 
                                 {/* Action Buttons */}
@@ -571,7 +576,7 @@ export function LandingOnboardingView({
                                                 </span>
                                             </div>
                                             <p className="text-xs text-muted-foreground leading-snug">
-                                                Saved only in this local browser. Never uploaded to cloud storage.
+                                                {LANDING_DEVICE_STORAGE_NOTE}
                                             </p>
                                         </div>
                                     </div>
@@ -627,9 +632,7 @@ export function LandingOnboardingView({
                                 {/* Privacy Guarantee Note */}
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground p-2 rounded-ctl border border-border bg-muted">
                                     <ShieldCheck size={16} className="text-live shrink-0" />
-                                    <span>
-                                        100% on-device AI guarantee: Your résumé is parsed in this browser tab and never sent to cloud model providers.
-                                    </span>
+                                    <span>{LANDING_UPLOAD_PRIVACY_NOTE}</span>
                                 </div>
 
                                 <div className="flex items-center justify-between pt-2 border-t border-border">

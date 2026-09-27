@@ -8,8 +8,6 @@ const JOB_DETAIL = join(SRC, "components/jobs/JobDetail.tsx");
 const TOP_BAR = join(SRC, "components/layout/TopBar.tsx");
 const PAGE = join(SRC, "app/jobs/page.tsx");
 const GLOBALS = join(SRC, "app/globals.css");
-const TOGGLE_FILE = join(SRC, "components/jobs/for-you/ForYouToggle.tsx");
-
 function walk(dir: string): string[] {
     const out: string[] = [];
     for (const name of readdirSync(dir)) {
@@ -83,15 +81,13 @@ describe("jobs sheet action-bar soft corners", () => {
 });
 
 describe("For-you/Search toggle — one mount, one shape", () => {
-    it("ForYouToggle is constructed exactly once in the tree (single mount point)", () => {
+    it("ForYouToggle dead component is not referenced in src", () => {
         const hits: string[] = [];
         for (const file of walk(SRC)) {
-            if (file === TOGGLE_FILE) continue;
             const src = readFileSync(file, "utf8");
-            const matches = src.match(/<ForYouToggle\b/g);
-            if (matches) hits.push(...matches.map(() => file));
+            if (src.includes("<ForYouToggle")) hits.push(file);
         }
-        assert.equal(hits.length, 1, `expected exactly one <ForYouToggle construction, found ${hits.length}: ${hits.join(", ")}`);
+        assert.deepEqual(hits, []);
     });
 
     it("TopBar renders a topbar-docked-home-view slot ahead of the Filters toggle", () => {

@@ -2,6 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { LegalDocHeader, LEGAL_H2 } from "@/components/legal/LegalDocHeader";
+import { TELEMETRY_LEDGER_FIELDS_DISCLOSED } from "@/lib/telemetry/public-disclosure";
+import {
+  ACCOUNT_SELF_SERVE_DELETION_FLOW,
+  PUBLIC_SUPPORT_EMAIL,
+} from "@/lib/legal/public-contact";
+
+export { TELEMETRY_LEDGER_FIELDS_DISCLOSED };
 
 const TITLE = "Privacy Policy";
 const DESCRIPTION = "How velai collects, uses, and protects your data.";
@@ -12,7 +19,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "September 3, 2026";
+const LAST_UPDATED = "September 26, 2026";
 
 /**
  * Every Firestore collection the storage claims on this page cover today.
@@ -116,19 +123,39 @@ export default function PrivacyPage() {
           each week until you unsubscribe.
         </p>
         <p>
-          When you search, we read your IP address transiently for two things: to default your job search to your
-          country so first results are nearby, and to rate-limit abusive traffic. Your IP is not stored with your
-          account, your searches, or your tracked applications — the country lookup happens on our own server
-          against a local database, with no third-party geolocation service involved. That same country check does
+          When you search, we read your IP address on our servers for two things: to default your job search to your
+          country so first results are nearby, and to rate-limit abusive traffic. That country lookup uses a local
+          database on our own server — not a third-party geolocation API — and we do not attach your IP to your
+          account, your saved searches, or your tracked applications for that purpose. That same country check does
           one more thing: if it places you in the EU or UK, we don&apos;t give your browser a long-lived id that
           would link your search activity across visits — you get one that resets when you close the tab, and we
           don&apos;t currently ask you to opt into anything more. Like nearly every website, our servers keep
           ordinary technical logs that can briefly include request IPs.
         </p>
         <p>
-          The job listings you search are public information we collect from employers&apos; own career pages. We
-          don&apos;t collect anything about you from third parties, and we don&apos;t buy data about you from
-          anyone.
+          Job search itself runs against a Meilisearch index we operate. When you run a search, our servers send the
+          text you typed and the filter choices you selected to that index so it can return matching listings. If you
+          use rank-by-fit, For you, or similar résumé-backed retrieval, our servers also send a search query derived
+          from your parsed résumé — for example experience role titles, headline profession, inferred adjacent role
+          titles, top skill names, and an experience-level filter from your years of experience — plus a country
+          filter inferred from your résumé location when we can. We do not send your full résumé file or raw résumé
+          text to Meilisearch. Location typeahead and facet pickers can send the place text you type to Meilisearch
+          facet search so suggestions match the corpus.
+        </p>
+        <p>
+          Résumé fit labels (Strong / Good / Stretch) are computed from your résumé and each job&apos;s public fields
+          on our servers or in your browser after listings are returned — not by sending your résumé to Meilisearch
+          or Subspace for scoring.
+        </p>
+        <p>
+          The listings you browse are public information sourced from employers&apos; career pages. Our servers call
+          Subspace&apos;s Jobs API (thesubspace.io) to refresh and fill job descriptions — we send job identifiers
+          only, not your résumé or search queries. If you report a listing while signed in and reporting is enabled,
+          we send Subspace&apos;s flags API the job URL, job title, the report category you chose (mapped to
+          Subspace&apos;s schema), any notes you add, and your velai user id as <code className="text-xs">reporter_key</code>.
+        </p>
+        <p>
+          We don&apos;t buy marketing profiles about you from data brokers.
         </p>
 
         <h2 className={LEGAL_H2}>How we use it</h2>
@@ -178,6 +205,17 @@ export default function PrivacyPage() {
           <Link href="/settings">account settings</Link>.
         </p>
 
+        <h2 className={LEGAL_H2}>Behavioural analytics ledger</h2>
+        <p>
+          Alongside PostHog (below), we keep a separate behavioural ledger in a PostgreSQL database we run. Your
+          browser batches product events to our telemetry API — the same catalogue of actions we use to understand
+          search and apply funnels. Each row can include: {TELEMETRY_LEDGER_FIELDS_DISCLOSED.join(", ")}. The{" "}
+          <code className="text-xs">props</code> field holds event-specific metadata (for example query length or
+          filter counts — not the full text of what you typed). When you&apos;re signed in, our server stamps your
+          user id on each row; guests send only session and visitor ids generated in the browser. We use this
+          ledger to improve search quality and to compute aggregate statistics. Rows are deleted after 90 days.
+        </p>
+
         <h2 className={LEGAL_H2}>Cookies &amp; analytics</h2>
         <p>
           We use a session cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts) and
@@ -187,50 +225,103 @@ export default function PrivacyPage() {
         </p>
         <p>
           We use PostHog for product analytics — page views, clicks, and searches — so we can see what&apos;s
-          working and fix what isn&apos;t. It runs cookieless on velai: no analytics cookie is set. What PostHog
-          needs to hold on to lives in your browser&apos;s per-tab storage, so a reload doesn&apos;t restart your
-          session, nothing is shared with your other tabs, and all of it is discarded when you close the tab.
-          Events aren&apos;t tied to your identity unless you&apos;re signed in. PostHog (US cloud) processes this
-          data as our processor under their own DPA terms. We don&apos;t run ad trackers or any third-party
-          tracking pixels, and beyond the two cookies above velai sets none. The Cloudflare Turnstile check on
-          our contact and sign-up forms runs in its own frame and may use its own storage under
-          Cloudflare&apos;s terms to tell humans from bots.
+          working and fix what isn&apos;t. velai shares one PostHog project with thesubspace.io; we tell events
+          apart with a product tag in the analytics payload, not a separate project. PostHog&apos;s US cloud (
+          <code className="text-xs">us.posthog.com</code>, configured as our analytics UI host) processes the data
+          as our processor under their own DPA terms. Browser requests are sent through our own{" "}
+          <code className="text-xs">/ph</code> proxy path rather than directly to third-party analytics domains.
         </p>
         <p>
-          PostHog also records a replay of your visit — the pages you saw and how you moved through them — so we
-          can find the places where the product gets in your way. Anything you type is masked before it leaves
-          your browser: we can see that you filled in a field, never what you put in it. A replay covers a single
-          tab, and is tied to your identity only if you&apos;re signed in.
+          PostHog runs cookieless on velai: no analytics cookie is set. What PostHog needs to hold on to lives in
+          your browser&apos;s per-tab storage, so a reload doesn&apos;t restart your session, nothing is shared
+          with your other tabs, and all of it is discarded when you close the tab. PostHog events are not linked
+          to your velai account id unless you&apos;re signed in and we identify your session to PostHog — signed-out
+          visits still send page and interaction events. At the PostHog project level, IP addresses are stored (
+          IP anonymization is off), including for signed-out visitors. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
+          the two cookies above velai sets none. The Cloudflare Turnstile check on our contact and sign-up forms
+          runs in its own frame and may use its own storage under Cloudflare&apos;s terms to tell humans from
+          bots.
         </p>
         <p>
-          PostHog also powers in-app feedback surveys — a feedback tab and short forms when a search returns no
-          results — that may optionally ask for your email address. We use it only to notify you when matching
-          jobs arrive or to follow up on your feedback; the field is optional, and every survey works without it.
+          PostHog session replay is enabled. Replays capture the pages you saw, how you moved through them, console
+          logs, and performance data from the session. Input masking is on: anything you type is masked before it
+          leaves your browser — we can see that you filled in a field, not what you put in it. Replays are kept
+          for 30 days in PostHog, then expire under PostHog&apos;s own retention rules. A replay covers a single
+          tab and is tied to your identity only if you&apos;re signed in.
+        </p>
+        <p>
+          PostHog also powers heatmaps, in-app feedback surveys, and short forms when a search returns no results.
+          Surveys may optionally ask for your email address; we use it only to notify you when matching jobs arrive
+          or to follow up on feedback. The field is optional, and every survey works without it. On phone-sized
+          viewports we disable automatic survey UI so it does not overlap page content.
+        </p>
+
+        <h2 className={LEGAL_H2}>Where data is processed</h2>
+        <p>
+          You may be in one country while our providers and infrastructure operate elsewhere. We have not verified
+          or published a single home region for every data store behind velai. PostHog product analytics are
+          processed in the United States — our app is configured to use PostHog&apos;s US cloud (
+          <code className="text-xs">us.posthog.com</code>). Other processing — including account data in Google
+          Cloud Firestore, search indexes, email delivery, sign-in through WorkOS, and databases we operate — may
+          run outside your country, including in the United States, without us naming a region we have not
+          confirmed in configuration.
         </p>
 
         <h2 className={LEGAL_H2}>Retention &amp; deletion</h2>
         <p>
-          We keep your account data for as long as your account is active. Search-activity records — which
-          searches, which clicks, which applies — are kept for 90 days and then deleted; after that we keep only
-          aggregate statistics, like what share of people who searched for a role went on to apply to it, which no
-          longer identify you.
+          We keep your account data for as long as your account is active. Search-activity records in Firestore —
+          which searches, which clicks, which applies — are kept for 90 days and then deleted; after that we keep
+          only aggregate statistics that no longer identify you. The behavioural analytics ledger described above
+          follows the same 90-day deletion window. PostHog session replays are retained for 30 days in PostHog.
         </p>
         <p>
-          You can delete your account and everything tied to it at any time from{" "}
-          <Link href="/settings">account settings</Link> — it&apos;s self-serve, not a support ticket. Deletion
-          removes your account profile, tracked applications, resumes, prep answers, and search-activity profile
-          from our systems.
+          You can delete your account yourself from{" "}
+          <Link href="/settings">account settings</Link> — self-serve, not a support ticket. The flow is:{" "}
+          {ACCOUNT_SELF_SERVE_DELETION_FLOW}. When you confirm, this device&apos;s browser clears local storage
+          first, then our servers run the deletion; only if that succeeds do we sign you out and clear your session
+          cookie.
+        </p>
+        <p>
+          That server action removes your Firestore profile and every user-owned collection in our migration manifest
+          (for example applications, resumes, saved searches, prep answers, agent credentials, and email digest
+          state keyed to your account), deletes your WorkOS sign-in record, and — when your sign-in email is a real
+          address, not a synthetic username-only address — runs our identity-forget path: global email suppression
+          for that address, deletion from our PostgreSQL identity store, and deletion of behavioural-ledger rows in
+          PostgreSQL keyed to your WorkOS user id.
+        </p>
+        <p>
+          Self-serve account deletion makes no call to PostHog to delete data and does not remove analytics
+          events or replay-derived data already stored there. Session replay recordings in PostHog are kept for
+          30 days, as described above, then expire under PostHog&apos;s rules. We have not confirmed a fixed
+          retention period for ordinary analytics events or heatmap data in PostHog. It does not remove contact-form messages,
+          connect-waitlist entries, or other records stored only by email without an account id. Anonymous search
+          logs and aggregate statistics are unaffected. Suppression entries for your address stay in place so we do
+          not resume email after you leave.
+        </p>
+        <p>
+          We do not offer a separate bulk export or machine-readable download of your stored account data. If you
+          need account-held data removed, use self-serve deletion above or email us for help removing waitlist or
+          contact-form records that are not tied to an account.
         </p>
 
         <h2 className={LEGAL_H2}>Your choices</h2>
         <p>
-          You control your data: edit or remove anything you&apos;ve created, delete your account outright, or
-          contact us with any question or request — including one we haven&apos;t anticipated here.
+          You can edit or delete content you created in the product. To remove your entire account, use the
+          self-serve flow in account settings ({ACCOUNT_SELF_SERVE_DELETION_FLOW}). For questions about privacy or
+          deletion, email{" "}
+          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
+            {PUBLIC_SUPPORT_EMAIL}
+          </a>{" "}
+          or use the <Link href="/contact">contact page</Link>.
         </p>
 
         <h2 className={LEGAL_H2}>Contact</h2>
         <p>
-          Questions: use the <Link href="/contact">contact page</Link>.
+          Questions: email{" "}
+          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
+            {PUBLIC_SUPPORT_EMAIL}
+          </a>{" "}
+          or use the <Link href="/contact">contact page</Link>.
         </p>
       </article>
       </div>

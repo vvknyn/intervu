@@ -27,5 +27,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     context: body.context,
   });
 
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
   return NextResponse.json(result, { status: 200 });
 }

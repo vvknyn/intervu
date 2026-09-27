@@ -160,7 +160,7 @@ test("session replay masks typed input, and /privacy says so", () => {
   const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
   assert.match(
     privacy,
-    /records a replay/i,
+    /session replay is enabled/i,
     "Replay is on but /privacy no longer discloses it.",
   );
   assert.match(

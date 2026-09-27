@@ -1,5 +1,5 @@
 /**
- * Every email kind intervu can send is registered here, with its own
+ * Every email kind Velai can send is registered here, with its own
  * opt-in + unsubscribe semantics attached. This is the chokepoint E1's
  * `sendEmail` reads to decide whether a suppression check and a
  * List-Unsubscribe header are required — it dispatches on the policy
