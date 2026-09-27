@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { approveConsentAction, denyConsentAction } from "@/actions/agent-consent";
+import { authRaisedPanelClassName, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConsentAllowButton, ConsentDenyButton } from "@/components/oauth/ConsentSubmitButtons";
 import type { ConsentParams } from "@/lib/agent/consent";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
+import { cn } from "@/lib/utils";
 
 /**
- * Brand lockup for the chrome-free /oauth surface — same mark/wordmark
- * treatment as `TopBar`'s `topbar-logo` (locked mark + warm-white wordmark),
- * reused here because `shouldHideSiteChrome` hides the TopBar
- * on every route under here and each card needs its own identity in its place.
+ * Brand lockup for the chrome-free /oauth surface — same title-case Velai lockup
+ * as TopBar (locked mark + warm-white wordmark), reused here because
+ * `shouldHideSiteChrome` hides the TopBar on every route under here and each
+ * card needs its own identity in its place.
  */
 function ConsentBrand() {
     return (
@@ -23,10 +25,10 @@ function ConsentBrand() {
 
 export function CenteredCard({ children }: { children: React.ReactNode }) {
     return (
-        <div className="flex min-h-[70vh] flex-col items-center justify-center p-4">
+        <AuthRouteLayout className="py-8">
             <ConsentBrand />
-            <Card className="w-full max-w-[400px]">{children}</Card>
-        </div>
+            <Card className={cn(authRaisedPanelClassName, "gap-4 p-6 sm:p-8")}>{children}</Card>
+        </AuthRouteLayout>
     );
 }
 
@@ -58,7 +60,7 @@ export function LoggedOutCard({ returnTo }: { returnTo: string }) {
                 <p>Sign in to approve connecting your agent.</p>
             </CardContent>
             <CardFooter>
-                <Button asChild className="w-full">
+                <Button asChild className="w-full" size="lg">
                     <Link href={loginUrl}>{AUTH_CTA_LABEL}</Link>
                 </Button>
             </CardFooter>
@@ -106,7 +108,7 @@ export function ConsentCard({ clientName, params }: { clientName: string; params
                 <CardTitle>Connect this agent to your account</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <div className="border border-border bg-muted p-3">
+                <div className="rounded-ctl border border-border bg-surface-2 p-3 shadow-[var(--shadow-bevel-inset)]">
                     <dl className="grid grid-cols-[7.5rem_1fr] gap-y-1.5 text-xs">
                         <dt className="text-muted-foreground">says it is</dt>
                         <dd className="text-foreground">&quot;{clientName}&quot;</dd>

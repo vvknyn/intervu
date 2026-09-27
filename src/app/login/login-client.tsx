@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
+import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
 import { hasUsableResumeOnFile } from "@/actions/resume";
 import { resolvePostAuthDestination } from "@/lib/auth/post-auth-destination";
 import { validateNextParam } from "@/lib/auth/product-routes";
@@ -68,10 +69,10 @@ export function LoginClient() {
     }, [user, redirectAfterAuth]);
 
     return (
-        <div className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 below-topbar">
-            <div className="w-full max-w-100 rounded-panel border border-border bg-card p-8">
+        <AuthRouteLayout>
+            <AuthRaisedPanel>
                 <LoginForm onSuccess={redirectAfterAuth} />
-            </div>
-        </div>
+            </AuthRaisedPanel>
+        </AuthRouteLayout>
     );
 }

@@ -282,7 +282,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         <span className="w-full border-t" />
                     </div>
                     <div className="relative flex justify-center text-xs">
-                        <span className="bg-background px-2 text-muted-foreground">
+                        <span className="bg-surface px-2 text-muted-foreground">
                             or
                         </span>
                     </div>
@@ -308,7 +308,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
-                                        className="rounded-ctl border border-border bg-card h-11 px-3 text-base"
+                                        className="bg-surface-2 shadow-[var(--shadow-bevel-inset)]"
                                     />
                                 </Field>
                             )}
@@ -323,7 +323,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
-                                    className="rounded-ctl border border-border bg-card h-11 px-3 text-base"
+                                    className="bg-surface-2 shadow-[var(--shadow-bevel-inset)]"
                                 />
                             </Field>
                             <Field label="Password" htmlFor="password">
@@ -337,7 +337,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
-                                        className="rounded-ctl border border-border bg-card h-11 px-3 pr-14 text-base"
+                                        className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"
                                     />
                                     <button
                                         type="button"
