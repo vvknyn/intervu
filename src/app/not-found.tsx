@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { RouteStatusLayout, RouteStatusPanel } from "@/components/layout/route-status-chrome";
+import { conceptAEmptyMaxClassName } from "@/components/ui/concept-a-empty-state";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -10,7 +12,7 @@ import { Button } from "@/components/ui/button";
 export default function NotFound() {
     return (
         <RouteStatusLayout>
-            <RouteStatusPanel className="text-center">
+            <RouteStatusPanel className={cn(conceptAEmptyMaxClassName, "enter-reveal text-center")}>
                 <BrandLockup className="mx-auto w-fit" />
                 <p className="mt-4 text-xs text-muted-foreground">404</p>
                 <h1 className="mt-1 text-title-sm font-semibold text-foreground">Page not found</h1>

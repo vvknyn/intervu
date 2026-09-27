@@ -4,7 +4,9 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { RouteStatusLayout, RouteStatusPanel } from "@/components/layout/route-status-chrome";
+import { conceptAEmptyMaxClassName } from "@/components/ui/concept-a-empty-state";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
  * Route-segment error boundary. Catches render/runtime errors in any page and
@@ -30,7 +32,7 @@ export default function Error({
         <RouteStatusLayout>
             <RouteStatusPanel
                 data-testid="error-boundary"
-                className="text-center"
+                className={cn(conceptAEmptyMaxClassName, "enter-reveal text-center")}
             >
                 <BrandLockup className="mx-auto w-fit" />
                 <h1 className="mt-4 text-title-sm font-semibold text-foreground">Something went wrong</h1>

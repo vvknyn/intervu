@@ -31,7 +31,7 @@ import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
 import { AUTH_CTA_LABEL, formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 import { posterInlinePanelClassName } from "@/components/layout/route-loading";
-import { EmptyState } from "@/components/ui/empty-state";
+import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before they're sent.";
 
@@ -95,7 +95,7 @@ function TrackerEmptyState({
 }) {
     const guestCount = listGuestPursuits().length;
     return (
-        <EmptyState
+        <ConceptAEmptyState
             testId={user ? "yours-empty" : "yours-guest-empty"}
             title="Your tracker is empty."
             description="Save roles while browsing verified jobs, then pick up where you left off here."
@@ -106,7 +106,7 @@ function TrackerEmptyState({
             }
             footer={
                 !user ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-center text-xs text-muted-foreground">
                         {guestCount > 0 && <>{guestKeepLine(guestCount)} </>}
                         <button
                             type="button"
@@ -315,29 +315,34 @@ function YoursContent() {
         >
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
                 <TrackerTabs active="tracker" />
-                <div className="mb-4 mt-4 flex flex-wrap items-center gap-3">
-                    <div className="relative min-w-0 flex-1">
-                        <MagnifyingGlass
-                            size={16}
-                            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-                        />
-                        <Input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search tracker…"
-                            className="h-11 rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
-                        />
+                {pursuits.length > 0 ? (
+                    <div className="mb-4 mt-4 flex flex-wrap items-center gap-3">
+                        <div className="relative min-w-0 flex-1">
+                            <MagnifyingGlass
+                                size={16}
+                                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                            />
+                            <Input
+                                type="search"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search tracker…"
+                                data-testid="tracker-search"
+                                className="h-11 rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
+                            />
+                        </div>
+                        <AppliedThisWeekBadge count={appliedThisWeek} appliedToday={appliedToday} />
                     </div>
-                    <AppliedThisWeekBadge count={appliedThisWeek} appliedToday={appliedToday} />
-                </div>
+                ) : null}
 
                 {filtered.length === 0 ? (
                     pursuits.length === 0 ? (
-                        <TrackerEmptyState
-                            user={!!user}
-                            onLoginClick={() => setAuthPopoverOpen(true)}
-                        />
+                        <ConceptAEmptyPageSlot placement="after-controls">
+                            <TrackerEmptyState
+                                user={!!user}
+                                onLoginClick={() => setAuthPopoverOpen(true)}
+                            />
+                        </ConceptAEmptyPageSlot>
                     ) : (
                         <div className="py-8 text-left text-sm text-muted-foreground">
                             Nothing in this lane.{" "}

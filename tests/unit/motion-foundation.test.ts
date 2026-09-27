@@ -16,6 +16,7 @@ const CARD = readFileSync(join(ROOT, "src/components/ui/card.tsx"), "utf8");
 const TOAST = readFileSync(join(ROOT, "src/lib/toast.tsx"), "utf8");
 const SEARCH = readFileSync(join(ROOT, "src/components/search/SearchAutocomplete.tsx"), "utf8");
 const LAYOUT = readFileSync(join(ROOT, "src/app/layout.tsx"), "utf8");
+const NOT_FOUND = readFileSync(join(ROOT, "src/app/not-found.tsx"), "utf8");
 const FOOTER = readFileSync(join(ROOT, "src/components/layout/Footer.tsx"), "utf8");
 const THEME = readFileSync(join(ROOT, "src/components/providers/ThemeProvider.tsx"), "utf8");
 const TABBAR = readFileSync(join(ROOT, "src/components/layout/MobileTabBar.tsx"), "utf8");
@@ -102,6 +103,13 @@ describe("motion foundation wiring", () => {
     assert.match(APPLY_RETURN, /aria-live="polite"/);
     assert.doesNotMatch(APPLY_RETURN, /APPLY_RETURN_THRESHOLD/);
     assert.doesNotMatch(APPLY_RETURN, /captureEvent/);
+  });
+});
+
+describe("status route motion", () => {
+  it("404 panel uses enter-reveal token, not ad-hoc duration utilities", () => {
+    assert.match(NOT_FOUND, /enter-reveal/);
+    assert.doesNotMatch(NOT_FOUND, /duration-300/);
   });
 });
 

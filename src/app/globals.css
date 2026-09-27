@@ -322,8 +322,8 @@
 }
 
 .dark {
-  /* Dark theme — deeper charcoal; same Concept A accent and shadow language. */
-  --background: 8 9 12;
+  /* Dark theme — same Concept A canvas as :root (#0B0D12); cards/surfaces stay elevated. */
+  --background: 11 13 18;
   --foreground: 245 245 245;
   --card: 16 18 24;
   --card-foreground: 245 245 245;
@@ -800,6 +800,122 @@ h4 {
 
 .enter-reveal {
   animation: panel-enter var(--transition-enter) var(--ease-standard) both;
+}
+
+/** Shared /jobs for-you column — pending, loaded deck, and empty share this footprint (no CLS). */
+.jobs-session-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: min(72dvh, 720px);
+}
+
+/** Paper slot only — matches live ForYouPack postcard shell geometry. */
+.for-you-deck-paper-postcard {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background-color: rgb(var(--surface-postcard));
+  color: rgb(var(--surface-postcard-foreground));
+  box-shadow: var(--shadow-postcard);
+}
+
+/** Session pending slot — raised surface on poster ground (not full-viewport cream). */
+.for-you-deck-paper-raised {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgb(var(--border));
+  background-color: rgb(var(--surface));
+  color: rgb(var(--foreground));
+  box-shadow: var(--shadow-bevel-highlight);
+}
+
+.for-you-deck-fit-inset {
+  box-shadow: var(--shadow-bevel-inset);
+}
+
+/** Capped page width from `--shell-max` — use instead of `max-w-[var(--shell-max)]`. */
+.shell-max-width {
+  max-width: var(--shell-max);
+}
+
+/** Poster list horizontal inset — single chokepoint for `--list-inset` (SERP rows, route loaders). */
+.poster-list-inset-x {
+  padding-inline: var(--list-inset);
+}
+
+/** JD column cap in for-you deck skeleton — matches ForYouPack `max-h-[min(60dvh,640px)]` geometry. */
+.jobs-session-scroll {
+  max-height: min(60dvh, 640px);
+}
+
+/** Concept A empty block — one centered column width for illustration + copy + CTA. */
+.concept-a-empty-max {
+  width: 100%;
+  max-width: 25rem;
+  margin-inline: auto;
+  text-align: center;
+}
+
+/** Concept A empty slot — shared centering; placement modifiers set top offset. */
+.concept-a-empty-page-slot {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+/** Deck / full-frame empties — optical upper third, safe-area aware. */
+.concept-a-empty-page-slot--page {
+  padding-top: clamp(1.5rem, 16dvh, 9rem);
+}
+
+/** Tracker/history — below tabs + search controls (8pt grid). */
+.concept-a-empty-page-slot--after-controls {
+  padding-top: 1rem;
+}
+
+/** In-flow 404/error — seamless with app shell background inside `<main>`. */
+.route-status-in-flow {
+  display: flex;
+  width: 100%;
+  flex: 1 1 auto;
+  flex-direction: column;
+  background-color: rgb(var(--background));
+}
+
+.route-status-upper-slot {
+  display: flex;
+  width: 100%;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  padding-inline: 1.25rem;
+  padding-top: clamp(1.5rem, 16dvh, 9rem);
+  padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px));
+}
+
+/** Status-route mock canvas — shorter than full viewport for gallery fixtures. */
+.route-status-fixture-min {
+  min-height: 50dvh;
+}
+
+/** Opacity-only reveal for session/pending → content swaps (no layout shift). */
+@keyframes state-opacity-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.state-opacity-in {
+  animation: state-opacity-in var(--transition-enter) var(--ease-standard) both;
 }
 
 .for-you-deck-shell {

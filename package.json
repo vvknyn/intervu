@@ -25,6 +25,8 @@
     "test:agent": "npx tsx --test tests/unit/agent-store-postgres.test.ts tests/unit/agent-tokens.test.ts tests/unit/agent-oauth.test.ts tests/unit/agent-rate-limit.test.ts tests/unit/agent-record-budget.test.ts tests/unit/agent-tools.test.ts tests/unit/agent-consent.test.ts tests/unit/agent-register-route.test.ts tests/unit/agent-token-route.test.ts tests/unit/agent-mcp-route.test.ts tests/unit/agent-access.test.ts tests/unit/agent-preferences.test.ts tests/unit/resume-set-resume.test.ts tests/unit/agent-http.test.ts tests/unit/auth-next-param.test.ts tests/unit/auth-callback-route.test.ts tests/unit/mcporter-config.test.ts tests/unit/mcporter-preflight.test.ts",
     "test:jobpage": "npx tsx --test tests/unit/get-job.test.ts tests/unit/job-slug.test.ts tests/unit/job-jsonld.test.ts",
     "test:design": "npx tsx --test tests/unit/design-language.test.ts tests/unit/button-variants.test.ts tests/unit/design-token-ratchet.test.ts tests/unit/linux-chromium-visual-qa.test.ts tests/unit/motion-foundation.test.ts tests/unit/concept-a-postcard-composition.test.ts tests/unit/concept-a-landing-contrast.test.ts tests/unit/deck-motion.test.ts tests/unit/deck-motion-lifecycle.test.ts tests/unit/haptic-reduced-motion.test.ts",
+    "test:states": "playwright test tests/e2e/states-empty.spec.ts",
+    "test:states:unit": "npx tsx --test tests/unit/polish-states-empty.test.ts tests/unit/polish-states-empty-design-contract.test.ts",
     "test:agents-page": "playwright test tests/e2e/agents-page.spec.ts",
     "test:banner": "playwright test tests/e2e/motivational-banner.spec.ts",
     "test:wizard": "playwright test tests/e2e/setup-wizard-fix.spec.ts",

@@ -51,18 +51,42 @@ test.describe('YOURS - Guest, no pursuits', () => {
     await expect(page.locator('text=404')).not.toBeVisible();
   });
 
-  test('TC-YOURS-002: Guest empty state shows track and login actions', async ({ page }) => {
+  test('TC-YOURS-002: Guest empty state hierarchy — header track vs empty CTAs', async ({ page }) => {
     await page.goto('/yours');
     const empty = page.getByTestId('yours-guest-empty');
     await expect(empty).toBeVisible({ timeout: 10000 });
-    await expect(empty.getByRole('button', { name: /track a role/i })).toBeVisible();
-    await expect(empty.getByRole('button', { name: 'Log in' })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('button', { name: /track a role/i })).toBeVisible();
+    await expect(empty.getByRole('link', { name: /browse verified roles/i })).toBeVisible();
+    await expect(empty.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await expect(empty.getByRole('button', { name: /track a role/i })).toHaveCount(0);
   });
 
-  test('TC-YOURS-003: TopBar Tracker tab is visible with zero pursuits', async ({ page }) => {
-    await page.goto('/');
-    const link = page.getByTestId('topbar-tracker');
-    await expect(link).toBeVisible();
+  for (const viewport of [
+    { name: 'desktop', width: 1440, height: 900 },
+    { name: 'mobile', width: 390, height: 844 },
+  ] as const) {
+    test(`TC-YOURS-002b: Guest empty hides filter chrome and sits upper-third (${viewport.name})`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto('/yours');
+      const empty = page.getByTestId('yours-guest-empty');
+      await expect(empty).toBeVisible({ timeout: 10000 });
+      await expect(page.getByTestId('tracker-search')).toHaveCount(0);
+      await expect(page.getByTestId('tracker-kanban')).toHaveCount(0);
+      const box = await empty.boundingBox();
+      expect(box).not.toBeNull();
+      const v = page.viewportSize()!;
+      expect(box!.y).toBeGreaterThan(48);
+      expect(box!.y).toBeLessThan(v.height * 0.42);
+      const centerX = box!.x + box!.width / 2;
+      expect(Math.abs(centerX - v.width / 2)).toBeLessThan(72);
+    });
+  }
+
+  test('TC-YOURS-003: Mobile tab bar Tracker link with zero pursuits', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/yours');
+    const link = page.getByTestId('mobile-topbar-tracker');
+    await expect(link).toBeVisible({ timeout: 10000 });
     await expect(link).toHaveAttribute('href', '/yours');
   });
 
@@ -83,6 +107,8 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
 
   test('TC-YOURS-005: Pursuit row shows company, role, and status', async ({ page }) => {
     await page.goto('/yours');
+    await expect(page.getByTestId('tracker-search')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('tracker-kanban')).toBeVisible({ timeout: 10000 });
     const row = page.getByTestId('pursuit-row').first();
     await expect(row).toBeVisible({ timeout: 10000 });
     await expect(row).toContainText('Acme Corp');
@@ -90,9 +116,10 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     await expect(row).toContainText('Saved');
   });
 
-  test('TC-YOURS-006: TopBar Yours link appears with a pursuit present', async ({ page }) => {
-    await page.goto('/');
-    const link = page.getByTestId('topbar-tracker');
+  test('TC-YOURS-006: Mobile tab bar Tracker link with a pursuit present', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/yours');
+    const link = page.getByTestId('mobile-topbar-tracker');
     await expect(link).toBeVisible({ timeout: 10000 });
     await expect(link).toHaveAttribute('href', '/yours');
   });
@@ -114,11 +141,11 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/yours');
     await page.getByTestId('pursuit-row').first().click();
-    await expect(page).toHaveURL(/\/yours\/[^/?]+$/);
-    // Two "Acme Corp" headings render (PageHeader's h1 + the page body's own
-    // identity h1) — .first() is enough to prove the full page loaded.
-    await expect(page.getByRole('heading', { name: 'Acme Corp' }).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Staff Engineer').first()).toBeVisible();
+    await expect(page).toHaveURL('/yours/guest-e2e-1');
+    await expect(page.getByTestId('pursuit-stage')).toBeVisible({ timeout: 10000 });
+    const main = page.getByRole('main');
+    await expect(main.getByRole('heading', { name: /^Acme\b/ }).first()).toBeVisible();
+    await expect(main.getByText('Staff Engineer').first()).toBeVisible();
   });
 
   test('TC-YOURS-008: Track a role opens the add sheet', async ({ page }) => {

@@ -23,6 +23,7 @@ import {
 import { Toaster } from "@/lib/toast";
 import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 import { LocalAiParamSync } from "@/components/providers/LocalAiParamSync";
+import { OfflineShell } from "@/components/layout/offline-shell";
 
 /**
  * Three faces, each named for the ROLE it plays rather than the vendor that
@@ -156,6 +157,12 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {/* Charcoal first paint — offline document reload before CSS bundle. */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: "html,body{background:#0B0D12}",
+          }}
+        />
         {/* Dark-only FOUC guard — stamp `.dark` before first paint; no light path. */}
         <script
           dangerouslySetInnerHTML={{
@@ -213,6 +220,7 @@ export default function RootLayout({
               <MobileTabBar />
               <TourOverlay />
               <Toaster />
+              <OfflineShell />
             </TourProvider>
             </IconDefaultsProvider>
           </ThemeProvider>
