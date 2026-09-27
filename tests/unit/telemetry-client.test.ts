@@ -2,7 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { extractLedgerColumns, randomUuidFallback } from "../../src/lib/telemetry/client";
 import { UUID_PATTERN, LEDGER_COLUMN_RULES, type LedgerColumnName } from "../../src/lib/telemetry/column-rules";
+import { ANALYTICS_EVENTS } from "../../src/lib/analytics/event-names";
 import { processBatch } from "../../src/lib/telemetry/ingest";
+
+const BASELINE_EVENT_NAME = Object.values(ANALYTICS_EVENTS)[0];
 
 /**
  * Defect 1 (ledger columns sent nested in `props`) and Defect 3 (the
@@ -138,7 +141,7 @@ function baselineEvent(overrides: Record<string, unknown>): Record<string, unkno
   return {
     event_id: VALID_UUID,
     session_id: "22222222-2222-2222-2222-222222222222",
-    event_name: "test_event",
+    event_name: BASELINE_EVENT_NAME,
     occurred_at: new Date(NOW).toISOString(),
     ...overrides,
   };
