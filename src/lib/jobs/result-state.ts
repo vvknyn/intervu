@@ -22,6 +22,33 @@ import type { JobSearchResult, PublicJob } from "./types";
 export const SEARCH_UNAVAILABLE_MESSAGE =
     "Search is temporarily unavailable — this usually clears within a minute. Try again in a moment.";
 
+/** Operator/setup notes from backends — must never be shown in product UI. */
+const OPERATOR_SEARCH_NOTE_PATTERN =
+    /MEILISEARCH_HOST|JOBS_PREVIEW_FROM_SNAPSHOT|SUBSPACE_API_KEY/i;
+
+export function isOperatorSearchNote(note: string | null | undefined): boolean {
+    if (!note?.trim()) return false;
+    return OPERATOR_SEARCH_NOTE_PATTERN.test(note);
+}
+
+/** Strip env-var setup copy; pass through user-safe messages unchanged. */
+export function userFacingSearchErrorMessage(message: string | null | undefined): string | null {
+    if (!message?.trim()) return null;
+    if (isOperatorSearchNote(message)) return SEARCH_UNAVAILABLE_MESSAGE;
+    return message;
+}
+
+/** True when Rank / Save / alerts must not pretend search is actionable. */
+export function isSearchUnhealthy(input: {
+    searchError: string | null;
+    result: Pick<JobSearchResult, "unavailable" | "configured"> | null;
+}): boolean {
+    if (input.searchError != null) return true;
+    const r = input.result;
+    if (!r) return false;
+    return r.unavailable === true || r.configured === false;
+}
+
 /**
  * Shape of the additive `meta` field the data-plane lane (branch
  * feat/2026-08-01/p0-data-plane, unmerged at the time of this change) is

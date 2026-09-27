@@ -91,7 +91,7 @@ describe("motion foundation wiring", () => {
     assert.match(SEARCH, /aria-activedescendant=/);
     assert.match(SEARCH, /id=\{listboxId\}/);
     assert.match(SEARCH, /id=\{optionId\(index\)\}/);
-    assert.match(SEARCH, /CHROME_FOCUS_VISIBLE/);
+    assert.match(SEARCH, /CONTROL_FOCUS_VISIBLE/);
   });
 
   it("house focus export is shared by tab bar and controls", () => {

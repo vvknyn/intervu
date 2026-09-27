@@ -56,6 +56,20 @@ describe("shouldShowSearchAlertCapture", () => {
     );
   });
 
+  it("never shows when search is unhealthy", () => {
+    assert.equal(
+      shouldShowSearchAlertCapture({
+        signedIn: false,
+        dismissed: false,
+        submitted: false,
+        interactions: 0,
+        hasResults: false,
+        searchUnhealthy: true,
+      }),
+      false,
+    );
+  });
+
   it("respects dismissed and submitted flags", () => {
     const base = {
       signedIn: false,

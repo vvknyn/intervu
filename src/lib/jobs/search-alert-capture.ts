@@ -17,9 +17,12 @@ export interface SearchAlertCaptureInput {
   interactions: number;
   hasResults: boolean;
   authGateVisible?: boolean;
+  /** When search is down or unconfigured, alert capture must not show. */
+  searchUnhealthy?: boolean;
 }
 
 export function shouldShowSearchAlertCapture(input: SearchAlertCaptureInput): boolean {
+  if (input.searchUnhealthy) return false;
   if (input.authGateVisible) return false;
   if (input.signedIn) return false;
   if (input.dismissed || input.submitted) return false;

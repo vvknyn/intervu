@@ -30,7 +30,7 @@ import {
 import { SearchAutocomplete, type SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
+import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
@@ -178,6 +178,8 @@ import {
     resolveJobsResultsPanel,
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
+    isSearchUnhealthy,
+    userFacingSearchErrorMessage,
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
@@ -928,7 +930,10 @@ function EmptyResults({
                 <button
                     type="button"
                     onClick={onRevealGhosts}
-                    className="mt-2 w-full text-center text-xs text-foreground underline underline-offset-2"
+                    className={cn(
+                        "mt-2 w-full text-center text-xs text-foreground underline underline-offset-2",
+                        CONTROL_FOCUS_VISIBLE,
+                    )}
                 >
                     {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
                 </button>
@@ -2723,6 +2728,8 @@ function JobsContent() {
      */
     const zeroQueryFetchFailed =
         searchError != null || (result != null && (result.unavailable === true || result.configured === false));
+    const searchUnhealthy = isSearchUnhealthy({ searchError, result });
+    const displaySearchError = userFacingSearchErrorMessage(searchError);
     const isSerpAsk =
         resolveJobsRenderMode(emptySearchState, {
             loading,
@@ -4510,6 +4517,7 @@ function JobsContent() {
     // `handleUploadClick` upload-gate) and apply fit the moment it completes
     // (see `handleImport`'s `resumeActionAfterImportRef` check).
     const handleRankByFit = async () => {
+        if (searchUnhealthy) return;
         const applied = await resolveAndApplyFit();
         if (!applied) handleUploadClick();
     };
@@ -4548,6 +4556,7 @@ function JobsContent() {
     const canSaveSearch = Boolean(
         query.trim() || activeCount > 0 || fitActive || sortOverride || board || companyDomain,
     );
+    const canUseSearchPersistenceActions = canSaveSearch && !searchUnhealthy;
 
     // Task 11 review fix — the tombstone's "similar roles" CTA clears the
     // job selection (local state + URL) before dropping back to a plain
@@ -4767,6 +4776,7 @@ function JobsContent() {
             interactions: searchInteractions,
             hasResults: false,
             authGateVisible: showGuestEngageNudge || showGuestSaveBanner,
+            searchUnhealthy,
         });
     const hasResultsPanel =
         resultsPanel !== "empty" &&
@@ -4784,6 +4794,7 @@ function JobsContent() {
             interactions: searchInteractions,
             hasResults: true,
             authGateVisible: showGuestEngageNudge || showGuestSaveBanner,
+            searchUnhealthy,
         });
 
     const [manualAlertOpen, setManualAlertOpen] = useState(false);
@@ -5203,11 +5214,11 @@ function JobsContent() {
         </div>
     );
 
-    const savedSearchControl = canSaveSearch ? (
+    const savedSearchControl = canUseSearchPersistenceActions ? (
         <SavedSearchesPanel
             saved={savedSearches}
             urlState={buildUrlState()}
-            canSave={canSaveSearch}
+            canSave={canUseSearchPersistenceActions}
             onApply={applySavedSearch}
             onBeforeGuestSave={!user ? handleBeforeGuestSavedSearch : undefined}
             compact
@@ -5236,10 +5247,13 @@ function JobsContent() {
             type="button"
             data-testid="jobs-rank-by-fit"
             title={RANK_SECONDARY_COPY}
+            disabled={searchUnhealthy}
+            aria-disabled={searchUnhealthy}
             onClick={() => void handleRankByFit()}
             className={cn(
                 toolbarControlHeight,
-                "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
+                CONTROL_FOCUS_VISIBLE,
+                "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors disabled:pointer-events-none disabled:opacity-50",
             )}
         >
             Rank with my résumé
@@ -5251,13 +5265,14 @@ function JobsContent() {
             <>
                 {rankByFitEl}
                 {savedSearchControl}
-                {canSaveSearch && (
+                {canUseSearchPersistenceActions && (
                     <button
                         type="button"
                         data-testid="jobs-create-alert-trigger"
                         onClick={() => setManualAlertOpen((prev) => !prev)}
                         className={cn(
                             toolbarControlHeight,
+                            CONTROL_FOCUS_VISIBLE,
                             "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-2",
                         )}
                         title="Get email alerts for this search"
@@ -5281,12 +5296,12 @@ function JobsContent() {
     // email-capture path instead, since a local-only bookmark does nothing
     // for the north-star signup metric) and the existing `manualAlertOpen`
     // toggle that already renders `SearchAlertCapture` below.
-    const resultLineActionEl = canSaveSearch ? (
+    const resultLineActionEl = canUseSearchPersistenceActions ? (
         user ? (
             <SavedSearchesPanel
                 saved={savedSearches}
                 urlState={buildUrlState()}
-                canSave={canSaveSearch}
+                canSave={canUseSearchPersistenceActions}
                 onApply={applySavedSearch}
                 label="Save this search"
                 hideList
@@ -5446,6 +5461,7 @@ function JobsContent() {
                 {showResumeEntry && (
                     <DropdownMenuItem
                         data-testid="jobs-sort-fit"
+                        disabled={searchUnhealthy}
                         onSelect={() => void handleRankByFit()}
                         title={RANK_SECONDARY_COPY}
                         className="flex flex-col items-start gap-0.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
@@ -6420,7 +6436,7 @@ function JobsContent() {
                                     />
                                 )}
 
-                                {(showResultsSearchAlert || manualAlertOpen) && (
+                                {!searchUnhealthy && (showResultsSearchAlert || manualAlertOpen) && (
                                     <div className="mb-3 border-t border-border pt-4 pb-2">
                                         <SearchAlertCapture
                                             surface="results"
@@ -6467,15 +6483,18 @@ function JobsContent() {
                                 </div>
                             )}
 
-                            {backgroundError && (
+                            {backgroundError && displaySearchError && (
                                 <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-l-2 border-verdict-risk pl-3 text-xs text-verdict-risk">
-                                    <span>{searchError}</span>
-                                    <button
+                                    <span>{displaySearchError}</span>
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        size="sm"
                                         onClick={() => setSearchRetry((n) => n + 1)}
-                                        className="underline underline-offset-2"
+                                        className="h-auto p-0 text-xs text-verdict-risk underline underline-offset-2"
                                     >
-                                        Retry
-                                    </button>
+                                        Try again
+                                    </Button>
                                 </div>
                             )}
                         </div>
@@ -6547,9 +6566,6 @@ function JobsContent() {
                                         We&apos;re wiring velai up to Subspace&apos;s live job corpus — including the posting check
                                         that flags roles that aren&apos;t really hiring.
                                     </p>
-                                    {result?.note && (
-                                        <p className="mt-1 max-w-md text-xs text-muted-foreground">{result.note}</p>
-                                    )}
                                 </div>
                             ) : resultsPanel === "error" ? (
                                 // Deliverable 1 — the only remaining hard-stop state: a
@@ -6562,13 +6578,18 @@ function JobsContent() {
                                 // backend-supplied phrase — this no longer says it twice.
                                 <div role="alert" className="border-l-2 border-verdict-risk px-[var(--list-inset)] py-6 pl-4 text-left">
                                     <p className="text-xs text-foreground">We can&apos;t load results right now.</p>
-                                    <p className="mt-1.5 max-w-md text-xs text-muted-foreground">{searchError}</p>
-                                    <button
+                                    {displaySearchError && (
+                                        <p className="mt-1.5 max-w-md text-xs text-muted-foreground">{displaySearchError}</p>
+                                    )}
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        size="sm"
                                         onClick={() => setSearchRetry((n) => n + 1)}
-                                        className="mt-3 text-xs text-foreground underline underline-offset-2"
+                                        className="mt-3 h-auto p-0 text-xs text-foreground underline underline-offset-2"
                                     >
-                                        Retry
-                                    </button>
+                                        Try again
+                                    </Button>
                                 </div>
                             ) : resultsPanel === "loading" ? (
                                 <JobsListSplash />
