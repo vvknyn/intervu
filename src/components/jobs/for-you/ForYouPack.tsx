@@ -66,7 +66,7 @@ const JD_SCROLL_CLASS =
 /** Employer-stated fact — quiet on cream paper (outline/tint + paper ink), noninteractive. */
 export const STATED_CHIP_CLASS = cn(
     chipVariants({ active: false }),
-    "paper-fact-chip h-7 gap-1.5 px-2.5 text-xs font-medium",
+    "paper-fact-chip h-7 gap-1.5 px-2.5 text-xs font-normal",
 );
 
 /**

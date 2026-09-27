@@ -48,9 +48,21 @@ function utilityBlock(css: string, className: string): string {
     return block;
 }
 
+function declarationValue(declBlock: string, property: string): string {
+    for (const part of declBlock.split(";")) {
+        const trimmed = part.trim();
+        const colon = trimmed.indexOf(":");
+        if (colon === -1) continue;
+        if (trimmed.slice(0, colon).trim() === property) {
+            return trimmed.slice(colon + 1).trim();
+        }
+    }
+    return "";
+}
+
 /** Parse `rgb(var(--token) / 0.15)` alpha from a utility declaration block. */
 function parseRgbVarAlpha(declBlock: string, property: "border-color" | "background-color" | "color"): number | null {
-    const prop = declBlock.match(new RegExp(`${property}\\s*:\\s*([^;]+);`))?.[1]?.trim() ?? "";
+    const prop = declarationValue(declBlock, property);
     const slash = prop.match(/rgb\(var\(--[a-z0-9-]+\)\s*\/\s*([0-9.]+)\)/i);
     if (slash) return Number(slash[1]);
     if (prop.match(/rgb\(var\(--[a-z0-9-]+\)\)/i)) return 1;
@@ -58,7 +70,7 @@ function parseRgbVarAlpha(declBlock: string, property: "border-color" | "backgro
 }
 
 function parseColorToken(declBlock: string, property: "border-color" | "background-color" | "color"): string {
-    const prop = declBlock.match(new RegExp(`${property}\\s*:\\s*([^;]+);`))?.[1]?.trim() ?? "";
+    const prop = declarationValue(declBlock, property);
     const token = prop.match(/var\(--([a-z0-9-]+)\)/i)?.[1];
     assert.ok(token, `${property} must use a semantic CSS variable in ${declBlock}`);
     return `--${token}`;
@@ -96,7 +108,8 @@ describe("ForYouPack paper-context chips and header borders", () => {
         }
 
         assert.match(STATED_CHIP_CLASS, /\bpaper-fact-chip\b/);
-        assert.match(STATED_CHIP_CLASS, /font-medium/);
+        assert.match(STATED_CHIP_CLASS, /font-normal/);
+        assert.doesNotMatch(STATED_CHIP_CLASS, /\bfont-medium\b/);
         assert.match(DERIVED_CHIP_CLASS, /\bpaper-inferred-chip\b/);
         assert.match(DERIVED_CHIP_CLASS, /font-normal/);
         assert.equal(POSTCARD_ON_CREAM_BORDER, "paper-on-cream-border");
