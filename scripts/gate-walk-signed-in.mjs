@@ -8,6 +8,8 @@ import path from 'path';
 
 const BASE = 'http://127.0.0.1:3002';
 const COOKIE_FILE = '/tmp/velai-wos-session.txt';
+/** Must exceed `APPLY_RETURN_THRESHOLD_MS` (10_000) in src/lib/jobs/apply-return.ts */
+const APPLY_AWAY_MS = 11_000;
 const OUT =
   process.env.GATE_OUT ||
   '/Users/vivek/Library/Application Support/Cursor/AgentStores/cursor_agent_stores/bc-c68fc246-2df9-5e47-93dd-53b44f76f96f/files/media/signed-in-gate';
@@ -104,6 +106,39 @@ async function runIcon(browser, label, viewport, wos) {
   return { pass, user: user?.email, chrome };
 }
 
+/** Real apply departure: popup tab + elapsed away time + focus back (see ApplyReturnPrompt). */
+async function walkApplyReturnPrompt(page, label) {
+  const dl = page.getByTestId('for-you-download-apply');
+  if (!(await dl.isVisible({ timeout: 8000 }).catch(() => false))) {
+    return { ok: false, reason: 'download-apply-missing' };
+  }
+  const popupPromise = page.waitForEvent('popup', { timeout: 30000 }).catch(() => null);
+  await dl.click();
+  const popup = await popupPromise;
+  await page.waitForTimeout(APPLY_AWAY_MS);
+  if (popup) await popup.close().catch(() => {});
+  await page.bringToFront();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  const prompt = page.getByTestId('apply-return-prompt');
+  const promptVisible = await prompt.isVisible({ timeout: 8000 }).catch(() => false);
+  await shot(page, `gate-betalist-${label}-apply-return.png`);
+  if (!promptVisible) {
+    return { ok: false, reason: 'prompt-missing', popupOpened: !!popup };
+  }
+  const buttons = {
+    yes: await page.getByTestId('apply-return-mark-applied').isVisible().catch(() => false),
+    notYet: await page.getByTestId('apply-return-not-yet').isVisible().catch(() => false),
+    skip: await page.getByTestId('apply-return-skip').isVisible().catch(() => false),
+  };
+  if (!buttons.yes || !buttons.notYet || !buttons.skip) {
+    return { ok: false, reason: 'apply-return-buttons-incomplete', buttons, popupOpened: !!popup };
+  }
+  await page.getByTestId('apply-return-not-yet').click();
+  const dismissed = !(await prompt.isVisible({ timeout: 2000 }).catch(() => true));
+  await shot(page, `gate-betalist-${label}-apply-return-dismissed.png`);
+  return { ok: dismissed, reason: dismissed ? null : 'dismiss-failed', buttons, popupOpened: !!popup };
+}
+
 async function runBetalist(browser, label, viewport, wos) {
   const ctx = await browser.newContext({
     viewport,
@@ -126,12 +161,8 @@ async function runBetalist(browser, label, viewport, wos) {
   const all = page.getByTestId('hub-pack-card-all');
   if (await all.isVisible({ timeout: 5000 }).catch(() => false)) await all.click();
   else await page.locator('[data-testid^="hub-pack-card"]').first().click();
-  await page.waitForTimeout(4000);
-  const dl = page.getByTestId('for-you-download-apply');
-  if (await dl.isVisible({ timeout: 8000 }).catch(() => false)) {
-    await dl.click().catch(() => {});
-    await page.waitForTimeout(2500);
-  }
+  await page.getByTestId('for-you-download-apply').waitFor({ state: 'visible', timeout: 60000 }).catch(() => {});
+  const applyReturn = await walkApplyReturnPrompt(page, label);
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await page.waitForTimeout(500);
   const deck = await dumpChrome(page, `${label}-deck`);
@@ -149,14 +180,15 @@ async function runBetalist(browser, label, viewport, wos) {
     deck.footerLean &&
     deck.footerCount <= 2 &&
     !deck.numericFit &&
-    (deck.hasDidYouApply || label.includes('mobile'));
-  return { hubPass, deckPass, hub, deck };
+    applyReturn.ok;
+  return { hubPass, deckPass, hub, deck, applyReturn };
 }
 
 const wos = readWosSession();
 fs.mkdirSync(OUT, { recursive: true });
 const verdict = {
   capturedAt: new Date().toISOString(),
+  gitHead: process.env.GIT_HEAD || null,
   baseUrl: BASE,
   cookieSource: wos ? (process.env.WOS_SESSION ? 'env' : COOKIE_FILE) : null,
   cookieLen: wos?.length ?? 0,
