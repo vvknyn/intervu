@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shouldHideSiteChrome } from "../../src/components/layout/should-hide-site-chrome";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import {
+  isLeanProductSurface,
+  shouldHideSiteChrome,
+} from "../../src/components/layout/should-hide-site-chrome";
+
+const TOPBAR = path.join(__dirname, "../../src/components/layout/TopBar.tsx");
 
 test("/oauth joins /login, /auth, /mock as a chrome-free surface", () => {
   // The consent screen (2026-08-27 polish) — same reasoning as /login: a
@@ -18,4 +25,20 @@ test("existing chrome-free routes are unaffected by the /oauth addition", () => 
 test("an ordinary product route keeps its chrome — the probe can say no", () => {
   assert.equal(shouldHideSiteChrome("/jobs"), false);
   assert.equal(shouldHideSiteChrome("/co/acme--com"), false);
+});
+
+test("lean product loop includes jobs and résumé (signed-out header drops MCP link)", () => {
+  assert.equal(isLeanProductSurface("/jobs"), true);
+  assert.equal(isLeanProductSurface("/jobs/company/acme"), true);
+  assert.equal(isLeanProductSurface("/resume"), true);
+  assert.equal(isLeanProductSurface("/resume/edit"), true);
+  assert.equal(isLeanProductSurface("/yours"), false);
+  assert.equal(isLeanProductSurface("/connect"), false);
+});
+
+test("TopBar filters desktop /connect on lean surfaces and when signed out", () => {
+  const src = readFileSync(TOPBAR, "utf8");
+  assert.match(src, /isLeanProductSurface\(pathname\)/);
+  assert.match(src, /leanSurface/);
+  assert.match(src, /authChrome !== "authenticated"/);
 });

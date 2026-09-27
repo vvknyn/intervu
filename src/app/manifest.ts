@@ -14,8 +14,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: SITE_DESCRIPTION,
     start_url: "/",
     display: "standalone",
-    background_color: "#12151a",
-    theme_color: "#12151a",
+    background_color: "#0B0D12",
+    theme_color: "#0B0D12",
     icons: [
       { src: "/icons/velai-icon-16.png", sizes: "16x16", type: "image/png" },
       { src: "/icons/velai-icon-32.png", sizes: "32x32", type: "image/png" },

@@ -18,6 +18,23 @@ Why this exists: six design passes each remapped the same token names to differe
 there was no current document to arbitrate with and every change drifted. One document, or it
 happens again.
 
+## Decisions (owner, 2026-09-26) — Concept A skeuomorphic system
+
+1. **The signed-out Concept A landing (`ConceptALanding.tsx`) is the canonical visual language**
+   for the whole product — dark charcoal surfaces (`--surface-poster` / `--background`), cream
+   postcard accents (`--surface-postcard`), **green live accent** (`--brand` / `--live` =
+   `#0E9F4E`), **title-case `Velai`**, rounded panels and pills, and **sanctioned depth**
+   (`--shadow-overlay`, `--shadow-postcard`, `--shadow-surface-raised`, bevel inset/highlight).
+2. **The paper / Klein-blue / shadow-none stack is retired.** `--brand` is green, not Klein blue;
+   elevation is allowed only through the semantic shadow tokens above (Tailwind's named
+   `shadow-*` scale remains `none`).
+3. **The app mark never sits on a white tile** — `public/velai-logo.png` and every derived icon
+   use a dark skeuomorphic tile or transparency (`--surface-mark-tile`).
+4. **One z-index ladder** in `globals.css` (`--z-topbar` … `--z-toast`); call sites consume
+   `z-[var(--z-topbar)]` (and the other named ladder steps), not ad-hoc numbers.
+
+See `docs/design-language-rollout.md` (project store) for phased surface rollout and WCAG targets.
+
 ## Decisions (owner, 2026-08-04)
 
 1. **The marketing surface takes its composition from ollama.com** — near-monochrome, generous
@@ -189,10 +206,30 @@ Five roles. A component picks a role; it does not invent a size.
 | `text-meta` | Captions, labels, timestamps. |
 | `.mono-data` | Data strings, IDs, counts — the existing mono utility. |
 
-Fonts load once in `layout.tsx` via `next/font` and reach components only as `--font-display`,
-`--font-sans`, `--font-mono`. **Arbitrary sizes (`text-[28px]`, `text-[15px]`) are banned in new
-code.** The audit found five different mechanisms for an `h1` across public pages alone; that is
-what this table exists to stop.
+**Body/UI sans** is **Source Sans 3** on `--font-sans` (`var(--font-sans-face)` from `next/font`
+in `layout.tsx`, **static weights 400 and 600** — not the default variable-axis bundle). System
+faces remain as fallbacks only. **Mono** and **Libre Franklin** (OG only) still load via `next/font`
+as `--font-mono` / `--font-display-face`. **`font-display`** aliases `--font-sans`. **Arbitrary
+sizes (`text-[28px]`, `text-[15px]`) are banned in new code.** The audit found five different
+mechanisms for an `h1` across public pages alone; that is what this table exists to stop.
+
+**OpenType on `body`:** `font-feature-settings: normal` only — no body-wide character variants
+(`cv*`) or stylistic sets (`ss*`). **`font-variant-ligatures: no-contextual`** disables contextual
+alternates without reintroducing banned feature overrides. Letter-spacing for body copy stays at the
+zeroed `--tracking-*` scale tokens. **`--tracking-label-semibold`** (`-0.01em` today) applies only
+to label-sized semibold roles (`text-xs` / `text-sm` / meta/caption/body-sm + `font-semibold`) via
+`globals.css` — a minimal static Source Sans 600 sidebearing fix for jobs-hub labels, not a global
+tightening. **`--tracking-poster-hero`** may tighten further for the signed-out poster hero only.
+
+**Typography guard (unit tests):** `--font-sans` must keep the `--font-sans-face` prefix,
+`layout.tsx` must load Source Sans 3 at 400/600, and tests enforce `font-feature-settings: normal`,
+`font-variant-ligatures: no-contextual`, bounded `--tracking-label-semibold`, and zeroed default
+`--tracking-*` tokens elsewhere.
+
+**Wordmark:** Title-case **Velai** beside the locked mark tile. Text uses **`text-wordmark`**
+(warm white, `#FAFAFA` / `--foreground`) everywhere in app chrome, auth, status pages, and email
+header band — never `--brand` green. The raster mark keeps its dark tile and green live dot; favicon
+and icon-only assets are unchanged.
 
 ## Density — the rule that keeps marketing and app coherent
 
@@ -232,6 +269,25 @@ Known debt, to be repaid rather than extended (from the 2026-08-04 audit):
 
 **Rule: any PR touching one of those files fixes it to the primitive on the way past.** No new
 hand-rolled buttons, cards, or switches.
+
+## Visual QA capture fidelity (Playwright / Chromium PNG)
+
+Design screenshots and visual-QA runs use **headless Chromium on Linux** in CI and cloud agents.
+Default FreeType font hinting there can **split label glyphs in PNGs** while DOM, computed styles,
+and macOS Chromium/WebKit captures stay clean — this is a **capture-engine artifact**, not product
+CSS. **`--font-render-hinting=none`** on Linux headless Chromium launch fixes it; **headed Xvfb
+does not** (pixels match broken default hinting).
+
+**Do not** remove **`--tracking-label-semibold`** (`-0.01em` on label-sized semibold roles) or
+change Source Sans 3 static **400/600** cuts when chasing screenshot diffs.
+
+Shared helper: `scripts/design/linux-chromium-visual-qa.cjs` (`linuxChromiumVisualQaLaunchOptions`).
+Wired in `playwright.config.ts`, `scripts/gate-walk-signed-in.mjs`, design `studio/render.mjs`
+frame captures, and PNG proof scripts — **not** production PDF/runtime launches unless they take a
+fidelity PNG. **Ad hoc captures on Linux:** `chromium.launch(linuxChromiumVisualQaLaunchOptions())`.
+Firefox/WebKit and non-Linux hosts skip the flag automatically.
+
+Guard: `tests/unit/linux-chromium-visual-qa.test.ts`.
 
 ## Definition of done for a design change
 

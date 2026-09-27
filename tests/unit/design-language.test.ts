@@ -14,6 +14,10 @@ import os from "node:os";
 
 const ROOT = path.resolve(__dirname, "../..");
 const GLOBALS = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8");
+const LAYOUT = readFileSync(path.join(ROOT, "src/app/layout.tsx"), "utf8");
+
+/** Canonical body sans prefix — must match @theme `--font-sans` in globals.css exactly. */
+const SOURCE_SANS_SANS_PREFIX = 'var(--font-sans-face), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 /** Declarations only — never comment prose, which legitimately names colours. */
 function declarations(css: string): Array<{ name: string; value: string }> {
@@ -59,6 +63,126 @@ test("type scale: body default and theme tokens wired at the chokepoint", () => 
     assert.match(themeBlock, /--text-meta:\s*0\.875rem;/, "@theme must register --text-meta");
     assert.match(themeBlock, /--text-xs:\s*0\.75rem;/, "@theme must override --text-xs to 0.75rem (12px)");
     assert.match(themeBlock, /--text-sm:\s*0\.875rem;/, "@theme must override --text-sm to 0.875rem (14px)");
+});
+
+test("body sans token: Source Sans 3 via next/font static cuts", () => {
+    const themeStart = GLOBALS.indexOf("@theme {");
+    assert.ok(themeStart >= 0, "@theme block missing from globals.css");
+    const themeEnd = GLOBALS.indexOf("\n}", themeStart);
+    const themeBlock = GLOBALS.slice(themeStart, themeEnd + 2);
+    const sans = declarations(themeBlock).find((d) => d.name === "--font-sans");
+    assert.ok(sans, "--font-sans must be declared in @theme");
+    assert.equal(
+        sans.value,
+        SOURCE_SANS_SANS_PREFIX,
+        "--font-sans must prefix with --font-sans-face (Source Sans 3) before system fallbacks",
+    );
+    assert.match(LAYOUT, /Source_Sans_3/, "layout.tsx must load Source Sans 3 via next/font");
+    assert.match(LAYOUT, /variable:\s*"--font-sans-face"/, "Source Sans 3 must wire --font-sans-face");
+    assert.match(LAYOUT, /weight:\s*\[\s*"400"\s*,\s*"600"\s*\]/, "Source Sans 3 must use static 400/600 cuts, not default variable axis");
+});
+
+test("body typography: no global OpenType cv/ss feature overrides", () => {
+    const bodyBlock = GLOBALS.match(/body\s*\{[\s\S]*?\}/)?.[0] ?? "";
+    assert.ok(bodyBlock.length > 0, "body { … } block missing from globals.css");
+    assert.match(
+        bodyBlock,
+        /font-feature-settings:\s*normal\s*;/,
+        "body must use font-feature-settings: normal — body-wide cv/ss overrides mis-space small labels",
+    );
+    assert.match(
+        bodyBlock,
+        /font-variant-ligatures:\s*no-contextual\s*;/,
+        "body must disable contextual alternates (calt) without cv/ss feature overrides",
+    );
+    assert.doesNotMatch(
+        bodyBlock,
+        /font-feature-settings:[^;]*\bcv\d+/,
+        "body must not enable custom character variants globally",
+    );
+    assert.doesNotMatch(bodyBlock, /font-feature-settings:[^;]*\bss\d+/, "body must not enable stylistic sets globally");
+});
+
+test("wordmark lockup: warm white text token, never brand green on Velai", () => {
+    const brandMark = readFileSync(path.join(ROOT, "src/components/brand/BrandMark.tsx"), "utf8");
+    assert.match(brandMark, /BRAND_LOCKUP_WORDMARK_CLASS\s*=\s*"text-wordmark"/, "BrandLockup must use text-wordmark");
+    assert.doesNotMatch(
+        brandMark,
+        /BrandLockup[\s\S]*text-brand/,
+        "BrandLockup must not paint the wordmark with text-brand",
+    );
+    assert.match(brandMark, />\s*Velai\s*</, "wordmark copy must stay title-case Velai");
+    const wordmarkToken = declarations(GLOBALS).find((d) => d.name === "--wordmark-foreground");
+    assert.ok(wordmarkToken, "--wordmark-foreground must exist");
+    assert.equal(wordmarkToken.value, "var(--foreground)", "wordmark foreground aliases warm-white --foreground");
+});
+
+test("tracking tokens: body/label scale stays normal; poster hero may tighten only", () => {
+    const tracking = declarations(GLOBALS).filter((d) => d.name.startsWith("--tracking-"));
+    assert.ok(tracking.length > 0, "no --tracking-* tokens found");
+    const posterHero = tracking.find((d) => d.name === "--tracking-poster-hero");
+    assert.ok(posterHero, "--tracking-poster-hero must exist for Concept A poster hero");
+    const labelSemibold = tracking.find((d) => d.name === "--tracking-label-semibold");
+    assert.ok(labelSemibold, "--tracking-label-semibold must exist for small semibold hub labels");
+    const labelEm = parseFloat(labelSemibold!.value.replace(/em\s*$/, ""));
+    assert.ok(
+        Number.isFinite(labelEm) && labelEm <= 0 && labelEm >= -0.02,
+        `--tracking-label-semibold=${labelSemibold!.value} — bounded negative sidebearing fix only`,
+    );
+    assert.match(
+        GLOBALS,
+        /letter-spacing:\s*var\(--tracking-label-semibold\)/,
+        "label semibold tracking must apply via globals.css base layer, not per-component utilities",
+    );
+    const maxTightEm = 0.05;
+    const maxLooseEm = 0.05;
+    for (const { name, value } of tracking) {
+        if (name === "--tracking-poster-hero") {
+            const em = parseFloat(value.replace(/em\s*$/, ""));
+            assert.ok(em <= 0 && em >= -0.06, `${name}=${value} — poster hero tracking only slightly tight`);
+            continue;
+        }
+        if (name === "--tracking-label-semibold") {
+            continue;
+        }
+        const em = parseFloat(value.replace(/em\s*$/, ""));
+        assert.ok(
+            Number.isFinite(em) && em >= -maxTightEm && em <= maxLooseEm,
+            `${name}=${value} — body/label tracking tokens must stay near 0 (not poster hero)`,
+        );
+    }
+});
+
+test("wordmark lockup call sites: no local text-brand override on BrandLockup wrappers", () => {
+    const offenders: string[] = [];
+    for (const file of walkTsxFiles(path.join(ROOT, "src"))) {
+        if (isFileAllowed(readFileSync(file, "utf8"))) continue;
+        const raw = readFileSync(file, "utf8");
+        if (!raw.includes("BrandLockup")) continue;
+        const lines = raw.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+            if (!lines[i].includes("BrandLockup")) continue;
+            const window = lines.slice(Math.max(0, i - 6), i + 1).join("\n");
+            if (/\btext-brand\b/.test(window) && !window.includes("design-lint-allow")) {
+                offenders.push(`${path.relative(ROOT, file)}:${i + 1}`);
+            }
+        }
+    }
+    assert.deepEqual(
+        offenders,
+        [],
+        `BrandLockup must not sit under a text-brand wrapper — warm white wordmark only: ${offenders.join("; ")}`,
+    );
+});
+
+test("TopBar: MCP/Connect tab hidden when signed out on public chrome", () => {
+    const topbar = readFileSync(path.join(ROOT, "src/components/layout/TopBar.tsx"), "utf8");
+    assert.match(
+        topbar,
+        /authChrome !== "authenticated"/,
+        "desktop /connect must drop unless auth has resolved to signed in",
+    );
+    assert.match(topbar, /leanSurface/, "lean surfaces still drop /connect");
 });
 
 test("elevation is none: every --shadow-* scale key resolves to none", () => {
@@ -171,8 +295,8 @@ test("primary filled chrome aliases brand — body ink stays on --foreground", (
         );
         assert.match(
             block,
-            /--primary-foreground:\s*255 255 255/,
-            `${scope}: --primary-foreground must stay white on brand fills`,
+            /--primary-foreground:\s*var\(--brand-foreground\)/,
+            `${scope}: --primary-foreground must alias --brand-foreground on green fills`,
         );
         assert.match(
             block,
@@ -273,9 +397,11 @@ function isRingShadowLayer(layer: string): boolean {
     return /^0(px)?[\s_]+0(px)?[\s_]+0(px)?[\s_]+[\d.]+px\b/.test(layer.trim());
 }
 
-/** True for a layer that is exactly the sanctioned overlay token. */
-function isOverlayTokenShadowLayer(layer: string): boolean {
-    return /^var\(--shadow-overlay\)$/.test(layer.trim());
+/** True for a layer that uses a sanctioned semantic elevation token. */
+function isSanctionedElevationShadowLayer(layer: string): boolean {
+    return /^var\(--shadow-(?:overlay|postcard|surface-raised|bevel-highlight|bevel-inset)\)$/.test(
+        layer.trim(),
+    );
 }
 
 /**
@@ -286,7 +412,7 @@ function isForbiddenOuterShadowLayer(layer: string): boolean {
     return (
         !isInsetShadowLayer(layer) &&
         !isRingShadowLayer(layer) &&
-        !isOverlayTokenShadowLayer(layer)
+        !isSanctionedElevationShadowLayer(layer)
     );
 }
 
@@ -425,10 +551,6 @@ test("shadow means floating: outer utility shadows only appear as the overlay to
             `surface genuinely outside this change's scope — add it to tests/unit/shadow-preset-baseline.json.`,
     );
 
-    // No "must carry the overlay token" half any more: rulebook clause 4 resolves
-    // every shadow token, --shadow-overlay included, to none on both themes, so
-    // an overlay carrying the class renders identically to one without it. The
-    // classifier still treats the token as sanctioned wherever it survives.
 });
 
 test("shadow classifier: survives an inset sheen, catches a hardcoded outer shadow", () => {
@@ -448,6 +570,11 @@ test("shadow classifier: survives an inset sheen, catches a hardcoded outer shad
         isForbiddenOuterShadowUtility("shadow-[var(--shadow-overlay)]"),
         false,
         "the sanctioned overlay token must survive anywhere it's used",
+    );
+    assert.equal(
+        isForbiddenOuterShadowUtility("shadow-[var(--shadow-postcard)]"),
+        false,
+        "the sanctioned postcard token must survive on landing surfaces",
     );
     // A violation fixture other than any instance this change touched: a
     // hypothetical card component hardcoding its own drop shadow instead of

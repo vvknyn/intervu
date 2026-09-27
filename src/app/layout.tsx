@@ -38,11 +38,11 @@ import { LocalAiParamSync } from "@/components/providers/LocalAiParamSync";
  * default startup sans and JetBrains Mono is literally an IDE typeface; a
  * nurse reading a page set in them correctly concludes it is not for them.
  *
- * - Libre Franklin (display): an American gothic with warmth in it. Carries
- *   headline voice without the geometric coolness of the startup defaults.
- * - Source Sans 3 (body/UI): humanist, built for interfaces, holds up at the
- *   small sizes this UI leans on, and ships true tabular figures — which is
- *   what lets data columns line up WITHOUT conscripting a monospace face.
+ * - Source Sans 3 (body/UI): Concept A canonical sans — static 400/600 cuts from
+ *   next/font (not the default variable axis bundle) so small semibold labels keep
+ *   the face without the exaggerated post-`t` sidebearing the variable asset showed.
+ * - Libre Franklin (display face variable): kept for intentional OG use only;
+ *   `font-display` consumers resolve to `--font-sans`, not this face.
  * - JetBrains Mono (mono): kept, but demoted to literal code — shell commands
  *   and MCP keys in Settings/Connect, where looking technical is correct
  *   because the content IS technical. It is no longer the voice of the site.
@@ -57,6 +57,7 @@ const sans = Source_Sans_3({
   variable: "--font-sans-face",
   subsets: ["latin"],
   display: "swap",
+  weight: ["400", "600"],
 });
 
 const mono = JetBrains_Mono({
@@ -190,7 +191,7 @@ export default function RootLayout({
                   is the standard pattern, not a duplicate. */}
               <a
                 href="#main"
-                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
+                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[var(--z-skip-link)] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
               >
                 Skip to main content
               </a>

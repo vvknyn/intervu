@@ -1,18 +1,12 @@
 "use client";
 
-// design-lint-allow-file: isolated Concept A public poster — pixel-matched dark
-// landing face with cream postcard stack; not app chrome or token surfaces.
-
 import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { BrandMark } from "@/components/brand/BrandMark";
+import { BrandMark, BRAND_LOCKUP_WORDMARK_CLASS } from "@/components/brand/BrandMark";
+import { Button } from "@/components/ui/button";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
-
-const LIVE = "#0E9F4E";
-const BG = "#0B0D12";
-const CREAM = "#F4F0E6";
-const NAVY = "#0C1A33";
-const META = "#4A5568";
+import { CATEGORY_HUB_PACK_COUNT } from "@/lib/jobs/category-hub-count";
+import { cn } from "@/lib/utils";
 
 type Postcard = {
     title: string;
@@ -23,7 +17,7 @@ type Postcard = {
 
 const POSTCARDS: Postcard[] = [
     {
-        title: "Remote AI roles",
+        title: "Remote AI Roles",
         meta: "Remote · Full-time",
         style: {
             top: "6%",
@@ -77,43 +71,26 @@ const POSTCARDS: Postcard[] = [
 function PostcardCard({ title, meta, style }: Postcard) {
     return (
         <div
-            className="absolute w-[min(240px,58%)] sm:w-[260px] rounded-[14px] px-4 py-3.5 sm:px-5 sm:py-4"
-            style={{
-                background: CREAM,
-                boxShadow:
-                    "0 18px 40px -12px rgba(0,0,0,0.55), 0 4px 12px rgba(0,0,0,0.25)",
-                ...style,
-            }}
+            className={cn(
+                "absolute w-[min(268px,72vw)] sm:w-[260px] rounded-panel px-4 py-3.5 sm:px-5 sm:py-4",
+                "bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]",
+            )}
+            style={style}
         >
             <div className="mb-3 flex items-center gap-2">
                 <BrandMark className="h-5 w-5 opacity-90" />
-                <span
-                    className="h-px flex-1 max-w-[72px]"
-                    style={{ background: "rgba(12,26,51,0.12)" }}
-                    aria-hidden
-                />
+                <span className="h-px flex-1 max-w-[72px] bg-border" aria-hidden />
             </div>
             <p
-                className="text-[15px] sm:text-[17px] font-semibold leading-snug tracking-tight"
-                style={{ color: NAVY }}
+                data-testid="concept-a-postcard-title"
+                className="text-sm sm:text-lg font-semibold leading-snug text-surface-postcard-foreground whitespace-normal"
             >
                 {title}
             </p>
-            <p className="mt-1 text-[11px] sm:text-xs leading-snug" style={{ color: META }}>
-                {meta}
-            </p>
+            <p className="mt-1 text-caption sm:text-xs leading-snug text-surface-postcard-muted">{meta}</p>
             <div className="mt-3.5 flex items-center gap-1.5">
-                <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{ background: LIVE, boxShadow: `0 0 6px ${LIVE}` }}
-                    aria-hidden
-                />
-                <span
-                    className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.08em]"
-                    style={{ color: LIVE }}
-                >
-                    LIVE
-                </span>
+                <span className="size-1.5 rounded-pill bg-live instrument-breathe" aria-hidden />
+                <span className="text-caption font-semibold text-live">Live</span>
             </div>
         </div>
     );
@@ -126,11 +103,9 @@ export interface ConceptALandingProps {
 
 /**
  * Public signed-out Step 1 — full-bleed Concept A (charcoal poster + cream
- * postcard stack). Portaled to document.body so site TopBar (z-50) / light
- * grid never show behind it (in-tree fixed would lose to the parent z-10
- * stacking context). An in-flow min-h-[100dvh] spacer keeps the landing
- * parent from collapsing while Step 1 is up, so after CTA the Step 2 gate
- * mounts into real height instead of empty light-grey chrome.
+ * postcard stack). Portaled to document.body so site TopBar never shows behind
+ * it. An in-flow min-h-[100dvh] spacer keeps the landing parent from
+ * collapsing while Step 1 is up.
  */
 export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
     const [mounted, setMounted] = useState(false);
@@ -152,26 +127,22 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
         />
     );
 
-    // Spacer always in-flow (even pre-portal mount) so parent never collapses.
     if (!mounted) return spacer;
 
     const face = (
         <div
             data-testid="concept-a-landing"
-            className="fixed inset-0 z-[100] flex flex-col text-white"
-            style={{
-                backgroundColor: BG,
-                backgroundImage:
-                    "radial-gradient(ellipse 80% 60% at 70% 40%, rgba(255,255,255,0.03), transparent 60%), url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E\")",
-            }}
+            className={cn(
+                "fixed inset-0 z-[var(--z-landing-poster)] flex flex-col",
+                "bg-surface-poster text-surface-poster-foreground poster-noise",
+            )}
         >
-            {/* Top bar ON the dark face */}
             <header className="relative z-20 flex items-center justify-between px-5 sm:px-10 lg:px-14 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
                 <div className="flex items-center gap-2.5" data-testid="concept-a-brand">
                     <BrandMark className="h-8 w-8" />
                     <span
                         data-rulebook-exempt
-                        className="text-[22px] sm:text-[24px] font-semibold tracking-tight text-white leading-none"
+                        className={[BRAND_LOCKUP_WORDMARK_CLASS, "text-title-sm sm:text-title font-semibold leading-none"].join(" ")}
                     >
                         Velai
                     </span>
@@ -179,40 +150,37 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
                 <button
                     type="button"
                     onClick={onSignIn}
-                    className="text-sm sm:text-[15px] font-medium text-white/95 hover:text-white transition-colors"
+                    className="text-sm sm:text-base font-normal text-surface-poster-muted hover:text-surface-poster-foreground transition-colors"
                     data-testid="concept-a-sign-in"
                 >
                     {AUTH_CTA_LABEL}
                 </button>
             </header>
 
-            {/* Hero + postcard stack */}
             <div className="relative z-10 flex flex-1 flex-col lg:flex-row items-stretch lg:items-center px-5 sm:px-10 lg:px-14 pb-10 lg:pb-16 gap-8 lg:gap-6 min-h-0">
                 <div className="flex flex-col justify-center max-w-xl lg:max-w-[520px] shrink-0 pt-6 lg:pt-0 lg:w-[46%]">
-                    <h1 className="text-[clamp(2.5rem,7vw,4.75rem)] font-semibold tracking-tight text-white leading-[1.05]">
+                    <h1 className="text-poster-hero font-semibold">
                         Skip the job
                         <br />
                         board dump.
                     </h1>
-                    <p
-                        className="mt-5 sm:mt-6 text-base sm:text-lg lg:text-xl font-semibold leading-snug max-w-md"
-                        style={{ color: LIVE }}
-                    >
-                        8 Job Packs from live employer career pages
+                    <p className="mt-5 sm:mt-6 text-base sm:text-lg lg:text-xl font-semibold leading-snug max-w-md text-live">
+                        {CATEGORY_HUB_PACK_COUNT} Job Packs from live employer career pages
                     </p>
-                    <button
+                    <Button
                         type="button"
                         onClick={onStart}
                         data-testid="concept-a-cta"
-                        className="mt-7 sm:mt-8 inline-flex items-center justify-center self-start h-12 sm:h-[52px] px-7 sm:px-8 rounded-full text-[15px] sm:text-base font-semibold transition-transform active:scale-[0.99] hover:brightness-110"
-                        style={{ backgroundColor: LIVE, color: "#0B0D12" }}
+                        variant="accent"
+                        size="accent"
+                        className="mt-7 sm:mt-8 self-start active:scale-[0.99]"
                     >
                         Start with your résumé →
-                    </button>
+                    </Button>
                 </div>
 
                 <div
-                    className="relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full lg:w-[54%]"
+                    className="relative flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[480px] w-full overflow-visible lg:w-[54%]"
                     aria-hidden
                 >
                     {POSTCARDS.map((card) => (
@@ -225,7 +193,6 @@ export function ConceptALanding({ onStart, onSignIn }: ConceptALandingProps) {
 
     return (
         <>
-            {/* In-flow height while the face is portaled out of layout. */}
             {spacer}
             {createPortal(face, document.body)}
         </>

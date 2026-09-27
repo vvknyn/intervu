@@ -31,7 +31,7 @@ const FIXTURES: { title: string; user: User }[] = [
 function HeaderStrip({ user }: { user: User }) {
     return (
         <div className="flex h-[var(--topbar-h)] items-center justify-between border-b border-border bg-background px-4">
-            <Link href="#" className="flex shrink-0 items-center gap-2 text-brand" data-rulebook-exempt>
+            <Link href="#" className="flex shrink-0 items-center gap-2" data-rulebook-exempt>
                 <BrandLockup markClassName="h-8 w-8" />
             </Link>
             <AccountMenu

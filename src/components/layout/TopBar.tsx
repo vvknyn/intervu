@@ -60,11 +60,15 @@ export function TopBar() {
     const { docked, homeViewDocked } = useSearchDock();
     const navBadges = useNavBadgeCounts();
     const menuTabs = NAV_TABS.filter((t) => t.placement === "menu");
-    const barTabs = NAV_TABS.filter((t) => t.placement === "bar").filter(
+    const barTabs = NAV_TABS.filter((t) => t.placement === "bar").filter((t) => {
+        if (t.href !== "/connect") return true;
         // Lean hub/deck/apply: drop desktop header MCP (/connect). Pack-deck
         // `for-you-mcp-handoff` stays — that is not TopBar chrome.
-        (t) => !(leanSurface && t.href === "/connect"),
-    );
+        if (leanSurface) return false;
+        // Signed-out public chrome (404, marketing-adjacent routes): no MCP tab.
+        if (authChrome !== "authenticated") return false;
+        return true;
+    });
     const menuActive = menuNavActive(pathname, NAV_TABS);
     const menuTriggerLabel = menuNavTriggerLabel(pathname, NAV_TABS);
     const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
@@ -89,7 +93,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-50 shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)] transition-colors"
+            className="sticky top-0 z-[var(--z-topbar)] shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)] transition-colors shadow-[var(--shadow-bevel-highlight)]"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
@@ -104,7 +108,7 @@ export function TopBar() {
             <div data-region="header" className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6">
                 <Link
                     href="/"
-                    className="flex shrink-0 items-center gap-2 text-brand transition-opacity hover:opacity-90"
+                    className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-90"
                     data-testid="topbar-logo"
                     data-rulebook-exempt
                 >

@@ -380,7 +380,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 typeof document !== "undefined" &&
                 createPortal(
                     <div
-                        className="fixed z-[100] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] animate-in fade-in slide-in-from-top-1"
+                        className="fixed z-[var(--z-dropdown)] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] animate-in fade-in slide-in-from-top-1"
                         style={{
                             top: overlayRect.top,
                             left: overlayRect.left,

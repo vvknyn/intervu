@@ -7,6 +7,7 @@ import {
     evaluateApplyReturn,
     type ApplyReturnRecord,
 } from "@/lib/jobs/apply-return";
+import { Button } from "@/components/ui/button";
 import { decodeText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
@@ -104,37 +105,42 @@ export function ApplyReturnPrompt({
         <div
             data-testid="apply-return-prompt"
             role="status"
-            className="fixed inset-x-3 z-40 mx-auto flex w-auto max-w-sm flex-col gap-3 rounded-panel border border-border bg-card px-4 py-3 bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+0.75rem)] sm:inset-x-auto sm:right-4 sm:left-auto lg:bottom-24"
+            className="fixed inset-x-3 z-[var(--z-apply-return)] mx-auto flex w-auto max-w-sm flex-col gap-3 rounded-panel border border-border bg-card px-4 py-3 shadow-[var(--shadow-surface-raised)] bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+0.75rem)] sm:inset-x-auto sm:right-4 sm:left-auto lg:bottom-24"
         >
             <div className="min-w-0">
                 <div className="text-xs font-semibold text-foreground">Did you apply?</div>
                 <div className="mt-0.5 truncate text-xs text-muted-foreground">{decodeText(record.title)}</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-                <button
+                <Button
                     type="button"
                     data-testid="apply-return-mark-applied"
                     onClick={onMarkApplied}
-                    className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-border bg-brand px-3 text-xs font-semibold text-brand-foreground hover:bg-brand-hover sm:flex-none"
+                    size="lg"
+                    className="min-h-11 flex-1 text-xs font-semibold sm:flex-none"
                 >
                     Yes
-                </button>
-                <button
+                </Button>
+                <Button
                     type="button"
                     data-testid="apply-return-not-yet"
                     onClick={onDismiss}
-                    className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-border bg-background px-3 text-xs font-semibold text-foreground hover:bg-muted sm:flex-none"
+                    variant="outline"
+                    size="lg"
+                    className="min-h-11 flex-1 text-xs font-semibold sm:flex-none"
                 >
                     Not yet
-                </button>
-                <button
+                </Button>
+                <Button
                     type="button"
                     data-testid="apply-return-skip"
                     onClick={onDismiss}
-                    className="inline-flex min-h-11 items-center justify-center px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                    variant="ghost"
+                    size="lg"
+                    className="min-h-11 px-2 text-xs font-semibold"
                 >
                     Skip
-                </button>
+                </Button>
             </div>
         </div>
     );
