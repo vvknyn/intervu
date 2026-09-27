@@ -34,9 +34,8 @@ export async function uploadBaseResumeAction(input: { text: string; label?: stri
     return { data: await setBaseResumeForUser(user.uid, { text: validation.text, label: input.label }) };
 }
 
-/** Delete for the account "Resume" section — clears the CURRENT résumé
- *  only; `resume_history` (every prior upload) stays on file, same as
- *  `clearBaseResumeForUser`'s own doc explains. */
+/** Delete for the account "Resume" section — clears the current résumé
+ *  and every `resume_history` document, via `clearBaseResumeForUser`. */
 export async function deleteBaseResumeAction(): Promise<{ error?: string }> {
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };

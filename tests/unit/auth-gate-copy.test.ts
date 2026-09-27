@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     AUTH_CTA_LABEL,
+    AUTH_GATE_RESUME_ACCOUNT_LINE,
     authCardCopy,
     authGateTitle,
     formatAuthGateValueLine,
@@ -10,6 +11,7 @@ import {
     RESUME_UPLOAD_CTA,
     RESUME_UPLOAD_AUTH_CTA,
 } from "../../src/lib/auth/auth-gate-copy";
+import { RESUME_LOCAL_DEVICE_BANNER } from "../../src/lib/jobs/resume-privacy-copy";
 test("guestKeepLine is null for zero count", () => {
     assert.equal(guestKeepLine(0), null);
 });
@@ -23,6 +25,28 @@ test('fit gate has title and body from copy matrix', () => {
     assert.equal(authGateTitle("fit"), "Create your free account, then upload your résumé.");
     assert.match(formatAuthGateValueLine("fit", 0), /personalized job picks/i);
     assert.match(formatAuthGateValueLine("fit", 0), /Strong\/Good\/Stretch/i);
+});
+
+test("fit and résumé sign-in cards add the account line under the unlock line", () => {
+    for (const reason of ["fit", "resume"] as const) {
+        const line = formatAuthGateValueLine(reason, 0);
+        const unlockAt = line.indexOf("personalized job picks");
+        const accountAt = line.indexOf(AUTH_GATE_RESUME_ACCOUNT_LINE);
+        assert.ok(unlockAt >= 0, reason);
+        assert.ok(accountAt > unlockAt, reason);
+        assert.match(line, /structured version with your account, not the original file/);
+    }
+    assert.equal(
+        formatAuthGateValueLine("save", 0).includes(AUTH_GATE_RESUME_ACCOUNT_LINE),
+        false,
+    );
+});
+
+test("résumé-step banner stays the existing device-parse line", () => {
+    assert.equal(
+        RESUME_LOCAL_DEVICE_BANNER,
+        "Parsed on this device. The file and structured result stay in this browser until you create an account and sync. When you search jobs, our servers may send role and skill phrases derived from your résumé to our search index—not your full résumé file.",
+    );
 });
 
 test('save gate has title from copy matrix', () => {

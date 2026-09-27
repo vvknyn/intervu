@@ -214,7 +214,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                     {headline?.title ?? copy.title}
                 </h1>
                 {headline ? (
-                    <p className="text-xs text-muted-foreground">{headline.body}</p>
+                    <p className="whitespace-pre-line text-xs text-muted-foreground">{headline.body}</p>
                 ) : (
                     activeTab === "signup" && (
                         <p className="text-xs text-muted-foreground">{SIGNUP_SUBCOPY}</p>

@@ -256,16 +256,35 @@ export async function setBaseResumeForUser(
     return plan.result;
 }
 
+/** Firestore allows at most 500 writes in one commit. */
+const FIRESTORE_BATCH_LIMIT = 500;
+
 /**
- * Clears the caller's CURRENT base résumé (`resume_text`/`resume_data`/
- * `resume_last_updated` on the profile doc) — the account "Resume"
- * section's Delete action (R1, 2026-08-09 user report). Never touches
- * `resume_history`: a deletion removes what's current, not what happened —
- * every prior upload (including the auto-baseline `setBaseResumeForUser`
- * snapshots) stays on file, same as it does after any ordinary re-upload.
+ * Deletes every document in `profiles/<uid>/resume_history`. Settings
+ * "delete résumé" and the profile-field clear below are one action: a prior
+ * upload left in this subcollection is still a copy of the résumé.
+ */
+async function deleteResumeHistoryForUser(uid: string): Promise<void> {
+    const db = getAdminDb();
+    const historyRef = db.collection("profiles").doc(uid).collection("resume_history");
+    for (;;) {
+        const snap = await historyRef.limit(FIRESTORE_BATCH_LIMIT).get();
+        if (snap.empty) return;
+        const batch = db.batch();
+        for (const doc of snap.docs) batch.delete(doc.ref);
+        await batch.commit();
+        if (snap.size < FIRESTORE_BATCH_LIMIT) return;
+    }
+}
+
+/**
+ * Clears the caller's base résumé — `resume_text`, `resume_data`, and
+ * `resume_last_updated` on the profile — and every `resume_history` document
+ * for that user. Settings "delete résumé" uses this.
  */
 export async function clearBaseResumeForUser(uid: string): Promise<void> {
     const db = getAdminDb();
+    await deleteResumeHistoryForUser(uid);
     await db.collection("profiles").doc(uid).set(
         {
             resume_text: FieldValue.delete(),
