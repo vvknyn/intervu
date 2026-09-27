@@ -350,6 +350,8 @@ async function runReducedMotion(browser, engine, label, viewport, wos) {
   await injectSession(ctx, wos);
   const page = await ctx.newPage();
   await navigateHubToPrompt(page);
+  const notYet = page.getByTestId('apply-return-not-yet');
+  if (await notYet.isVisible({ timeout: 2000 }).catch(() => false)) await notYet.click();
   await loadAxe(page);
   const rootStyles = await page.evaluate(() => {
     const html = document.documentElement;
