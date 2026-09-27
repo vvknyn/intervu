@@ -29,6 +29,7 @@ test("mock empty surfaces respect reduced motion", async ({ page }) => {
     const visibleStatus = page.getByTestId("jobs-session-loading-status");
     await expect(visibleStatus).toBeVisible();
     await expect(visibleStatus).toHaveText("Loading your session…");
+    await expect(visibleStatus.locator(".bg-live")).toBeVisible();
 });
 
 test("404 keeps enter-reveal panel", async ({ page }) => {
@@ -43,6 +44,8 @@ for (const viewport of [
     test(`search mock keeps clear chip testid (${viewport.name})`, async ({ page }) => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
         await page.goto("/mock/empty-states?surface=search");
+        await expect(page.getByTestId("search-empty-results")).toBeVisible();
+        await expect(page.getByRole("heading", { name: "No roles match." })).toBeVisible();
         await expect(page.getByTestId("empty-state-clear-chip")).toBeVisible();
     });
 }

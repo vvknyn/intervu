@@ -18,7 +18,7 @@ import {
     Bell,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { ConceptAEmptyIllustration } from "@/components/ui/concept-a-empty-illustration";
+import { ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { Input } from "@/components/ui/input";
 import {
     DropdownMenu,
@@ -897,12 +897,19 @@ function EmptyResults({
 }) {
     const hasQuery = query.trim().length > 0;
     const hasFilters = entries.length > 0 || !!locationDefault;
+    const emptyTitle = hasFilters ? "Nothing matches these filters." : "No roles match.";
+    const emptyDescription = hasFilters
+        ? "Remove a filter or reset below to widen what we can show you."
+        : "Try another search or pick a popular role below to keep browsing.";
     return (
-        <div className="px-[var(--list-inset)] py-8 text-left" data-testid="search-empty-results">
-            <ConceptAEmptyIllustration className="mb-4" />
-            <p className="text-sm text-foreground">
-                {hasFilters ? "Nothing matches these filters." : "No roles match."}
-            </p>
+        <div className="px-[var(--list-inset)] text-left" data-testid="search-empty-results">
+            <ConceptAEmptyState
+                layout="inline"
+                density="compact"
+                titled
+                title={emptyTitle}
+                description={emptyDescription}
+            />
             {(hasQuery || hasFilters) && (
                 <ActiveFilterActions
                     className="mt-2"

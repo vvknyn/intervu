@@ -7,23 +7,35 @@ export type ConceptAEmptyStateProps = EmptyStateProps & {
     illustration?: React.ReactNode;
     /** Poster = centered stack in a raised panel; inline = illustration above left-aligned copy. */
     layout?: "inline" | "poster";
+    /** SERP-style empties — tighter vertical rhythm, same title/description stack. */
+    density?: "default" | "compact";
 };
 
 /** App empty surfaces — warm copy, one CTA, shared postcard illustration grammar. */
 export function ConceptAEmptyState({
     illustration,
     layout = "poster",
+    density = "default",
     className,
     actionsClassName,
     ...rest
 }: ConceptAEmptyStateProps) {
     const art = illustration ?? <ConceptAEmptyIllustration className="mx-auto" />;
+    const compact = density === "compact";
 
     if (layout === "inline") {
         return (
-            <div className={cn("py-8 text-left", className)} data-testid={rest.testId}>
-                <div className="mb-4">{art}</div>
-                <EmptyState {...rest} className="py-0" testId={undefined} />
+            <div
+                className={cn(compact ? "py-4 text-left" : "py-8 text-left", className)}
+                data-testid={rest.testId}
+            >
+                <div className={compact ? "mb-2" : "mb-4"}>{art}</div>
+                <EmptyState
+                    {...rest}
+                    titled={rest.titled ?? Boolean(rest.title)}
+                    className="py-0"
+                    testId={undefined}
+                />
             </div>
         );
     }

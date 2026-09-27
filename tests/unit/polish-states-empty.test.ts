@@ -58,11 +58,20 @@ describe("polish batch 3 — states and empties", () => {
         assert.match(read("src/components/jobs/for-you/ForYouHome.tsx"), /ConceptAEmptyState[\s\S]*for-you-empty/);
     });
 
-    it("search zero-results keeps chip testids and adds inline illustration", () => {
+    it("search zero-results uses compact ConceptAEmptyState and keeps chip testids", () => {
         const page = read("src/app/jobs/page.tsx");
-        assert.match(page, /ConceptAEmptyIllustration/);
+        assert.match(page, /ConceptAEmptyState[\s\S]*density="compact"/);
+        assert.match(page, /No roles match\./);
         assert.match(page, /empty-state-clear-chip/);
         assert.match(page, /data-testid="search-empty-results"/);
+        assert.match(read("src/components/mock/EmptyStatesMock.tsx"), /ConceptAEmptyState[\s\S]*search-empty-results/);
+    });
+
+    it("session loading status is prominent with live indicator", () => {
+        const shell = read("src/components/layout/jobs-session-loading.tsx");
+        assert.match(shell, /statusProminent/);
+        assert.match(shell, /bg-live instrument-breathe/);
+        assert.match(shell, /text-body-sm font-semibold text-foreground/);
     });
 
     it("inline empty illustration is decorative", () => {

@@ -25,22 +25,38 @@ export function ForYouDeckSkeleton({
     tone = "postcard",
     withStatus = false,
     statusLabel,
+    statusProminent = false,
 }: {
     tone?: DeckSkeletonTone;
     withStatus?: boolean;
     /** Visible status line (session pending). When set, replaces rotating deck copy. */
     statusLabel?: string;
+    /** Session gate — body-sm + live indicator (label text unchanged for a11y). */
+    statusProminent?: boolean;
 }) {
     return (
         <div className="space-y-3">
             {withStatus || statusLabel ? (
                 statusLabel ? (
-                    <p
-                        className="px-1 text-xs font-semibold text-muted-foreground"
-                        data-testid="jobs-session-loading-status"
-                    >
-                        {statusLabel}
-                    </p>
+                    statusProminent ? (
+                        <p
+                            className="flex items-center gap-2 px-1 text-body-sm font-semibold text-foreground"
+                            data-testid="jobs-session-loading-status"
+                        >
+                            <span
+                                className="size-1.5 shrink-0 rounded-pill bg-live instrument-breathe"
+                                aria-hidden
+                            />
+                            <span>{statusLabel}</span>
+                        </p>
+                    ) : (
+                        <p
+                            className="px-1 text-xs font-semibold text-muted-foreground"
+                            data-testid="jobs-session-loading-status"
+                        >
+                            {statusLabel}
+                        </p>
+                    )
                 ) : (
                     <RotatingLoadingCopy variant="deck" className="px-1 text-xs font-semibold" />
                 )
@@ -96,7 +112,11 @@ export function JobsSessionLoadingShell({ className }: { className?: string }) {
             aria-busy="true"
         >
             <span className="sr-only">{SESSION_LOADING_LABEL}</span>
-            <ForYouDeckSkeleton tone="session" statusLabel={SESSION_LOADING_LABEL} />
+            <ForYouDeckSkeleton
+                tone="session"
+                statusLabel={SESSION_LOADING_LABEL}
+                statusProminent
+            />
         </div>
     );
 }

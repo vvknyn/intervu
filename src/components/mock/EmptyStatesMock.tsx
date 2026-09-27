@@ -13,7 +13,6 @@ import { JOBS_SESSION_FRAME_CLASS, JobsSessionLoadingShell } from "@/components/
 import { posterListInsetClassName, shellMaxWidthClassName } from "@/components/layout/route-loading";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ConceptAEmptyIllustration } from "@/components/ui/concept-a-empty-illustration";
 import { notFound } from "next/navigation";
 
 function MockSearchZeroChips() {
@@ -116,9 +115,14 @@ export function EmptyStatesMock({ surface }: { surface: string | null }) {
                 />
             )}
             {surface === "search" && (
-                <div className="py-8 text-left" data-testid="search-empty-results">
-                    <ConceptAEmptyIllustration className="mb-4" />
-                    <p className="text-sm text-foreground">No roles match.</p>
+                <div data-testid="search-empty-results">
+                    <ConceptAEmptyState
+                        layout="inline"
+                        density="compact"
+                        titled
+                        title="No roles match."
+                        description="Try another search or pick a popular role below to keep browsing."
+                    />
                     <MockSearchZeroChips />
                 </div>
             )}
