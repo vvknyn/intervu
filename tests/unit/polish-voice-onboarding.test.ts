@@ -57,6 +57,12 @@ describe("Phase 2 — voice onboarding batch", () => {
         assert.match(dialogBranch, /onCloseAutoFocus/);
     });
 
+    it("email-nudge mock does not nest a second main inside app shell", () => {
+        const mock = read("src/components/mock/EmailNudgeMock.tsx");
+        assert.match(mock, /data-testid="email-nudge-mock"/);
+        assert.doesNotMatch(mock, /<main[\s>]/);
+    });
+
     it("P1-13 email nudge uses visible Field labels and 16px inputs", () => {
         const prompt = read("src/components/account/AccountEmailPrompt.tsx");
         assert.match(prompt, /Field label=\{EMAIL_FIELD_LABEL\}/);

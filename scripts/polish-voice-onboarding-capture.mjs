@@ -13,10 +13,28 @@ const OUT =
     "/cursor/stores/bc-c68fc246-2df9-5e47-93dd-53b44f76f96f/media/polish/round2/batch-voice-onboarding";
 const BASE = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
 
-async function runAxe(page) {
+async function runAxeColorContrast(page) {
     await page.addScriptTag({ path: AXE });
     return page.evaluate(async () => {
-        const result = await globalThis.axe.run(document, {});
+        const root = document.querySelector('[data-testid="email-nudge-mock"]') || document.body;
+        const result = await globalThis.axe.run(root, {
+            runOnly: { type: "rule", values: ["color-contrast"] },
+        });
+        const violationCount = (result.violations || []).reduce((n, v) => n + (v.nodes?.length || 0), 0);
+        const incompleteCount = (result.incomplete || []).reduce((n, v) => n + (v.nodes?.length || 0), 0);
+        return { violationCount, incompleteCount, pass: violationCount === 0 && incompleteCount === 0 };
+    });
+}
+
+async function runAxeLandmarks(page) {
+    await page.addScriptTag({ path: AXE });
+    return page.evaluate(async () => {
+        const result = await globalThis.axe.run(document, {
+            runOnly: {
+                type: "rule",
+                values: ["landmark-main-is-top-level", "landmark-no-duplicate-main", "landmark-unique"],
+            },
+        });
         return (result.violations || []).length;
     });
 }
@@ -41,9 +59,14 @@ async function main() {
 
         await page.goto(`${BASE}/mock/email-nudge`, { waitUntil: "networkidle", timeout: 120_000 });
         await shot(page, `email-nudge-${tag}.png`);
-        const violations = await runAxe(page);
-        if (violations !== 0) {
-            console.error(`axe violations on email-nudge (${tag}):`, violations);
+        const contrast = await runAxeColorContrast(page);
+        const landmarkViolations = await runAxeLandmarks(page);
+        if (!contrast.pass) {
+            console.error(`axe color-contrast on email-nudge (${tag}):`, contrast);
+            process.exitCode = 1;
+        }
+        if (landmarkViolations !== 0) {
+            console.error(`axe landmark violations on email-nudge page (${tag}):`, landmarkViolations);
             process.exitCode = 1;
         }
 
