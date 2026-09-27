@@ -2,11 +2,6 @@
 
 import { useEffect } from "react";
 import { CONCEPT_A_LANDING_BODY_CLASS } from "@/components/onboarding/ConceptALanding";
-import {
-    JOBS_SKIP_LANDING_HTML_CLASS,
-    ONBOARDING_COMPLETE_HTML_CLASS,
-} from "@/lib/jobs/onboarding-first-paint";
-
 export interface ConceptALandingHydrationProps {
     onStart: () => void;
     onSignIn: () => void;
@@ -18,8 +13,6 @@ export function ConceptALandingHydration({ onStart, onSignIn }: ConceptALandingH
         const prevOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
         document.body.classList.add(CONCEPT_A_LANDING_BODY_CLASS);
-        document.documentElement.classList.remove(JOBS_SKIP_LANDING_HTML_CLASS);
-        document.documentElement.classList.remove(ONBOARDING_COMPLETE_HTML_CLASS);
 
         const signIn = document.querySelector<HTMLButtonElement>('[data-testid="concept-a-sign-in"]');
         const cta = document.querySelector<HTMLButtonElement>('[data-testid="concept-a-cta"]');

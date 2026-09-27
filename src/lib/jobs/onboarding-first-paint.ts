@@ -3,8 +3,21 @@ export const ONBOARDING_COMPLETED_STORAGE_KEY = "velai.onboarding.completed";
 
 export const ONBOARDING_COMPLETE_HTML_CLASS = "velai-onboarding-complete";
 export const JOBS_SKIP_LANDING_HTML_CLASS = "velai-jobs-skip-landing";
+/** Body mirror — survives Next `<html>` hydration resets that drop the html class. */
+export const JOBS_SKIP_LANDING_BODY_CLASS = "velai-jobs-skip-landing";
 /** Set on `<html>` before TopBar paints on /jobs when Step 1 should show. */
 export const CONCEPT_A_LANDING_PENDING_HTML_CLASS = "concept-a-landing-pending";
+
+/** Hide SSR Concept A poster once the client route gate or onboarding advances. */
+export function hideJobsSsrLanding(): void {
+    if (typeof document === "undefined") return;
+    document.documentElement.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
+    document.body.classList.add(JOBS_SKIP_LANDING_BODY_CLASS);
+    if (readOnboardingCompletedFromStorage()) {
+        document.documentElement.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+    }
+    document.body.classList.remove("concept-a-landing-active");
+}
 
 export function readOnboardingCompletedFromStorage(): boolean {
     if (typeof window === "undefined") return false;
@@ -20,7 +33,7 @@ export function writeOnboardingCompletedInStorage(): void {
     try {
         window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
         document.documentElement.classList.add(ONBOARDING_COMPLETE_HTML_CLASS);
-        document.documentElement.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
+        hideJobsSsrLanding();
         document.documentElement.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
         window.dispatchEvent(new Event("velai-onboarding-storage"));
     } catch {

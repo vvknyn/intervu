@@ -164,7 +164,7 @@ import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDeta
 import { CONCEPT_A_LANDING_BODY_CLASS } from "@/components/onboarding/ConceptALanding";
 import {
     CONCEPT_A_LANDING_PENDING_HTML_CLASS,
-    JOBS_SKIP_LANDING_HTML_CLASS,
+    hideJobsSsrLanding,
     readOnboardingCompletedFromStorage,
     subscribeOnboardingCompleted,
     writeOnboardingCompletedInStorage,
@@ -1801,7 +1801,7 @@ export function JobsContent({
     useEffect(() => {
         try {
             if (readOnboardingCompletedFromStorage()) {
-                document.documentElement.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
+                hideJobsSsrLanding();
             }
         } catch {
             /* private mode */
@@ -2202,10 +2202,12 @@ export function JobsContent({
     useEffect(() => {
         const root = document.documentElement;
         if (showLandingOnboarding) {
-            root.classList.remove(JOBS_SKIP_LANDING_HTML_CLASS);
-            root.classList.add(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+            hideJobsSsrLanding();
+            if (!readOnboardingCompletedFromStorage()) {
+                root.classList.add(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+            }
         } else {
-            root.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
+            hideJobsSsrLanding();
             root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
             document.body.classList.remove(CONCEPT_A_LANDING_BODY_CLASS);
         }

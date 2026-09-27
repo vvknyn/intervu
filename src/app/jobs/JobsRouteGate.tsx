@@ -1,13 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { ConceptALandingHydration } from "@/components/onboarding/ConceptALandingHydration";
 import {
-    CONCEPT_A_LANDING_PENDING_HTML_CLASS,
-    JOBS_SKIP_LANDING_HTML_CLASS,
     readOnboardingCompletedFromStorage,
     subscribeOnboardingCompleted,
+    hideJobsSsrLanding,
 } from "@/lib/jobs/onboarding-first-paint";
 import type { JobsContentProps } from "@/app/jobs/JobsContent";
 import { requireAuthKitSoon } from "@/lib/perf/schedule-after-load-or-idle";
@@ -17,20 +16,11 @@ const JobsContent = dynamic(
     { ssr: false, loading: () => null },
 );
 
-function hideLandingShell() {
-    const root = document.documentElement;
-    root.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
-    // Keep lean chrome hidden until onboarding is done — avoids landing Sign in
-    // stacking with TopBar Sign in while steps 2–3 run.
-    if (readOnboardingCompletedFromStorage()) {
-        root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
-    }
-    document.body.classList.remove("concept-a-landing-active");
-}
-
 function JobsContentEntry(props: JobsContentProps) {
-    useEffect(() => {
-        hideLandingShell();
+    useLayoutEffect(() => {
+        hideJobsSsrLanding();
+        const id = requestAnimationFrame(() => hideJobsSsrLanding());
+        return () => cancelAnimationFrame(id);
     }, []);
     return (
         <Suspense fallback={null}>
@@ -61,7 +51,7 @@ export default function JobsRouteGate() {
     }, [onboardingDismissed]);
 
     useEffect(() => {
-        if (entry) hideLandingShell();
+        if (entry) hideJobsSsrLanding();
     }, [entry]);
 
     useEffect(() => {
@@ -85,10 +75,12 @@ export default function JobsRouteGate() {
             <ConceptALandingHydration
                 onStart={() => {
                     requireAuthKitSoon();
+                    hideJobsSsrLanding();
                     setEntry({ onboardingInitialStep: 2 });
                 }}
                 onSignIn={() => {
                     requireAuthKitSoon();
+                    hideJobsSsrLanding();
                     setEntry({ onboardingInitialStep: 2, openAuthOnMount: true });
                 }}
             />
