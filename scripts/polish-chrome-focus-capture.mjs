@@ -15,6 +15,29 @@ const BASE = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
 
 const MOBILE = { width: 390, height: 844 };
 const DESKTOP = { width: 1440, height: 900 };
+/** Same as #618: skip Concept A step 1 and land on SERP so the tab bar is visible. */
+const JOBS_CAPTURE_URL = `${BASE}/jobs?q=software%20engineer&posted=any`;
+
+async function prepareSignedOutJobsSurface(page) {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("velai.onboarding.completed", "1");
+      localStorage.setItem("concept-a-landing-dismissed", "1");
+    } catch {
+      /* private mode */
+    }
+  });
+}
+
+async function gotoJobsSerp(page) {
+  await page.goto(JOBS_CAPTURE_URL, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await page.waitForFunction(
+    () => !document.body.classList.contains("concept-a-landing-active"),
+    { timeout: 120_000 },
+  );
+  await page.getByTestId("mobile-tabbar").waitFor({ state: "visible", timeout: 120_000 });
+  await page.waitForTimeout(600);
+}
 
 async function runAxeChromeRegions(page) {
   await page.addScriptTag({ path: AXE });
@@ -80,23 +103,27 @@ async function shotViewport(page, name, viewport) {
   });
 }
 
-async function focusTabBarLink(page, slug) {
-  const selector = `[data-mobile-tabbar] a[data-testid="mobile-topbar-${slug}"], [data-mobile-tabbar] a[data-testid="mobile-${slug}"]`;
-  await page.waitForSelector(selector, { state: "attached", timeout: 30_000 });
-  await page.evaluate((sel) => {
-    const el = document.querySelector(sel);
-    if (!(el instanceof HTMLElement)) throw new Error(`missing tab link ${sel}`);
-    el.focus();
-  }, selector);
-  await page.waitForTimeout(150);
+async function tabUntilTestId(page, testId, maxTabs = 120) {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
+  await page.keyboard.press("Tab");
+  for (let i = 0; i < maxTabs; i++) {
+    const focused = await page.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? "");
+    if (focused === testId) {
+      await page.waitForTimeout(150);
+      return;
+    }
+    await page.keyboard.press("Tab");
+  }
+  throw new Error(`Tab did not reach ${testId} within ${maxTabs} presses`);
 }
 
 async function captureMobileTabBar(browser) {
   const page = await browser.newPage();
+  await prepareSignedOutJobsSurface(page);
   await page.setViewportSize(MOBILE);
-  await page.goto(`${BASE}/jobs?posted=any`, { waitUntil: "domcontentloaded", timeout: 120_000 });
-  await page.waitForSelector('[data-testid="mobile-tabbar"]', { timeout: 120_000 });
-  await page.waitForTimeout(800);
+  await gotoJobsSerp(page);
   await hideDevChrome(page);
   await scrollMobileTabBarIntoView(page);
 
@@ -107,21 +134,19 @@ async function captureMobileTabBar(browser) {
   );
 
   for (const slug of tabSlugs) {
-    await page.goto(`${BASE}/jobs?posted=any`, { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await page.waitForSelector('[data-testid="mobile-tabbar"]', { timeout: 120_000 });
-    await page.waitForTimeout(500);
+    const testId = `mobile-topbar-${slug}`;
+
+    await gotoJobsSerp(page);
     await hideDevChrome(page);
     await scrollMobileTabBarIntoView(page);
     await stripDesignedFocusRing(page, "[data-mobile-tabbar] a");
-    await focusTabBarLink(page, slug);
+    await tabUntilTestId(page, testId);
     await shotViewport(page, `before-mobile-tabbar-focus-${slug}.png`, MOBILE);
 
-    await page.goto(`${BASE}/jobs?posted=any`, { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await page.waitForSelector('[data-testid="mobile-tabbar"]', { timeout: 120_000 });
-    await page.waitForTimeout(500);
+    await gotoJobsSerp(page);
     await hideDevChrome(page);
     await scrollMobileTabBarIntoView(page);
-    await focusTabBarLink(page, slug);
+    await tabUntilTestId(page, testId);
     await shotViewport(page, `after-mobile-tabbar-focus-${slug}.png`, MOBILE);
   }
 
@@ -133,8 +158,9 @@ async function captureMobileTabBar(browser) {
 
 async function captureDesktopTopBar(browser) {
   const page = await browser.newPage();
+  await prepareSignedOutJobsSurface(page);
   await page.setViewportSize(DESKTOP);
-  await page.goto(`${BASE}/jobs?posted=any`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await page.goto(JOBS_CAPTURE_URL, { waitUntil: "domcontentloaded", timeout: 120_000 });
   await page.waitForSelector('[data-testid="topbar"]', { timeout: 120_000 });
   await page.waitForTimeout(800);
   await hideDevChrome(page);
@@ -149,7 +175,7 @@ async function captureDesktopTopBar(browser) {
 
   for (const testId of targetTestIds) {
     const slug = testId.replace(/^topbar-/, "");
-    const jobsUrl = `${BASE}/jobs?posted=any`;
+    const jobsUrl = JOBS_CAPTURE_URL;
     const marketingUrl = `${BASE}/trends`;
     const pageUrl = testId === "topbar-create-account" ? marketingUrl : jobsUrl;
 
