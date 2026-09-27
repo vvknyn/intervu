@@ -80,13 +80,13 @@ import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; headingLevel: 3 | 4 }) {
     const HeadingTag = `h${headingLevel}` as const;
     return (
-        <div className="text-base leading-relaxed text-foreground">
+        <div className="text-base leading-relaxed text-inherit">
             {blocks.map((b, i) => {
                 if (b.type === "heading") {
                     return (
                         <HeadingTag
                             key={i}
-                            className="mb-2 mt-4 text-xs font-semibold text-foreground first:mt-0"
+                            className="mb-2 mt-4 text-xs font-semibold text-inherit first:mt-0"
                         >
                             {b.text}
                         </HeadingTag>
@@ -103,7 +103,7 @@ export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; 
                 }
                 return (
                     <p key={i} className="mb-3 whitespace-pre-line last:mb-0">
-                        {b.lead && <strong className="text-foreground">{b.lead} </strong>}
+                        {b.lead && <strong className="text-inherit">{b.lead} </strong>}
                         {b.text}
                     </p>
                 );
