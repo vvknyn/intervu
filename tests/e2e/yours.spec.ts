@@ -150,6 +150,7 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
 
   test('TC-YOURS-008: Track a role opens the add sheet', async ({ page }) => {
     await page.goto('/yours');
+    await page.waitForLoadState('networkidle');
     const trackCta = page.getByTestId('tracker-track-role-cta');
     await expect(trackCta).toBeVisible({ timeout: 10000 });
     await trackCta.click();
