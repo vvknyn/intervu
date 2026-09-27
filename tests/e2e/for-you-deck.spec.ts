@@ -1,8 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
 import {
     FOR_YOU_DECK_MOCK_PATH,
-    packIdentity,
+    deckRestingPack,
+    deckRestingPackHeading,
+    restingPackTitle,
     seedDeckMockHintDismissed,
+    waitForDeckRestingState,
     waitForMockDeckReady,
 } from "./for-you-deck-mock.helpers";
 
@@ -17,22 +20,22 @@ import {
 test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
     test.beforeEach(async ({ page }) => {
         await seedDeckMockHintDismissed(page);
+        await page.emulateMedia({ reducedMotion: "no-preference" });
     });
 
     test("TC-DECK-001: repeated Skip clicks advance to unseen cards", async ({ page }) => {
         await waitForMockDeckReady(page);
 
-        const seen: string[] = [await packIdentity(page)];
+        const seen: string[] = [await restingPackTitle(page)];
 
         for (let i = 0; i < 2; i++) {
             const skip = page.getByTestId("for-you-skip");
             const previous = seen[seen.length - 1];
             await skip.click();
             if ((await page.getByTestId("for-you-pack").count()) === 0) break;
-            await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(previous, {
-                timeout: 10_000,
-            });
-            const actual = await packIdentity(page);
+            await waitForDeckRestingState(page);
+            const actual = await restingPackTitle(page);
+            expect(actual).not.toBe(previous);
             expect(seen).not.toContain(actual);
             seen.push(actual);
         }
@@ -43,8 +46,8 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
     test("TC-DECK-003: wheel over the card never changes active job", async ({ page }) => {
         await waitForMockDeckReady(page);
 
-        const initialJob = await packIdentity(page);
-        const card = page.getByTestId("for-you-pack");
+        const initialJob = await restingPackTitle(page);
+        const card = deckRestingPack(page);
 
         await card.hover();
         await page.mouse.wheel(0, 500);
@@ -54,7 +57,7 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
         await page.mouse.wheel(0, -1500);
         await page.waitForTimeout(350);
 
-        expect(await packIdentity(page)).toBe(initialJob);
+        expect(await restingPackTitle(page)).toBe(initialJob);
     });
 
     test("TC-DECK-004: Next and Previous buttons navigate between jobs", async ({ page }) => {
@@ -64,34 +67,54 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
         const prevBtn = page.getByTestId("for-you-previous");
 
         await expect(prevBtn).toBeDisabled();
-        const firstJob = await packIdentity(page);
+        const firstJob = await restingPackTitle(page);
 
         await nextBtn.click();
-        await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(firstJob, { timeout: 5000 });
-        const secondJob = await packIdentity(page);
+        await waitForDeckRestingState(page);
+        const secondJob = await restingPackTitle(page);
         expect(secondJob).not.toBe(firstJob);
         await expect(prevBtn).toBeEnabled();
 
         await prevBtn.click();
-        await expect(page.getByTestId("for-you-pack").locator("h2")).toHaveText(firstJob, { timeout: 5000 });
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).toHaveText(firstJob, { timeout: 5000 });
         await expect(prevBtn).toBeDisabled();
     });
 
     test("TC-DECK-005: keyboard shortcuts navigate between jobs", async ({ page }) => {
         await waitForMockDeckReady(page);
 
-        const firstJob = await packIdentity(page);
+        const firstJob = await restingPackTitle(page);
 
         await page.keyboard.press("ArrowRight");
-        await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(firstJob, { timeout: 5000 });
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).not.toHaveText(firstJob, { timeout: 5000 });
 
         await page.keyboard.press("ArrowLeft");
-        await expect(page.getByTestId("for-you-pack").locator("h2")).toHaveText(firstJob, { timeout: 5000 });
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).toHaveText(firstJob, { timeout: 5000 });
+    });
+
+    test("TC-DECK-007: reduced motion still advances with Next", async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await waitForMockDeckReady(page);
+
+        const firstJob = await restingPackTitle(page);
+        await page.getByTestId("for-you-next").click();
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).not.toHaveText(firstJob, { timeout: 5000 });
+    });
+});
+
+test.describe("FOR-YOU-DECK — mock fixture hint banner", () => {
+    test.beforeEach(async ({ page }) => {
+        // Intentionally no hint-dismiss seed — sibling suite sets it; fresh storage shows the banner.
+        await page.emulateMedia({ reducedMotion: "no-preference" });
     });
 
     test("TC-DECK-006: first-run instruction banner shows and dismisses on Got it", async ({ page }) => {
         await page.goto(FOR_YOU_DECK_MOCK_PATH);
-        await expect(page.getByTestId("for-you-deck")).toBeVisible();
+        await waitForDeckRestingState(page);
 
         const hint = page.getByText("Getting around");
         await expect(hint).toBeVisible();
@@ -100,17 +123,8 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
         await expect(hint).toHaveCount(0);
 
         await page.reload();
-        await expect(page.getByTestId("for-you-deck")).toBeVisible();
+        await waitForDeckRestingState(page);
         await expect(page.getByText("Getting around")).toHaveCount(0);
-    });
-
-    test("TC-DECK-007: reduced motion still advances with Next", async ({ page }) => {
-        await page.emulateMedia({ reducedMotion: "reduce" });
-        await waitForMockDeckReady(page);
-
-        const firstJob = await packIdentity(page);
-        await page.getByTestId("for-you-next").click();
-        await expect(page.getByTestId("for-you-pack").locator("h2")).not.toHaveText(firstJob, { timeout: 5000 });
     });
 });
 
@@ -187,7 +201,7 @@ test.describe("FOR-YOU-DECK — live /jobs (corpus-dependent)", () => {
         }
         await expect(page.getByTestId("for-you-home")).toBeVisible({ timeout: 20_000 });
         await expect(page.getByTestId("for-you-loading")).toHaveCount(0, { timeout: 20_000 });
-        await expect(page.getByTestId("for-you-pack").first()).toBeVisible({ timeout: 20_000 });
+        await waitForDeckRestingState(page);
     }
 
     test("TC-DECK-002: toggling Search -> For-you keeps the same job active", async ({ page }) => {
@@ -197,15 +211,15 @@ test.describe("FOR-YOU-DECK — live /jobs (corpus-dependent)", () => {
         await waitForDeckReady(page);
 
         await page.getByTestId("for-you-skip").click();
-        await expect(page.getByTestId("for-you-pack").first()).toBeVisible();
-        const beforeToggle = await packIdentity(page);
+        await waitForDeckRestingState(page);
+        const beforeToggle = await restingPackTitle(page);
 
         await page.getByRole("tab", { name: "Search all jobs" }).click();
         await expect(page.getByTestId("for-you-home")).toHaveCount(0);
 
         await page.getByRole("tab", { name: "For you · résumé" }).click();
         await waitForDeckReady(page);
-        const afterToggle = await packIdentity(page);
+        const afterToggle = await restingPackTitle(page);
 
         expect(afterToggle).toBe(beforeToggle);
     });
