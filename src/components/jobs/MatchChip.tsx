@@ -15,7 +15,7 @@
 import { Lock } from "@phosphor-icons/react";
 import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
-import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
+import { matchBand, matchBandLabel, type MatchBand, type MatchScore } from "@/lib/match/score";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 
@@ -23,6 +23,16 @@ import { matchAnalyticsProps } from "@/lib/analytics/match-props";
  *  component (location is, when the résumé has a place). Honesty statement
  *  that pay was not weighed. */
 const NOT_COUNTED_DETAIL = "salary — your call to weigh";
+
+function bandChipClass(band: MatchBand): string {
+    if (band === "strong") {
+        return "border-live-tint-border bg-live-tint-bg text-verdict-live";
+    }
+    if (band === "good") {
+        return "border-border bg-verdict-good-bg text-verdict-good";
+    }
+    return "border-border bg-verdict-caution-bg text-verdict-caution";
+}
 
 export interface MatchChipProps {
     score: MatchScore;
@@ -60,7 +70,6 @@ export function MatchChipTeaser({ onClick, className }: { onClick: () => void; c
 export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps) {
     const band = matchBand(score.total);
     const label = matchBandLabel(band);
-    const strong = band === "strong";
     return (
         <ContextHelp
             side="bottom"
@@ -79,7 +88,7 @@ export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps)
                 aria-label={`${label} match`}
                 className={cn(
                     "mono-data inline-block rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none",
-                    strong ? "border-brand bg-card text-brand" : "border-border bg-chip text-foreground",
+                    bandChipClass(band),
                     className,
                 )}
             >

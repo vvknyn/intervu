@@ -257,7 +257,7 @@ export function PostingCheckHeader({
  */
 export function JobDetailSkeleton() {
     return (
-        <div className="overflow-hidden border border-border bg-card" aria-hidden="true">
+        <div className="overflow-hidden border border-border bg-surface" aria-hidden="true">
             <div className="border-b border-border p-6">
                 <div className="flex items-start gap-4">
                     <div className="skeleton-bar h-12 w-12 shrink-0" />
@@ -351,7 +351,7 @@ export function JobDetailActionBar({
     return (
         <div
             data-testid="job-detail-action-bar"
-            className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-card px-4", className)}
+            className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-surface px-4", className)}
         >
             {job.apply_url && (
                 <Button className="h-10 flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
@@ -748,7 +748,7 @@ export function JobDetail({
             className={cn(
                 // rounded-none: KEEP — edge-to-edge content region nested inside
                 // already-rounded ancestors (detail-pane wrapper / Sheet).
-                "relative rounded-none bg-card",
+                "relative rounded-none bg-transparent",
                 collapseDescription && "flex min-h-0 flex-1 flex-col overflow-hidden",
                 className,
             )}
@@ -916,7 +916,7 @@ export function JobDetail({
                             pursuit={pursuit}
                             onGoAfter={onGoAfter}
                             goingAfter={goingAfter}
-                            className="rounded-ctl border border-border bg-card"
+                            className="rounded-ctl border border-border bg-surface"
                         />
                         {/* ReportJobButton hardcodes its own trigger content
                             (flag icon + "Report listing" text, ReportJobButton.tsx)
@@ -1048,7 +1048,7 @@ export function JobDetail({
                     PR, jobs/page.tsx), not on white. rounded-panel (16px)
                     per the semantic radius tokens (surfaces PR #537). */}
                 {payDisclosed && salary && (
-                    <div data-tour="jobs-pay" className="mb-4 rounded-panel bg-card px-4 py-3.5">
+                    <div data-tour="jobs-pay" className="mb-4 rounded-panel bg-surface px-4 py-3.5">
                         <div className="flex flex-wrap items-baseline gap-3">
                             <span className="text-sm font-semibold text-muted-foreground">Pay</span>
                             <span className="font-display text-xl font-semibold tabular-nums text-foreground">{salary}</span>
@@ -1069,7 +1069,7 @@ export function JobDetail({
                     signals-grid/footer as before, only the container gained
                     a fill. Same 16px token as the Pay card above. */}
                 {ghost && (
-                    <div data-tour="jobs-posting-check" className="mb-6 rounded-panel bg-card p-4">
+                    <div data-tour="jobs-posting-check" className="mb-6 rounded-panel bg-surface p-4">
                         <PostingCheckHeader
                             favorableCount={favorableSignalCount}
                             assessedCount={ghostSignals.length > 0 ? assessedSignals.length : 0}

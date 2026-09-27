@@ -380,7 +380,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 typeof document !== "undefined" &&
                 createPortal(
                     <div
-                        className="fixed z-[var(--z-dropdown)] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] animate-in fade-in slide-in-from-top-1"
+                        className="fixed z-[var(--z-dropdown)] overflow-hidden rounded-ctl border border-border-strong bg-popover shadow-[var(--shadow-overlay)] animate-in fade-in slide-in-from-top-1"
                         style={{
                             top: overlayRect.top,
                             left: overlayRect.left,
@@ -410,7 +410,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                             aria-selected={index === activeIndex}
                                             className={cn(
                                                 "flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors",
-                                                index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                                index === activeIndex ? "bg-surface-3 text-foreground" : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
                                             )}
                                             onClick={() => handleSelect(suggestion.text)}
                                             onMouseEnter={() => setActiveIndex(index)}

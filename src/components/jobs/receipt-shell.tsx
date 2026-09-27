@@ -22,7 +22,7 @@ export function ReceiptShell({
     children: React.ReactNode;
 }) {
     return (
-        <div className="border border-border bg-card">
+        <div className="border border-border bg-surface">
             <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
                 <span className="mono-data text-xs font-semibold text-muted-foreground">{label}</span>
                 <span className={cn("inline-flex items-center px-2 py-0.5 text-xs font-semibold", statusClassName)}>

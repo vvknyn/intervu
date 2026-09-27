@@ -99,7 +99,7 @@ export function FrontDoorReturnCard({
                 <button
                     type="button"
                     onClick={() => onRerun(recentQuery)}
-                    className="rounded-ctl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+                    className="rounded-ctl border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
                 >
                     Run search
                 </button>

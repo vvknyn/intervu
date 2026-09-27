@@ -620,7 +620,7 @@ function SimilarRolesCta({ onClick }: { onClick: () => void }) {
  */
 function DeadJobTombstone({ onSimilarRoles }: { onSimilarRoles: () => void }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-panel border border-dashed border-border bg-card px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-panel border border-dashed border-border bg-surface px-6 py-16 text-center">
             <WarningCircle size={24} className="mb-3 text-muted-foreground" />
             <h3 className="text-sm font-semibold">{DEAD_JOB_TOMBSTONE_TEXT}</h3>
             <SimilarRolesCta onClick={onSimilarRoles} />
@@ -650,7 +650,7 @@ function DeadJobUnresolved({
     checking: boolean;
 }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-panel border border-dashed border-border bg-card px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-panel border border-dashed border-border bg-surface px-6 py-16 text-center">
             {checking ? (
                 <span className="mb-3 h-5 w-5 animate-spin rounded-pill border-2 border-brand border-t-brand" />
             ) : (
@@ -685,7 +685,7 @@ const RESUME_MOMENT_OPENS = 3;
 function JobCardSkeleton() {
     return (
         // rounded-none: KEEP — mirrors the real row's flush shape (JobCard below).
-        <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-card pt-4">
+        <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-surface pt-4">
             <div className="self-start">
                 <div className="skeleton-bar h-12 w-12 rounded-panel" />
             </div>
@@ -5444,7 +5444,7 @@ function JobsContent() {
                             </div>
                             {atRest ? (
                             <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
-                                <p className="mb-0.5 text-xs font-semibold text-brand">
+                                <p className="mb-0.5 text-xs font-semibold text-live">
                                     Live from employer career pages
                                 </p>
                                 <h1 className="text-xl font-semibold text-foreground">
@@ -5500,9 +5500,9 @@ function JobsContent() {
                         // Requirement 1c (front-door redesign): at rest the
                         // search field is re-housed inside the same centered
                         // 960px column as the masthead and `FrontDoorFieldLinks`,
-                        // and drops the outer "raised well" (border + bg-card +
+                        // and drops the outer "raised well" (border + bg-surface +
                         // padding) that used to set it off from the page — the
-                        // inner search-line box below (its own border/bg-card)
+                        // inner search-line box below (its own border/bg-surface)
                         // is now the only visible frame, so a query result
                         // doesn't snap from a boxed-within-a-box well to a
                         // plain one once it runs.
@@ -5518,7 +5518,7 @@ function JobsContent() {
                         // w-full (2026-09-17): mx-auto on a flex item suppresses
                         // cross-axis stretch (Flexbox spec) — the same defect PR
                         // #540 fixed on the toolbar section, same fix here.
-                        atRest ? "rounded-none mx-auto w-full max-w-[960px] lg:max-w-7xl" : "rounded-panel border border-border bg-card p-2 sm:p-2.5",
+                        atRest ? "rounded-none mx-auto w-full max-w-[960px] lg:max-w-7xl" : "rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-2 sm:p-2.5",
                     )}
                 >
                     {/* A3 (front-door redesign): the live count renders once,
@@ -5538,7 +5538,7 @@ function JobsContent() {
                         to the start. */}
                     {!headerDockActive && (
                     <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5 sm:justify-center">
-                        {/* `bg-card`, not `bg-background`: inside the raised well
+                        {/* `bg-surface`, not `bg-background`: inside the raised well
                             the field has to be the brightest thing on the page,
                             which is the only direction contrast can go on a
                             light ground. */}
@@ -5559,7 +5559,7 @@ function JobsContent() {
                                 // stacked surface uses. From `sm` the rows go
                                 // side-by-side and it becomes the single pill it
                                 // always was (mobile layout audit, 2026-09-18).
-                                "flex flex-col rounded-panel border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-pill",
+                                "flex flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-pill",
                                 // Mechanism: the ancestor <section> above used to
                                 // shrink-wrap (mx-auto suppressing stretch), so this
                                 // sm:flex-1 (basis 0%) had no real room to fill.
@@ -5773,7 +5773,7 @@ function JobsContent() {
                     <div
                         id="filters-panel"
                         data-testid="filters-panel"
-                        className="panel-enter max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel border border-border bg-card p-2.5 text-foreground custom-scrollbar"
+                        className="panel-enter max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-2.5 text-foreground custom-scrollbar"
                     >
                         {renderFiltersPanel()}
                         {/* The global `Footer` is mounted below this infinite feed and
@@ -5890,7 +5890,7 @@ function JobsContent() {
                         <div
                             id="filters-panel"
                             data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel border border-border bg-card p-2.5 text-foreground custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-2.5 text-foreground custom-scrollbar"
                         >
                             {renderFiltersPanel()}
                         </div>
@@ -5904,7 +5904,7 @@ function JobsContent() {
                                 <div
                                     id="filters-panel"
                                     data-testid="filters-panel"
-                                    className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-card p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
+                                    className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-surface p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
                                 >
                                     {renderFiltersPanel()}
                                     {/* Same reachability gap as the desktop inline panel
@@ -6114,7 +6114,7 @@ function JobsContent() {
                     {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"
-                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-panel xl:border xl:border-border xl:bg-card"
+                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-panel xl:border xl:border-border xl:bg-surface"
                         >
                             {detailMountSite === "pane" ? (
                                 renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
@@ -6137,7 +6137,7 @@ function JobsContent() {
                         at every width (mobile: full-width rounded-panel panel;
                         xl+: paired with the detail panel via the grid gap
                         above). */}
-                    <div className="flex min-h-0 flex-1 flex-col rounded-panel border border-border bg-card xl:min-w-0">
+                    <div className="flex min-h-0 flex-1 flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] xl:min-w-0">
                         {/* Mobile cold visitors already get a seeded default browse
                             (overlay-ask); hiding the results column forced an extra
                             typed query before result_clicked / job_viewed, dropping
@@ -6776,7 +6776,7 @@ function JobsContent() {
                     // bottom padding (above) clears for, so the two can't
                     // drift apart the way a padding guess and this bar's
                     // real height already had.
-                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-card px-4 lg:hidden"
+                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 lg:hidden"
                 >
                     <Button
                         type="button"

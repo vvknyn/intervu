@@ -32,7 +32,7 @@ export function PacksHomeIntroModal({
             }}
         >
             <DialogContent
-                className="max-w-md gap-5 rounded-panel border border-border bg-card p-6"
+                className="max-w-md gap-5 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-6"
                 data-testid="packs-home-intro-modal"
                 showCloseButton={true}
             >

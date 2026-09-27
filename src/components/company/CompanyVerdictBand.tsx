@@ -28,7 +28,7 @@ export function CompanyVerdictBand({
   const asOfLabel = eventDate(asOf);
 
   return (
-    <section data-testid="company-verdict-band" className="rounded-panel border border-border bg-card px-6 py-6 sm:px-8">
+    <section data-testid="company-verdict-band" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
       <h2 className="text-xs font-semibold text-muted-foreground">
         Are they actually hiring?
       </h2>

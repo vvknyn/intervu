@@ -19,7 +19,7 @@ export function CompanyIntegrityBand({
   const closedTotal = closedReasonCounts.reduce((sum, r) => sum + r.count, 0);
 
   return (
-    <section data-testid="company-integrity-band" className="rounded-panel border border-border bg-card px-6 py-6 sm:px-8">
+    <section data-testid="company-integrity-band" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
       <h2 className="text-xs font-semibold text-muted-foreground">
         How their postings behave
       </h2>

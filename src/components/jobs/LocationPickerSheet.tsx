@@ -146,7 +146,7 @@ export function LocationPickerSheet({
                 className="mx-auto max-h-[85dvh] w-full max-w-[720px] overflow-hidden border-border p-0"
             >
                 <SheetTitle className="sr-only">Location</SheetTitle>
-                <div className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-card p-4 pb-[env(safe-area-inset-bottom,16px)]">
+                <div className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-surface p-4 pb-[env(safe-area-inset-bottom,16px)]">
                     <h3 className="text-sm font-semibold text-foreground">Where do you want to work?</h3>
                     <p className="mt-1 text-xs text-muted-foreground">Pick one or more — results update when you continue.</p>
 

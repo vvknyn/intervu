@@ -24,7 +24,7 @@ export function GuestApplyTrackPrompt({
         <div
             data-testid="guest-apply-track-prompt"
             role="status"
-            className="fixed right-4 z-40 flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3 bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+1rem)] lg:bottom-24"
+            className="fixed right-4 z-40 flex w-full max-w-sm items-start gap-3 border border-border bg-surface px-4 py-3 bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+1rem)] lg:bottom-24"
         >
             <div className="min-w-0 flex-1">
                 <div className="truncate text-meta text-foreground">{decodeText(record.title)}</div>

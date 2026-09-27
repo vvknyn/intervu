@@ -8,7 +8,7 @@
     "size-arbitrary": 3,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 0,
+    "shadow-utility": 6,
     "inline-style": 0
   },
   "jobs": {
@@ -17,11 +17,11 @@
     "rounded-arbitrary": 0,
     "text-arbitrary": 1,
     "leading-arbitrary": 0,
-    "size-arbitrary": 61,
+    "size-arbitrary": 64,
     "padding-arbitrary": 14,
-    "hex-literal": 12,
-    "shadow-utility": 2,
-    "inline-style": 2
+    "hex-literal": 0,
+    "shadow-utility": 20,
+    "inline-style": 1
   },
   "yours": {
     "rounded-none": 4,
@@ -80,7 +80,7 @@
     "size-arbitrary": 3,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 0,
+    "shadow-utility": 17,
     "inline-style": 1
   },
   "auth": {

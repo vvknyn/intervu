@@ -15,7 +15,7 @@ export default function Loading() {
                     {Array.from({ length: 6 }).map((_, i) => (
                         <div
                             key={i}
-                            className="rounded-panel border border-border bg-card p-4 shadow-[var(--shadow-bevel-highlight)]"
+                            className="rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]"
                         >
                             <Skeleton className="h-5 w-3/4 max-w-sm" />
                             <Skeleton className="mt-2 h-4 w-1/2 max-w-xs" />

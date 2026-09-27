@@ -69,7 +69,7 @@ export default function Loading() {
                 <div className="space-y-2.5">
                     <Skeleton className="mb-4 h-4 w-40" />
                     {[0, 1, 2, 3].map((row) => (
-                        <div key={row} className="rounded-panel border border-border bg-card px-5 py-4">
+                        <div key={row} className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-5 py-4">
                             <Skeleton className="h-5 w-2/3" />
                             <div className="mt-2.5 flex gap-2">
                                 <Skeleton className="h-4 w-24" />

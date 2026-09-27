@@ -45,7 +45,9 @@ export interface ForYouPackProps {
  * quiet-caps class instead of each spot picking its own size/weight, reused
  * verbatim from the house convention (BoardComparisonTable.tsx, careers hub).
  */
-const SECTION_LABEL = "text-xs font-semibold text-muted-foreground";
+const SECTION_LABEL = "text-xs font-semibold text-surface-postcard-muted";
+const POSTCARD_SHELL =
+    "flex flex-col overflow-hidden rounded-panel bg-surface-postcard text-surface-postcard-foreground shadow-[var(--shadow-postcard)]";
 
 /** JD column — the only inner scroller; capped so wheel events chain to the page at the ends. */
 const JD_SCROLL_CLASS =
@@ -80,7 +82,7 @@ function FitReadout({ score, strong }: { score: MatchScore; strong: boolean }) {
             <p
                 className={cn(
                     "text-title-sm font-semibold",
-                    strong ? "text-brand" : "text-foreground",
+                    strong ? "text-live" : "text-surface-postcard-foreground",
                 )}
             >
                 {label}
@@ -96,7 +98,7 @@ function NoScoreReadout({ reason }: { reason: NoScoreReason }) {
     return (
         <div className="shrink-0 max-w-[9rem] text-right">
             <p className={SECTION_LABEL}>Fit</p>
-            <p className="mt-1 text-xs text-muted-foreground">{NO_SCORE_MESSAGES[reason]}</p>
+            <p className="mt-1 text-xs text-surface-postcard-muted">{NO_SCORE_MESSAGES[reason]}</p>
         </div>
     );
 }
@@ -174,15 +176,15 @@ export function ForYouPack({
         <div className="space-y-4" data-testid="for-you-jd-soft-fail">
             <div>
                 <p className={SECTION_LABEL}>Role</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{displayJob.title}</p>
+                <p className="mt-1 text-sm font-semibold text-surface-postcard-foreground">{displayJob.title}</p>
                 {company ? (
-                    <p className="mt-0.5 text-sm text-muted-foreground">{company}</p>
+                    <p className="mt-0.5 text-sm text-surface-postcard-muted">{company}</p>
                 ) : null}
             </div>
             {softFailSnippet ? (
-                <p className="text-sm leading-relaxed text-foreground">{softFailSnippet}</p>
+                <p className="text-sm leading-relaxed text-surface-postcard-foreground">{softFailSnippet}</p>
             ) : (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-surface-postcard-muted">
                     Full description isn&apos;t available yet — open the posting to review the role.
                 </p>
             )}
@@ -192,7 +194,7 @@ export function ForYouPack({
                     target="_blank"
                     rel="noopener noreferrer"
                     data-testid="for-you-jd-apply-link"
-                    className="inline-flex text-sm font-semibold text-brand underline-offset-4 hover:underline"
+                    className="inline-flex text-sm font-semibold text-live underline-offset-4 hover:underline"
                 >
                     Apply at {company || "company"}
                 </a>
@@ -210,7 +212,7 @@ export function ForYouPack({
                     target="_blank"
                     rel="noopener noreferrer"
                     data-testid="for-you-jd-apply-link"
-                    className="inline-flex text-sm font-semibold text-brand underline-offset-4 hover:underline"
+                    className="inline-flex text-sm font-semibold text-live underline-offset-4 hover:underline"
                 >
                     Apply at {company || "company"}
                 </a>
@@ -253,9 +255,9 @@ export function ForYouPack({
     return (
         <div
             data-testid="for-you-pack"
-            className={cn("flex flex-col overflow-hidden rounded-panel border border-border bg-card", className)}
+            className={cn(POSTCARD_SHELL, className)}
         >
-            <div className="border-b border-border bg-muted py-4 px-4 lg:py-6 lg:px-8">
+            <div className="border-b border-border py-4 px-4 lg:py-6 lg:px-8">
                 <div className="flex flex-col gap-4">
                     <div className="flex items-start gap-3">
                         <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
@@ -264,7 +266,7 @@ export function ForYouPack({
                             <h2 className="break-words text-title-sm font-semibold text-foreground lg:text-title">
                                 {displayJob.title}
                             </h2>
-                            {place && <p className="mt-0.5 text-sm text-muted-foreground">{place}</p>}
+                            {place && <p className="mt-0.5 text-sm text-surface-postcard-muted">{place}</p>}
                         </div>
                         {matchScore ? (
                             <FitReadout score={matchScore} strong={strongFit} />
@@ -292,11 +294,11 @@ export function ForYouPack({
 
             <div className={cn("grid gap-6 py-4 px-4 lg:py-6 lg:px-8", hasAside && "lg:grid-cols-[280px_1fr]")}>
                 {hasAside && (
-                    <aside className="min-w-0 space-y-6 rounded-panel border border-border bg-muted p-4">
+                    <aside className="min-w-0 space-y-6 rounded-ctl border border-border bg-surface-postcard p-4 shadow-[var(--shadow-bevel-inset)]">
                         <div>
                             <h3 className={SECTION_LABEL}>What we inferred</h3>
                             {reasons.bullets.length > 0 && (
-                                <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-foreground">
+                                <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-surface-postcard-foreground">
                                     {reasons.bullets.map((bullet) => (
                                         <li key={bullet}>{bullet}</li>
                                     ))}
