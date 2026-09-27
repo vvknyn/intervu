@@ -127,7 +127,7 @@ export function ApplyReturnPrompt({
                     onClick={onDismiss}
                     variant="outline"
                     size="lg"
-                    className="min-h-11 flex-1 text-xs font-semibold sm:flex-none"
+                    className="min-h-11 flex-1 text-xs font-semibold text-foreground sm:flex-none"
                 >
                     Not yet
                 </Button>
@@ -137,7 +137,7 @@ export function ApplyReturnPrompt({
                     onClick={onDismiss}
                     variant="ghost"
                     size="lg"
-                    className="min-h-11 px-2 text-xs font-semibold"
+                    className="min-h-11 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
                 >
                     Skip
                 </Button>
