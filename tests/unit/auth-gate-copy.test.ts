@@ -21,7 +21,8 @@ test("formatAuthGateValueLine for save mentions tracker sync", () => {
 
 test('fit gate has title and body from copy matrix', () => {
     assert.equal(authGateTitle("fit"), "Create your free account, then upload your résumé.");
-    assert.match(formatAuthGateValueLine("fit", 0), /For you, Strong\/Good\/Stretch/i);
+    assert.match(formatAuthGateValueLine("fit", 0), /personalized job picks/i);
+    assert.match(formatAuthGateValueLine("fit", 0), /Strong\/Good\/Stretch/i);
 });
 
 test('save gate has title from copy matrix', () => {

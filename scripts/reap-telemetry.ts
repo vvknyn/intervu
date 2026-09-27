@@ -42,16 +42,18 @@ import pg from "pg";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
+import { TELEMETRY_LEDGER_RETAIN_DAYS } from "@/lib/telemetry/retention";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: `${ROOT}/.env.local`, quiet: true });
 
 const JOB_NAME = "reap_telemetry";
-const DEFAULT_RETAIN_DAYS = 90; // matches intervu.reap_telemetry()'s own default
 const BATCH_SIZE = 5000; // rows per committed DELETE
 
 const retainArg = process.argv.find((a) => a.startsWith("--retain-days="));
-const retainDays = retainArg ? Number(retainArg.slice("--retain-days=".length)) : DEFAULT_RETAIN_DAYS;
+const retainDays = retainArg
+  ? Number(retainArg.slice("--retain-days=".length))
+  : TELEMETRY_LEDGER_RETAIN_DAYS;
 if (!Number.isInteger(retainDays) || retainDays <= 0) {
   console.error(`invalid --retain-days: ${retainArg}`);
   process.exit(1);

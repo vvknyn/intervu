@@ -3,6 +3,7 @@
  */
 
 import { ANALYTICS_EVENTS } from "@/lib/analytics/event-names";
+import { AUTH_GATE_RESUME_UNLOCK_BODY } from "@/lib/jobs/resume-privacy-copy";
 
 export type AuthGateReason =
     | "apply"
@@ -53,7 +54,7 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
     },
     fit: {
         title: "Create your free account, then upload your résumé.",
-        body: "We'll return you here and unlock For you, Strong/Good/Stretch, Customize, and tailored PDFs.",
+        body: AUTH_GATE_RESUME_UNLOCK_BODY,
     },
     report: { body: "Sign in to report an issue with this listing." },
     tailor: {
@@ -61,7 +62,7 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
     },
     resume: {
         title: "Create your free account, then upload your résumé.",
-        body: "We'll return you here and unlock For you, Strong/Good/Stretch, Customize, and tailored PDFs.",
+        body: AUTH_GATE_RESUME_UNLOCK_BODY,
     },
     tracker: {
         title: "Sign in to track this application",

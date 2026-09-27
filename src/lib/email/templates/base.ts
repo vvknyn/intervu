@@ -1,4 +1,5 @@
 import { EMAIL_COLORS as C, EMAIL_FONT_SANS, EMAIL_WORDMARK } from "./palette";
+import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 
 /**
  * The one HTML/text shell every non-transactional template wraps its body
@@ -116,6 +117,9 @@ function footer(siteUrl: string, unsubscribeUrl: string): string {
               ${separator}
               ${link(`${siteUrl}/contact`, "Contact")}
             </p>
+            <p style="margin:0 0 10px;">
+              Questions: ${link(`mailto:${PUBLIC_SUPPORT_EMAIL}`, PUBLIC_SUPPORT_EMAIL)}
+            </p>
             <p style="margin:0;color:${C.faint};">
               <a href="${unsubscribeUrl}" style="color:${C.faint};text-decoration:underline;">Unsubscribe</a> &mdash; takes effect immediately.
             </p>
@@ -195,6 +199,7 @@ export function renderEmailShellText(input: Omit<EmailShellInput, "bodyHtml"> & 
     `Search roles: ${input.siteUrl}/jobs`,
     `Your tracker: ${input.siteUrl}/yours`,
     `Contact: ${input.siteUrl}/contact`,
+    `Email: ${PUBLIC_SUPPORT_EMAIL}`,
     "",
     `Unsubscribe (takes effect immediately): ${input.unsubscribeUrl}`,
   ].join("\n");

@@ -16,8 +16,7 @@ import { join, relative, sep } from "node:path";
  * `lib/presentation/` wrapper built on it). Four real bypasses of that
  * chokepoint shipped before this test existed — a typeahead suggestion, an
  * MCP tool response, a company-page `<h1>`, an OG-image caption, an external
- * AI hand-off prompt, an email digest, a rail pipeline widget
- * (`PipelineCard.tsx`), and the job-card/detail logo's `alt` text
+ * AI hand-off prompt, an email digest, and the job-card/detail logo's `alt` text
  * (`CompanyLogo.tsx`) all rendered `job.company` raw at one point — the last
  * two were found BY this ratchet's first real run, not by manual audit.
  * Neither `tsc` nor eslint catches a property read; this is a
