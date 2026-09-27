@@ -6,13 +6,13 @@ import {
     CONCEPT_A_POSTCARD_CLASS,
     CONCEPT_A_POSTCARD_STACK_CLASS,
     POSTCARDS,
-} from "@/components/onboarding/ConceptALanding";
+} from "@/components/onboarding/concept-a-postcards";
 import {
     extractPostcardCardFunction,
     extractPostcardStackOpenTag,
 } from "./concept-a-landing-stack-parse";
 
-const LANDING = join(__dirname, "../../src/components/onboarding/ConceptALanding.tsx");
+const LANDING = join(__dirname, "../../src/components/onboarding/ConceptALandingFace.tsx");
 const GLOBALS = join(__dirname, "../../src/app/globals.css");
 
 /** Owner-approved fan — any drift fails CI until owner re-approves. */

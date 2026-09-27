@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { POSTCARDS } from "@/components/onboarding/ConceptALanding";
+import { POSTCARDS } from "@/components/onboarding/concept-a-postcards";
 import {
     extractPostcardCardFunction,
     extractPostcardsConstBlock,
 } from "./concept-a-landing-stack-parse";
 
-const LANDING = join(__dirname, "../../src/components/onboarding/ConceptALanding.tsx");
+const POSTCARDS_SRC = join(__dirname, "../../src/components/onboarding/concept-a-postcards.ts");
 
 const EXPECTED_POSTCARD_TITLES = [
     "Remote AI Roles",
@@ -28,12 +28,12 @@ describe("Concept A landing postcard copy", () => {
         const fromImport = POSTCARDS.map((card) => card.title);
         assert.deepEqual(fromImport, [...EXPECTED_POSTCARD_TITLES]);
 
-        const fromSource = titlesFromPostcardsConstBlock(readFileSync(LANDING, "utf8"));
+        const fromSource = titlesFromPostcardsConstBlock(readFileSync(POSTCARDS_SRC, "utf8"));
         assert.deepEqual(fromSource, [...EXPECTED_POSTCARD_TITLES]);
     });
 
     it("postcard titles are not truncated at mobile widths", () => {
-        const src = readFileSync(LANDING, "utf8");
+        const src = readFileSync(join(__dirname, "../../src/components/onboarding/ConceptALandingFace.tsx"), "utf8");
         const postcardFn = extractPostcardCardFunction(src);
         const titleBlock =
             postcardFn.match(

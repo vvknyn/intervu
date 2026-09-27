@@ -8,11 +8,12 @@ import { TopBar } from "@/components/layout/TopBar";
 import { SearchDockProvider } from "@/components/layout/SearchDockContext";
 import { Footer } from "@/components/layout/Footer";
 import { IconDefaultsProvider } from "@/components/providers/IconDefaultsProvider";
-import { PostHogProvider } from "@/components/providers/PostHogProvider";
+import { DeferredPostHogProvider } from "@/components/providers/DeferredPostHogProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
 import { getSiteUrl, LANDING_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME } from "@/lib/seo/constants";
+import { JOBS_ONBOARDING_HEAD_SCRIPT } from "@/lib/jobs/onboarding-first-paint";
 import {
   buildJobSearchFaqJsonLd,
   buildOrganizationJsonLd,
@@ -152,7 +153,6 @@ const rootJsonLd = [
   ...(faqJsonLd ? [faqJsonLd] : []),
 ];
 
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -177,6 +177,7 @@ export default function RootLayout({
             __html: `(function(){try{document.documentElement.classList.add("dark");localStorage.setItem("intervu-mode","dark");}catch(e){document.documentElement.classList.add("dark");}})();`,
           }}
         />
+        <script dangerouslySetInnerHTML={{ __html: JOBS_ONBOARDING_HEAD_SCRIPT }} />
       </head>
       <body
         className={`${display.variable} ${sans.variable} ${mono.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
@@ -190,7 +191,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
         />
         <AuthKitProvider>
-        <PostHogProvider>
+        <DeferredPostHogProvider>
           <Suspense fallback={null}>
             <LocalAiParamSync />
           </Suspense>
@@ -232,7 +233,7 @@ export default function RootLayout({
             </TourProvider>
             </IconDefaultsProvider>
           </ThemeProvider>
-        </PostHogProvider>
+        </DeferredPostHogProvider>
         </AuthKitProvider>
       </body>
     </html>

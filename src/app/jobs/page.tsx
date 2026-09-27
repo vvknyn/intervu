@@ -163,6 +163,14 @@ import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResum
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
 import { LandingOnboardingView } from "@/components/onboarding/LandingOnboardingView";
+import { CONCEPT_A_LANDING_BODY_CLASS } from "@/components/onboarding/ConceptALanding";
+import {
+    CONCEPT_A_LANDING_PENDING_HTML_CLASS,
+    JOBS_SKIP_LANDING_HTML_CLASS,
+    readOnboardingCompletedFromStorage,
+    subscribeOnboardingCompleted,
+    writeOnboardingCompletedInStorage,
+} from "@/lib/jobs/onboarding-first-paint";
 
 const LandingAnimatedBackground = dynamic(
     () => import("@/components/marketing/LandingAnimatedBackground").then((m) => m.LandingAnimatedBackground),
@@ -1727,7 +1735,11 @@ function JobsContent() {
     };
 
     // First-time unregistered visitor onboarding & landing state
-    const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+    const onboardingDismissed = useSyncExternalStore(
+        subscribeOnboardingCompleted,
+        readOnboardingCompletedFromStorage,
+        () => false,
+    );
     const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
     // Packs home stays CategoryHubGrid until the user opens a pack.
     // Selecting a pack sets forYouPackDeckOpen and mounts ForYouHome postcard
@@ -1747,7 +1759,9 @@ function JobsContent() {
 
     useEffect(() => {
         try {
-            setOnboardingDismissed(localStorage.getItem("velai.onboarding.completed") === "1");
+            if (readOnboardingCompletedFromStorage()) {
+                document.documentElement.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
+            }
         } catch {
             /* private mode */
         }
@@ -1769,10 +1783,7 @@ function JobsContent() {
         storageMode: "cloud" | "device";
         accountCreated: boolean;
     }) => {
-        try {
-            localStorage.setItem("velai.onboarding.completed", "1");
-        } catch {}
-        setOnboardingDismissed(true);
+        writeOnboardingCompletedInStorage();
         if (data.resume) {
             setResume(data.resume);
             const updatedAt = new Date().toISOString();
@@ -1810,10 +1821,7 @@ function JobsContent() {
     };
 
     const handleOnboardingSkip = () => {
-        try {
-            localStorage.setItem("velai.onboarding.completed", "1");
-        } catch {}
-        setOnboardingDismissed(true);
+        writeOnboardingCompletedInStorage();
     };
 
     // Which auth value-line reason class to show (apply / generic).
@@ -2142,6 +2150,19 @@ function JobsContent() {
     const isSignedOut = !user;
     const userNeedsOnboarding = Boolean(user) && !hasUsableResume && !onboardingDismissed;
     const showLandingOnboarding = (isSignedOut || userNeedsOnboarding) && !showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
+
+    useEffect(() => {
+        const root = document.documentElement;
+        if (showLandingOnboarding) {
+            root.classList.remove(JOBS_SKIP_LANDING_HTML_CLASS);
+            root.classList.add(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+        } else {
+            root.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
+            root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+            document.body.classList.remove(CONCEPT_A_LANDING_BODY_CLASS);
+        }
+    }, [showLandingOnboarding]);
+
     // At rest, the raw corpus feed is tucked away behind Advanced Search or explicit search intent
     const defaultFeedAtRest = showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
     // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the

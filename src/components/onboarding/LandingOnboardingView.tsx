@@ -128,8 +128,9 @@ export function LandingOnboardingView({
         };
     }, [step]);
 
-    // Fetch live market role counts from Meilisearch
+    // Fetch live market role counts from Meilisearch (steps 2–3 only — keep Step 1 lean).
     useEffect(() => {
+        if (step === 1) return;
         let mounted = true;
         getMarketingStatsAction()
             .then((stats) => {
@@ -142,10 +143,11 @@ export function LandingOnboardingView({
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [step]);
 
-    // Silent background pre-warm on mount
+    // Silent background pre-warm (steps 2–3 — avoids local-ai ladder on LCP path).
     useEffect(() => {
+        if (step === 1) return;
         let mounted = true;
         const prewarm = async () => {
             try {
@@ -159,7 +161,7 @@ export function LandingOnboardingView({
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [step]);
 
     const updateProfileField = (field: keyof ResumeProfile, val: string | number) => {
         setParsedResume((prev) => {
