@@ -74,14 +74,14 @@ export function AccountMenu({ user, active, signingOut, onSignOut, mode, mounted
                     aria-label="Account menu"
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                        "inline-flex h-10 w-10 shrink-0 items-center justify-center transition-opacity outline-none hover:opacity-80 focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2",
-                        active && "ring-2 ring-brand",
+                        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 focus-visible:outline-2 focus-visible:outline-live focus-visible:-outline-offset-2",
+                        active && "ring-2 ring-live",
                     )}
                 >
                     <UserAvatar name={user.displayName} email={user.email} pictureUrl={user.pictureUrl} size={32} />
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-panel border-border bg-card">
+            <DropdownMenuContent align="end" className="w-56 border-border bg-surface-2 shadow-[var(--shadow-overlay)]">
                 <DropdownMenuItem asChild>
                     <Link href="/settings">Account</Link>
                 </DropdownMenuItem>
@@ -117,7 +117,7 @@ export function AccountMenu({ user, active, signingOut, onSignOut, mode, mounted
                 <DropdownMenuItem
                     onSelect={onSignOut}
                     disabled={signingOut}
-                    className="text-danger-text dark:text-danger-text"
+                    className="text-danger-text"
                 >
                     {signingOut ? (
                         <span className="flex items-center gap-2">

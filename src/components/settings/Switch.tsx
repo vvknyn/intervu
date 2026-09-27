@@ -29,10 +29,10 @@ export function Switch({
             aria-checked={checked}
             aria-label={ariaLabel}
             aria-busy={disabled || undefined}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-ctl border border-border transition-colors focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${checked ? "bg-brand text-brand-foreground" : "bg-muted"}`}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-ctl border border-border-strong shadow-[var(--shadow-bevel-inset)] transition-colors focus-visible:outline-2 focus-visible:outline-live focus-visible:-outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${checked ? "bg-live text-brand-foreground" : "bg-surface-2"}`}
         >
             <span
-                className={`absolute left-0.5 inline-block h-4 w-4 rounded-ctl border border-border bg-card transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`}
+                className={`absolute left-0.5 inline-block h-4 w-4 rounded-ctl border border-border bg-surface-3 shadow-[var(--shadow-bevel-highlight)] transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`}
             />
         </button>
     );

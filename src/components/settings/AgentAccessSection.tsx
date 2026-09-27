@@ -188,7 +188,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 {credentials?.map((c) => (
                     <div
                         key={c.id}
-                        className="flex items-center justify-between gap-4 rounded-panel border border-border p-3"
+                        className="flex items-center justify-between gap-4 rounded-panel border border-border bg-surface-2 p-3 shadow-[var(--shadow-bevel-highlight)]"
                     >
                         <div className="min-w-0">
                             <p className="text-sm truncate">{displayName(c)}</p>
@@ -231,13 +231,13 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 </div>
 
                 {newSecret && (
-                    <div className="mt-3 rounded-panel border border-warn bg-muted p-3 space-y-2">
-                        <p className="text-xs flex items-center gap-1.5 text-warn dark:text-warn">
+                    <div className="mt-3 rounded-panel border border-warn bg-surface-2 p-3 space-y-2 shadow-[var(--shadow-bevel-inset)]">
+                        <p className="text-xs flex items-center gap-1.5 text-warn">
                             <WarningCircle weight="fill" />
                             Copy this now — we can&apos;t show it to you again.
                         </p>
                         <div className="flex items-center gap-2">
-                            <code className="flex-1 min-w-0 truncate rounded-ctl bg-muted px-2.5 py-1.5 text-xs">
+                            <code className="flex-1 min-w-0 truncate rounded-ctl bg-surface-3 px-2.5 py-1.5 text-xs shadow-[var(--shadow-bevel-inset)]">
                                 {newSecret}
                             </code>
                             <CopyButton value={newSecret} label="Copy" />
@@ -252,10 +252,10 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 )}
             </div>
 
-            <div className="rounded-panel border border-border p-4 space-y-3 text-sm">
+            <div className="rounded-panel border border-border bg-surface-2 p-4 space-y-3 text-sm shadow-[var(--shadow-bevel-highlight)]">
                 <p className="">Connect an agent</p>
                 <div className="flex items-center gap-2">
-                    <code className="flex-1 min-w-0 truncate rounded-ctl bg-muted px-2.5 py-1.5 text-xs">
+                    <code className="flex-1 min-w-0 truncate rounded-ctl bg-surface-3 px-2.5 py-1.5 text-xs shadow-[var(--shadow-bevel-inset)]">
                         {mcpUrl}
                     </code>
                     <CopyButton value={mcpUrl} label="Copy URL" />

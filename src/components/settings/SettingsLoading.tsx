@@ -11,9 +11,15 @@ import { PageLayout } from "@/components/layout/PageLayout";
 export function SettingsLoading() {
     return (
         <PageLayout fullWidth>
-            <div className="mx-auto flex flex-col items-center justify-center gap-3 px-4 py-16 text-muted-foreground sm:px-8">
-                <div className="h-5 w-5 animate-spin rounded-pill border-2 border-brand border-t-brand" />
-                <p className="text-sm">Loading account…</p>
+            <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-8">
+                <div
+                    className="flex flex-col items-center justify-center gap-3 rounded-panel border border-border bg-surface p-10 text-muted-foreground shadow-[var(--shadow-bevel-highlight)]"
+                    role="status"
+                    aria-busy="true"
+                >
+                    <div className="h-5 w-5 animate-spin rounded-pill border-2 border-live border-t-transparent" />
+                    <p className="text-sm">Loading account…</p>
+                </div>
             </div>
         </PageLayout>
     );

@@ -288,7 +288,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                     </div>
 
                     {isAdding && (
-                        <div className="border border-border rounded-panel p-4 bg-muted animate-in slide-in-from-top-2">
+                        <div className="border border-border rounded-panel p-4 bg-surface-2 animate-in slide-in-from-top-2">
                             <div className="flex gap-4 mb-4">
                                 <Button variant={addType === 'text' ? "default" : "ghost"} size="sm" onClick={() => setAddType('text')}>
                                     <Note className="mr-2" /> Text
@@ -317,14 +317,14 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                             </div>
 
                             {error && (
-                                <div className="text-danger-text text-sm mb-4 bg-muted p-2 rounded-ctl">
+                                <div className="text-danger-text text-sm mb-4 bg-surface-2 p-2 rounded-ctl">
                                     {error}
                                 </div>
                             )}
 
                             <div className="space-y-4">
                                 {addType === 'file' ? (
-                                    <div className="border border-border rounded-panel p-8 text-center hover:bg-muted transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                    <div className="border border-border rounded-panel p-8 text-center hover:bg-surface-2 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                                         <input
                                             type="file"
                                             className="hidden"
@@ -375,7 +375,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
 
                                         {/* Discovered links section */}
                                         {(isDiscovering || discoveredLinks.length > 0) && (
-                                            <div className="border border-border rounded-panel p-3 bg-muted">
+                                            <div className="border border-border rounded-panel p-3 bg-surface-2">
                                                 <button
                                                     onClick={() => setShowDiscovered(v => !v)}
                                                     className="flex items-center gap-2 w-full text-sm text-left"
@@ -411,7 +411,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                             {discoveredLinks.map((link, i) => (
                                                                 <label
                                                                     key={link.url}
-                                                                    className="flex items-center gap-2 p-2 rounded-ctl hover:bg-muted cursor-pointer text-sm"
+                                                                    className="flex items-center gap-2 p-2 rounded-ctl hover:bg-surface-2 cursor-pointer text-sm"
                                                                 >
                                                                     <input
                                                                         type="checkbox"
@@ -451,10 +451,10 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {sources.map((source) => (
-                            <div key={source.id} className="group border border-border rounded-panel p-4 hover:border-foreground transition-colors relative bg-card">
+                            <div key={source.id} className="group relative rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)] transition-colors hover:border-foreground">
                                 <div className="flex items-start justify-between mb-2">
                                     <div className="flex items-center gap-2">
-                                        {source.type === 'url' && <LinkIcon className="text-brand" />}
+                                        {source.type === 'url' && <LinkIcon className="text-live" />}
                                         {source.type === 'file' && <FileText className="text-warn" />}
                                         {source.type === 'text' && <Note className="text-live" />}
                                         <h3 className="truncate max-w-48" title={source.title}>{source.title}</h3>
@@ -471,7 +471,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         <Trash />
                                     </Button>
                                 </div>
-                                <p className="text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded-ctl">
+                                <p className="text-xs text-muted-foreground line-clamp-3 bg-surface-2 p-2 rounded-ctl">
                                     {source.content}
                                 </p>
                                 <div className="mt-2 text-xs text-muted-foreground flex justify-end">
@@ -538,10 +538,13 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {communitySources.map((source) => (
-                                <div key={source.id} className="border border-border rounded-panel p-4 bg-card">
+                                <div
+                                    key={source.id}
+                                    className="rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]"
+                                >
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex items-center gap-2">
-                                            {source.type === 'url' && <LinkIcon className="text-brand" />}
+                                            {source.type === 'url' && <LinkIcon className="text-live" />}
                                             {source.type === 'file' && <FileText className="text-warn" />}
                                             {source.type === 'text' && <Note className="text-live" />}
                                             <h3 className="truncate max-w-48" title={source.title}>{source.title}</h3>
@@ -560,7 +563,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                             )}
                                         </Button>
                                     </div>
-                                    <p className="text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded-ctl">
+                                    <p className="text-xs text-muted-foreground line-clamp-3 bg-surface-2 p-2 rounded-ctl">
                                         {source.content}
                                     </p>
                                     <div className="mt-2 text-xs text-muted-foreground flex justify-end">

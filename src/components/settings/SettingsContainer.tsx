@@ -38,7 +38,7 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
     return (
         <Tabs value={tab} onValueChange={(v) => onChange(v as AccountTab)} className="mb-4">
             <TabsList variant="line">
-                <TabsTrigger value="resume">Resume</TabsTrigger>
+                <TabsTrigger value="resume">Résumé</TabsTrigger>
                 <TabsTrigger value="prefs">Preferences</TabsTrigger>
                 <TabsTrigger value="account">Account</TabsTrigger>
             </TabsList>
@@ -47,7 +47,11 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
 }
 
 function SettingsCard({ children }: { children: React.ReactNode }) {
-    return <div className="panel-enter mb-3 rounded-panel border border-border bg-card p-4">{children}</div>;
+    return (
+        <div className="panel-enter mb-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
+            {children}
+        </div>
+    );
 }
 
 export function SettingsContainer() {
@@ -181,7 +185,7 @@ export function SettingsContainer() {
                 {tab === "prefs" && (
                     <>
                         <SettingsCard>
-                            <h2 className="mb-1 text-base font-semibold leading-snug">On-Device AI &amp; Privacy</h2>
+                            <h2 className="mb-1 text-base font-semibold leading-snug">On-device AI &amp; privacy</h2>
                             <p className="mb-4 text-sm text-muted-foreground">
                                 {SETTINGS_LOCAL_AI_INTRO}
                             </p>
