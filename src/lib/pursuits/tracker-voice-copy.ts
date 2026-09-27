@@ -15,3 +15,8 @@ export const TRACKER_EMPTY_DESCRIPTION =
     "Save roles while browsing verified jobs, then pick up where you left off here.";
 
 export const TRACKER_FILTER_EMPTY = "Nothing in this lane.";
+
+export const HISTORY_EMPTY_TITLE = "Your history is empty.";
+
+export const HISTORY_EMPTY_DESCRIPTION =
+    "Open roles from Search or For you and we will keep a trail here so you can find your way back.";

@@ -30,6 +30,10 @@ import type { JobView } from "@/lib/views/types";
 import { posterListPanelClassName } from "@/components/layout/route-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+    HISTORY_EMPTY_DESCRIPTION,
+    HISTORY_EMPTY_TITLE,
+} from "@/lib/pursuits/tracker-voice-copy";
 
 /** Exported so `/mock/history` (fixture preview — `useViewed()` has no
  *  guest fallback, so the real route can't show filled/empty states
@@ -63,10 +67,10 @@ function HistoryEmptyState() {
     return (
         <ConceptAEmptyState
             testId="history-empty"
-            title="Jobs you open will show up here."
-            description="Open a role from Search or For you and we'll keep the trail warm for you."
+            title={HISTORY_EMPTY_TITLE}
+            description={HISTORY_EMPTY_DESCRIPTION}
             actions={
-                <Button asChild className="rounded-ctl font-semibold">
+                <Button asChild variant="outline" size="sm" className="rounded-ctl font-semibold">
                     <Link href="/jobs">Browse verified roles</Link>
                 </Button>
             }

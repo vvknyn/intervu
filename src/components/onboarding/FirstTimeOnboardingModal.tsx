@@ -22,6 +22,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { OnboardingStepLabel } from "@/components/onboarding/onboarding-step-label";
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
 import {
     ONBOARDING_MATCHING_PRIVACY,
@@ -127,7 +128,7 @@ export function FirstTimeOnboardingModal({
                 <div className="sr-only">
                     <DialogTitle>First-time Onboarding</DialogTitle>
                     <DialogDescription>
-                        Orientation to the Velai job discovery platform, local AI privacy, and resume onboarding.
+                        Orientation to the Velai job discovery platform, local AI privacy, and résumé onboarding.
                     </DialogDescription>
                 </div>
 
@@ -140,7 +141,7 @@ export function FirstTimeOnboardingModal({
                         </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Step {step} of 3</span>
+                        <OnboardingStepLabel step={step} />
                         <span>·</span>
                         <button
                             type="button"

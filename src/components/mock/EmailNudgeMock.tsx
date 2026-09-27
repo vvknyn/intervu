@@ -31,7 +31,7 @@ function Case({ title, note, children }: { title: string; note: string; children
 
 export function EmailNudgeMock() {
     return (
-        <main className="mx-auto flex max-w-[820px] flex-col gap-6 p-8">
+        <div className="mx-auto flex max-w-[820px] flex-col gap-6 p-8" data-testid="email-nudge-mock">
             <header>
                 <h1 className="text-lg font-semibold">
                     Account email prompt — every state
@@ -73,6 +73,6 @@ export function EmailNudgeMock() {
             >
                 <AccountEmailPrompt state="reachable" pendingEmail={null} />
             </Case>
-        </main>
+        </div>
     );
 }

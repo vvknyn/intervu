@@ -81,6 +81,7 @@ export function AuthPopover({
     guestSaveCount,
 }: AuthPopoverProps) {
     const succeededRef = useRef(false);
+    const returnFocusRef = useRef<HTMLElement | null>(null);
     const effectiveReason = reason ?? "generic";
     const [gate, setGate] = useState<NudgeGateState>("idle");
     const decisionRef = useRef<NudgeDecision | null>(null);
@@ -156,6 +157,23 @@ export function AuthPopover({
 
     const effectiveOpen = gate === "shown";
 
+    useEffect(() => {
+        if (!effectiveOpen || showTrigger) return;
+        const active = document.activeElement;
+        if (active instanceof HTMLElement) {
+            returnFocusRef.current = active;
+        }
+    }, [effectiveOpen, showTrigger]);
+
+    const handleDialogCloseAutoFocus = (event: Event) => {
+        event.preventDefault();
+        const target = returnFocusRef.current;
+        if (target?.isConnected) {
+            target.focus({ preventScroll: true });
+        }
+        returnFocusRef.current = null;
+    };
+
     const handleSuccess = () => {
         succeededRef.current = true;
         onAuthed?.();
@@ -171,7 +189,10 @@ export function AuthPopover({
     if (!showTrigger) {
         return (
             <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain bg-surface-2 p-5 pt-7 sm:p-6 sm:pt-8">
+                <DialogContent
+                    className="sm:max-w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain bg-surface-2 p-5 pt-7 sm:p-6 sm:pt-8"
+                    onCloseAutoFocus={handleDialogCloseAutoFocus}
+                >
                     <DialogTitle className="sr-only">{gateTitle ?? "Authentication"}</DialogTitle>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />

@@ -31,6 +31,7 @@ import {
 } from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData, ResumeProfile } from "@/types/resume";
 import { ConceptALanding } from "@/components/onboarding/ConceptALanding";
+import { OnboardingStepLabel } from "@/components/onboarding/onboarding-step-label";
 
 export interface LandingOnboardingViewProps {
     onComplete: (data: {
@@ -258,7 +259,7 @@ export function LandingOnboardingView({
                         <span className="h-2 w-2 rounded-pill bg-live" />
                         <span className="font-semibold text-foreground">Getting started</span>
                         <span className="text-muted-foreground">·</span>
-                        <span className="text-muted-foreground">Step {step} of 3</span>
+                        <OnboardingStepLabel step={step} />
                     </div>
 
                     <div className="flex items-center gap-2 text-xs">
@@ -360,7 +361,7 @@ export function LandingOnboardingView({
                                 <div className="p-2.5 rounded-ctl border border-border bg-muted text-xs space-y-1">
                                     <p className="font-semibold text-foreground">Why sign-in is required:</p>
                                     <p className="text-muted-foreground leading-snug">
-                                        All role recommendations, compensation analysis, and tailored resumes are private and tied securely to your verified account.
+                                        All role recommendations, compensation analysis, and tailored résumés are private and tied securely to your verified account.
                                     </p>
                                 </div>
                             </>
