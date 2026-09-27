@@ -39,8 +39,8 @@ See `docs/design-language-rollout.md` (project store) for phased surface rollout
 
 1. **The marketing surface takes its composition from ollama.com** — near-monochrome, generous
    whitespace, colour used scarcely.
-2. **Dark mode stays**, on every surface including marketing. (ollama.com has none; we are not
-   copying that.)
+2. **Dark-only** — Concept A charcoal is the only shipped surface; there is no user-facing
+   light/dark toggle. (ollama.com has none; we are not copying that either.)
 3. **Radius stays 0 everywhere.** Squared is our signature. (ollama.com is pills; we are not
    copying that either.)
 4. **Primary buttons are ink, not brand-coloured.** The accent survives as a sparing accent for
@@ -63,7 +63,7 @@ The `.openclaw` night scope (`src/app/openclaw-marketing.css`) exists only becau
 was built as a separate visual world; it remaps `--background`/`--foreground`/`--brand` to a
 coral/violet night palette and forces dark regardless of the user's toggle. **That is the cause
 of the "doesn't feel like the same product" jump from landing to search, and it is retired.**
-Marketing pages use the same tokens, the same shell and the same theme toggle as the app.
+Marketing pages use the same tokens, the same shell, and the same dark-only chrome as the app.
 
 **Done (2026-08-04, one-visual-world PR):** `openclaw-marketing.css` is deleted (nothing needed
 its `--oc-*` accents once the core-token remaps came out — the ones that did, like the front
@@ -98,8 +98,14 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
   `xl`, `2xl`, `inner`. Not "every key we happen to have written down": that reading is what left
   `2xl` casting Tailwind's stock shadow for a fortnight. Separation for every in-flow surface comes
   from a 1px `--border` and whitespace — ollama's rule, and it suits a squared system — and hover
-  affordance in-flow is border-darkening, never a lift. Never `shadow-lg`, `shadow-2xl`, or a raw
+  affordance in-flow is border-darkening by default, not a lift. Never `shadow-lg`, `shadow-2xl`, or a raw
   named-scale `shadow-*` class.
+
+  **Amended 2026-09-27 (interactive Card).** Static in-flow `<Card>` surfaces stay flat: bevel inset
+  (`--shadow-bevel-highlight`) only, no hover lift — they must not read as clickable. The foundational
+  `<Card interactive>` opt-in alone may compose `.interactive-lift` and transition to
+  `--shadow-surface-raised` on hover (fine pointer); that is the only sanctioned in-flow lift. All
+  other in-flow cards and paper surfaces keep border/whitespace separation only.
 
   The one deliberate exception is `--shadow-overlay` (`globals.css`, `:root`/`.dark`) — not part of
   Tailwind's scale, so the "none" rule above doesn't reach it. It is the single standard shadow for
@@ -187,8 +193,20 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
   without a cascade. `src/app/icon.svg` additionally used `#12151a`/`#e8e6e1` — in the palette
   at all — and is now on the `.dark` token values.
 
-- **Motion:** colour transitions only, 150ms, `cubic-bezier(0.4,0,0.2,1)`. Anything more needs
-  a reason written next to it, and must respect `prefers-reduced-motion`.
+- **Motion:** one contract in `globals.css` — read a token for each intent, never an ad-hoc
+  Tailwind `duration-*`. Utilities: `.designed-press`, `.interactive-lift`, `.enter-reveal`,
+  `.designed-focus` / `.designed-focus-ring`. All motion (including active scale and hover
+  lift) collapses under `prefers-reduced-motion`.
+
+| Intent | Token | Typical use |
+|---|---|---|
+| Instant | `--transition-instant` | Reduced-motion explicit |
+| Press | `--transition-press` (100ms) | Buttons, `.designed-press` active scale |
+| Base / panel | `--transition-base` / `--transition-panel` (150ms) | Colour, chips, dialogs |
+| Enter | `--transition-enter` (200ms) | Mount/reveal (`.enter-reveal`, `.panel-enter`) |
+| Deck | `--transition-deck` (220ms) | For-you pack index (later batches) |
+| Page | `--transition-page` (180ms) | Home view column crossfade (later batches) |
+| Easing | `--ease-standard` | `cubic-bezier(0.4, 0, 0.2, 1)` default |
 
 - **Guard:** `tests/unit/design-language.test.ts` enforces the three rules above against the
   rule rather than against a list — a new shadow key, a new hue-named token or a seventh copy

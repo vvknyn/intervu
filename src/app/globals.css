@@ -277,9 +277,22 @@
   /* Sidebar width */
   --sb-w: 250px;
 
-  /* Motion tokens */
+  /* Motion contract — one duration per intent (DESIGN-LANGUAGE.md Motion table).
+     Legacy aliases `--transition-fast` / `--transition-panel` remain for existing
+     call sites; new surfaces read the named roles below. */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-exit: cubic-bezier(0.4, 0, 1, 1);
+  --transition-instant: 0ms;
   --transition-fast: 100ms;
+  --transition-base: 150ms;
+  --transition-press: 100ms;
+  --transition-lift: 150ms;
   --transition-panel: 150ms;
+  --transition-enter: 200ms;
+  --transition-deck: 220ms;
+  --transition-page: 180ms;
+  --motion-press-scale: 0.98;
+  --motion-lift-y: -1px;
 
   /* Elevation — Tailwind named scale stays `none`; sanctioned semantic shadows
      below (Concept A skeuomorphic, 2026-09-26). See DESIGN-LANGUAGE.md. */
@@ -664,7 +677,7 @@ h4 {
 }
 
 .fade-in {
-  animation: fadeIn 0.4s ease-out forwards;
+  animation: fadeIn var(--transition-enter) var(--ease-standard) forwards;
 }
 
 /* Staggered animation delays */
@@ -722,11 +735,49 @@ h4 {
 }
 
 .panel-enter {
-  animation: panel-enter var(--transition-panel) ease-out both;
+  animation: panel-enter var(--transition-panel) var(--ease-standard) both;
 }
 
 .line-enter {
-  animation: panel-enter var(--transition-fast) ease-out both;
+  animation: panel-enter var(--transition-fast) var(--ease-standard) both;
+}
+
+/* Designed interaction utilities — consume motion tokens, not arbitrary durations. */
+.designed-press {
+  transition-property: transform, box-shadow, background-color, border-color, color, opacity;
+  transition-duration: var(--transition-press);
+  transition-timing-function: var(--ease-standard);
+}
+
+.designed-press:active:not(:disabled) {
+  transform: scale(var(--motion-press-scale));
+}
+
+.interactive-lift {
+  transition-property: transform, box-shadow, background-color, border-color, color, opacity;
+  transition-duration: var(--transition-lift);
+  transition-timing-function: var(--ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .interactive-lift:hover {
+    transform: translateY(var(--motion-lift-y));
+    box-shadow: var(--shadow-surface-raised);
+  }
+}
+
+.enter-reveal {
+  animation: panel-enter var(--transition-enter) var(--ease-standard) both;
+}
+
+.designed-focus:focus-visible {
+  outline: none;
+  border-color: rgb(var(--foreground));
+}
+
+.designed-focus-ring:focus-visible {
+  outline: 2px solid rgb(var(--live));
+  outline-offset: 2px;
 }
 
 /* Ambient Marquee & Scanline animations for landing background */
@@ -1066,8 +1117,20 @@ select {
      reading the token's raw value directly (not through a `transition`/
      `animation` shorthand) still gets a real zero. */
   :root {
-    --transition-fast: 0s;
-    --transition-panel: 0s;
+    --transition-instant: 0ms;
+    --transition-fast: 0ms;
+    --transition-base: 0ms;
+    --transition-press: 0ms;
+    --transition-lift: 0ms;
+    --transition-panel: 0ms;
+    --transition-enter: 0ms;
+    --transition-deck: 0ms;
+    --transition-page: 0ms;
+  }
+
+  .designed-press:active:not(:disabled),
+  .interactive-lift:hover {
+    transform: none !important;
   }
 }
 

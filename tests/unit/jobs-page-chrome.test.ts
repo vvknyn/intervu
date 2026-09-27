@@ -87,20 +87,17 @@ describe("nav tab placement", () => {
         assert.equal(agents?.tourSelector, "nav-connect");
     });
 
-    it("TopBar has no theme button of its own — dark mode lives in the footer only", () => {
+    it("TopBar has no theme control — product is dark-only", () => {
         const src = readFileSync(TOPBAR, "utf8");
-        const headerCluster = src.slice(
-            src.indexOf('aria-label="Primary"'),
-            src.indexOf('authChrome === "authenticated" && user ?'),
-        );
-        assert.doesNotMatch(headerCluster, /aria-label=\{mode === "dark"/);
+        assert.doesNotMatch(src, /useTheme/);
         assert.doesNotMatch(src, /Dark mode/);
+        assert.doesNotMatch(src, /toggleMode/);
     });
 
-    it("signed-out theme control lives in the footer", () => {
+    it("signed-out footer has no theme toggle (dark-only invariant)", () => {
         const footer = readFileSync(FOOTER, "utf8");
-        assert.match(footer, /toggleMode/);
-        assert.match(footer, /Dark mode/);
+        assert.doesNotMatch(footer, /toggleMode/);
+        assert.doesNotMatch(footer, /Dark mode/);
         assert.match(footer, /bg-background/);
         assert.doesNotMatch(footer, /siteChrome/);
         assert.doesNotMatch(footer, /bg-chrome/);

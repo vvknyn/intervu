@@ -150,17 +150,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`dark ${display.variable} ${sans.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
-        {/* Dark-mode FOUC guard (2026-08-15 mode toggle) — a synchronous
-            script in <head> blocks first paint until it runs, so a returning
-            dark-mode visitor never flashes the light surface. Mirrors
-            ThemeProvider's own read of the same "intervu-mode" key; that
-            provider's MutationObserver re-applies brand accent colors
-            whenever this class flips, so this script only sets the class. */}
+        {/* Dark-only FOUC guard — stamp `.dark` before first paint; no light path. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{if(localStorage.getItem("intervu-mode")==="dark"){document.documentElement.classList.add("dark");}}catch(e){}})();`,
+            __html: `(function(){try{document.documentElement.classList.add("dark");localStorage.setItem("intervu-mode","dark");}catch(e){document.documentElement.classList.add("dark");}})();`,
           }}
         />
       </head>

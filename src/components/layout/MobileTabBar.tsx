@@ -7,7 +7,7 @@ import { onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { MOBILE_ACCOUNT_TAB, NAV_TABS, mobilePrimaryTabs } from "@/components/layout/nav-tabs";
 import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
-import { cn } from "@/lib/utils";
+import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 
 // `mobilePrimary: false` (nav-tabs.tsx) opts a tab OUT of this bar while it
 // stays in the desktop nav — filtered on that one declarative field via
@@ -63,7 +63,8 @@ export function MobileTabBar() {
                         data-tour={tab.tourSelector}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                            "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap text-xs transition-colors duration-100",
+                            "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-ctl text-xs transition-colors duration-100",
+                            CHROME_FOCUS_VISIBLE,
                             active ? "text-foreground font-semibold" : "text-muted-foreground font-normal",
                         )}
                     >
