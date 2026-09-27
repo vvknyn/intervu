@@ -37,6 +37,9 @@ Never commit directly on `main` or `staging`.
 Same set as before (Firebase, OpenRouter, Groq, encryption, Meilisearch read key,
 Subspace API). Put them in `.env.production` on Contabo — **not** in git.
 
+`EMAIL_POSTAL_ADDRESS` — optional physical mailing address rendered in marketing
+email footers (CAN-SPAM); omit when unset.
+
 `NEXT_PUBLIC_*` are required at **docker build** time (inlined into the client
 bundle). Server secrets are runtime-only via `env_file`.
 
