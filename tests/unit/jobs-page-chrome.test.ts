@@ -116,6 +116,20 @@ describe("nav tab placement", () => {
         assert.doesNotMatch(src, /bg-chrome/);
     });
 
+    it("MobileTabBar tab links use CHROME_FOCUS_VISIBLE for keyboard focus", () => {
+        const src = readFileSync(MOBILE_TABBAR, "utf8");
+        assert.match(src, /CHROME_FOCUS_VISIBLE/);
+        assert.match(src, /rounded-ctl/);
+        assert.doesNotMatch(src, /focus-visible:ring-/);
+    });
+
+    it("TopBar primary nav links use CHROME_FOCUS_VISIBLE for keyboard focus", () => {
+        const src = readFileSync(TOPBAR, "utf8");
+        const barLinks = src.slice(src.indexOf("{barTabs.map"), src.indexOf("</nav>", src.indexOf("{barTabs.map")));
+        assert.match(barLinks, /CHROME_FOCUS_VISIBLE/);
+        assert.doesNotMatch(barLinks, /focus-visible:ring-/);
+    });
+
     it("TopBar paints paper chrome, not ink siteChrome", () => {
         const src = readFileSync(TOPBAR, "utf8");
         assert.doesNotMatch(src, /siteChrome/);
