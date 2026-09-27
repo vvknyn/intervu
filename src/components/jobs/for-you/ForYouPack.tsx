@@ -56,7 +56,7 @@ const JD_SCROLL_CLASS =
 /** Employer-stated fact — quiet/neutral, same chip primitive everywhere. */
 const STATED_CHIP_CLASS = cn(
     chipVariants({ active: false }),
-    "h-7 px-2.5 text-xs bg-background text-[rgb(var(--foreground))]",
+    "h-7 px-2.5 text-xs bg-background text-foreground",
 );
 
 /**
