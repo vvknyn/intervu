@@ -529,7 +529,8 @@ async function runLandingSignedOut(browser, engine, label, viewport) {
     };
   });
   await loadAxe(page);
-  const landingAxe = await runAxeContrast(page, 'main');
+  // Concept A landing renders outside the layout <main> landmark — scan the full document.
+  const landingAxe = await runAxeContrast(page, 'document');
   await shot(page, `landing-signed-out-${engine}-${label}.png`);
   await ctx.close();
   const axePass =

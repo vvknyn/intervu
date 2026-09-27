@@ -6,6 +6,7 @@ import { test } from 'node:test';
 test('gate-walk-signed-in.mjs covers privacy, landing, motion, and gate viewports', () => {
   const src = readFileSync('scripts/gate-walk-signed-in.mjs', 'utf8');
   assert.match(src, /runLandingSignedOut/, 'signed-out landing runner');
+  assert.match(src, /runAxeContrast\(page, 'document'\)/, 'landing scans full document (Concept A sits outside main)');
   assert.match(src, /\/privacy/, 'privacy route');
   assert.match(src, /1440,\s*height:\s*900/, 'desktop gate viewport');
   assert.match(src, /prefers-reduced-motion|reducedMotion/, 'reduced-motion emulation');
