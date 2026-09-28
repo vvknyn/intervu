@@ -45,6 +45,8 @@ next-env.d.ts
 /playwright-report/
 /test-results/
 /test-output/
+/journeys-report/
+/journeys-output/
 playwright/.cache/
 
 # debug/test scripts (optional - remove if you want to commit these)
@@ -72,7 +74,9 @@ openclaw/node_modules/
 
 # Local IDE & agent temp profiles
 .wf-chrome-profile/
-.claude/
+.claude/*
+# ...except the checked-in journey-coverage PreToolUse hook.
+!.claude/settings.json
 
 .screenshots/
 
