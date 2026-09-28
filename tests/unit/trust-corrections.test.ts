@@ -132,6 +132,14 @@ test("isForeignCountryTld flags UK/DE and spares .com/.ca/.org/.net", () => {
 test("isCanadaJobContext matches company suffix and location_country", () => {
     assert.equal(isCanadaJobContext({ company: "Foo (Canada)", location_country: null }), true);
     assert.equal(isCanadaJobContext({ company: "Foo (Canadian)", location_country: null }), true);
+    assert.equal(
+        isCanadaJobContext({ company: "Fresenius Medical Care Canada", location_country: null }),
+        true,
+    );
+    assert.equal(
+        isCanadaJobContext({ company: "Fresenius Medical Care", location_country: null }),
+        false,
+    );
     assert.equal(isCanadaJobContext({ company: "Foo", location_country: "Canada" }), true);
     assert.equal(isCanadaJobContext({ company: "Foo", location_country: ["CA", "US"] }), true);
     assert.equal(isCanadaJobContext({ company: "Foo", location_country: "United States" }), false);

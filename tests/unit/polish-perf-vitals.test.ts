@@ -68,6 +68,8 @@ test("Concept A landing holds #main height while Step 1 body class is active", (
 test("jobs layout SSR-paints Concept A before client /jobs bundle", () => {
     assert.match(JOBS_LAYOUT, /ConceptALandingStatic/);
     assert.match(JOBS_LAYOUT, /JOBS_LANDING_CRITICAL_CSS/);
+    assert.doesNotMatch(JOBS_LAYOUT, /dangerouslySetInnerHTML.*script|<script/);
+    assert.match(ONBOARDING_PAINT, /JOBS_ONBOARDING_HEAD_SCRIPT/);
     assert.match(ONBOARDING_PAINT, /concept-a-landing-active/);
     assert.match(ONBOARDING_PAINT, /velai-onboarding-complete/);
 });

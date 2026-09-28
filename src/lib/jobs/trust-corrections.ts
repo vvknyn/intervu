@@ -77,6 +77,8 @@ const BRAND_AFFILIATIONS: BrandAffiliation[] = [
 ];
 
 const CANADA_COMPANY_SUFFIX = /\((?:canada|canadian)\)/i;
+/** Legal names like "Fresenius Medical Care Canada" — not only "(Canada)" suffixes. */
+const CANADA_COMPANY_WORD = /\b(?:canada|canadian)\b/i;
 
 const SALARY_CONTEXT =
   /\b(salary|compensation|pay(?:\s+range)?|wage|remuneration|package|earning|income|annual(?:ly)?|hourly|base\s+pay|total\s+compensation)\b/gi;
@@ -148,6 +150,7 @@ export function isCanadaJobContext(
 ): boolean {
   const company = job.company?.trim() ?? "";
   if (CANADA_COMPANY_SUFFIX.test(company)) return true;
+  if (CANADA_COMPANY_WORD.test(company)) return true;
   return isCanadaLocationCountry(job.location_country);
 }
 
