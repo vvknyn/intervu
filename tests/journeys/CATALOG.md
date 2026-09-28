@@ -561,7 +561,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-05 | Open the auth popover from Sign in and from Create account | anon | /trends | signed-out | no | uncovered | — |
 | J-NAV-06 | Click the logo to return to the front door | anon | /trends | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-006: Wordmark click returns to the front door) |
 | J-NAV-07 | See a single Sign in button on lean surfaces | anon | /jobs | signed-out | no | uncovered | — |
-| J-NAV-08 | Use the signed-in TopBar dropdown to reach Jobs, Résumé and Tracker | signed-in | /trends | signed-in | no | uncovered | — (legacy: navigation-comprehensive.spec.ts › NAV-001) |
+| J-NAV-08 | Use the signed-in TopBar tab links to reach Jobs, Résumé and Tracker | signed-in | /trends | signed-in | no | uncovered | — (legacy: navigation-comprehensive.spec.ts › NAV-001) |
 | J-NAV-09 | Reach /connect from the signed-in MCP link, hidden on lean surfaces | signed-in | /trends | signed-in | no | uncovered | — |
 | J-NAV-10 | See the Tracker badge when pursuits exist | signed-in | /trends | signed-in | no | uncovered | — |
 | J-NAV-11 | Open the account menu and reach Account, Research and Privacy & Terms | signed-in | /trends | signed-in | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-004: Navigate to Settings via avatar menu) |
@@ -583,6 +583,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-27 | Use the skip link to jump to main content | anon | /trends | signed-out | no | uncovered | — |
 | J-NAV-28 | See the offline shell and retry | anon | /trends | signed-out | no | uncovered | — |
 | J-NAV-29 | See the auth-pending placeholder before the session resolves | anon | /trends | signed-out | no | uncovered | — |
+| J-NAV-30 | See the For you and Search header tabs; clicking one moves aria-current and `view=` in the URL (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
+| J-NAV-31 | See the follow-alerts count chip fully inside the header bar (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
 
 ## ERR
 

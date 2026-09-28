@@ -1,6 +1,7 @@
 import { X } from "@phosphor-icons/react"
 import { cva } from "class-variance-authority"
 
+import { solidBadgeVariants } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
 /**
@@ -39,8 +40,7 @@ export const chipVariants = cva(
 /** Shared count badge for filter toolbars — neutral, not brand-accented
  *  (ACCENT DISCIPLINE: brand navy is reserved for the 3 named filled
  *  controls, not a filter count badge). */
-export const filterCountBadgeClass =
-  "inline-flex min-w-4 items-center justify-center rounded-pill border border-border bg-muted px-1 text-xs font-semibold tabular-nums text-foreground"
+export const filterCountBadgeClass = solidBadgeVariants({ tone: "muted" })
 
 /** The chip's own dismiss icon — shared so every chip's remove affordance is
  *  the same tap target/hover treatment instead of an inline one-off button. */

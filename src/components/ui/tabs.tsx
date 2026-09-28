@@ -2,9 +2,10 @@
 
 import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
+import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
-import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 function Tabs({
   className,
@@ -33,9 +34,6 @@ const tabsListVariants = cva(
         // Line tabs (Carbon) — the one tab treatment the rulebook names.
         default: "flex border-b border-border gap-0 bg-transparent p-0",
         line: "flex border-b border-border gap-0 bg-transparent p-0",
-        // Segmented control, not a nav-tab pattern — kept for login-form.tsx's
-        // sign-in/create-account toggle, outside this pass's line-tabs scope.
-        block: "gap-0 rounded-ctl border border-border bg-muted p-0.5 inline-flex w-fit items-center justify-center group-data-[orientation=horizontal]/tabs:h-auto",
       },
     },
     defaultVariants: {
@@ -60,6 +58,37 @@ function TabsList({
   )
 }
 
+/**
+ * THE tab look — an underline tab, not a pill: no container, fill or radius,
+ * and a 2px accent bar under the active item that sits flush with the bottom
+ * border of whatever holds it (the header, a `TabsList`). Every tab, view
+ * switch and nav link on the site takes its paint from this one recipe; a
+ * hand-rolled segmented pill is a defect (tests/unit/tab-primitive-gate.test.ts).
+ *
+ * "Active" is read from whichever attribute the element already carries for
+ * its own semantics — `data-state=active` (Radix tabs), `aria-current` (nav
+ * links, view switches), `aria-pressed` (single-select groups) — so a caller
+ * never restates it as a class.
+ *
+ * `font-medium` is deliberate: globals.css maps the medium weight onto the
+ * rulebook's 400 (allowed weights are 400/600 only), so the 500 of the design
+ * renders at 400 and the active item is told apart by colour + bar, not by
+ * weight — which also keeps the row from shifting when the active tab changes.
+ */
+export const tabItemVariants = cva(
+  "relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap px-3 text-sm font-medium text-muted-foreground transition-colors motion-reduce:transition-none outline-none hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-transparent data-[state=active]:text-foreground data-[state=active]:after:bg-brand aria-[current]:text-foreground aria-[current]:after:bg-brand aria-pressed:text-foreground aria-pressed:after:bg-brand",
+  {
+    variants: {
+      size: {
+        // Full header height: a tall hit area, a light visual.
+        bar: "h-[var(--topbar-h)]",
+        inline: "h-10",
+      },
+    },
+    defaultVariants: { size: "inline" },
+  }
+)
+
 function TabsTrigger({
   className,
   ...props
@@ -67,21 +96,42 @@ function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
-      className={cn(
-        // design-language.md §5 `ToolbarSegment` recipe: `min-h-6 rounded-ctl
-        // px-3 text-sm font-semibold leading-none`, pressed = underline, no
-        // fill — the line/default variant IS this recipe, not its own shape.
-        "inline-flex min-h-6 items-center justify-center gap-2 rounded-ctl px-3 text-sm font-semibold leading-none whitespace-nowrap text-muted-foreground transition-colors disabled:pointer-events-none disabled:opacity-50",
-        CONTROL_FOCUS_VISIBLE,
-        "hover:text-foreground data-[state=active]:text-foreground data-[state=active]:underline data-[state=active]:underline-offset-2",
-        // `block` (login-form's segmented toggle, out of this pass's scope)
-        // keeps its own fill treatment and opts out of the underline.
-        "group-data-[variant=block]/tabs-list:h-8 group-data-[variant=block]/tabs-list:data-[state=active]:no-underline group-data-[variant=block]/tabs-list:data-[state=active]:bg-primary group-data-[variant=block]/tabs-list:data-[state=active]:text-primary-foreground",
-        className
-      )}
+      className={cn(tabItemVariants(), className)}
       {...props}
     />
   )
+}
+
+/** A tab that is a link or a plain button rather than a Radix tab — a nav
+ *  link, or a view switch that swaps state in place. `current` marks the
+ *  active one (`"page"` for a link to the page you are on, `true` for a view
+ *  within it); `asChild` paints a `Link`. */
+function TabItem({
+  current,
+  size,
+  asChild = false,
+  className,
+  ...props
+}: Omit<React.ComponentProps<"button">, "aria-current"> &
+  VariantProps<typeof tabItemVariants> & {
+    current?: boolean | "page"
+    asChild?: boolean
+  }) {
+  const Comp = asChild ? Slot : "button"
+  return (
+    <Comp
+      data-slot="tab-item"
+      {...(asChild ? {} : { type: "button" as const })}
+      aria-current={current ? (current === true ? "true" : current) : undefined}
+      className={cn(tabItemVariants({ size }), className)}
+      {...props}
+    />
+  )
+}
+
+/** The row that holds `TabItem`s — a labelled `<nav>`, no chrome of its own. */
+function TabNav({ className, ...props }: React.ComponentProps<"nav">) {
+  return <nav data-slot="tab-nav" className={cn("flex items-center", className)} {...props} />
 }
 
 function TabsContent({
@@ -97,4 +147,4 @@ function TabsContent({
   )
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants }
+export { Tabs, TabsList, TabsTrigger, TabsContent, TabItem, TabNav, tabsListVariants }
