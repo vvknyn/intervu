@@ -343,8 +343,6 @@ async function navigateHubToPrompt(page) {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     promptVisible = await page.getByTestId('apply-return-prompt').isVisible({ timeout: 8000 }).catch(() => false);
   }
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(800);
   return { dlVisible, promptVisible };
 }
 
@@ -500,6 +498,54 @@ async function runIcon(browser, engine, label, viewport, wos) {
   return { pass, user: user?.email, probe };
 }
 
+/** html { scroll-behavior: smooth } makes a bare scroll-to-origin a long
+ *  animation. On WebKit that animation does not finish before axe runs, and
+ *  a smooth scroll to the bottom can keep going, so scrollY stays large.
+ *  The apply prompt is position:fixed (still "visible"), but axe will not
+ *  match its text against the overflow:hidden ancestors, and color-contrast
+ *  scans 0 nodes. Instant scroll, then wait for a real text rect. */
+async function settleApplyPromptForAxe(page) {
+  await page.evaluate(async () => {
+    const root = document.documentElement;
+    root.style.scrollBehavior = 'auto';
+    if (document.body) document.body.style.scrollBehavior = 'auto';
+    const zero = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      root.scrollTop = 0;
+      root.scrollLeft = 0;
+      if (document.scrollingElement) {
+        document.scrollingElement.scrollTop = 0;
+        document.scrollingElement.scrollLeft = 0;
+      }
+      if (document.body) {
+        document.body.scrollTop = 0;
+        document.body.scrollLeft = 0;
+      }
+    };
+    const textReady = () => {
+      const prompt = document.querySelector('[data-testid="apply-return-prompt"]');
+      if (!prompt) return false;
+      const walker = document.createTreeWalker(prompt, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = walker.nextNode())) {
+        if (!(n.textContent || '').trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        for (const rect of range.getClientRects()) {
+          if (rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight) return true;
+        }
+      }
+      return false;
+    };
+    for (let i = 0; i < 30; i++) {
+      zero();
+      const scrolled = window.scrollY === 0 && (document.scrollingElement?.scrollTop || 0) === 0;
+      if (scrolled && textReady()) return;
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+  });
+}
+
 async function runBetalistCell(browser, engine, label, viewport, wos) {
   const ctx = await newCtx(browser, viewport);
   await injectSession(ctx, wos);
@@ -521,17 +567,33 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
   await ensureDeckRoleOpen(page);
   await page.getByTestId('for-you-download-apply').waitFor({ state: 'visible', timeout: 90000 }).catch(() => {});
   await page.waitForTimeout(1500);
-  // Scrolling the document to the bottom leaves window.scrollY stuck (the
-  // fixed "Did you apply?" chip stays on screen, but axe then treats
-  // color-contrast as inapplicable). Only scroll when the button is not
-  // already in view.
+  // Do not scroll the document to the bottom. That uses smooth scrolling,
+  // which WebKit does not finish before the prompt contrast check, so axe
+  // scans 0 nodes on a chip that is still on screen. Move only the deck
+  // scroller, instantly, when the button is outside the viewport.
   const downloadInView = await page.getByTestId('for-you-download-apply').evaluate((el) => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.top >= 0 && r.bottom <= window.innerHeight;
   }).catch(() => false);
   if (!downloadInView) {
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(800);
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      const el = document.querySelector('[data-testid="for-you-download-apply"]');
+      if (!el) return;
+      let node = el.parentElement;
+      while (node && node !== document.body && node !== document.documentElement) {
+        const overflowY = getComputedStyle(node).overflowY;
+        if (/(auto|scroll)/.test(overflowY) && node.scrollHeight > node.clientHeight + 1) {
+          const er = el.getBoundingClientRect();
+          const nr = node.getBoundingClientRect();
+          if (er.bottom > nr.bottom || er.top < nr.top) node.scrollTop += er.top - (nr.top + 16);
+          return;
+        }
+        node = node.parentElement;
+      }
+      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+    });
+    await page.waitForTimeout(50);
   }
   await page.getByTestId('for-you-deck').waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
   const deckAxe = await runAxeContrast(page, '[data-testid="for-you-deck"]');
@@ -555,9 +617,7 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
   let promptAxe = { violationCount: 0, incompleteCount: 0, scannedNodes: 0, skipped: true };
   const prompt = page.getByTestId('apply-return-prompt');
   if (await prompt.isVisible().catch(() => false)) {
-    // A scrolled document makes axe treat this fixed chip as offscreen, so
-    // color-contrast comes back inapplicable and scannedNodes stays 0.
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await settleApplyPromptForAxe(page);
     await shot(page, `betalist-${engine}-${label}-apply-prompt.png`);
     promptAxe = await runAxeContrast(page, '[data-testid="apply-return-prompt"]');
     promptAxe.skipped = false;

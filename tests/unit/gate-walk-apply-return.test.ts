@@ -18,4 +18,7 @@ test("signed-in gate walk waits past apply-return threshold and simulates popup 
     assert.match(src, /bringToFront/);
     assert.match(src, /apply-return-prompt/);
     assert.doesNotMatch(src, /label\.includes\('mobile'\)/);
+    assert.match(src, /scrollBehavior = 'auto'/);
+    assert.doesNotMatch(src, /scrollTo\(0,\s*document\.body\.scrollHeight\)/);
+    assert.doesNotMatch(src, /window\.scrollTo\(0,\s*0\)/);
 });
