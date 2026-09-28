@@ -1,5 +1,5 @@
-/** Locked Velai product mark — dark skeuomorphic tile (no white card), navy
- *  brackets, ONE green live dot. Raster is the source of truth
+/** Locked Velai product mark — soft paper card, navy brackets, ONE bigger
+ *  green live dot (1e5d7f11 / velai-icon-exports). Raster is the source of truth
  *  (`public/velai-logo.png`, derived from the locked master in
  *  `.velai-icon-imports/velai-icon-exports/`). Do not invent a second mark.
  *
