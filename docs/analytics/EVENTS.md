@@ -174,3 +174,59 @@ both show those hits — the mobile results column is no longer hidden behind
 "Pick one to start searching" / "Show jobs" (`LandingMarketingShowcase` chips
 stay above the list). Default browse does **not** fire `search_submitted`; do
 not invent one for the seed list.
+
+## PostHog AI observability (`$ai_generation`)
+
+**Not part of `ANALYTICS_EVENTS`.** PostHog AI observability event `$ai_generation`
+is captured separately via `postServerCapture` in `src/lib/analytics/ai-generation.ts`.
+
+**Seam:** `OpenAICompatibleProvider.generate` (`src/lib/llm/providers.ts`) — one
+event per provider attempt (each `chat.completions.create` call). `fetchJSON`
+(`src/actions/generate-context.ts`) stamps one `$ai_trace_id` per invocation so
+failed free rungs, the paid tail, and any JSON-repair second call share a trace.
+
+**Properties:** `$ai_model`, `$ai_provider`, `$ai_input_tokens`, `$ai_output_tokens`,
+`$ai_total_cost_usd` (only when OpenRouter returns `usage.cost`; otherwise PostHog
+prices from model + tokens), `$ai_latency` (seconds), `$ai_is_error`, `$ai_error`
+(stable code only), `$ai_trace_id`, `$ai_span_id`, `$ai_span_name` / `llm_feature`,
+`llm_is_fallback`, `llm_attempt`, `product: intervu`, plus the server capture's
+`$host` and `$lib`.
+
+**Live feature slug today:** `search_query_parse` (`parseSearchQuery` in
+`src/actions/search.ts`). Any future `generateGenericJSON` caller is covered if it
+passes a short feature slug; default is `generic_json`.
+
+**Out of scope:** résumé parse, tailor, and customize run on-device
+(`src/lib/local-ai/`) and are not these events. Match scoring is not an LLM call.
+
+**Privacy:** `$ai_input` and `$ai_output_choices` are intentionally omitted.
+Feature slugs longer than 64 characters or containing newlines are dropped to
+`unspecified`. Distinct id is the account uid, never an email. Error property is
+an enum code, never the provider message.
+
+**What actually calls the model today:** the capture sits on
+`OpenAICompatibleProvider.generate`, so every future `generateGenericJSON` /
+`fetchJSON` caller is covered. The jobs UI does not reach it. `parseSearchQuery`
+is the only in-repo caller of `generateGenericJSON`, nothing imports that
+action, and `quickParseSearchQuery` returns a result for every non-empty
+query — so typing in the search box does not emit `$ai_generation`. On-device
+résumé parse and tailor do not either.
+
+**Test plan:**
+
+1. `npx tsx --test tests/unit/ai-generation.test.ts` — asserts a `$ai_generation`
+   POST with model, provider, tokens, latency, `llm_feature`, `$host`, and
+   `$lib`, and that prompt/response keys are absent.
+2. Live check (spends the shared OpenRouter key): signed in, with
+   `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_SITE_URL`, and `OPENROUTER_API_KEY`
+   set, call `generateGenericJSON` from a server context with a short feature
+   slug, for example
+   `generateGenericJSON('Return JSON {"ok":true}', undefined, "search_query_parse")`.
+3. In PostHog project 314095 → AI observability → Generations
+   (https://us.posthog.com/project/314095/ai), filter event `$ai_generation`
+   and `$ai_span_name = search_query_parse`.
+4. Expect one row per ladder attempt that actually called the model: model,
+   provider `openrouter`, token counts, latency, `llm_feature`, and no
+   prompt/response text in the event properties.
+5. A failed free rung and the paid tail share one `$ai_trace_id` and are
+   separate generations (not double-counted as a second event name).

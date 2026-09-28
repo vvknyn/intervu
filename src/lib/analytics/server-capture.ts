@@ -9,8 +9,9 @@
  * `search_alert_verified` never following through (30d: 76 / 0 / 0).
  *
  * Posts straight to PostHog's HTTP capture API rather than adding
- * `posthog-node` — this is the only server-side event this repo sends, and
- * a plain `fetch` (the PostHog project key is a public, write-only key, safe
+ * `posthog-node`. Search-alert events and `$ai_generation` (see
+ * `ai-generation.ts`) both go through `postServerCapture`. A plain `fetch`
+ * (the PostHog project key is a public, write-only key, safe
  * to hold in a `NEXT_PUBLIC_*` env var and reuse here — see
  * `PostHogProvider.tsx`) covers it without a new dependency. Reuses
  * `posthogApiHost` (posthog-options.ts) so this rides the SAME same-origin
@@ -35,10 +36,10 @@ import type { EventPayloads } from "@/lib/analytics/events";
 import { posthogApiHost } from "@/lib/posthog-options";
 import { getSiteUrl } from "@/lib/seo/constants";
 
-export function captureServerEvent<K extends AnalyticsEventKey>(
-  event: K,
+export function postServerCapture(
+  event: string,
   distinctId: string,
-  properties: EventPayloads[K],
+  properties: Record<string, unknown>,
 ): void {
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   if (!apiKey) return;
@@ -58,7 +59,7 @@ export function captureServerEvent<K extends AnalyticsEventKey>(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       api_key: apiKey,
-      event: ANALYTICS_EVENTS[event],
+      event,
       // $host and $lib are appended last so caller-supplied `properties`
       // can never override them — see the module doc: dashboards filter on
       // `$host`, and the browser SDK sets it automatically, but a raw
@@ -70,4 +71,12 @@ export function captureServerEvent<K extends AnalyticsEventKey>(
     // Fire-and-forget — a dead analytics endpoint must never surface as a
     // failure of the request that triggered the capture.
   });
+}
+
+export function captureServerEvent<K extends AnalyticsEventKey>(
+  event: K,
+  distinctId: string,
+  properties: EventPayloads[K],
+): void {
+  postServerCapture(ANALYTICS_EVENTS[event], distinctId, properties as Record<string, unknown>);
 }
