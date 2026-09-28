@@ -6,7 +6,7 @@
  *
  * Mirrors the SAME pipeline `/jobs` (`app/jobs/page.tsx`, read-only
  * reference — never edited here) runs client-side: `buildMatchQuery(resume)`
- * plus résumé-derived location facets (`applyFit`, ~page.tsx:4082) → one
+ * plus résumé city/region facets (`packApplyLocationFacets`, same as pack apply) → one
  * search call → fit attached per hit → sorted by `match.total` descending
  * (`matchScores`/`renderedClusters`, ~page.tsx:2782-2828) → reordered by
  * `orderForYouJobsByBand` (Strong → Good → Stretch, unscored last) with
@@ -18,7 +18,7 @@
  * `inferReasons` itself.
  */
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
-import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
+import { packApplyLocationFacets } from "@/lib/jobs/for-you/pack-apply-location";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { fitFor } from "@/lib/jobs/for-you/fit";
 import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
@@ -66,7 +66,7 @@ export interface RankForYouParams {
 export async function rankForYou(params: RankForYouParams): Promise<RankForYouResult> {
     const { resume, search, candidateDepth, postedBucket } = params;
     const { q, facets: derivedFacets } = buildMatchQuery(resume);
-    const locationFacets = deriveResumeLocationFacets(resume.profile?.location);
+    const locationFacets = packApplyLocationFacets(resume);
     const facets = mergeFacets({}, { ...derivedFacets, ...locationFacets });
 
     const result = await search({

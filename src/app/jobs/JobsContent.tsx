@@ -325,7 +325,11 @@ import {
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
-import { isCanadaDeckJob, omitCanadaCountryFacet } from "@/lib/jobs/for-you/canada-deck";
+import { isCanadaDeckJob } from "@/lib/jobs/for-you/canada-deck";
+import {
+    candidateLocationFromResume,
+    packApplyLocationFacets,
+} from "@/lib/jobs/for-you/pack-apply-location";
 import {
     formatBrowseHubCorpusLine,
     formatHubCorpusLine,
@@ -347,7 +351,6 @@ import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
-import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
@@ -2958,7 +2961,7 @@ export function JobsContent({
     // search before it could paint category counts.
     const hubResumeKey =
         resume && hasUsableResume
-            ? `${buildMatchQuery(resume).q}\0${resume.profile?.location ?? ""}`
+            ? `${buildMatchQuery(resume).q}\0${candidateLocationFromResume(resume)}`
             : "";
 
     // No usable résumé (missing, junk, or still loading): paint pack counts
@@ -3006,7 +3009,7 @@ export function JobsContent({
                 const { q, facets: derived } = buildMatchQuery(resume);
                 const derivedWithLocation = {
                     ...derived,
-                    ...omitCanadaCountryFacet(deriveResumeLocationFacets(resume.profile?.location)),
+                    ...packApplyLocationFacets(resume),
                 };
                 const merged = mergeFacets({}, derivedWithLocation);
                 const scoredById = new Map<string, ScoredHubHit>();
@@ -4547,7 +4550,7 @@ export function JobsContent({
         const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
         const derivedWithLocation = userPickedLocation
             ? derived
-            : { ...derived, ...omitCanadaCountryFacet(deriveResumeLocationFacets(r.profile?.location)) };
+            : { ...derived, ...packApplyLocationFacets(r) };
         const merged = mergeFacets(facets, derivedWithLocation);
         setFacets(merged);
         setQueryDraft(q);
