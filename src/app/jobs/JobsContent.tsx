@@ -2945,11 +2945,11 @@ export function JobsContent({
     // exists or a pack is open, so a later deck page cannot blank the pills.
     useEffect(() => {
         if (!showForYouHome || forYouPackDeckOpen || hubResumeKey) return;
-        const hits = result?.hits;
-        if (!hits?.length) return;
+        const current = result;
+        if (!current || !current.hits?.length) return;
         setHubBrowse({
-            jobs: hits,
-            total: typeof result.total === "number" ? result.total : null,
+            jobs: current.hits,
+            total: typeof current.total === "number" ? current.total : null,
         });
     }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, result]);
 
