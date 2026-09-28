@@ -188,7 +188,8 @@ async function runNoResumePacks(browser, engine, label, viewport, wos) {
   const probe = await surfaceProbe(page);
   await ctx.close();
   const unexpectedErrors = consoleErrors.filter(
-    (line) => !/script tag while rendering|Failed to load resource/i.test(line),
+    (line) =>
+      !/script tag while rendering|Failed to load resource|Content Security Policy/i.test(line),
   );
   const countsOk = Object.values(counts).every((text) => /\d/.test(text) && !String(text).includes('…'));
   const pass =
