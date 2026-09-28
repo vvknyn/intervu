@@ -130,14 +130,22 @@ async function newCtx(browser, viewport, reducedMotion = false) {
   });
   await ctx.addInitScript(
     ({ enabledKey, resumeKey, resume }) => {
+      // Seed before touching documentElement. This script runs before the
+      // document element exists, so classList throws. One shared try used to
+      // swallow that and skip the résumé, and the deck then stays on the
+      // ranking shell with no job row.
       try {
-        localStorage.setItem('intervu-mode', 'dark');
-        document.documentElement.classList.add('dark');
         localStorage.setItem(enabledKey, '1');
         localStorage.setItem(resumeKey, JSON.stringify(resume));
         localStorage.setItem('velai-packs-home-intro-v1', '1');
+        localStorage.setItem('intervu-mode', 'dark');
       } catch {
-        /* ignore */
+        /* private mode */
+      }
+      try {
+        document.documentElement?.classList.add('dark');
+      } catch {
+        /* documentElement is null this early */
       }
     },
     { enabledKey: LOCAL_AI_ENABLED_KEY, resumeKey: LOCAL_AI_RESUME_KEY, resume: SEEDED_RESUME },
