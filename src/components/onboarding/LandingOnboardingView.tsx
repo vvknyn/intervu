@@ -20,8 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
+import { parsePdfForProfileReview } from "@/lib/resume/profile-review-parse";
 import { buildReturnTo } from "@/lib/jobs/pending-actions";
 import {
     LANDING_DEVICE_STORAGE_NOTE,
@@ -199,16 +199,21 @@ export function LandingOnboardingView({
         }
 
         setUploadedFile(file);
+        setParsedResume(null);
+        setSkillsString("");
         setUploading(true);
 
         try {
-            const text = await file.text();
-            const result = await parseResumeLocally(text);
-            const parsed = result.data.parsed;
-            setParsedResume(parsed);
-            const initialSkills = parsed.competencies?.flatMap((c) => c.skills) ?? [];
-            setSkillsString(initialSkills.join(", "));
+            const outcome = await parsePdfForProfileReview(await file.arrayBuffer());
+            if (!outcome.ok) {
+                setUploadError(outcome.error);
+                return;
+            }
+            setParsedResume(outcome.parsed);
+            setSkillsString(outcome.skillsString);
         } catch {
+            setParsedResume(null);
+            setSkillsString("");
             setUploadError("Could not parse résumé text. You can still proceed.");
         } finally {
             setUploading(false);
