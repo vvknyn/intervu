@@ -47,8 +47,9 @@ test("ANALYTICS_EVENTS pins the exact wire name for every declared event", () =>
     job_saved: "job_saved",
     company_followed: "company_followed",
     auth_started: "auth_started",
-    // Auto-opened auth popover (guest Apply, a second guest Save, ...) vs a
-    // real "Sign In" click — see resolveAuthOpenEvent, auth-gate-copy.ts.
+    // Auto-opened auth popover fires auth_nudge_shown. A user opening the
+    // modal or /login does not. auth_started is method engagement in
+    // login-form.tsx — see resolveAuthOpenEvent, auth-gate-copy.ts.
     auth_nudge_shown: "auth_nudge_shown",
     auth_method_selected: "auth_method_selected",
     signup_completed: "signup_completed",

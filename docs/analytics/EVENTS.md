@@ -19,9 +19,9 @@ dead — the table below is what the code does, not what a doc promises.
 | `apply_clicked` | `{ job_id, source, query_id?, match_label?, match_score?, match_band? }` | `src/app/jobs/page.tsx:3551` — the **first line** of `handleOpenPosting`, before the auth gate and the AI hand-off prompt, so the event means "clicked Apply" and not "reached the posting." `source` is `"serp"`; `"co"` and `"email"` stay in the type but are **not reachable today** — `src/app/co/**` has no apply handler of its own, and there is no emailed-link landing handler. `query_id` has the same `resultRef.current?.searchId` contract as `result_clicked`. Optional match fields use the same shape and omission rules as `result_clicked` (from `matchScores` when available). |
 | `job_saved` | `{ job_id, match_label?, match_score?, match_band? }` | `src/app/jobs/page.tsx` (guest and signed-in `handleGoAfter` branches) and `src/components/jobs/PublicJobDetail.tsx` (same two branches). Optional match fields use the same shape and omission rules as `result_clicked` — attached from the in-scope résumé score when one exists, omitted entirely otherwise. Internally this concept is called a "pursuit" (`src/lib/pursuits/`); the event name stays `job_saved` because that's the user-facing verb. |
 | `company_followed` | `{ company_domain }` | `src/components/companies/FollowButton.tsx:172` — the same chokepoint that already fires `recordFollowFunnelAction("follow_click", ...)`, so both funnels record a follow the same way. `CompanyFollowControl.tsx` wraps `FollowButton` and needs no separate wiring. |
-| `auth_started` | `{ reason, gate_reason, origin_surface?, trigger_type?, pending_action_id?, job_id?, return_to?, has_resume?, signed_in?, guest_save_count? }` | Explicit user sign-in clicks only (`trigger_type: "user"`). **`src/components/auth/auth-popover.tsx`** on open; **`src/app/login/login-client.tsx`** on `/login` mount (`reason: "topbar"` when no pending gate attempt, else replays stored reason). Passive prompts use `auth_nudge_shown` instead. Apply never auth-gates — tracker sign-in uses `reason: "tracker"`. |
-| `auth_nudge_shown` | same shape as `auth_started` | Passive/unsolicited auth prompts only (`trigger_type: "auto"`). Explicit fit/save/tailor/resume/tracker clicks must NOT land here. |
-| `auth_method_selected` | `{ method, first_gate_reason?, last_gate_reason?, pending_action_id?, origin_surface? }` | **`src/components/auth/login-form.tsx`** — username submit and AuthKit buttons. |
+| `auth_started` | `{ reason, gate_reason, origin_surface?, trigger_type?, pending_action_id?, job_id?, return_to?, has_resume?, signed_in?, guest_save_count? }` | Fires on real auth method engagement in **`src/components/auth/login-form.tsx`** (Google / username submit / passkey-or-email-code), NOT on AuthPopover open or `/login` mount. `trigger_type: "user"`. Reason is the current gate attempt (`lastGateReason`), or `"generic"` when none is stored (`/login` still begins a `"topbar"` attempt before the form mounts). `auth_method_selected` still fires alongside as the method detail. Passive prompts use `auth_nudge_shown` instead. Apply never auth-gates — tracker sign-in uses `reason: "tracker"`. |
+| `auth_nudge_shown` | same shape as `auth_started` | Passive/unsolicited auth prompts only (`trigger_type: "auto"`), on AuthPopover open. Explicit fit/save/tailor/resume/tracker clicks must NOT land here. Closing the modal is not `auth_started`. |
+| `auth_method_selected` | `{ method, first_gate_reason?, last_gate_reason?, pending_action_id?, origin_surface? }` | **`src/components/auth/login-form.tsx`** — username submit and AuthKit buttons (Google, passkey-or-email-code). Fires immediately after `auth_started` on those same seams. |
 | `signup_completed` | `{ method, first_gate_reason?, last_gate_reason?, pending_action_id?, origin_surface? }` | **Username/password:** `login-form.tsx`. **AuthKit:** `PostHogProvider` after `identify`. Gate continuity from `src/lib/auth/gate-attempt.ts`. |
 
 No landing/pageview event is defined here — `POSTHOG_OPTIONS.capture_pageview:
@@ -155,15 +155,17 @@ shape (no entity id to key on).
 ## Auth gates (what this PR ships)
 
 Guest **Apply** — `apply_clicked` still fires first (`src/app/jobs/page.tsx`,
-events-wiring lock). The ATS opens synchronously in the click gesture; auth
-(`auth_started` reason `"apply"`, pending kind `"apply"`) follows only to
-**track** the application — no second navigation after sign-in. Save uses a
-**2nd-save** gate (`reason: "save"` on `auth_started`).
+events-wiring lock). The ATS opens synchronously in the click gesture; the
+tracker sign-in gate follows only to **track** the application — no second
+navigation after sign-in. Opening that gate does not fire `auth_started`.
+Save uses a **2nd-save** gate (`reason: "save"` on the gate attempt; that
+reason rides on `auth_started` only if the user then engages a method).
 
 Post-engage soft auth nudge — after first `result_clicked` or two
 `job_viewed` events, a dismissible banner on `/jobs` offers sign-in
-(`auth_started` reason `"generic"`). Hidden when the guest-save banner is
-showing or the nudge was dismissed (`src/lib/auth/guest-engage-nudge.ts`).
+(`auth_nudge_shown`, reason `"generic"`). Closing it is not a funnel
+failure. Hidden when the guest-save banner is showing or the nudge was
+dismissed (`src/lib/auth/guest-engage-nudge.ts`).
 
 ## Browse cold-start (what shipped)
 

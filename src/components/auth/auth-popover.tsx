@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { captureEvent } from "@/lib/analytics/events";
 import { buildAuthOpenPayload } from "@/lib/analytics/auth-event-payload";
-import { AUTH_CTA_LABEL, authGateTitle, type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { AUTH_CTA_LABEL, authGateTitle, resolveAuthOpenEvent, type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import {
     beginGateAttempt,
     clearGateAttempt,
@@ -105,23 +105,25 @@ export function AuthPopover({
                     jobId,
                     returnTo,
                 );
-                const attempt = readGateAttempt(window.sessionStorage);
-                const continuity = gateAttemptEventFields(attempt);
-                const payload = buildAuthOpenPayload(decision.reason, {
-                    ...continuity,
-                    origin_surface: originSurface ?? attempt?.originSurface,
-                    trigger_type: trigger,
-                    pending_action_id: attempt?.pendingActionId,
-                    job_id: jobId ?? attempt?.jobId,
-                    return_to: returnTo ?? attempt?.returnTo,
-                    has_resume: hasResume,
-                    signed_in: signedIn,
-                    guest_save_count: guestSaveCount,
-                });
-                if (trigger === "auto") {
+                // A user open records the gate attempt only. auth_started waits
+                // until login-form engages a real method. Auto prompts still
+                // fire auth_nudge_shown (literal call so the wiring scan sees it).
+                const openEvent = resolveAuthOpenEvent(trigger);
+                if (openEvent === "auth_nudge_shown") {
+                    const attempt = readGateAttempt(window.sessionStorage);
+                    const continuity = gateAttemptEventFields(attempt);
+                    const payload = buildAuthOpenPayload(decision.reason, {
+                        ...continuity,
+                        origin_surface: originSurface ?? attempt?.originSurface,
+                        trigger_type: trigger,
+                        pending_action_id: attempt?.pendingActionId,
+                        job_id: jobId ?? attempt?.jobId,
+                        return_to: returnTo ?? attempt?.returnTo,
+                        has_resume: hasResume,
+                        signed_in: signedIn,
+                        guest_save_count: guestSaveCount,
+                    });
                     captureEvent("auth_nudge_shown", payload);
-                } else {
-                    captureEvent("auth_started", payload);
                 }
             } else {
                 onOpenChange(false);
