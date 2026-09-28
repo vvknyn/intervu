@@ -34,6 +34,10 @@ test("pageleave and autocapture stay on", () => {
   assert.equal(POSTHOG_OPTIONS.autocapture, true);
 });
 
+test("exception autocapture stays on so client crashes reach Error Tracking", () => {
+  assert.equal(POSTHOG_OPTIONS.capture_exceptions, true);
+});
+
 test("events carry the product super-property that separates intervu from subspace", () => {
   // One shared PostHog project; without this stamp intervu's events are
   // indistinguishable from subspace's.

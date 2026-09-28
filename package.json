@@ -36,7 +36,7 @@
     "build:test": "npm run build && npm run test",
     "promote": "./scripts/promote-to-prod.sh",
     "preflight:full": "npm run lint && tsc --noEmit && npx tsx --test tests/unit/*.test.ts && npm run build",
-    "test:analytics": "npx tsx --test tests/unit/posthog-options.test.ts tests/unit/posthog-identity.test.ts",
+    "test:analytics": "npx tsx --test tests/unit/posthog-options.test.ts tests/unit/posthog-identity.test.ts tests/unit/posthog-logs.test.ts",
     "marketing:send": "npx tsx scripts/send-marketing-update.ts"
   },
   "dependencies": {
