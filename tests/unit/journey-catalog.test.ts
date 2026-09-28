@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "../support/unit-test";
+import { test } from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { lintCatalog, parseCatalog, summarizeCatalog } from "../../scripts/lib/journey-catalog.mjs";

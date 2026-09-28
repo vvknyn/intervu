@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "../support/unit-test";
+import { test } from "node:test";
 import { evaluateJourneyCoverage, failureText, isGatedCommand, routeOf } from "../../scripts/lib/journey-coverage.mjs";
 import { parseCatalog } from "../../scripts/lib/journey-catalog.mjs";
 
