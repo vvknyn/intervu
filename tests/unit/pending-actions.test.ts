@@ -13,8 +13,8 @@ import {
 import { validateNextParam } from '../../src/lib/auth/product-routes';
 
 describe('resolveApplyClickDecision — signed-in vs guest Apply click', () => {
-    it('signed out opens the employer site immediately — tracking is optional', () => {
-        assert.equal(resolveApplyClickDecision(false), 'perform');
+    it('signed out must auth-gate before opening the employer site', () => {
+        assert.equal(resolveApplyClickDecision(false), 'gate');
     });
 
     it('signed in performs the action immediately', () => {

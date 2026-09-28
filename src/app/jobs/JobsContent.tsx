@@ -165,6 +165,7 @@ import { CONCEPT_A_LANDING_BODY_CLASS } from "@/components/onboarding/ConceptALa
 import {
     CONCEPT_A_LANDING_PENDING_HTML_CLASS,
     hideJobsSsrLanding,
+    restoreJobsSsrLanding,
     readOnboardingCompletedFromStorage,
     subscribeOnboardingCompleted,
     writeOnboardingCompletedInStorage,
@@ -1852,8 +1853,16 @@ export function JobsContent({
             );
             if (user) {
                 void saveResumeData(data.resume, "pdf", 1)
-                    .then(() => captureEvent("resume_uploaded", {}))
-                    .catch(() => {});
+                    .then((res) => {
+                        if (res.error) {
+                            toast.error(res.error);
+                            return;
+                        }
+                        captureEvent("resume_uploaded", {});
+                    })
+                    .catch((err) => {
+                        toast.error(err instanceof Error ? err.message : "Could not save résumé");
+                    });
             } else if (data.storageMode === "cloud") {
                 writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
                 setAuthTrigger("user");
@@ -2198,14 +2207,24 @@ export function JobsContent({
     // Sign-in is the absolute gate: unauthenticated visitors cannot access categories or job feeds
     const isSignedOut = !user;
     const userNeedsOnboarding = Boolean(user) && !hasUsableResume && !onboardingDismissed;
+    const showSignedOutLanding = isSignedOut && !onboardingDismissed;
     // Signed-in Search must show the query bar. The résumé step covers that
-    // bar, so it stays on the signed-out landing only.
-    const showLandingOnboarding = !signedIn && (isSignedOut || userNeedsOnboarding) && !showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
+    // bar, so signed-out dismissed visitors skip this shell entirely.
+    const showLandingOnboarding =
+        (showSignedOutLanding || userNeedsOnboarding) &&
+        !showAdvancedSearch &&
+        atRest &&
+        showSearchHome &&
+        !showForYouHome;
 
     useEffect(() => {
         const root = document.documentElement;
         if (showLandingOnboarding) {
-            hideJobsSsrLanding();
+            if (userNeedsOnboarding || onboardingDismissed) {
+                hideJobsSsrLanding();
+            } else {
+                restoreJobsSsrLanding();
+            }
             if (!readOnboardingCompletedFromStorage()) {
                 root.classList.add(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
             }
@@ -2214,7 +2233,7 @@ export function JobsContent({
             root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
             document.body.classList.remove(CONCEPT_A_LANDING_BODY_CLASS);
         }
-    }, [showLandingOnboarding]);
+    }, [showLandingOnboarding, onboardingDismissed, userNeedsOnboarding]);
 
     // At rest, the raw corpus feed is tucked away behind Advanced Search or explicit search intent
     const defaultFeedAtRest = showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
@@ -4126,15 +4145,13 @@ export function JobsContent({
 
     const gatedOpenPosting = useGatedApply<PublicJob>({
         user,
+        gate: (action) => gate(action, { originSurface: "job_detail", gateReason: "apply" }),
         perform: (job) => {
             if (job.apply_url && shouldPromptApplyIntent()) {
                 setApplyIntentJob(job);
                 return;
             }
             openPostingNow(job);
-        },
-        onGuestApplied: (job) => {
-            setGuestTrackPrompt({ jobId: job.id, title: job.title });
         },
     });
 

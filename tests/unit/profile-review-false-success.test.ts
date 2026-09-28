@@ -83,6 +83,36 @@ function readableResumePdf(): ArrayBuffer {
 
 const FORBIDDEN_SKILL_TOKENS = ["ET", "BT", "Tf", "Td", "/F2"] as const;
 
+function readableResumePdfTwoColumn(): ArrayBuffer {
+    return buildPdf([
+        "ALEX RIVERA",
+        "Product Designer",
+        "Brooklyn, NY",
+        "SUMMARY",
+        "Design systems and research-led product work.",
+        "SKILLS",
+        "Figma, Prototyping, User Research, Design Systems",
+        "EXPERIENCE",
+        "Northwind Studio — Senior Product Designer — 2021 to Present",
+        "Shipped a cross-platform design system adopted by 4 product teams.",
+    ]);
+}
+
+function readableResumePdfCompact(): ArrayBuffer {
+    return buildPdf([
+        "Sam Lee",
+        "Data Analyst",
+        "Austin, TX",
+        "SKILLS",
+        "SQL, Python, Tableau, Looker",
+        "EXPERIENCE",
+        "Contoso",
+        "Analyst",
+        "2019-2024",
+        "Built executive dashboards.",
+    ]);
+}
+
 describe("profile review false success", () => {
     it("does not offer a Parsed on-device review when PDF text is content-stream operators", async () => {
         const extracted = await extractPDFTextInBrowser(operatorPdf());
@@ -107,7 +137,7 @@ describe("profile review false success", () => {
         const review = await parsePdfForProfileReview(operatorPdf(), { skipDownload: true });
         assert.equal(review.ok, false);
         if (!review.ok) {
-            assert.match(review.error, /Could not read résumé text/);
+            assert.match(review.error, /Could not read a résumé from this file/);
             assert.equal("skillsString" in review, false);
             assert.equal("parsed" in review, false);
         }
@@ -132,12 +162,30 @@ describe("profile review false success", () => {
         }
     });
 
+    it("accepts a two-column style synthetic résumé layout", async () => {
+        const review = await parsePdfForProfileReview(readableResumePdfTwoColumn(), { skipDownload: true });
+        assert.equal(review.ok, true);
+        if (review.ok) {
+            assert.ok(review.parsed.profile.profession?.trim() || review.parsed.profile.name?.trim());
+            assert.ok(review.skillsString.length > 0);
+        }
+    });
+
+    it("accepts a compact single-line header layout", async () => {
+        const review = await parsePdfForProfileReview(readableResumePdfCompact(), { skipDownload: true });
+        assert.equal(review.ok, true);
+        if (review.ok) {
+            assert.match(review.parsed.profile.name ?? "", /Sam/i);
+            assert.match(review.skillsString, /SQL/);
+        }
+    });
+
     it("landing review shows Parsed on-device and Save only after the gate accepts", () => {
         const src = readFileSync(
             path.join(process.cwd(), "src/components/onboarding/LandingOnboardingView.tsx"),
             "utf8",
         );
-        assert.match(src, /parsePdfForProfileReview/);
+        assert.match(src, /parseResumeFileForReview|parsePdfForProfileReview/);
         assert.doesNotMatch(src, /file\.text\(\)/);
         const reviewBranch = src.slice(src.indexOf("parsedResume ?"));
         assert.match(reviewBranch, /Parsed on-device/);
