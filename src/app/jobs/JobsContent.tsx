@@ -4457,18 +4457,25 @@ export function JobsContent({
         if (!user) {
             return readLocalFallback();
         }
+        // A stalled cloud read must not hold the deck on the ranking shell.
+        // The list only mounts once fit is applied, so a hang means no job row.
+        const RESUME_FETCH_BUDGET_MS = 5_000;
         try {
-            const { data, updatedAt } = await fetchResumeData();
-            if (data && resumeIsUsable(data)) {
-                setResume(data);
-                setResumeUpdatedAt(updatedAt ?? null);
-                return data;
+            const fetched = await Promise.race([
+                fetchResumeData(),
+                new Promise<null>((resolve) => {
+                    window.setTimeout(() => resolve(null), RESUME_FETCH_BUDGET_MS);
+                }),
+            ]);
+            if (fetched?.data && resumeIsUsable(fetched.data)) {
+                setResume(fetched.data);
+                setResumeUpdatedAt(fetched.updatedAt ?? null);
+                return fetched.data;
             }
         } catch {
             // e2e mock / offline — fall through to on-device seed
         }
-        // Cloud empty (e2e mock / fresh account): still use on-device local-AI seed
-        // so pack-open → postcard can apply fit and leave the loading gate.
+        // Cloud empty, slow, or offline: on-device local-AI seed still opens the deck.
         return readLocalFallback();
     };
 
