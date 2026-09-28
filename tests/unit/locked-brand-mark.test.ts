@@ -28,6 +28,8 @@ const LOCKED_SHA256: Record<string, string> = {
     "public/icons/velai-icon-1024.png": "c0568f756ea774c10679c8defd4b055a3aacf416b587fc24ddecc9e4f4fcdd94",
     "src/app/favicon.ico": "7c46bb00f6f237495d95c79d99c20f625436581c017199d6b2333e3a793d6a0d",
     "src/app/icon.png": "b839777d8eeeeba9622fda068477476f1ade435d9310c7152347022cdeac5c74",
+    // Header-only derivative of velai-logo.png: paper plate knocked out, brackets + live dot kept.
+    "public/velai-mark-on-dark.png": "80c42f057859dd2fdff8672852156ada001a9edccdd255061cad982101c35222",
 };
 
 function sha256(rel: string): string {
@@ -60,8 +62,12 @@ test("TopBar and OG cards paint the locked raster, not bracket SVG geometry", ()
     const layout = readFileSync(path.join(ROOT, "src/app/layout.tsx"), "utf8");
     const manifest = readFileSync(path.join(ROOT, "src/app/manifest.ts"), "utf8");
 
-    assert.match(brand, /src=\{LOCKED_MARK_SRC\}/);
+    assert.match(brand, /src = LOCKED_MARK_SRC/);
+    assert.match(brand, /src=\{HEADER_MARK_SRC\}/);
+    assert.match(brand, /HEADER_MARK_SRC = "\/velai-mark-on-dark.png"/);
+    assert.doesNotMatch(brand, /<svg/);
     assert.match(topBar, /<BrandLockup/);
+    assert.match(topBar, /topbar-docked-home-view/);
     assert.match(og, /src=\{LOCKED_MARK_DATA_URI\}/);
     assert.match(pageCard, /src=\{LOCKED_MARK_DATA_URI\}/);
     assert.match(layout, /apple:\s*"\/apple-touch-icon\.png"/);
