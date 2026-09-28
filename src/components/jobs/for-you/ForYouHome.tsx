@@ -20,6 +20,7 @@ import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { deckListLoading } from "@/lib/jobs/for-you/deck-list-loading";
 import { resolveDeckShortcut } from "@/lib/jobs/for-you/deck-keyboard";
 import { resolveDescriptionHydration } from "@/lib/jobs/for-you/description-pane-state";
 import { prefetchIndexesAhead } from "@/lib/jobs/for-you/deck-active-job";
@@ -109,7 +110,6 @@ export function ForYouHome({
     nowMs,
     fitResolving,
     loading,
-    fitActive,
     hydratedJobs,
     onActivePackChange,
     onRetryDescription,
@@ -232,7 +232,14 @@ export function ForYouHome({
         })();
     }, [activeJob, resume, applying, hydratedJobs, exportPdfForJob, onOpenPosting]);
 
-    const showLoading = proofLoading || fitResolving || loading || !fitActive;
+    // Rows render without a résumé. fitActive stays on the props type for
+    // callers; it must not keep a non-empty pack on the ranking shell.
+    const showLoading = deckListLoading({
+        proofLoading,
+        fitResolving,
+        loading,
+        packCount: visiblePacks.length,
+    });
     const canNavigate = !showLoading && visiblePacks.length > 0;
 
     useEffect(() => {

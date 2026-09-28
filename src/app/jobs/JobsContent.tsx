@@ -324,8 +324,10 @@ import {
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { isCanadaDeckJob, omitCanadaCountryFacet } from "@/lib/jobs/for-you/canada-deck";
 import {
+    formatBrowseHubCorpusLine,
     formatHubCorpusLine,
     HUB_PROBE_LIMITS,
+    resolveBrowseHubRoleCountLabels,
     resolveHubRoleCountLabels,
     packBandTotalsFromSources,
     resolveAllPackHubCounts,
@@ -1792,6 +1794,12 @@ export function JobsContent({
         scored: ScoredHubHit[];
         removalsLine: string | null;
     }>({ loading: false, probing: false, total: null, scored: [], removalsLine: null });
+    // Unscored browse sample for pack pills when fit has no résumé yet.
+    // Opening a pack must not replace this with the deck page.
+    const [hubBrowse, setHubBrowse] = useState<{ jobs: PublicJob[]; total: number | null }>({
+        jobs: [],
+        total: null,
+    });
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -2932,6 +2940,19 @@ export function JobsContent({
             ? `${buildMatchQuery(resume).q}\0${resume.profile?.location ?? ""}`
             : "";
 
+    // No usable résumé (missing, junk, or still loading): paint pack counts
+    // from the browse hits already on the hub. Stop updating once a fit key
+    // exists or a pack is open, so a later deck page cannot blank the pills.
+    useEffect(() => {
+        if (!showForYouHome || forYouPackDeckOpen || hubResumeKey) return;
+        const hits = result?.hits;
+        if (!hits?.length) return;
+        setHubBrowse({
+            jobs: hits,
+            total: typeof result.total === "number" ? result.total : null,
+        });
+    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, result]);
+
     // Progressive quiet fit probe — every pack gets live role counts from the
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
@@ -3068,23 +3089,43 @@ export function JobsContent({
         // must not replace them — that page is a slice, and swapping it in
         // blanked every pack the slice did not happen to contain.
         const scored = hubFitProbe.scored.length > 0 ? hubFitProbe.scored : (deckScored ?? []);
-        const pool = hubFitProbe.total ?? (fitActive && result?.total != null ? result.total : null);
+        if (scored.length > 0) {
+            const pool = hubFitProbe.total ?? (fitActive && result?.total != null ? result.total : null);
+            return resolveHubRoleCountLabels({
+                loading: false,
+                probing: hubFitProbe.probing,
+                poolTotal: pool,
+                scored,
+            });
+        }
+        if (hubBrowse.jobs.length > 0) {
+            return resolveBrowseHubRoleCountLabels({
+                jobs: hubBrowse.jobs,
+                poolTotal: hubBrowse.total,
+            });
+        }
         return resolveHubRoleCountLabels({
-            loading: hubFitProbe.loading && scored.length === 0,
+            loading: true,
             probing: hubFitProbe.probing,
-            poolTotal: pool,
-            scored,
+            poolTotal: hubFitProbe.total,
+            scored: [],
         });
-    }, [fitActive, matchScores, result?.total, result?.hits, hubFitProbe]);
+    }, [fitActive, matchScores, result?.total, result?.hits, hubFitProbe, hubBrowse]);
 
-    const hubCorpusLine = useMemo(
-        () =>
-            formatHubCorpusLine(
-                fitActive && result?.total != null ? result.total : hubFitProbe.total,
-                hubFitProbe.loading || hubFitProbe.probing,
-            ) || null,
-        [fitActive, result?.total, hubFitProbe.total, hubFitProbe.loading, hubFitProbe.probing],
-    );
+    const hubCorpusLine = useMemo(() => {
+        if (hubFitProbe.scored.length > 0 || (fitActive && result?.total != null)) {
+            return (
+                formatHubCorpusLine(
+                    fitActive && result?.total != null ? result.total : hubFitProbe.total,
+                    hubFitProbe.loading || hubFitProbe.probing,
+                ) || null
+            );
+        }
+        if (hubBrowse.total != null && hubBrowse.total > 0) {
+            return formatBrowseHubCorpusLine(hubBrowse.total);
+        }
+        return null;
+    }, [fitActive, result?.total, hubFitProbe, hubBrowse.total]);
 
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
@@ -6264,8 +6305,8 @@ export function JobsContent({
                                     setHubSelectedCategoryId(category.id);
                                     setForYouPackDeckOpen(true);
                                     forYouDeck.setActiveIndex(0);
-                                    // Postcard needs fitActive (ForYouHome gates on it).
-                                    // Safe here: hub already left via forYouPackDeckOpen.
+                                    // The list mounts from browse hits without waiting
+                                    // on fit. A usable résumé still ranks when it arrives.
                                     void resolveAndApplyFit();
                                 }}
                                 onUpdateResume={(updatedResume) => {

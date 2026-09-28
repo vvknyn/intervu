@@ -53,7 +53,15 @@ export function formatHubCountLabel(source: HubCountSource): string {
     return "";
 }
 
-/** Quiet hero line under Welcome — corpus total climbing with the probe. */
+/**
+ * Hero line for a browse hub — roles in the corpus, no fit bands.
+ * Do not say Strong. There is no score yet.
+ */
+export function formatBrowseHubCorpusLine(pool: number | null | undefined): string {
+    if (pool == null || !Number.isFinite(pool) || pool <= 0) return "";
+    return `~${Math.floor(pool).toLocaleString()} roles`;
+}
+
 export function formatHubCorpusLine(pool: number | null | undefined, probing: boolean): string {
     if (pool == null || !Number.isFinite(pool) || pool < 0) {
         return probing ? "Matching…" : "";
@@ -228,6 +236,45 @@ export function resolveHubRoleCountLabels(input: {
             packId === "all"
                 ? kept.length
                 : kept.filter((hit) => jobMatchesHubPack(hit.job, packId, nowMs)).length;
+        labels[packId] = formatHubRoleCount(n);
+    }
+    return labels;
+}
+
+/**
+ * Pack pills from an unscored browse sample. Used when there is no usable
+ * résumé, the résumé is junk that cannot build a fit query, or the résumé
+ * fetch has not settled. Counts are role totals from the jobs in hand.
+ * They are not Strong/Good bands, and they are not an ellipsis once a
+ * sample exists. Canada roles stay out of the per-pack numbers.
+ */
+export function resolveBrowseHubRoleCountLabels(input: {
+    jobs: PublicJob[];
+    poolTotal: number | null | undefined;
+    nowMs?: number;
+}): Partial<Record<string, string>> {
+    const nowMs = input.nowMs ?? Date.now();
+    const kept = input.jobs.filter((job) => !isCanadaDeckJob(job));
+    const pool =
+        input.poolTotal != null && Number.isFinite(input.poolTotal) && input.poolTotal >= 0
+            ? Math.floor(input.poolTotal)
+            : null;
+    const hasSample = input.jobs.length > 0;
+    const labels: Partial<Record<string, string>> = {};
+
+    for (const packId of HUB_PACK_IDS) {
+        if (packId === "all" && pool != null) {
+            labels[packId] = formatHubRoleCount(pool);
+            continue;
+        }
+        if (!hasSample) {
+            labels[packId] = "…";
+            continue;
+        }
+        const n =
+            packId === "all"
+                ? kept.length
+                : kept.filter((job) => jobMatchesHubPack(job, packId, nowMs)).length;
         labels[packId] = formatHubRoleCount(n);
     }
     return labels;

@@ -5,6 +5,7 @@
  * HARD gates: lean chrome + WCAG AA color-contrast (axe color-contrast) on hub, deck,
  * apply prompt, /privacy, and signed-out /jobs landing; motion + reduced-motion;
  * Chromium + WebKit × 1440×900 + 390×844.
+ * Plus a no-résumé cell: For you packs, counts, and a job row with no seeded résumé.
  */
 import { createRequire } from 'module';
 import { chromium, webkit, devices } from 'playwright';
@@ -118,6 +119,87 @@ async function injectSession(context, value) {
       sameSite: 'Lax',
     },
   ]);
+}
+
+async function newCtxNoResume(browser, viewport) {
+  const ctx = await browser.newContext({
+    viewport,
+    deviceScaleFactor: 2,
+    ...(viewport.width < 500
+      ? { isMobile: true, hasTouch: true, userAgent: devices['iPhone 13'].userAgent }
+      : {}),
+  });
+  await ctx.addInitScript((resumeKey) => {
+    try {
+      localStorage.removeItem(resumeKey);
+      localStorage.setItem('velai-packs-home-intro-v1', '1');
+      localStorage.setItem('intervu-mode', 'dark');
+    } catch {
+      /* private mode */
+    }
+    try {
+      document.documentElement?.classList.add('dark');
+    } catch {
+      /* documentElement is null this early */
+    }
+  }, LOCAL_AI_RESUME_KEY);
+  return ctx;
+}
+
+/**
+ * Signed-in For you with no browser résumé. Pack counts must leave the
+ * ellipsis and a pack must list a job row. This cell must not seed a résumé.
+ */
+async function runNoResumePacks(browser, engine, label, viewport, wos) {
+  const ctx = await newCtxNoResume(browser, viewport);
+  await injectSession(ctx, wos);
+  const page = await ctx.newPage();
+  const consoleErrors = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('pageerror', (err) => consoleErrors.push(String(err)));
+  await openForYouHub(page);
+  const resumeSeed = await page.evaluate((key) => localStorage.getItem(key), LOCAL_AI_RESUME_KEY);
+  await page.waitForFunction(() => {
+    const nodes = [...document.querySelectorAll('[data-testid^="hub-pack-count-"]')];
+    if (nodes.length < 8) return false;
+    return nodes.every((node) => {
+      const text = (node.textContent || '').trim();
+      return /\d/.test(text) && !text.includes('…');
+    });
+  }, null, { timeout: 90000 });
+  const counts = await page.evaluate(() =>
+    Object.fromEntries(
+      [...document.querySelectorAll('[data-testid^="hub-pack-count-"]')].map((node) => [
+        node.getAttribute('data-testid'),
+        (node.textContent || '').trim(),
+      ]),
+    ),
+  );
+  await shot(page, `no-resume-${engine}-${label}-hub.png`);
+  const card = page.getByTestId('hub-pack-card-apply');
+  await card.click({ force: true });
+  const row = page.getByTestId('for-you-list-scroll').getByTestId('job-row').first();
+  await row.waitFor({ state: 'visible', timeout: 90000 });
+  const loadingStuck = await page.getByTestId('for-you-loading').isVisible().catch(() => false);
+  const rowCount = await page.getByTestId('job-row').count();
+  await shot(page, `no-resume-${engine}-${label}-deck.png`);
+  const probe = await surfaceProbe(page);
+  await ctx.close();
+  const unexpectedErrors = consoleErrors.filter(
+    (line) => !/script tag while rendering|Failed to load resource/i.test(line),
+  );
+  const countsOk = Object.values(counts).every((text) => /\d/.test(text) && !String(text).includes('…'));
+  const pass =
+    !resumeSeed &&
+    probe.signedIn &&
+    countsOk &&
+    Object.keys(counts).length >= 8 &&
+    rowCount > 0 &&
+    !loadingStuck &&
+    unexpectedErrors.length === 0;
+  return { pass, resumeSeed: Boolean(resumeSeed), counts, rowCount, loadingStuck, consoleErrors, unexpectedErrors };
 }
 
 async function newCtx(browser, viewport, reducedMotion = false) {
@@ -632,12 +714,16 @@ for (const [engineName, launch] of engines) {
       const privacy = icon.pass
         ? await runPrivacy(browser, engineName, vpLabel, vp, wos)
         : { pass: false, blocked: true };
-      const cellPass = landing.pass && icon.pass && betalist.pass && privacy.pass;
+      const noResume = icon.pass
+        ? await runNoResumePacks(browser, engineName, vpLabel, vp, wos)
+        : { pass: false, blocked: true };
+      const cellPass = landing.pass && icon.pass && betalist.pass && privacy.pass && noResume.pass;
       verdict.matrix[key] = {
         landing: landing.pass,
         icon: icon.pass,
         betalist: betalist.pass,
         privacy: privacy.pass,
+        noResume: noResume.pass,
         hardPass: cellPass,
         axe: betalist.blocked
           ? null
@@ -657,6 +743,14 @@ for (const [engineName, launch] of engines) {
               promptVisible: betalist.nav?.promptVisible,
               hubPass: betalist.hubPass,
               deckPass: betalist.deckPass,
+            },
+        noResumeDetail: noResume.blocked
+          ? { blocked: true }
+          : {
+              counts: noResume.counts,
+              rowCount: noResume.rowCount,
+              loadingStuck: noResume.loadingStuck,
+              unexpectedErrors: noResume.unexpectedErrors,
             },
       };
       verdict.landingSummary[key] = {
