@@ -13,6 +13,7 @@ import {
   LANDING_ROOT_SEL,
   probeLandingRoot,
   runLandingAxeWithContrastFallback,
+  runScopedAxeContrast,
 } from './gate-landing-contrast-fallback.mjs';
 import fs from 'fs';
 import path from 'path';
@@ -181,6 +182,7 @@ async function loadAxe(page) {
 }
 
 async function runAxeContrast(page, scope = 'document') {
+  if (scope !== 'document') return runScopedAxeContrast(page, scope);
   return page.evaluate(async (scopeSel) => {
     if (!globalThis.axe) return { error: 'axe-not-loaded', violationCount: 1, incompleteCount: 1, scannedNodes: 0 };
     const root = scopeSel === 'document' ? document : document.querySelector(scopeSel);
@@ -393,9 +395,7 @@ async function runReducedMotion(browser, engine, label, viewport, wos) {
   const pass =
     functional &&
     rootStyles.mediaMatches &&
-    deckAxe.violationCount === 0 &&
-    deckAxe.incompleteCount === 0 &&
-    deckAxe.scannedNodes > 0 &&
+    deckAxe.pass === true &&
     transitionsZeroed;
   await ctx.close();
   return { pass, rootStyles, deckAxe, functional, transitionsZeroed };
@@ -462,6 +462,9 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
   let promptAxe = { violationCount: 0, incompleteCount: 0, scannedNodes: 0, skipped: true };
   const prompt = page.getByTestId('apply-return-prompt');
   if (await prompt.isVisible().catch(() => false)) {
+    // A scrolled document makes axe treat this fixed chip as offscreen, so
+    // color-contrast comes back inapplicable and scannedNodes stays 0.
+    await page.evaluate(() => window.scrollTo(0, 0));
     await shot(page, `betalist-${engine}-${label}-apply-prompt.png`);
     promptAxe = await runAxeContrast(page, '[data-testid="apply-return-prompt"]');
     promptAxe.skipped = false;
@@ -492,8 +495,7 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
     nav.promptVisible &&
     deckProbe.hasDidYouApply;
 
-  const axePass = (axe) =>
-    axe.violationCount === 0 && axe.incompleteCount === 0 && axe.scannedNodes > 0 && !axe.error;
+  const axePass = (axe) => axe.pass === true;
 
   const axeOk = axePass(hubAxe) && axePass(deckAxe) && (promptAxe.skipped || axePass(promptAxe));
 
