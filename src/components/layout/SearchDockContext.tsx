@@ -48,13 +48,11 @@ type DockValue = {
     docked: DockedSearch;
     setDocked: (next: DockedSearch) => void;
     /**
-     * Separate from `docked`: the For-you/Search toggle needs the header band
-     * whenever it's visible on desktop, which includes the whole For-you view
-     * (no query, no filters — `docked` correctly stays `null` there) and the
-     * "Search, no query typed yet" moment (`docked` is also `null` there,
-     * since there's nothing to show in the search box/filters slots). Folding
-     * this into `docked` would make a Search-only concern also mean "is the
-     * toggle showing," so it's its own field instead.
+     * Separate from `docked`: the For-you/Search toggle sits on the header
+     * row beside the mark at every width, including For you (no query, no
+     * filters — `docked` stays `null`) and Search before a query is typed.
+     * It must not open the filter band. Folding this into `docked` would
+     * make a Search-only concern also mean "is the toggle showing."
      */
     homeViewDocked: boolean;
     setHomeViewDocked: (next: boolean) => void;
