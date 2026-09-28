@@ -12,7 +12,7 @@ import {
     PHONE_RE,
     extractWebsite,
     isContactOrPlaceLine,
-    looksLikeRealPlaceSegment,
+    isLikelyPlaceSegment,
     sanitizeLocation,
 } from "@/lib/resume/contact-line";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
@@ -390,15 +390,14 @@ function extractContact(lines: string[]): Partial<ResumeProfile> {
     return { email, phone, linkedin, website };
 }
 
-/** Parse a place from header contact lines (city/region/country), not summary prose. */
-function extractLocation(lines: string[]): string {
-    const headerLines = lines.slice(0, 8);
+function placeCandidatesFromLines(lines: string[]): string[] {
     const candidates: string[] = [];
-
-    for (const line of headerLines) {
-        if (looksLikeName(line) || looksLikeTitle(line)) continue;
+    for (const line of lines) {
         if (isSectionHeader(line)) continue;
-        if (!isContactOrPlaceLine(line)) continue;
+        if (BULLET_RE.test(line) || DATE_RANGE_RE.test(line)) continue;
+        if (/\b(university|college|school|institute)\b/i.test(line)) continue;
+        if (!isContactOrPlaceLine(line) && !isLikelyPlaceSegment(line)) continue;
+        if ((looksLikeName(line) || looksLikeTitle(line)) && !isLikelyPlaceSegment(line)) continue;
 
         const cleaned = line
             .replace(EMAIL_RE, "")
@@ -409,15 +408,41 @@ function extractLocation(lines: string[]): string {
 
         const segments = cleaned.split(/[·|•|]/).map((s) => s.trim()).filter(Boolean);
         for (const seg of segments) {
-            if (looksLikeRealPlaceSegment(seg)) {
+            if (isLikelyPlaceSegment(seg)) {
                 candidates.push(seg.replace(/^[\s·|•]+|[\s·|•]+$/g, "").trim());
             }
         }
     }
+    return candidates;
+}
 
+function longestPlace(candidates: string[]): string {
     if (candidates.length === 0) return "";
-    // Prefer the longest real place (e.g. "Richmond Hill, Ontario" over a stray fragment).
     return candidates.sort((a, b) => b.length - a.length)[0];
+}
+
+/**
+ * Parse a place from the résumé, not summary prose.
+ *
+ * The header used to be only the first eight lines. A real city that
+ * extraction placed later — still in the header, or on its own line in
+ * the body — was left blank while the rest of the parse succeeded.
+ * Header lines (everything before the first section) win. A standalone
+ * place line after that is the fallback. Bullets and date ranges are
+ * not places.
+ */
+function extractLocation(lines: string[]): string {
+    const headerEnd = lines.findIndex((line) => isSectionHeader(line));
+    const headerLines = headerEnd === -1 ? lines : lines.slice(0, headerEnd);
+    const fromHeader = longestPlace(placeCandidatesFromLines(headerLines));
+    if (fromHeader) return fromHeader;
+    if (headerEnd === -1) return "";
+    return longestPlace(placeCandidatesFromLines(lines.slice(headerEnd)));
+}
+
+/** City/region from plain résumé text. Empty when the text has no real place. */
+export function locationFromResumePlainText(text: string): string {
+    return sanitizeLocation(extractLocation(normalizeLines(text)));
 }
 
 const SKILL_CATEGORY_RE = /^([^:]{2,60}):\s*(.+)$/;

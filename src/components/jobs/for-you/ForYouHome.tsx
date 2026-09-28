@@ -16,6 +16,7 @@ import { JobCard } from "@/components/jobs/JobCard";
 import { DeckRoleDetail } from "@/components/jobs/for-you/DeckRoleDetail";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
+import { resumeForPackApply } from "@/lib/jobs/for-you/pack-apply-location";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
@@ -153,8 +154,9 @@ export function ForYouHome({
         async (job: PublicJob) => {
             if (!resume || draftCache.current.has(job.id)) return;
             const hydrated = hydratedJobs.get(job.id)?.job ?? job;
+            const located = resumeForPackApply(resume);
             try {
-                const draft = await tailorResumeForJob(resume, jobToTailorInput(hydrated), {
+                const draft = await tailorResumeForJob(located, jobToTailorInput(hydrated), {
                     allowModel: false,
                 });
                 draftCache.current.set(job.id, draft);
@@ -214,16 +216,17 @@ export function ForYouHome({
         setApplying(true);
         void (async () => {
             try {
+                const located = resumeForPackApply(resume);
                 const hydrated = hydratedJobs.get(activeJob.id)?.job ?? activeJob;
                 let draft = draftCache.current.get(activeJob.id);
                 if (!draft) {
-                    draft = await tailorResumeForJob(resume, jobToTailorInput(hydrated), {
+                    draft = await tailorResumeForJob(located, jobToTailorInput(hydrated), {
                         allowModel: false,
                     });
                     draftCache.current.set(activeJob.id, draft);
                 }
-                const pdfData = hasMeaningfulDiff(draft) ? draft.tailored : resume;
-                await exportPdfForJob(activeJob, pdfData);
+                const tailored = hasMeaningfulDiff(draft) ? draft.tailored : located;
+                await exportPdfForJob(activeJob, resumeForPackApply(tailored));
             } catch {
                 // toast already shown for PDF failure
             } finally {
