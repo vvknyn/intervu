@@ -16,7 +16,6 @@ const BATCH3_SOURCES = [
     "src/components/layout/route-status-chrome.tsx",
     "src/components/jobs/for-you/ForYouHome.tsx",
     "src/components/mock/EmptyStatesMock.tsx",
-    "src/app/jobs/loading.tsx",
     "src/app/mock/empty-states/page.tsx",
     "src/app/not-found.tsx",
     "src/app/error.tsx",
@@ -64,12 +63,7 @@ describe("polish batch 3 — design contract", () => {
         assert.match(GLOBALS, /\.route-status-fixture-min[\s\S]*min-height:\s*50dvh/);
     });
 
-    it("jobs route loader uses named shell width and list inset classes", () => {
-        const loading = read("src/app/jobs/loading.tsx");
-        assert.match(loading, /posterListInsetClassName/);
-        assert.match(loading, /shellMaxWidthClassName/);
-        assert.doesNotMatch(loading, /px-\[var\(--list-inset\)\]/);
-        assert.doesNotMatch(loading, /max-w-\[var\(--shell-max\)\]/);
+    it("jobs session frame keeps its named width and list-inset classes", () => {
         assert.match(GLOBALS, /\.poster-list-inset-x[\s\S]*padding-inline:\s*var\(--list-inset\)/);
         assert.match(GLOBALS, /\.shell-max-width[\s\S]*max-width:\s*var\(--shell-max\)/);
         assert.match(GLOBALS, /\.jobs-session-scroll[\s\S]*max-height:\s*min\(60dvh,\s*640px\)/);

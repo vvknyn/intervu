@@ -9,12 +9,6 @@ import {
     JOBS_VISITOR_COOKIE_MAX_AGE,
     shouldStampJobsVisitor,
 } from "@/lib/jobs-visitor-cookie";
-import {
-    JOBS_SIGNED_IN_PAINT_COOKIE,
-    JOBS_SIGNED_IN_PAINT_COOKIE_MAX_AGE,
-    JOBS_SIGNED_IN_PAINT_COOKIE_VALUE,
-    shouldTouchJobsSignedInPaintCookie,
-} from "@/lib/jobs/signed-in-paint-cookie";
 
 export async function middleware(request: NextRequest) {
     // P27 shield — block only the one obvious bulk signature: an
@@ -70,30 +64,6 @@ export async function middleware(request: NextRequest) {
             path: "/",
             sameSite: "lax",
         });
-    }
-
-    // Paint hint for the /jobs head script. Not httpOnly — the script has to
-    // read it before paint. Not a session: the real credential stays httpOnly.
-    if (shouldTouchJobsSignedInPaintCookie({ method: request.method, pathname })) {
-        const paintCookie = {
-            secure: process.env.NODE_ENV === "production",
-            path: "/",
-            sameSite: "lax" as const,
-            httpOnly: false,
-        };
-        if (session.user) {
-            if (request.cookies.get(JOBS_SIGNED_IN_PAINT_COOKIE)?.value !== JOBS_SIGNED_IN_PAINT_COOKIE_VALUE) {
-                response.cookies.set(JOBS_SIGNED_IN_PAINT_COOKIE, JOBS_SIGNED_IN_PAINT_COOKIE_VALUE, {
-                    ...paintCookie,
-                    maxAge: JOBS_SIGNED_IN_PAINT_COOKIE_MAX_AGE,
-                });
-            }
-        } else if (request.cookies.has(JOBS_SIGNED_IN_PAINT_COOKIE)) {
-            response.cookies.set(JOBS_SIGNED_IN_PAINT_COOKIE, "", {
-                ...paintCookie,
-                maxAge: 0,
-            });
-        }
     }
 
     // Google/Search Engine Disallow: unconditionally instruct all search engines

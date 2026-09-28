@@ -27,7 +27,7 @@ const FIXTURE_RESUME: ResumeData = {
     education: [],
 };
 
-type MockMode = "step1" | "step2" | "step3_upload" | "step3_parsed" | "dashboard";
+type MockMode = "step2" | "step3_upload" | "step3_parsed" | "dashboard";
 
 export function OnboardingMock() {
     const [mode, setMode] = useState<MockMode>("step3_parsed");
@@ -40,14 +40,6 @@ export function OnboardingMock() {
                     Onboarding &amp; Profile Parameters Preview
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                    <Button
-                        size="sm"
-                        variant={mode === "step1" ? "default" : "outline"}
-                        onClick={() => setMode("step1")}
-                        className="text-xs h-7 px-2.5"
-                    >
-                        Step 1
-                    </Button>
                     <Button
                         size="sm"
                         variant={mode === "step2" ? "default" : "outline"}
@@ -86,16 +78,6 @@ export function OnboardingMock() {
             <div className="relative flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full overflow-hidden rounded-panel border border-border p-4 min-h-[500px]">
                 <LandingAnimatedBackground />
                 <div className="relative z-10 w-full max-w-2xl">
-                    {mode === "step1" && (
-                        <LandingOnboardingView
-                            initialStep={1}
-                            isAuthenticated={false}
-                            onComplete={() => setMode("dashboard")}
-                        onOpenAuth={() => setMode("step2")}
-                        className="w-full"
-                    />
-                )}
-
                 {mode === "step2" && (
                     <LandingOnboardingView
                         initialStep={2}

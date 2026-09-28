@@ -14,7 +14,6 @@ import { IdleDeferredWidgets } from "@/components/providers/IdleDeferredWidgets"
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { getSiteUrl, LANDING_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME } from "@/lib/seo/constants";
-import { JOBS_ONBOARDING_HEAD_SCRIPT } from "@/lib/jobs/onboarding-first-paint";
 import {
   buildJobSearchFaqJsonLd,
   buildOrganizationJsonLd,
@@ -175,7 +174,6 @@ export default function RootLayout({
             __html: `(function(){try{document.documentElement.classList.add("dark");localStorage.setItem("intervu-mode","dark");}catch(e){document.documentElement.classList.add("dark");}})();`,
           }}
         />
-        <script dangerouslySetInnerHTML={{ __html: JOBS_ONBOARDING_HEAD_SCRIPT }} />
       </head>
       <body
         className={`${display.variable} ${sans.variable} ${mono.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}

@@ -42,7 +42,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
-| J-JOBS-01 | Land on /jobs first visit and see only the Concept A poster | anon | `/jobs` (no seed) | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-01 | Land on /jobs first visit and see the search box and at least 5 job rows within 5s, one visible h1, no poster | anon | `/jobs` (no seed) | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-02 | Click the poster "Get started" CTA and reach the onboarding step 3 dialog | anon | `/jobs` (no seed) then click `concept-a-cta` | signed-out | no | uncovered | — |
 | J-JOBS-03 | Seeded anon visit renders result rows on first paint with no dialog | anon | SEED-A + `/jobs?posted=any` | signed-out | no | uncovered | — |
 | J-JOBS-04 | Result count line states the 30-day window | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
@@ -64,6 +64,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-20 | "Back to Job Packs" from a searched state resets to the For-you hub | signed-in | `/jobs?view=search&q=nurse` with a résumé on file, click `jobs-back-to-packs` | signed-in | no | uncovered | — |
 | J-JOBS-21 | Board visit banner is absent on a first-ever visit | anon | SEED-A + `/jobs?board=elite` | signed-out | no | uncovered | — (legacy: jobs-visit-banner-and-saved-search.spec.ts › banner is absent on a first-ever /jobs visit) |
 | J-JOBS-22 | Guest save-search banner offers sign-in after a guest saves a search | anon | SEED-A + `/jobs?q=software+engineer`, save the search | signed-out | no | uncovered | — (legacy: jobs-visit-banner-and-saved-search.spec.ts › saving a search adds it to the saved-search list) |
+| J-JOBS-23 | Click a job row title and the job detail opens (`?job=`, detail pane at desktop, sheet at mobile); fresh and previous-session visitor | anon | `/jobs` (no seed; second run with the `sb_jobs_visitor` cookie), click `job-title` | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-24 | Click Sign in or Get started and the board is still visible 2s later; fresh and previous-session visitor | anon | `/jobs` (no seed; second run with the `sb_jobs_visitor` cookie), click the Sign in control | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-25 | List analytics fire: `results_impressed` on first render, `search_submitted` on a search (needs a build with NEXT_PUBLIC_POSTHOG_KEY, skips otherwise) | anon | `/jobs`, then fill the search box and press Enter, `/api/telemetry` fulfilled locally | signed-out | no | covered | jobs.spec.ts |
 
 ## SRCH
 
@@ -89,7 +92,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SRCH-18 | `/` redirects to `/jobs` and keeps query params | anon | `GET /?q=nurse` | signed-out | no | uncovered | — |
 | J-SRCH-19 | Search box is docked into the top bar on lg+ once results show | anon | SEED-A + `/jobs?q=nurse` at 1440x900 | signed-out | no | uncovered | — (legacy: jobs-serp-scroll-stability.spec.ts › TC-SERP-SCROLL-002: the same holds with places filtered — the dock renders a place) |
 | J-SRCH-20 | Search shows only the mobile "Search" CTA when the draft differs from the query | anon | SEED-A + `/jobs` at 390x844, type "nurse" | signed-out | no | uncovered | — |
-| J-SRCH-21 | Returning visitor's search session throws no uncaught page errors (React hydration error #418 seen on prod 2026-09-28) | anon | SEED-A + `/jobs?q=engineer` | signed-out | no | known-bug | jobs.spec.ts |
+| J-SRCH-21 | Returning visitor's search session throws no uncaught page errors (React hydration error #418 seen on prod 2026-09-28) | anon | SEED-A + `/jobs?q=engineer` | signed-out | no | covered | jobs.spec.ts |
 
 ## FILT
 

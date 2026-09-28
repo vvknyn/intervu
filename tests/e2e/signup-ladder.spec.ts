@@ -32,7 +32,7 @@ async function signInAsMock(page: Page) {
 }
 
 test.describe('SIGNUP-LADDER - TopBar auth CTA contract', () => {
-  test('TC-LADDER-001: lean /jobs uses visible Concept A Sign in when poster is shown', async ({ page }) => {
+  test('TC-LADDER-001: signed-out /jobs shows the TopBar Sign in and it opens the auth dialog', async ({ page }) => {
     await page.goto('/jobs');
     await page.waitForLoadState('networkidle');
 
