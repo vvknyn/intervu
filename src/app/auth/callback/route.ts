@@ -1,9 +1,17 @@
 import { handleAuth } from "@workos-inc/authkit-nextjs";
-import { after } from "next/server";
+import { after, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisioning";
-import { buildCallbackRetryRedirect, withDirectHitGuard } from "@/lib/auth/callback-guard";
+import { captureServerEvent } from "@/lib/analytics/server-capture";
+import { getServerUser } from "@/lib/auth/server-user";
+import {
+    buildCallbackRetryRedirect,
+    callbackErrorCode,
+    callbackFailureLogLine,
+    decideCallbackFailureLanding,
+    withDirectHitGuard,
+} from "@/lib/auth/callback-guard";
 import {
     resolveAuthKitSignupSignal,
     SIGNUP_SIGNAL_COOKIE_NAME,
@@ -63,14 +71,25 @@ import {
  * throwing) — handleAuth catches all of them internally and would
  * otherwise answer with a raw 500 JSON body (`{"error":{"message":"Something
  * went wrong"}}`) that a visitor just sees as a broken page. The real error
- * is logged here, server-side only, and never reaches the response.
+ * error's code is logged and captured here (server-side only, never in the
+ * response), and a visitor who already holds a valid session is sent on to
+ * the app instead of the error page — see `decideCallbackFailureLanding`.
  */
 export const GET = withDirectHitGuard(
     handleAuth({
         baseURL: getSiteUrl(),
         onError: async ({ error, request }) => {
-            console.error("[Auth] callback exchange failed:", error);
-            return buildCallbackRetryRedirect(request, "exchange_failed");
+            const user = await getServerUser();
+            const code = callbackErrorCode(error);
+            console.error(callbackFailureLogLine(code, user !== null));
+            captureServerEvent("auth_callback_failed", user?.uid ?? crypto.randomUUID(), { code });
+            const landing = decideCallbackFailureLanding({
+                hasSession: user !== null,
+                rawNext: request.nextUrl.searchParams.get("next"),
+            });
+            return landing.kind === "redirect"
+                ? NextResponse.redirect(new URL(landing.path, getSiteUrl()), 307)
+                : buildCallbackRetryRedirect(request, "exchange_failed");
         },
         onSuccess: async ({ user, authenticationMethod }) => {
             const signal = resolveAuthKitSignupSignal({

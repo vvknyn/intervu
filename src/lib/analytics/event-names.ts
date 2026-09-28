@@ -11,6 +11,7 @@ export const ANALYTICS_EVENTS = {
   auth_nudge_shown: "auth_nudge_shown",
   auth_method_selected: "auth_method_selected",
   signup_completed: "signup_completed",
+  auth_callback_failed: "auth_callback_failed",
 
   job_viewed: "job_viewed",
   job_unsaved: "job_unsaved",
