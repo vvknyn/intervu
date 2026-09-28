@@ -9,11 +9,8 @@ import { resolvePostAuthDestination } from "@/lib/auth/post-auth-destination";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { peekPendingActionKind } from "@/lib/jobs/pending-actions";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { captureEvent } from "@/lib/analytics/events";
-import { buildAuthOpenPayload } from "@/lib/analytics/auth-event-payload";
 import {
     beginGateAttempt,
-    gateAttemptEventFields,
     readGateAttempt,
 } from "@/lib/auth/gate-attempt";
 
@@ -29,27 +26,16 @@ export function LoginClient() {
     }, []);
 
     useEffect(() => {
+        // Continuity only. Opening /login is not auth_started; the form
+        // fires that when the user engages a method. A topbar attempt is
+        // begun here so that engagement still carries reason "topbar".
         const existing = readGateAttempt(window.sessionStorage);
-        if (existing) {
-            captureEvent("auth_started", buildAuthOpenPayload(existing.lastGateReason, {
-                ...gateAttemptEventFields(existing),
-                origin_surface: existing.originSurface,
-                trigger_type: "user",
-                pending_action_id: existing.pendingActionId,
-                return_to: existing.returnTo,
-                job_id: existing.jobId,
-            }));
-            return;
-        }
+        if (existing) return;
         beginGateAttempt(window.sessionStorage, {
             reason: "topbar",
             originSurface: "login",
             returnTo: validateNextParam(searchParams.get("next")) ?? undefined,
         });
-        captureEvent("auth_started", buildAuthOpenPayload("topbar", {
-            origin_surface: "login",
-            trigger_type: "user",
-        }));
     }, [searchParams]);
 
     const redirectAfterAuth = useCallback(async () => {

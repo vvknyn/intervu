@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
 import { captureEvent, type SignupMethod } from '@/lib/analytics/events'
+import { authStartedPayloadFromAttempt } from '@/lib/analytics/auth-event-payload'
 import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from '@/lib/auth/gate-attempt'
 import { clearSignupSignalCookieFromDocument } from '@/lib/auth/authkit-signup-signal'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
@@ -76,6 +77,13 @@ function authContinuityPayload() {
     return gateAttemptEventFields(attempt)
 }
 
+/** One seam for auth_started so Google, passkey/email-code, and username
+ *  submit cannot drift. Reads the gate attempt at click time. */
+function captureAuthStartedFromGate() {
+    const attempt = typeof window !== 'undefined' ? readGateAttempt(window.sessionStorage) : null
+    captureEvent('auth_started', authStartedPayloadFromAttempt(attempt))
+}
+
 export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", headline }: LoginFormProps = {}) {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab)
@@ -129,9 +137,10 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
      * fresh.
      */
     const startAuthKit = (provider?: string) => {
-        // One capture for both method buttons below — Google passes its
-        // provider id, the passkey/email-code button passes none, so the
-        // two branches can't drift into different event names.
+        // Method engagement is the funnel start, before navigation.
+        // Google passes its provider id; the passkey/email-code button
+        // passes none. Both fire auth_started, then auth_method_selected.
+        captureAuthStartedFromGate()
         captureEvent('auth_method_selected', { method: resolveAuthKitMethod(provider), ...authContinuityPayload() })
         setAuthKitPending(provider ?? 'passkey')
         const params = new URLSearchParams()
@@ -291,8 +300,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 <div className="grid gap-3 sm:gap-4">
                     <form
                         onSubmit={(e) => {
-                            // One call site for both tabs — a third tab
-                            // wouldn't need a new capture call either.
+                            // Same helper as AuthKit: username submit is
+                            // method engagement, then the method detail.
+                            captureAuthStartedFromGate()
                             captureEvent('auth_method_selected', { method: 'username', ...authContinuityPayload() })
                             void (activeTab === "login" ? handleLogin(e) : handleSignUp(e))
                         }}

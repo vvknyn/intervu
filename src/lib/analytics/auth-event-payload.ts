@@ -1,5 +1,10 @@
 import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
-import type { OriginSurface } from "@/lib/auth/gate-attempt";
+import {
+    gateAttemptEventFields,
+    type GateAttempt,
+    type GateAttemptEventFields,
+    type OriginSurface,
+} from "@/lib/auth/gate-attempt";
 
 /** Shared auth funnel properties — reason + gate_reason mirror for dashboards. */
 export interface AuthEventContext {
@@ -30,5 +35,28 @@ export function buildAuthOpenPayload(
         reason,
         gate_reason: reason,
         ...fields,
+    };
+}
+
+/**
+ * `auth_started` payload at real method engagement.
+ * Reason is the in-flight gate attempt, or `fallbackReason` when the user
+ * reached a method with nothing stored (login still begins a `"topbar"`
+ * attempt before the form mounts, so this fallback is the popover/generic case).
+ */
+export function authStartedPayloadFromAttempt(
+    attempt: GateAttempt | null,
+    fallbackReason: AuthGateReason = "generic",
+): AuthEventContext & GateAttemptEventFields {
+    const reason = attempt?.lastGateReason ?? fallbackReason;
+    const continuity = gateAttemptEventFields(attempt);
+    return {
+        ...buildAuthOpenPayload(reason, {
+            trigger_type: "user",
+            ...continuity,
+            ...(attempt?.jobId ? { job_id: attempt.jobId } : {}),
+            ...(attempt?.returnTo ? { return_to: attempt.returnTo } : {}),
+        }),
+        ...continuity,
     };
 }
