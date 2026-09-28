@@ -76,6 +76,7 @@ test("For-you toggle never renders for a confirmed signed-out session", () => {
     assert.equal(
         shouldShowJobsHomeViewToggle({
             signedOut: true,
+            signedIn: false,
             resumeOnFile: true,
             showJobsHomePending: true,
         }),
@@ -83,10 +84,29 @@ test("For-you toggle never renders for a confirmed signed-out session", () => {
     );
 });
 
-test("For-you toggle stays off even while auth is pending (packs-home, no peer pill)", () => {
+test("For-you toggle shows for every confirmed signed-in session", () => {
     assert.equal(
         shouldShowJobsHomeViewToggle({
             signedOut: false,
+            signedIn: true,
+            resumeOnFile: true,
+            showJobsHomePending: false,
+        }),
+        true,
+    );
+    assert.equal(
+        shouldShowJobsHomeViewToggle({
+            signedOut: false,
+            signedIn: true,
+            resumeOnFile: false,
+            showJobsHomePending: false,
+        }),
+        true,
+    );
+    assert.equal(
+        shouldShowJobsHomeViewToggle({
+            signedOut: false,
+            signedIn: false,
             resumeOnFile: null,
             showJobsHomePending: true,
         }),
@@ -128,7 +148,7 @@ test("signOut bumps epoch, clears client stores, and notifies listeners", () => 
 });
 
 test("jobs page gates For-you chrome on confirmed session and clears stale résumé", () => {
-    const src = readFileSync(new URL("../../src/app/jobs/page.tsx", import.meta.url), "utf8");
+    const src = readFileSync(new URL("../../src/app/jobs/JobsContent.tsx", import.meta.url), "utf8");
     assert.match(src, /shouldShowJobsHomeViewToggle/);
     assert.match(src, /resolveJobsResumeOnFile/);
     assert.match(src, /signedOut[\s\S]*localAiGuestEnabled[\s\S]*setResume\(null\)/);

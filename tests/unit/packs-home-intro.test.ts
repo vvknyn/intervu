@@ -38,21 +38,23 @@ describe("packs-home intro storage", () => {
     });
 });
 
-describe("packs-home chrome — no peer pill", () => {
-    it("shouldShowJobsHomeViewToggle is always false", () => {
+describe("packs-home chrome — For you and Search switch", () => {
+    it("shows the switch for a signed-in résumé and hides it when signed out", () => {
         assert.equal(
             shouldShowJobsHomeViewToggle({
                 signedOut: false,
-                resumeOnFile: true,
+                signedIn: true,
+                resumeOnFile: false,
                 showJobsHomePending: false,
             }),
-            false,
+            true,
         );
         assert.equal(
             shouldShowJobsHomeViewToggle({
-                signedOut: false,
-                resumeOnFile: null,
-                showJobsHomePending: true,
+                signedOut: true,
+                signedIn: false,
+                resumeOnFile: true,
+                showJobsHomePending: false,
             }),
             false,
         );
@@ -71,15 +73,16 @@ describe("packs-home chrome — no peer pill", () => {
         assert.doesNotMatch(src, /Canada|Toronto|\bscore\b|Strong\/Good\/Stretch/i);
     });
 
-    it("jobs page mounts QuietSearchLink + PacksHomeIntroModal, not ForYouToggle", () => {
-        const src = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
-        assert.doesNotMatch(src, /<ForYouToggle\b/);
-        assert.match(src, /QuietSearchLink/);
+    it("jobs page mounts the For you ↔ Search bottom bar and PacksHomeIntroModal", () => {
+        const src = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
+        assert.match(src, /<ForYouToggle\b/);
+        assert.match(src, /data-testid="jobs-home-switch-bar"/);
         assert.match(src, /<PacksHomeIntroModal\b/);
+        assert.doesNotMatch(src, /QuietSearchLink/);
     });
 
     it("CategoryHubGrid is default packs home — not gated on atRest", () => {
-        const src = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+        const src = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
         assert.match(src, /!showAdvancedSearch && !forYouPackDeckOpen/);
         assert.doesNotMatch(src, /atRest && !showAdvancedSearch \? \(/);
         assert.match(src, /onSelectCategory=\{\(category\) =>/);

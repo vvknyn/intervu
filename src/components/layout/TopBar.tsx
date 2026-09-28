@@ -164,6 +164,7 @@ export function TopBar() {
                                 three. */}
                             <button
                                 type="submit"
+                                data-testid="search-submit"
                                 className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-sm font-semibold leading-none text-foreground transition-colors hover:bg-muted"
                             >
                                 Search

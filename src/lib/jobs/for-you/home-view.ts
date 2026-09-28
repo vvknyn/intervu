@@ -23,10 +23,9 @@ export function resolveJobsHomeView(input: {
     if (input.companyDomain || input.board) return "search";
     if (input.q.trim() && input.sort !== "fit") return "search";
 
-    if (input.urlView === "for-you") {
-        if (input.resumeOnFile === false) return "search";
-        return "for-you";
-    }
+    // An explicit For you choice sticks, even before a résumé is on file.
+    // The implicit default below still sends a known-missing résumé to Search.
+    if (input.urlView === "for-you") return "for-you";
 
     if (input.resumeOnFile === true) return "for-you";
     if (input.resumeOnFile === false) return "search";
