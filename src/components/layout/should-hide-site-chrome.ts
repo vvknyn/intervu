@@ -22,3 +22,12 @@ export function isLeanProductSurface(pathname: string): boolean {
         pathname.startsWith("/resume/")
     );
 }
+
+/**
+ * `/careers/remote-jobs` is an indexable hub, not a product walk. Its global
+ * footer was the marketing link farm (alternatives, career hubs, research).
+ * Quiet that one path to the Privacy/Terms strip. Other hubs keep the farm.
+ */
+export function isQuietFooterPath(pathname: string): boolean {
+    return pathname === "/careers/remote-jobs";
+}
