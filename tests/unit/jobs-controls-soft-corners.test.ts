@@ -6,7 +6,6 @@ import { join } from "node:path";
 const SRC = join(__dirname, "../../src");
 const JOB_DETAIL = join(SRC, "components/jobs/JobDetail.tsx");
 const TOP_BAR = join(SRC, "components/layout/TopBar.tsx");
-const PAGE = join(SRC, "app/jobs/page.tsx");
 const GLOBALS = join(SRC, "app/globals.css");
 function walk(dir: string): string[] {
     const out: string[] = [];
@@ -81,13 +80,18 @@ describe("jobs sheet action-bar soft corners", () => {
 });
 
 describe("For-you/Search toggle — one mount, one shape", () => {
-    it("ForYouToggle dead component is not referenced in src", () => {
+    it("ForYouToggle mounts once, on the jobs bottom bar", () => {
         const hits: string[] = [];
         for (const file of walk(SRC)) {
             const src = readFileSync(file, "utf8");
             if (src.includes("<ForYouToggle")) hits.push(file);
         }
-        assert.deepEqual(hits, []);
+        assert.deepEqual(hits, [join(SRC, "app/jobs/JobsContent.tsx")]);
+        const jobs = readFileSync(join(SRC, "app/jobs/JobsContent.tsx"), "utf8");
+        assert.match(jobs, /data-testid="jobs-home-switch-bar"[\s\S]*<ForYouToggle/);
+        const toggle = readFileSync(join(SRC, "components/jobs/for-you/ForYouToggle.tsx"), "utf8");
+        assert.match(toggle, /"For you"/);
+        assert.match(toggle, /"Search"/);
     });
 
     it("TopBar renders a topbar-docked-home-view slot ahead of the Filters toggle", () => {
@@ -96,31 +100,13 @@ describe("For-you/Search toggle — one mount, one shape", () => {
         assert.match(bandRow, /data-testid="topbar-docked-home-view"/, "home-view slot must precede the Filters toggle in the band row");
     });
 
-    it("page.tsx wires a docked mount for topbar-docked-home-view and portals the same toggle element there", () => {
-        const src = readFileSync(PAGE, "utf8");
-        assert.match(
-            src,
-            /useDockedSlotMount\(homeViewDockActive, "topbar-docked-home-view"\)/,
-            "the toggle's slot must be wired through the shared useDockedSlotMount hook, not a bespoke effect",
-        );
-        assert.match(src, /createPortal\(homeViewToggleEl, dockedHomeViewMount\)/);
-        assert.match(src, /!homeViewDockActive && showHomeViewToggle/, "the same toggle must also render inline when not docked (mobile / below lg)");
-
-        const homeViewToggleBlock =
-            src.match(/const homeViewToggleEl = showHomeViewToggle \?[\s\S]*?\) : null;/)?.[0] ?? "";
-        assert.ok(homeViewToggleBlock.length > 0, "homeViewToggleEl assignment not found");
-        assert.doesNotMatch(
-            homeViewToggleBlock,
-            /JOBS_TAB_HELPER/,
-            "helper copy must not be inside the portaled toggle element",
-        );
-
-        const hookSrc = readFileSync(join(SRC, "hooks/use-docked-slot-mount.ts"), "utf8");
-        assert.match(
-            hookSrc,
-            /document\.querySelector\(`\[data-testid="\$\{testId\}"\]`\)/,
-            "the shared hook must actually look up the slot by the testId it was given",
-        );
+    it("JobsContent puts one For you ↔ Search switch on the bottom bar at every width", () => {
+        const src = readFileSync(join(SRC, "app/jobs/JobsContent.tsx"), "utf8");
+        assert.match(src, /data-testid="jobs-home-switch-bar"/);
+        assert.match(src, /lg:bottom-0/);
+        assert.match(src, /bottom-\[calc\(var\(--mobile-tabbar-h,56px\)\+env\(safe-area-inset-bottom,0px\)\)\]/);
+        assert.equal((src.match(/<ForYouToggle\b/g) ?? []).length, 1);
+        assert.doesNotMatch(src, /JOBS_TAB_HELPER/);
     });
 
     it("TopBar band row clears the For you/Search pill via --jobs-filter-row-h", () => {
@@ -143,21 +129,11 @@ describe("For-you/Search toggle — one mount, one shape", () => {
         );
     });
 
-    /**
-     * The toggle must dock independently of the search-only `headerDockActive`
-     * gate — that flag is false for the whole For-you view and for
-     * "Search, no query yet" (see its own definition in page.tsx), both of
-     * which still need the toggle in its one fixed header slot. Reusing
-     * `headerDockActive` for the toggle was the exact bug this guards
-     * against: it made the toggle jump between an inline and a docked
-     * position depending on which of those states was active.
-     */
-    it("the toggle's dock gate is independent of headerDockActive (the search-only dock)", () => {
-        const src = readFileSync(PAGE, "utf8");
-        assert.match(
-            src,
-            /const homeViewDockActive = isLgUp && showHomeViewToggle;/,
-            "homeViewDockActive must not also require showSearchHome/!atRest — it has to be true for the whole For-you view too",
-        );
+    it("the bottom-bar switch is not gated on the search-only header dock", () => {
+        const src = readFileSync(join(SRC, "app/jobs/JobsContent.tsx"), "utf8");
+        const bar = src.match(/data-testid="jobs-home-switch-bar"[\s\S]*?<\/div>/)?.[0] ?? "";
+        assert.ok(bar.length > 0, "switch bar not found");
+        assert.doesNotMatch(bar, /headerDockActive/);
+        assert.match(src, /\{showHomeViewToggle && \([\s\S]*data-testid="jobs-home-switch-bar"/);
     });
 });

@@ -305,7 +305,7 @@ import {
     subscribeLastJobsHomeView,
     writeLastJobsHomeView,
 } from "@/lib/jobs/for-you/last-home-view";
-import { QuietSearchLink } from "@/components/jobs/for-you/QuietSearchLink";
+import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
 import { PacksHomeIntroModal } from "@/components/jobs/for-you/PacksHomeIntroModal";
 import {
     readPacksHomeIntroDismissed,
@@ -2046,14 +2046,13 @@ export function JobsContent({
     const showForYouHome = resolvedHomeView === "for-you";
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
-    // Peer pill retired (shouldShowJobsHomeViewToggle always false). Quiet
-    // Search link docks in the same topbar slot when packs home is active.
+    // Signed-in bottom bar: For you ↔ Search. Not a Jobs-only tab.
     const showHomeViewToggle = shouldShowJobsHomeViewToggle({
         signedOut,
+        signedIn,
         resumeOnFile,
         showJobsHomePending,
     });
-    const showQuietSearchEntry = showForYouHome && resumeOnFile === true;
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -2237,7 +2236,8 @@ export function JobsContent({
     // or filters to dock there). Tying the toggle to `headerDockActive`
     // anyway made it jump between an inline position (in-page) and a docked
     // one (header band) depending on which of those states it was in.
-    const homeViewDockActive = isLgUp && showQuietSearchEntry;
+    // The switch lives on the bottom bar at every width, not the header dock.
+    const homeViewDockActive = false;
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
@@ -4565,14 +4565,15 @@ export function JobsContent({
         );
     };
 
-    // Packs-home: no For you ⇄ Search peer pill. Quiet text link reaches Search.
-    const openQuietSearch = () => {
-        setShowAdvancedSearch(true);
-        setJobsHomeView("search");
+    const selectJobsHome = (view: JobsHomeView) => {
+        if (view === "search") {
+            setShowAdvancedSearch(true);
+            setForYouPackDeckOpen(false);
+            setJobsHomeView("search");
+            return;
+        }
+        returnToJobPacksHub();
     };
-    const quietSearchLinkEl = showQuietSearchEntry ? (
-        <QuietSearchLink onClick={openQuietSearch} />
-    ) : null;
 
     useEffect(() => {
         if (resolvedHomeView === "for-you" || resolvedHomeView === "search") {
@@ -5434,6 +5435,7 @@ export function JobsContent({
                 suggest={suggestForBox}
                 seeds={searchSeeds}
                 placeholder={SEARCH_PLACEHOLDER}
+                ariaLabel="Search"
                 className="h-full min-h-0 min-w-0 flex-1 rounded-pill border-0 bg-transparent px-1 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
@@ -5650,9 +5652,13 @@ export function JobsContent({
                         ? "flex-1 justify-start sm:justify-center items-center py-2 sm:py-6"
                         : cn(
                             "pt-2 sm:pt-3",
-                            showSearchHome && showMobileSearchCta
-                                ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))] lg:pb-20"
-                                : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-20",
+                            showHomeViewToggle && showSearchHome && showMobileSearchCta
+                                ? "pb-[calc(var(--mobile-tabbar-h)+3.5rem+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))] lg:pb-24"
+                                : showHomeViewToggle
+                                  ? "pb-[calc(var(--mobile-tabbar-h)+3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-24"
+                                  : showSearchHome && showMobileSearchCta
+                                    ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))] lg:pb-20"
+                                    : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-20",
                         ),
                 )}
             >
@@ -5704,15 +5710,7 @@ export function JobsContent({
                     Skip to results
                 </a>
 
-                {/* Quiet Advanced search — desktop only above hub. Mobile bottom
-                    tab owns primary nav; mid-screen search chrome over tiles is cut. */}
-                {!homeViewDockActive && isLgUp && quietSearchLinkEl && (
-                    <div className={cn("mb-2 flex justify-end pt-2 sm:pt-3", cappedContentClass)}>
-                        {quietSearchLinkEl}
-                    </div>
-                )}
-                {homeViewDockActive && dockedHomeViewMount && quietSearchLinkEl &&
-                    createPortal(quietSearchLinkEl, dockedHomeViewMount)}
+                {/* For you ↔ Search is the bottom bar, not a header quiet link. */}
 
                 {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
@@ -5731,7 +5729,7 @@ export function JobsContent({
                     outlive the search line have their own homes on the header
                     row and the toolbar; see `status` on the dock payload and
                     `fieldDirectoryMenu`. */}
-                {!headerDockActive && showSearchHome && !showLandingOnboarding && (!atRest || showAdvancedSearch) && (
+                {!headerDockActive && showSearchHome && !showLandingOnboarding && (
                 <section
                     className={cn(
                         "transition-colors",
@@ -5828,6 +5826,7 @@ export function JobsContent({
                                     suggest={suggestForBox}
                                     seeds={searchSeeds}
                                     placeholder={SEARCH_PLACEHOLDER}
+                                    ariaLabel="Search"
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
                                     className={cn(
                                         // Requirement D2 (2026-09-17 design pass): at rest, search is
@@ -5910,13 +5909,8 @@ export function JobsContent({
                                 )}
                             </div>
                         </div>
-                        <div className={cn(
-                            "hidden flex-wrap items-center gap-2",
-                            // The sticky mobile-search-cta handles all search actions below
-                            // lg — pristine landing, mid-search, and post-results states.
-                            // Show inline Search only at lg+ so the two CTAs never coexist.
-                            "lg:flex",
-                        )}>                            {/* Requirement 5 (one filled action per screen at
+                        <div className="flex flex-wrap items-center gap-2">
+                            {/* Requirement 5 (one filled action per screen at
                                 rest): the front door's only filled button is
                                 the résumé band's "Upload resume"
                                 (FrontDoorResumeBand.tsx) — this one switches
@@ -7020,6 +7014,18 @@ export function JobsContent({
                 onContinue={handleLocationSheetContinue}
             />
 
+            {showHomeViewToggle && (
+                <div
+                    data-testid="jobs-home-switch-bar"
+                    className="fixed inset-x-0 z-40 flex h-14 items-center justify-center border-t border-border bg-background px-3 bottom-[calc(var(--mobile-tabbar-h,56px)+env(safe-area-inset-bottom,0px))] lg:bottom-0"
+                >
+                    <ForYouToggle
+                        value={resolvedHomeView === "search" ? "search" : "for-you"}
+                        onChange={selectJobsHome}
+                    />
+                </div>
+            )}
+
             {showMobileSearchCta && (
                 <div
                     data-testid="mobile-search-cta"
@@ -7028,8 +7034,14 @@ export function JobsContent({
                     // that's the same number the landing scroll area's
                     // bottom padding (above) clears for, so the two can't
                     // drift apart the way a padding guess and this bar's
-                    // real height already had.
-                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 lg:hidden"
+                    // real height already had. Sits above the For you ↔ Search
+                    // bar when that bar is showing.
+                    className={cn(
+                        "fixed inset-x-0 z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 lg:hidden",
+                        showHomeViewToggle
+                            ? "bottom-[calc(env(safe-area-inset-bottom,0px)+var(--mobile-tabbar-h,56px)+3.5rem)]"
+                            : "bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)]",
+                    )}
                 >
                     <Button
                         type="button"

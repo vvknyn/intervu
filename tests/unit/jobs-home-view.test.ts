@@ -23,9 +23,9 @@ describe("resolveJobsHomeView", () => {
         );
     });
 
-    it("view=for-you stays on for-you until résumé is known absent", () => {
+    it("explicit view=for-you stays on for-you, including with no résumé yet", () => {
         assert.equal(resolveJobsHomeView({ ...base, urlView: "for-you", resumeOnFile: true }), "for-you");
-        assert.equal(resolveJobsHomeView({ ...base, urlView: "for-you", resumeOnFile: false }), "search");
+        assert.equal(resolveJobsHomeView({ ...base, urlView: "for-you", resumeOnFile: false }), "for-you");
         assert.equal(resolveJobsHomeView({ ...base, urlView: "for-you", resumeOnFile: null }), "for-you");
     });
 
