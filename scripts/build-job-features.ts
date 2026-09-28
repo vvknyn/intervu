@@ -34,7 +34,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { extractJobFeatures, type JobFeatures } from "@/lib/telemetry/features";
 import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
-import { buildUpsert } from "@/lib/pg/upsert";
+import { upsertRows } from "@/lib/pg/upsert";
 import { JOB_FEATURES_COLUMNS } from "@/lib/telemetry/job-features-columns";
 import { JOB_DOCUMENT_FIELDS } from "@/lib/telemetry/job-document-fields";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -48,14 +48,6 @@ const PAGE_SIZE = 500;
 const connectionString = process.env.BATCH_PG_URL;
 const meiliUrl = process.env.MEILI_URL;
 const meiliAdminKey = process.env.MEILI_ADMIN_KEY;
-
-/** Pure: given a batch of rows, build one parameterized multi-row upsert.
- *  No DB handle involved, so the SQL shape is unit-testable on its own.
- *  Delegates to the shared builder (src/lib/pg/upsert.ts) rather than
- *  building the SQL string here a second time. */
-export function buildJobFeaturesUpsert(rows: JobFeatures[]): { text: string; params: unknown[] } {
-  return buildUpsert<JobFeatures>("intervu.job_features", JOB_FEATURES_COLUMNS, ["job_id"], rows);
-}
 
 /**
  * Restricts the response to exactly `JOB_DOCUMENT_FIELDS` (the fields
@@ -94,9 +86,7 @@ async function main() {
       if (page.length === 0) break;
 
       const features = page.map((job) => extractJobFeatures(job, now));
-      const { text, params } = buildJobFeaturesUpsert(features);
-      await db.query(text, params);
-      rowsAffected += features.length;
+      rowsAffected += await upsertRows<JobFeatures>(db, "intervu.job_features", JOB_FEATURES_COLUMNS, ["job_id"], features);
 
       if (page.length < PAGE_SIZE) break;
       offset += PAGE_SIZE;

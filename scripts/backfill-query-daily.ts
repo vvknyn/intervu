@@ -42,7 +42,7 @@ import pg from "pg";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
-import { buildUpsert } from "@/lib/pg/upsert";
+import { upsertRows } from "@/lib/pg/upsert";
 import { aggregateQueryDaily, toQueryDailyRows, type QueryDailyRow } from "@/lib/telemetry/query-daily";
 import { fetchQueryDailyEvents } from "@/lib/telemetry/query-daily-fetch";
 
@@ -92,22 +92,22 @@ async function main() {
     }
 
     if (rows.length > 0) {
-      const { text, params } = buildUpsert<QueryDailyRow>(
+      await upsertRows<QueryDailyRow>(
+        db,
         "intervu.query_daily",
         ["query_normalized", "day", "searches", "zero_result_count", "click_through_count"] as const,
         ["query_normalized", "day"],
         rows,
         ["computed_at"],
       );
-      await db.query(text, params);
     }
     await writeHeartbeat(db, JOB_NAME, rows.length, true);
     console.log(`${JOB_NAME}: wrote ${rows.length} rows.`);
   } catch (err) {
     if (WRITE) {
-      // Report the real count reached before the failure (zero — the single
-      // upsert statement above either ran in full or not at all), never a
-      // fabricated one. No heartbeat at all on a dry run: it made no write,
+      // Report 0, a floor rather than a fabricated success: upsertRows may
+      // have committed earlier chunks before the failing one, but the upsert
+      // is idempotent, so the rerun repairs it. No heartbeat at all on a dry run: it made no write,
       // so a heartbeat row would claim a run that didn't touch the table.
       await writeHeartbeat(db, JOB_NAME, 0, false).catch(() => {});
     }
