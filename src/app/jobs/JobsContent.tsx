@@ -2190,7 +2190,9 @@ export function JobsContent({
     // Sign-in is the absolute gate: unauthenticated visitors cannot access categories or job feeds
     const isSignedOut = !user;
     const userNeedsOnboarding = Boolean(user) && !hasUsableResume && !onboardingDismissed;
-    const showLandingOnboarding = (isSignedOut || userNeedsOnboarding) && !showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
+    // Signed-in Search must show the query bar. The résumé step covers that
+    // bar, so it stays on the signed-out landing only.
+    const showLandingOnboarding = !signedIn && (isSignedOut || userNeedsOnboarding) && !showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
 
     useEffect(() => {
         const root = document.documentElement;
