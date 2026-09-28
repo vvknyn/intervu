@@ -85,6 +85,8 @@ export interface EventPayloads {
   signup_completed: AuthContinuityFields & {
     method: SignupMethod;
   };
+  /** Server-side only (src/app/auth/callback/route.ts). `code` is the CallbackError code, never a credential. */
+  auth_callback_failed: { code: string };
 
   job_viewed: {
     job_id: string;

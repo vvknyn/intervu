@@ -50,6 +50,36 @@ export function buildCallbackRetryRedirect(request: NextRequest, failureClass: C
 }
 
 /**
+ * Where a failed callback (or the retry page it lands on) sends the visitor.
+ * A visitor who already holds a valid session must never see "We couldn't
+ * finish signing you in": the callback deletes its one-use PKCE cookie on the
+ * first hit, so any replay of the same URL (tab restore, double navigation,
+ * back button) fails as `missing_pkce_cookie` although hit #1 succeeded.
+ * Every failure class and code funnels through here, so none can skip it.
+ * Their own validated `next` wins; otherwise the app's default landing.
+ */
+export type CallbackFailureLanding = { kind: "redirect"; path: string } | { kind: "retry" };
+
+export function decideCallbackFailureLanding(input: {
+    hasSession: boolean;
+    rawNext: string | null | undefined;
+}): CallbackFailureLanding {
+    if (!input.hasSession) return { kind: "retry" };
+    return { kind: "redirect", path: validateNextParam(input.rawNext) ?? "/jobs" };
+}
+
+/** `CallbackError.code` when it is a plain snake_case token, else "unclassified" (errors from authenticateWithCode carry none). */
+export function callbackErrorCode(error: unknown): string {
+    const code = (error as { code?: unknown } | null)?.code;
+    return typeof code === "string" && /^[a-z0-9_]{1,64}$/.test(code) ? code : "unclassified";
+}
+
+/** Stable, greppable log line. Only the error code and session presence — never the OAuth code, state, tokens or email. */
+export function callbackFailureLogLine(code: string, signedIn: boolean): string {
+    return `[auth] callback_failed code=${code} signed_in=${signedIn}`;
+}
+
+/**
  * Wraps a WorkOS callback handler with the direct-hit guard above. Takes
  * the handler as a parameter (rather than importing handleAuth itself) so
  * this module — and its tests — never load the WorkOS SDK.

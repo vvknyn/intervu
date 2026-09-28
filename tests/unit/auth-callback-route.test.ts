@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
-import { buildCallbackRetryRedirect, isDirectCallbackHit, withDirectHitGuard } from "../../src/lib/auth/callback-guard";
+import {
+    buildCallbackRetryRedirect,
+    callbackErrorCode,
+    callbackFailureLogLine,
+    decideCallbackFailureLanding,
+    isDirectCallbackHit,
+    withDirectHitGuard,
+} from "../../src/lib/auth/callback-guard";
 
 // getSiteUrl() (src/lib/seo/constants.ts) throws when this is unset — it
 // deliberately has no fallback domain. withDirectHitGuard's redirect path
@@ -107,4 +114,46 @@ test("buildCallbackRetryRedirect: drops an unsafe (open-redirect) next param", (
     );
     const location = new URL(response.headers.get("location")!);
     assert.equal(location.searchParams.has("next"), false);
+});
+
+// The decision is independent of the failure code: `onError` (any CallbackError
+// code, or a non-CallbackError throw) and the /auth/retry page both call it
+// with only the session and `next`, so a replayed callback (missing_pkce_cookie)
+// and a state mismatch (oauth_state_mismatch) take the same branch.
+test("decideCallbackFailureLanding: no session shows the retry page", () => {
+    assert.deepEqual(decideCallbackFailureLanding({ hasSession: false, rawNext: "/jobs?job=abc" }), { kind: "retry" });
+    assert.deepEqual(decideCallbackFailureLanding({ hasSession: false, rawNext: null }), { kind: "retry" });
+});
+
+test("decideCallbackFailureLanding: a valid session redirects to the validated next, else /jobs", () => {
+    assert.deepEqual(decideCallbackFailureLanding({ hasSession: true, rawNext: "/jobs?job=abc" }), {
+        kind: "redirect",
+        path: "/jobs?job=abc",
+    });
+    assert.deepEqual(decideCallbackFailureLanding({ hasSession: true, rawNext: null }), { kind: "redirect", path: "/jobs" });
+    assert.deepEqual(decideCallbackFailureLanding({ hasSession: true, rawNext: undefined }), { kind: "redirect", path: "/jobs" });
+});
+
+test("decideCallbackFailureLanding: a valid session never redirects to an open-redirect next", () => {
+    for (const rawNext of ["https://evil.example.com", "//evil.example.com"]) {
+        assert.deepEqual(decideCallbackFailureLanding({ hasSession: true, rawNext }), { kind: "redirect", path: "/jobs" }, rawNext);
+    }
+});
+
+test("callbackErrorCode: reads the CallbackError code for any code, not just missing_pkce_cookie", () => {
+    for (const code of ["missing_pkce_cookie", "oauth_state_mismatch", "missing_auth_params"]) {
+        assert.equal(callbackErrorCode(Object.assign(new Error("boom"), { code })), code);
+    }
+});
+
+test("callbackErrorCode: an error without a plain token code is unclassified, never echoed", () => {
+    assert.equal(callbackErrorCode(new Error("authenticateWithCode blew up")), "unclassified");
+    assert.equal(callbackErrorCode(null), "unclassified");
+    assert.equal(callbackErrorCode("a string"), "unclassified");
+    assert.equal(callbackErrorCode(Object.assign(new Error("x"), { code: "line one\nforged log line" })), "unclassified");
+});
+
+test("callbackFailureLogLine: stable prefix carrying only the code and session presence", () => {
+    assert.equal(callbackFailureLogLine("oauth_state_mismatch", false), "[auth] callback_failed code=oauth_state_mismatch signed_in=false");
+    assert.equal(callbackFailureLogLine("missing_pkce_cookie", true), "[auth] callback_failed code=missing_pkce_cookie signed_in=true");
 });
