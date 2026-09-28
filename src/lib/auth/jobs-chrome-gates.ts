@@ -31,7 +31,7 @@ export function resolveJobsResumeOnFile(input: {
 }
 
 /**
- * Bottom-bar For you ⇄ Search switch. A confirmed signed-in session always
+ * Header-row For you ⇄ Search switch. A confirmed signed-in session always
  * gets it, including when no résumé is on file yet. Signed-out sessions,
  * and auth that has not resolved, never see it.
  */

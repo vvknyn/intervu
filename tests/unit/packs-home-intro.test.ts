@@ -73,12 +73,13 @@ describe("packs-home chrome — For you and Search switch", () => {
         assert.doesNotMatch(src, /Canada|Toronto|\bscore\b|Strong\/Good\/Stretch/i);
     });
 
-    it("jobs page mounts the For you ↔ Search bottom bar and PacksHomeIntroModal", () => {
+    it("jobs page mounts the For you ↔ Search header switch and PacksHomeIntroModal", () => {
         const src = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
         assert.match(src, /<ForYouToggle\b/);
-        assert.match(src, /data-testid="jobs-home-switch-bar"/);
+        assert.match(src, /dockedHomeViewMount/);
         assert.match(src, /<PacksHomeIntroModal\b/);
         assert.doesNotMatch(src, /QuietSearchLink/);
+        assert.doesNotMatch(src, /jobs-home-switch-bar/);
     });
 
     it("CategoryHubGrid is default packs home — not gated on atRest", () => {

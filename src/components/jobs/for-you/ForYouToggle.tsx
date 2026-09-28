@@ -10,7 +10,7 @@ export interface ForYouToggleProps {
 }
 
 /**
- * Bottom-bar switch: For you (personalized packs) ↔ Search.
+ * Header-row switch: For you (personalized packs) ↔ Search.
  * Active segment matches the resolved home view.
  */
 export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) {
@@ -36,7 +36,7 @@ export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) 
                         data-testid={tab === "for-you" ? "jobs-home-for-you" : "jobs-home-search"}
                         onClick={() => onChange(tab)}
                         className={cn(
-                            "inline-flex min-h-10 items-center rounded-pill px-4 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2",
+                            "inline-flex min-h-10 items-center rounded-pill px-2.5 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2 sm:px-4",
                             active ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground",
                         )}
                     >
