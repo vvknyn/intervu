@@ -21,6 +21,9 @@ import path from "node:path";
  * config-load time. A plain Vite-shaped config object works identically.
  */
 export default {
+  // Exposes `test` as a global under vitest so tests/support/unit-test.ts can
+  // serve one file to both runners; existing node:test files are unaffected.
+  test: { globals: true },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

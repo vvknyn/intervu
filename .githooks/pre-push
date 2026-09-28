@@ -1,0 +1,3 @@
+#!/bin/sh
+# Journey coverage gate for non-Claude authors (enabled by `npm install` via the "prepare" script).
+exec node "$(git rev-parse --show-toplevel)/scripts/check-journey-coverage.mjs"
