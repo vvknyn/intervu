@@ -63,5 +63,24 @@ export function subscribeOnboardingCompleted(onStoreChange: () => void): () => v
     };
 }
 
-/** Inline script — runs in `<head>` before body chrome paints (pathname-gated). */
-export const JOBS_ONBOARDING_HEAD_SCRIPT = `(function(){try{var p=location.pathname;if(p!=="/jobs"&&p.indexOf("/jobs/")!==0)return;var done=localStorage.getItem("${ONBOARDING_COMPLETED_STORAGE_KEY}")==="1";function syncBody(){if(!document.body)return;if(done){document.body.classList.remove("concept-a-landing-active");}else{document.body.classList.add("concept-a-landing-active");}}if(done){document.documentElement.classList.add("${ONBOARDING_COMPLETE_HTML_CLASS}");}else{document.documentElement.classList.add("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");}syncBody();if(!document.body)document.addEventListener("DOMContentLoaded",syncBody,{once:true});}catch(e){document.documentElement.classList.add("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");function fallback(){if(document.body)document.body.classList.add("concept-a-landing-active");}fallback();if(!document.body)document.addEventListener("DOMContentLoaded",fallback,{once:true});}})();`;
+/** `/jobs/<slug>` is a shared job, not the Concept A hub. The hub poster and
+ *  chrome-hide classes must not apply there — the jobs layout wraps both routes. */
+export function isSharedJobPath(pathname: string): boolean {
+    return pathname.startsWith("/jobs/") && pathname.length > "/jobs/".length;
+}
+
+/** Keep the site header on a shared job and hide the hub poster that the
+ *  shared `jobs` layout also mounts. */
+export function revealSharedJobHeader(): void {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    root.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
+    root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+    document.body.classList.add(JOBS_SKIP_LANDING_BODY_CLASS);
+    document.body.classList.remove("concept-a-landing-active");
+}
+
+/** Inline script — runs in `<head>` before body chrome paints (pathname-gated).
+ *  Exact `/jobs` may hide the site header for Step 1. Any `/jobs/<slug>` shared
+ *  job keeps that header and suppresses the hub poster. */
+export const JOBS_ONBOARDING_HEAD_SCRIPT = `(function(){try{var p=location.pathname;if(p!=="/jobs"&&p.indexOf("/jobs/")!==0)return;function onBody(fn){if(document.body)fn();else document.addEventListener("DOMContentLoaded",fn,{once:true});}if(p.indexOf("/jobs/")===0&&p.length>"/jobs/".length){document.documentElement.classList.add("${JOBS_SKIP_LANDING_HTML_CLASS}");document.documentElement.classList.remove("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");onBody(function(){document.body.classList.add("${JOBS_SKIP_LANDING_BODY_CLASS}");document.body.classList.remove("concept-a-landing-active");});return;}var done=localStorage.getItem("${ONBOARDING_COMPLETED_STORAGE_KEY}")==="1";if(done){document.documentElement.classList.add("${ONBOARDING_COMPLETE_HTML_CLASS}");}else{document.documentElement.classList.add("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");}onBody(function(){if(done){document.body.classList.remove("concept-a-landing-active");}else{document.body.classList.add("concept-a-landing-active");}});}catch(e){var path=location.pathname;if(path.indexOf("/jobs/")===0&&path.length>"/jobs/".length){document.documentElement.classList.add("${JOBS_SKIP_LANDING_HTML_CLASS}");return;}if(path!=="/jobs")return;document.documentElement.classList.add("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");function fallback(){if(document.body)document.body.classList.add("concept-a-landing-active");}fallback();if(!document.body)document.addEventListener("DOMContentLoaded",fallback,{once:true});}})();`;
