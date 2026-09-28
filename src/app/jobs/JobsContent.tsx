@@ -291,7 +291,6 @@ import {
     type PublicJob,
     type YearsExperienceBucket,
 } from "@/lib/jobs/types";
-import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import type { HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import {
     parseJobsUrl,

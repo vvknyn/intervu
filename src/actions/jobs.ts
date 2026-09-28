@@ -385,9 +385,9 @@ const getCachedDefaultBrowse = unstable_cache(
 export async function getHubPackCorpusCountsAction(
   suppressLocationDefault: boolean,
 ): Promise<HubPackCorpusCounts> {
-  const ip = suppressLocationDefault ? null : await getClientIp();
+  const ip = await getClientIp();
   if (!allowSearchRequest(ip)) return {};
-  const iso2 = ip ? await countryLookup(ip) : null;
+  const iso2 = suppressLocationDefault ? null : await countryLookup(ip);
   const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
   try {
     return await getCachedHubPackCorpusCounts(places);
