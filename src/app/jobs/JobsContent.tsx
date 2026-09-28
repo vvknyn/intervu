@@ -5775,7 +5775,7 @@ export function JobsContent({
                         center the pill+button pair in it instead of pinning them
                         to the start. */}
                     {!headerDockActive && (
-                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5 sm:justify-center">
+                    <div data-search-line className="flex flex-row items-start gap-2 sm:flex-wrap sm:gap-2.5 sm:justify-center">
                         {/* `bg-surface`, not `bg-background`: inside the raised well
                             the field has to be the brightest thing on the page,
                             which is the only direction contrast can go on a
@@ -5797,7 +5797,7 @@ export function JobsContent({
                                 // stacked surface uses. From `sm` the rows go
                                 // side-by-side and it becomes the single pill it
                                 // always was (mobile layout audit, 2026-09-18).
-                                "flex flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-pill",
+                                "flex min-w-0 flex-1 flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-pill",
                                 // Mechanism: the ancestor <section> above used to
                                 // shrink-wrap (mx-auto suppressing stretch), so this
                                 // sm:flex-1 (basis 0%) had no real room to fill.
@@ -5927,7 +5927,7 @@ export function JobsContent({
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
                                     atRest ? "h-11" : "h-11 sm:h-[56px]",
-                                    "w-full rounded-pill px-6 text-xs font-semibold sm:w-auto transition-colors",
+                                    "w-auto shrink-0 rounded-pill px-4 text-xs font-semibold sm:px-6 transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
                             >
