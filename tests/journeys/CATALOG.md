@@ -604,6 +604,12 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ERR-17 | Reload a 404 deep link and stay on the 404 | anon | /careers/bogus-zzz | signed-out | no | uncovered | — |
 | J-ERR-18 | Non-admin signed-in user opening /admin is redirected home (DEFECT: currently renders the panel) | signed-in | /admin | signed-in | no | uncovered | — |
 
+## ADMIN
+
+| ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
+|----|---------|---------|-------|------|--------|--------|------|
+| J-ADMIN-01 | Opens /admin signed out and is redirected to /login?next=/admin | Signed-out visitor | /admin | signed-out | no | covered | admin.spec.ts |
+
 ## Legacy specs pending repair
 
 Specs in `tests/e2e/` triaged "fix" that no row above cites. Not run by the journey suite; the journey each guards is not covered.
