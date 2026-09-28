@@ -212,11 +212,28 @@ async function ensureDeckRoleOpen(page) {
   await row.click();
 }
 
-async function navigateHubToPrompt(page) {
+/**
+ * Signed-in /jobs with no server résumé resolves to Search. Pack cards and
+ * job rows live on For you. Open that home before the deck walk.
+ */
+async function openForYouHub(page) {
   await page.goto(`${BASE}/jobs`, { waitUntil: 'domcontentloaded', timeout: 90000 });
-  await page.waitForSelector('[data-testid^="hub-pack-card"]', { timeout: 90000 }).catch(() => {});
+  const pack = page.locator('[data-testid^="hub-pack-card"]').first();
+  if (!(await pack.isVisible({ timeout: 8000 }).catch(() => false))) {
+    const forYou = page.getByTestId('jobs-home-for-you');
+    if (await forYou.isVisible({ timeout: 8000 }).catch(() => false)) {
+      await forYou.click();
+    } else {
+      await page.goto(`${BASE}/jobs?view=for-you`, { waitUntil: 'domcontentloaded', timeout: 90000 });
+    }
+  }
+  await page.waitForSelector('[data-testid^="hub-pack-card"]', { timeout: 90000 });
   await page.waitForTimeout(2000);
   await dismissIntros(page);
+}
+
+async function navigateHubToPrompt(page) {
+  await openForYouHub(page);
   const preferred = ['hub-pack-card-apply', 'hub-pack-card-good', 'hub-pack-card-all'];
   for (const id of preferred) {
     const card = page.getByTestId(id);
@@ -404,10 +421,7 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
   const ctx = await newCtx(browser, viewport);
   await injectSession(ctx, wos);
   const page = await ctx.newPage();
-  await page.goto(`${BASE}/jobs`, { waitUntil: 'domcontentloaded', timeout: 90000 });
-  await page.waitForSelector('[data-testid^="hub-pack-card"]', { timeout: 90000 }).catch(() => {});
-  await page.waitForTimeout(2000);
-  await dismissIntros(page);
+  await openForYouHub(page);
   const hubProbe = await surfaceProbe(page);
   await shot(page, `betalist-${engine}-${label}-hub.png`);
   await loadAxe(page);
