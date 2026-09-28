@@ -7,6 +7,9 @@ import {
 } from "../../src/lib/presentation/location-normalise";
 import { locationSummary } from "../../src/lib/presentation/location";
 import { locationText, locationWithMode, placeWithWorkMode } from "../../src/lib/jobs/presentation";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { JobCard } from "../../src/components/jobs/JobCard";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 const job = (over: Partial<PublicJob>): PublicJob =>
@@ -137,4 +140,29 @@ test("every dirty shape, through both display paths, yields no repeated adjacent
       }
     }
   }
+});
+
+// --- rendered card: the label the user actually sees ------------------------
+
+function cardLocation(over: Partial<PublicJob>): string | null {
+  const html = renderToStaticMarkup(
+    React.createElement(JobCard, {
+      job: job({ id: "loc-1", title: "Engineer", company: "Acme", company_domain: "acme.example", ghost_badge: "clear", ...over }),
+      active: false,
+      opened: false,
+      onClick: () => {},
+      now: Date.parse("2026-09-28T12:00:00Z"),
+    }),
+  );
+  return /data-testid="job-location">([^<]*)</.exec(html)?.[1] ?? null;
+}
+
+test("rendered JobCard shows the normalised label for the QA string and for other dirty shapes", () => {
+  assert.equal(cardLocation({ location: "RemoteRemote Location, All States", work_type: "remote" }), "Remote");
+  assert.equal(cardLocation({ location: "Remote Remote", work_type: "remote" }), "Remote");
+  assert.equal(
+    cardLocation({ location: "US CT Shelton; US FL Remote; US NY Remote; US TX Remote; US CA Remote" }),
+    "Shelton, CT +4 more",
+  );
+  assert.equal(cardLocation({ location: "Toronto, ON", work_type: "hybrid" }), "Toronto, ON");
 });

@@ -66,7 +66,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-23 | Click a job row title and the job detail opens (`?job=`, detail pane at desktop, sheet at mobile); fresh and previous-session visitor | anon | `/jobs` (no seed; second run with the `sb_jobs_visitor` cookie), click `job-title` | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-24 | Click Sign in or Get started and the board is still visible 2s later; fresh and previous-session visitor | anon | `/jobs` (no seed; second run with the `sb_jobs_visitor` cookie), click the Sign in control | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-25 | List analytics fire: `results_impressed` on first render, `search_submitted` on a search (needs a build with NEXT_PUBLIC_POSTHOG_KEY, skips otherwise) | anon | `/jobs`, then fill the search box and press Enter, `/api/telemetry` fulfilled locally | signed-out | no | covered | jobs.spec.ts |
-| J-JOBS-26 | Job cards and the job page show location labels with no repeated adjacent word (e.g. "RemoteRemote Location, All States · Remote") | anon | SEED-A + `/jobs?q=remote`, then the first row's `/jobs/<slug>` | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-26 | Job cards and the job page show location labels with no repeated adjacent word (e.g. "RemoteRemote Location, All States · Remote") | anon | onboarding-completed flag + search "remote", then the first row's `/jobs/<slug>` | signed-out | no | covered | jobs.spec.ts |
 
 ## SRCH
 
