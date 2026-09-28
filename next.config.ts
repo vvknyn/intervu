@@ -4,6 +4,10 @@ import {
   CANADA_CAREER_REDIRECT_DESTINATION,
   REMOVED_CANADA_CAREER_SLUGS,
 } from "./src/lib/seo/canada-career-redirects";
+import {
+  jobsBrowseSearchHref,
+  jobsForYouHubHref,
+} from "./src/lib/jobs/prefetch-jobs-route";
 
 // AuthKit only reads NEXT_PUBLIC_WORKOS_REDIRECT_URI; bridge before any route loads.
 applyWorkOsRedirectUriBridge();
@@ -118,6 +122,17 @@ const nextConfig: NextConfig = {
       {
         source: "/mcp",
         destination: "/connect",
+        permanent: false,
+      },
+      // Betalist-era short URLs — not committed shapes; land on the jobs hub.
+      {
+        source: "/packs",
+        destination: jobsForYouHubHref(),
+        permanent: false,
+      },
+      {
+        source: "/apply",
+        destination: jobsBrowseSearchHref(""),
         permanent: false,
       },
       // /agents was the agent-MCP marketing page before /connect became the

@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
+  isLeanFooterSurface,
   isLeanProductSurface,
   shouldHideSiteChrome,
 } from "../../src/components/layout/should-hide-site-chrome";
 
 const TOPBAR = path.join(__dirname, "../../src/components/layout/TopBar.tsx");
+const FOOTER = path.join(__dirname, "../../src/components/layout/Footer.tsx");
 
 test("/oauth joins /login, /auth, /mock as a chrome-free surface", () => {
   // The consent screen (2026-08-27 polish) — same reasoning as /login: a
@@ -41,4 +43,18 @@ test("TopBar filters desktop /connect on lean surfaces and when signed out", () 
   assert.match(src, /isLeanProductSurface\(pathname\)/);
   assert.match(src, /leanSurface/);
   assert.match(src, /authChrome !== "authenticated"/);
+});
+
+test("lean footer on career hubs without widening lean product (TopBar unchanged)", () => {
+  assert.equal(isLeanFooterSurface("/careers/remote-jobs"), true);
+  assert.equal(isLeanFooterSurface("/careers/tech-jobs"), true);
+  assert.equal(isLeanFooterSurface("/jobs"), true);
+  assert.equal(isLeanFooterSurface("/about"), false);
+  assert.equal(isLeanFooterSurface("/indeed-alternative"), false);
+  assert.equal(isLeanProductSurface("/careers/remote-jobs"), false);
+});
+
+test("Footer uses isLeanFooterSurface for lean legal strip", () => {
+  const src = readFileSync(FOOTER, "utf8");
+  assert.match(src, /isLeanFooterSurface\(pathname\)/);
 });

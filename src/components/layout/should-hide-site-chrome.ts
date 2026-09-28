@@ -22,3 +22,12 @@ export function isLeanProductSurface(pathname: string): boolean {
         pathname.startsWith("/resume/")
     );
 }
+
+/** Lean footer (Privacy/Terms only) — product loop plus career hub SEO pages. */
+export function isLeanFooterSurface(pathname: string): boolean {
+    return (
+        isLeanProductSurface(pathname) ||
+        pathname === "/careers" ||
+        pathname.startsWith("/careers/")
+    );
+}
