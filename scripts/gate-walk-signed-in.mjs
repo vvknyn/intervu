@@ -521,8 +521,18 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
   await ensureDeckRoleOpen(page);
   await page.getByTestId('for-you-download-apply').waitFor({ state: 'visible', timeout: 90000 }).catch(() => {});
   await page.waitForTimeout(1500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(800);
+  // Scrolling the document to the bottom leaves window.scrollY stuck (the
+  // fixed "Did you apply?" chip stays on screen, but axe then treats
+  // color-contrast as inapplicable). Only scroll when the button is not
+  // already in view.
+  const downloadInView = await page.getByTestId('for-you-download-apply').evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.top >= 0 && r.bottom <= window.innerHeight;
+  }).catch(() => false);
+  if (!downloadInView) {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(800);
+  }
   await page.getByTestId('for-you-deck').waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
   const deckAxe = await runAxeContrast(page, '[data-testid="for-you-deck"]');
   await shot(page, `betalist-${engine}-${label}-deck-pre-apply.png`);
