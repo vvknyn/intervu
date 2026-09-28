@@ -42,6 +42,7 @@ import { getCurrentUser, onAuthChange, revalidateClientSession, type User } from
 import {
     searchJobsAction as searchJobsActionRaw,
     getDefaultBrowseAction,
+    getHubPackCorpusCountsAction,
     markJobAppliedAction,
     getJobsFreshnessAction,
     getPostedDateFilterSupportAction,
@@ -290,6 +291,8 @@ import {
     type PublicJob,
     type YearsExperienceBucket,
 } from "@/lib/jobs/types";
+import type { CorpusCount } from "@/lib/jobs/corpus-count";
+import type { HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import {
     parseJobsUrl,
     serializeJobsUrl,
@@ -328,8 +331,7 @@ import {
     formatBrowseHubCorpusLine,
     formatHubCorpusLine,
     HUB_PROBE_LIMITS,
-    resolveBrowseHubRoleCountLabels,
-    resolveHubRoleCountLabels,
+    formatHubPackCorpusRoleLabels,
     packBandTotalsFromSources,
     resolveAllPackHubCounts,
     type ScoredHubHit,
@@ -1801,6 +1803,9 @@ export function JobsContent({
         jobs: [],
         total: null,
     });
+    const [hubPackCorpusCounts, setHubPackCorpusCounts] = useState<
+        Partial<Record<HubPackId, CorpusCount | null>> | null
+    >(null);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -2970,6 +2975,17 @@ export function JobsContent({
         });
     }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, result]);
 
+    useEffect(() => {
+        if (!showForYouHome) return;
+        let cancelled = false;
+        void getHubPackCorpusCountsAction(locationDefaultSuppressed).then((counts) => {
+            if (!cancelled) setHubPackCorpusCounts(counts);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [showForYouHome, locationDefaultSuppressed]);
+
     // Progressive quiet fit probe — every pack gets live role counts from the
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
@@ -3092,42 +3108,13 @@ export function JobsContent({
         };
     }, [showForYouHome, forYouPackDeckOpen, hubResumeKey]);
 
-    const hubCountLabels = useMemo(() => {
-        const deckScored: ScoredHubHit[] | null =
-            fitActive && matchScores && result?.hits?.length
-                ? result.hits
-                      .map((job) => {
-                          const score = matchScores.get(job.id);
-                          return score ? { job, score } : null;
-                      })
-                      .filter((x): x is ScoredHubHit => x != null)
-                : null;
-        // The hub probe owns category counts. The open deck's current page
-        // must not replace them — that page is a slice, and swapping it in
-        // blanked every pack the slice did not happen to contain.
-        const scored = hubFitProbe.scored.length > 0 ? hubFitProbe.scored : (deckScored ?? []);
-        if (scored.length > 0) {
-            const pool = hubFitProbe.total ?? (fitActive && result?.total != null ? result.total : null);
-            return resolveHubRoleCountLabels({
-                loading: false,
-                probing: hubFitProbe.probing,
-                poolTotal: pool,
-                scored,
-            });
-        }
-        if (hubBrowse.jobs.length > 0) {
-            return resolveBrowseHubRoleCountLabels({
-                jobs: hubBrowse.jobs,
-                poolTotal: hubBrowse.total,
-            });
-        }
-        return resolveHubRoleCountLabels({
-            loading: true,
-            probing: hubFitProbe.probing,
-            poolTotal: hubFitProbe.total,
-            scored: [],
-        });
-    }, [fitActive, matchScores, result?.total, result?.hits, hubFitProbe, hubBrowse]);
+    const hubCountLabels = useMemo(
+        () =>
+            formatHubPackCorpusRoleLabels(hubPackCorpusCounts ?? {}, {
+                loading: hubPackCorpusCounts == null,
+            }),
+        [hubPackCorpusCounts],
+    );
 
     const hubCorpusLine = useMemo(() => {
         if (hubFitProbe.scored.length > 0 || (fitActive && result?.total != null)) {

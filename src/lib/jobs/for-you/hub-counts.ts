@@ -6,11 +6,15 @@
 import { matchBand, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import { isCanadaDeckJob } from "@/lib/jobs/for-you/canada-deck";
+import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import {
     HUB_PACK_IDS,
     jobMatchesHubPack,
     type HubPackId,
 } from "@/lib/jobs/for-you/hub-pack-filters";
+
+/** Hub pack pill placeholder while corpus counts are in flight. */
+export const HUB_PACK_CORPUS_COUNT_LOADING = "…";
 
 export type HubCountSource =
     | { kind: "loading" }
@@ -197,6 +201,47 @@ export function formatHubRoleCount(total: number): string {
     if (!Number.isFinite(total) || total < 0) return "";
     const n = Math.floor(total);
     return n === 1 ? "1 role" : `${n.toLocaleString()} roles`;
+}
+
+/**
+ * Largest phrase count. More than one phrase → a floor, because overlap is
+ * unknown: the sum would overstate the pack, and the max is the count we
+ * can stand behind ("at least this many"). A single exact count stays exact.
+ */
+export function keywordPackLowerBound(counts: Array<CorpusCount | null | undefined>): CorpusCount | null {
+    const usable = counts.filter((count): count is CorpusCount => {
+        if (count == null) return false;
+        return Number.isFinite(count.value) && count.value >= 0;
+    });
+    if (usable.length === 0) return null;
+    const max = Math.max(...usable.map((count) => count.value));
+    const only = usable[0];
+    if (usable.length === 1 && only?.kind === "exact") return { kind: "exact", value: only.value };
+    return { kind: "floor", value: max };
+}
+
+/** Role pill from a corpus `CorpusCount` — never from browse page hits or fit-probe samples. */
+export function formatHubPackCorpusRoleLabel(count: CorpusCount | null | undefined): string {
+    if (count == null) return HUB_PACK_CORPUS_COUNT_LOADING;
+    const n = Math.floor(count.value);
+    if (!Number.isFinite(n) || n < 0) return HUB_PACK_CORPUS_COUNT_LOADING;
+    if (count.kind === "floor") return `${n.toLocaleString()}+ roles`;
+    return n === 1 ? "1 role" : `${n.toLocaleString()} roles`;
+}
+
+export function formatHubPackCorpusRoleLabels(
+    counts: Partial<Record<HubPackId, CorpusCount | null | undefined>>,
+    options?: { loading?: boolean },
+): Partial<Record<string, string>> {
+    const labels: Partial<Record<string, string>> = {};
+    for (const packId of HUB_PACK_IDS) {
+        if (options?.loading && counts[packId] == null) {
+            labels[packId] = HUB_PACK_CORPUS_COUNT_LOADING;
+            continue;
+        }
+        labels[packId] = formatHubPackCorpusRoleLabel(counts[packId]);
+    }
+    return labels;
 }
 
 /**

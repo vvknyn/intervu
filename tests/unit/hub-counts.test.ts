@@ -6,7 +6,10 @@ import {
     formatBrowseHubCorpusLine,
     formatHubCorpusLine,
     formatHubCountLabel,
+    formatHubPackCorpusRoleLabel,
+    formatHubPackCorpusRoleLabels,
     formatHubRoleCount,
+    keywordPackLowerBound,
     resolveBrowseHubRoleCountLabels,
     resolveHubRoleCountLabels,
     packBandTotalsFromSources,
@@ -289,6 +292,40 @@ describe("packBandTotalsFromSources", () => {
         });
         assert.deepEqual(totals.all, { strong: 10, good: 4 });
         assert.equal(totals.remote, undefined);
+    });
+});
+
+describe("formatHubPackCorpusRoleLabels", () => {
+    it("pack count label is not capped at the browse page size", () => {
+        const browseSample = resolveBrowseHubRoleCountLabels({
+            jobs: [job({ id: "1", title: "Eng", work_type: "remote" })],
+            poolTotal: 100_000,
+        });
+        assert.equal(browseSample.remote, "1 role");
+
+        const corpusLabels = formatHubPackCorpusRoleLabels({
+            remote: { kind: "exact", value: 292_583 },
+            all: { kind: "floor", value: 100_000 },
+        });
+        assert.equal(corpusLabels.remote, "292,583 roles");
+        assert.equal(corpusLabels.all, "100,000+ roles");
+        assert.notEqual(corpusLabels.remote, browseSample.remote);
+
+        const saturatedNoFacet = formatHubPackCorpusRoleLabel({ kind: "floor", value: 100_000 });
+        assert.equal(saturatedNoFacet, "100,000+ roles");
+        assert.notEqual(saturatedNoFacet, "1 role");
+        assert.notEqual(saturatedNoFacet, "20 roles");
+    });
+
+    it("keyword pack count is the largest phrase, not the page size or the sum", () => {
+        const bound = keywordPackLowerBound([
+            { kind: "exact", value: 1 },
+            { kind: "exact", value: 6_150 },
+            { kind: "exact", value: 1_749 },
+        ]);
+        assert.deepEqual(bound, { kind: "floor", value: 6_150 });
+        assert.equal(formatHubPackCorpusRoleLabel(bound), "6,150+ roles");
+        assert.notEqual(formatHubPackCorpusRoleLabel(bound), "1 role");
     });
 });
 
