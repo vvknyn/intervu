@@ -141,7 +141,7 @@ describe("profile review false success", () => {
             assert.equal("skillsString" in review, false);
             assert.equal("parsed" in review, false);
         }
-        const offered = review.ok ? review.skillsString : "";
+        const offered = (review as { skillsString?: string }).skillsString ?? "";
         for (const token of FORBIDDEN_SKILL_TOKENS) {
             assert.equal(offered.includes(token), false, `Core Skills must not contain ${token}`);
         }

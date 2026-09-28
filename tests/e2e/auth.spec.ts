@@ -130,7 +130,7 @@ test.describe('AUTH - Authentication Tests', () => {
 
     await page.goto('/jobs');
     await page.waitForLoadState('networkidle');
-    await expect(page.getByTestId('concept-a-landing')).toBeVisible();
+    await expect(page.getByTestId('topbar-signin')).toBeVisible();
 
     await page.goto('/yours');
     await expect(page).toHaveURL('/yours');

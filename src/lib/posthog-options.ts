@@ -99,6 +99,14 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   capture_pageleave: true,
   autocapture: true,
 
+  // Uncaught errors and unhandled rejections in the browser -> `$exception`
+  // events (PostHog Error Tracking). The project had none, so client crashes
+  // such as React #418/#419 on /jobs were invisible. `true` captures
+  // unhandled errors and unhandled rejections; console.error capture stays off
+  // (noisy, and console text is where PII leaks). Set locally, so it does not
+  // depend on the project-level Error Tracking toggle (currently unset).
+  capture_exceptions: true,
+
   // Needed *because* api_host is now our own origin.
   //
   // posthog-js derives the UI host by string-replacing the ingestion subdomain

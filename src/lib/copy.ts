@@ -182,8 +182,6 @@ export const OUTPUT_PREF_DESCRIPTIONS = {
 // Auth form messages (login-form.tsx)
 // ---------------------------------------------------------------------------
 export const AUTH_MESSAGES = {
-    // e2e TC-COPY-004 (tests/e2e/quirky-messages.spec.ts) matches on the
-    // substring "username and password" — keep it contiguous if this changes.
     missingCredentials:
         "We're going to need an email, plus a username and password. Just the basics.",
 };

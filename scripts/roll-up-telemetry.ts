@@ -101,7 +101,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import type { Queryable } from "@/lib/pg/pool";
 import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
-import { buildUpsert } from "@/lib/pg/upsert";
+import { upsertRows } from "@/lib/pg/upsert";
 import { buildJobFeaturesSelect } from "@/lib/telemetry/job-features-columns";
 import type { JobFeatures } from "@/lib/telemetry/features";
 import {
@@ -190,7 +190,8 @@ async function main() {
     const featureOutcomeRows = aggregateFeatureOutcomes(featureOutcomeEvents, featuresByJobId);
 
     if (jobDailyRows.length > 0) {
-      const { text, params } = buildUpsert<JobDailyRow>(
+      rowsAffected += await upsertRows<JobDailyRow>(
+        db,
         "intervu.job_daily",
         [
           "job_id", "day", "impressions", "clicks", "applies", "saves", "dismissals",
@@ -200,12 +201,11 @@ async function main() {
         jobDailyRows,
         ["computed_at"],
       );
-      await db.query(text, params);
-      rowsAffected += jobDailyRows.length;
     }
 
     if (companyDailyRows.length > 0) {
-      const { text, params } = buildUpsert<CompanyDailyRow>(
+      rowsAffected += await upsertRows<CompanyDailyRow>(
+        db,
         "intervu.company_daily",
         [
           "company_domain", "day", "impressions", "clicks", "applies", "saves", "dismissals",
@@ -215,20 +215,17 @@ async function main() {
         companyDailyRows,
         ["computed_at"],
       );
-      await db.query(text, params);
-      rowsAffected += companyDailyRows.length;
     }
 
     if (featureOutcomeRows.length > 0) {
-      const { text, params } = buildUpsert<FeatureOutcomeRow>(
+      rowsAffected += await upsertRows<FeatureOutcomeRow>(
+        db,
         "intervu.feature_outcomes",
         ["feature", "bucket", "position", "impressions", "clicks", "applies"] as const,
         ["feature", "bucket", "position"],
         featureOutcomeRows,
         ["computed_at"],
       );
-      await db.query(text, params);
-      rowsAffected += featureOutcomeRows.length;
     }
 
     await writeHeartbeat(db, JOB_NAME, rowsAffected, true);
