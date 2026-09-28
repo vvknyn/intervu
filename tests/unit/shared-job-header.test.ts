@@ -8,7 +8,7 @@ import {
     isSharedJobPath,
 } from "../../src/lib/jobs/onboarding-first-paint";
 
-function runScript(pathname: string, storage: Record<string, string> = {}) {
+function runScript(pathname: string, storage: Record<string, string> = {}, cookie = "") {
     const html = new Set<string>();
     const body = new Set<string>();
     const classList = (set: Set<string>) => ({
@@ -19,6 +19,7 @@ function runScript(pathname: string, storage: Record<string, string> = {}) {
         location: { pathname },
         localStorage: { getItem: (key: string) => storage[key] ?? null },
         document: {
+            cookie,
             documentElement: { classList: classList(html) },
             body: { classList: classList(body) },
             addEventListener() {},
@@ -54,6 +55,18 @@ test("head script still hides hub chrome on exact /jobs until onboarding is done
     assert.equal(done.html.has("velai-onboarding-complete"), true);
     assert.equal(done.html.has("concept-a-landing-pending"), false);
     assert.equal(done.body.has("concept-a-landing-active"), false);
+});
+
+test("head script skips the Step 1 poster when the signed-in paint hint is set", () => {
+    const hinted = runScript("/jobs", {}, "velai_jobs_signed_in=1");
+    assert.equal(hinted.html.has("velai-jobs-skip-landing"), true);
+    assert.equal(hinted.html.has("concept-a-landing-pending"), false);
+    assert.equal(hinted.body.has("velai-jobs-skip-landing"), true);
+    assert.equal(hinted.body.has("concept-a-landing-active"), false);
+
+    const lookalike = runScript("/jobs", {}, "other=velai_jobs_signed_in=1");
+    assert.equal(lookalike.html.has("concept-a-landing-pending"), true);
+    assert.equal(lookalike.html.has("velai-jobs-skip-landing"), false);
 });
 
 test("head script does not touch résumé, careers, or apply routes", () => {

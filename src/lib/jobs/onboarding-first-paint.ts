@@ -1,3 +1,5 @@
+import { cookieHeaderHasJobsSignedInPaintHint, JOBS_SIGNED_IN_PAINT_COOKIE, JOBS_SIGNED_IN_PAINT_COOKIE_VALUE } from "@/lib/jobs/signed-in-paint-cookie";
+
 /** localStorage key + document classes for Concept A first paint (SSR + blocking script). */
 export const ONBOARDING_COMPLETED_STORAGE_KEY = "velai.onboarding.completed";
 
@@ -69,9 +71,8 @@ export function isSharedJobPath(pathname: string): boolean {
     return pathname.startsWith("/jobs/") && pathname.length > "/jobs/".length;
 }
 
-/** Keep the site header on a shared job and hide the hub poster that the
- *  shared `jobs` layout also mounts. */
-export function revealSharedJobHeader(): void {
+/** Drop the Step 1 poster and the classes that hide the site header. */
+export function revealJobsSiteHeader(): void {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
     root.classList.add(JOBS_SKIP_LANDING_HTML_CLASS);
@@ -80,7 +81,23 @@ export function revealSharedJobHeader(): void {
     document.body.classList.remove("concept-a-landing-active");
 }
 
+/** Keep the site header on a shared job and hide the hub poster that the
+ *  shared `jobs` layout also mounts. */
+export function revealSharedJobHeader(): void {
+    revealJobsSiteHeader();
+}
+
+/** Cookie hint set by middleware when a WorkOS session is present. */
+export function readJobsSignedInPaintHint(): boolean {
+    if (typeof document === "undefined") return false;
+    try {
+        return cookieHeaderHasJobsSignedInPaintHint(document.cookie || "");
+    } catch {
+        return false;
+    }
+}
+
 /** Inline script — runs in `<head>` before body chrome paints (pathname-gated).
- *  Exact `/jobs` may hide the site header for Step 1. Any `/jobs/<slug>` shared
- *  job keeps that header and suppresses the hub poster. */
-export const JOBS_ONBOARDING_HEAD_SCRIPT = `(function(){try{var p=location.pathname;if(p!=="/jobs"&&p.indexOf("/jobs/")!==0)return;function onBody(fn){if(document.body)fn();else document.addEventListener("DOMContentLoaded",fn,{once:true});}if(p.indexOf("/jobs/")===0&&p.length>"/jobs/".length){document.documentElement.classList.add("${JOBS_SKIP_LANDING_HTML_CLASS}");document.documentElement.classList.remove("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");onBody(function(){document.body.classList.add("${JOBS_SKIP_LANDING_BODY_CLASS}");document.body.classList.remove("concept-a-landing-active");});return;}var done=localStorage.getItem("${ONBOARDING_COMPLETED_STORAGE_KEY}")==="1";if(done){document.documentElement.classList.add("${ONBOARDING_COMPLETE_HTML_CLASS}");}else{document.documentElement.classList.add("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");}onBody(function(){if(done){document.body.classList.remove("concept-a-landing-active");}else{document.body.classList.add("concept-a-landing-active");}});}catch(e){var path=location.pathname;if(path.indexOf("/jobs/")===0&&path.length>"/jobs/".length){document.documentElement.classList.add("${JOBS_SKIP_LANDING_HTML_CLASS}");return;}if(path!=="/jobs")return;document.documentElement.classList.add("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");function fallback(){if(document.body)document.body.classList.add("concept-a-landing-active");}fallback();if(!document.body)document.addEventListener("DOMContentLoaded",fallback,{once:true});}})();`;
+ *  Exact `/jobs` hides the site header for the signed-out Step 1 poster.
+ *  A signed-in paint hint, or any `/jobs/<slug>` shared job, keeps the header. */
+export const JOBS_ONBOARDING_HEAD_SCRIPT = `(function(){try{var p=location.pathname;if(p!=="/jobs"&&p.indexOf("/jobs/")!==0)return;function onBody(fn){if(document.body)fn();else document.addEventListener("DOMContentLoaded",fn,{once:true});}function skip(){document.documentElement.classList.add("${JOBS_SKIP_LANDING_HTML_CLASS}");document.documentElement.classList.remove("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");onBody(function(){document.body.classList.add("${JOBS_SKIP_LANDING_BODY_CLASS}");document.body.classList.remove("concept-a-landing-active");});}function hint(){var parts=(document.cookie||"").split(";");var name="${JOBS_SIGNED_IN_PAINT_COOKIE}=";for(var i=0;i<parts.length;i++){var c=parts[i].replace(/^\\s+/,"");if(c.indexOf(name)===0&&c.slice(name.length)==="${JOBS_SIGNED_IN_PAINT_COOKIE_VALUE}")return true;}return false;}if((p.indexOf("/jobs/")===0&&p.length>"/jobs/".length)||hint()){skip();return;}var done=localStorage.getItem("${ONBOARDING_COMPLETED_STORAGE_KEY}")==="1";if(done){document.documentElement.classList.add("${ONBOARDING_COMPLETE_HTML_CLASS}");}else{document.documentElement.classList.add("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");}onBody(function(){if(done){document.body.classList.remove("concept-a-landing-active");}else{document.body.classList.add("concept-a-landing-active");}});}catch(e){var path=location.pathname;if(path.indexOf("/jobs/")===0&&path.length>"/jobs/".length){document.documentElement.classList.add("${JOBS_SKIP_LANDING_HTML_CLASS}");return;}if(path!=="/jobs")return;try{var bits=(document.cookie||"").split(";");var hintName="${JOBS_SIGNED_IN_PAINT_COOKIE}=";for(var j=0;j<bits.length;j++){var bit=bits[j].replace(/^\\s+/,"");if(bit.indexOf(hintName)===0&&bit.slice(hintName.length)==="${JOBS_SIGNED_IN_PAINT_COOKIE_VALUE}"){document.documentElement.classList.add("${JOBS_SKIP_LANDING_HTML_CLASS}");document.documentElement.classList.remove("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");return;}}}catch(e2){}document.documentElement.classList.add("${CONCEPT_A_LANDING_PENDING_HTML_CLASS}");function fallback(){if(document.body)document.body.classList.add("concept-a-landing-active");}fallback();if(!document.body)document.addEventListener("DOMContentLoaded",fallback,{once:true});}})();`;

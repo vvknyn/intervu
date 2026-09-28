@@ -167,6 +167,8 @@ import {
     CONCEPT_A_LANDING_PENDING_HTML_CLASS,
     hideJobsSsrLanding,
     restoreJobsSsrLanding,
+    revealJobsSiteHeader,
+    readJobsSignedInPaintHint,
     readOnboardingCompletedFromStorage,
     subscribeOnboardingCompleted,
     writeOnboardingCompletedInStorage,
@@ -2227,20 +2229,22 @@ export function JobsContent({
     useEffect(() => {
         const root = document.documentElement;
         if (showLandingOnboarding) {
-            if (userNeedsOnboarding || onboardingDismissed) {
-                hideJobsSsrLanding();
+            // Signed-in résumé / account steps are still exact /jobs. The
+            // Step 1 chrome-hide class must not stay on them. A refresh
+            // also mounts this before auth resolves; the paint hint already
+            // skipped the poster, so don't put it back while the session
+            // is still unknown.
+            if (userNeedsOnboarding || onboardingDismissed || (!authReady && readJobsSignedInPaintHint())) {
+                revealJobsSiteHeader();
             } else {
                 restoreJobsSsrLanding();
-            }
-            if (!readOnboardingCompletedFromStorage()) {
-                root.classList.add(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
             }
         } else {
             hideJobsSsrLanding();
             root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
             document.body.classList.remove(CONCEPT_A_LANDING_BODY_CLASS);
         }
-    }, [showLandingOnboarding, onboardingDismissed, userNeedsOnboarding]);
+    }, [showLandingOnboarding, onboardingDismissed, userNeedsOnboarding, authReady]);
 
     // At rest, the raw corpus feed is tucked away behind Advanced Search or explicit search intent
     const defaultFeedAtRest = showAdvancedSearch && atRest && showSearchHome && !showForYouHome;

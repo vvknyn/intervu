@@ -7,6 +7,8 @@ import {
     readOnboardingCompletedFromStorage,
     subscribeOnboardingCompleted,
     hideJobsSsrLanding,
+    readJobsSignedInPaintHint,
+    revealJobsSiteHeader,
 } from "@/lib/jobs/onboarding-first-paint";
 import type { JobsContentProps } from "@/app/jobs/JobsContent";
 import { requireAuthKitSoon } from "@/lib/perf/schedule-after-load-or-idle";
@@ -74,6 +76,12 @@ export default function JobsRouteGate() {
         hideJobsSsrLanding();
         revalidateClientSession();
         setEntry((prev) => promoteJobsEntry(prev, postAuthEntryProps()));
+    }, []);
+
+    useLayoutEffect(() => {
+        if (!readJobsSignedInPaintHint()) return;
+        revealJobsSiteHeader();
+        setEntry((prev) => promoteJobsEntry(prev, { onboardingInitialStep: 3 }));
     }, []);
 
     useEffect(() => {
