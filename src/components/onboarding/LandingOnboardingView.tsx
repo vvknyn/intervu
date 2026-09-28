@@ -21,7 +21,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
-import { parsePdfForProfileReview } from "@/lib/resume/profile-review-parse";
+import {
+    parseResumeFileForReview,
+    PROFILE_REVIEW_UNREADABLE_ERROR,
+} from "@/lib/resume/profile-review-parse";
+import { restoreJobsSsrLanding } from "@/lib/jobs/onboarding-first-paint";
 import { buildReturnTo } from "@/lib/jobs/pending-actions";
 import {
     LANDING_DEVICE_STORAGE_NOTE,
@@ -193,8 +197,9 @@ export function LandingOnboardingView({
 
     const handleFileSelected = async (file: File) => {
         setUploadError(null);
-        if (!file.name.toLowerCase().endsWith(".pdf")) {
-            setUploadError("Please upload a PDF file of your résumé.");
+        const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+        if (!["pdf", "docx", "doc"].includes(extension)) {
+            setUploadError("Please upload a PDF or DOCX résumé, or paste your text below.");
             return;
         }
 
@@ -204,7 +209,7 @@ export function LandingOnboardingView({
         setUploading(true);
 
         try {
-            const outcome = await parsePdfForProfileReview(await file.arrayBuffer());
+            const outcome = await parseResumeFileForReview(file);
             if (!outcome.ok) {
                 setUploadError(outcome.error);
                 return;
@@ -214,7 +219,7 @@ export function LandingOnboardingView({
         } catch {
             setParsedResume(null);
             setSkillsString("");
-            setUploadError("Could not parse résumé text. You can still proceed.");
+            setUploadError(PROFILE_REVIEW_UNREADABLE_ERROR);
         } finally {
             setUploading(false);
         }
@@ -233,7 +238,7 @@ export function LandingOnboardingView({
     if (step === 1) {
         return (
             <ConceptALanding
-                onStart={() => setStep(isAuthenticated ? 3 : 2)}
+                onStart={() => setStep(3)}
                 onSignIn={() => setStep(2)}
             />
         );
@@ -252,7 +257,10 @@ export function LandingOnboardingView({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => setStep(1)}
+                        onClick={() => {
+                            restoreJobsSsrLanding();
+                            setStep(1);
+                        }}
                         className="gap-1.5 -ml-2 text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft size={16} aria-hidden />
@@ -350,7 +358,10 @@ export function LandingOnboardingView({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setStep(1)}
+                                onClick={() => {
+                                    restoreJobsSsrLanding();
+                                    setStep(1);
+                                }}
                                 className="gap-1.5 text-xs"
                             >
                                 <ArrowLeft size={16} /> Back
@@ -560,7 +571,7 @@ export function LandingOnboardingView({
                                     <input
                                         ref={fileInputRef}
                                         type="file"
-                                        accept=".pdf"
+                                        accept=".pdf,.docx,.doc"
                                         className="hidden"
                                         onChange={(e) => {
                                             const file = e.target.files?.[0];
@@ -588,7 +599,7 @@ export function LandingOnboardingView({
                                                     Tap to select or drag and drop your résumé
                                                 </p>
                                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                                    PDF format up to 10MB
+                                                    PDF or DOCX up to 10MB
                                                 </p>
                                             </div>
                                         </div>

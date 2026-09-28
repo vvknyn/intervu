@@ -19,6 +19,18 @@ export function hideJobsSsrLanding(): void {
     document.body.classList.remove("concept-a-landing-active");
 }
 
+/** Restore the SSR poster after Back from the account card to Step 1. */
+export function restoreJobsSsrLanding(): void {
+    if (typeof document === "undefined") return;
+    document.documentElement.classList.remove(JOBS_SKIP_LANDING_HTML_CLASS);
+    document.body.classList.remove(JOBS_SKIP_LANDING_BODY_CLASS);
+    if (!readOnboardingCompletedFromStorage()) {
+        document.documentElement.classList.add(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+        document.body.classList.add("concept-a-landing-active");
+    }
+    window.dispatchEvent(new Event("velai-onboarding-storage"));
+}
+
 export function readOnboardingCompletedFromStorage(): boolean {
     if (typeof window === "undefined") return false;
     try {

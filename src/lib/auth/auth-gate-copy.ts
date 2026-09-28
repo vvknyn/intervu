@@ -50,8 +50,8 @@ interface AuthGateCopy {
 
 const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
     apply: {
-        title: "Sign in to track this application",
-        body: "Your saved jobs and application stages will sync across devices.",
+        title: "Sign in to apply",
+        body: "Create a free account to open the employer posting and keep your applications in one place.",
     },
     generic: { body: "Sign in to sync your tracker across devices." },
     topbar: { body: "Sign in to sync your tracker across devices." },

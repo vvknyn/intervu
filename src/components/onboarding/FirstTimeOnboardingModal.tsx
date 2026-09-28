@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { OnboardingStepLabel } from "@/components/onboarding/onboarding-step-label";
-import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
+import { parseResumeFileForReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resume/profile-review-parse";
 import {
     ONBOARDING_MATCHING_PRIVACY,
     ONBOARDING_UPLOAD_PRIVACY_BODY,
@@ -92,11 +92,16 @@ export function FirstTimeOnboardingModal({
         setUploadError(null);
 
         try {
-            const text = await file.text();
-            const result = await parseResumeLocally(text);
-            setParsedResume(result.data.parsed);
+            const outcome = await parseResumeFileForReview(file);
+            if (!outcome.ok) {
+                setUploadError(outcome.error);
+                setParsedResume(null);
+                return;
+            }
+            setParsedResume(outcome.parsed);
         } catch {
-            setUploadError("Could not parse file. You can still proceed or try another format.");
+            setUploadError(PROFILE_REVIEW_UNREADABLE_ERROR);
+            setParsedResume(null);
         } finally {
             setUploading(false);
         }

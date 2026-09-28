@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
-import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { isLeanProductSurface, isQuietFooterPath, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
 
 /** Quiet footer links — Research lives here (not primary nav). `fromCurrentPage`
@@ -115,13 +115,13 @@ export function FooterContent() {
 export function Footer() {
     const pathname = usePathname();
     if (shouldHideSiteChrome(pathname)) return null;
-    if (isLeanProductSurface(pathname)) return <LeanFooterContent />;
+    if (isLeanProductSurface(pathname) || isQuietFooterPath(pathname)) return <LeanFooterContent />;
 
     return <FooterContent />;
 }
 
 /** Privacy/Terms only — keeps legal reachable without the ~17-link farm on
- *  hub/deck/apply lean walks. */
+ *  hub/deck/apply lean walks and on `/careers/remote-jobs`. */
 function LeanFooterContent() {
     return (
         <footer

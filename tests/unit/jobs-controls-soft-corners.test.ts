@@ -79,8 +79,8 @@ describe("jobs sheet action-bar soft corners", () => {
     });
 });
 
-describe("For-you/Search toggle — one mount, one shape", () => {
-    it("ForYouToggle mounts once, on the jobs bottom bar", () => {
+describe("For-you/Search toggle — one mount, header row", () => {
+    it("ForYouToggle mounts once, portaled into the header slot", () => {
         const hits: string[] = [];
         for (const file of walk(SRC)) {
             const src = readFileSync(file, "utf8");
@@ -88,28 +88,36 @@ describe("For-you/Search toggle — one mount, one shape", () => {
         }
         assert.deepEqual(hits, [join(SRC, "app/jobs/JobsContent.tsx")]);
         const jobs = readFileSync(join(SRC, "app/jobs/JobsContent.tsx"), "utf8");
-        assert.match(jobs, /data-testid="jobs-home-switch-bar"[\s\S]*<ForYouToggle/);
+        assert.match(jobs, /dockedHomeViewMount &&[\s\S]*createPortal\([\s\S]*<ForYouToggle/);
         const toggle = readFileSync(join(SRC, "components/jobs/for-you/ForYouToggle.tsx"), "utf8");
         assert.match(toggle, /"For you"/);
         assert.match(toggle, /"Search"/);
     });
 
-    it("TopBar renders a topbar-docked-home-view slot ahead of the Filters toggle", () => {
+    it("TopBar puts the home-view slot on the header row beside the mark, not the filter band", () => {
         const src = readFileSync(TOP_BAR, "utf8");
-        const bandRow = src.match(/data-region="band"[\s\S]*?topbar-docked-filters-toggle/)?.[0] ?? "";
-        assert.match(bandRow, /data-testid="topbar-docked-home-view"/, "home-view slot must precede the Filters toggle in the band row");
+        const header = src.match(/data-region="header"[\s\S]*?data-region="band"/)?.[0] ?? "";
+        assert.match(header, /data-testid="topbar-logo"/);
+        assert.match(header, /data-testid="topbar-docked-home-view"/);
+        assert.ok(
+            header.indexOf('data-testid="topbar-logo"') < header.indexOf('data-testid="topbar-docked-home-view"'),
+            "home-view slot follows the mark on the header row",
+        );
+        const band = src.slice(src.indexOf('data-region="band"'));
+        assert.doesNotMatch(band, /topbar-docked-home-view/);
+        assert.doesNotMatch(src, /docked \|\| homeViewDocked/);
     });
 
-    it("JobsContent puts one For you ↔ Search switch on the bottom bar at every width", () => {
+    it("JobsContent docks one For you ↔ Search switch and does not keep a bottom bar", () => {
         const src = readFileSync(join(SRC, "app/jobs/JobsContent.tsx"), "utf8");
-        assert.match(src, /data-testid="jobs-home-switch-bar"/);
-        assert.match(src, /lg:bottom-0/);
-        assert.match(src, /bottom-\[calc\(var\(--mobile-tabbar-h,56px\)\+env\(safe-area-inset-bottom,0px\)\)\]/);
+        assert.match(src, /const homeViewDockActive = showHomeViewToggle/);
+        assert.doesNotMatch(src, /data-testid="jobs-home-switch-bar"/);
+        assert.doesNotMatch(src, /lg:bottom-0/);
         assert.equal((src.match(/<ForYouToggle\b/g) ?? []).length, 1);
         assert.doesNotMatch(src, /JOBS_TAB_HELPER/);
     });
 
-    it("TopBar band row clears the For you/Search pill via --jobs-filter-row-h", () => {
+    it("TopBar filter band keeps --jobs-filter-row-h and does not host the switch", () => {
         const topBar = readFileSync(TOP_BAR, "utf8");
         const bandRow =
             topBar.match(/data-region="band"[\s\S]*?<div className="shell-row[^"]*"/)?.[0] ?? "";
@@ -120,20 +128,21 @@ describe("For-you/Search toggle — one mount, one shape", () => {
             "band row must use the filter-row token for min-height",
         );
         assert.doesNotMatch(bandRow, /\bh-10\b/, "band row must not use a fixed h-10");
+        assert.doesNotMatch(bandRow, /topbar-docked-home-view/);
 
         const globals = readFileSync(GLOBALS, "utf8");
         assert.match(
             globals,
             /--jobs-filter-row-h:\s*calc\(2\.75rem \+ 1rem\)/,
-            "filter row token must clear min-h-11 pill plus padding",
+            "filter row token must clear min-h-11 controls plus padding",
         );
     });
 
-    it("the bottom-bar switch is not gated on the search-only header dock", () => {
+    it("the header switch is not gated on the search-only header dock", () => {
         const src = readFileSync(join(SRC, "app/jobs/JobsContent.tsx"), "utf8");
-        const bar = src.match(/data-testid="jobs-home-switch-bar"[\s\S]*?<\/div>/)?.[0] ?? "";
-        assert.ok(bar.length > 0, "switch bar not found");
-        assert.doesNotMatch(bar, /headerDockActive/);
-        assert.match(src, /\{showHomeViewToggle && \([\s\S]*data-testid="jobs-home-switch-bar"/);
+        assert.match(src, /const homeViewDockActive = showHomeViewToggle/);
+        assert.match(src, /\{showHomeViewToggle && dockedHomeViewMount &&[\s\S]*<ForYouToggle/);
+        assert.doesNotMatch(src, /homeViewDockActive = headerDockActive/);
+        assert.doesNotMatch(src, /homeViewDockActive = false/);
     });
 });

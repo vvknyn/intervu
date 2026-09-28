@@ -14,10 +14,9 @@ export function isHttpApplyUrl(url: string): boolean {
 }
 
 /**
- * Shared Apply-click handler: every surface opens the employer apply URL
- * immediately — no auth wall before departure. Signed-in users keep
- * apply-intent / tracker behavior via `perform`; guests may receive an
- * optional post-open tracker prompt via `onGuestApplied`.
+ * Shared Apply-click handler: signed-in users open the employer apply URL
+ * immediately. Signed-out visitors hit the auth gate first — no direct
+ * departure to the employer site.
  *
  * Pass the employer URL as `window.open`'s first argument and do not put
  * `noopener` in the feature string. That feature creates `about:blank` and
@@ -39,23 +38,23 @@ export function openApplyUrl(url: string): void {
 
 export function useGatedApply<Job>({
     user,
+    gate,
     perform,
-    onGuestApplied,
 }: {
     user: unknown;
-    /** @deprecated Apply no longer auth-gates — kept for call-site compatibility. */
     gate?: (action: { kind: "apply"; payload: Job }) => void;
-    /** @deprecated Apply no longer sets auth reason — use onGuestApplied. */
+    /** @deprecated Apply no longer sets auth reason here — use gate meta. */
     setAuthGateReason?: (reason: unknown) => void;
     setAuthTrigger?: (trigger: unknown) => void;
     perform: (job: Job) => void;
-    /** Fired after perform for signed-out users — optional tracker prompt. */
+    /** @deprecated Signed-out Apply is auth-gated before departure. */
     onGuestApplied?: (job: Job) => void;
 }): (job: Job) => void {
     return (job: Job) => {
-        if (resolveApplyClickDecision(Boolean(user)) === "perform") {
-            perform(job);
-            if (!user) onGuestApplied?.(job);
+        if (resolveApplyClickDecision(Boolean(user)) === "gate") {
+            gate?.({ kind: "apply", payload: job });
+            return;
         }
+        perform(job);
     };
 }

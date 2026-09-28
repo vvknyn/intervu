@@ -113,7 +113,7 @@ export default function JobsRouteGate() {
                 onStart={() => {
                     requireAuthKitSoon();
                     hideJobsSsrLanding();
-                    setEntry({ onboardingInitialStep: 2 });
+                    setEntry({ onboardingInitialStep: 3 });
                 }}
                 onSignIn={() => {
                     requireAuthKitSoon();

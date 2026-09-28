@@ -165,6 +165,7 @@ import { CONCEPT_A_LANDING_BODY_CLASS } from "@/components/onboarding/ConceptALa
 import {
     CONCEPT_A_LANDING_PENDING_HTML_CLASS,
     hideJobsSsrLanding,
+    restoreJobsSsrLanding,
     readOnboardingCompletedFromStorage,
     subscribeOnboardingCompleted,
     writeOnboardingCompletedInStorage,
@@ -1852,8 +1853,16 @@ export function JobsContent({
             );
             if (user) {
                 void saveResumeData(data.resume, "pdf", 1)
-                    .then(() => captureEvent("resume_uploaded", {}))
-                    .catch(() => {});
+                    .then((res) => {
+                        if (res.error) {
+                            toast.error(res.error);
+                            return;
+                        }
+                        captureEvent("resume_uploaded", {});
+                    })
+                    .catch((err) => {
+                        toast.error(err instanceof Error ? err.message : "Could not save résumé");
+                    });
             } else if (data.storageMode === "cloud") {
                 writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
                 setAuthTrigger("user");
@@ -2054,7 +2063,7 @@ export function JobsContent({
     const showForYouHome = resolvedHomeView === "for-you";
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
-    // Signed-in bottom bar: For you ↔ Search. Not a Jobs-only tab.
+    // Signed-in header row: For you ↔ Search. Not a Jobs-only tab.
     const showHomeViewToggle = shouldShowJobsHomeViewToggle({
         signedOut,
         signedIn,
@@ -2198,14 +2207,24 @@ export function JobsContent({
     // Sign-in is the absolute gate: unauthenticated visitors cannot access categories or job feeds
     const isSignedOut = !user;
     const userNeedsOnboarding = Boolean(user) && !hasUsableResume && !onboardingDismissed;
+    const showSignedOutLanding = isSignedOut && !onboardingDismissed;
     // Signed-in Search must show the query bar. The résumé step covers that
-    // bar, so it stays on the signed-out landing only.
-    const showLandingOnboarding = !signedIn && (isSignedOut || userNeedsOnboarding) && !showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
+    // bar, so signed-out dismissed visitors skip this shell entirely.
+    const showLandingOnboarding =
+        (showSignedOutLanding || userNeedsOnboarding) &&
+        !showAdvancedSearch &&
+        atRest &&
+        showSearchHome &&
+        !showForYouHome;
 
     useEffect(() => {
         const root = document.documentElement;
         if (showLandingOnboarding) {
-            hideJobsSsrLanding();
+            if (userNeedsOnboarding || onboardingDismissed) {
+                hideJobsSsrLanding();
+            } else {
+                restoreJobsSsrLanding();
+            }
             if (!readOnboardingCompletedFromStorage()) {
                 root.classList.add(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
             }
@@ -2214,7 +2233,7 @@ export function JobsContent({
             root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
             document.body.classList.remove(CONCEPT_A_LANDING_BODY_CLASS);
         }
-    }, [showLandingOnboarding]);
+    }, [showLandingOnboarding, onboardingDismissed, userNeedsOnboarding]);
 
     // At rest, the raw corpus feed is tucked away behind Advanced Search or explicit search intent
     const defaultFeedAtRest = showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
@@ -2240,14 +2259,12 @@ export function JobsContent({
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
     // Deliberately NOT `headerDockActive`: the For-you/Search toggle has to
-    // sit in the exact same header slot in every state it's visible in,
+    // sit on the header row beside the mark in every state it's visible in,
     // including the whole For-you view and "Search, no query yet" — both of
     // which correctly leave `headerDockActive` false (there's no search box
-    // or filters to dock there). Tying the toggle to `headerDockActive`
-    // anyway made it jump between an inline position (in-page) and a docked
-    // one (header band) depending on which of those states it was in.
-    // The switch lives on the bottom bar at every width, not the header dock.
-    const homeViewDockActive = false;
+    // or filters to dock). The filter band stays closed unless a search is
+    // actually docked, so the switch never becomes a second chrome row.
+    const homeViewDockActive = showHomeViewToggle;
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
@@ -4126,15 +4143,13 @@ export function JobsContent({
 
     const gatedOpenPosting = useGatedApply<PublicJob>({
         user,
+        gate: (action) => gate(action, { originSurface: "job_detail", gateReason: "apply" }),
         perform: (job) => {
             if (job.apply_url && shouldPromptApplyIntent()) {
                 setApplyIntentJob(job);
                 return;
             }
             openPostingNow(job);
-        },
-        onGuestApplied: (job) => {
-            setGuestTrackPrompt({ jobId: job.id, title: job.title });
         },
     });
 
@@ -5710,13 +5725,9 @@ export function JobsContent({
                         ? "flex-1 justify-start sm:justify-center items-center py-2 sm:py-6"
                         : cn(
                             "pt-2 sm:pt-3",
-                            showHomeViewToggle && showSearchHome && showMobileSearchCta
-                                ? "pb-[calc(var(--mobile-tabbar-h)+3.5rem+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))] lg:pb-24"
-                                : showHomeViewToggle
-                                  ? "pb-[calc(var(--mobile-tabbar-h)+3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-24"
-                                  : showSearchHome && showMobileSearchCta
-                                    ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))] lg:pb-20"
-                                    : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-20",
+                            showSearchHome && showMobileSearchCta
+                                ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))] lg:pb-20"
+                                : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-20",
                         ),
                 )}
             >
@@ -5768,7 +5779,7 @@ export function JobsContent({
                     Skip to results
                 </a>
 
-                {/* For you ↔ Search is the bottom bar, not a header quiet link. */}
+                {/* For you ↔ Search is portaled into the header row beside the mark. */}
 
                 {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
@@ -7072,17 +7083,14 @@ export function JobsContent({
                 onContinue={handleLocationSheetContinue}
             />
 
-            {showHomeViewToggle && (
-                <div
-                    data-testid="jobs-home-switch-bar"
-                    className="fixed inset-x-0 z-40 flex h-14 items-center justify-center border-t border-border bg-background px-3 bottom-[calc(var(--mobile-tabbar-h,56px)+env(safe-area-inset-bottom,0px))] lg:bottom-0"
-                >
+            {showHomeViewToggle && dockedHomeViewMount &&
+                createPortal(
                     <ForYouToggle
                         value={resolvedHomeView === "search" ? "search" : "for-you"}
                         onChange={selectJobsHome}
-                    />
-                </div>
-            )}
+                    />,
+                    dockedHomeViewMount,
+                )}
 
             {showMobileSearchCta && (
                 <div
@@ -7092,14 +7100,8 @@ export function JobsContent({
                     // that's the same number the landing scroll area's
                     // bottom padding (above) clears for, so the two can't
                     // drift apart the way a padding guess and this bar's
-                    // real height already had. Sits above the For you ↔ Search
-                    // bar when that bar is showing.
-                    className={cn(
-                        "fixed inset-x-0 z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 lg:hidden",
-                        showHomeViewToggle
-                            ? "bottom-[calc(env(safe-area-inset-bottom,0px)+var(--mobile-tabbar-h,56px)+3.5rem)]"
-                            : "bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)]",
-                    )}
+                    // real height already had.
+                    className="fixed inset-x-0 z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] lg:hidden"
                 >
                     <Button
                         type="button"

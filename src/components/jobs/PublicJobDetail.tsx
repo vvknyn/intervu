@@ -332,15 +332,13 @@ export function PublicJobDetail({
     // `<AuthPopover>` mount below hardcodes `trigger="auto"`.
     const handleOpenPosting = useGatedApply<PublicJob>({
         user,
+        gate: (action) => gate(action, { originSurface: "job_detail", gateReason: "apply" }),
         perform: (target) => {
             if (target.apply_url && shouldPromptApplyIntent()) {
                 setApplyIntentOpen(true);
                 return;
             }
             openPostingNow(target);
-        },
-        onGuestApplied: (target) => {
-            setGuestTrackPrompt({ jobId: target.id, title: target.title });
         },
     });
 
