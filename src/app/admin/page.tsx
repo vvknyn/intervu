@@ -8,7 +8,7 @@ export default async function AdminPage() {
     if (!user) {
         redirect("/login?next=/admin");
     }
-    if (!isAdminUser(user)) {
+    if (!(await isAdminUser(user))) {
         redirect("/");
     }
 
