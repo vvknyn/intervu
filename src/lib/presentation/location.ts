@@ -19,6 +19,7 @@
  * regions would only ever cover the examples it was written against.
  */
 import { decodeText } from "@/lib/jobs/presentation";
+import { CANADA_PROVINCE_CODES, locationEntries, normaliseLocation, US_STATE_CODES } from "./location-normalise";
 
 /**
  * Trailing postal/zip code shapes worth stripping when they're the last
@@ -53,22 +54,6 @@ function splitSegments(s: string): string[] {
     .filter(Boolean);
 }
 
-/** Drops a segment that's an exact (case-insensitive) repeat of one already
- *  kept — the "later segments repeat earlier ones" half of the ATS-breadcrumb
- *  rule. A generic dedupe, not a per-place lookup: "Austin, Austin, TX" and
- *  "Toronto, Toronto, Ontario" collapse the same way. */
-function dedupeRepeats(segments: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const seg of segments) {
-    const key = seg.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(seg);
-  }
-  return out;
-}
-
 /** "Remote - AZ; Remote - AR; …" — a semicolon-joined list of otherwise
  *  identical "Remote - <2-letter code>" entries. Matched by the SHAPE of the
  *  entry (a 2-letter code, not a specific enumerated list of state
@@ -76,28 +61,6 @@ function dedupeRepeats(segments: string[]): string[] {
  *  The shape alone doesn't say WHICH country the codes belong to — see
  *  `remoteLabel` below, which decides that from two closed code tables. */
 const REMOTE_STATE_ENTRY_RE = /^remote\s*-\s*([A-Za-z]{2})$/i;
-
-/**
- * ANSI/USPS 2-letter codes for the 50 US states + DC + the 5 populated
- * territories. This is a fixed national standard (last changed when a
- * territory is added/removed, which is rare and would be a deliberate code
- * update, not open-ended data growth) — not a data enumeration the shape
- * regex above should have to guess at.
- */
-const US_STATE_CODES: ReadonlySet<string> = new Set([
-  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
-  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
-  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
-  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
-  "DC", "AS", "GU", "MP", "PR", "VI",
-]);
-
-/** Canada Post's 2-letter codes for the 10 provinces + 3 territories — the
- *  other fixed standard `REMOTE_STATE_ENTRY_RE`'s shape can match. */
-const CANADA_PROVINCE_CODES: ReadonlySet<string> = new Set([
-  "ON", "BC", "AB", "QC", "MB", "SK", "NS", "NB", "NL", "PE", "NT", "YT", "NU",
-]);
 
 function isAllRemoteStateEntries(parts: string[]): boolean {
   return parts.length > 1 && parts.every((p) => REMOTE_STATE_ENTRY_RE.test(p));
@@ -167,35 +130,40 @@ export function splitLocationLabel(raw: string): LocationLabelParts {
 
 const MAX_SEGMENTS_BEFORE_SUMMARY = 3;
 
+/** One ";"-entry's breadcrumb segments, trailing postal code removed. */
+function entrySegments(entry: string): string[] {
+  const segments = splitSegments(entry);
+  return looksLikePostalCode(segments[segments.length - 1] ?? "") ? segments.slice(0, -1) : segments;
+}
+
 /**
- * See module doc above for the rule ladder and live examples. Order matters:
- * the remote-state-list check runs first because its own delimiter
- * (semicolon) and shape ("Remote - XX") would otherwise be misread as
- * breadcrumb segments by the comma/dash splitter below.
+ * See module doc above for the rule ladder and live examples. The string is
+ * normalised first (`normaliseLocation`: boilerplate, glued/duplicate and
+ * contained segments, site codes). Order then matters: the remote-state-list
+ * check runs before the comma/dash splitter, which would misread its own
+ * delimiter (semicolon) and shape ("Remote - XX") as breadcrumb segments.
+ * A single breadcrumb over `MAX_SEGMENTS_BEFORE_SUMMARY` segments, or a
+ * multi-location list over that many entries, is capped to "<first> +N more".
  */
 export function locationSummary(raw: string | null | undefined): string {
   if (!raw) return "";
-  const s = decodeText(raw).trim();
-  if (!s) return "";
-
-  const semicolonParts = s.split(";").map((p) => p.trim()).filter(Boolean);
-  if (isAllRemoteStateEntries(semicolonParts)) return remoteLabel(semicolonParts);
+  const entries = locationEntries(normaliseLocation(decodeText(raw)));
+  if (isAllRemoteStateEntries(entries)) return remoteLabel(entries);
   // A single "Remote - XX" entry (no list) is already the compact shape this
   // rule exists to PRODUCE — left alone rather than run through the generic
   // dash-breadcrumb splitter below, which would reformat it to "Remote, XX".
-  if (semicolonParts.length === 1 && REMOTE_STATE_ENTRY_RE.test(semicolonParts[0]!)) return semicolonParts[0]!;
+  if (entries.length === 1 && REMOTE_STATE_ENTRY_RE.test(entries[0]!)) return entries[0]!;
 
-  let segments = splitSegments(s);
-  if (segments.length === 0) return s;
-
-  if (looksLikePostalCode(segments[segments.length - 1]!)) {
-    segments = segments.slice(0, -1);
+  const lists = entries.map(entrySegments).filter((l) => l.length > 0);
+  if (lists.length === 0) return "";
+  if (lists.length === 1) {
+    const segments = lists[0]!;
+    return segments.length > MAX_SEGMENTS_BEFORE_SUMMARY
+      ? `${segments[0]} +${segments.length - 1} more`
+      : segments.join(", ");
   }
-  segments = dedupeRepeats(segments);
-  if (segments.length === 0) return s;
-
-  if (segments.length > MAX_SEGMENTS_BEFORE_SUMMARY) {
-    return `${segments[0]} +${segments.length - 1} more`;
-  }
-  return segments.join(", ");
+  const places = lists.map((l) => l.join(", "));
+  return places.length > MAX_SEGMENTS_BEFORE_SUMMARY
+    ? `${places[0]} +${places.length - 1} more`
+    : places.join("; ");
 }

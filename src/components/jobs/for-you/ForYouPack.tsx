@@ -10,7 +10,8 @@ import { chipVariants } from "@/components/ui/chip";
 import { useAiJobDescription } from "@/hooks/use-ai-job-description";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
-import { displayCompanyBrand, locationText, placeWithWorkMode, stripRemoteSegmentsFromPlace } from "@/lib/jobs/presentation";
+import { displayCompanyBrand, locationText, placeWithWorkMode } from "@/lib/jobs/presentation";
+import { stripPlaceSegment } from "@/lib/presentation/location-normalise";
 import { inferReasons, noScoreReason, NO_SCORE_MESSAGES, type NoScoreReason } from "@/lib/jobs/for-you/infer-reasons";
 import { descriptionPaneState } from "@/lib/jobs/for-you/description-pane-state";
 import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
@@ -158,7 +159,7 @@ export function ForYouPack({
     const rawPlace = locationText(displayJob);
     const place =
         displayJob.work_type === "remote"
-            ? stripRemoteSegmentsFromPlace(rawPlace)
+            ? stripPlaceSegment(rawPlace, "Remote")
             : placeWithWorkMode(rawPlace, displayJob.work_type);
     const strongFit = matchScore != null && matchBand(matchScore.total) === "strong";
     const noScore = matchScore == null ? noScoreReason(resume) : null;

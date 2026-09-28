@@ -258,7 +258,7 @@ export function JobCard({
                     {locationKnown && (
                         <span className="inline-flex items-center gap-1">
                             <span aria-hidden>·</span>
-                            {presented.location}
+                            <span data-testid="job-location">{presented.location}</span>
                         </span>
                     )}
                 </div>

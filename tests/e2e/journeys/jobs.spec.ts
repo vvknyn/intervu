@@ -114,3 +114,24 @@ test("returning visitor's search session throws no uncaught page errors", { tag:
   await searchFor(page, "engineer");
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+/** Real reduplicated place names: the only strings the repeated-token check must not flag. */
+const REDUPLICATED_PLACES = /\b(walla walla|bora bora|pago pago|wagga wagga)\b/gi;
+const repeatedToken = (label: string) => label.replace(REDUPLICATED_PLACES, "").match(/\b(\w{3,})\s*\1\b/i)?.[0] ?? null;
+
+test("no job card or job page location label repeats an adjacent token", { tag: ["@J-JOBS-26"] }, async ({ page, diagnostics }) => {
+  // "remote" biases the result set toward the ATS "Remote Location" / "RemoteRemote" shapes.
+  await searchFor(page, "remote");
+  const locations = page.getByTestId("job-location");
+  await expect(locations.first()).toBeVisible();
+  const cardLabels = await locations.allTextContents();
+  expect(cardLabels.length, "job cards rendered no location labels").toBeGreaterThan(0);
+  expect(cardLabels.filter(repeatedToken), "card location labels with a repeated token").toEqual([]);
+
+  const path = await page.getByTestId("job-row").first().locator('a[href^="/jobs/"]').first().getAttribute("href");
+  await page.goto(path!);
+  await expect(locations.first()).toBeVisible();
+  const detailLabels = await locations.allTextContents();
+  expect(detailLabels.filter(repeatedToken), "job page location labels with a repeated token").toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
