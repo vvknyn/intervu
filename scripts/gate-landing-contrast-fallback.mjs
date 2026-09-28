@@ -17,7 +17,7 @@ export async function probeLandingRoot(page) {
   }, LANDING_ROOT_SEL);
 }
 
-export async function runLandingAxeWithContrastFallback(page) {
+export async function runScopedAxeContrast(page, rootSel) {
   return page.evaluate(async (rootSel) => {
     if (!globalThis.axe) {
       return { error: 'axe-not-loaded', pass: false, violationCount: 1, incompleteCount: 1, scannedNodes: 0 };
@@ -188,5 +188,9 @@ export async function runLandingAxeWithContrastFallback(page) {
       contrastFallback,
       pass,
     };
-  }, LANDING_ROOT_SEL);
+  }, rootSel);
+}
+
+export async function runLandingAxeWithContrastFallback(page) {
+  return runScopedAxeContrast(page, LANDING_ROOT_SEL);
 }
