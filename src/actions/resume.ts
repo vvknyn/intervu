@@ -97,19 +97,21 @@ export async function saveResumeData(
             if (importSource) updateData.resume_import_source = importSource;
             if (confidence !== undefined) updateData.resume_import_confidence = confidence;
 
-            await db.collection("profiles").doc(user.uid).update(updateData);
+            await db.collection("profiles").doc(user.uid).set(updateData, { merge: true });
 
             return {}; // Success
 
         } catch (e: any) {
-            // Structured write failed. Text-only is the remaining copy.
             console.warn("[Resume] Primary save failed, attempting fallback to resume_text only:", e.message);
         }
 
         try {
-            await db.collection("profiles").doc(user.uid).update({
-                resume_text: resumeDataToText(resumeData),
-            });
+            await db.collection("profiles").doc(user.uid).set(
+                {
+                    resume_text: resumeDataToText(resumeData),
+                },
+                { merge: true },
+            );
         } catch (fallbackError: any) {
             console.error("[Resume] Fallback Save Error:", fallbackError);
             return { error: fallbackError.message };

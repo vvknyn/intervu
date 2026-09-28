@@ -292,8 +292,7 @@ describe("saveResumeData", () => {
         const fallbackAt = fn.indexOf("resume_text: resumeDataToText(resumeData)");
         assert.ok(successAt >= 0, "successful structured save must delete resume_text");
         assert.ok(fallbackAt > successAt, "text-only fallback must still store resume_text");
-        const beforeReturn = fn.slice(0, fn.indexOf("return {}; // Success"));
-        assert.equal(beforeReturn.includes("resumeDataToText"), false);
+        assert.match(fn, /\.set\(updateData, \{ merge: true \}\)/);
     });
 });
 

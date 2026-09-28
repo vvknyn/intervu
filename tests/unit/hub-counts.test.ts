@@ -3,14 +3,20 @@ import { describe, it } from "node:test";
 import {
     countFitBands,
     formatAllPackHubLabels,
+    formatBrowseHubCorpusLine,
     formatHubCorpusLine,
     formatHubCountLabel,
+    formatHubPackCorpusRoleLabel,
+    formatHubPackCorpusRoleLabels,
     formatHubRoleCount,
+    keywordPackLowerBound,
+    resolveBrowseHubRoleCountLabels,
     resolveHubRoleCountLabels,
     packBandTotalsFromSources,
     resolveAllMatchesHubCount,
     resolveAllPackHubCounts,
 } from "../../src/lib/jobs/for-you/hub-counts";
+import { deckListLoading } from "../../src/lib/jobs/for-you/deck-list-loading";
 import {
     diffHubPackRemovals,
     formatHubRemovalsLine,
@@ -29,10 +35,10 @@ function job(partial: Partial<PublicJob> & Pick<PublicJob, "id" | "title">): Pub
         title: partial.title,
         company: partial.company ?? "Acme",
         company_domain: null,
-        location: null,
-        location_city: null,
-        location_state: null,
-        location_country: null,
+        location: partial.location ?? null,
+        location_city: partial.location_city ?? null,
+        location_state: partial.location_state ?? null,
+        location_country: partial.location_country ?? null,
         work_type: partial.work_type ?? "onsite",
         description: null,
         employment_type: "full_time",
@@ -286,5 +292,126 @@ describe("packBandTotalsFromSources", () => {
         });
         assert.deepEqual(totals.all, { strong: 10, good: 4 });
         assert.equal(totals.remote, undefined);
+    });
+});
+
+describe("formatHubPackCorpusRoleLabels", () => {
+    it("pack count label is not capped at the browse page size", () => {
+        const browseSample = resolveBrowseHubRoleCountLabels({
+            jobs: [job({ id: "1", title: "Eng", work_type: "remote" })],
+            poolTotal: 100_000,
+        });
+        assert.equal(browseSample.remote, "1 role");
+
+        const corpusLabels = formatHubPackCorpusRoleLabels({
+            remote: { kind: "exact", value: 292_583 },
+            all: { kind: "floor", value: 100_000 },
+        });
+        assert.equal(corpusLabels.remote, "292,583 roles");
+        assert.equal(corpusLabels.all, "100,000+ roles");
+        assert.notEqual(corpusLabels.remote, browseSample.remote);
+
+        const saturatedNoFacet = formatHubPackCorpusRoleLabel({ kind: "floor", value: 100_000 });
+        assert.equal(saturatedNoFacet, "100,000+ roles");
+        assert.notEqual(saturatedNoFacet, "1 role");
+        assert.notEqual(saturatedNoFacet, "20 roles");
+    });
+
+    it("keyword pack count is the largest phrase, not the page size or the sum", () => {
+        const bound = keywordPackLowerBound([
+            { kind: "exact", value: 1 },
+            { kind: "exact", value: 6_150 },
+            { kind: "exact", value: 1_749 },
+        ]);
+        assert.deepEqual(bound, { kind: "floor", value: 6_150 });
+        assert.equal(formatHubPackCorpusRoleLabel(bound), "6,150+ roles");
+        assert.notEqual(formatHubPackCorpusRoleLabel(bound), "1 role");
+    });
+});
+
+describe("browse hub without a résumé", () => {
+    const nowMs = Date.parse("2026-09-28T16:00:00Z");
+
+    it("labels every pack from unscored jobs and drops Canada", () => {
+        const labels = resolveBrowseHubRoleCountLabels({
+            nowMs,
+            poolTotal: 1831,
+            jobs: [
+                job({
+                    id: "us-1",
+                    title: "Staff Machine Learning Engineer",
+                    work_type: "remote",
+                    salary_min: 180000,
+                    posted_ts: nowMs - 60_000,
+                    apply_url: "https://example.com/apply/us-1",
+                    location_country: "United States",
+                }),
+                job({
+                    id: "ca-1",
+                    title: "Remote Machine Learning Engineer",
+                    work_type: "remote",
+                    salary_min: 120000,
+                    posted_ts: nowMs - 60_000,
+                    apply_url: "https://example.com/apply/ca-1",
+                    location_country: "Canada",
+                    location: "Toronto, ON",
+                }),
+            ],
+        });
+        assert.equal(labels.all, formatHubRoleCount(1831));
+        assert.equal(labels.ai, "1 role");
+        assert.equal(labels.remote, "1 role");
+        assert.equal(labels.fresh, "1 role");
+        assert.equal(labels.salary, "1 role");
+        assert.equal(labels.apply, "1 role");
+        assert.equal(labels.lead, "1 role");
+        assert.equal(labels.good, "0 roles");
+        for (const label of Object.values(labels)) {
+            assert.notEqual(label, "…");
+            assert.doesNotMatch(label ?? "", /Strong|Good/);
+        }
+        assert.equal(formatBrowseHubCorpusLine(1831), `~${(1831).toLocaleString()} roles`);
+        assert.doesNotMatch(formatBrowseHubCorpusLine(1831), /Strong/);
+    });
+
+    it("keeps an ellipsis until a browse sample exists", () => {
+        const labels = resolveBrowseHubRoleCountLabels({ jobs: [], poolTotal: null });
+        assert.equal(labels.remote, "…");
+        assert.equal(labels.all, "…");
+    });
+});
+
+describe("deckListLoading", () => {
+    it("mounts a non-empty pack while fit is unresolved", () => {
+        assert.equal(
+            deckListLoading({
+                proofLoading: false,
+                fitResolving: true,
+                loading: true,
+                packCount: 12,
+            }),
+            false,
+        );
+    });
+
+    it("stays a skeleton only while an empty pack is still fetching", () => {
+        assert.equal(
+            deckListLoading({
+                proofLoading: false,
+                fitResolving: true,
+                loading: false,
+                packCount: 0,
+            }),
+            true,
+        );
+        assert.equal(
+            deckListLoading({
+                proofLoading: false,
+                fitResolving: false,
+                loading: false,
+                packCount: 0,
+            }),
+            false,
+        );
     });
 });

@@ -5,6 +5,7 @@
  * HARD gates: lean chrome + WCAG AA color-contrast (axe color-contrast) on hub, deck,
  * apply prompt, /privacy, and signed-out /jobs landing; motion + reduced-motion;
  * Chromium + WebKit × 1440×900 + 390×844.
+ * Plus a no-résumé cell: For you packs, counts, and a job row with no seeded résumé.
  */
 import { createRequire } from 'module';
 import { chromium, webkit, devices } from 'playwright';
@@ -13,6 +14,7 @@ import {
   LANDING_ROOT_SEL,
   probeLandingRoot,
   runLandingAxeWithContrastFallback,
+  runScopedAxeContrast,
 } from './gate-landing-contrast-fallback.mjs';
 import fs from 'fs';
 import path from 'path';
@@ -119,6 +121,88 @@ async function injectSession(context, value) {
   ]);
 }
 
+async function newCtxNoResume(browser, viewport) {
+  const ctx = await browser.newContext({
+    viewport,
+    deviceScaleFactor: 2,
+    ...(viewport.width < 500
+      ? { isMobile: true, hasTouch: true, userAgent: devices['iPhone 13'].userAgent }
+      : {}),
+  });
+  await ctx.addInitScript((resumeKey) => {
+    try {
+      localStorage.removeItem(resumeKey);
+      localStorage.setItem('velai-packs-home-intro-v1', '1');
+      localStorage.setItem('intervu-mode', 'dark');
+    } catch {
+      /* private mode */
+    }
+    try {
+      document.documentElement?.classList.add('dark');
+    } catch {
+      /* documentElement is null this early */
+    }
+  }, LOCAL_AI_RESUME_KEY);
+  return ctx;
+}
+
+/**
+ * Signed-in For you with no browser résumé. Pack counts must leave the
+ * ellipsis and a pack must list a job row. This cell must not seed a résumé.
+ */
+async function runNoResumePacks(browser, engine, label, viewport, wos) {
+  const ctx = await newCtxNoResume(browser, viewport);
+  await injectSession(ctx, wos);
+  const page = await ctx.newPage();
+  const consoleErrors = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('pageerror', (err) => consoleErrors.push(String(err)));
+  await openForYouHub(page);
+  const resumeSeed = await page.evaluate((key) => localStorage.getItem(key), LOCAL_AI_RESUME_KEY);
+  await page.waitForFunction(() => {
+    const nodes = [...document.querySelectorAll('[data-testid^="hub-pack-count-"]')];
+    if (nodes.length < 8) return false;
+    return nodes.every((node) => {
+      const text = (node.textContent || '').trim();
+      return /\d/.test(text) && !text.includes('…');
+    });
+  }, null, { timeout: 90000 });
+  const counts = await page.evaluate(() =>
+    Object.fromEntries(
+      [...document.querySelectorAll('[data-testid^="hub-pack-count-"]')].map((node) => [
+        node.getAttribute('data-testid'),
+        (node.textContent || '').trim(),
+      ]),
+    ),
+  );
+  await shot(page, `no-resume-${engine}-${label}-hub.png`);
+  const card = page.getByTestId('hub-pack-card-apply');
+  await card.click({ force: true });
+  const row = page.getByTestId('for-you-list-scroll').getByTestId('job-row').first();
+  await row.waitFor({ state: 'visible', timeout: 90000 });
+  const loadingStuck = await page.getByTestId('for-you-loading').isVisible().catch(() => false);
+  const rowCount = await page.getByTestId('job-row').count();
+  await shot(page, `no-resume-${engine}-${label}-deck.png`);
+  const probe = await surfaceProbe(page);
+  await ctx.close();
+  const unexpectedErrors = consoleErrors.filter(
+    (line) =>
+      !/script tag while rendering|Failed to load resource|Content Security Policy/i.test(line),
+  );
+  const countsOk = Object.values(counts).every((text) => /\d/.test(text) && !String(text).includes('…'));
+  const pass =
+    !resumeSeed &&
+    probe.signedIn &&
+    countsOk &&
+    Object.keys(counts).length >= 8 &&
+    rowCount > 0 &&
+    !loadingStuck &&
+    unexpectedErrors.length === 0;
+  return { pass, resumeSeed: Boolean(resumeSeed), counts, rowCount, loadingStuck, consoleErrors, unexpectedErrors };
+}
+
 async function newCtx(browser, viewport, reducedMotion = false) {
   const ctx = await browser.newContext({
     viewport,
@@ -130,14 +214,22 @@ async function newCtx(browser, viewport, reducedMotion = false) {
   });
   await ctx.addInitScript(
     ({ enabledKey, resumeKey, resume }) => {
+      // Seed before touching documentElement. This script runs before the
+      // document element exists, so classList throws. One shared try used to
+      // swallow that and skip the résumé, and the deck then stays on the
+      // ranking shell with no job row.
       try {
-        localStorage.setItem('intervu-mode', 'dark');
-        document.documentElement.classList.add('dark');
         localStorage.setItem(enabledKey, '1');
         localStorage.setItem(resumeKey, JSON.stringify(resume));
         localStorage.setItem('velai-packs-home-intro-v1', '1');
+        localStorage.setItem('intervu-mode', 'dark');
       } catch {
-        /* ignore */
+        /* private mode */
+      }
+      try {
+        document.documentElement?.classList.add('dark');
+      } catch {
+        /* documentElement is null this early */
       }
     },
     { enabledKey: LOCAL_AI_ENABLED_KEY, resumeKey: LOCAL_AI_RESUME_KEY, resume: SEEDED_RESUME },
@@ -173,6 +265,7 @@ async function loadAxe(page) {
 }
 
 async function runAxeContrast(page, scope = 'document') {
+  if (scope !== 'document') return runScopedAxeContrast(page, scope);
   return page.evaluate(async (scopeSel) => {
     if (!globalThis.axe) return { error: 'axe-not-loaded', violationCount: 1, incompleteCount: 1, scannedNodes: 0 };
     const root = scopeSel === 'document' ? document : document.querySelector(scopeSel);
@@ -204,11 +297,28 @@ async function runAxeContrast(page, scope = 'document') {
   }, scope === 'document' ? 'document' : scope);
 }
 
-async function navigateHubToPrompt(page) {
-  await page.goto(`${BASE}/jobs`, { waitUntil: 'domcontentloaded', timeout: 90000 });
-  await page.waitForSelector('[data-testid^="hub-pack-card"]', { timeout: 90000 }).catch(() => {});
+async function ensureDeckRoleOpen(page) {
+  const width = page.viewportSize()?.width ?? 1440;
+  if (width >= 1280) return;
+  const row = page.getByTestId('for-you-list-scroll').getByTestId('job-row').first();
+  await row.waitFor({ state: 'visible', timeout: 60000 });
+  await row.click();
+}
+
+/**
+ * Signed-in /jobs with no server résumé resolves to Search, so the deck list
+ * never mounts. For you is explicit in the URL and sticks without a server
+ * résumé. Job rows are in that deck, after a pack is opened.
+ */
+async function openForYouHub(page) {
+  await page.goto(`${BASE}/jobs?view=for-you`, { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await page.waitForSelector('[data-testid^="hub-pack-card"]', { timeout: 90000 });
   await page.waitForTimeout(2000);
   await dismissIntros(page);
+}
+
+async function navigateHubToPrompt(page) {
+  await openForYouHub(page);
   const preferred = ['hub-pack-card-apply', 'hub-pack-card-good', 'hub-pack-card-all'];
   for (const id of preferred) {
     const card = page.getByTestId(id);
@@ -217,6 +327,7 @@ async function navigateHubToPrompt(page) {
       break;
     }
   }
+  await ensureDeckRoleOpen(page);
   await page.getByTestId('for-you-download-apply').waitFor({ state: 'visible', timeout: 90000 }).catch(() => {});
   await page.waitForTimeout(1500);
   const dl = page.getByTestId('for-you-download-apply');
@@ -232,8 +343,6 @@ async function navigateHubToPrompt(page) {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     promptVisible = await page.getByTestId('apply-return-prompt').isVisible({ timeout: 8000 }).catch(() => false);
   }
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(800);
   return { dlVisible, promptVisible };
 }
 
@@ -341,6 +450,8 @@ async function runReducedMotion(browser, engine, label, viewport, wos) {
   await injectSession(ctx, wos);
   const page = await ctx.newPage();
   await navigateHubToPrompt(page);
+  const notYet = page.getByTestId('apply-return-not-yet');
+  if (await notYet.isVisible({ timeout: 2000 }).catch(() => false)) await notYet.click();
   await loadAxe(page);
   const rootStyles = await page.evaluate(() => {
     const html = document.documentElement;
@@ -365,9 +476,7 @@ async function runReducedMotion(browser, engine, label, viewport, wos) {
   const pass =
     functional &&
     rootStyles.mediaMatches &&
-    deckAxe.violationCount === 0 &&
-    deckAxe.incompleteCount === 0 &&
-    deckAxe.scannedNodes > 0 &&
+    deckAxe.pass === true &&
     transitionsZeroed;
   await ctx.close();
   return { pass, rootStyles, deckAxe, functional, transitionsZeroed };
@@ -389,14 +498,59 @@ async function runIcon(browser, engine, label, viewport, wos) {
   return { pass, user: user?.email, probe };
 }
 
+/** html { scroll-behavior: smooth } makes a bare scroll-to-origin a long
+ *  animation. On WebKit that animation does not finish before axe runs, and
+ *  a smooth scroll to the bottom can keep going, so scrollY stays large.
+ *  The apply prompt is position:fixed (still "visible"), but axe will not
+ *  match its text against the overflow:hidden ancestors, and color-contrast
+ *  scans 0 nodes. Instant scroll, then wait for a real text rect. */
+async function settleApplyPromptForAxe(page) {
+  await page.evaluate(async () => {
+    const root = document.documentElement;
+    root.style.scrollBehavior = 'auto';
+    if (document.body) document.body.style.scrollBehavior = 'auto';
+    const zero = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      root.scrollTop = 0;
+      root.scrollLeft = 0;
+      if (document.scrollingElement) {
+        document.scrollingElement.scrollTop = 0;
+        document.scrollingElement.scrollLeft = 0;
+      }
+      if (document.body) {
+        document.body.scrollTop = 0;
+        document.body.scrollLeft = 0;
+      }
+    };
+    const textReady = () => {
+      const prompt = document.querySelector('[data-testid="apply-return-prompt"]');
+      if (!prompt) return false;
+      const walker = document.createTreeWalker(prompt, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = walker.nextNode())) {
+        if (!(n.textContent || '').trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        for (const rect of range.getClientRects()) {
+          if (rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight) return true;
+        }
+      }
+      return false;
+    };
+    for (let i = 0; i < 30; i++) {
+      zero();
+      const scrolled = window.scrollY === 0 && (document.scrollingElement?.scrollTop || 0) === 0;
+      if (scrolled && textReady()) return;
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+  });
+}
+
 async function runBetalistCell(browser, engine, label, viewport, wos) {
   const ctx = await newCtx(browser, viewport);
   await injectSession(ctx, wos);
   const page = await ctx.newPage();
-  await page.goto(`${BASE}/jobs`, { waitUntil: 'domcontentloaded', timeout: 90000 });
-  await page.waitForSelector('[data-testid^="hub-pack-card"]', { timeout: 90000 }).catch(() => {});
-  await page.waitForTimeout(2000);
-  await dismissIntros(page);
+  await openForYouHub(page);
   const hubProbe = await surfaceProbe(page);
   await shot(page, `betalist-${engine}-${label}-hub.png`);
   await loadAxe(page);
@@ -410,10 +564,37 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
       break;
     }
   }
+  await ensureDeckRoleOpen(page);
   await page.getByTestId('for-you-download-apply').waitFor({ state: 'visible', timeout: 90000 }).catch(() => {});
   await page.waitForTimeout(1500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(800);
+  // Do not scroll the document to the bottom. That uses smooth scrolling,
+  // which WebKit does not finish before the prompt contrast check, so axe
+  // scans 0 nodes on a chip that is still on screen. Move only the deck
+  // scroller, instantly, when the button is outside the viewport.
+  const downloadInView = await page.getByTestId('for-you-download-apply').evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.top >= 0 && r.bottom <= window.innerHeight;
+  }).catch(() => false);
+  if (!downloadInView) {
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      const el = document.querySelector('[data-testid="for-you-download-apply"]');
+      if (!el) return;
+      let node = el.parentElement;
+      while (node && node !== document.body && node !== document.documentElement) {
+        const overflowY = getComputedStyle(node).overflowY;
+        if (/(auto|scroll)/.test(overflowY) && node.scrollHeight > node.clientHeight + 1) {
+          const er = el.getBoundingClientRect();
+          const nr = node.getBoundingClientRect();
+          if (er.bottom > nr.bottom || er.top < nr.top) node.scrollTop += er.top - (nr.top + 16);
+          return;
+        }
+        node = node.parentElement;
+      }
+      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+    });
+    await page.waitForTimeout(50);
+  }
   await page.getByTestId('for-you-deck').waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
   const deckAxe = await runAxeContrast(page, '[data-testid="for-you-deck"]');
   await shot(page, `betalist-${engine}-${label}-deck-pre-apply.png`);
@@ -436,6 +617,7 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
   let promptAxe = { violationCount: 0, incompleteCount: 0, scannedNodes: 0, skipped: true };
   const prompt = page.getByTestId('apply-return-prompt');
   if (await prompt.isVisible().catch(() => false)) {
+    await settleApplyPromptForAxe(page);
     await shot(page, `betalist-${engine}-${label}-apply-prompt.png`);
     promptAxe = await runAxeContrast(page, '[data-testid="apply-return-prompt"]');
     promptAxe.skipped = false;
@@ -466,8 +648,7 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
     nav.promptVisible &&
     deckProbe.hasDidYouApply;
 
-  const axePass = (axe) =>
-    axe.violationCount === 0 && axe.incompleteCount === 0 && axe.scannedNodes > 0 && !axe.error;
+  const axePass = (axe) => axe.pass === true;
 
   const axeOk = axePass(hubAxe) && axePass(deckAxe) && (promptAxe.skipped || axePass(promptAxe));
 
@@ -604,12 +785,16 @@ for (const [engineName, launch] of engines) {
       const privacy = icon.pass
         ? await runPrivacy(browser, engineName, vpLabel, vp, wos)
         : { pass: false, blocked: true };
-      const cellPass = landing.pass && icon.pass && betalist.pass && privacy.pass;
+      const noResume = icon.pass
+        ? await runNoResumePacks(browser, engineName, vpLabel, vp, wos)
+        : { pass: false, blocked: true };
+      const cellPass = landing.pass && icon.pass && betalist.pass && privacy.pass && noResume.pass;
       verdict.matrix[key] = {
         landing: landing.pass,
         icon: icon.pass,
         betalist: betalist.pass,
         privacy: privacy.pass,
+        noResume: noResume.pass,
         hardPass: cellPass,
         axe: betalist.blocked
           ? null
@@ -629,6 +814,14 @@ for (const [engineName, launch] of engines) {
               promptVisible: betalist.nav?.promptVisible,
               hubPass: betalist.hubPass,
               deckPass: betalist.deckPass,
+            },
+        noResumeDetail: noResume.blocked
+          ? { blocked: true }
+          : {
+              counts: noResume.counts,
+              rowCount: noResume.rowCount,
+              loadingStuck: noResume.loadingStuck,
+              unexpectedErrors: noResume.unexpectedErrors,
             },
       };
       verdict.landingSummary[key] = {

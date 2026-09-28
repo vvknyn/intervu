@@ -251,6 +251,7 @@ export default function PursuitDetailPage() {
     });
     const gatedOpenPosting = useGatedApply<string>({
         user,
+        gate: (action) => gate({ kind: "apply", payload: action.payload }, { originSurface: "job_detail", gateReason: "apply" }),
         perform: openApplyUrl,
     });
 

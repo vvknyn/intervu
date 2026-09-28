@@ -37,6 +37,21 @@ describe("isCanadaDeckJob", () => {
         assert.equal(isCanadaDeckJob({ ...base, location_state: "ON", location: "London, ON" }), true);
     });
 
+    it("drops Canada in the company name when location is unknown", () => {
+        assert.equal(
+            isCanadaDeckJob({
+                ...base,
+                company: "Fresenius Medical Care Canada",
+                location: null,
+            }),
+            true,
+        );
+        assert.equal(
+            isCanadaDeckJob({ ...base, company: "Fresenius Medical Care", location: null }),
+            false,
+        );
+    });
+
     it("keeps US places, including California", () => {
         assert.equal(
             isCanadaDeckJob({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CircleNotch, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
@@ -16,13 +16,16 @@ import { JobCard } from "@/components/jobs/JobCard";
 import { DeckRoleDetail } from "@/components/jobs/for-you/DeckRoleDetail";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
+import { resumeForPackApply } from "@/lib/jobs/for-you/pack-apply-location";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { deckListLoading } from "@/lib/jobs/for-you/deck-list-loading";
 import { resolveDeckShortcut } from "@/lib/jobs/for-you/deck-keyboard";
 import { resolveDescriptionHydration } from "@/lib/jobs/for-you/description-pane-state";
 import { prefetchIndexesAhead } from "@/lib/jobs/for-you/deck-active-job";
+import { DECK_ROW_ESTIMATE_PX, deckWindowRange } from "@/lib/jobs/for-you/window-list";
 import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -37,8 +40,8 @@ import type { Pursuit } from "@/lib/pursuits/types";
 
 export { JOBS_SESSION_FRAME_CLASS, JOBS_SESSION_FRAME_CLASS as FOR_YOU_HOME_FRAME_CLASS };
 
-/** For-you frame grows with the ranked list — document scroll, not a nested
- *  viewport trap. Same list + detail materials as Search. */
+/** The deck is two panes. The list scrolls inside its column. The open role
+ *  stays in the other pane. The page does not grow with every row. */
 
 const REPLACE_RESUME_CLASS =
     "text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground";
@@ -108,7 +111,6 @@ export function ForYouHome({
     nowMs,
     fitResolving,
     loading,
-    fitActive,
     hydratedJobs,
     onActivePackChange,
     onRetryDescription,
@@ -132,6 +134,17 @@ export function ForYouHome({
     const [applying, setApplying] = useState(false);
     const [proofLoading, setProofLoading] = useState(false);
     const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set());
+    const [phoneRole, setPhoneRole] = useState(false);
+    const [listScrollTop, setListScrollTop] = useState(0);
+    const [listViewport, setListViewport] = useState(640);
+    const [rowHeight, setRowHeight] = useState(DECK_ROW_ESTIMATE_PX);
+    const listRef = useRef<HTMLDivElement>(null);
+    const listScrollMemory = useRef(0);
+    const phoneScrollRestore = useRef(0);
+    const freezeListScroll = useRef(false);
+    const scrollFrame = useRef(0);
+    const rowMeasured = useRef(false);
+    const lastScrolledIndex = useRef(0);
 
     useEffect(() => {
         setProofLoading(readPacksProofLoading());
@@ -141,8 +154,9 @@ export function ForYouHome({
         async (job: PublicJob) => {
             if (!resume || draftCache.current.has(job.id)) return;
             const hydrated = hydratedJobs.get(job.id)?.job ?? job;
+            const located = resumeForPackApply(resume);
             try {
-                const draft = await tailorResumeForJob(resume, jobToTailorInput(hydrated), {
+                const draft = await tailorResumeForJob(located, jobToTailorInput(hydrated), {
                     allowModel: false,
                 });
                 draftCache.current.set(job.id, draft);
@@ -202,16 +216,17 @@ export function ForYouHome({
         setApplying(true);
         void (async () => {
             try {
+                const located = resumeForPackApply(resume);
                 const hydrated = hydratedJobs.get(activeJob.id)?.job ?? activeJob;
                 let draft = draftCache.current.get(activeJob.id);
                 if (!draft) {
-                    draft = await tailorResumeForJob(resume, jobToTailorInput(hydrated), {
+                    draft = await tailorResumeForJob(located, jobToTailorInput(hydrated), {
                         allowModel: false,
                     });
                     draftCache.current.set(activeJob.id, draft);
                 }
-                const pdfData = hasMeaningfulDiff(draft) ? draft.tailored : resume;
-                await exportPdfForJob(activeJob, pdfData);
+                const tailored = hasMeaningfulDiff(draft) ? draft.tailored : located;
+                await exportPdfForJob(activeJob, resumeForPackApply(tailored));
             } catch {
                 // toast already shown for PDF failure
             } finally {
@@ -220,7 +235,14 @@ export function ForYouHome({
         })();
     }, [activeJob, resume, applying, hydratedJobs, exportPdfForJob, onOpenPosting]);
 
-    const showLoading = proofLoading || fitResolving || loading || !fitActive;
+    // Rows render without a résumé. fitActive stays on the props type for
+    // callers; it must not keep a non-empty pack on the ranking shell.
+    const showLoading = deckListLoading({
+        proofLoading,
+        fitResolving,
+        loading,
+        packCount: visiblePacks.length,
+    });
     const canNavigate = !showLoading && visiblePacks.length > 0;
 
     useEffect(() => {
@@ -262,12 +284,105 @@ export function ForYouHome({
     }, [onActiveIndexChange, onSkip]);
 
     const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
-    const activeHydration = activeJob
-        ? resolveDescriptionHydration(activeJob, hydratedJobs.get(activeJob.id))
+    const selectedIndex =
+        activeIndex >= 0 && activeIndex < visiblePacks.length ? activeIndex : 0;
+    const selectedJob = visiblePacks[selectedIndex] ?? activeJob;
+    const activeHydration = selectedJob
+        ? resolveDescriptionHydration(selectedJob, hydratedJobs.get(selectedJob.id))
         : null;
 
+    useEffect(() => {
+        if (visiblePacks.length === 0) return;
+        if (activeIndex < 0 || activeIndex >= visiblePacks.length) onActiveIndexChange(0);
+    }, [activeIndex, visiblePacks.length, onActiveIndexChange]);
+
+    useEffect(() => {
+        const el = listRef.current;
+        if (!el) return;
+        const measure = () => {
+            const height = el.clientHeight;
+            if (height > 0) setListViewport(height);
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [phoneRole, showLoading, visiblePacks.length]);
+
+    useEffect(() => {
+        if (rowMeasured.current) return;
+        const row = listRef.current?.querySelector<HTMLElement>("[data-job-row]");
+        if (!row) return;
+        const height = Math.round(row.getBoundingClientRect().height);
+        if (height > 48) {
+            rowMeasured.current = true;
+            setRowHeight(height);
+        }
+    });
+
+    useEffect(() => {
+        const changed = lastScrolledIndex.current !== selectedIndex;
+        lastScrolledIndex.current = selectedIndex;
+        const el = listRef.current;
+        if (!changed || phoneRole || !el) return;
+        const top = selectedIndex * rowHeight;
+        const view = el.clientHeight;
+        if (view <= 0) return;
+        if (top < el.scrollTop) el.scrollTop = top;
+        else if (top + rowHeight > el.scrollTop + view) {
+            el.scrollTop = Math.max(0, top + rowHeight - view);
+        }
+    }, [selectedIndex, rowHeight, phoneRole]);
+
+    const windowed = deckWindowRange({
+        scrollTop: listScrollTop,
+        viewport: listViewport,
+        count: visiblePacks.length,
+        rowHeight,
+    });
+
+    const rememberListScroll = () => {
+        phoneScrollRestore.current = listRef.current?.scrollTop ?? listScrollTop;
+    };
+
+    const selectRow = (index: number) => {
+        onActiveIndexChange(index);
+        if (window.matchMedia("(max-width: 1279px)").matches) {
+            freezeListScroll.current = true;
+            setPhoneRole(true);
+        }
+    };
+
+    const backToList = () => {
+        setListScrollTop(phoneScrollRestore.current);
+        setPhoneRole(false);
+    };
+
+    useLayoutEffect(() => {
+        if (phoneRole || !freezeListScroll.current) return;
+        const el = listRef.current;
+        if (el) el.scrollTop = phoneScrollRestore.current;
+        freezeListScroll.current = false;
+    }, [phoneRole, listScrollTop]);
+
+    const onListScroll = (event: { currentTarget: HTMLDivElement }) => {
+        if (freezeListScroll.current || phoneRole || event.currentTarget.clientHeight === 0) return;
+        listScrollMemory.current = event.currentTarget.scrollTop;
+        if (scrollFrame.current) return;
+        scrollFrame.current = window.requestAnimationFrame(() => {
+            scrollFrame.current = 0;
+            setListScrollTop(listScrollMemory.current);
+        });
+    };
+
     return (
-        <div className={cn(JOBS_SESSION_FRAME_CLASS, "state-opacity-in")} data-testid="for-you-home">
+        <div
+            className={cn(
+                JOBS_SESSION_FRAME_CLASS,
+                "state-opacity-in h-auto min-h-0 flex-1 overflow-hidden",
+            )}
+            data-testid="for-you-home"
+        >
             {hasUsableResume && onReplaceResume ? (
                 <div className="mb-3 flex justify-end">
                     <button
@@ -308,30 +423,45 @@ export function ForYouHome({
                 </ConceptAEmptyPageSlot>
             ) : (
                 <>
-                {activeJob ? (
+                {selectedJob ? (
                     <McpHandoffNote
-                        className="mb-4"
+                        className="mb-4 shrink-0"
                         job={{
-                            id: activeJob.id,
-                            title: activeJob.title ?? "",
-                            company: activeJob.company ?? "",
-                            location: activeJob.location,
+                            id: selectedJob.id,
+                            title: selectedJob.title ?? "",
+                            company: selectedJob.company ?? "",
+                            location: selectedJob.location,
                         }}
                     />
                 ) : null}
                 <div
                     data-testid="for-you-deck"
                     className={cn(
-                        "flex min-h-0 flex-col gap-4",
-                        "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:items-start",
+                        "flex min-h-0 flex-1 flex-col gap-4",
+                        "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:overflow-hidden",
                         firstRevealEnter && "state-opacity-in",
                     )}
                 >
-                    {activeHydration && activeJob ? (
+                    {activeHydration && selectedJob ? (
                         <div
-                            data-testid="for-you-pack"
-                            className="flex min-w-0 flex-col rounded-panel border border-border bg-surface xl:order-2"
+                            className={cn(
+                                "flex min-h-0 min-w-0 flex-1 flex-col xl:order-2 xl:h-full xl:max-h-full xl:overflow-hidden",
+                                phoneRole ? "flex" : "hidden xl:flex",
+                            )}
                         >
+                            <button
+                                type="button"
+                                data-testid="for-you-back-to-list"
+                                onClick={backToList}
+                                className="mb-2 shrink-0 text-left text-xs font-semibold text-brand hover:underline xl:hidden"
+                            >
+                                Back
+                            </button>
+                            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-panel border border-border bg-surface">
+                            <div
+                                data-testid="for-you-pack"
+                                className="flex min-w-0 flex-col"
+                            >
                             <div data-testid="for-you-deck-save" className="min-w-0">
                                 <DeckRoleDetail
                                     job={activeHydration.job}
@@ -346,7 +476,7 @@ export function ForYouHome({
                                             ? () => onRetryDescription(activeHydration.job.id)
                                             : undefined
                                     }
-                                    matchScore={matchScores?.get(activeJob.id) ?? null}
+                                    matchScore={matchScores?.get(selectedJob.id) ?? null}
                                     resume={resume}
                                     onUploadResume={onReplaceResume}
                                 />
@@ -398,26 +528,40 @@ export function ForYouHome({
                                 </Button>
                                 </div>
                             </div>
+                            </div>
+                            </div>
                         </div>
                     ) : null}
 
                     <div
+                        ref={listRef}
                         role="listbox"
                         aria-label="Ranked roles"
-                        className="flex min-h-0 min-w-0 flex-1 flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]"
+                        data-testid="for-you-list-scroll"
+                        onPointerDown={rememberListScroll}
+                        onScroll={onListScroll}
+                        className={cn(
+                            "min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] xl:h-full xl:max-h-full",
+                            phoneRole && "hidden xl:block",
+                        )}
                     >
-                        {visiblePacks.map((job, index) => (
+                        <div style={{ height: windowed.padTop }} aria-hidden />
+                        {visiblePacks.slice(windowed.start, windowed.end).map((job, offset) => {
+                            const index = windowed.start + offset;
+                            return (
                             <JobCard
                                 key={job.id}
                                 job={job}
-                                active={index === activeIndex}
-                                opened={openedIds.has(job.id) && index !== activeIndex}
-                                onClick={() => onActiveIndexChange(index)}
+                                active={index === selectedIndex}
+                                opened={openedIds.has(job.id) && index !== selectedIndex}
+                                onClick={() => selectRow(index)}
                                 now={nowMs}
                                 matchScore={matchScores?.get(job.id) ?? null}
                                 position={index + 1}
                             />
-                        ))}
+                            );
+                        })}
+                        <div style={{ height: windowed.padBottom }} aria-hidden />
                         {(showingLine || (hasMore && onLoadMore)) && (
                             <div
                                 className="flex flex-col items-center gap-2 border-t border-border px-3 py-3"

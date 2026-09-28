@@ -7,6 +7,7 @@ import { ProviderConfig } from "@/lib/llm/types";
 import { resolveModelLadder, runLadder, type LadderRung } from "@/lib/llm/model-ladder";
 import { FREE_LADDER } from "@/lib/llm/models";
 import { stripProviderPrefix } from "@/lib/llm/strip-provider-prefix";
+import { getServerUser } from "@/lib/auth/server-user";
 
 const getConfig = (override?: Partial<ProviderConfig>) => resolveLLMConfig(override);
 
@@ -92,6 +93,7 @@ export const fetchJSON = async (
     prompt: string,
     label: string,
     configOverride?: Partial<ProviderConfig>,
+    feature: string = "generic_json",
 ) => {
     // Resolved ONCE and reused. `getConfig` hits the auth session (and throws
     // AUTH_REQUIRED for a signed-out caller — the only gate left now that
@@ -106,6 +108,14 @@ export const fetchJSON = async (
     // that named its own model (the override picks THE model, not a starting
     // point) and Groq, handled inside resolveModelLadder by provider check.
     const rungs = resolveModelLadder(baseConfig, FREE_LADDER, Boolean(configOverride?.model));
+    const traceId = crypto.randomUUID();
+    let distinctId: string | undefined;
+    try {
+        const user = await getServerUser();
+        distinctId = user?.uid;
+    } catch {
+        // Capture sanitizes to anonymous when distinctId is missing.
+    }
 
     // Helper for timeout
     const withTimeout = (promise: Promise<any>, ms: number, label: string) => {
@@ -139,6 +149,12 @@ export const fetchJSON = async (
                     json: true,
                     timeoutMs: rung.timeoutMs,
                     maxRetries: 1,
+                    analytics: {
+                        feature,
+                        traceId,
+                        distinctId: distinctId ?? "anonymous",
+                        isFallback: rung.isFallback,
+                    },
                 }),
                 rung.timeoutMs,
                 label
@@ -179,6 +195,12 @@ export const fetchJSON = async (
                             json: true,
                             timeoutMs: Math.min(30_000, rung.timeoutMs),
                             maxRetries: 1,
+                            analytics: {
+                                feature,
+                                traceId,
+                                distinctId: distinctId ?? "anonymous",
+                                isFallback: rung.isFallback,
+                            },
                         }),
                         Math.min(30_000, rung.timeoutMs),
                         `${label} (Correction)`
@@ -227,9 +249,10 @@ export const fetchJSON = async (
 export async function generateGenericJSON(
     prompt: string,
     configOverride?: Partial<ProviderConfig>,
+    feature: string = "generic_json",
 ): Promise<any> {
     try {
-        return await fetchJSON(prompt, "Generic JSON", configOverride);
+        return await fetchJSON(prompt, "Generic JSON", configOverride, feature);
     } catch (e: any) {
         console.error("Generic JSON Error:", e);
         // Propagate the error message so callers can display it to the user

@@ -1,4 +1,5 @@
 
+import { captureAiGeneration } from '@/lib/analytics/ai-generation';
 import { LLMProvider, LLMRequest, LLMResponse } from './types';
 import { GROQ_DEFAULT_MODEL } from './models';
 import { getSiteUrl } from '@/lib/seo/constants';
@@ -84,10 +85,40 @@ const DEFAULT_MAX_TOKENS = 4000;
  * Owns rate-limiting, timeout, retries, and error handling so the
  * concrete providers only declare their base URL / headers / default model.
  */
+interface CompletionUsage {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    cost?: number;
+}
+
+function readCompletionUsage(usage: CompletionUsage | null | undefined): {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalCostUsd?: number;
+} {
+    if (!usage) return {};
+    const result: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalCostUsd?: number;
+    } = {};
+    if (typeof usage.prompt_tokens === 'number') {
+        result.inputTokens = usage.prompt_tokens;
+    }
+    if (typeof usage.completion_tokens === 'number') {
+        result.outputTokens = usage.completion_tokens;
+    }
+    if (typeof usage.cost === 'number') {
+        result.totalCostUsd = usage.cost;
+    }
+    return result;
+}
+
 abstract class OpenAICompatibleProvider implements LLMProvider {
     protected client: OpenAI;
     protected model: string;
     protected providerName: string;
+    protected baseURL: string;
     private static lastRequestTime: number = 0;
     private static readonly minRequestInterval: number = 500;
 
@@ -97,7 +128,46 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
         }
         this.providerName = providerName;
         this.model = model;
+        this.baseURL = baseURL;
         this.client = new OpenAI({ apiKey, baseURL, defaultHeaders: headers });
+    }
+
+    private emitAiGeneration(
+        request: LLMRequest,
+        attempt: number,
+        latencySeconds: number,
+        capture: {
+            isError: boolean;
+            errorCode?: string;
+            httpStatus?: number;
+            inputTokens?: number;
+            outputTokens?: number;
+            totalCostUsd?: number;
+        },
+    ): void {
+        try {
+            captureAiGeneration({
+                model: this.model,
+                provider: this.providerName.toLowerCase(),
+                feature: request.analytics?.feature ?? 'unspecified',
+                traceId: request.analytics?.traceId ?? crypto.randomUUID(),
+                spanId: crypto.randomUUID(),
+                distinctId: request.analytics?.distinctId ?? 'anonymous',
+                latencySeconds,
+                isError: capture.isError,
+                errorCode: capture.errorCode,
+                httpStatus: capture.httpStatus,
+                inputTokens: capture.inputTokens,
+                outputTokens: capture.outputTokens,
+                totalCostUsd: capture.totalCostUsd,
+                maxTokens: DEFAULT_MAX_TOKENS,
+                baseUrl: this.baseURL,
+                isFallback: request.analytics?.isFallback,
+                attempt,
+            });
+        } catch {
+            // Belt-and-suspenders — capture must never affect generation.
+        }
     }
 
     private async waitForRateLimit(): Promise<void> {
@@ -115,8 +185,10 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
         let lastError: any = null;
 
         for (let attempt = 0; attempt < maxRetries; attempt++) {
+            let started = 0;
             try {
                 await this.waitForRateLimit();
+                started = Date.now();
                 console.log(`[${this.providerName}] Generating with model: ${this.model}${attempt > 0 ? ` (retry ${attempt})` : ''}`);
 
                 const completionPromise = this.client.chat.completions.create({
@@ -130,22 +202,41 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
                 });
 
                 const completion = await withTimeout(completionPromise, timeoutMs, this.providerName);
+                const latencySeconds = (Date.now() - started) / 1000;
+                const usage = readCompletionUsage(completion.usage);
                 let text = completion.choices[0]?.message?.content || "";
 
                 if (!text || text.trim() === '') {
+                    this.emitAiGeneration(request, attempt, latencySeconds, {
+                        isError: true,
+                        errorCode: 'EMPTY_RESPONSE',
+                        ...usage,
+                    });
                     return { text: "", error: "Empty response received. Please try again." };
                 }
 
                 // Strip <think>...</think> blocks from thinking models
                 text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
+                this.emitAiGeneration(request, attempt, latencySeconds, {
+                    isError: false,
+                    ...usage,
+                });
+
                 console.log(`[${this.providerName}] Generated ${text.length} characters`);
                 return { text };
 
             } catch (e: any) {
                 lastError = e;
+                const latencySeconds = started > 0 ? (Date.now() - started) / 1000 : 0;
                 console.error(`[${this.providerName}] Error (attempt ${attempt + 1}/${maxRetries}):`, e.message);
                 const errorInfo = categorizeError(e, this.providerName, this.model);
+
+                this.emitAiGeneration(request, attempt, latencySeconds, {
+                    isError: true,
+                    errorCode: errorInfo.code,
+                    httpStatus: typeof e?.status === 'number' ? e.status : undefined,
+                });
 
                 if (errorInfo.code === LLMErrorCode.RATE_LIMIT && attempt < maxRetries - 1) {
                     const waitTime = (attempt + 1) * 3000;

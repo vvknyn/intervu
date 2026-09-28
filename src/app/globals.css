@@ -147,9 +147,10 @@
      search box landed underneath it. */
   --topbar-h: 48px;
   --jobs-sticky-offset: var(--topbar-h);
-  /* Docked TopBar band min-height — must clear the For you/Search pill
-     (min-h-11) plus vertical padding. The band wraps; this floor keeps a
-     single line from collapsing under the pill. */
+  /* Docked TopBar filter-band min-height — clears a min-h-11 control
+     plus vertical padding. The band wraps; this floor keeps a single
+     line of filter chips from collapsing. For you/Search is not in
+     this band. */
   --jobs-filter-row-h: calc(2.75rem + 1rem);
   --jobs-bar-content-gap: 8px;
   --jobs-sticky-gap: 24px;
@@ -807,6 +808,35 @@ h4 {
   display: flex;
   flex-direction: column;
   min-height: min(72dvh, 720px);
+}
+
+/* The ranked deck is two panes. Body stays viewport-tall so the list cannot
+   grow the page; the list and the open role scroll inside the frame. */
+html:has([data-testid="for-you-home"]),
+body:has([data-testid="for-you-home"]) {
+  height: 100svh;
+  max-height: 100svh;
+  overflow: hidden;
+}
+
+body:has([data-testid="for-you-home"]) main {
+  min-height: 0;
+  overflow: hidden;
+}
+
+body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"] {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+[data-testid="for-you-home"].jobs-session-frame {
+  min-height: 0;
+  flex: 1 1 auto;
+  height: auto;
+  overflow: hidden;
 }
 
 /** Paper slot only — matches live ForYouPack postcard shell geometry. */

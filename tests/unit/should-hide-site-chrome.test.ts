@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
   isLeanProductSurface,
+  isQuietFooterPath,
   shouldHideSiteChrome,
 } from "../../src/components/layout/should-hide-site-chrome";
 
@@ -34,6 +35,19 @@ test("lean product loop includes jobs and résumé (signed-out header drops MCP 
   assert.equal(isLeanProductSurface("/resume/edit"), true);
   assert.equal(isLeanProductSurface("/yours"), false);
   assert.equal(isLeanProductSurface("/connect"), false);
+});
+
+test("remote-jobs hub quiets the SEO footer; other hubs and product routes do not", () => {
+  assert.equal(isQuietFooterPath("/careers/remote-jobs"), true);
+  assert.equal(isQuietFooterPath("/careers/tech-jobs"), false);
+  assert.equal(isQuietFooterPath("/jobs"), false);
+  assert.equal(isQuietFooterPath("/about"), false);
+  const footer = readFileSync(
+    path.join(__dirname, "../../src/components/layout/Footer.tsx"),
+    "utf8",
+  );
+  assert.match(footer, /isQuietFooterPath\(pathname\)/);
+  assert.match(footer, /LeanFooterContent/);
 });
 
 test("TopBar filters desktop /connect on lean surfaces and when signed out", () => {

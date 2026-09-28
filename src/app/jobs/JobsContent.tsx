@@ -42,6 +42,7 @@ import { getCurrentUser, onAuthChange, revalidateClientSession, type User } from
 import {
     searchJobsAction as searchJobsActionRaw,
     getDefaultBrowseAction,
+    getHubPackCorpusCountsAction,
     markJobAppliedAction,
     getJobsFreshnessAction,
     getPostedDateFilterSupportAction,
@@ -165,6 +166,9 @@ import { CONCEPT_A_LANDING_BODY_CLASS } from "@/components/onboarding/ConceptALa
 import {
     CONCEPT_A_LANDING_PENDING_HTML_CLASS,
     hideJobsSsrLanding,
+    restoreJobsSsrLanding,
+    revealJobsSiteHeader,
+    readJobsSignedInPaintHint,
     readOnboardingCompletedFromStorage,
     subscribeOnboardingCompleted,
     writeOnboardingCompletedInStorage,
@@ -289,6 +293,7 @@ import {
     type PublicJob,
     type YearsExperienceBucket,
 } from "@/lib/jobs/types";
+import type { HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import {
     parseJobsUrl,
     serializeJobsUrl,
@@ -305,7 +310,7 @@ import {
     subscribeLastJobsHomeView,
     writeLastJobsHomeView,
 } from "@/lib/jobs/for-you/last-home-view";
-import { QuietSearchLink } from "@/components/jobs/for-you/QuietSearchLink";
+import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
 import { PacksHomeIntroModal } from "@/components/jobs/for-you/PacksHomeIntroModal";
 import {
     readPacksHomeIntroDismissed,
@@ -322,11 +327,16 @@ import {
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
-import { isCanadaDeckJob, omitCanadaCountryFacet } from "@/lib/jobs/for-you/canada-deck";
+import { isCanadaDeckJob } from "@/lib/jobs/for-you/canada-deck";
 import {
+    candidateLocationFromResume,
+    packApplyLocationFacets,
+} from "@/lib/jobs/for-you/pack-apply-location";
+import {
+    formatBrowseHubCorpusLine,
     formatHubCorpusLine,
     HUB_PROBE_LIMITS,
-    resolveHubRoleCountLabels,
+    formatHubPackCorpusRoleLabels,
     packBandTotalsFromSources,
     resolveAllPackHubCounts,
     type ScoredHubHit,
@@ -343,7 +353,6 @@ import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
-import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
@@ -1792,6 +1801,15 @@ export function JobsContent({
         scored: ScoredHubHit[];
         removalsLine: string | null;
     }>({ loading: false, probing: false, total: null, scored: [], removalsLine: null });
+    // Unscored browse sample for pack pills when fit has no résumé yet.
+    // Opening a pack must not replace this with the deck page.
+    const [hubBrowse, setHubBrowse] = useState<{ jobs: PublicJob[]; total: number | null }>({
+        jobs: [],
+        total: null,
+    });
+    const [hubPackCorpusCounts, setHubPackCorpusCounts] = useState<
+        Partial<Record<HubPackId, CorpusCount | null>> | null
+    >(null);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -1844,8 +1862,16 @@ export function JobsContent({
             );
             if (user) {
                 void saveResumeData(data.resume, "pdf", 1)
-                    .then(() => captureEvent("resume_uploaded", {}))
-                    .catch(() => {});
+                    .then((res) => {
+                        if (res.error) {
+                            toast.error(res.error);
+                            return;
+                        }
+                        captureEvent("resume_uploaded", {});
+                    })
+                    .catch((err) => {
+                        toast.error(err instanceof Error ? err.message : "Could not save résumé");
+                    });
             } else if (data.storageMode === "cloud") {
                 writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
                 setAuthTrigger("user");
@@ -2046,14 +2072,13 @@ export function JobsContent({
     const showForYouHome = resolvedHomeView === "for-you";
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
-    // Peer pill retired (shouldShowJobsHomeViewToggle always false). Quiet
-    // Search link docks in the same topbar slot when packs home is active.
+    // Signed-in header row: For you ↔ Search. Not a Jobs-only tab.
     const showHomeViewToggle = shouldShowJobsHomeViewToggle({
         signedOut,
+        signedIn,
         resumeOnFile,
         showJobsHomePending,
     });
-    const showQuietSearchEntry = showForYouHome && resumeOnFile === true;
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -2191,21 +2216,35 @@ export function JobsContent({
     // Sign-in is the absolute gate: unauthenticated visitors cannot access categories or job feeds
     const isSignedOut = !user;
     const userNeedsOnboarding = Boolean(user) && !hasUsableResume && !onboardingDismissed;
-    const showLandingOnboarding = (isSignedOut || userNeedsOnboarding) && !showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
+    const showSignedOutLanding = isSignedOut && !onboardingDismissed;
+    // Signed-in Search must show the query bar. The résumé step covers that
+    // bar, so signed-out dismissed visitors skip this shell entirely.
+    const showLandingOnboarding =
+        (showSignedOutLanding || userNeedsOnboarding) &&
+        !showAdvancedSearch &&
+        atRest &&
+        showSearchHome &&
+        !showForYouHome;
 
     useEffect(() => {
         const root = document.documentElement;
         if (showLandingOnboarding) {
-            hideJobsSsrLanding();
-            if (!readOnboardingCompletedFromStorage()) {
-                root.classList.add(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
+            // Signed-in résumé / account steps are still exact /jobs. The
+            // Step 1 chrome-hide class must not stay on them. A refresh
+            // also mounts this before auth resolves; the paint hint already
+            // skipped the poster, so don't put it back while the session
+            // is still unknown.
+            if (userNeedsOnboarding || onboardingDismissed || (!authReady && readJobsSignedInPaintHint())) {
+                revealJobsSiteHeader();
+            } else {
+                restoreJobsSsrLanding();
             }
         } else {
             hideJobsSsrLanding();
             root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
             document.body.classList.remove(CONCEPT_A_LANDING_BODY_CLASS);
         }
-    }, [showLandingOnboarding]);
+    }, [showLandingOnboarding, onboardingDismissed, userNeedsOnboarding, authReady]);
 
     // At rest, the raw corpus feed is tucked away behind Advanced Search or explicit search intent
     const defaultFeedAtRest = showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
@@ -2231,13 +2270,12 @@ export function JobsContent({
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
     // Deliberately NOT `headerDockActive`: the For-you/Search toggle has to
-    // sit in the exact same header slot in every state it's visible in,
+    // sit on the header row beside the mark in every state it's visible in,
     // including the whole For-you view and "Search, no query yet" — both of
     // which correctly leave `headerDockActive` false (there's no search box
-    // or filters to dock there). Tying the toggle to `headerDockActive`
-    // anyway made it jump between an inline position (in-page) and a docked
-    // one (header band) depending on which of those states it was in.
-    const homeViewDockActive = isLgUp && showQuietSearchEntry;
+    // or filters to dock). The filter band stays closed unless a search is
+    // actually docked, so the switch never becomes a second chrome row.
+    const homeViewDockActive = showHomeViewToggle;
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
@@ -2927,8 +2965,32 @@ export function JobsContent({
     // search before it could paint category counts.
     const hubResumeKey =
         resume && hasUsableResume
-            ? `${buildMatchQuery(resume).q}\0${resume.profile?.location ?? ""}`
+            ? `${buildMatchQuery(resume).q}\0${candidateLocationFromResume(resume)}`
             : "";
+
+    // No usable résumé (missing, junk, or still loading): paint pack counts
+    // from the browse hits already on the hub. Stop updating once a fit key
+    // exists or a pack is open, so a later deck page cannot blank the pills.
+    useEffect(() => {
+        if (!showForYouHome || forYouPackDeckOpen || hubResumeKey) return;
+        const current = result;
+        if (!current || !current.hits?.length) return;
+        setHubBrowse({
+            jobs: current.hits,
+            total: typeof current.total === "number" ? current.total : null,
+        });
+    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, result]);
+
+    useEffect(() => {
+        if (!showForYouHome) return;
+        let cancelled = false;
+        void getHubPackCorpusCountsAction(locationDefaultSuppressed).then((counts) => {
+            if (!cancelled) setHubPackCorpusCounts(counts);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [showForYouHome, locationDefaultSuppressed]);
 
     // Progressive quiet fit probe — every pack gets live role counts from the
     // first scored page. Deeper pages only refine the sample. On settle, diff
@@ -2951,7 +3013,7 @@ export function JobsContent({
                 const { q, facets: derived } = buildMatchQuery(resume);
                 const derivedWithLocation = {
                     ...derived,
-                    ...omitCanadaCountryFacet(deriveResumeLocationFacets(resume.profile?.location)),
+                    ...packApplyLocationFacets(resume),
                 };
                 const merged = mergeFacets({}, derivedWithLocation);
                 const scoredById = new Map<string, ScoredHubHit>();
@@ -3052,37 +3114,28 @@ export function JobsContent({
         };
     }, [showForYouHome, forYouPackDeckOpen, hubResumeKey]);
 
-    const hubCountLabels = useMemo(() => {
-        const deckScored: ScoredHubHit[] | null =
-            fitActive && matchScores && result?.hits?.length
-                ? result.hits
-                      .map((job) => {
-                          const score = matchScores.get(job.id);
-                          return score ? { job, score } : null;
-                      })
-                      .filter((x): x is ScoredHubHit => x != null)
-                : null;
-        // The hub probe owns category counts. The open deck's current page
-        // must not replace them — that page is a slice, and swapping it in
-        // blanked every pack the slice did not happen to contain.
-        const scored = hubFitProbe.scored.length > 0 ? hubFitProbe.scored : (deckScored ?? []);
-        const pool = hubFitProbe.total ?? (fitActive && result?.total != null ? result.total : null);
-        return resolveHubRoleCountLabels({
-            loading: hubFitProbe.loading && scored.length === 0,
-            probing: hubFitProbe.probing,
-            poolTotal: pool,
-            scored,
-        });
-    }, [fitActive, matchScores, result?.total, result?.hits, hubFitProbe]);
-
-    const hubCorpusLine = useMemo(
+    const hubCountLabels = useMemo(
         () =>
-            formatHubCorpusLine(
-                fitActive && result?.total != null ? result.total : hubFitProbe.total,
-                hubFitProbe.loading || hubFitProbe.probing,
-            ) || null,
-        [fitActive, result?.total, hubFitProbe.total, hubFitProbe.loading, hubFitProbe.probing],
+            formatHubPackCorpusRoleLabels(hubPackCorpusCounts ?? {}, {
+                loading: hubPackCorpusCounts == null,
+            }),
+        [hubPackCorpusCounts],
     );
+
+    const hubCorpusLine = useMemo(() => {
+        if (hubFitProbe.scored.length > 0 || (fitActive && result?.total != null)) {
+            return (
+                formatHubCorpusLine(
+                    fitActive && result?.total != null ? result.total : hubFitProbe.total,
+                    hubFitProbe.loading || hubFitProbe.probing,
+                ) || null
+            );
+        }
+        if (hubBrowse.total != null && hubBrowse.total > 0) {
+            return formatBrowseHubCorpusLine(hubBrowse.total);
+        }
+        return null;
+    }, [fitActive, result?.total, hubFitProbe, hubBrowse.total]);
 
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
@@ -4083,15 +4136,13 @@ export function JobsContent({
 
     const gatedOpenPosting = useGatedApply<PublicJob>({
         user,
+        gate: (action) => gate(action, { originSurface: "job_detail", gateReason: "apply" }),
         perform: (job) => {
             if (job.apply_url && shouldPromptApplyIntent()) {
                 setApplyIntentJob(job);
                 return;
             }
             openPostingNow(job);
-        },
-        onGuestApplied: (job) => {
-            setGuestTrackPrompt({ jobId: job.id, title: job.title });
         },
     });
 
@@ -4455,18 +4506,25 @@ export function JobsContent({
         if (!user) {
             return readLocalFallback();
         }
+        // A stalled cloud read must not hold the deck on the ranking shell.
+        // The list only mounts once fit is applied, so a hang means no job row.
+        const RESUME_FETCH_BUDGET_MS = 5_000;
         try {
-            const { data, updatedAt } = await fetchResumeData();
-            if (data && resumeIsUsable(data)) {
-                setResume(data);
-                setResumeUpdatedAt(updatedAt ?? null);
-                return data;
+            const fetched = await Promise.race([
+                fetchResumeData(),
+                new Promise<null>((resolve) => {
+                    window.setTimeout(() => resolve(null), RESUME_FETCH_BUDGET_MS);
+                }),
+            ]);
+            if (fetched?.data && resumeIsUsable(fetched.data)) {
+                setResume(fetched.data);
+                setResumeUpdatedAt(fetched.updatedAt ?? null);
+                return fetched.data;
             }
         } catch {
             // e2e mock / offline — fall through to on-device seed
         }
-        // Cloud empty (e2e mock / fresh account): still use on-device local-AI seed
-        // so pack-open → postcard can apply fit and leave the loading gate.
+        // Cloud empty, slow, or offline: on-device local-AI seed still opens the deck.
         return readLocalFallback();
     };
 
@@ -4496,7 +4554,7 @@ export function JobsContent({
         const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
         const derivedWithLocation = userPickedLocation
             ? derived
-            : { ...derived, ...omitCanadaCountryFacet(deriveResumeLocationFacets(r.profile?.location)) };
+            : { ...derived, ...packApplyLocationFacets(r) };
         const merged = mergeFacets(facets, derivedWithLocation);
         setFacets(merged);
         setQueryDraft(q);
@@ -4565,14 +4623,15 @@ export function JobsContent({
         );
     };
 
-    // Packs-home: no For you ⇄ Search peer pill. Quiet text link reaches Search.
-    const openQuietSearch = () => {
-        setShowAdvancedSearch(true);
-        setJobsHomeView("search");
+    const selectJobsHome = (view: JobsHomeView) => {
+        if (view === "search") {
+            setShowAdvancedSearch(true);
+            setForYouPackDeckOpen(false);
+            setJobsHomeView("search");
+            return;
+        }
+        returnToJobPacksHub();
     };
-    const quietSearchLinkEl = showQuietSearchEntry ? (
-        <QuietSearchLink onClick={openQuietSearch} />
-    ) : null;
 
     useEffect(() => {
         if (resolvedHomeView === "for-you" || resolvedHomeView === "search") {
@@ -5434,6 +5493,7 @@ export function JobsContent({
                 suggest={suggestForBox}
                 seeds={searchSeeds}
                 placeholder={SEARCH_PLACEHOLDER}
+                ariaLabel="Search"
                 className="h-full min-h-0 min-w-0 flex-1 rounded-pill border-0 bg-transparent px-1 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
@@ -5623,10 +5683,16 @@ export function JobsContent({
      * results. The full-screen automation-first hero lives on `/`
      * (`src/app/page.tsx`), not on this route.
      */
+    const deckPanesLocked = showForYouHome && (showAdvancedSearch || forYouPackDeckOpen);
     return (
         <div
-            className={showLandingOnboarding ? "flex flex-1 flex-col" : "min-h-screen"}
-            // className="min-h-screen"
+            className={
+                deckPanesLocked
+                    ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                    : showLandingOnboarding
+                      ? "flex flex-1 flex-col"
+                      : "min-h-screen"
+            }
         >
             {firstRevealHandoff ? (
                 <div
@@ -5646,7 +5712,9 @@ export function JobsContent({
                 data-shell="bleed"
                 className={cn(
                     "shell-row flex flex-col",
-                    showLandingOnboarding
+                    deckPanesLocked
+                        ? "min-h-0 flex-1 overflow-hidden pt-2 sm:pt-3"
+                        : showLandingOnboarding
                         ? "flex-1 justify-start sm:justify-center items-center py-2 sm:py-6"
                         : cn(
                             "pt-2 sm:pt-3",
@@ -5704,15 +5772,7 @@ export function JobsContent({
                     Skip to results
                 </a>
 
-                {/* Quiet Advanced search — desktop only above hub. Mobile bottom
-                    tab owns primary nav; mid-screen search chrome over tiles is cut. */}
-                {!homeViewDockActive && isLgUp && quietSearchLinkEl && (
-                    <div className={cn("mb-2 flex justify-end pt-2 sm:pt-3", cappedContentClass)}>
-                        {quietSearchLinkEl}
-                    </div>
-                )}
-                {homeViewDockActive && dockedHomeViewMount && quietSearchLinkEl &&
-                    createPortal(quietSearchLinkEl, dockedHomeViewMount)}
+                {/* For you ↔ Search is portaled into the header row beside the mark. */}
 
                 {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
@@ -5731,7 +5791,7 @@ export function JobsContent({
                     outlive the search line have their own homes on the header
                     row and the toolbar; see `status` on the dock payload and
                     `fieldDirectoryMenu`. */}
-                {!headerDockActive && showSearchHome && !showLandingOnboarding && (!atRest || showAdvancedSearch) && (
+                {!headerDockActive && showSearchHome && !showLandingOnboarding && (
                 <section
                     className={cn(
                         "transition-colors",
@@ -5775,7 +5835,7 @@ export function JobsContent({
                         center the pill+button pair in it instead of pinning them
                         to the start. */}
                     {!headerDockActive && (
-                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5 sm:justify-center">
+                    <div data-search-line className="flex flex-row items-start gap-2 sm:flex-wrap sm:gap-2.5 sm:justify-center">
                         {/* `bg-surface`, not `bg-background`: inside the raised well
                             the field has to be the brightest thing on the page,
                             which is the only direction contrast can go on a
@@ -5797,7 +5857,7 @@ export function JobsContent({
                                 // stacked surface uses. From `sm` the rows go
                                 // side-by-side and it becomes the single pill it
                                 // always was (mobile layout audit, 2026-09-18).
-                                "flex flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-pill",
+                                "flex min-w-0 flex-1 flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-pill",
                                 // Mechanism: the ancestor <section> above used to
                                 // shrink-wrap (mx-auto suppressing stretch), so this
                                 // sm:flex-1 (basis 0%) had no real room to fill.
@@ -5828,6 +5888,7 @@ export function JobsContent({
                                     suggest={suggestForBox}
                                     seeds={searchSeeds}
                                     placeholder={SEARCH_PLACEHOLDER}
+                                    ariaLabel="Search"
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
                                     className={cn(
                                         // Requirement D2 (2026-09-17 design pass): at rest, search is
@@ -5910,13 +5971,8 @@ export function JobsContent({
                                 )}
                             </div>
                         </div>
-                        <div className={cn(
-                            "hidden flex-wrap items-center gap-2",
-                            // The sticky mobile-search-cta handles all search actions below
-                            // lg — pristine landing, mid-search, and post-results states.
-                            // Show inline Search only at lg+ so the two CTAs never coexist.
-                            "lg:flex",
-                        )}>                            {/* Requirement 5 (one filled action per screen at
+                        <div className="flex flex-wrap items-center gap-2">
+                            {/* Requirement 5 (one filled action per screen at
                                 rest): the front door's only filled button is
                                 the résumé band's "Upload resume"
                                 (FrontDoorResumeBand.tsx) — this one switches
@@ -5931,7 +5987,7 @@ export function JobsContent({
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
                                     atRest ? "h-11" : "h-11 sm:h-[56px]",
-                                    "w-full rounded-pill px-6 text-xs font-semibold sm:w-auto transition-colors",
+                                    "w-auto shrink-0 rounded-pill px-4 text-xs font-semibold sm:px-6 transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
                             >
@@ -6219,14 +6275,14 @@ export function JobsContent({
 
                 <JobsHomeViewTransition surface={resolvedHomeView}>
                 {showForYouHome ? (
-                    <div className={cn("mt-4", cappedContentClass)}>
+                    <div className={cn("mt-4", deckPanesLocked && "flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
                         {/* Packs home = CategoryHubGrid by default. Do NOT gate on atRest —
                             fit/query must not swap the 8-pack hub for the postcard deck.
                             Leave hub for Advanced search (view=search) or when a pack is
                             opened into ForYouHome (forYouPackDeckOpen). Pack tap / Browse
                             all matches set forYouPackDeckOpen — not the hub modal. */}
                         {forYouPackDeckOpen && (
-                            <div className="mb-2 flex items-center justify-between">
+                            <div className="mb-2 flex shrink-0 items-center justify-between">
                                 <button
                                     type="button"
                                     onClick={() => returnToJobPacksHub()}
@@ -6253,8 +6309,8 @@ export function JobsContent({
                                     setHubSelectedCategoryId(category.id);
                                     setForYouPackDeckOpen(true);
                                     forYouDeck.setActiveIndex(0);
-                                    // Postcard needs fitActive (ForYouHome gates on it).
-                                    // Safe here: hub already left via forYouPackDeckOpen.
+                                    // The list mounts from browse hits without waiting
+                                    // on fit. A usable résumé still ranks when it arrives.
                                     void resolveAndApplyFit();
                                 }}
                                 onUpdateResume={(updatedResume) => {
@@ -7020,6 +7076,15 @@ export function JobsContent({
                 onContinue={handleLocationSheetContinue}
             />
 
+            {showHomeViewToggle && dockedHomeViewMount &&
+                createPortal(
+                    <ForYouToggle
+                        value={resolvedHomeView === "search" ? "search" : "for-you"}
+                        onChange={selectJobsHome}
+                    />,
+                    dockedHomeViewMount,
+                )}
+
             {showMobileSearchCta && (
                 <div
                     data-testid="mobile-search-cta"
@@ -7029,7 +7094,7 @@ export function JobsContent({
                     // bottom padding (above) clears for, so the two can't
                     // drift apart the way a padding guess and this bar's
                     // real height already had.
-                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 lg:hidden"
+                    className="fixed inset-x-0 z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] lg:hidden"
                 >
                     <Button
                         type="button"

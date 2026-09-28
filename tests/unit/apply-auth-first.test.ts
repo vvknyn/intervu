@@ -21,8 +21,8 @@ function walk(dir: string): string[] {
 const ALL_SRC_FILES = walk(SRC).filter((file) => !MOCK_DIRS.some((dir) => file.startsWith(dir)));
 
 describe("apply-open-first — class-wide guarantees", () => {
-    it("signed-out Apply is perform, not auth-first", () => {
-        assert.equal(resolveApplyClickDecision(false), "perform");
+    it("signed-out Apply is auth-gated before employer departure", () => {
+        assert.equal(resolveApplyClickDecision(false), "gate");
         assert.equal(resolveApplyClickDecision(true), "perform");
     });
 

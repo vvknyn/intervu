@@ -28,8 +28,11 @@ happens again.
 2. **The paper / Klein-blue / shadow-none stack is retired.** `--brand` is green, not Klein blue;
    elevation is allowed only through the semantic shadow tokens above (Tailwind's named
    `shadow-*` scale remains `none`).
-3. **The app mark never sits on a white tile** — `public/velai-logo.png` and every derived icon
-   use a dark skeuomorphic tile or transparency (`--surface-mark-tile`).
+3. **The product mark is the locked soft-card bigger-dot** (commit `1e5d7f11`,
+   `public/velai-logo.png` and `public/velai-icon-locked.png`): soft paper card, navy
+   brackets, one bigger green live dot. Favicon, apple-touch, PWA, and OG embed that
+   raster. A dark skeuomorphic tile, a bottom-edge arc, and a Concept B bang (`!`) are
+   not the mark.
 4. **One z-index ladder** in `globals.css` (`--z-topbar` … `--z-toast`); call sites consume
    `z-[var(--z-topbar)]` (and the other named ladder steps), not ad-hoc numbers.
 5. **Concept A landing postcard fan (owner-approved).** The signed-out Step 1 stack is exactly

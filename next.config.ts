@@ -4,6 +4,7 @@ import {
   CANADA_CAREER_REDIRECT_DESTINATION,
   REMOVED_CANADA_CAREER_SLUGS,
 } from "./src/lib/seo/canada-career-redirects";
+import { SIGNED_OUT_SHORT_REDIRECTS } from "./src/lib/seo/signed-out-short-routes";
 
 // AuthKit only reads NEXT_PUBLIC_WORKOS_REDIRECT_URI; bridge before any route loads.
 applyWorkOsRedirectUriBridge();
@@ -201,6 +202,13 @@ const nextConfig: NextConfig = {
         source: `/careers/${slug}`,
         destination: CANADA_CAREER_REDIRECT_DESTINATION,
         permanent: true,
+      })),
+      // `/packs` and `/apply` never had pages. 307 (not 308) so a later real
+      // surface can take the path without a cached forever-redirect.
+      ...SIGNED_OUT_SHORT_REDIRECTS.map((rule) => ({
+        source: rule.source,
+        destination: rule.destination,
+        permanent: false,
       })),
     ];
   },

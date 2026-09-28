@@ -211,7 +211,7 @@ describe("jobs filter toolbar chrome", () => {
 
         const bandRow = src.slice(
             src.indexOf('data-region="band"'),
-            src.indexOf('data-testid="topbar-docked-home-view"') + 200,
+            src.indexOf('data-testid="topbar-docked-filters-toggle"') + 80,
         );
         assert.match(bandRow, /flex-wrap/);
         assert.match(bandRow, /overflow-x-clip/);

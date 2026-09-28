@@ -102,7 +102,13 @@ export function TopBar() {
                 context), so tagging the outer element would nest the band
                 region inside the header region and double-count everything
                 in it, plus fold the band's own height into "header height". */}
-            <div data-region="header" className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6">
+            <div
+                data-region="header"
+                className={cn(
+                    "shell-row relative flex h-[var(--topbar-h)] items-center justify-between",
+                    homeViewDocked ? "gap-2 sm:gap-4" : "gap-6",
+                )}
+            >
                 <Link
                     href="/"
                     className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-90"
@@ -111,6 +117,13 @@ export function TopBar() {
                 >
                     <BrandLockup markClassName="h-8 w-8" />
                 </Link>
+                {/* For you ↔ Search, same row as the mark. Always in the DOM so
+                    the jobs page can portal into it; `hidden` keeps an empty
+                    slot out of the flex gap on every other route. */}
+                <div
+                    data-testid="topbar-docked-home-view"
+                    className={cn("flex shrink-0 items-center", !homeViewDocked && "hidden")}
+                />
 
                 {/* `flex-1` so the row's leftover width lands HERE rather than
                     as a gap in the middle of the bar. `justify-end` keeps the
@@ -164,6 +177,7 @@ export function TopBar() {
                                 three. */}
                             <button
                                 type="submit"
+                                data-testid="search-submit"
                                 className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-sm font-semibold leading-none text-foreground transition-colors hover:bg-muted"
                             >
                                 Search
@@ -303,30 +317,14 @@ export function TopBar() {
                 </div>
             </div>
 
-            {/* Second row — active filters, docked alongside the search above
-                rather than left behind on the page it came from. Only the
-                page that owns `docked` knows what a "filter" is; this row
-                just renders whatever chips it was handed and a count badge,
-                same narrow seam as the search field above. `lg:flex` matches
-                the search row's own `lg:` gate — `docked` is only ever
-                populated on desktop (see jobs/page.tsx), but the class keeps
-                this row from ever appearing below that breakpoint even if
-                that changes. Chip-less (a fresh search, nothing narrowed
-                yet) still renders the row for the "Filters" button alone.
-                The row itself also stays up for `homeViewDocked` alone —
-                the For-you/Search toggle needs this same fixed slot on
-                desktop even when there's no active search to dock (the
-                whole For-you view, or Search before a query is typed), so
-                the toggle never jumps between an inline and a docked
-                position depending on which of those it is. Everything below
-                that reads `docked.*` stays gated on `docked` itself, since
-                those fields don't exist when only the toggle is docked. */}
-            {(docked || homeViewDocked) && (
+            {/* Second row — active filters only. For you ↔ Search lives on
+                the header row beside the mark, so this band must not open
+                just to hold that switch. */}
+            {docked && (
                 <div data-region="band" className="hidden bg-muted lg:block">
                     {/* Wrap instead of horizontal scroll — long query chips truncate
                         with a title tooltip; short facet/location chips stay whole. */}
                     <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip border-t border-border">
-                        <div data-testid="topbar-docked-home-view" className="flex shrink-0 items-center gap-2" />
                         {docked && (
                             <>
                                 <button

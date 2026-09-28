@@ -20,6 +20,7 @@ import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent"
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
 import { RESUME_IMPORT_PARSE_LINE } from "@/lib/jobs/resume-privacy-copy";
+import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resume/profile-review-parse";
 import {
     canAcceptLocalParse,
     LOCAL_PARSE_ACCEPT_MIN,
@@ -269,6 +270,10 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const runParse = async (textContent: string) => {
         const started = Date.now();
         const local = await parseResumeLocally(textContent, { skipDownload: consentDeclined });
+        const refusal = refuseResumeReview(local.data.parsed, textContent);
+        if (refusal) {
+            throw new Error(refusal);
+        }
         setEngineLabel(local.engineLabel);
         setParseResult(local.data);
         setEditedData(local.data.parsed);

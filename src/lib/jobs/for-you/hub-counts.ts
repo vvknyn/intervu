@@ -6,11 +6,15 @@
 import { matchBand, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import { isCanadaDeckJob } from "@/lib/jobs/for-you/canada-deck";
+import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import {
     HUB_PACK_IDS,
     jobMatchesHubPack,
     type HubPackId,
 } from "@/lib/jobs/for-you/hub-pack-filters";
+
+/** Hub pack pill placeholder while corpus counts are in flight. */
+export const HUB_PACK_CORPUS_COUNT_LOADING = "…";
 
 export type HubCountSource =
     | { kind: "loading" }
@@ -53,7 +57,15 @@ export function formatHubCountLabel(source: HubCountSource): string {
     return "";
 }
 
-/** Quiet hero line under Welcome — corpus total climbing with the probe. */
+/**
+ * Hero line for a browse hub — roles in the corpus, no fit bands.
+ * Do not say Strong. There is no score yet.
+ */
+export function formatBrowseHubCorpusLine(pool: number | null | undefined): string {
+    if (pool == null || !Number.isFinite(pool) || pool <= 0) return "";
+    return `~${Math.floor(pool).toLocaleString()} roles`;
+}
+
 export function formatHubCorpusLine(pool: number | null | undefined, probing: boolean): string {
     if (pool == null || !Number.isFinite(pool) || pool < 0) {
         return probing ? "Matching…" : "";
@@ -192,6 +204,47 @@ export function formatHubRoleCount(total: number): string {
 }
 
 /**
+ * Largest phrase count. More than one phrase → a floor, because overlap is
+ * unknown: the sum would overstate the pack, and the max is the count we
+ * can stand behind ("at least this many"). A single exact count stays exact.
+ */
+export function keywordPackLowerBound(counts: Array<CorpusCount | null | undefined>): CorpusCount | null {
+    const usable = counts.filter((count): count is CorpusCount => {
+        if (count == null) return false;
+        return Number.isFinite(count.value) && count.value >= 0;
+    });
+    if (usable.length === 0) return null;
+    const max = Math.max(...usable.map((count) => count.value));
+    const only = usable[0];
+    if (usable.length === 1 && only?.kind === "exact") return { kind: "exact", value: only.value };
+    return { kind: "floor", value: max };
+}
+
+/** Role pill from a corpus `CorpusCount` — never from browse page hits or fit-probe samples. */
+export function formatHubPackCorpusRoleLabel(count: CorpusCount | null | undefined): string {
+    if (count == null) return HUB_PACK_CORPUS_COUNT_LOADING;
+    const n = Math.floor(count.value);
+    if (!Number.isFinite(n) || n < 0) return HUB_PACK_CORPUS_COUNT_LOADING;
+    if (count.kind === "floor") return `${n.toLocaleString()}+ roles`;
+    return n === 1 ? "1 role" : `${n.toLocaleString()} roles`;
+}
+
+export function formatHubPackCorpusRoleLabels(
+    counts: Partial<Record<HubPackId, CorpusCount | null | undefined>>,
+    options?: { loading?: boolean },
+): Partial<Record<string, string>> {
+    const labels: Partial<Record<string, string>> = {};
+    for (const packId of HUB_PACK_IDS) {
+        if (options?.loading && counts[packId] == null) {
+            labels[packId] = HUB_PACK_CORPUS_COUNT_LOADING;
+            continue;
+        }
+        labels[packId] = formatHubPackCorpusRoleLabel(counts[packId]);
+    }
+    return labels;
+}
+
+/**
  * Visible count for every hub category.
  * "All" uses the search total. Other packs count non-Canada jobs in the
  * probe sample. Canada roles stay out of the per-pack numbers.
@@ -228,6 +281,45 @@ export function resolveHubRoleCountLabels(input: {
             packId === "all"
                 ? kept.length
                 : kept.filter((hit) => jobMatchesHubPack(hit.job, packId, nowMs)).length;
+        labels[packId] = formatHubRoleCount(n);
+    }
+    return labels;
+}
+
+/**
+ * Pack pills from an unscored browse sample. Used when there is no usable
+ * résumé, the résumé is junk that cannot build a fit query, or the résumé
+ * fetch has not settled. Counts are role totals from the jobs in hand.
+ * They are not Strong/Good bands, and they are not an ellipsis once a
+ * sample exists. Canada roles stay out of the per-pack numbers.
+ */
+export function resolveBrowseHubRoleCountLabels(input: {
+    jobs: PublicJob[];
+    poolTotal: number | null | undefined;
+    nowMs?: number;
+}): Partial<Record<string, string>> {
+    const nowMs = input.nowMs ?? Date.now();
+    const kept = input.jobs.filter((job) => !isCanadaDeckJob(job));
+    const pool =
+        input.poolTotal != null && Number.isFinite(input.poolTotal) && input.poolTotal >= 0
+            ? Math.floor(input.poolTotal)
+            : null;
+    const hasSample = input.jobs.length > 0;
+    const labels: Partial<Record<string, string>> = {};
+
+    for (const packId of HUB_PACK_IDS) {
+        if (packId === "all" && pool != null) {
+            labels[packId] = formatHubRoleCount(pool);
+            continue;
+        }
+        if (!hasSample) {
+            labels[packId] = "…";
+            continue;
+        }
+        const n =
+            packId === "all"
+                ? kept.length
+                : kept.filter((job) => jobMatchesHubPack(job, packId, nowMs)).length;
         labels[packId] = formatHubRoleCount(n);
     }
     return labels;

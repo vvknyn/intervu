@@ -272,10 +272,9 @@ export function takePersistedPendingAction<Apply, Report>(
     return record;
 }
 
-/** Apply click always opens the employer site — guests and signed-in users
- *  share the same perform path. Optional tracker sign-in is separate. */
-export type ApplyClickDecision = "perform";
+/** Signed-out Apply opens auth first; signed-in users depart immediately. */
+export type ApplyClickDecision = "perform" | "gate";
 
-export function resolveApplyClickDecision(_signedIn: boolean): ApplyClickDecision {
-    return "perform";
+export function resolveApplyClickDecision(signedIn: boolean): ApplyClickDecision {
+    return signedIn ? "perform" : "gate";
 }

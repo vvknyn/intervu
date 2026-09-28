@@ -36,6 +36,20 @@ function segmentHasKnownPlace(segment: string): boolean {
     return false;
 }
 
+/**
+ * Stricter than `looksLikeRealPlaceSegment`: a comma pair is a place only
+ * when it names a known city/region or ends in a state/province code
+ * (`Austin, TX`). `TypeScript, React` is not a place.
+ */
+export function isLikelyPlaceSegment(segment: string): boolean {
+    if (!looksLikeRealPlaceSegment(segment)) return false;
+    if (segmentHasKnownPlace(segment)) return true;
+    const parts = segment.split(",").map((part) => part.trim()).filter(Boolean);
+    if (parts.length < 2 || parts.length > 3) return false;
+    const tail = parts[parts.length - 1] ?? "";
+    return /^[A-Z]{2}$/.test(tail);
+}
+
 /** True when `segment` looks like a city/region/country fragment, not prose. */
 export function looksLikeRealPlaceSegment(segment: string): boolean {
     const s = segment.trim();
