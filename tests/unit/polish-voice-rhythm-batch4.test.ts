@@ -196,9 +196,9 @@ describe("Phase 2 batch 4 — marketing TopBar", () => {
         assert.doesNotMatch(src, /topbar-alerts-cta/);
     });
 
-    it("e2e helper targets visible Concept A Sign in before TopBar on lean surfaces", () => {
+    it("e2e helper targets the TopBar Sign in on lean surfaces", () => {
         const src = readFileSync(join(ROOT, "tests/e2e/helpers/signed-out-auth-entry.ts"), "utf8");
-        assert.match(src, /concept-a-sign-in/);
+        assert.match(src, /topbar-signin/);
         assert.match(src, /visibleSignInLocator/);
         assert.match(src, /marketingTopBarCreateAccount/);
     });

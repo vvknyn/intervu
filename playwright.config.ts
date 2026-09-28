@@ -10,7 +10,7 @@ const CHROMIUM_LAUNCH = linuxChromiumVisualQaLaunchOptions();
 const VIEWPORT_SPECS = [
   /jobs-first-paint\.spec\.ts/,
   /for-you-deck\.spec\.ts/,
-  /concept-a-landing-postcards\.spec\.ts/,
+  /jobs-board-first\.spec\.ts/,
 ];
 
 /**

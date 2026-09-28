@@ -26,10 +26,4 @@ describe("jobs home view crossfade policy", () => {
         const page = readFileSync(join(ROOT, "src/app/jobs/page.tsx"), "utf8");
         assert.match(page, /<JobsHomeViewTransition surface=\{resolvedHomeView\}>/);
     });
-
-    it("Concept A landing hero copy is not enter-reveal animated", () => {
-        const landing = readFileSync(join(ROOT, "src/components/onboarding/ConceptALanding.tsx"), "utf8");
-        assert.doesNotMatch(landing, /enter-reveal/);
-        assert.match(landing, /<h1 className="text-poster-hero/);
-    });
 });

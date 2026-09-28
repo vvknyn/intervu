@@ -25,7 +25,6 @@ import {
     parseResumeFileForReview,
     PROFILE_REVIEW_UNREADABLE_ERROR,
 } from "@/lib/resume/profile-review-parse";
-import { restoreJobsSsrLanding } from "@/lib/jobs/onboarding-first-paint";
 import { buildReturnTo } from "@/lib/jobs/pending-actions";
 import {
     LANDING_DEVICE_STORAGE_NOTE,
@@ -33,7 +32,6 @@ import {
     LANDING_UPLOAD_PRIVACY_NOTE,
 } from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData, ResumeProfile } from "@/types/resume";
-import { ConceptALanding } from "@/components/onboarding/ConceptALanding";
 import { OnboardingStepLabel } from "@/components/onboarding/onboarding-step-label";
 
 export interface LandingOnboardingViewProps {
@@ -47,7 +45,7 @@ export interface LandingOnboardingViewProps {
     /** Soft-gate: open public Advanced search (not For-you packs). */
     onBrowsePublicJobs?: () => void;
     isAuthenticated?: boolean;
-    initialStep?: 1 | 2 | 3;
+    initialStep?: 2 | 3;
     initialParsedResume?: ResumeData | null;
     userEmail?: string | null;
     userName?: string | null;
@@ -66,7 +64,7 @@ export function LandingOnboardingView({
     userName,
     className,
 }: LandingOnboardingViewProps) {
-    const [step, setStep] = useState<1 | 2 | 3>(initialStep ?? (isAuthenticated ? 3 : 1));
+    const [step, setStep] = useState<2 | 3>(initialStep ?? (isAuthenticated ? 3 : 2));
     const [modelReady, setModelReady] = useState(false);
     const [storageMode, setStorageMode] = useState<"cloud" | "device">("cloud");
     const [uploading, setUploading] = useState(false);
@@ -110,7 +108,7 @@ export function LandingOnboardingView({
         }
     }, [isAuthenticated, step]);
 
-    // After Concept A portal unmounts, settle Step 2 into the viewport.
+    // Settle Step 2 into the viewport.
     // Double rAF waits for layout after body overflow unlock + card mount
     // (real iPhone Safari can otherwise flash empty light-grey chrome).
     useEffect(() => {
@@ -128,9 +126,8 @@ export function LandingOnboardingView({
         };
     }, [step]);
 
-    // Fetch live market role counts from Meilisearch (steps 2–3 only — keep Step 1 lean).
+    // Fetch live market role counts from Meilisearch.
     useEffect(() => {
-        if (step === 1) return;
         let mounted = true;
         getMarketingStatsAction()
             .then((stats) => {
@@ -145,9 +142,8 @@ export function LandingOnboardingView({
         };
     }, [step]);
 
-    // Silent background pre-warm (steps 2–3 — avoids local-ai ladder on LCP path).
+    // Silent background pre-warm of the local-ai ladder.
     useEffect(() => {
-        if (step === 1) return;
         let mounted = true;
         const prewarm = async () => {
             try {
@@ -233,17 +229,6 @@ export function LandingOnboardingView({
         });
     };
 
-    // Public Step 1 = full-bleed Concept A (covers site chrome; spacer keeps
-    // parent height). Steps 2–3 stay the real account + résumé gate.
-    if (step === 1) {
-        return (
-            <ConceptALanding
-                onStart={() => setStep(3)}
-                onSignIn={() => setStep(2)}
-            />
-        );
-    }
-
     // Pre-account sign-in — not an onboarding step (no progress chrome).
     if (step === 2 && !isAuthenticated) {
         return (
@@ -253,20 +238,6 @@ export function LandingOnboardingView({
                     data-testid="landing-onboarding-step-2"
                     className="space-y-6 rounded-panel border border-border bg-card p-6 shadow-[var(--shadow-bevel-highlight)] sm:p-8"
                 >
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                            restoreJobsSsrLanding();
-                            setStep(1);
-                        }}
-                        className="gap-1.5 -ml-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <ArrowLeft size={16} aria-hidden />
-                        Back
-                    </Button>
-
                     <div className="space-y-2">
                         <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
                             Create your free account
@@ -354,18 +325,7 @@ export function LandingOnboardingView({
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between border-t border-border pt-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    restoreJobsSsrLanding();
-                                    setStep(1);
-                                }}
-                                className="gap-1.5 text-xs"
-                            >
-                                <ArrowLeft size={16} /> Back
-                            </Button>
+                        <div className="flex items-center justify-end border-t border-border pt-2">
                             <Button
                                 size="sm"
                                 onClick={() => setStep(3)}
