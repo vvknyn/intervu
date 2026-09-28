@@ -11,13 +11,17 @@ function source(name: string): string {
 }
 
 describe("for-you postcard layout", () => {
-    it("ForYouHome frame allows document scroll — no nested viewport trap", () => {
+    it("ForYouHome list scrolls in its column — the role pane does not grow the page", () => {
         const home = source("ForYouHome.tsx");
         assert.match(home, /FOR_YOU_HOME_FRAME_CLASS/);
+        assert.match(home, /data-testid="for-you-list-scroll"/);
+        assert.match(home, /data-testid="for-you-back-to-list"/);
+        assert.match(home, /deckWindowRange/);
+        assert.match(home, /visiblePacks\.slice\(windowed\.start, windowed\.end\)/);
         assert.doesNotMatch(
             home,
             /overflow-hidden overscroll-none/,
-            "For-you frame must not trap page scroll",
+            "For-you frame must not use the old page-scroll trap",
         );
         assert.doesNotMatch(
             home,

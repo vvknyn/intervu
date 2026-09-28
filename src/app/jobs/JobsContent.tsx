@@ -5623,10 +5623,16 @@ export function JobsContent({
      * results. The full-screen automation-first hero lives on `/`
      * (`src/app/page.tsx`), not on this route.
      */
+    const deckPanesLocked = showForYouHome && (showAdvancedSearch || forYouPackDeckOpen);
     return (
         <div
-            className={showLandingOnboarding ? "flex flex-1 flex-col" : "min-h-screen"}
-            // className="min-h-screen"
+            className={
+                deckPanesLocked
+                    ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                    : showLandingOnboarding
+                      ? "flex flex-1 flex-col"
+                      : "min-h-screen"
+            }
         >
             {firstRevealHandoff ? (
                 <div
@@ -5646,7 +5652,9 @@ export function JobsContent({
                 data-shell="bleed"
                 className={cn(
                     "shell-row flex flex-col",
-                    showLandingOnboarding
+                    deckPanesLocked
+                        ? "min-h-0 flex-1 overflow-hidden pt-2 sm:pt-3"
+                        : showLandingOnboarding
                         ? "flex-1 justify-start sm:justify-center items-center py-2 sm:py-6"
                         : cn(
                             "pt-2 sm:pt-3",
@@ -6219,14 +6227,14 @@ export function JobsContent({
 
                 <JobsHomeViewTransition surface={resolvedHomeView}>
                 {showForYouHome ? (
-                    <div className={cn("mt-4", cappedContentClass)}>
+                    <div className={cn("mt-4", deckPanesLocked && "flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
                         {/* Packs home = CategoryHubGrid by default. Do NOT gate on atRest —
                             fit/query must not swap the 8-pack hub for the postcard deck.
                             Leave hub for Advanced search (view=search) or when a pack is
                             opened into ForYouHome (forYouPackDeckOpen). Pack tap / Browse
                             all matches set forYouPackDeckOpen — not the hub modal. */}
                         {forYouPackDeckOpen && (
-                            <div className="mb-2 flex items-center justify-between">
+                            <div className="mb-2 flex shrink-0 items-center justify-between">
                                 <button
                                     type="button"
                                     onClick={() => returnToJobPacksHub()}

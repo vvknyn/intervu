@@ -204,6 +204,14 @@ async function runAxeContrast(page, scope = 'document') {
   }, scope === 'document' ? 'document' : scope);
 }
 
+async function ensureDeckRoleOpen(page) {
+  const width = page.viewportSize()?.width ?? 1440;
+  if (width >= 1280) return;
+  const row = page.getByTestId('for-you-list-scroll').getByTestId('job-row').first();
+  await row.waitFor({ state: 'visible', timeout: 60000 });
+  await row.click();
+}
+
 async function navigateHubToPrompt(page) {
   await page.goto(`${BASE}/jobs`, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await page.waitForSelector('[data-testid^="hub-pack-card"]', { timeout: 90000 }).catch(() => {});
@@ -217,6 +225,7 @@ async function navigateHubToPrompt(page) {
       break;
     }
   }
+  await ensureDeckRoleOpen(page);
   await page.getByTestId('for-you-download-apply').waitFor({ state: 'visible', timeout: 90000 }).catch(() => {});
   await page.waitForTimeout(1500);
   const dl = page.getByTestId('for-you-download-apply');
@@ -341,6 +350,8 @@ async function runReducedMotion(browser, engine, label, viewport, wos) {
   await injectSession(ctx, wos);
   const page = await ctx.newPage();
   await navigateHubToPrompt(page);
+  const notYet = page.getByTestId('apply-return-not-yet');
+  if (await notYet.isVisible({ timeout: 2000 }).catch(() => false)) await notYet.click();
   await loadAxe(page);
   const rootStyles = await page.evaluate(() => {
     const html = document.documentElement;
@@ -410,6 +421,7 @@ async function runBetalistCell(browser, engine, label, viewport, wos) {
       break;
     }
   }
+  await ensureDeckRoleOpen(page);
   await page.getByTestId('for-you-download-apply').waitFor({ state: 'visible', timeout: 90000 }).catch(() => {});
   await page.waitForTimeout(1500);
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));

@@ -809,6 +809,35 @@ h4 {
   min-height: min(72dvh, 720px);
 }
 
+/* The ranked deck is two panes. Body stays viewport-tall so the list cannot
+   grow the page; the list and the open role scroll inside the frame. */
+html:has([data-testid="for-you-home"]),
+body:has([data-testid="for-you-home"]) {
+  height: 100svh;
+  max-height: 100svh;
+  overflow: hidden;
+}
+
+body:has([data-testid="for-you-home"]) main {
+  min-height: 0;
+  overflow: hidden;
+}
+
+body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"] {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+[data-testid="for-you-home"].jobs-session-frame {
+  min-height: 0;
+  flex: 1 1 auto;
+  height: auto;
+  overflow: hidden;
+}
+
 /** Paper slot only — matches live ForYouPack postcard shell geometry. */
 .for-you-deck-paper-postcard {
   display: flex;
