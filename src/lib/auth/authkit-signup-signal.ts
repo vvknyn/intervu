@@ -2,19 +2,14 @@
  * AuthKit signup signal — hands an explicit new-user fact from the server
  * callback to the browser so `signup_completed` can fire after identify.
  *
- * Why not `user.createdAt ≈ now`? That is inference, not a fact — a returning
- * user whose record was just created in WorkOS for another reason, or clock
- * skew, would false-positive. Why not posthog-node on the callback? This repo
- * has no server-side PostHog client; every event goes through client
- * `captureEvent`, and sessionStorage persistence means the anonymous guest
- * distinct_id survives a same-tab AuthKit redirect — identify then capture is
- * the honest join.
- *
- * The signal is `!hasApp(metadata.apps, intervu)` evaluated BEFORE
- * `provisionAppAccess` tags the user — the same cheap check provisioning
- * already uses. Returning intervu users carry the tag → no cookie. Brand-new
- * Google/passkey/magic-auth users do not → short-lived cookie the client reads
- * once after `posthog.identify(uid)`.
+ * Whether an account is new is decided once, server-side, by
+ * `claimSignupEvent` (signup-event.ts): a fresh WorkOS `createdAt` plus a
+ * durable once-per-uid claim. The callback sets the cookie only when that
+ * claim is won, so a cookie is by construction one signup. Why not
+ * posthog-node on the callback? This repo has no server-side PostHog client;
+ * every event goes through client `captureEvent`, and sessionStorage
+ * persistence means the anonymous guest distinct_id survives a same-tab
+ * AuthKit redirect — identify then capture is the honest join.
  *
  * Deliberately no `next/server` import — PostHogProvider and login-form are
  * client components. The callback sets the cookie with `cookies().set()`
@@ -22,7 +17,6 @@
  * wrap handleAuth's Response and risk dropping the session cookie.
  */
 import type { SignupMethod } from "@/lib/analytics/event-names";
-import { APP_INTERVU, hasApp } from "@/lib/auth/workos-apps";
 
 export const SIGNUP_SIGNAL_COOKIE_NAME = "intervu_signup_completed";
 export const SIGNUP_SIGNAL_COOKIE_MAX_AGE = 300;
@@ -64,18 +58,6 @@ export function mapAuthKitSignupMethod(authenticationMethod?: string | null): Si
     default:
       return null;
   }
-}
-
-/** Decide whether this AuthKit success is a first-time intervu signup. */
-export function resolveAuthKitSignupSignal({
-  apps,
-  authenticationMethod,
-}: {
-  apps?: string | null;
-  authenticationMethod?: string | null;
-}): SignupMethod | null {
-  if (hasApp(apps, APP_INTERVU)) return null;
-  return mapAuthKitSignupMethod(authenticationMethod);
 }
 
 /** Full `Set-Cookie` header value — NOT httpOnly so the client can read it. */

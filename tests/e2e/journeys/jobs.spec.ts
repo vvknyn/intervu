@@ -136,7 +136,7 @@ const guestWithResume = (page: Page, location: string) =>
     [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location],
   );
 
-test("a For-you pack's Edit filters opens /jobs on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-26"] }, async ({ page, diagnostics }) => {
+test("a For-you pack's Edit filters opens /jobs on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
   // Iceland: a country with few software roles, so the pack is thin whatever the corpus holds today.
   await guestWithResume(page, "Reykjavik, Iceland");
   await page.goto("/jobs?view=for-you");
@@ -159,7 +159,7 @@ test("a For-you pack's Edit filters opens /jobs on exactly the pack's filters, a
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("a board search with zero results offers to broaden, each option with its count", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
+test("a board search with zero results offers to broaden, each option with its count", { tag: ["@J-JOBS-28"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.goto("/jobs?view=search&q=engineer&country=Iceland&exp=entry&posted=1d");
   const broaden = page.getByTestId("broaden-options");
@@ -167,5 +167,26 @@ test("a board search with zero results offers to broaden, each option with its c
   await expect(broaden.getByRole("button").first()).toContainText(/\d[\d,]* roles/);
   await broaden.getByRole("button").first().click();
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+/** Real reduplicated place names: the only strings the repeated-token check must not flag. */
+const REDUPLICATED_PLACES = /\b(walla walla|bora bora|pago pago|wagga wagga)\b/gi;
+const repeatedToken = (label: string) => label.replace(REDUPLICATED_PLACES, "").match(/\b(\w{3,})\s*\1\b/i)?.[0] ?? null;
+
+test("no job card or job page location label repeats an adjacent token", { tag: ["@J-JOBS-26"] }, async ({ page, diagnostics }) => {
+  // "remote" biases the result set toward the ATS "Remote Location" / "RemoteRemote" shapes.
+  await searchFor(page, "remote");
+  const locations = page.getByTestId("job-location");
+  await expect(locations.first()).toBeVisible();
+  const cardLabels = await locations.allTextContents();
+  expect(cardLabels.length, "job cards rendered no location labels").toBeGreaterThan(0);
+  expect(cardLabels.filter(repeatedToken), "card location labels with a repeated token").toEqual([]);
+
+  const path = await page.getByTestId("job-row").first().locator('a[href^="/jobs/"]').first().getAttribute("href");
+  await page.goto(path!);
+  await expect(locations.first()).toBeVisible();
+  const detailLabels = await locations.allTextContents();
+  expect(detailLabels.filter(repeatedToken), "job page location labels with a repeated token").toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

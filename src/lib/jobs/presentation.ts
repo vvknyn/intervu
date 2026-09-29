@@ -7,6 +7,7 @@ import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jo
 import { toValueArray } from "@/lib/jobs/types";
 import { capitalizeWords } from "@/lib/text-case";
 import { FUNCTION_WORDS } from "@/lib/geo/common-words";
+import { locationEntries, normaliseLocation, placeHasSegment } from "@/lib/presentation/location-normalise";
 
 /**
  * Pure presentation helpers for a job posting — the vocabulary the ledger row
@@ -1258,7 +1259,9 @@ export function locationText(j: PublicJob): string {
         // renders `work_type` as its own chip/fact adjacent to it, so a
         // remote job wouldn't just repeat the word, it'd repeat it right
         // next to itself ("📍 Remote · Milan, Italy · Remote · Full Time").
-        const stripped = readable ? stripStreetAddress(readable) : "";
+        // Then `normaliseLocation` (ATS boilerplate, glued/duplicate segments)
+        // — nothing real surviving it falls through the same way.
+        const stripped = readable ? normaliseLocation(stripStreetAddress(readable)) : "";
         if (stripped) {
             return titleCaseDisplay(stripped);
         }
@@ -1276,24 +1279,12 @@ export function locationText(j: PublicJob): string {
     const parts = [j.location_city, j.location_state, country]
         .map((v) => (v ? stripStreetAddress(humanizeRawLocation(decodeText(v)) ?? "") : ""))
         .filter(Boolean);
-    if (parts.length) {
-        return titleCaseDisplay(parts.join(", "));
+    const fromFields = normaliseLocation(parts.join(", "));
+    if (fromFields) {
+        return titleCaseDisplay(fromFields);
     }
     if (j.work_type === "remote") return "Remote";
     return LOCATION_UNKNOWN_TEXT;
-}
-
-/** Split a `locationText` string on ";" into trimmed, non-empty segments.
- *  Aggregator feeds sometimes stuff many locations into one semicolon-joined
- *  `location` string (e.g. "San Diego CA Renewable Group; Remote - AZ;
- *  Remote - AR; ..."), which `humanizeRawLocation` passes through verbatim.
- *  A plain, semicolon-free location returns itself as the sole segment, so
- *  callers can treat every location the same way. */
-export function splitLocationSegments(location: string): string[] {
-    return location
-        .split(";")
-        .map((s) => s.trim())
-        .filter(Boolean);
 }
 
 /** How many segments the identity-header location line shows before the
@@ -1314,7 +1305,7 @@ const LOCATION_CLAMP_THRESHOLD = 3;
  *  `LOCATION_CLAMP_VISIBLE` with the rest behind the toggle. Pure — no data
  *  loss, the caller decides how `hidden` renders once expanded. */
 export function clampLocationSegments(location: string): LocationDisclosure {
-    const segments = splitLocationSegments(location);
+    const segments = locationEntries(location);
     if (segments.length <= LOCATION_CLAMP_THRESHOLD) {
         return { visible: segments, hidden: [] };
     }
@@ -1436,9 +1427,7 @@ export function employmentTypeSegment(employmentType: string | null | undefined)
  *  "Remote") already carries that fact, so appending it again would repeat
  *  it in the same line. */
 export function locationWithMode(location: string, workType: string | null | undefined): string {
-    if (workType === "remote") return location;
-    const mode = prettyEnum(workType);
-    return mode ? `${location} · ${mode}` : location;
+    return workType === "remote" ? location : placeWithWorkMode(location, workType);
 }
 
 /**
@@ -1454,55 +1443,11 @@ export function locationWithMode(location: string, workType: string | null | und
  * appending the same word again would repeat it on one line, exactly the
  * defect `locationText`'s prefix removal fixed elsewhere.
  */
-const PLACE_SEGMENT_SPLIT_RE = /\s*[·\-,;]\s*/;
-
-/** Split a place string on the separators used across corpus/label builders. */
-export function splitPlaceSegments(place: string): string[] {
-    return place.split(PLACE_SEGMENT_SPLIT_RE).map((s) => s.trim()).filter(Boolean);
-}
-
-function placeSegmentEqualsMode(segment: string, mode: string): boolean {
-    return segment.toLowerCase() === mode.toLowerCase();
-}
-
-/** True when `place` already carries `mode` as its own segment (any supported separator). */
-export function placeContainsWorkModeSegment(place: string, mode: string): boolean {
-    return splitPlaceSegments(place).some((segment) => placeSegmentEqualsMode(segment, mode));
-}
-
-/** Collapse duplicate Remote segments inside one label ("Canada · Remote · Remote" → "Canada · Remote").
- *  A place with fewer than two Remote segments is returned unchanged so ordinary
- *  comma/dash locations ("Toronto, Canada") keep their original separators. */
-export function collapseDoubledRemoteInPlace(place: string): string {
-    const segments = splitPlaceSegments(place);
-    const remoteCount = segments.filter((segment) => /^remote$/i.test(segment)).length;
-    if (remoteCount < 2) return place;
-    let seenRemote = false;
-    return segments
-        .filter((segment) => {
-            if (/^remote$/i.test(segment)) {
-                if (seenRemote) return false;
-                seenRemote = true;
-            }
-            return true;
-        })
-        .join(" · ");
-}
-
-/** Remove Remote segments from a place line when work mode is shown separately.
- *  Returns `place` unchanged when it has no Remote segment, so "Toronto, Canada"
- *  is not rewritten to middle-dot separators. */
-export function stripRemoteSegmentsFromPlace(place: string): string {
-    const segments = splitPlaceSegments(place);
-    if (!segments.some((segment) => /^remote$/i.test(segment))) return place;
-    return segments.filter((segment) => !/^remote$/i.test(segment)).join(" · ");
-}
-
 export function placeWithWorkMode(place: string, workType: string | null | undefined): string {
     const mode = prettyEnum(workType);
-    if (!mode || mode === place) return place;
-    if (placeContainsWorkModeSegment(place, mode)) return place;
-    return place ? `${place} · ${mode}` : mode;
+    const clean = normaliseLocation(place);
+    if (!mode || placeHasSegment(clean, mode)) return clean;
+    return clean ? `${clean} · ${mode}` : mode;
 }
 
 /**

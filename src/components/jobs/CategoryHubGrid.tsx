@@ -35,6 +35,8 @@ import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SolidBadge } from "@/components/ui/badge";
+import { TabItem, TabNav } from "@/components/ui/tabs";
 import {
     Dialog,
     DialogContent,
@@ -1119,9 +1121,7 @@ export function CategoryHubGrid({
                                                 {modalCategory.label}
                                             </DialogTitle>
                                             {resolveCountLabel(modalCategory) ? (
-                                                <span className="mono-data rounded-pill bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-                                                    {resolveCountLabel(modalCategory)}
-                                                </span>
+                                                <SolidBadge tone="muted">{resolveCountLabel(modalCategory)}</SolidBadge>
                                             ) : null}
                                         </div>
                                         <DialogDescription className="text-xs text-muted-foreground">
@@ -1132,34 +1132,16 @@ export function CategoryHubGrid({
 
                                 <div className="flex items-center gap-2">
                                     {/* View Mode Toggle: Shuffle Card vs All List */}
-                                    <div className="hidden sm:flex items-center rounded-ctl border border-border bg-muted p-0.5 text-xs">
-                                        <button
-                                            type="button"
-                                            onClick={() => setViewMode("shuffle")}
-                                            className={cn(
-                                                "px-2.5 py-1 rounded-ctl text-xs font-semibold transition-colors flex items-center gap-1.5",
-                                                viewMode === "shuffle"
-                                                    ? "bg-surface text-foreground"
-                                                    : "text-muted-foreground hover:text-foreground",
-                                            )}
-                                        >
+                                    <TabNav aria-label="Shuffle deck or list view" className="hidden sm:flex">
+                                        <TabItem current={viewMode === "shuffle"} onClick={() => setViewMode("shuffle")}>
                                             <Cards size={16} />
                                             Shuffle Deck
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setViewMode("list")}
-                                            className={cn(
-                                                "px-2.5 py-1 rounded-ctl text-xs font-semibold transition-colors flex items-center gap-1.5",
-                                                viewMode === "list"
-                                                    ? "bg-surface text-foreground"
-                                                    : "text-muted-foreground hover:text-foreground",
-                                            )}
-                                        >
+                                        </TabItem>
+                                        <TabItem current={viewMode === "list"} onClick={() => setViewMode("list")}>
                                             <List size={16} />
                                             List view
-                                        </button>
-                                    </div>
+                                        </TabItem>
+                                    </TabNav>
 
                                     <button
                                         type="button"

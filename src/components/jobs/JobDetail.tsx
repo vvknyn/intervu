@@ -965,7 +965,7 @@ export function JobDetail({
                                             ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
                                             : locationDisclosure.visible
                                         ).map((segment, i) => (
-                                            <span key={i}>{segment}</span>
+                                            <span key={i} data-testid="job-location">{segment}</span>
                                         ))}
                                         <button
                                             type="button"
@@ -976,7 +976,7 @@ export function JobDetail({
                                         </button>
                                     </>
                                 ) : (
-                                    <span>{locationDisplay}</span>
+                                    <span data-testid="job-location">{locationDisplay}</span>
                                 )}
                                 {/* Review fix: `variants` (page.tsx's
                                     `detailVariants`, same clusters the SERP

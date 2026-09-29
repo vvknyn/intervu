@@ -43,7 +43,6 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
 | J-JOBS-01 | Land on /jobs first visit and see the search box and at least 5 job rows within 5s, one visible h1, no poster | anon | `/jobs` (no seed) | signed-out | no | covered | jobs.spec.ts |
-| J-JOBS-02 | Click the poster "Get started" CTA and reach the onboarding step 3 dialog | anon | `/jobs` (no seed) then click `concept-a-cta` | signed-out | no | uncovered | — |
 | J-JOBS-03 | Seeded anon visit renders result rows on first paint with no dialog | anon | SEED-A + `/jobs?posted=any` | signed-out | no | uncovered | — |
 | J-JOBS-04 | Result count line states the 30-day window | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-JOBS-05 | Load more rows by scrolling the list sentinel (20 per page) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
@@ -67,8 +66,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-23 | Click a job row title and the job detail opens (`?job=`, detail pane at desktop, sheet at mobile); fresh and previous-session visitor | anon | `/jobs` (no seed; second run with the `sb_jobs_visitor` cookie), click `job-title` | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-24 | Click Sign in or Get started and the board is still visible 2s later; fresh and previous-session visitor | anon | `/jobs` (no seed; second run with the `sb_jobs_visitor` cookie), click the Sign in control | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-25 | List analytics fire: `results_impressed` on first render, `search_submitted` on a search (needs a build with NEXT_PUBLIC_POSTHOG_KEY, skips otherwise) | anon | `/jobs`, then fill the search box and press Enter, `/api/telemetry` fulfilled locally | signed-out | no | covered | jobs.spec.ts |
-| J-JOBS-26 | A For-you pack's Edit filters opens the search board on exactly the pack's filters; a thin pack offers the broaden options with counts | Candidate with a local résumé | `/jobs?view=for-you` (guest résumé seeded in localStorage) | signed-out | no | covered | jobs.spec.ts |
-| J-JOBS-27 | A board search with zero results offers the same broaden options with counts, and applying one loads rows | anon | `/jobs?view=search&q=engineer&country=Iceland&exp=entry&posted=1d` | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-26 | Job cards and the job page show location labels with no repeated adjacent word (e.g. "RemoteRemote Location, All States · Remote") | anon | onboarding-completed flag + search "remote", then the first row's `/jobs/<slug>` | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-27 | A For-you pack's Edit filters opens the search board on exactly the pack's filters; a thin pack offers the broaden options with counts | Candidate with a local résumé | `/jobs?view=for-you` (guest résumé seeded in localStorage) | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-28 | A board search with zero results offers the same broaden options with counts, and applying one loads rows | anon | `/jobs?view=search&q=engineer&country=Iceland&exp=entry&posted=1d` | signed-out | no | covered | jobs.spec.ts |
 
 ## SRCH
 
@@ -563,7 +563,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-05 | Open the auth popover from Sign in and from Create account | anon | /trends | signed-out | no | uncovered | — |
 | J-NAV-06 | Click the logo to return to the front door | anon | /trends | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-006: Wordmark click returns to the front door) |
 | J-NAV-07 | See a single Sign in button on lean surfaces | anon | /jobs | signed-out | no | uncovered | — |
-| J-NAV-08 | Use the signed-in TopBar dropdown to reach Jobs, Résumé and Tracker | signed-in | /trends | signed-in | no | uncovered | — (legacy: navigation-comprehensive.spec.ts › NAV-001) |
+| J-NAV-08 | Use the signed-in TopBar tab links to reach Jobs, Résumé and Tracker | signed-in | /trends | signed-in | no | uncovered | — (legacy: navigation-comprehensive.spec.ts › NAV-001) |
 | J-NAV-09 | Reach /connect from the signed-in MCP link, hidden on lean surfaces | signed-in | /trends | signed-in | no | uncovered | — |
 | J-NAV-10 | See the Tracker badge when pursuits exist | signed-in | /trends | signed-in | no | uncovered | — |
 | J-NAV-11 | Open the account menu and reach Account, Research and Privacy & Terms | signed-in | /trends | signed-in | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-004: Navigate to Settings via avatar menu) |
@@ -585,6 +585,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-27 | Use the skip link to jump to main content | anon | /trends | signed-out | no | uncovered | — |
 | J-NAV-28 | See the offline shell and retry | anon | /trends | signed-out | no | uncovered | — |
 | J-NAV-29 | See the auth-pending placeholder before the session resolves | anon | /trends | signed-out | no | uncovered | — |
+| J-NAV-30 | See the For you and Search header tabs; clicking one moves aria-current and `view=` in the URL (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
+| J-NAV-31 | See the follow-alerts count chip fully inside the header bar (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
+| J-NAV-32 | Read header tab labels and count chips at WCAG AA text contrast (4.5:1) against their real backdrop (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
 
 ## ERR
 

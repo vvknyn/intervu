@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { ResumeData, ResumeSection, getSectionOrder } from "@/types/resume";
 import { PencilSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { SolidBadge } from "@/components/ui/badge";
 
 interface LiveResumePreviewProps {
     data: ResumeData;
@@ -56,13 +57,13 @@ function SectionWrapper({
 
     const diffBadge =
         changeStatus === "modified" ? (
-            <span className="absolute -top-1 -right-1 rounded-pill bg-warn text-white px-1.5 py-0.5 text-xs font-semibold">
+            <SolidBadge tone="warn" className="absolute -top-1 -right-1">
                 Diff
-            </span>
+            </SolidBadge>
         ) : changeStatus === "new" ? (
-            <span className="absolute -top-1 -right-1 rounded-pill bg-live text-white px-1.5 py-0.5 text-xs font-semibold">
+            <SolidBadge tone="brand" className="absolute -top-1 -right-1">
                 New
-            </span>
+            </SolidBadge>
         ) : null;
 
     return (

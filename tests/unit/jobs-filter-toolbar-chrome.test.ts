@@ -206,7 +206,7 @@ describe("jobs filter toolbar chrome", () => {
             chipVariantsActiveValues(src).includes("true"),
             "a docked active-filter chip should render chipVariants({ active: true, ...}) — an already-applied filter is unconditionally active",
         );
-        assert.match(src, /filterCountBadgeClass/);
+        assert.match(src, /<SolidBadge tone="muted"/);
         assert.match(src, /bg-muted lg:block/);
 
         const bandRow = src.slice(

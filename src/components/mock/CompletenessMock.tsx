@@ -19,7 +19,9 @@ import { PursuitListRow } from "@/components/tracker/PursuitListRow";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CountBadge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { TabItem, TabNav } from "@/components/ui/tabs";
 import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
 import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-handoff";
 import { formatDescription } from "@/lib/jobs/format-description";
@@ -597,25 +599,13 @@ function TrackerStatusChips({
     onChange: (f: TrackerFilter) => void;
 }) {
     return (
-        <div className="mb-3.5 flex flex-wrap gap-2">
-            {TRACKER_CHIP_FILTERS.map(({ key, label }) => {
-                const n = key === "all" ? total : counts[key];
-                return (
-                    <button
-                        key={key}
-                        type="button"
-                        aria-pressed={filter === key}
-                        onClick={() => onChange(key)}
-                        className={cn(
-                            "rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors",
-                            filter === key && "border-foreground bg-foreground text-background",
-                        )}
-                    >
-                        {label} <span className="opacity-70">{n}</span>
-                    </button>
-                );
-            })}
-        </div>
+        <TabNav aria-label="Tracker filter" className="mb-3.5 flex-wrap">
+            {TRACKER_CHIP_FILTERS.map(({ key, label }) => (
+                <TabItem key={key} aria-pressed={filter === key} onClick={() => onChange(key)}>
+                    {label} <CountBadge count={key === "all" ? total : counts[key]} tone="muted" />
+                </TabItem>
+            ))}
+        </TabNav>
     );
 }
 
@@ -823,12 +813,13 @@ export function CompletenessMock() {
                         Pair velai with the AI client you already use through MCP, and let it search and track verified job
                         listings for you.
                     </p>
+                    {/* tab-kit: KEEP — design-mock fixture with its own inline-style palette, not shipped chrome */}
                     <div data-testid="connect-tabs" role="tablist" aria-label="AI client" className="mt-8 flex gap-2 overflow-x-auto">
                         {CONNECT_MOCK_CLIENTS.map((client) => (
                             <button
                                 key={client.id}
                                 type="button"
-                                role="tab"
+                                role="tab" // tab-kit: KEEP — design-mock fixture with its own inline-style palette, not shipped chrome
                                 aria-selected={connectTab === client.id}
                                 onClick={() => {
                                     setConnectTab(client.id);

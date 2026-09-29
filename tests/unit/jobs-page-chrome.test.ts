@@ -14,6 +14,7 @@ const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx");
 const JOBS_ACTIONS = join(__dirname, "..", "..", "src", "actions", "jobs.ts");
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
 const FOOTER = join(__dirname, "..", "..", "src", "components", "layout", "Footer.tsx");
+const TABS = join(__dirname, "..", "..", "src", "components", "ui", "tabs.tsx");
 const MOBILE_TABBAR = join(__dirname, "..", "..", "src", "components", "layout", "MobileTabBar.tsx");
 const JOBCARD = join(__dirname, "..", "..", "src", "components", "jobs", "JobCard.tsx");
 const YOURS_PAGE = join(__dirname, "..", "..", "src", "app", "yours", "page.tsx");
@@ -74,16 +75,12 @@ describe("jobs USP copy: single source for tour and landing", () => {
     });
 });
 
-describe("nav tab placement", () => {
-    it("clusters Jobs, Resume, Tracker in menu; Agents stays on the bar", () => {
-        const jobs = NAV_TABS.find((t) => t.testId === "topbar-jobs");
-        const resume = NAV_TABS.find((t) => t.testId === "topbar-resume");
-        const tracker = NAV_TABS.find((t) => t.testId === "topbar-tracker");
+describe("header nav", () => {
+    it("is one underline-tab row: no dropdown, every NAV_TABS entry a TabItem link", () => {
+        const src = readFileSync(TOPBAR, "utf8");
+        assert.doesNotMatch(src, /DropdownMenu(Trigger|Content)/);
+        assert.match(src, /<TabNav\b[\s\S]*<TabItem\b[\s\S]*asChild/);
         const agents = NAV_TABS.find((t) => t.testId === "topbar-connect");
-        assert.equal(jobs?.placement, "menu");
-        assert.equal(resume?.placement, "menu");
-        assert.equal(tracker?.placement, "menu");
-        assert.equal(agents?.placement, "bar");
         assert.equal(agents?.label, "Add résumé");
         assert.equal(agents?.tourSelector, "nav-connect");
     });
@@ -123,11 +120,12 @@ describe("nav tab placement", () => {
         assert.doesNotMatch(src, /focus-visible:ring-/);
     });
 
-    it("TopBar primary nav links use CHROME_FOCUS_VISIBLE for keyboard focus", () => {
+    it("TopBar primary nav links take their focus ring from the shared tab primitive", () => {
         const src = readFileSync(TOPBAR, "utf8");
-        const barLinks = src.slice(src.indexOf("{barTabs.map"), src.indexOf("</nav>", src.indexOf("{barTabs.map")));
-        assert.match(barLinks, /CHROME_FOCUS_VISIBLE/);
-        assert.doesNotMatch(barLinks, /focus-visible:ring-/);
+        const navLinks = src.slice(src.indexOf("{navTabs.map"), src.indexOf("</TabNav>", src.indexOf("{navTabs.map")));
+        assert.match(navLinks, /<TabItem\b/);
+        assert.doesNotMatch(navLinks, /focus-visible:ring-/);
+        assert.match(readFileSync(TABS, "utf8"), /focus-visible:outline-2/);
     });
 
     it("TopBar paints paper chrome, not ink siteChrome", () => {
@@ -297,7 +295,7 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /useState<User \| null \| undefined>\(undefined\)/);
         const pending = src.slice(
             src.indexOf('authChrome === "pending"'),
-            src.indexOf('authChrome === "authenticated"'),
+            src.indexOf('authChrome === "authenticated" && user'),
         );
         assert.doesNotMatch(pending, /topbar-signin|topbar-create-account/);
         assert.match(pending, /topbar-auth-pending/);
