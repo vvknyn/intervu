@@ -1,13 +1,14 @@
 import type { Page } from "@playwright/test";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { expect, test } from "./fixtures";
 
 // Guest résumé path: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -168,6 +169,43 @@ test("a board search with zero results offers to broaden, each option with its c
   await broaden.getByRole("button").first().click();
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   expect(diagnostics.serverErrors).toEqual([]);
+});
+
+/**
+ * Every Server Action POST answers 503, in the browser only; nothing reaches
+ * the origin. Returns a switch that lets actions through again (the fixture's
+ * analytics block stays in place, so no unroute).
+ */
+const failEveryAction = async (page: Page) => {
+  let failing = true;
+  await page.route("**/*", (route) =>
+    failing && route.request().method() === "POST" && route.request().headers()["next-action"]
+      ? route.fulfill({ status: 503, contentType: "text/plain", body: "journey stub: 503" })
+      : route.fallback(),
+  );
+  return () => {
+    failing = false;
+  };
+};
+
+test("a failed ranked-list read shows an error with Retry, never the empty state", { tag: ["@J-JOBS-31"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  const recover = await failEveryAction(page);
+  await page.goto("/jobs?view=for-you");
+  await page.getByTestId("hub-pack-card-all").click();
+
+  // One automatic retry (2-4 s) runs first, then the failure shows.
+  const failed = page.getByTestId("for-you-load-failed");
+  await expect(failed).toBeVisible({ timeout: 30_000 });
+  await expect(failed).toHaveAttribute("role", "alert");
+  await expect(page.getByTestId("for-you-empty")).toHaveCount(0);
+
+  // Retry re-reads: with actions answering again, the error clears.
+  recover();
+  await page.getByTestId("for-you-load-failed-retry").click();
+  await expect(failed).toHaveCount(0, { timeout: 30_000 });
 });
 
 /** Real reduplicated place names: the only strings the repeated-token check must not flag. */

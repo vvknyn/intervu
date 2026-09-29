@@ -68,7 +68,7 @@ export function FollowAlertsBell() {
       const sinceIso = readFollowAlertCursor();
       const res = await listFollowAlertsAction(sinceIso, follows);
       if (cancelled) return;
-      setGroups(res.data ?? []);
+      if (res.data) setGroups(res.data);
       setLoading(false);
     })();
 

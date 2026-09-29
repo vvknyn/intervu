@@ -29,6 +29,7 @@ import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import type { JobView } from "@/lib/views/types";
 import { posterListPanelClassName } from "@/components/layout/route-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
     HISTORY_EMPTY_DESCRIPTION,
@@ -128,14 +129,21 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
  */
 export function HistoryList({
     loading,
+    failed,
+    onRetry,
     entries,
     byJobId,
 }: {
     loading: boolean;
+    failed: boolean;
+    onRetry: () => void;
     entries: JobView[];
     byJobId: Map<string, Pursuit>;
 }) {
     if (loading) return <HistoryLoading />;
+    if (entries.length === 0 && failed) {
+        return <LoadFailedState title="We can't load your history right now." onRetry={onRetry} testId="history-load-failed" />;
+    }
     if (entries.length === 0) {
         return (
             <ConceptAEmptyPageSlot placement="after-controls">
@@ -179,7 +187,7 @@ function HistoryLoading() {
 export default function HistoryPage() {
     const [user, setUser] = useState(() => getCurrentUser());
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
-    const { entries, loading } = useViewed();
+    const { entries, loading, failed, retry } = useViewed();
     const { byJobId } = usePursuits();
 
     useEffect(() => onAuthChange(setUser), []);
@@ -194,7 +202,7 @@ export default function HistoryPage() {
                     </div>
                 ) : (
                     <div className="mt-4">
-                        <HistoryList loading={loading} entries={entries} byJobId={byJobId} />
+                        <HistoryList loading={loading} failed={failed} onRetry={retry} entries={entries} byJobId={byJobId} />
                     </div>
                 )}
             </div>

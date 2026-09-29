@@ -11,6 +11,7 @@ import {
     JobsSessionLoadingShell,
 } from "@/components/layout/jobs-session-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { searchJobsAction } from "@/actions/jobs";
@@ -64,6 +65,10 @@ export interface ForYouHomeProps {
     /** Résumé + saved preferences, resolved once by the page (`resolveCandidateSignals`). */
     signals: CandidateSignals | null;
     nowMs: number;
+    /** The ranked list's read failed (after its automatic retry). With no
+     *  rows, this renders `LoadFailedState` instead of the empty state. */
+    loadError: string | null;
+    onRetryLoad: () => void;
     fitResolving: boolean;
     loading: boolean;
     fitActive: boolean;
@@ -121,6 +126,8 @@ export function ForYouHome({
     nowMs,
     fitResolving,
     loading,
+    loadError,
+    onRetryLoad,
     hydratedJobs,
     onActivePackChange,
     onRetryDescription,
@@ -456,6 +463,13 @@ export function ForYouHome({
                     <RotatingLoadingCopy variant="deck" className="px-1 text-xs font-semibold" />
                     <RankedListSkeleton />
                 </div>
+            ) : visiblePacks.length === 0 && loadError ? (
+                <LoadFailedState
+                    title="We can't load your matches right now."
+                    detail={loadError}
+                    onRetry={onRetryLoad}
+                    testId="for-you-load-failed"
+                />
             ) : visiblePacks.length === 0 ? (
                 <ConceptAEmptyPageSlot placement="page" className="flex-1" data-testid="for-you-empty-wrap">
                     <ConceptAEmptyState

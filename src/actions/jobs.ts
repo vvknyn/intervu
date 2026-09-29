@@ -11,6 +11,7 @@ import {
 } from "@/lib/jobs/search";
 import { runJobsSearch, type JobsSearchWithProbes } from "@/lib/jobs/run-search";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
+import { loaded, loadFailed, type LoadResult } from "@/lib/load-result";
 import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { resolveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
@@ -384,16 +385,16 @@ const getCachedDefaultBrowse = unstable_cache(
 /** Corpus-scale hub pack pill counts — shared cache keyed by default-browse `places`. */
 export async function getHubPackCorpusCountsAction(
   suppressLocationDefault: boolean,
-): Promise<HubPackCorpusCounts> {
+): Promise<LoadResult<HubPackCorpusCounts>> {
   const ip = await getClientIp();
-  if (!allowSearchRequest(ip)) return {};
+  if (!allowSearchRequest(ip)) return loadFailed("rate limited");
   const iso2 = suppressLocationDefault ? null : await countryLookup(ip);
   const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
   try {
-    return await getCachedHubPackCorpusCounts(places);
+    return loaded(await getCachedHubPackCorpusCounts(places));
   } catch (e) {
     console.error("[jobs-hub-pack-corpus-counts] action transport error:", e);
-    return {};
+    return loadFailed(e);
   }
 }
 

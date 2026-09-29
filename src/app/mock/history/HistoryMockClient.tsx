@@ -111,7 +111,7 @@ function HistoryMockBody() {
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
                 <TrackerTabs active="history" />
                 <div className="mt-4">
-                    <HistoryList loading={false} entries={empty ? [] : FIXTURE_VIEWS} byJobId={FIXTURE_BY_JOB_ID} />
+                    <HistoryList loading={false} failed={false} onRetry={() => {}} entries={empty ? [] : FIXTURE_VIEWS} byJobId={FIXTURE_BY_JOB_ID} />
                 </div>
             </div>
         </PageLayout>

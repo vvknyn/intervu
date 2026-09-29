@@ -41,6 +41,7 @@ import { AUTH_CTA_LABEL, formatAuthGateValueLine, guestKeepLine } from "@/lib/au
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 import { posterInlinePanelClassName } from "@/components/layout/route-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
 
 function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
     return (
@@ -147,7 +148,7 @@ function YoursContent() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
     const [saving, setSaving] = useState(false);
-    const { pursuits, loading } = usePursuits();
+    const { pursuits, loading, failed, retry } = usePursuits();
     const guestSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
     // G5e (Grok UX wave) — same xl (1280px) mount-site split the job board's
@@ -355,7 +356,14 @@ function YoursContent() {
                 ) : null}
 
                 {filtered.length === 0 ? (
-                    pursuits.length === 0 ? (
+                    pursuits.length === 0 && failed ? (
+                        <LoadFailedState
+                            title="We can't load your tracker right now."
+                            onRetry={retry}
+                            testId="tracker-load-failed"
+                            className="mt-4"
+                        />
+                    ) : pursuits.length === 0 ? (
                         <ConceptAEmptyPageSlot placement="after-controls">
                             <TrackerEmptyState
                                 user={!!user}

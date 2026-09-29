@@ -7,47 +7,16 @@
  */
 
 import { useEffect, useState } from "react";
+import { createServerListCache } from "@/lib/server-list-cache";
 import { listFollowsAction, syncGuestFollowsAction } from "@/actions/follows";
 import type { FollowedCompany } from "@/lib/follows/types";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import { listGuestFollows, clearGuestFollows, subscribeGuestFollows } from "@/lib/follows/guest-store";
 
-let cache: FollowedCompany[] | null = null;
-let inflight: Promise<FollowedCompany[]> | null = null;
-const listeners = new Set<() => void>();
-
-function notify(): void {
-    listeners.forEach((cb) => cb());
-}
-
-function subscribe(cb: () => void): () => void {
-    listeners.add(cb);
-    return () => listeners.delete(cb);
-}
-
-async function fetchServerFollows(): Promise<FollowedCompany[]> {
-    if (cache) return cache;
-    if (!inflight) {
-        inflight = listFollowsAction()
-            .then((res) => {
-                cache = res.data ?? [];
-                return cache;
-            })
-            .catch(() => {
-                cache = [];
-                return cache;
-            })
-            .finally(() => {
-                inflight = null;
-            });
-    }
-    return inflight;
-}
+const server = createServerListCache(listFollowsAction);
 
 export function invalidateFollowsCache(): void {
-    cache = null;
-    inflight = null;
-    notify();
+    server.invalidate();
 }
 
 /** @returns true when there was nothing to sync or every guest row landed. */
@@ -83,6 +52,10 @@ export function visibleFollowDomains(isSignedIn: boolean, follows: FollowedCompa
 export interface UseFollowsResult {
     follows: FollowedCompany[];
     loading: boolean;
+    /** The signed-in read failed after its automatic retry — render
+     *  `LoadFailedState`, never the empty state. */
+    failed: boolean;
+    retry: () => void;
     hasAny: boolean;
     /**
      * Account-backed follows only (Firestore, keyed by uid) — the source of
@@ -102,8 +75,9 @@ export interface UseFollowsResult {
 
 export function useFollows(): UseFollowsResult {
     const [user, setUser] = useState(() => getCurrentUser());
-    const [follows, setFollows] = useState<FollowedCompany[]>(() => (user ? (cache ?? []) : listGuestFollows()));
-    const [loading, setLoading] = useState(!!user && !cache);
+    const [follows, setFollows] = useState<FollowedCompany[]>(() => (user ? (server.peek() ?? []) : listGuestFollows()));
+    const [loading, setLoading] = useState(!!user && !server.peek());
+    const [failed, setFailed] = useState(false);
 
     useEffect(
         () =>
@@ -113,6 +87,7 @@ export function useFollows(): UseFollowsResult {
                     invalidateFollowsCache();
                     setFollows(listGuestFollows());
                     setLoading(false);
+                    setFailed(false);
                 }
             }),
         [],
@@ -127,25 +102,27 @@ export function useFollows(): UseFollowsResult {
             if (!signedIn) {
                 setFollows(listGuestFollows());
                 setLoading(false);
+                setFailed(false);
                 return;
             }
             const pendingGuest = listGuestFollows();
             if (pendingGuest.length > 0) {
                 setFollows(pendingGuest);
                 setLoading(false);
+                setFailed(false);
                 return;
             }
-            setLoading(!cache);
-            fetchServerFollows().then((data) => {
-                if (!cancelled) {
-                    setFollows(data);
-                    setLoading(false);
-                }
+            setLoading(!server.peek());
+            server.fetch().then((res) => {
+                if (cancelled) return;
+                if (res.ok) setFollows(res.data);
+                setFailed(!res.ok);
+                setLoading(false);
             });
         };
 
         Promise.resolve().then(refresh);
-        const unsubServer = subscribe(refresh);
+        const unsubServer = server.subscribe(refresh);
         const unsubGuest = subscribeGuestFollows(refresh);
         return () => {
             cancelled = true;
@@ -156,5 +133,5 @@ export function useFollows(): UseFollowsResult {
 
     const byDomain = visibleFollowDomains(!!user, follows);
 
-    return { follows, loading, hasAny: follows.length > 0, byDomain, isSignedIn: !!user };
+    return { follows, loading, failed, retry: invalidateFollowsCache, hasAny: follows.length > 0, byDomain, isSignedIn: !!user };
 }
