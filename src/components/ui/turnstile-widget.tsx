@@ -121,12 +121,18 @@ export function TurnstileWidget({ onVerify, surface, fallback }: TurnstileWidget
 
     if (!TURNSTILE_SITE_KEY) return null
 
+    // next/script fires onLoad only for a mount that saw the load; a widget
+    // remounted after api.js loaded (e.g. /contact's form remounts once on
+    // hydration) is told only via onReady — without it, it never renders.
+    const markLoaded = () => setScriptLoaded(true)
+
     return (
         <>
             <Script
                 src="https://challenges.cloudflare.com/turnstile/v0/api.js" // turnstile-wrapper: the one place api.js loads
                 strategy="lazyOnload"
-                onLoad={() => setScriptLoaded(true)}
+                onLoad={markLoaded}
+                onReady={markLoaded}
                 onError={() => fail(SCRIPT_LOAD_FAILED)}
             />
             <div ref={containerRef} className="flex justify-center" />

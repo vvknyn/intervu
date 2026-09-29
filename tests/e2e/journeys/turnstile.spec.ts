@@ -15,11 +15,16 @@ import { expect, test } from "./fixtures";
 const TURNSTILE_API = "https://challenges.cloudflare.com/turnstile/v0/api.js";
 const SKIP_REASON = "NEXT_PUBLIC_TURNSTILE_SITE_KEY is unset in this build — the widget renders nothing";
 
-/** Stub api.js so `render` immediately fires the widget's error-callback with `code`. Returns whether the page ever asked for it. */
-async function stubTurnstileError(page: Page, code: string): Promise<() => boolean> {
+/**
+ * Route api.js: `code` stubs a script whose `render` fires the widget's error-callback
+ * with that code; null aborts the request (blocked or offline). Returns whether the
+ * page ever asked for api.js, i.e. whether the build has a site key at all.
+ */
+async function failTurnstile(page: Page, code: string | null): Promise<() => boolean> {
   let requested = false;
   await page.route(TURNSTILE_API, (route) => {
     requested = true;
+    if (code === null) return route.abort();
     return route.fulfill({
       contentType: "application/javascript",
       body: `window.turnstile = { render: function (el, o) { setTimeout(function () { o["error-callback"]("${code}"); }, 0); return "w1"; }, remove: function () {} };`,
@@ -28,35 +33,43 @@ async function stubTurnstileError(page: Page, code: string): Promise<() => boole
   return () => requested;
 }
 
+/** Waits for the wrapper's notice, skipping when the build never loads Turnstile. */
+async function expectNotice(page: Page, requested: () => boolean) {
+  const notice = page.getByTestId("turnstile-error");
+  await notice.waitFor({ timeout: 15_000 }).catch(() => {});
+  test.skip(!requested(), SKIP_REASON);
+  await expect(notice).toBeVisible();
+  return notice;
+}
+
 async function openSignupTab(page: Page) {
   await page.goto("/login");
   await page.getByRole("tab", { name: "Create account" }).click();
 }
 
 test("a failed Turnstile on signup shows the message and Google / email-code paths", { tag: ["@J-AUTH-43"] }, async ({ page }) => {
-  const requested = await stubTurnstileError(page, "110200");
+  const requested = await failTurnstile(page, "110200");
   await openSignupTab(page);
-  const notice = page.getByTestId("turnstile-error");
-  await notice.waitFor({ timeout: 15_000 }).catch(() => {});
-  test.skip(!requested(), SKIP_REASON);
+  await expectNotice(page, requested);
 
-  await expect(notice).toBeVisible();
   const fallback = page.getByTestId("turnstile-fallback");
   await expect(fallback.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   await expect(fallback.getByRole("button", { name: "Use email code" })).toBeVisible();
 });
 
 test("a Turnstile script that never loads shows the same fallback", { tag: ["@J-AUTH-44"] }, async ({ page }) => {
-  let requested = false;
-  await page.route(TURNSTILE_API, (route) => {
-    requested = true;
-    return route.abort();
-  });
+  const requested = await failTurnstile(page, null);
   await openSignupTab(page);
-  const notice = page.getByTestId("turnstile-error");
-  await notice.waitFor({ timeout: 15_000 }).catch(() => {});
-  test.skip(!requested, SKIP_REASON);
+  await expectNotice(page, requested);
 
-  await expect(notice).toBeVisible();
   await expect(page.getByTestId("turnstile-fallback").getByRole("button", { name: "Use email code" })).toBeVisible();
+});
+
+test("a failed Turnstile on /contact says to reload and invents no alternative path", { tag: ["@J-CONTENT-24"] }, async ({ page }) => {
+  const requested = await failTurnstile(page, "300030");
+  await page.goto("/contact");
+  const notice = await expectNotice(page, requested);
+
+  await expect(notice).toContainText("Reload the page");
+  await expect(page.getByTestId("turnstile-fallback")).toHaveCount(0);
 });
