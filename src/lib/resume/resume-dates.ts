@@ -2,7 +2,7 @@
  * Date vocabulary shared by the résumé extractor and the query-phrase validator.
  * Pure (no imports) so search-side modules can use it without pulling the extractor.
  */
-const MONTH =
+export const MONTH =
     "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
 
 /** U+0027 straight apostrophe or U+2019 curly apostrophe before 2-digit year (e.g. September '21). */

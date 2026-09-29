@@ -17,7 +17,7 @@ import {
 } from "@/lib/resume/contact-line";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
-import { DATE_RANGE_RE } from "./resume-dates";
+import { DATE_RANGE_RE, MONTH } from "./resume-dates";
 import { TITLE_WORD_RE, cleanRoleTitle } from "./title-text";
 import type { ResumeCompetencyCategory, ResumeData, ResumeEducation, ResumeExperience, ResumeProfile } from "@/types/resume";
 
