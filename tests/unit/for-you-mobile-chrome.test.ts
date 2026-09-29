@@ -52,7 +52,9 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /<DialogBody\b/, "one scroll region between header and footer");
         assert.doesNotMatch(src, /ScrollArea/, "no nested scroller inside the dialog body");
         assert.doesNotMatch(src, /max-h-\[\d+dvh\]/, "height cap lives on the primitive, not per site");
-        assert.match(src, /grid-cols-1[\s\S]*sm:grid-cols-2/);
+        // The review fields live in the shared form both résumé entry points render.
+        assert.match(src, /<ResumeReviewFields\b/);
+        assert.match(readFileSync(join(RESUME, "ResumeReviewFields.tsx"), "utf8"), /grid-cols-1[\s\S]*sm:grid-cols-2/);
     });
 
     it("CompanyRoleSearch title clamps instead of overflowing on narrow viewports", () => {
