@@ -98,10 +98,10 @@ for (const vp of VIEWPORTS) {
 
     const confirm = dialog.locator('[data-slot="dialog-footer"]').getByRole("button").last();
     const pageScrollBefore = await page.evaluate(() => window.scrollY);
+    await wheelRevealsAboveFooter(page, dialog, lastEntry, back);
     const body = dialogBody(dialog);
     const overflow = await body.evaluate((el) => el.scrollHeight - el.clientHeight);
     expect(overflow, "body overflows, so this run really exercises scrolling").toBeGreaterThan(0);
-    await wheelRevealsAboveFooter(page, dialog, lastEntry, back);
     // ...and the last field of the body (below Experience) is reachable too.
     await wheelRevealsAboveFooter(page, dialog, body.locator("input, textarea").last(), back);
     await expectInViewport(page, dialog);

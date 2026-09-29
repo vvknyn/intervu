@@ -822,7 +822,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
 
-                <DialogBody className="-mx-6 px-6 py-1">
+                <DialogBody key={step} className="-mx-6 px-6 py-1">
                     {step === 'input' && renderInputStep()}
                     {step === 'parsing' && <ResumeParsingStep />}
                     {step === 'review' && renderReviewStep()}
