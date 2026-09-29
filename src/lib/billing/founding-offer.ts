@@ -80,3 +80,15 @@ export function paidCheckoutSessionId(params: {
   if (typeof id !== "string" || !CHECKOUT_SESSION_ID_RE.test(id)) return null;
   return id;
 }
+
+/**
+ * The page's one-line description (meta, Open Graph, Twitter). Keyed on the
+ * same switch as the founding button so search results and link previews
+ * never promise seats the page withholds: release 8 fixed the headline and
+ * badge but left a static description saying "open now" over an inert button.
+ */
+export function pricingDescription(foundingAvailable: boolean): string {
+  return `Velai is free to use. Pro and a Data API are coming; founding seats ${
+    foundingAvailable ? "are open now" : "open soon"
+  } at a one-off price.`;
+}

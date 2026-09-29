@@ -620,7 +620,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 |---|---|---|---|---|---|---|---|
 | J-PRICING-01 | Read the pricing page: Free, Pro and Data API columns, the founding-seat price and count, and the promise that Free stays free | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-02 | Reach pricing from the footer link on a marketing page | anon | /about | signed-out | no | covered | pricing.spec.ts |
-| J-PRICING-03 | Founding-seat button links out to Stripe checkout when the link is configured, otherwise reads "open soon" and is inert | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-03 | Founding-seat button links out to Stripe checkout when the link is configured, otherwise reads "open soon" and is inert; the headline, Pro badge and meta description say the same thing as the button | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-04 | Return from Stripe with checkout=success and a session id and see the founding thank-you; a bare checkout=success shows nothing | anon | /pricing?checkout=success&session_id=cs_test_… | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-05 | Follow the Data API call to action to the contact form | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-06 | Signed-in visitor sees "You are on Free" instead of the create-account door | signed-in | /pricing | signed-in | no | uncovered | — |
