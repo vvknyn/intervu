@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +11,17 @@ import type {
     ResumeEducation,
     ResumeExperience,
 } from "@/types/resume";
+
+/** Profile fields in display order; each input is named by its label. */
+const PROFILE_FIELDS = [
+    { field: "name", label: "Name" },
+    { field: "profession", label: "Job title" },
+    { field: "yearsOfExperience", label: "Years of Experience" },
+    { field: "location", label: "Location" },
+    { field: "email", label: "Email" },
+    { field: "phone", label: "Phone" },
+    { field: "linkedin", label: "LinkedIn" },
+] as const satisfies ReadonlyArray<{ field: keyof ResumeData["profile"]; label: string }>;
 
 /**
  * THE résumé-review form. Every place a parsed résumé is shown for correction
@@ -24,6 +36,7 @@ export function ResumeReviewFields({
     data: ResumeData;
     onChange: (next: ResumeData) => void;
 }) {
+    const idBase = useId();
     const reviewConfidence = scoreLocalParseConfidence(editedData);
     const updateProfile = (field: keyof ResumeData["profile"], value: string | number) => {
         setEditedData({ ...editedData, profile: { ...editedData.profile, [field]: value } });
@@ -58,63 +71,20 @@ export function ResumeReviewFields({
                     </h4>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label className="text-xs">Name</Label>
-                        <Input
-                            value={editedData.profile.name || ""}
-                            onChange={(e) => updateProfile('name', e.target.value)}
-                            className="ctl-md text-base md:text-sm"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-xs">Job title</Label>
-                        <Input
-                            value={editedData.profile.profession}
-                            onChange={(e) => updateProfile('profession', e.target.value)}
-                            className="ctl-md text-base md:text-sm"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-xs">Years of Experience</Label>
-                        <Input
-                            type="number"
-                            value={editedData.profile.yearsOfExperience}
-                            onChange={(e) => updateProfile('yearsOfExperience', parseInt(e.target.value) || 0)}
-                            className="ctl-md text-base md:text-sm"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-xs">Location</Label>
-                        <Input
-                            value={editedData.profile.location}
-                            onChange={(e) => updateProfile('location', e.target.value)}
-                            className="ctl-md text-base md:text-sm"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-xs">Email</Label>
-                        <Input
-                            value={editedData.profile.email}
-                            onChange={(e) => updateProfile('email', e.target.value)}
-                            className="ctl-md text-base md:text-sm"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-xs">Phone</Label>
-                        <Input
-                            value={editedData.profile.phone}
-                            onChange={(e) => updateProfile('phone', e.target.value)}
-                            className="ctl-md text-base md:text-sm"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-xs">LinkedIn</Label>
-                        <Input
-                            value={editedData.profile.linkedin || ""}
-                            onChange={(e) => updateProfile('linkedin', e.target.value)}
-                            className="ctl-md text-base md:text-sm"
-                        />
-                    </div>
+                    {PROFILE_FIELDS.map(({ field, label }) => (
+                        <div key={field} className="space-y-2">
+                            <Label htmlFor={`${idBase}-${field}`} className="text-xs">{label}</Label>
+                            <Input
+                                id={`${idBase}-${field}`}
+                                type={field === "yearsOfExperience" ? "number" : undefined}
+                                value={editedData.profile[field] ?? ""}
+                                onChange={(e) =>
+                                    updateProfile(field, field === "yearsOfExperience" ? parseInt(e.target.value) || 0 : e.target.value)
+                                }
+                                className="ctl-md text-base md:text-sm"
+                            />
+                        </div>
+                    ))}
                 </div>
             </div>
 

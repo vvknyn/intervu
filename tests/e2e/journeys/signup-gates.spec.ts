@@ -1,12 +1,12 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
-import { LOCAL_AI_ENABLED_KEY } from "../../../src/lib/local-ai/flag";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
+import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { expect, test } from "./fixtures";
 
 /**
  * Journeys for the signed-out gates — see tests/journeys/CATALOG.md
- * (J-JOBS-06/07/29/30/31, J-DETAIL-24/28, J-COMPANY-13). Every gate is the one `SignupGate`
+ * (J-JOBS-06/07/32/33/34/35/36, J-DETAIL-24/28, J-COMPANY-13). Every gate is the one `SignupGate`
  * card (`data-testid="signup-gate"`, `data-gate-reason=<reason>`): it names the
  * action, offers "Create free account" (signup-mode /auth/start) and
  * "Sign in" (/login), both carrying the page in `next=`. Read-only: nothing
@@ -68,7 +68,7 @@ test("depth-wall doors carry the current search in next=", { tag: ["@J-JOBS-07"]
   await expectDoors(page, "depth", /^\/jobs\?.*q=engineer/);
 });
 
-test("a guest's second saved search meets the save-search gate, not a bare input", { tag: ["@J-JOBS-29"] }, async ({ page }) => {
+test("a guest's second saved search meets the save-search gate, not a bare input", { tag: ["@J-JOBS-32"] }, async ({ page }) => {
   // One save already made on this device: the next one needs an account.
   await page.addInitScript(() => localStorage.setItem("intervu.guestSaveCount", "1"));
   await searchFor(page, "engineer");
@@ -78,7 +78,7 @@ test("a guest's second saved search meets the save-search gate, not a bare input
   await expectDoors(page, "alert", /^\/jobs\?.*q=engineer/);
 });
 
-test("a guest's first job save shows the dismissible save gate", { tag: ["@J-JOBS-30"] }, async ({ page }) => {
+test("a guest's first job save shows the dismissible save gate", { tag: ["@J-JOBS-33"] }, async ({ page }) => {
   await searchFor(page, "engineer");
   await page.getByTestId("job-row").first().getByTestId("job-save-trigger").click();
   const banner = page.getByTestId("guest-save-banner");
@@ -114,23 +114,121 @@ const SYNTHETIC_RESUME = {
   generatedSummary: "Senior software engineer with 7 years of experience building backend and full-stack systems.",
 };
 
-test("a guest with a résumé sees their top 3 matches, then the fit gate", { tag: ["@J-JOBS-31"] }, async ({ page }) => {
-  await returningVisitor(page);
-  await page.addInitScript(
-    ([enabledKey, resumeKey, resume]) => {
-      localStorage.setItem(enabledKey as string, "1");
-      localStorage.setItem(resumeKey as string, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-synthetic" }));
-    },
-    [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, SYNTHETIC_RESUME],
-  );
-  await page.goto("/jobs?sort=fit");
+/** From the For-you packs hub, open the ranked list ("Browse all matches"), past the first-visit intro. */
+async function browseAllMatches(page: Page) {
+  const gotIt = page.getByTestId("packs-home-intro-got-it");
+  await page.addLocatorHandler(gotIt, () => gotIt.click());
+  await page.getByTestId("hub-browse-all-matches").click({ timeout: 45_000 });
+}
+
+/** The fit gate after exactly the top 3 ranked rows, on whichever ranked surface is showing. */
+async function expectTopThreeThenFitGate(page: Page) {
   const card = gate(page, "fit");
   await expect(card).toBeVisible({ timeout: 45_000 });
   await expect(card.getByRole("heading")).toHaveText(/^See all ([\d,]+\+? matches ranked for you|your ranked matches)$/);
   await expect(page.getByTestId("job-row")).toHaveCount(3);
   await expectDoors(page, "fit", /^\/jobs\?.*sort=fit/);
   await expect(card.getByTestId("signup-gate-dismiss")).toBeVisible();
+}
+
+// No local-AI flag: a guest's résumé kept in this browser ranks by default.
+const seedGuestResume = (page: Page) =>
+  page.addInitScript(
+    ([resumeKey, resume]) => {
+      localStorage.setItem(resumeKey as string, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-synthetic" }));
+    },
+    [LOCAL_AI_RESUME_KEY, SYNTHETIC_RESUME] as const,
+  );
+
+test("a guest with a résumé sees their top 3 matches, then the fit gate", { tag: ["@J-JOBS-34"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await seedGuestResume(page);
+  await page.goto("/jobs?view=search&sort=fit");
+  await expectTopThreeThenFitGate(page);
 });
+
+test("a guest's For-you matches list stops at the same top 3 and fit gate", { tag: ["@J-JOBS-35"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await seedGuestResume(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await page.goto("/jobs?sort=fit");
+  await browseAllMatches(page);
+  await expectTopThreeThenFitGate(page);
+});
+
+/** Two first-run résumés: the review shows each one's own title and location, and ranking applies them. */
+const FIRST_RUN_RESUMES = [
+  {
+    name: "toronto-analyst",
+    title: "Senior Data Analyst",
+    location: "Toronto, ON, Canada",
+    country: "Canada",
+    text: [
+      "Priya Raman",
+      "Senior Data Analyst",
+      "priya.raman.e2e@example.com | Toronto, ON, Canada",
+      "",
+      "EXPERIENCE",
+      "Senior Data Analyst, Northwind Financial",
+      "2021 - Present",
+      "- Built SQL and Python pipelines feeding weekly revenue dashboards.",
+      "",
+      "Data Analyst, Maple Retail",
+      "2016 - 2021",
+      "- Owned Tableau reporting for 40 stores.",
+      "",
+      "EDUCATION",
+      "B.Sc. Statistics, University of Toronto, 2016",
+      "",
+      "SKILLS",
+      "SQL, Python, Tableau, dbt, Looker",
+    ].join("\n"),
+  },
+  {
+    name: "austin-engineer",
+    title: "Senior Software Engineer",
+    location: "Austin, TX",
+    country: "United States",
+    text: [
+      "Jordan Ellis",
+      "Senior Software Engineer",
+      "jordan.ellis.e2e@example.com | Austin, TX",
+      "",
+      "EXPERIENCE",
+      "Senior Software Engineer, Lonestar Cloud",
+      "2020 - Present",
+      "- Built TypeScript and Go services on AWS serving 2M requests a day.",
+      "",
+      "Software Engineer, Pecan Labs",
+      "2015 - 2020",
+      "- Shipped React front ends and Node APIs.",
+      "",
+      "EDUCATION",
+      "B.S. Computer Science, University of Texas at Austin, 2015",
+      "",
+      "SKILLS",
+      "TypeScript, Go, React, Node.js, AWS, PostgreSQL",
+    ].join("\n"),
+  },
+];
+
+for (const resume of FIRST_RUN_RESUMES) {
+  test(`first-run guest upload (${resume.name}) reviews title + location, ranks there, then top 3 + fit gate`, { tag: ["@J-JOBS-36"] }, async ({ page }) => {
+    await page.goto("/jobs");
+    await page.getByRole("button", { name: "Upload résumé" }).first().click({ timeout: 60_000 });
+    const dialog = page.getByRole("dialog");
+    await dialog.locator('input[type="file"]').setInputFiles({ name: `${resume.name}.txt`, mimeType: "text/plain", buffer: Buffer.from(resume.text) });
+    await dialog.getByTestId("resume-import-skip-download").click();
+    await dialog.getByTestId("resume-import-parse-primary").click();
+    await expect(dialog.getByLabel("Job title", { exact: true })).toHaveValue(resume.title, { timeout: 30_000 });
+    await expect(dialog.getByLabel("Location", { exact: true })).toHaveValue(resume.location);
+    await dialog.getByRole("button", { name: "Rank my jobs" }).click();
+    await expect(page).toHaveURL(new RegExp(`country=${encodeURIComponent(resume.country).replace(/%20/g, "(\\+|%20)")}.*sort=fit|sort=fit.*country=`));
+    expect(new URL(page.url()).searchParams.get("country")).toBe(resume.country);
+    await browseAllMatches(page);
+    await expectTopThreeThenFitGate(page);
+  });
+}
 
 test("signed-out Report listing opens the report form with no sign-in", { tag: ["@J-DETAIL-24"] }, async ({ page }) => {
   await searchFor(page, "engineer");
