@@ -61,7 +61,6 @@ test("mobilePrimaryTabs: mobilePrimary:false is excluded; a tab without the fiel
 
 test("Connect AI tab opts out of the mobile bar but stays a desktop bar tab", () => {
     assert.equal(CONNECT_TAB.mobilePrimary, false);
-    assert.equal(CONNECT_TAB.placement, "bar");
     assert.ok(NAV_TABS.includes(CONNECT_TAB), "must still be in the desktop-rendered NAV_TABS");
     assert.ok(!mobilePrimaryTabs(NAV_TABS).includes(CONNECT_TAB), "must be filtered out of the mobile bar's tab list");
 });
@@ -73,11 +72,13 @@ test("Connect nav is not active on /openclaw", () => {
     assert.equal(agents!.match("/connect"), true);
 });
 
-test("current-page underline wraps the label box, not padded link chrome", () => {
+test("current-page marker is the shared tab primitive's bar, driven by aria-current", () => {
     const src = readFileSync(TOPBAR, "utf8");
-    const barBlock = src.slice(src.indexOf("barTabs.map"), src.indexOf("{user ?"));
-    assert.match(barBlock, /<span className=\{cn\(active && "border-b-2 border-brand"\)\}/);
-    assert.doesNotMatch(barBlock, /active\s*\?\s*"border-b-2 border-brand text-brand/);
+    const navBlock = src.slice(src.indexOf("navTabs.map"), src.indexOf("<FollowAlertsBell"));
+    assert.match(navBlock, /<TabItem\b[^>]*current=\{active \? "page" : false\}/);
+    assert.doesNotMatch(navBlock, /border-b-2/, "TopBar must not paint its own underline");
+    const tabs = readFileSync(join(__dirname, "..", "..", "src", "components", "ui", "tabs.tsx"), "utf8");
+    assert.match(tabs, /aria-\[current\]:after:bg-brand/);
 });
 
 test("guest /admin redirects to login with next, not the public SERP", () => {

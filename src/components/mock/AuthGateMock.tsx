@@ -268,12 +268,13 @@ export function AuthGateMock() {
                         className="mb-6 w-full max-w-[520px] rounded-none border-0 p-2"
                         style={{ background: "rgba(255,255,255,0.045)" }}
                     >
+                        {/* tab-kit: KEEP — design-mock fixture with its own inline-style palette, not shipped chrome */}
                         <div className="grid grid-cols-3 gap-1" role="tablist" aria-label="Intent">
                             {LANES.map(({ id, label }) => (
                                 <button
                                     key={id}
                                     type="button"
-                                    role="tab"
+                                    role="tab" // tab-kit: KEEP — design-mock fixture with its own inline-style palette, not shipped chrome
                                     aria-selected={lane === id}
                                     onClick={() => setLane(id)}
                                     className="cursor-pointer rounded-none border-0 px-2.5 py-3.5 text-center text-xs"

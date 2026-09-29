@@ -471,12 +471,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 onValueChange={(v) => setInputMethod(v as InputMethod)}
                 className="gap-4"
             >
-                <TabsList variant="block" className="grid w-full grid-cols-2">
-                    <TabsTrigger value="file" className="gap-2">
+                <TabsList className="w-full">
+                    <TabsTrigger value="file" className="flex-1">
                         <Upload size={16} weight={inputMethod === "file" ? "fill" : "regular"} />
                         Upload file
                     </TabsTrigger>
-                    <TabsTrigger value="paste" className="gap-2">
+                    <TabsTrigger value="paste" className="flex-1">
                         <ClipboardText size={16} weight={inputMethod === "paste" ? "fill" : "regular"} />
                         Paste text
                     </TabsTrigger>

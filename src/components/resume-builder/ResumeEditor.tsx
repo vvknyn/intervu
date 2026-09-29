@@ -6,6 +6,7 @@ import { LiveResumePreview } from "./LiveResumePreview";
 import { EditingPanel } from "./EditingPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TabItem, TabNav } from "@/components/ui/tabs";
 import { toast } from "@/lib/toast";
 import { exportToDocx } from "@/lib/export-docx";
 import { downloadBlob } from "@/lib/export-utils";
@@ -371,40 +372,14 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             </div>
 
             {/* Mobile View Selector */}
-            <div
-                role="tablist"
-                aria-label="Editor or preview"
-                className="flex lg:hidden border-b border-border bg-muted p-0.5"
-            >
-                <button
-                    type="button"
-                    role="tab"
-                    aria-selected={mobileTab === "edit"}
-                    onClick={() => setMobileTab("edit")}
-                    className={cn(
-                        "flex-1 flex min-h-10 items-center justify-center gap-1.5 rounded-pill py-1.5 text-xs font-semibold transition-colors",
-                        mobileTab === "edit"
-                            ? "bg-surface text-foreground shadow-[var(--shadow-bevel-highlight)]"
-                            : "text-muted-foreground hover:text-foreground",
-                    )}
-                >
+            <TabNav aria-label="Editor or preview" className="border-b border-border lg:hidden">
+                <TabItem current={mobileTab === "edit"} onClick={() => setMobileTab("edit")} className="flex-1">
                     <PencilSimple /> Editor
-                </button>
-                <button
-                    type="button"
-                    role="tab"
-                    aria-selected={mobileTab === "preview"}
-                    onClick={() => setMobileTab("preview")}
-                    className={cn(
-                        "flex-1 flex min-h-10 items-center justify-center gap-1.5 rounded-pill py-1.5 text-xs font-semibold transition-colors",
-                        mobileTab === "preview"
-                            ? "bg-surface text-foreground shadow-[var(--shadow-bevel-highlight)]"
-                            : "text-muted-foreground hover:text-foreground",
-                    )}
-                >
+                </TabItem>
+                <TabItem current={mobileTab === "preview"} onClick={() => setMobileTab("preview")} className="flex-1">
                     <Eye /> Live Preview
-                </button>
-            </div>
+                </TabItem>
+            </TabNav>
 
             {/* Main Split Body */}
             <div className="flex-1 flex min-h-0 overflow-hidden relative">

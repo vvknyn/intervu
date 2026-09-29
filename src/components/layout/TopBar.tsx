@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MagnifyingGlass, MapPin, CaretDown } from "@phosphor-icons/react";
+import { MagnifyingGlass, MapPin } from "@phosphor-icons/react";
 import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
@@ -11,14 +11,10 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { Button } from "@/components/ui/button";
-import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { NAV_TABS, menuNavActive, menuNavTriggerLabel } from "@/components/layout/nav-tabs";
+import { CountBadge, SolidBadge } from "@/components/ui/badge";
+import { chipVariants, ChipDismiss } from "@/components/ui/chip";
+import { TabItem, TabNav } from "@/components/ui/tabs";
+import { NAV_TABS } from "@/components/layout/nav-tabs";
 import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandLockup } from "@/components/brand/BrandMark";
@@ -56,18 +52,20 @@ export function TopBar() {
     const authChrome = resolveAuthChrome(user);
     const { docked, homeViewDocked } = useSearchDock();
     const navBadges = useNavBadgeCounts();
-    const menuTabs = NAV_TABS.filter((t) => t.placement === "menu");
-    const barTabs = NAV_TABS.filter((t) => t.placement === "bar").filter((t) => {
-        if (t.href !== "/connect") return true;
-        // Lean hub/deck/apply: drop desktop header MCP (/connect). Pack-deck
-        // `for-you-mcp-handoff` stays — that is not TopBar chrome.
-        if (leanSurface) return false;
-        // Signed-out public chrome (404, marketing-adjacent routes): no MCP tab.
-        if (authChrome !== "authenticated") return false;
-        return true;
+    // The header's ONE nav: every product destination as an underline tab.
+    const navTabs = NAV_TABS.filter((t) => {
+        // Signed out there is no product nav (sign-in / create-account instead).
+        if (!user) return false;
+        if (t.href === "/connect") {
+            // Lean hub/deck/apply: drop desktop header MCP (/connect). Pack-deck
+            // `for-you-mcp-handoff` stays — that is not TopBar chrome.
+            // Signed-out public chrome (404, marketing-adjacent routes): no MCP tab.
+            return !leanSurface && authChrome === "authenticated";
+        }
+        // The For you ↔ Search switch IS the Jobs destination's tab while docked;
+        // a second "Jobs" link beside it would be two navs for one page.
+        return !(homeViewDocked && t.match(pathname));
     });
-    const menuActive = menuNavActive(pathname, NAV_TABS);
-    const menuTriggerLabel = menuNavTriggerLabel(pathname, NAV_TABS);
     const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
 
     const hideNav = shouldHideSiteChrome(pathname);
@@ -185,78 +183,26 @@ export function TopBar() {
                         </form>
                     )}
                     <div className="flex shrink-0 items-center gap-3">
-                    <nav
-                        aria-label="Primary"
-                        className="hidden items-center gap-3 text-xs lg:flex"
-                    >
-                        {user && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger
-                                    className={cn(
-                                        "inline-flex items-center gap-1 whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors outline-none",
-                                        menuActive
-                                            ? "font-semibold text-foreground"
-                                            : "font-normal text-muted-foreground hover:text-foreground",
-                                    )}
-                                >
-                                    <span className={cn(menuActive && "border-b-2 border-brand")}>{menuTriggerLabel}</span>
-                                    <CaretDown aria-hidden />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="min-w-[9rem] rounded-panel border-border bg-card">
-                                    {menuTabs.map((tab) => {
-                                        const active = tab.match(pathname);
-                                        return (
-                                            <DropdownMenuItem key={tab.href + tab.label} asChild>
-                                                <Link
-                                                    href={tab.href}
-                                                    data-testid={tab.testId}
-                                                    aria-current={active ? "page" : undefined}
-                                                    className={cn(
-                                                        "flex w-full items-center whitespace-nowrap",
-                                                        active && "font-semibold text-foreground",
-                                                    )}
-                                                >
-                                                    {tab.label}
-                                                    {tab.badge && navBadges[tab.badge] > 0 && (
-                                                        <span
-                                                            data-testid={`${tab.testId}-badge`}
-                                                            className="ml-auto mono-data text-xs font-semibold text-brand"
-                                                        >
-                                                            {navBadges[tab.badge]}
-                                                        </span>
-                                                    )}
-                                                </Link>
-                                            </DropdownMenuItem>
-                                        );
-                                    })}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
-                        {barTabs.map((tab) => {
+                    <TabNav aria-label="Primary" className="hidden lg:flex">
+                        {navTabs.map((tab) => {
                             const active = tab.match(pathname);
-                            const label = tab.href === "/connect" ? "MCP" : tab.label;
+                            const count = tab.badge ? navBadges[tab.badge] : 0;
                             return (
-                                <Link
-                                    key={tab.href + tab.label}
-                                    href={tab.href}
-                                    title={tab.title}
-                                    data-testid={tab.testId}
-                                    data-tour={tab.tourSelector}
-                                    aria-current={active ? "page" : undefined}
-                                    data-nav-current={active ? "true" : undefined}
-                                    className={cn(
-                                        "whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors",
-                                        CHROME_FOCUS_VISIBLE,
-                                        active
-                                            ? "font-semibold text-foreground"
-                                            : "font-normal text-muted-foreground hover:text-foreground",
-                                    )}
-                                >
-                                    <span className={cn(active && "border-b-2 border-brand")}>{label}</span>
-                                </Link>
+                                <TabItem key={tab.href + tab.label} asChild size="bar" current={active ? "page" : false}>
+                                    <Link
+                                        href={tab.href}
+                                        title={tab.title}
+                                        data-testid={tab.testId}
+                                        data-tour={tab.tourSelector}
+                                        data-nav-current={active ? "true" : undefined}
+                                    >
+                                        {tab.href === "/connect" ? "MCP" : tab.label}
+                                        {count > 0 && <CountBadge count={count} data-testid={`${tab.testId}-badge`} />}
+                                    </Link>
+                                </TabItem>
                             );
                         })}
-                    </nav>
+                    </TabNav>
 
                     <FollowAlertsBell />
 
@@ -341,9 +287,9 @@ export function TopBar() {
                                 >
                                     Filters
                                     {docked.filterCount > 0 && (
-                                        <span className={cn("ml-0.5", filterCountBadgeClass)}>
+                                        <SolidBadge tone="muted" className="ml-0.5">
                                             {docked.filterCount}
-                                        </span>
+                                        </SolidBadge>
                                     )}
                                 </button>
                                 <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
