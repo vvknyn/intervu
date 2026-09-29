@@ -81,8 +81,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-38 | A pack tile opens the résumé's pack with the tile's own filter (Fully remote → remote work type; Added this week → 7-day window), Edit filters carries it, and the next tile opened does not inherit it | Candidate with a local résumé | `/jobs?view=for-you` (Toronto guest résumé seeded in localStorage), click `hub-pack-card-remote`, back, `hub-pack-card-fresh` | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-39 | An opened pack tile lists only its own roles from the first row it shows (every Fully remote row reads Remote before and after its search settles), and a row tile the hub counted (AI roles) opens on those roles behind the guest preview | Candidate with a local résumé | `/jobs?view=for-you` (Toronto guest résumé seeded in localStorage), click `hub-pack-card-remote`, back, read `hub-pack-count-ai`, click `hub-pack-card-ai` | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-40 | Going back to the packs hub from an opened tile keeps the tile counts it had (Fully remote, Added this week, Jobs with salaries), never blanking them to "…" while it counts again | Candidate with a local résumé | `/jobs?view=for-you` (Toronto guest résumé seeded in localStorage), wait for `hub-pack-count-*`, click `hub-pack-card-remote`, back, sample the counts | signed-out | no | covered | jobs.spec.ts |
-| J-JOBS-46 | Signed out, the packs hub shows placeholders for the tracker and Recently viewed under the pack tiles and one sign-in gate that returns to the hub | Candidate with a local résumé | `/jobs?view=for-you` (Toronto guest résumé seeded in localStorage), read `hub-your-jobs`, `hub-tracker-placeholder`, `hub-recent-placeholder` and its `signup-gate` | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-41 | A pack opened after another pack loaded, whose own read fails, shows the load error with Retry (not its loading state, not the other pack's roles), and Retry lists its roles once reads answer again | Candidate with a local résumé | `/jobs?view=for-you` (Toronto guest résumé seeded in localStorage), open `hub-pack-card-remote`, back, fail every server action, open `hub-pack-card-salary`, Retry | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-42 | Signed in, the packs hub lists the tracker (applied roles first, with stage counts) and the last 20 roles opened under the pack tiles; a row opened in a pack leads Recently viewed on the way back | signed-in | `/jobs?view=for-you` with tracked roles, open a pack, click a row, `jobs-back-to-packs`, read `hub-tracker-row` and `hub-recent-row` | signed-in | no | uncovered | — |
+| J-JOBS-46 | Signed out, the packs hub shows placeholders for the tracker and Recently viewed under the pack tiles and one sign-in gate that returns to the hub | Candidate with a local résumé | `/jobs?view=for-you` (Toronto guest résumé seeded in localStorage), read `hub-your-jobs`, `hub-tracker-placeholder`, `hub-recent-placeholder` and its `signup-gate` | signed-out | no | covered | jobs.spec.ts |
 
 ## SRCH
 
@@ -614,6 +615,17 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-36 | The page column starts on the header logo's left edge (one page container, no centred column) at 1440 and 390 | anon | /about, /privacy, /terms, /contact | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
+
+## PRICING
+
+| ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
+|---|---|---|---|---|---|---|---|
+| J-PRICING-01 | Read the pricing page: Free, Pro and Data API columns, the founding-seat price and count, and the promise that Free stays free | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-02 | Reach pricing from the footer link on a marketing page | anon | /about | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-03 | Founding-seat button links out to Stripe checkout when the link is configured, otherwise reads "open soon" and is inert | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-04 | Return from Stripe with checkout=success and a session id and see the founding thank-you; a bare checkout=success shows nothing | anon | /pricing?checkout=success&session_id=cs_test_… | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-05 | Follow the Data API call to action to the contact form | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-06 | Signed-in visitor sees "You are on Free" instead of the create-account door | signed-in | /pricing | signed-in | no | uncovered | — |
 
 ## ERR
 
