@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -310,6 +310,30 @@ test("a failed ranked-list read shows an error with Retry, never the empty state
   recover();
   await page.getByTestId("for-you-load-failed-retry").click();
   await expect(failed).toHaveCount(0, { timeout: 30_000 });
+});
+
+test("a pack whose own read fails after another pack loaded shows the error with Retry, not a spinner or the other pack's roles", { tag: ["@J-JOBS-41"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  await page.getByTestId("hub-pack-card-remote").click({ timeout: 30_000 });
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId("jobs-back-to-packs").click();
+
+  // The next pack's read fails. It used to wait on that read forever ("Loading your ranked
+  // roles") because only a reported outage, not a thrown one, counted as settled.
+  const recover = await failEveryAction(page);
+  await page.getByTestId("hub-pack-card-salary").click({ timeout: 30_000 });
+  const failed = page.getByTestId("for-you-load-failed");
+  await expect(failed).toBeVisible({ timeout: 30_000 });
+  await expect(rows).toHaveCount(0);
+
+  recover();
+  await page.getByTestId("for-you-load-failed-retry").click();
+  await expect(failed).toHaveCount(0, { timeout: 30_000 });
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
 });
 
 /** Real reduplicated place names: the only strings the repeated-token check must not flag. */
