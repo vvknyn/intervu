@@ -89,7 +89,7 @@ export function BoardVisitBanner() {
                 type="button"
                 onClick={() => setDismissed(true)}
                 aria-label="Dismiss"
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:text-foreground"
+                className="ctl-sm flex ctl-square shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:text-foreground"
             >
                 <X aria-hidden />
             </button>

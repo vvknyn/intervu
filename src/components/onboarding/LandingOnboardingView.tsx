@@ -392,7 +392,7 @@ export function LandingOnboardingView({
                                                 value={parsedResume.profile.name || ""}
                                                 onChange={(e) => updateProfileField("name", e.target.value)}
                                                 placeholder="Your Name"
-                                                className="h-8 text-xs rounded-ctl"
+                                                className="ctl-md text-xs rounded-ctl"
                                             />
                                         </div>
                                         <div className="space-y-1">
@@ -401,7 +401,7 @@ export function LandingOnboardingView({
                                                 value={parsedResume.profile.profession || ""}
                                                 onChange={(e) => updateProfileField("profession", e.target.value)}
                                                 placeholder="e.g. Senior Software Engineer"
-                                                className="h-8 text-xs rounded-ctl"
+                                                className="ctl-md text-xs rounded-ctl"
                                             />
                                         </div>
                                         <div className="space-y-1">
@@ -412,7 +412,7 @@ export function LandingOnboardingView({
                                                 max={50}
                                                 value={parsedResume.profile.yearsOfExperience || 0}
                                                 onChange={(e) => updateProfileField("yearsOfExperience", parseInt(e.target.value, 10) || 0)}
-                                                className="h-8 text-xs rounded-ctl"
+                                                className="ctl-md text-xs rounded-ctl"
                                             />
                                         </div>
                                         <div className="space-y-1">
@@ -421,7 +421,7 @@ export function LandingOnboardingView({
                                                 value={parsedResume.profile.location || ""}
                                                 onChange={(e) => updateProfileField("location", e.target.value)}
                                                 placeholder="e.g. San Francisco, CA or Remote"
-                                                className="h-8 text-xs rounded-ctl"
+                                                className="ctl-md text-xs rounded-ctl"
                                             />
                                         </div>
                                         <div className="space-y-1 sm:col-span-2">
@@ -433,7 +433,7 @@ export function LandingOnboardingView({
                                                     updateSkills(e.target.value);
                                                 }}
                                                 placeholder="e.g. TypeScript, React, Next.js, Python, SQL"
-                                                className="h-8 text-xs rounded-ctl"
+                                                className="ctl-md text-xs rounded-ctl"
                                             />
                                         </div>
                                     </div>
@@ -449,9 +449,9 @@ export function LandingOnboardingView({
                                 <div className="flex items-center justify-between pt-1.5 border-t border-border">
                                     <Button
                                         variant="outline"
-                                        size="sm"
+                                        size="lg"
                                         onClick={() => setStep(2)}
-                                        className="gap-1.5 text-xs h-10"
+                                        className="gap-1.5 text-xs"
                                     >
                                         <ArrowLeft size={16} /> Back
                                     </Button>
@@ -459,7 +459,7 @@ export function LandingOnboardingView({
                                     <Button
                                         size="sm"
                                         onClick={handleFinalSubmit}
-                                        className="gap-1.5 text-xs font-semibold h-10"
+                                        className="gap-1.5 text-xs font-semibold"
                                     >
                                         <Sparkle size={16} />
                                         Save &amp; Start matching roles
@@ -579,9 +579,9 @@ export function LandingOnboardingView({
                                 <div className="flex items-center justify-between pt-2 border-t border-border">
                                     <Button
                                         variant="outline"
-                                        size="sm"
+                                        size="lg"
                                         onClick={() => setStep(2)}
-                                        className="gap-1.5 text-xs h-10"
+                                        className="gap-1.5 text-xs"
                                     >
                                         <ArrowLeft size={16} /> Back
                                     </Button>
@@ -591,7 +591,7 @@ export function LandingOnboardingView({
                                             variant="outline"
                                             size="sm"
                                             onClick={handleFinalSubmit}
-                                            className="text-xs h-10"
+                                            className="text-xs"
                                         >
                                             Browse without résumé
                                         </Button>

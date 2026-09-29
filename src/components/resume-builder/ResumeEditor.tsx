@@ -478,7 +478,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         value={newVersionLabel}
                                         onChange={(e) => setNewVersionLabel(e.target.value)}
                                         placeholder="e.g. Tailored for Apple, Post-review v2..."
-                                        className="h-8 text-base md:text-xs"
+                                        className="ctl-md text-base md:text-xs"
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") {
                                                 e.preventDefault();
@@ -491,7 +491,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         size="sm"
                                         onClick={handleSaveNewVersion}
                                         disabled={savingVersion || !newVersionLabel.trim()}
-                                        className="h-8 text-xs rounded-ctl"
+                                        className="text-xs rounded-ctl"
                                     >
                                         {savingVersion ? "Saving…" : "Save"}
                                     </Button>
@@ -546,7 +546,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => setConfirmDeleteId(null)}
-                                                                className="h-7 text-xs rounded-ctl"
+                                                                className="text-xs rounded-ctl"
                                                             >
                                                                 Cancel
                                                             </Button>
@@ -556,7 +556,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 size="sm"
                                                                 disabled={deletingId === ver.id}
                                                                 onClick={() => void handleDeleteVersion(ver)}
-                                                                className="h-7 text-xs gap-1 rounded-ctl"
+                                                                className="text-xs gap-1 rounded-ctl"
                                                             >
                                                                 {deletingId === ver.id ? (
                                                                     <CircleNotch className="animate-spin" />
@@ -573,7 +573,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => handleRecallVersion(ver)}
-                                                                className="h-7 text-xs gap-1 rounded-ctl flex-1"
+                                                                className="text-xs gap-1 rounded-ctl flex-1"
                                                             >
                                                                 <ArrowCounterClockwise /> Recall
                                                             </Button>
@@ -582,7 +582,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => handleCompareVersion(ver)}
-                                                                className="h-7 text-xs gap-1 rounded-ctl flex-1 text-warn"
+                                                                className="text-xs gap-1 rounded-ctl flex-1 text-warn"
                                                             >
                                                                 <GitDiff /> Compare
                                                             </Button>
@@ -592,7 +592,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 size="sm"
                                                                 title={`Delete "${ver.label}"`}
                                                                 onClick={() => setConfirmDeleteId(ver.id)}
-                                                                className="h-7 w-7 p-0 shrink-0 rounded-ctl text-muted-foreground hover:text-danger-text"
+                                                                className="w-7 p-0 shrink-0 rounded-ctl text-muted-foreground hover:text-danger-text"
                                                             >
                                                                 <Trash />
                                                             </Button>

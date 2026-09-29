@@ -700,6 +700,72 @@ body:has([data-shell="bleed"]) {
   }
 }
 
+/* CONTROL SCALE — the ONE height ladder for every button, input, select,
+   chip and icon button (design-language.md §5: h-6 segment, h-8 chip/compact,
+   h-11 input/form button). A primitive picks a step (`.ctl-sm|md|lg`); a
+   call site never writes its own h-* / py-* on a control, so controls that
+   share a bar share a step. `.ctl-square` makes an icon button as wide as it
+   is tall. tests/unit/control-scale.test.ts fails a hand-rolled height. */
+:root {
+  --control-h-sm: 1.5rem;
+  --control-h-md: 2rem;
+  --control-h-lg: 2.75rem;
+  /* WCAG 2.5.5 / Apple HIG touch floor. The VISUAL control stays on its step;
+     only the hit area grows (below). */
+  --hit-min: 2.75rem;
+}
+@utility ctl-sm {
+  --ctl-h: var(--control-h-sm);
+  height: var(--ctl-h);
+}
+@utility ctl-md {
+  --ctl-h: var(--control-h-md);
+  height: var(--ctl-h);
+}
+@utility ctl-lg {
+  --ctl-h: var(--control-h-lg);
+  height: var(--ctl-h);
+}
+/* A control whose label may wrap: the step becomes its MIN height. Compound
+   selector so it beats the step's own `height` whatever the utility order. */
+@utility ctl-grow {
+  &.ctl-sm,
+  &.ctl-md,
+  &.ctl-lg {
+    height: auto;
+    min-height: var(--ctl-h);
+  }
+}
+@utility ctl-square {
+  width: var(--ctl-h);
+  padding-inline: 0;
+}
+/* TOUCH HIT-AREA FLOOR — on a coarse pointer every control's tappable box is
+   at least --hit-min square, grown with an invisible ::before centred on the
+   control (never by making the visual taller). ::before, because components
+   paint with ::after (the tab underline); an element that styles its own
+   ::before (`before:*` utilities) is skipped rather than half-overridden.
+   @layer base + :where() keep this at zero specificity, so an explicit
+   `absolute`/`fixed` utility on a control still wins over `position:relative`.
+   Replaced elements (input, select, textarea) cannot carry a pseudo-element,
+   so they sit on the `lg` step (44px) themselves. */
+@layer base {
+  @media (pointer: coarse) {
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"])) {
+      position: relative;
+    }
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"]))::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, var(--hit-min));
+      height: max(100%, var(--hit-min));
+      transform: translate(-50%, -50%);
+    }
+  }
+}
+
 /* Heading typography */
 h1,
 h2,

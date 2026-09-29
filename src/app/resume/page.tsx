@@ -69,7 +69,7 @@ export function SignedOutEmptyState({ onUploadClick }: { onUploadClick: () => vo
                     size="lg"
                     onClick={onUploadClick}
                     data-testid="resume-signed-out-upload"
-                    className="min-h-11 rounded-ctl font-semibold"
+                    className="rounded-ctl font-semibold"
                 >
                     <UploadSimple size={16} className="mr-2" aria-hidden />
                     Upload résumé

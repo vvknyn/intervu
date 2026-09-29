@@ -25,6 +25,7 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
             data-testid="pursuit-row"
             onClick={onClick}
             className={cn(
+                // control-scale-allow: full-width list row — its padding is content layout, not a bar control
                 "grid w-full cursor-pointer whitespace-normal rounded-none bg-transparent px-[var(--list-inset)] pt-4 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live",
                 active && "bg-surface-hover",
             )}

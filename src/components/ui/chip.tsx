@@ -14,7 +14,7 @@ export const chipVariants = cva(
   // A chip carries a label, never code, so it takes the sans — with tabular
   // figures, since chips routinely hold counts that sit in a row and should
   // not jitter as the numbers change.
-  "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-pill border border-border bg-background px-3 text-sm tabular-nums text-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
+  "ctl-md inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-pill border border-border bg-background px-3 text-sm tabular-nums text-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
@@ -58,7 +58,7 @@ export function ChipDismiss({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className={cn("inline-flex items-center justify-center leading-none opacity-70 hover:opacity-100 cursor-pointer", className)}
+      className={cn("ctl-sm ctl-square inline-flex items-center justify-center leading-none opacity-70 hover:opacity-100 cursor-pointer", className)}
     >
       <X />
     </button>

@@ -22,7 +22,7 @@ const DERIVED_CHIP_CLASS = cn(
     chipVariants({ active: true }),
     // Long inferred titles (e.g. "Technical Account Manager | …") must stay
     // inside the FIT column — override chip `shrink-0` / `whitespace-nowrap`.
-    "h-auto min-h-7 max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 py-1 text-xs",
+    "ctl-grow max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 text-xs",
 );
 
 export interface FitReasonsProps {

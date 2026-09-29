@@ -104,9 +104,9 @@ export function DeckRoleDetail({
 
             <div className="flex flex-wrap items-center gap-2 px-4 py-4 sm:px-6">
                 {job.apply_url ? (
-                    <Button
+                    <Button size="lg"
                         onClick={onOpenPosting}
-                        className="h-10 gap-2 rounded-ctl bg-foreground px-4 text-sm font-semibold text-background"
+                        className="gap-2 rounded-ctl bg-foreground px-4 text-sm font-semibold text-background"
                     >
                         <ArrowSquareOut size={16} />
                         {APPLY_BUTTON_LABEL}
@@ -115,12 +115,12 @@ export function DeckRoleDetail({
                 {resume != null ? (
                     <LocalCustomizePanel job={job} resume={resume} compactTrigger signedIn />
                 ) : onUploadResume ? (
-                    <Button
+                    <Button size="lg"
                         type="button"
                         variant="outline"
                         data-testid="job-detail-upload-to-customize"
                         onClick={onUploadResume}
-                        className="h-10 shrink-0 rounded-ctl text-xs font-semibold"
+                        className="shrink-0 rounded-ctl text-xs font-semibold"
                     >
                         {UPLOAD_TO_CUSTOMIZE_LABEL}
                     </Button>

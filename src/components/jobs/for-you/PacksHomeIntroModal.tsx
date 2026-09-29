@@ -52,18 +52,18 @@ export function PacksHomeIntroModal({
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                    <Button
+                    <Button size="lg"
                         type="button"
                         variant="ghost"
-                        className="order-2 min-h-11 font-semibold sm:order-1"
+                        className="order-2 font-semibold sm:order-1"
                         data-testid="packs-home-intro-resume"
                         onClick={onAddOrReplaceResume}
                     >
                         Add or replace résumé
                     </Button>
-                    <Button
+                    <Button size="lg"
                         type="button"
-                        className="order-1 min-h-11 font-semibold sm:order-2"
+                        className="order-1 font-semibold sm:order-2"
                         data-testid="packs-home-intro-got-it"
                         onClick={onGotIt}
                     >

@@ -66,7 +66,7 @@ function Pill() {
     return (
         <button
             type="button"
-            className="flex h-8 min-w-0 max-w-[420px] flex-1 items-center gap-2 rounded-none border border-foreground bg-card px-3 text-left"
+            className="ctl-md flex min-w-0 max-w-[420px] flex-1 items-center gap-2 rounded-none border border-foreground bg-card px-3 text-left"
         >
             <MagnifyingGlass weight="bold" className="shrink-0 text-foreground" />
             <span className="truncate text-xs font-semibold text-foreground">Software Engineer</span>

@@ -67,7 +67,7 @@ const JD_SCROLL_CLASS =
 /** Employer-stated fact — quiet on cream paper (outline/tint + paper ink), noninteractive. */
 export const STATED_CHIP_CLASS = cn(
     chipVariants({ active: false }),
-    "paper-fact-chip h-7 gap-1.5 px-2.5 text-xs font-normal",
+    "paper-fact-chip ctl-sm gap-1.5 px-2.5 text-xs font-normal",
 );
 
 /**
@@ -78,7 +78,7 @@ export const DERIVED_CHIP_CLASS = cn(
     chipVariants({ active: false }),
     // Long inferred titles (e.g. "Technical Account Manager | …") must stay
     // inside the FIT column — override chip `shrink-0` / `whitespace-nowrap`.
-    "paper-inferred-chip h-auto min-h-7 max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 py-1 text-xs font-normal",
+    "paper-inferred-chip ctl-grow max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 text-xs font-normal",
 );
 
 /**

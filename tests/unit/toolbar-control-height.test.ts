@@ -62,10 +62,9 @@ test("toolbar control height", async (t) => {
     await t.test("the shared token is the row's single source of height", () => {
         const decl = /export const toolbarControlHeight =\s*"([^"]+)"/.exec(sharedSrc);
         assert.ok(decl, "toolbarControlHeight must exist — it is what the row aligns on");
-        // 44px is the phone tap-target floor the mobile chips already used;
-        // 28px from `lg` is the `chipVariants` density the rest of the app is
-        // built on. Both halves are load-bearing, so both are pinned here.
-        assert.equal(decl![1], "h-11 lg:h-7");
+        // The control scale's md step (globals.css `.ctl-md`): the same visual
+        // height at every width; the phone's 44px tap target is a hit area.
+        assert.equal(decl![1], "ctl-md");
         assert.match(pageSrc, /from "@\/lib\/jobs\/toolbar-control-height"/);
     });
 

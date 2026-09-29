@@ -18,7 +18,7 @@ export function QuietSearchLink({ onClick, className }: QuietSearchLinkProps) {
             onClick={onClick}
             data-testid="jobs-quiet-search-link"
             className={cn(
-                "inline-flex min-h-11 items-center text-xs font-semibold text-muted-foreground transition-colors hover:text-brand",
+                "inline-flex items-center text-xs font-semibold text-muted-foreground transition-colors hover:text-brand",
                 className,
             )}
         >

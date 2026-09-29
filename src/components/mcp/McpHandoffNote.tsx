@@ -84,7 +84,7 @@ export function McpHandoffNote({
             aria-label="Dismiss"
             data-testid="mcp-handoff-dismiss"
             onClick={dismiss}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-ctl text-muted-foreground hover:bg-background hover:text-foreground"
+            className="ctl-md flex ctl-square shrink-0 items-center justify-center rounded-ctl text-muted-foreground hover:bg-background hover:text-foreground"
         >
             <X size={16} aria-hidden />
         </button>

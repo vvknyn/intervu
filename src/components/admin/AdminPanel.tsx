@@ -119,7 +119,7 @@ export function AdminPanel() {
                                     role="switch"
                                     aria-checked={showDonation}
                                     onClick={() => setShowDonation(!showDonation)}
-                                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-none transition-colors ${showDonation ? "bg-live" : "bg-muted-foreground"}`}
+                                    className={`relative inline-flex ctl-sm w-9 shrink-0 items-center rounded-none transition-colors ${showDonation ? "bg-live" : "bg-muted-foreground"}`}
                                 >
                                     <span
                                         className={`inline-block h-3.5 w-3.5 rounded-none bg-white transition-transform  ${showDonation ? "translate-x-[18px]" : "translate-x-[3px]"}`}
@@ -166,7 +166,7 @@ export function AdminPanel() {
                                     <button
                                         key={filter}
                                         onClick={() => setFeedbackFilter(filter)}
-                                        className={`px-2.5 py-1 text-xs rounded-none transition-colors ${
+                                        className={`px-2.5 ctl-md text-xs rounded-none transition-colors ${
                                             feedbackFilter === filter
                                                 ? "bg-muted text-brand"
                                                 : "text-muted-foreground hover:bg-muted"

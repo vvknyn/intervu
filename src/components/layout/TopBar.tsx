@@ -19,7 +19,7 @@ import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
-import { cn, CHROME_FOCUS_ON_BRAND, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
+import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
@@ -156,7 +156,7 @@ export function TopBar() {
                             }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="hidden h-8 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="ctl-md hidden min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
                                 <MagnifyingGlass className="shrink-0 self-center text-foreground" />
@@ -176,7 +176,7 @@ export function TopBar() {
                             <button
                                 type="submit"
                                 data-testid="search-submit"
-                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-sm font-semibold leading-none text-foreground transition-colors hover:bg-muted"
+                                className="box-border flex shrink-0 items-center justify-center whitespace-nowrap px-4 text-sm font-semibold leading-none text-foreground transition-colors hover:bg-muted"
                             >
                                 Search
                             </button>
@@ -210,7 +210,7 @@ export function TopBar() {
                         /* Auth unresolved: reserve the row height so the bar
                            does not jump when it resolves, and assert nothing
                            about who is signed in. */
-                        <span aria-hidden data-testid="topbar-auth-pending" className="block h-10 w-8 shrink-0" />
+                        <span aria-hidden data-testid="topbar-auth-pending" className="ctl-md ctl-square block shrink-0" />
                     ) : authChrome === "authenticated" && user ? (
                         <AccountMenu
                             user={user}
@@ -218,20 +218,6 @@ export function TopBar() {
                             signingOut={signingOut}
                             onSignOut={handleSignOut}
                         />
-                    ) : leanSurface ? (
-                        <>
-                            <Button
-                                type="button"
-                                data-testid="topbar-signin"
-                                onClick={() => {
-                                    setAuthTab("login");
-                                    setAuthPopoverOpen(true);
-                                }}
-                                className={cn("min-h-11 rounded-ctl", CHROME_FOCUS_ON_BRAND)}
-                            >
-                                {AUTH_CTA_LABEL}
-                            </Button>
-                        </>
                     ) : (
                         <>
                             <Button
@@ -242,7 +228,7 @@ export function TopBar() {
                                     setAuthTab("login");
                                     setAuthPopoverOpen(true);
                                 }}
-                                className={cn("min-h-11 rounded-ctl font-normal text-muted-foreground", CHROME_FOCUS_VISIBLE)}
+                                className={cn("font-normal text-muted-foreground", CHROME_FOCUS_VISIBLE)}
                             >
                                 {AUTH_CTA_LABEL}
                             </Button>
@@ -253,7 +239,7 @@ export function TopBar() {
                                     setAuthTab("signup");
                                     setAuthPopoverOpen(true);
                                 }}
-                                className={cn("min-h-11 rounded-ctl", CHROME_FOCUS_VISIBLE)}
+                                className={CHROME_FOCUS_VISIBLE}
                             >
                                 Create account
                             </Button>

@@ -464,8 +464,8 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                     </div>
                                     <Button
                                         variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-danger-text"
+                                        size="icon-sm"
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-danger-text"
                                         onClick={(e) => handleDelete(source.id, e)}
                                     >
                                         <Trash />
@@ -503,7 +503,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                 value={communitySearch}
                                 onChange={(e) => setCommunitySearch(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') loadCommunity(communitySearch); }}
-                                className="h-11 pl-9"
+                                className="ctl-lg pl-9"
                             />
                         </div>
                         <Button variant="secondary" onClick={() => loadCommunity(communitySearch)} disabled={communityLoading}>

@@ -254,7 +254,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         the dashboard — not an app-side name, and not validated
                         here, because WorkOS is the authority on which
                         providers an environment actually has. */}
-                    <Button variant="outline" type="button" className="w-full h-11" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                    <Button size="lg" variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
                         {authKitPending === "GoogleOAuth" ? (
                             <CircleNotch size={16} className="mr-2 animate-spin" />
                         ) : (
@@ -267,10 +267,10 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         has no API to call, so the page has to run it. No
                         provider here means WorkOS shows whichever methods are
                         enabled for the environment. */}
-                    <Button
+                    <Button size="lg"
                         variant="outline"
                         type="button"
-                        className="w-full h-11"
+                        className="w-full"
                         disabled={isPending || authKitPending !== null}
                         onClick={() => startAuthKit()}
                     >
@@ -282,7 +282,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         Use a passkey or email code
                     </Button>
                     {onGuestAccess && (
-                        <Button variant="outline" type="button" className="w-full h-11" disabled={isPending} onClick={onGuestAccess}>
+                        <Button size="lg" variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
                             Continue as Guest
                         </Button>
                     )}
@@ -368,11 +368,11 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                             {activeTab === "signup" && (
                                 <TurnstileWidget onVerify={setTurnstileToken} />
                             )}
-                            <Button
+                            <Button size="lg"
                                 type="submit"
                                 data-testid="auth-submit-button"
                                 disabled={isPending}
-                                className="w-full h-11 font-semibold"
+                                className="w-full font-semibold"
                             >
                                 {isPending && (
                                     <CircleNotch size={16} className="mr-2 animate-spin" />

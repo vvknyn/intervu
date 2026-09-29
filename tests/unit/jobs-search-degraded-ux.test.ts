@@ -101,11 +101,3 @@ describe("jobs page wiring", () => {
     assert.match(src, /variant="link"[\s\S]*Try again/);
   });
 });
-
-describe("TopBar lean Sign in focus", () => {
-  it("uses emphasized chrome focus ring on filled brand CTA", () => {
-    const src = readFileSync(join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx"), "utf8");
-    const leanSignIn = src.slice(src.indexOf("leanSurface ?"), src.indexOf(") : (", src.indexOf("leanSurface ?")));
-    assert.match(leanSignIn, /CHROME_FOCUS_ON_BRAND/);
-  });
-});

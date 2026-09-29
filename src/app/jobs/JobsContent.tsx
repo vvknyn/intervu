@@ -485,6 +485,7 @@ function ToolbarSegment({
             onClick={onClick}
             title={title}
             className={cn(
+                // control-scale-allow: ToolbarSegment is reshaped by the /jobs toolbar PR (#653)
                 "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-2 rounded-ctl px-3 text-sm font-semibold leading-none transition-all duration-150 text-foreground",
                 pressed && "underline underline-offset-2",
             )}
@@ -581,7 +582,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     data-testid="serp-ask-seed"
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
-                    className="inline-flex items-center rounded-pill border border-border bg-muted px-2.5 py-1 text-left text-xs text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
+                    className="ctl-md inline-flex items-center rounded-pill border border-border bg-muted px-2.5 text-left text-xs text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
                 >
                     {seed}
                 </button>
@@ -5506,7 +5507,7 @@ export function JobsContent({
                         setLocationDraft("");
                         clearLocations();
                     }}
-                    className="mr-1 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:text-foreground"
+                    className="ctl-sm mr-1 flex ctl-square shrink-0 self-center items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <X size={20} aria-hidden />
                 </button>
@@ -5725,7 +5726,7 @@ export function JobsContent({
                                 <button
                                     type="button"
                                     onClick={() => returnToJobPacksHub()}
-                                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
+                                    className="ctl-sm inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
                                     data-testid="jobs-back-to-packs"
                                 >
                                     ← Back to Job Packs
@@ -5874,11 +5875,8 @@ export function JobsContent({
                                     ariaLabel="Search"
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
                                     className={cn(
-                                        // Requirement D2 (2026-09-17 design pass): at rest, search is
-                                        // the largest element on the page — lg+ jumps to the tallest
-                                        // existing control-height token (h-14) instead of the
-                                        // mid-search state's h-[56px]. Below lg, unchanged.
-                                        atRest ? "h-11" : "h-11 sm:h-[56px]",
+                                        // The whole search row shares the control scale's lg step.
+                                        "ctl-lg",
                                         "w-full min-w-0 rounded-pill border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0",
                                     )}
                                     containerClassName="min-w-0 w-full"
@@ -5899,7 +5897,7 @@ export function JobsContent({
                                     aria-label={mobileLocationLabel}
                                     title={mobileLocationLabel}
                                     onClick={() => setLocationSheetOpen(true)}
-                                    className="flex h-11 min-w-0 flex-1 items-center truncate rounded-pill border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
+                                    className="ctl-lg flex min-w-0 flex-1 items-center truncate rounded-pill border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
                                 >
                                     <span className={cn("truncate", mobileLocationLabel === "City, state, or remote" && "text-muted-foreground")}>
                                         {mobileLocationLabel}
@@ -5919,7 +5917,7 @@ export function JobsContent({
                                     onFocus={() => searchAutocompleteRef.current?.close()}
                                     containerClassName="hidden lg:flex"
                                     className={cn(
-                                        atRest ? "h-11" : "h-11 sm:h-[56px]",
+                                        "ctl-lg",
                                         "min-w-0 flex-1 rounded-pill border-0 bg-transparent px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0",
                                     )}
                                 />
@@ -5947,7 +5945,7 @@ export function JobsContent({
                                             setLocationDraft("");
                                             clearLocations();
                                         }}
-                                        className="mr-2 hidden h-6 w-6 shrink-0 items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:flex"
+                                        className="ctl-sm mr-2 hidden ctl-square shrink-0 items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:flex"
                                     >
                                         <X size={20} aria-hidden />
                                     </button>
@@ -5964,12 +5962,12 @@ export function JobsContent({
                                 hairline shape) at rest instead of a second,
                                 bespoke hairline style. */}
                             <Button
+                                size="lg"
                                 type="button"
                                 data-testid="search-submit"
                                 onClick={() => submitSearch(queryDraft)}
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
-                                    atRest ? "h-11" : "h-11 sm:h-[56px]",
                                     "w-auto shrink-0 rounded-pill px-4 text-xs font-semibold sm:px-6 transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
@@ -6034,7 +6032,7 @@ export function JobsContent({
                                     <button
                                         type="button"
                                         onClick={handleClearSearch}
-                                        className="-my-1.5 py-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
+                                        className="ctl-md -my-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
                                     >
                                         clear ✕
                                     </button>
@@ -6269,7 +6267,7 @@ export function JobsContent({
                                 <button
                                     type="button"
                                     onClick={() => returnToJobPacksHub()}
-                                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
+                                    className="ctl-sm inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
                                     data-testid="jobs-back-to-packs"
                                 >
                                     ← Back to Job Packs
@@ -7082,10 +7080,10 @@ export function JobsContent({
                     // real height already had.
                     className="fixed inset-x-0 z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] lg:hidden"
                 >
-                    <Button
+                    <Button size="lg"
                         type="button"
                         onClick={handleMobilePrimaryCta}
-                        className="h-11 w-full rounded-ctl bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
+                        className="w-full rounded-ctl bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
                     >
                         Search
                     </Button>
@@ -7230,7 +7228,7 @@ export function JobsContent({
                                 type="button"
                                 aria-label="Close"
                                 onClick={() => router.back()}
-                                className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80"
+                                className="ctl-lg flex ctl-square shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80"
                             >
                                 ×
                             </button>

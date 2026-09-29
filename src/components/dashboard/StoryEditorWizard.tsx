@@ -206,7 +206,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                             ).map((q, i) => (
                                                 <button
                                                     key={i}
-                                                    className="w-full text-left px-3 py-2 text-sm rounded-none hover:bg-muted hover:text-brand transition-colors text-foreground"
+                                                    className="ctl-md w-full text-left px-3 text-sm rounded-none hover:bg-muted hover:text-brand transition-colors text-foreground"
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
                                                         setFormData({ ...formData, question: q });
@@ -233,7 +233,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                     value={formData.title || ''}
                                     onChange={e => setFormData({ ...formData, title: e.target.value })}
                                     placeholder="e.g. Critical Bug Fix"
-                                    className="text-base font-semibold h-10 border-input"
+                                    className="ctl-lg text-base font-semibold border-input"
                                 />
                                 <p className="text-xs text-muted-foreground">
                                     A short, memorable name for you to reference this story.
@@ -249,7 +249,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                     value={formData.importance || 'medium'}
                                     onValueChange={(v: any) => setFormData({ ...formData, importance: v })}
                                 >
-                                    <SelectTrigger className="h-10">
+                                    <SelectTrigger size="lg" >
                                         <SelectValue placeholder="Select importance" />
                                     </SelectTrigger>
                                     <SelectContent>

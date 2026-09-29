@@ -29,21 +29,26 @@ const buttonVariants = cva(
         outline: TERTIARY_BUTTON_CLASSES,
         secondary: TERTIARY_BUTTON_CLASSES,
         ghost: "text-brand hover:bg-muted",
-        link: "text-brand underline-offset-4 hover:underline h-auto px-0",
+        link: "text-brand underline-offset-4 hover:underline",
         // Alias of tertiary — not in the rulebook's own variant set, kept
         // because CompletenessMock.tsx (outside this change's scope) still
         // references it.
         quiet: TERTIARY_BUTTON_CLASSES,
         accent: "bg-brand text-brand-foreground hover:brightness-110 border-transparent",
       },
+      // Heights come ONLY from the control scale (globals.css `.ctl-*`); the
+      // coarse-pointer hit area is added by the same class, never by a taller
+      // visual. A call site picks a size, it never writes h-* / py-*.
       size: {
-        default: "h-8 px-3",
-        xs: "h-8 px-2",
-        sm: "h-8 px-3",
-        lg: "h-11 px-4 [&_svg]:size-5",
-        accent: "h-12 sm:h-[52px] px-7 sm:px-8 rounded-pill text-sm sm:text-base font-semibold",
-        icon: "size-8",
-        "icon-lg": "size-10 [&_svg]:size-5",
+        default: "ctl-md px-3",
+        xs: "ctl-md px-2",
+        sm: "ctl-md px-3",
+        lg: "ctl-lg px-4 [&_svg]:size-5",
+        // Inline text link: sized by its text, the coarse-pointer ::before still grows the hit area.
+        link: "h-auto px-0", // control-scale-allow: inline text link, no box
+        "icon-sm": "ctl-sm ctl-square",
+        icon: "ctl-md ctl-square",
+        "icon-lg": "ctl-lg ctl-square [&_svg]:size-5",
       },
     },
     defaultVariants: {
