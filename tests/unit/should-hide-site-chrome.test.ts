@@ -54,5 +54,6 @@ test("TopBar filters desktop /connect on lean surfaces and when signed out", () 
   const src = readFileSync(TOPBAR, "utf8");
   assert.match(src, /isLeanProductSurface\(pathname\)/);
   assert.match(src, /leanSurface/);
-  assert.match(src, /authChrome !== "authenticated"/);
+  // e8aa53a1 turned the /connect filter into an allow predicate (same rule, positive form).
+  assert.match(src, /return !leanSurface && authChrome === "authenticated";/);
 });

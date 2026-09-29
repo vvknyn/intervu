@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(__dirname, "../../src/components/jobs/for-you");
-const PAGE = join(__dirname, "../../src/app/jobs/page.tsx");
+const PAGE = join(__dirname, "../../src/app/jobs/JobsContent.tsx");
 
 function source(name: string): string {
     return readFileSync(join(ROOT, name), "utf8");
@@ -37,7 +37,10 @@ describe("for-you postcard layout", () => {
         const home = source("ForYouHome.tsx");
         assert.match(home, /data-testid="for-you-home-pending"/);
         const page = readFileSync(PAGE, "utf8");
-        assert.match(page, /className="min-h-screen"/);
+        // 7d3ecc07: only an open pack deck locks the panes (its list scrolls in
+        // its own column); the For-you home and pending state keep min-h-screen.
+        assert.match(page, /: "min-h-screen"/);
+        assert.match(page, /const deckPanesLocked = showForYouHome && \(showAdvancedSearch \|\| forYouPackDeckOpen\);/);
         assert.doesNotMatch(
             page,
             /showSearchHome[\s\S]*100dvh-var\(--topbar-h\)/,

@@ -6,6 +6,7 @@
     "lib/llm/batch-manager.ts",
     "lib/llm/cache.ts",
     "lib/llm/usage-tracker.ts",
+    "lib/local-ai/empty-node-builtin.ts",
     "lib/mock-ai.ts",
     "lib/resume-diff.ts",
     "lib/resume/apply-recommendations.ts",

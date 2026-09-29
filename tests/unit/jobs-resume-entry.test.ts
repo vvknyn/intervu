@@ -57,7 +57,7 @@ describe('needsResumeReplace', () => {
 
 describe('local-ai guest banner replace entry', () => {
     it('banner wires Replace résumé through handleUploadClick', () => {
-        const page = readFileSync(join(__dirname, '../../src/app/jobs/page.tsx'), 'utf8');
+        const page = readFileSync(join(__dirname, '../../src/app/jobs/JobsContent.tsx'), 'utf8');
         const bannerStart = page.indexOf('data-testid="local-ai-guest-banner"');
         const bannerEnd = page.indexOf('data-testid="guest-save-banner"', bannerStart);
         const banner = page.slice(bannerStart, bannerEnd > bannerStart ? bannerEnd : bannerStart + 900);

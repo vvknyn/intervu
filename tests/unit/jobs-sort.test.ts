@@ -217,7 +217,7 @@ describe('sortOptionLabel', () => {
         // Regression guard for the actual defect: the mobile ToolbarSegment
         // tabs used to carry their own hand-typed lowercase copies
         // ('freshest', 'top pay') instead of importing this function.
-        const pageSrc = readFileSync(path.join(__dirname, '../../src/app/jobs/page.tsx'), 'utf8');
+        const pageSrc = readFileSync(path.join(__dirname, '../../src/app/jobs/JobsContent.tsx'), 'utf8');
         assert.match(pageSrc, /import\s*\{[^}]*\bsortOptionLabel\b[^}]*\}\s*from\s*["']@\/lib\/jobs\/sort["']/);
         const sortOptionLabelCallSites = pageSrc.match(/sortOptionLabel\(/g) ?? [];
         assert.ok(sortOptionLabelCallSites.length >= 5, `expected sortOptionLabel used at every desktop + mobile call site, found ${sortOptionLabelCallSites.length}`);

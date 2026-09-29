@@ -10,7 +10,7 @@ import { pickExceptionJit, shouldShowRelistJit } from "../../src/lib/jobs/should
 import { tourSteps } from "../../src/components/tour/tour-steps";
 import { NAV_TABS } from "../../src/components/layout/nav-tabs";
 
-const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx");
+const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "JobsContent.tsx");
 const JOBS_ACTIONS = join(__dirname, "..", "..", "src", "actions", "jobs.ts");
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
 const FOOTER = join(__dirname, "..", "..", "src", "components", "layout", "Footer.tsx");
@@ -18,6 +18,7 @@ const TABS = join(__dirname, "..", "..", "src", "components", "ui", "tabs.tsx");
 const MOBILE_TABBAR = join(__dirname, "..", "..", "src", "components", "layout", "MobileTabBar.tsx");
 const JOBCARD = join(__dirname, "..", "..", "src", "components", "jobs", "JobCard.tsx");
 const YOURS_PAGE = join(__dirname, "..", "..", "src", "app", "yours", "page.tsx");
+const SPLASH = join(__dirname, "..", "..", "src", "components", "jobs", "JobsListSplash.tsx");
 
 describe("jobs USP copy: single source for tour and landing", () => {
     it("exports the five marketing claims", () => {
@@ -310,21 +311,22 @@ describe("jobs page chrome guards", () => {
         // h1 (or null at rest on the non-advanced branch). At most one h1
         // mounts — guarded by mutually exclusive ternary arms, not two heroes.
         const src = readFileSync(PAGE, "utf8");
-        const advancedGate = src.indexOf("{showSearchHome && showAdvancedSearch && !showLandingOnboarding ? (");
+        const advancedGate = src.indexOf("{showSearchHome && !showLandingOnboarding ? ("); // #652 (f6a8e9cc) dropped showAdvancedSearch
         assert.notStrictEqual(advancedGate, -1, "advanced-search masthead gate moved — update this test");
         const atRestMasthead = src.indexOf("{atRest ? (", advancedGate);
         assert.notStrictEqual(atRestMasthead, -1, "at-rest masthead ternary moved — update this test");
-        const visibleH1 = src.indexOf('<h1 className="text-xl font-semibold text-foreground">', atRestMasthead);
+        // a0e046d7: the visible masthead h1 is the shared <PageTitle> (heading.tsx renders <h1>).
+        const visibleH1 = src.indexOf("<PageTitle>", atRestMasthead);
         assert.notStrictEqual(visibleH1, -1, "visible masthead h1 moved — update this test");
         const srOnlyH1 = '<h1 className="sr-only">Jobs</h1>';
         assert.ok((src.match(new RegExp(srOnlyH1.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length >= 2);
-        const h1Count = (src.match(/<h1[\s>]/g) || []).length;
+        const h1Count = (src.match(/<(h1|PageTitle)[\s>]/g) || []).length;
         assert.equal(h1Count, 3, "visible masthead h1 + two sr-only fallback literals");
     });
 
     it("loading splash copy uses readable status text size", () => {
-        const src = readFileSync(PAGE, "utf8");
-        const splash = src.slice(src.indexOf("function JobsListSplash"), src.indexOf("/* ----------------------------- results mode"));
+        // acb97835 extracted the splash to components/jobs/JobsListSplash.tsx.
+        const splash = readFileSync(SPLASH, "utf8");
         assert.match(splash, /Finding live roles/);
         assert.doesNotMatch(splash, /text-\[11px\]/);
     });
@@ -399,7 +401,7 @@ describe("jobs page chrome guards", () => {
         // end of the results list, asserted absent from this branch
         // elsewhere).
         const src = readFileSync(PAGE, "utf8");
-        const advancedGate = src.indexOf("{showSearchHome && showAdvancedSearch && !showLandingOnboarding ? (");
+        const advancedGate = src.indexOf("{showSearchHome && !showLandingOnboarding ? ("); // #652 (f6a8e9cc) dropped showAdvancedSearch
         assert.notStrictEqual(advancedGate, -1);
         const atRestMasthead = src.indexOf("{atRest ? (", advancedGate);
         assert.notStrictEqual(atRestMasthead, -1);

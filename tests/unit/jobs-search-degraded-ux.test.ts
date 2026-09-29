@@ -12,7 +12,7 @@ import {
 } from "../../src/lib/jobs/result-state";
 import { shouldShowSearchAlertCapture } from "../../src/lib/jobs/search-alert-capture";
 
-const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx");
+const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "JobsContent.tsx");
 
 describe("jobs search degraded UX helpers", () => {
   it("flags operator setup notes", () => {

@@ -33,14 +33,14 @@ test("jobsTabHelperCopy shows Add-résumé helper only when résumé is confirme
 });
 
 test("jobs page imports shared résumé CTA copy and tracks resumeOnFile", () => {
-    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
     assert.match(pageSrc, /from "@\/lib\/jobs\/resume-cta-copy"/);
     assert.match(pageSrc, /RESUME_UPLOAD_PROMISE/);
     assert.match(pageSrc, /\bresumeOnFile\b/);
 });
 
 test("inline Search button uses rounded-pill, not rounded-ctl", () => {
-    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
     const searchButtonBlock =
         pageSrc.match(
             /onClick=\{\(\) => submitSearch\(queryDraft\)\}[\s\S]*?<\/Button>/,
@@ -60,7 +60,8 @@ test("rank secondary copy matches contract", () => {
 test("front door card subcopy matches contract", () => {
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
-        "Upload one résumé to see your top 3 matches and why. A free account unlocks every match, customize, and tailored PDFs.",
+        // 4ac07706 (signed-out résumé privacy claims) added "It stays in this browser".
+        "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.",
     );
 });
 

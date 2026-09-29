@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 const ROOT = join(__dirname, "../../src");
 const OWNER = join(ROOT, "app/globals.css");
-const PAGE = join(ROOT, "app/jobs/page.tsx");
+const PAGE = join(ROOT, "app/jobs/JobsContent.tsx");
 const DECLARATION = /--list-inset\s*:\s*[\d.]+/;
 const USAGE = /var\(--list-inset\)/g;
 
@@ -90,9 +90,8 @@ describe("/jobs list inset — single source of truth", () => {
     });
 
     it("JobsListSplash's loading line and skeleton rows read var(--list-inset), not flush", () => {
-        const page = readFileSync(PAGE, "utf8");
-        const fn = page.match(/function JobsListSplash\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
-        assert.ok(fn.length > 0, "JobsListSplash function not found");
+        // acb97835 extracted the splash to components/jobs/JobsListSplash.tsx.
+        const fn = readFileSync(join(ROOT, "components/jobs/JobsListSplash.tsx"), "utf8");
         assert.match(fn, /var\(--list-inset\)/, "JobsListSplash must read var(--list-inset), not restate px-4");
     });
 
@@ -102,11 +101,14 @@ describe("/jobs list inset — single source of truth", () => {
         const fnEnd = page.indexOf("function ListTail(", fnStart);
         assert.ok(fnStart >= 0 && fnEnd > fnStart, "EmptyResults function not found");
         const fn = page.slice(fnStart, fnEnd);
+        // 13afd60c routes the root through the shared `posterListInsetClassName`
+        // (route-loading.tsx), whose class reads the one --list-inset token.
         assert.match(
             fn,
-            /className="px-\[var\(--list-inset\)\] py-8 text-left"/,
-            "EmptyResults root must pad with var(--list-inset)",
+            /<div className=\{posterListInsetClassName\} data-testid="search-empty-results">/,
+            "EmptyResults root must pad with the shared list inset class",
         );
+        assert.match(readFileSync(OWNER, "utf8"), /\.poster-list-inset-x \{\s*padding-inline: var\(--list-inset\);/);
     });
 
     it("liveCountEl footer wrapper reads var(--list-inset), not flush", () => {

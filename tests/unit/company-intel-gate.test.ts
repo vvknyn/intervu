@@ -77,7 +77,7 @@ describe("CompanyIntelGate: locked overlay for unsigned-out visitors", () => {
     // The frame says what's behind it by name, not just "hiring intel".
     assert.match(html, /funding, tech stack, and news for Acme/);
     // A bordered panel card, distinguished from the surrounding hidden content.
-    assert.match(html, /rounded-panel border border-border bg-card/);
+    assert.match(html, /rounded-panel border border-border bg-surface/);
     assert.match(html, /Followers only/);
   });
 
@@ -124,7 +124,7 @@ describe("CompanyIntelGate: rail overrides (testId, description, showFollowButto
     const html = renderRailGate();
     assert.match(html, /The hiring record and list health for Acme/);
     assert.match(html, /Followers only/);
-    assert.match(html, /rounded-panel border border-border bg-card/);
+    assert.match(html, /rounded-panel border border-border bg-surface/);
     assert.doesNotMatch(html, /data-testid="follow-company"/);
   });
 
@@ -170,7 +170,7 @@ describe("CompanyIntelGate: fallback prop", () => {
     const html = renderLockedGateWithFallback(undefined);
     assert.match(html, /data-testid="company-intel-gate"/);
     assert.match(html, /Follow this company to see its hiring history/);
-    assert.match(html, /rounded-panel border border-border bg-card/);
+    assert.match(html, /rounded-panel border border-border bg-surface/);
   });
 
   // `unlocked` comes from account/session state that only resolves in a
