@@ -119,11 +119,12 @@ export function formatEta(seconds: number): string {
     return `about ${Math.round(seconds / 60)} min left`;
 }
 
-/** The size sentence for a download in flight, e.g. "212 MB of 494 MB · about 40 s left". */
+/** The size sentence for a download in flight, e.g. "212 MB of 494 MB (43%) · about 40 s left". */
 export function describeModelLoad(view: ModelLoadView): string {
     const parts: string[] = [];
     if (view.loadedBytes !== null && view.totalBytes !== null) {
-        parts.push(`${formatBytes(Math.min(view.loadedBytes, view.totalBytes))} of ${formatBytes(view.totalBytes)}`);
+        const percent = view.fraction !== null ? ` (${Math.round(view.fraction * 100)}%)` : "";
+        parts.push(`${formatBytes(Math.min(view.loadedBytes, view.totalBytes))} of ${formatBytes(view.totalBytes)}${percent}`);
     } else if (view.loadedBytes !== null) {
         parts.push(`${formatBytes(view.loadedBytes)} downloaded (total size unknown)`);
     } else if (view.fraction !== null) {
@@ -134,4 +135,15 @@ export function describeModelLoad(view: ModelLoadView): string {
     }
     if (view.etaSeconds !== null) parts.push(formatEta(view.etaSeconds));
     return parts.join(" · ");
+}
+
+/**
+ * Consent copy for what enabling the model will download: the best available
+ * engine's measured size, or why there is none. Empty when no model engine is
+ * available (rules only — nothing downloads).
+ */
+export function downloadSizeLine(best: { id: LocalAiEngineId; bytes: number | null }): string {
+    if (best.id === "heuristic") return "";
+    const size = best.bytes !== null ? `The model is about ${formatBytes(best.bytes)}.` : "Chrome manages this model's download, so its size isn't shown here.";
+    return `${size} It's a one-time download, cached for next time.`;
 }

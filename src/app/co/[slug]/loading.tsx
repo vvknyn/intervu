@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { WaitBar } from "@/components/ui/wait-state";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /**
  * Instant loading state for a company page.

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import {  } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import type { User } from "@/lib/firebase/client-auth";
 import { UserAvatar } from "@/components/ui/user-avatar";

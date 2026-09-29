@@ -817,7 +817,7 @@ h4 {
    flat pulse; the site-wide `prefers-reduced-motion` rule below still
    collapses the animation, so no separate opt-out is needed here. */
 .skeleton-bar {
-  /* Same look as the Skeleton primitive (src/components/ui/skeleton.tsx):
+  /* Painted only by `WaitBar` (src/components/ui/wait-state.tsx):
      flat layer block that pulses. Rulebook v2: no shimmer gradient, no
      radius, no depth — a placeholder is a quiet rectangle. */
   @apply bg-muted animate-pulse rounded-none;

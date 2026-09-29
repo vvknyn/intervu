@@ -12,7 +12,6 @@ import { Anchor as PopoverAnchor } from "@radix-ui/react-popover";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { addGuestFollow, removeGuestFollow } from "@/lib/follows/guest-store";
 import { invalidateFollowsCache, useFollows } from "@/lib/follows/use-follows";
-import {  } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 

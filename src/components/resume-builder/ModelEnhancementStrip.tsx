@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { WaitProgressBar } from "@/components/ui/wait-state";
+import { InlineSpinner } from "@/components/ui/wait-state";
+import { ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
 import { getModelLoadState, subscribeModelLoad } from "@/lib/local-ai/ladder";
-import { describeModelLoad, modelLoadView } from "@/lib/local-ai/model-load";
 
 /**
  * Where the background model upgrade stands. The quick (rules) parse is already
- * on screen; this strip reports the model's real progress — bytes from the
- * download, or a cached-load label — and offers the way out.
+ * on screen; this strip reports the model's real progress and offers the way out.
  */
 export type EnhancementPhase = "loading" | "skipped" | "unimproved" | "improved-pending";
 
@@ -19,21 +18,8 @@ interface Props {
     onUseImproved: () => void;
 }
 
-/** A 1 s clock while the download is live, so the ETA re-derives from real elapsed time. */
-function useNow(active: boolean): number {
-    const [now, setNow] = useState(() => Date.now());
-    useEffect(() => {
-        if (!active) return;
-        const id = setInterval(() => setNow(Date.now()), 1_000);
-        return () => clearInterval(id);
-    }, [active]);
-    return now;
-}
-
 export function ModelEnhancementStrip({ phase, onSkip, onUseImproved }: Props) {
-    const state = useSyncExternalStore(subscribeModelLoad, getModelLoadState, getModelLoadState);
-    const now = useNow(phase === "loading" && state.phase === "loading");
-    const view = modelLoadView(state, now);
+    const load = useSyncExternalStore(subscribeModelLoad, getModelLoadState, getModelLoadState);
 
     if (phase === "improved-pending") {
         return (
@@ -49,48 +35,36 @@ export function ModelEnhancementStrip({ phase, onSkip, onUseImproved }: Props) {
     }
 
     if (phase === "skipped" || phase === "unimproved") {
-        const keepsDownloading = phase === "skipped" && view !== null && !view.cached;
+        const downloading = phase === "skipped" && load.phase === "loading" && !load.cached;
         return (
             <p className="px-6 text-xs text-muted-foreground" data-testid="resume-model-strip" data-phase={phase}>
                 {phase === "skipped" ? "Skipped — keeping the quick match." : "The on-device model couldn't improve this parse — keeping the quick match."}
-                {keepsDownloading ? " The download finishes in the background so it's cached for next time." : ""}
+                {downloading ? " The download finishes in the background so it's cached for next time." : ""}
             </p>
         );
     }
 
-    const reading = state.phase === "ready";
-    const title = reading
-        ? "Model loaded — reading your résumé with it"
-        : view === null
-          ? "Preparing the on-device model"
-          : view.cached
-            ? "Loading cached model"
-            : "Downloading the on-device model";
-    const detail = view ? describeModelLoad(view) : "";
-
+    // "loading" — a download/cache load in flight, then the model reading the résumé.
+    const stage = load.phase === "loading" ? "loading-model" : load.phase === "ready" ? "reading" : "preparing";
     return (
-        <div className="px-6" data-testid="resume-model-strip" data-phase={phase}>
+        <div className="px-6" data-testid="resume-model-strip" data-phase={phase} data-stage={stage}>
             <div className="space-y-2 rounded-panel border border-border bg-surface-2 p-3">
-                <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-sm font-semibold text-foreground">{title}</p>
-                    {detail && !view?.cached ? (
-                        <p className="text-xs tabular-nums text-muted-foreground" data-testid="resume-model-progress-text">
-                            {detail}
-                        </p>
-                    ) : null}
-                </div>
-                <WaitProgressBar fraction={reading ? null : (view?.fraction ?? null)} label={title} />
-                <p className="text-xs text-muted-foreground">
-                    {view && !view.cached
-                        ? "One-time download, cached for next time. Your quick match is ready to edit meanwhile."
-                        : "Your quick match is ready to edit meanwhile."}
-                </p>
+                {stage === "loading-model" ? (
+                    <ModelLoadProgress />
+                ) : (
+                    <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <InlineSpinner />
+                        {stage === "reading" ? "Reading your résumé with the on-device model" : "Checking this device for an on-device model"}
+                    </p>
+                )}
+                <p className="text-xs text-muted-foreground">Your quick match is ready to edit meanwhile.</p>
                 <Button
                     type="button"
                     variant="link"
+                    size="link"
                     onClick={onSkip}
                     data-testid="resume-model-skip"
-                    className="h-auto min-h-11 justify-start px-0 py-2 text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    className="text-xs text-muted-foreground underline hover:text-foreground"
                 >
                     Skip — use quick match
                 </Button>

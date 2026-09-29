@@ -1,6 +1,5 @@
 "use client";
 
-import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
 import { cn } from "@/lib/utils";
 import { WaitBar } from "@/components/ui/wait-state";
 
@@ -23,42 +22,36 @@ const PAPER_SLOT_CLASS: Record<DeckSkeletonTone, string> = {
 /** Shared deck/hub footprint — poster ground; paper slot only where the live pack sits. */
 export function ForYouDeckSkeleton({
     tone = "postcard",
-    withStatus = false,
     statusLabel,
     statusProminent = false,
 }: {
     tone?: DeckSkeletonTone;
-    withStatus?: boolean;
-    /** Visible status line (session pending). When set, replaces rotating deck copy. */
+    /** Visible status line (session pending). */
     statusLabel?: string;
     /** Session gate — body-sm + live indicator (label text unchanged for a11y). */
     statusProminent?: boolean;
 }) {
     return (
         <div className="space-y-3">
-            {withStatus || statusLabel ? (
-                statusLabel ? (
-                    statusProminent ? (
-                        <p
-                            className="flex items-center gap-2 px-1 text-body-sm font-semibold text-foreground"
-                            data-testid="jobs-session-loading-status"
-                        >
-                            <span
-                                className="size-1.5 shrink-0 rounded-pill bg-live instrument-breathe"
-                                aria-hidden
-                            />
-                            <span>{statusLabel}</span>
-                        </p>
-                    ) : (
-                        <p
-                            className="px-1 text-xs font-semibold text-muted-foreground"
-                            data-testid="jobs-session-loading-status"
-                        >
-                            {statusLabel}
-                        </p>
-                    )
+            {statusLabel ? (
+                statusProminent ? (
+                    <p
+                        className="flex items-center gap-2 px-1 text-body-sm font-semibold text-foreground"
+                        data-testid="jobs-session-loading-status"
+                    >
+                        <span
+                            className="size-1.5 shrink-0 rounded-pill bg-live instrument-breathe"
+                            aria-hidden
+                        />
+                        <span>{statusLabel}</span>
+                    </p>
                 ) : (
-                    <RotatingLoadingCopy variant="deck" className="px-1 text-xs font-semibold" />
+                    <p
+                        className="px-1 text-xs font-semibold text-muted-foreground"
+                        data-testid="jobs-session-loading-status"
+                    >
+                        {statusLabel}
+                    </p>
                 )
             ) : null}
             <div className={PAPER_SLOT_CLASS[tone]} aria-hidden>

@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {  } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import type { PursuitStage } from "@/lib/pursuits/types";
 import { TRACKER_LANE_STAGES, TRACKER_SHEET_BOTTOM } from "@/lib/pursuits/tracker-display";

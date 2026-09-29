@@ -1,20 +1,7 @@
-import { useId } from "react";
-import {  } from "@phosphor-icons/react";
-import { InlineSpinner } from "@/components/ui/wait-state";
+import { WaitState } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 
-/** Labeled loading row for settings cards (P1-8 — not bare "Loading…"). */
+/** Labeled loading row for settings cards (P1-8 — not bare "Loading…"), on the shared wait ladder. */
 export function SettingsSectionLoading({ label, className }: { label: string; className?: string }) {
-    const labelId = useId();
-    return (
-        <div
-            className={cn("flex items-center gap-2 py-2 text-sm text-muted-foreground", className)}
-            role="status"
-            aria-busy="true"
-            aria-labelledby={labelId}
-        >
-            <InlineSpinner size={16} className="shrink-0" />
-            <span id={labelId}>{label}</span>
-        </div>
-    );
+    return <WaitState label={label} className={cn("py-2", className)} />;
 }

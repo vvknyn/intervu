@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+// wait-state-ok: the primitive imports its own spinner glyph
 import { CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import {

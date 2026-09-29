@@ -1,5 +1,6 @@
 "use client";
 
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowsClockwise, Warning } from "@phosphor-icons/react";
 import { fetchAdminMetrics } from "@/actions/admin-metrics";
@@ -100,7 +101,7 @@ export function MetricsDashboard() {
                     )}
                 </h3>
                 <Button variant="outline" size="sm" className="gap-2" onClick={refresh} disabled={isLoading}>
-                    <ArrowsClockwise className={isLoading ? "animate-spin" : undefined} />
+                    {isLoading ? <InlineSpinner /> : <ArrowsClockwise />}
                     Refresh
                 </Button>
             </div>

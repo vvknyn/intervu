@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { UploadSimple } from "@phosphor-icons/react";
-import { InlineSpinner, WaitBar } from "@/components/ui/wait-state";
+import { InlineSpinner, WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
 import {
@@ -12,7 +12,6 @@ import {
 } from "@/components/layout/jobs-session-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
-import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { searchJobsAction } from "@/actions/jobs";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
@@ -462,10 +461,12 @@ export function ForYouHome({
             ) : null}
 
             {showLoading ? (
-                <div data-testid="for-you-loading" className="state-opacity-in space-y-3">
-                    <RotatingLoadingCopy variant="deck" className="px-1 text-xs font-semibold" />
-                    <RankedListSkeleton />
-                </div>
+                <WaitState
+                    data-testid="for-you-loading"
+                    className="state-opacity-in"
+                    label="Loading your ranked roles"
+                    skeleton={<RankedListSkeleton />}
+                />
             ) : visiblePacks.length === 0 && loadError ? (
                 <LoadFailedState
                     title="We can't load your matches right now."

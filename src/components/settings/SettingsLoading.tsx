@@ -1,3 +1,4 @@
+import { WaitState } from "@/components/ui/wait-state";
 import { PageLayout } from "@/components/layout/PageLayout";
 
 /**
@@ -8,23 +9,14 @@ import { PageLayout } from "@/components/layout/PageLayout";
  * single markup either site imports, so there is nothing left to drift
  * between them.
  */
-const SETTINGS_LOADING_LABEL_ID = "settings-page-loading-label";
-
 export function SettingsLoading() {
     return (
         <PageLayout fullWidth>
             <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-8">
-                <div
-                    className="flex flex-col items-center justify-center gap-3 rounded-panel border border-border bg-surface p-10 text-muted-foreground shadow-[var(--shadow-bevel-highlight)]"
-                    role="status"
-                    aria-busy="true"
-                    aria-labelledby={SETTINGS_LOADING_LABEL_ID}
-                >
-                    <div className="h-5 w-5 animate-spin rounded-pill border-2 border-live border-t-transparent" aria-hidden />
-                    <p id={SETTINGS_LOADING_LABEL_ID} className="text-sm">
-                        Loading account…
-                    </p>
-                </div>
+                <WaitState
+                    label="Loading account"
+                    className="flex min-h-40 flex-col items-center justify-center rounded-panel border border-border bg-surface p-10 shadow-[var(--shadow-bevel-highlight)]"
+                />
             </div>
         </PageLayout>
     );

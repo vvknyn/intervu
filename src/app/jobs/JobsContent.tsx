@@ -709,7 +709,7 @@ function DeadJobUnresolved({
     return (
         <div className="flex flex-col items-center justify-center rounded-panel border border-dashed border-border bg-surface px-6 py-16 text-center">
             {checking ? (
-                <span className="mb-3 h-5 w-5 animate-spin rounded-pill border-2 border-brand border-t-brand" />
+                <InlineSpinner size={24} className="mb-3 text-brand" />
             ) : (
                 <MagnifyingGlass size={24} className="mb-3 text-muted-foreground" />
             )}

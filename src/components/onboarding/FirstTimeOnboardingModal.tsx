@@ -1,5 +1,6 @@
 "use client";
 
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { useState, useRef, useEffect } from "react";
 import {
     Sparkle,
@@ -220,13 +221,13 @@ export function FirstTimeOnboardingModal({
                         {/* Background Pre-warm Card */}
                         <div className="flex items-center justify-between rounded-ctl border border-border bg-card p-3 text-xs">
                             <div className="flex items-center gap-2.5">
-                                <Cpu size={16} className={cn("text-brand", !modelReady && "animate-spin")} />
+                                {modelReady ? <Cpu size={16} className="text-brand" /> : <InlineSpinner size={16} className="text-brand" />}
                                 <span className="font-normal text-foreground">
                                     {modelReady ? "Private assistant ready" : "Preparing your private assistant…"}
                                 </span>
                             </div>
                             <span className="text-xs text-muted-foreground">
-                                {modelReady ? "Ready ✓" : "Takes a few seconds"}
+                                {modelReady ? "Ready ✓" : ""}
                             </span>
                         </div>
 
@@ -355,7 +356,7 @@ export function FirstTimeOnboardingModal({
                             />
                             {uploading ? (
                                 <div className="space-y-2 py-2">
-                                    <Cpu size={24} className="mx-auto animate-spin text-brand" />
+                                    <InlineSpinner size={24} className="mx-auto text-brand" />
                                     <p className="text-xs font-semibold text-foreground">Reading résumé privately on your computer…</p>
                                 </div>
                             ) : uploadedFile ? (

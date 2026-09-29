@@ -19,6 +19,8 @@ import {
 import { readLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
+import { ModelDownloadSize, ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
+import { WaitState } from "@/components/ui/wait-state";
 import { writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
@@ -122,6 +124,9 @@ export function LocalCustomizePanel({
 
     const handleEnableAi = useCallback(async () => {
         grantLocalAiConsent();
+        // Leave the consent card at once: the wait below shows the model's real download progress.
+        setConsentNeeded(false);
+        setLoading(true);
         await initLocalAiLadder();
         void runGenerate(true);
     }, [runGenerate]);
@@ -231,8 +236,8 @@ export function LocalCustomizePanel({
                                         leaves this device until you copy or download.
                                     </p>
                                     <p className="text-sm text-muted-foreground">
-                                        Enable downloads a small local model. You can also use a rules-based draft
-                                        without enabling.
+                                        Enabling downloads an on-device model.<ModelDownloadSize /> You can also use a
+                                        rules-based draft without enabling.
                                     </p>
                                     <div className="flex flex-wrap gap-2">
                                         <Button
@@ -258,7 +263,10 @@ export function LocalCustomizePanel({
                             )}
 
                             {loading && !draft && !consentNeeded && (
-                                <p className="text-sm text-muted-foreground">Tailoring on-device…</p>
+                                <div className="space-y-3">
+                                    <ModelLoadProgress />
+                                    <WaitState label="Tailoring on-device" />
+                                </div>
                             )}
 
                             {draft && (

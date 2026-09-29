@@ -21,7 +21,7 @@ import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent"
 import { parseResumeLocally, type LocalParseResult } from "@/lib/local-ai/parse-resume";
 import { ModelEnhancementStrip, type EnhancementPhase } from "./ModelEnhancementStrip";
 import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
-import { formatBytes } from "@/lib/local-ai/model-load";
+import { ModelDownloadSize } from "@/components/local-ai/ModelLoadProgress";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
 import { RESUME_IMPORT_PARSE_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resume/profile-review-parse";
@@ -30,7 +30,7 @@ import {
     LOCAL_PARSE_ACCEPT_MIN,
     scoreLocalParseConfidence,
 } from "@/lib/local-ai/parse-confidence";
-import { initLocalAiLadder, probeBestDownload } from "@/lib/local-ai/ladder";
+import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Warning, Cpu } from "@phosphor-icons/react";
 import { captureEvent } from "@/lib/analytics/events";
 import {
@@ -135,12 +135,10 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const [improved, setImproved] = useState<LocalParseResult | null>(null);
     const enhancementRun = useRef(0);
     const skipEnhancement = useRef<(() => void) | null>(null);
-    const [downloadBytes, setDownloadBytes] = useState<number | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
         setLocalAiConsent(readLocalAiConsent());
-        void probeBestDownload().then((best) => setDownloadBytes(best.bytes));
         captureEvent(
             "resume_gate_shown",
             buildResumeFunnelPayload({
@@ -465,11 +463,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                     To read your résumé, Velai downloads an AI model to this browser once and runs it here.
-                    {localAiConsent
-                        ? null
-                        : downloadBytes !== null
-                          ? ` The model is about ${formatBytes(downloadBytes)}. It's a one-time download, cached for next time.`
-                          : " Chrome manages this model's download, so its size isn't shown here. It's a one-time download, cached for next time."}
+                    {localAiConsent ? null : <ModelDownloadSize />}
                 </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                     {RESUME_IMPORT_PARSE_LINE} {storageNote}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ContactForm } from "@/components/contact/ContactForm";
-import { RouteSuspenseFallback } from "@/components/ui/route-suspense-fallback";
+import { WaitState } from "@/components/ui/wait-state";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 
@@ -24,7 +24,7 @@ export default function ContactPage() {
         </p>
       </header>
 
-      <Suspense fallback={<RouteSuspenseFallback label="Loading contact form" />}>
+      <Suspense fallback={<WaitState label="Loading contact form" fill className="bg-background" />}>
         <ContactForm />
       </Suspense>
 

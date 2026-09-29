@@ -1,5 +1,6 @@
 "use client";
 
+import { WaitBar } from "@/components/ui/wait-state";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Bell } from "@phosphor-icons/react";
@@ -89,11 +90,7 @@ export function FollowAlertsBell() {
 
   if (loading) {
     return (
-      <div
-        data-testid="topbar-follow-alerts-skeleton"
-        aria-hidden
-        className="skeleton-bar h-8 w-8 shrink-0"
-      />
+      <WaitBar data-testid="topbar-follow-alerts-skeleton" aria-hidden className="h-8 w-8 shrink-0" />
     );
   }
 
