@@ -118,7 +118,7 @@ const FAKE_DIRECTORY_DOMAINS = ["acme.com", "beta.io", "gamma.dev"];
  *  without this file being updated to match, rather than the assertion below
  *  quietly passing for the wrong reason. 11 since #464 (49691ace) added
  *  /eluta-alternative. */
-const STATIC_SITEMAP_ENTRY_COUNT = 11;
+const STATIC_SITEMAP_ENTRY_COUNT = 12;
 
 /** `company_directory` `/search` reply publishing every fake domain with
  *  enough open roles to clear the gate. */

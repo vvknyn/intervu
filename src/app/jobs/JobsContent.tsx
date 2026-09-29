@@ -2616,6 +2616,8 @@ export function JobsContent({
                         }, retryDelayMs());
                     } else {
                         setSearchError(SEARCH_UNAVAILABLE_MESSAGE);
+                        // Settled, failed: an open pack shows the error and Retry, not its loading state.
+                        setSettledSearchKey(searchKey);
                         // A thrown transport error is not an unconfigured backend
                         // or a successful empty result. Preserve prior data (if
                         // any) and let the explicit error state own first load.
