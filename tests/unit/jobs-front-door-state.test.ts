@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isAtRest, showsFrontDoorBand } from "../../src/lib/jobs/front-door-state";
+import { hubGreeting, isAtRest, showsFrontDoorBand } from "../../src/lib/jobs/front-door-state";
 
 describe("isAtRest", () => {
     it("no query, no job — at rest", () => {
@@ -65,5 +65,35 @@ describe("showsFrontDoorBand", () => {
             showsFrontDoorBand({ atRest: true, signedIn: true, resumeOnFile: null, fitActive: false }),
             false,
         );
+    });
+});
+
+describe("hubGreeting — derived from real state, never 'Welcome back'", () => {
+    const cases = [
+        { signedIn: false, userName: null, hasResume: false },
+        { signedIn: false, userName: null, hasResume: true },
+        { signedIn: true, userName: "Priya Raman", hasResume: true },
+        { signedIn: true, userName: null, hasResume: false },
+        { signedIn: true, userName: "  ", hasResume: false },
+    ];
+    for (const c of cases) {
+        it(`never claims a prior visit (${JSON.stringify(c)})`, () => {
+            assert.doesNotMatch(hubGreeting(c).title, /back/i);
+        });
+    }
+
+    it("a signed-out visitor is not greeted as an account holder", () => {
+        assert.equal(hubGreeting({ signedIn: false, userName: "Stale Name", hasResume: true }).title, "Your matches");
+        assert.equal(hubGreeting({ signedIn: false, hasResume: false }).title, "Job packs");
+    });
+
+    it("a signed-in user is greeted by first name, or plainly without one", () => {
+        assert.equal(hubGreeting({ signedIn: true, userName: "Marcus Oyelaran", hasResume: false }).title, "Welcome, Marcus");
+        assert.equal(hubGreeting({ signedIn: true, userName: "  ", hasResume: false }).title, "Welcome");
+    });
+
+    it("says 'ranked against your résumé' only when a résumé exists", () => {
+        assert.match(hubGreeting({ signedIn: false, hasResume: true }).subtitle, /résumé/);
+        assert.doesNotMatch(hubGreeting({ signedIn: true, userName: "A", hasResume: false }).subtitle, /résumé|background/);
     });
 });

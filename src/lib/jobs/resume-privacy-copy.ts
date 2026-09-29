@@ -32,6 +32,14 @@ export const RESUME_UPLOAD_PROMISE =
 export const RESUME_IMPORT_STORAGE_NOTE =
     "The parsed résumé stays in this browser until you sign in and sync.";
 
+const RESUME_IMPORT_ACCOUNT_STORAGE_NOTE =
+    "Your résumé and the parsed result are then saved to your account so they follow you across devices.";
+
+/** `storageNote` for a caller whose persistence depends on sign-in: account when signed in, this browser otherwise. */
+export function resumeImportStorageNote(signedIn: boolean): string {
+    return signedIn ? RESUME_IMPORT_ACCOUNT_STORAGE_NOTE : RESUME_IMPORT_STORAGE_NOTE;
+}
+
 /** Résumé import modal — parsing location (interpretation, not job-search retrieval). */
 export const RESUME_IMPORT_PARSE_LINE =
     "Résumé interpretation runs in this browser, not on our servers.";
@@ -42,7 +50,7 @@ export const AUTH_GATE_RESUME_UNLOCK_BODY =
 
 /** /jobs front-door résumé band (signed-out or no résumé on file). */
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
-    "Upload one résumé to see your top 3 matches and why. A free account unlocks every match, customize, and tailored PDFs.";
+    "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.";
 
 /** Landing onboarding — device-only storage choice helper. */
 export const LANDING_DEVICE_STORAGE_NOTE =

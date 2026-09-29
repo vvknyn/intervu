@@ -283,6 +283,7 @@ import {
     RANK_SECONDARY_COPY,
     RESUME_UPLOAD_PROMISE,
 } from "@/lib/jobs/resume-cta-copy";
+import { resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel } from "@/lib/jobs/sort";
 import {
@@ -1003,6 +1004,13 @@ export type JobsContentProps = {
     /** Open onboarding at step 2 or 3 (auth/résumé gate after OAuth return). */
     onboardingInitialStep?: 2 | 3;
 };
+
+
+/** The résumé a guest parsed in this browser, when it is usable for ranking. */
+function readUsableLocalResume() {
+    const stored = readLocalAiResume();
+    return stored && resumeIsUsable(stored.data) ? stored : null;
+}
 
 export function JobsContent({
     onboardingInitialStep,
@@ -1752,8 +1760,8 @@ export function JobsContent({
         if (user) return;
         if (!localAiGuestEnabled) return;
         if (resume && resumeIsUsable(resume)) return;
-        const stored = readLocalAiResume();
-        if (stored && resumeIsUsable(stored.data)) {
+        const stored = readUsableLocalResume();
+        if (stored) {
             setResume(stored.data);
             setResumeUpdatedAt(stored.updatedAt);
             setResumeSourceLabel(stored.sourceLabel ?? null);
@@ -1852,7 +1860,7 @@ export function JobsContent({
                 buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null }),
                 "replace",
             );
-            if (user) {
+            if (user && data.storageMode === "cloud") {
                 void saveResumeData(data.resume, "pdf", 1)
                     .then((res) => {
                         if (res.error) {
@@ -1864,12 +1872,9 @@ export function JobsContent({
                     .catch((err) => {
                         toast.error(err instanceof Error ? err.message : "Could not save résumé");
                     });
-            } else if (data.storageMode === "cloud") {
-                writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
-                setAuthTrigger("user");
-                setAuthGateReason("resume");
-                setAuthOpen(true);
             } else {
+                // Signed out, or a signed-in user who chose "keep on this device": nothing
+                // reaches the account, and no sign-up wall stands between them and matches.
                 writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
             }
             armFirstPackReveal();
@@ -2011,8 +2016,8 @@ export function JobsContent({
     // they uploaded. Only when the server has none: never overwrite a saved résumé.
     useEffect(() => {
         if (!user || resumeKnownOnServer !== false) return;
-        const stored = readLocalAiResume();
-        if (!stored || !resumeIsUsable(stored.data)) return;
+        const stored = readUsableLocalResume();
+        if (!stored) return;
         void saveResumeData(stored.data, "pdf", 1)
             .then((res) => {
                 if (res.error) return;
@@ -4763,7 +4768,9 @@ export function JobsContent({
         const qs = params.toString();
         router.replace(qs ? `${pathname}?${qs}` : pathname);
 
-        if (resumeOnFile !== false) return;
+        // A résumé parsed as a guest is carried into the account by the adoption
+        // effect above; asking for it again would contradict the gate's promise.
+        if (resumeOnFile !== false || readUsableLocalResume()) return;
         if (postAuthResumeGateHandledRef.current || importOpen) return;
         postAuthResumeGateHandledRef.current = true;
 
@@ -6257,7 +6264,7 @@ export function JobsContent({
                         {!showAdvancedSearch && !forYouPackDeckOpen ? (
                             <CategoryHubGrid
                                 userName={user?.displayName}
-                                isAuthenticated={true}
+                                isAuthenticated={Boolean(user)}
                                 hasResume={hasUsableResume}
                                 resume={resume}
                                 activeCategoryId={hubSelectedCategoryId}
@@ -7082,7 +7089,7 @@ export function JobsContent({
                     postAuthResumeGateHandledRef.current = true;
                     void hasUsableResumeOnFile()
                         .then(({ hasResume }) => {
-                            if (hasResume) return;
+                            if (hasResume || readUsableLocalResume()) return;
                             if (importOpenRef.current) return;
                             const attempt = readGateAttempt(window.sessionStorage);
                             setImportFunnelContext({
@@ -7130,7 +7137,7 @@ export function JobsContent({
                 confirmLabel="Rank my jobs"
                 title={importTitle}
                 description={RESUME_UPLOAD_PROMISE}
-                storageNote="Your résumé and the parsed result are then saved to your account so they follow you across devices."
+                storageNote={resumeImportStorageNote(Boolean(user))}
                 funnelContext={{ ...importFunnelContext, signed_in: Boolean(user) }}
             />
             <Sheet

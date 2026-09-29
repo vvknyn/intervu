@@ -39,9 +39,16 @@ export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 export const SIGNUP_SUBCOPY =
     "Get job alerts, saved searches, and an application tracker — on any device.";
 
+/**
+ * Fit and résumé sign-in cards open both before and after a guest uploads, so
+ * their copy must be true in both states: it never asks for a résumé the
+ * visitor already gave, and never claims one was read when none was.
+ */
+const RESUME_GATE_TITLE = "Create your free account to rank every job by your résumé.";
+
 /** Under the unlock line on fit and résumé sign-in cards. */
 export const AUTH_GATE_RESUME_ACCOUNT_LINE =
-    "We read your résumé in this browser. Signing in saves the structured version with your account, not the original file.";
+    "Your résumé is read in this browser. Signing in keeps the structured version with your account, not the original file, including one you already added.";
 
 const FIT_RESUME_GATE_BODY = `${AUTH_GATE_RESUME_UNLOCK_BODY}\n\n${AUTH_GATE_RESUME_ACCOUNT_LINE}`;
 
@@ -67,7 +74,7 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
         body: "Your saved jobs and application stages will sync across devices.",
     },
     fit: {
-        title: "Create your free account, then upload your résumé.",
+        title: RESUME_GATE_TITLE,
         action: "See all your ranked matches",
         actionWithCount: (count) => `See all ${count} matches ranked for you`,
         body: FIT_RESUME_GATE_BODY,
@@ -76,7 +83,7 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
         body: "Sign in to sync this tailored version across devices.",
     },
     resume: {
-        title: "Create your free account, then upload your résumé.",
+        title: RESUME_GATE_TITLE,
         body: FIT_RESUME_GATE_BODY,
     },
     tracker: {

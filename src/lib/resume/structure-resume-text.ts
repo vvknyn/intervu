@@ -17,6 +17,8 @@ import {
 } from "@/lib/resume/contact-line";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
+import { DATE_RANGE_RE } from "./resume-dates";
+import { TITLE_WORD_RE, cleanRoleTitle } from "./title-text";
 import type { ResumeCompetencyCategory, ResumeData, ResumeEducation, ResumeExperience, ResumeProfile } from "@/types/resume";
 
 export interface StructuredResumeDraft {
@@ -27,20 +29,6 @@ export interface StructuredResumeDraft {
     education: Omit<ResumeEducation, "id">[];
     generatedSummary: string;
 }
-
-const MONTH =
-    "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
-
-/** U+0027 straight apostrophe or U+2019 curly apostrophe before 2-digit year (e.g. September '21). */
-const APOSTROPHE_YEAR = "(?:['\u2019]\\d{2})";
-
-const DATE_TOKEN = `(?:${MONTH}\\.?\\s+(?:\\d{4}|${APOSTROPHE_YEAR})|\\d{1,2}\\/\\d{4}|\\d{4})`;
-
-/** Requires a range separator — bare graduation years like "2016" do not match. */
-const DATE_RANGE_RE = new RegExp(
-    `(${DATE_TOKEN})\\s*(?:-|–|—|\\s+to\\s+|\\s+-\\s+)\\s*(${DATE_TOKEN}|Present|Current|Now)`,
-    "i",
-);
 
 const BULLET_RE = /^[\s]*[•\-\*●◦▪]\s+/;
 
@@ -149,12 +137,7 @@ function looksLikeTitle(line: string): boolean {
     if (line.length < 4 || line.length > 80) return false;
     if (EMAIL_RE.test(line) || PHONE_RE.test(line)) return false;
     if (ALL_SECTION_HEADERS.has(normalizeSectionKey(line))) return false;
-    const lower = line.toLowerCase();
-    return (
-        /\b(engineer|developer|manager|designer|analyst|director|lead|architect|consultant|specialist|coordinator|administrator|scientist|product|programmer|devops|sre|customer success|operations|account|support|success|associate|partner|recruiter|people|talent)\b/i.test(
-            lower,
-        ) || /\b(senior|staff|principal|junior|head of|vp|vice president)\b/i.test(lower)
-    );
+    return TITLE_WORD_RE.test(line);
 }
 
 function looksLikeCompany(text: string): boolean {
@@ -649,13 +632,16 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     let profession = "";
     for (let i = 0; i < Math.min(lines.length, 8); i++) {
         const line = lines[i];
+        // A headline sits above the first section; past it (or on a dated line) a title-ish
+        // line is a job entry, not the candidate's headline.
+        if (isSectionHeader(line) || DATE_RANGE_RE.test(line)) break;
         if (!name && looksLikeName(line)) {
             name = line.replace(/[,|].*$/, "").trim();
             continue;
         }
         if (name && !profession && looksLikeTitle(line)) {
-            profession = line.trim();
-            break;
+            profession = cleanRoleTitle(line);
+            if (profession) break;
         }
     }
 
@@ -682,7 +668,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     const projects = parseExperienceBlock(sections.projects ?? []);
 
     if (!profession && experience.length > 0) {
-        profession = experience[0].role || profession;
+        profession = cleanRoleTitle(experience[0].role) || profession;
     }
 
     const tempExperience: ResumeExperience[] = experience.map((exp, idx) => ({

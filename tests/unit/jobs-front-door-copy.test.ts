@@ -49,6 +49,6 @@ test("FrontDoorResumeBand renders card subcopy and the sign-in value line", () =
     assert.match(band, /\{RESUME_UPLOAD_CTA\}/);
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
-        "Upload one résumé to see your top 3 matches and why. A free account unlocks every match, customize, and tailored PDFs.",
+        "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.",
     );
 });

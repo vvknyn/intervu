@@ -6,6 +6,7 @@
  */
 
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
+import { cleanRoleTitle } from "@/lib/resume/title-text";
 import type {
     ParsedResumeResult,
     ResumeConfidenceScores,
@@ -72,7 +73,7 @@ export function normalizeParsedResume(
         ? raw.experience.map((exp, idx) => ({
               id: exp.id || `exp-${idx + 1}`,
               company: exp.company || "",
-              role: exp.role || "",
+              role: cleanRoleTitle(exp.role || "") || exp.role || "",
               dates: exp.dates || "",
               description: normalizeDescription(exp.description || ""),
           }))
@@ -85,7 +86,7 @@ export function normalizeParsedResume(
     const parsed: ResumeData = {
         profile: {
             name: raw.profile?.name || "",
-            profession: raw.profile?.profession || "",
+            profession: cleanRoleTitle(raw.profile?.profession || ""),
             yearsOfExperience,
             location: raw.profile?.location || "",
             email: raw.profile?.email || "",
