@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * The viewed-jobs read path — mirrors `use-pursuits.ts`'s module-level
- * cache-with-inflight-dedup (one fetch per session, shared across every
- * mounted consumer) but deliberately drops that hook's pub-sub
- * invalidation: `job_views` has exactly one write path (`recordJobViewAction`,
- * called only from `openJob`), reflected here via `markViewed`'s optimistic
- * local state, so there's no second mutator anywhere that needs to tell
- * other mounted consumers to re-fetch.
+ * The viewed-jobs read path — the shared `createServerListCache` (one fetch
+ * per session, shared across every mounted consumer). `job_views` has
+ * exactly one write path (`recordJobViewAction`, called only from
+ * `openJob`), reflected here via `markViewed`'s optimistic local state, so
+ * no mutator invalidates this cache; the one invalidation is `retry` after
+ * a failed read.
  */
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { getJobViewsAction } from "@/actions/views";
+import { createServerListCache } from "@/lib/server-list-cache";
 import type { JobView } from "@/lib/views/types";
 import { buildViewedSet } from "@/lib/views/viewed-set";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
@@ -21,27 +21,7 @@ import {
     getRecentlyViewedServerSnapshot,
 } from "@/lib/jobs/recently-viewed";
 
-let cache: JobView[] | null = null;
-let inflight: Promise<JobView[]> | null = null;
-
-async function fetchServerViews(): Promise<JobView[]> {
-    if (cache) return cache;
-    if (!inflight) {
-        inflight = getJobViewsAction()
-            .then((res) => {
-                cache = res.data ?? [];
-                return cache;
-            })
-            .catch(() => {
-                cache = [];
-                return cache;
-            })
-            .finally(() => {
-                inflight = null;
-            });
-    }
-    return inflight;
-}
+const server = createServerListCache(getJobViewsAction);
 
 export interface UseViewedResult {
     /** Server-fetched rows, newest-first, already capped — see
@@ -51,6 +31,10 @@ export interface UseViewedResult {
      *  same `buildViewedSet` the SERP hide-viewed filter uses. */
     viewedIds: Set<string>;
     loading: boolean;
+    /** The signed-in read failed after its automatic retry — render
+     *  `LoadFailedState`, never the empty state. */
+    failed: boolean;
+    retry: () => void;
     /** Optimistic local add — `openJob` (jobs/page.tsx) calls this alongside
      *  the fire-and-forget `recordJobViewAction` so a just-opened job reads
      *  as viewed immediately, without waiting on the round trip. */
@@ -59,8 +43,9 @@ export interface UseViewedResult {
 
 export function useViewed(): UseViewedResult {
     const [user, setUser] = useState(() => getCurrentUser());
-    const [entries, setEntries] = useState<JobView[]>(() => (user ? (cache ?? []) : []));
-    const [loading, setLoading] = useState(!!user && !cache);
+    const [entries, setEntries] = useState<JobView[]>(() => (user ? (server.peek() ?? []) : []));
+    const [loading, setLoading] = useState(!!user && !server.peek());
+    const [failed, setFailed] = useState(false);
     const [optimisticIds, setOptimisticIds] = useState<Set<string>>(() => new Set());
 
     useEffect(() => onAuthChange(setUser), []);
@@ -70,17 +55,23 @@ export function useViewed(): UseViewedResult {
         if (!user) {
             setEntries([]);
             setLoading(false);
+            setFailed(false);
             return;
         }
-        setLoading(!cache);
-        fetchServerViews().then((data) => {
-            if (!cancelled) {
-                setEntries(data);
+        const refresh = () => {
+            setLoading(!server.peek());
+            server.fetch().then((res) => {
+                if (cancelled) return;
+                if (res.ok) setEntries(res.data);
+                setFailed(!res.ok);
                 setLoading(false);
-            }
-        });
+            });
+        };
+        refresh();
+        const unsubscribe = server.subscribe(refresh);
         return () => {
             cancelled = true;
+            unsubscribe();
         };
     }, [user]);
 
@@ -100,5 +91,5 @@ export function useViewed(): UseViewedResult {
         setOptimisticIds((prev) => (prev.has(jobId) ? prev : new Set(prev).add(jobId)));
     };
 
-    return { entries, viewedIds, loading, markViewed };
+    return { entries, viewedIds, loading, failed, retry: server.invalidate, markViewed };
 }

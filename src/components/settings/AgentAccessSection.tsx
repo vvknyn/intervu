@@ -92,7 +92,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
         for (let attempt = 0; attempt < 4; attempt++) {
             const res = await listAgentCredentialsAction();
             if (!res.error) {
-                setCredentials(res.data ?? []);
+                setCredentials(res.data ?? []); // load-result-allow: res.error was checked on the line above
                 setLoadStatus("ready");
                 resetSettingsLoadErrorDedup();
                 return;

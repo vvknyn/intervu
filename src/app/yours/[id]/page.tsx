@@ -32,6 +32,7 @@ import {
     type Pursuit,
 } from "@/lib/pursuits/types";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
 
 /** Resume used row (spec: "label, saved date (mono), Download button") —
  *  degrades by omission to a plain sentence when no resume was ever filed
@@ -96,7 +97,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
 export default function PursuitDetailPage() {
     const params = useParams<{ id: string }>();
     const id = Array.isArray(params.id) ? params.id[0] : params.id;
-    const { pursuits, loading } = usePursuits();
+    const { pursuits, loading, failed, retry } = usePursuits();
     const [interviewDate, setInterviewDate] = useState("");
     const [saving, setSaving] = useState(false);
     // One clock read for this page's whole lifetime. JobDetail derives relative
@@ -289,6 +290,14 @@ export default function PursuitDetailPage() {
                     <div aria-hidden className="skeleton-bar h-32 rounded-panel" />
                     <div aria-hidden className="skeleton-bar h-24 rounded-panel" />
                 </div>
+            </PageLayout>
+        );
+    }
+
+    if (!pursuit && failed) {
+        return (
+            <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
+                <LoadFailedState title="We can't load this pursuit right now." onRetry={retry} testId="pursuit-load-failed" />
             </PageLayout>
         );
     }

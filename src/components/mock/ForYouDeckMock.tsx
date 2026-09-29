@@ -108,6 +108,8 @@ function ForYouDeckMockInner() {
                 nowMs={MOCK_FOR_YOU_DECK_NOW_MS}
                 fitResolving={false}
                 loading={false}
+                loadError={null}
+                onRetryLoad={() => {}}
                 fitActive
                 hydratedJobs={hydratedJobs}
                 onActivePackChange={() => {}}

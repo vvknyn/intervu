@@ -71,6 +71,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-28 | A board search with zero results offers the same broaden options with counts, and applying one loads rows | anon | `/jobs?view=search&q=engineer&country=Iceland&exp=entry&posted=1d` | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-29 | The /jobs search row (query, location, Search) shares the lg control step (44px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
 | J-JOBS-30 | Every control in the /jobs toolbar row takes the md control step (32px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
+| J-JOBS-31 | A failed For-you ranked-list read (every Server Action answers 503) shows an error with Retry, never "No ranked roles to show right now."; Retry re-reads | Candidate with a local résumé | `/jobs?view=for-you` (guest résumé seeded in localStorage), click `hub-pack-card-all`, action POSTs fulfilled 503 in the browser | signed-out | no | covered | jobs.spec.ts |
 
 ## SRCH
 

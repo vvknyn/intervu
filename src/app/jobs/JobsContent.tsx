@@ -21,6 +21,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { posterListInsetClassName } from "@/components/layout/route-loading";
 import { Input } from "@/components/ui/input";
 import {
@@ -245,6 +246,7 @@ import {
     resolveEndOfListState,
     shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
+import { loadFailed, readWithRetry, retryDelayMs, type LoadResult } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
@@ -1153,6 +1155,7 @@ export function JobsContent({
     const [mobileSearchFocused, setMobileSearchFocused] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
+    const retrySearch = () => setSearchRetry((n) => n + 1);
     // S2 — recent-searches chips on the empty-query landing state.
     const recentSearches = useSyncExternalStore(
         subscribeRecentSearches,
@@ -1804,9 +1807,10 @@ export function JobsContent({
         jobs: [],
         total: null,
     });
-    const [hubPackCorpusCounts, setHubPackCorpusCounts] = useState<
-        Partial<Record<HubPackId, CorpusCount | null>> | null
-    >(null);
+    /** null = loading; a failed read renders no count, never "…" forever. */
+    const [hubPackCorpusCounts, setHubPackCorpusCounts] = useState<LoadResult<
+        Partial<Record<HubPackId, CorpusCount | null>>
+    > | null>(null);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -2342,7 +2346,7 @@ export function JobsContent({
                         autoRetryScheduled = true;
                         setTimeout(() => {
                             if (!cancelled) setSearchRetry((n) => n + 1);
-                        }, 4000);
+                        }, retryDelayMs());
                         return;
                     }
                     setSearchError(r.note ?? SEARCH_UNAVAILABLE_MESSAGE);
@@ -2559,7 +2563,7 @@ export function JobsContent({
                         autoRetryScheduled = true;
                         setTimeout(() => {
                             if (!cancelled) setSearchRetry((n) => n + 1);
-                        }, 4000);
+                        }, retryDelayMs());
                     } else {
                         setSearchError(SEARCH_UNAVAILABLE_MESSAGE);
                         // A thrown transport error is not an unconfigured backend
@@ -2949,9 +2953,11 @@ export function JobsContent({
     useEffect(() => {
         if (!showForYouHome) return;
         let cancelled = false;
-        void getHubPackCorpusCountsAction(locationDefaultSuppressed).then((counts) => {
-            if (!cancelled) setHubPackCorpusCounts(counts);
-        });
+        void readWithRetry(() => getHubPackCorpusCountsAction(locationDefaultSuppressed).catch(loadFailed)).then(
+            (counts) => {
+                if (!cancelled) setHubPackCorpusCounts(counts);
+            },
+        );
         return () => {
             cancelled = true;
         };
@@ -2998,7 +3004,7 @@ export function JobsContent({
                         if (unavailableRetries < 1) {
                             unavailableRetries += 1;
                             step -= 1;
-                            await new Promise((resolve) => setTimeout(resolve, 1500));
+                            await new Promise((resolve) => setTimeout(resolve, retryDelayMs()));
                             continue;
                         }
                         setHubFitProbe({
@@ -3077,9 +3083,11 @@ export function JobsContent({
 
     const hubCountLabels = useMemo(
         () =>
-            formatHubPackCorpusRoleLabels(hubPackCorpusCounts ?? {}, {
-                loading: hubPackCorpusCounts == null,
-            }),
+            hubPackCorpusCounts?.ok === false
+                ? {}
+                : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
+                      loading: hubPackCorpusCounts == null,
+                  }),
         [hubPackCorpusCounts],
     );
 
@@ -6319,6 +6327,8 @@ export function JobsContent({
                                 nowMs={nowMs}
                                 fitResolving={fitResolving}
                                 loading={loading}
+                                loadError={displaySearchError}
+                                onRetryLoad={retrySearch}
                                 fitActive={fitActive}
                                 hydratedJobs={forYouHydrated}
                                 onActivePackChange={handleForYouActivePackChange}
@@ -6585,10 +6595,7 @@ export function JobsContent({
                             {backgroundError && displaySearchError && (
                                 <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-l-2 border-verdict-risk pl-3 text-xs text-verdict-risk">
                                     <span>{displaySearchError}</span>
-                                    <button
-                                        onClick={() => setSearchRetry((n) => n + 1)}
-                                        className="underline underline-offset-2"
-                                    >
+                                    <button onClick={retrySearch} className="underline underline-offset-2">
                                         Retry
                                     </button>
                                 </div>
@@ -6677,16 +6684,13 @@ export function JobsContent({
                                 // unavailable." repeated right above `searchError`,
                                 // which itself often already opens with that same
                                 // backend-supplied phrase — this no longer says it twice.
-                                <div role="alert" className="border-l-2 border-verdict-risk px-[var(--list-inset)] py-6 pl-4 text-left">
-                                    <p className="text-xs text-foreground">We can&apos;t load results right now.</p>
-                                    <p className="mt-1.5 max-w-md text-xs text-muted-foreground">{searchError}</p>
-                                    <button
-                                        onClick={() => setSearchRetry((n) => n + 1)}
-                                        className="mt-3 text-xs text-foreground underline underline-offset-2"
-                                    >
-                                        Retry
-                                    </button>
-                                </div>
+                                <LoadFailedState
+                                    title="We can't load results right now."
+                                    detail={displaySearchError}
+                                    onRetry={retrySearch}
+                                    testId="jobs-search-error"
+                                    className="px-[var(--list-inset)]"
+                                />
                             ) : resultsPanel === "loading" ? (
                                 <JobsListSplash />
                             ) : resultsPanel === "empty" ? (
