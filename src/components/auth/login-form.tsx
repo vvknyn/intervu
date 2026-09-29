@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
 import { captureEvent, type SignupMethod } from '@/lib/analytics/events'
@@ -96,6 +96,8 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
     const [message, setMessage] = useState<string | null>(null)
     const [showForgotPassword, setShowForgotPassword] = useState(false)
     const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+    // Where a failed Turnstile sends the visitor: the Google button above the form.
+    const googleButtonRef = useRef<HTMLButtonElement>(null)
 
     const copy = authCardCopy(activeTab)
 
@@ -254,7 +256,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         the dashboard — not an app-side name, and not validated
                         here, because WorkOS is the authority on which
                         providers an environment actually has. */}
-                    <Button size="lg" variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                    <Button ref={googleButtonRef} size="lg" variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
                         {authKitPending === "GoogleOAuth" ? (
                             <CircleNotch size={16} className="mr-2 animate-spin" />
                         ) : (
@@ -369,16 +371,8 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                 <TurnstileWidget
                                     surface="signup"
                                     onVerify={setTurnstileToken}
-                                    fallback={
-                                        <div className="mt-2 grid gap-2">
-                                            <Button size="lg" variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
-                                                Continue with Google
-                                            </Button>
-                                            <Button size="lg" variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit()}>
-                                                Use email code
-                                            </Button>
-                                        </div>
-                                    }
+                                    errorMessage="Security check couldn't load. Sign up with Google or an email code above."
+                                    alternativeRef={googleButtonRef}
                                 />
                             )}
                             <Button size="lg"

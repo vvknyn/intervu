@@ -1,7 +1,7 @@
 'use client'
 
 import Script from 'next/script'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { captureEvent, type TurnstileSurface } from '@/lib/analytics/events'
 
 declare global {
@@ -44,20 +44,15 @@ export function reportTurnstileError(raw: unknown, surface: TurnstileSurface): s
     return code
 }
 
-/**
- * Shown in place of a silently dead form when the challenge cannot run.
- * `fallback` carries the surface's alternative paths (e.g. Google / email
- * code); without one the only honest advice is to reload.
- */
-export function TurnstileErrorNotice({ fallback }: { fallback?: ReactNode }) {
+/** Default advice: a form whose server has no path that skips Turnstile can only be retried. */
+const RELOAD_MESSAGE = "The security check didn't load, so we can't verify this form right now. Reload the page to try again."
+
+/** Shown in place of a silently dead form when the challenge cannot run. */
+export function TurnstileErrorNotice({ message = RELOAD_MESSAGE }: { message?: string }) {
     return (
-        <div role="alert" data-testid="turnstile-error" className="w-full text-xs text-destructive">
-            <p>
-                The security check didn&apos;t load, so we can&apos;t verify this form right now.{' '}
-                {fallback ? 'You can still continue another way:' : 'Reload the page to try again.'}
-            </p>
-            {fallback && <div data-testid="turnstile-fallback">{fallback}</div>}
-        </div>
+        <p role="alert" data-testid="turnstile-error" className="w-full text-xs text-destructive">
+            {message}
+        </p>
     )
 }
 
@@ -65,8 +60,10 @@ interface TurnstileWidgetProps {
     onVerify: (token: string | null) => void
     /** Which form this is — tags the `turnstile_error` event. */
     surface: TurnstileSurface
-    /** Alternative paths shown with the error message, only where the server accepts one that skips Turnstile. */
-    fallback?: ReactNode
+    /** Replaces the reload advice, only where the page already offers a way in that skips Turnstile. */
+    errorMessage?: string
+    /** That way in: focused and scrolled into view on the first failure. */
+    alternativeRef?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -77,23 +74,28 @@ interface TurnstileWidgetProps {
  * tag — so the signup form works unchanged before Turnstile keys exist, the
  * same "inert until configured" seam the server-side check uses.
  */
-export function TurnstileWidget({ onVerify, surface, fallback }: TurnstileWidgetProps) {
+export function TurnstileWidget({ onVerify, surface, errorMessage, alternativeRef }: TurnstileWidgetProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const widgetIdRef = useRef<string | null>(null)
     const [scriptLoaded, setScriptLoaded] = useState(false)
     const [errorCode, setErrorCode] = useState<string | null>(null)
     // Cloudflare retries a failed challenge and fires error-callback again on
-    // each try; one event per mounted widget keeps the count = visitors hit.
+    // each try (~10s); acting once per mounted widget keeps the event count =
+    // visitors hit and never pulls focus back while the visitor is elsewhere.
     const reportedRef = useRef(false)
 
     const fail = useCallback(
         (raw: unknown) => {
-            const code = reportedRef.current ? normalizeTurnstileErrorCode(raw) : reportTurnstileError(raw, surface)
+            if (!reportedRef.current) {
+                reportTurnstileError(raw, surface)
+                alternativeRef?.current?.scrollIntoView({ block: 'center' })
+                alternativeRef?.current?.focus({ preventScroll: true })
+            }
             reportedRef.current = true
-            setErrorCode(code)
+            setErrorCode(normalizeTurnstileErrorCode(raw))
             onVerify(null)
         },
-        [surface, onVerify],
+        [surface, onVerify, alternativeRef],
     )
 
     useEffect(() => {
@@ -136,7 +138,7 @@ export function TurnstileWidget({ onVerify, surface, fallback }: TurnstileWidget
                 onError={() => fail(SCRIPT_LOAD_FAILED)}
             />
             <div ref={containerRef} className="flex justify-center" />
-            {errorCode && <TurnstileErrorNotice fallback={fallback} />}
+            {errorCode && <TurnstileErrorNotice message={errorMessage} />}
         </>
     )
 }

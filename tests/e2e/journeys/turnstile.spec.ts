@@ -47,22 +47,26 @@ async function openSignupTab(page: Page) {
   await page.getByRole("tab", { name: "Create account" }).click();
 }
 
-test("a failed Turnstile on signup shows the message and Google / email-code paths", { tag: ["@J-AUTH-43"] }, async ({ page }) => {
+/** Signup already offers Google / email code above the form: the notice points there and moves focus to it — no second set of buttons. */
+async function expectSignupPointsAbove(page: Page, requested: () => boolean) {
+  const notice = await expectNotice(page, requested);
+  await expect(notice).toHaveText("Security check couldn't load. Sign up with Google or an email code above.");
+  const google = page.getByRole("button", { name: "Continue with Google" });
+  await expect(google).toHaveCount(1);
+  await expect(google).toBeFocused();
+  await expect(google).toBeInViewport();
+}
+
+test("a failed Turnstile on signup points to Google / email code above and focuses Google", { tag: ["@J-AUTH-43"] }, async ({ page }) => {
   const requested = await failTurnstile(page, "110200");
   await openSignupTab(page);
-  await expectNotice(page, requested);
-
-  const fallback = page.getByTestId("turnstile-fallback");
-  await expect(fallback.getByRole("button", { name: "Continue with Google" })).toBeVisible();
-  await expect(fallback.getByRole("button", { name: "Use email code" })).toBeVisible();
+  await expectSignupPointsAbove(page, requested);
 });
 
-test("a Turnstile script that never loads shows the same fallback", { tag: ["@J-AUTH-44"] }, async ({ page }) => {
+test("a Turnstile script that never loads does the same", { tag: ["@J-AUTH-44"] }, async ({ page }) => {
   const requested = await failTurnstile(page, null);
   await openSignupTab(page);
-  await expectNotice(page, requested);
-
-  await expect(page.getByTestId("turnstile-fallback").getByRole("button", { name: "Use email code" })).toBeVisible();
+  await expectSignupPointsAbove(page, requested);
 });
 
 test("a failed Turnstile on /contact says to reload and invents no alternative path", { tag: ["@J-CONTENT-24"] }, async ({ page }) => {
@@ -71,5 +75,5 @@ test("a failed Turnstile on /contact says to reload and invents no alternative p
   const notice = await expectNotice(page, requested);
 
   await expect(notice).toContainText("Reload the page");
-  await expect(page.getByTestId("turnstile-fallback")).toHaveCount(0);
+  await expect(notice.getByRole("button")).toHaveCount(0);
 });

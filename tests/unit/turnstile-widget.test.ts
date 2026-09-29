@@ -66,22 +66,19 @@ describe("reportTurnstileError", () => {
 });
 
 describe("TurnstileErrorNotice", () => {
-    it("with a fallback: alert message plus the alternative paths", () => {
-        const html = renderToStaticMarkup(
-            React.createElement(TurnstileErrorNotice, {
-                fallback: React.createElement("button", null, "Continue with Google"),
-            }),
-        );
+    it("with a surface message (signup): shows it in the alert instead of the reload advice", () => {
+        const message = "Security check couldn't load. Sign up with Google or an email code above.";
+        const html = renderToStaticMarkup(React.createElement(TurnstileErrorNotice, { message }));
         assert.match(html, /role="alert"/);
         assert.match(html, /data-testid="turnstile-error"/);
-        assert.match(html, /data-testid="turnstile-fallback"/);
-        assert.match(html, /Continue with Google/);
+        assert.match(html, /Sign up with Google or an email code above/);
         assert.doesNotMatch(html, /Reload the page/);
+        assert.doesNotMatch(html, /<button/);
     });
 
-    it("without a fallback (alert capture, follow, contact): says to reload, invents no alternative", () => {
+    it("without one (alert capture, follow, contact, waitlist): says to reload, invents no alternative", () => {
         const html = renderToStaticMarkup(React.createElement(TurnstileErrorNotice, {}));
         assert.match(html, /Reload the page/);
-        assert.doesNotMatch(html, /turnstile-fallback/);
+        assert.doesNotMatch(html, /<button/);
     });
 });
