@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -354,6 +354,66 @@ test("with a résumé, the packs home opens on Today: the day's numbers and new 
     await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
     await expect(skipped).toHaveCount(0);
   }
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("Needs you lists the tracker's interview this week and the application gone quiet, each opening that application", { tag: ["@J-JOBS-44"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  // A guest tracker: an interview tomorrow (a picked date is stored as its UTC midnight) and an application with no update for 10 days.
+  await page.addInitScript((key) => {
+    const now = new Date();
+    const at = (daysAgo: number) => new Date(now.getTime() - daysAgo * 86_400_000).toISOString();
+    const tomorrow = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1)).toISOString();
+    const row = (id: string, company: string, position: string, status: string, updatedDaysAgo: number, extra = {}) => ({
+      id,
+      user_id: "guest",
+      company_name: company,
+      position,
+      status,
+      created_at: at(updatedDaysAgo + 3),
+      updated_at: at(updatedDaysAgo),
+      ...extra,
+    });
+    localStorage.setItem(
+      key,
+      JSON.stringify([
+        row("journey-interview", "Northwind", "Platform Engineer", "interviewing", 2, { interview_date: tomorrow }),
+        row("journey-quiet", "Contoso", "Backend Engineer", "applied", 10),
+      ]),
+    );
+  }, "intervu.pursuits.guest");
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  await expect(today).toBeVisible({ timeout: 30_000 });
+  const needs = today.getByTestId("today-needs-you");
+  await expect(needs).toBeVisible();
+
+  // Soonest first: the interview, then the follow-up, each with one button into that application.
+  const items = needs.getByTestId("today-needs-you-item");
+  await expect(items).toHaveCount(2);
+  await expect(items.nth(0)).toHaveAttribute("data-kind", "interview");
+  await expect(items.nth(0)).toContainText("Interview tomorrow");
+  await expect(items.nth(0).getByTestId("today-needs-you-action")).toHaveAttribute("href", "/yours/journey-interview");
+  await expect(items.nth(1)).toHaveAttribute("data-kind", "follow_up");
+  await expect(items.nth(1)).toContainText("Follow up with Contoso");
+  await expect(items.nth(1)).toContainText("No update in 10 days");
+
+  // The due and this-week numbers count the same rows and jump to the list.
+  const stats = today.getByTestId("today-stats");
+  await expect(stats.getByTestId("today-stat-follow-ups")).toContainText(/1\s*follow-up due/);
+  await expect(stats.getByTestId("today-stat-interviews")).toContainText(/1\s*interview this week/);
+  await stats.getByTestId("today-stat-follow-ups").getByRole("link").click();
+  await expect(page).toHaveURL(/#today-needs-you$/);
+  await expect(needs).toBeInViewport();
+
+  await items.nth(1).getByTestId("today-needs-you-action").click();
+  await expect(page).toHaveURL(/\/yours\/journey-quiet$/, { timeout: 30_000 });
+  await expect(page.getByTestId("pursuit-stage")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Backend Engineer").first()).toBeVisible();
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

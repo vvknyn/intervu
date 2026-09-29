@@ -1696,7 +1696,7 @@ export function JobsContent({
     }, [firstSearchSettled]);
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
-    const { byJobId: pursuitsByJobId, pursuits } = usePursuits();
+    const { byJobId: pursuitsByJobId, pursuits, loading: pursuitsLoading } = usePursuits();
     const [optimisticPursuits, setOptimisticPursuits] = useState<Map<string, Pursuit>>(() => new Map());
     const pursuitsByJobIdMerged = useMemo(() => {
         const merged = new Map(pursuitsByJobId);
@@ -6445,6 +6445,8 @@ export function JobsContent({
                                         signals={signals}
                                         pack={pack}
                                         pursuits={pursuits}
+                                        pursuitsLoading={pursuitsLoading}
+                                        accountKey={user?.uid ?? null}
                                         onApply={handleOpenPosting}
                                         onOpenPack={(id) => openHubPack(id, "today")}
                                     />

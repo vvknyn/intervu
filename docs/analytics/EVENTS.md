@@ -101,7 +101,7 @@ Not in `ANALYTICS_EVENTS` — it is PostHog's reserved MCP-analytics event name,
 | Event | Payload | Seam | Feeds |
 |---|---|---|---|
 | `home_viewed` | `{ new_count, applied_today, follow_ups, interviews, has_last_visit }` | `src/components/jobs/for-you/TodayHome.tsx`, once per load after the new-since search settles. | how often the signed-in home has something new or due; return visits (join on person). |
-| `home_action_clicked` | `{ kind, job_id?, match_* }` — `kind` is one of `new_role_open`, `new_role_apply`, `new_role_skip`, `see_more`, `stat_new`, `stat_applied`, `stat_follow_ups`, `stat_interviews` | same file, on each row action and stat link. | which part of the home gets used. |
+| `home_action_clicked` | `{ kind, job_id?, step?, match_* }` — `kind` is one of `new_role_open`, `new_role_apply`, `new_role_skip`, `see_more`, `stat_new`, `stat_applied`, `stat_follow_ups`, `stat_interviews`; from "Needs you" (`NeedsYou.tsx`) `needs_interview`, `needs_follow_up`, `needs_closed`, `needs_saved_search`, `needs_follow`, `needs_more` (Show N more), `needs_tracker` (Open tracker on the empty list), and `starter_step` with `step` = `apply`\|`save_search`\|`follow` | same file, on each row action, stat link and "Needs you" button. | which part of the home gets used. |
 | `pack_opened` | `{ pack, source: tile\|browse_all\|today }` | `src/app/jobs/JobsContent.tsx`, `openHubPack` (tiles, "Browse all matches", and the Today header's "See more"). | pack tile use (before this, only autocapture saw it). |
 
 ## Reading the funnel

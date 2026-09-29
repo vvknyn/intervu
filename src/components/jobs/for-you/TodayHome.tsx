@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { SectionTitle, SubTitle } from "@/components/ui/heading";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
+import { NeedsYouView, useNeedsYouRemote, type NeedsYouRemoteState } from "@/components/jobs/for-you/NeedsYou";
 import { captureEvent, type HomeActionKind } from "@/lib/analytics/events";
 import type { SitePath } from "@/lib/auth/post-auth-destination";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
@@ -28,6 +29,7 @@ import { locationDropped } from "@/lib/jobs/broaden";
 import { FIT_GUEST_PREVIEW_ROWS } from "@/lib/jobs/fit-gate";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { freshHubProbeMemo } from "@/lib/jobs/for-you/hub-counts";
+import { buildNeedsYou, savedRolesToCheck, starterSteps, type NeedsYouKind } from "@/lib/jobs/for-you/needs-you";
 import { packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import {
     TODAY_NEW_FETCH_LIMIT,
@@ -80,6 +82,8 @@ export function TodayHome({
     signals,
     pack,
     pursuits,
+    pursuitsLoading,
+    accountKey,
     onApply,
     onOpenPack,
 }: {
@@ -94,6 +98,10 @@ export function TodayHome({
     signals: CandidateSignals;
     pack: JobsUrlState;
     pursuits: Pursuit[];
+    /** The signed-in tracker's first read is in flight: "Needs you" waits for it. */
+    pursuitsLoading: boolean;
+    /** The signed-in account (uid), so its "Needs you" read is never repainted for another. */
+    accountKey: string | null;
     /** The page's own Apply (auth gate, apply-intent prompt, "did you apply?" return). */
     onApply: (job: PublicJob) => void;
     onOpenPack: (id: TodayPackId) => void;
@@ -188,6 +196,21 @@ export function TodayHome({
     const followUps = useMemo(() => followUpsDue(pursuits, nowMs).length, [pursuits, nowMs]);
     const interviews = useMemo(() => interviewsThisWeek(pursuits, nowMs).length, [pursuits, nowMs]);
 
+    // "Needs you": the tracker's dates and waits now, the account's saved searches, follows and closed listings once read.
+    const savedJobIds = useMemo(() => savedRolesToCheck(pursuits), [pursuits]);
+    const needsRemote = useNeedsYouRemote({
+        enabled: auth === "signed-in" && !pursuitsLoading && accountKey != null,
+        accountKey: accountKey ?? "",
+        sinceIso: new Date(floorMs).toISOString(),
+        savedJobIds,
+        nowMs,
+    });
+    const remote: NeedsYouRemoteState =
+        auth === "signed-out" ? { kind: "none" } : auth === "pending" ? { kind: "loading" } : needsRemote.state;
+    const remoteData = remote.kind === "ready" ? remote.data : null;
+    const needs = useMemo(() => buildNeedsYou(pursuits, nowMs, remoteData), [pursuits, nowMs, remoteData]);
+    const steps = useMemo(() => (remoteData ? starterSteps(pursuits, remoteData) : null), [pursuits, remoteData]);
+
     // Once per load, when the list has settled: what the header showed.
     const viewedRef = useRef(false);
     useEffect(() => {
@@ -249,9 +272,30 @@ export function TodayHome({
                 onOpenPack(id);
             }}
             onRetry={() => setAttempt((n) => n + 1)}
+            needsYou={
+                <NeedsYouView
+                    items={needs}
+                    remote={remote.kind}
+                    steps={steps}
+                    guest={auth === "signed-out"}
+                    onItem={(item) => track(NEEDS_YOU_ACTION[item.kind])}
+                    onStep={(step) => captureEvent("home_action_clicked", { kind: "starter_step", step: step.key })}
+                    onTracker={() => track("needs_tracker")}
+                    onShowMore={() => track("needs_more")}
+                    onRetry={needsRemote.retry}
+                />
+            }
         />
     );
 }
+
+const NEEDS_YOU_ACTION: Record<NeedsYouKind, HomeActionKind> = {
+    interview: "needs_interview",
+    follow_up: "needs_follow_up",
+    closed: "needs_closed",
+    saved_search: "needs_saved_search",
+    follow: "needs_follow",
+};
 
 function plural(n: number, one: string, many: string): string {
     return n === 1 ? one : many;
@@ -276,6 +320,7 @@ export function TodayHomeView({
     onSkip,
     onOpenPack,
     onRetry,
+    needsYou = null,
 }: {
     title: string;
     /** "Tuesday", "earlier today"; `null` on a first visit. */
@@ -301,7 +346,10 @@ export function TodayHomeView({
     onSkip: (role: TodayRole) => void;
     onOpenPack: (id: TodayPackId) => void;
     onRetry: () => void;
+    /** "Needs you" (`NeedsYouView`): beside the new matches from lg up, under them on a phone. The due and this-week stats link to it. */
+    needsYou?: ReactNode;
 }) {
+    const tallyHref = needsYou ? "#today-needs-you" : "/yours";
     const firstVisit = lastHere == null;
     const newCount = `${roles.length}${saturated ? "+" : ""}`;
     const shown = roles.slice(0, rowLimit);
@@ -337,7 +385,7 @@ export function TodayHomeView({
                 />
                 <TodayStat
                     testId="today-stat-follow-ups"
-                    href="/yours"
+                    href={tallyHref}
                     tone={followUps > 0 ? "warn" : undefined}
                     value={String(followUps)}
                     label={plural(followUps, "follow-up due", "follow-ups due")}
@@ -345,89 +393,92 @@ export function TodayHomeView({
                 />
                 <TodayStat
                     testId="today-stat-interviews"
-                    href="/yours"
+                    href={tallyHref}
                     value={String(interviews)}
                     label={`${plural(interviews, "interview", "interviews")} this week`}
                     onClick={() => onTrack?.("stat_interviews")}
                 />
             </ul>
 
-            <div id="today-new" data-testid="today-new" className="scroll-mt-24">
-                <div className="flex items-baseline justify-between gap-3 border-b border-border poster-list-inset-x py-2 text-sm text-muted-foreground">
-                    <SubTitle>New for you</SubTitle>
-                    {status === "ready" && roles.length > 0 ? <span>Strong first</span> : null}
-                </div>
+            <div className={cn("grid gap-y-8", needsYou && "lg:grid-cols-[minmax(0,1fr)_20rem]")}>
+                <div id="today-new" data-testid="today-new" className="min-w-0 scroll-mt-24">
+                    <div className="flex items-baseline justify-between gap-3 border-b border-border poster-list-inset-x py-2 text-sm text-muted-foreground">
+                        <SubTitle>New for you</SubTitle>
+                        {status === "ready" && roles.length > 0 ? <span>Strong first</span> : null}
+                    </div>
 
-                {status === "loading" ? (
-                    <WaitState
-                        label="Finding new matches"
-                        data-testid="today-new-loading"
-                        skeleton={
-                            <div>
-                                {[0, 1, 2].map((i) => (
-                                    <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 poster-list-inset-x pt-4">
-                                        <WaitBar className="size-10 rounded-panel" />
-                                        <div className="space-y-2 border-b border-border pb-4">
-                                            <WaitBar className="h-4 w-2/3" />
-                                            <WaitBar className="h-3 w-1/2" />
+                    {status === "loading" ? (
+                        <WaitState
+                            label="Finding new matches"
+                            data-testid="today-new-loading"
+                            skeleton={
+                                <div>
+                                    {[0, 1, 2].map((i) => (
+                                        <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 poster-list-inset-x pt-4">
+                                            <WaitBar className="size-10 rounded-panel" />
+                                            <div className="space-y-2 border-b border-border pb-4">
+                                                <WaitBar className="h-4 w-2/3" />
+                                                <WaitBar className="h-3 w-1/2" />
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        }
-                    />
-                ) : status === "failed" ? (
-                    <div className="poster-list-inset-x pt-4">
-                        <LoadFailedState
-                            title="We can't load new matches right now."
-                            onRetry={onRetry}
-                            testId="today-new-failed"
+                                    ))}
+                                </div>
+                            }
                         />
-                    </div>
-                ) : shown.length === 0 ? (
-                    <div data-testid="today-new-empty" className="space-y-3 poster-list-inset-x py-8 text-left">
-                        <p className="text-sm text-foreground">
-                            {firstVisit ? "No new matches this week." : `No new matches ${since}.`}
-                        </p>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            data-testid="today-new-empty-action"
-                            onClick={() => onOpenPack(firstVisit ? "all" : "fresh")}
-                        >
-                            {firstVisit ? "Browse all matches" : "Open Added this week"}
-                        </Button>
-                    </div>
-                ) : (
-                    <>
-                        <ul aria-label="New for you">
-                            {shown.map((role) => (
-                                <TodayRow
-                                    key={role.job.id}
-                                    role={role}
-                                    nowMs={nowMs}
-                                    onOpen={() => onTrack?.("new_role_open")}
-                                    onApply={() => onApply(role)}
-                                    onSkip={() => onSkip(role)}
-                                />
-                            ))}
-                        </ul>
-                        <div className="poster-list-inset-x pt-3">
-                            {gated ? (
-                                gate
-                            ) : (
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    data-testid="today-see-more"
-                                    onClick={() => onOpenPack("fresh")}
-                                >
-                                    More in Added this week
-                                </Button>
-                            )}
+                    ) : status === "failed" ? (
+                        <div className="poster-list-inset-x pt-4">
+                            <LoadFailedState
+                                title="We can't load new matches right now."
+                                onRetry={onRetry}
+                                testId="today-new-failed"
+                            />
                         </div>
-                    </>
-                )}
+                    ) : shown.length === 0 ? (
+                        <div data-testid="today-new-empty" className="space-y-3 poster-list-inset-x py-8 text-left">
+                            <p className="text-sm text-foreground">
+                                {firstVisit ? "No new matches this week." : `No new matches ${since}.`}
+                            </p>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                data-testid="today-new-empty-action"
+                                onClick={() => onOpenPack(firstVisit ? "all" : "fresh")}
+                            >
+                                {firstVisit ? "Browse all matches" : "Open Added this week"}
+                            </Button>
+                        </div>
+                    ) : (
+                        <>
+                            <ul aria-label="New for you">
+                                {shown.map((role) => (
+                                    <TodayRow
+                                        key={role.job.id}
+                                        role={role}
+                                        nowMs={nowMs}
+                                        onOpen={() => onTrack?.("new_role_open")}
+                                        onApply={() => onApply(role)}
+                                        onSkip={() => onSkip(role)}
+                                    />
+                                ))}
+                            </ul>
+                            <div className="poster-list-inset-x pt-3">
+                                {gated ? (
+                                    gate
+                                ) : (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        data-testid="today-see-more"
+                                        onClick={() => onOpenPack("fresh")}
+                                    >
+                                        More in Added this week
+                                    </Button>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+                {needsYou}
             </div>
         </section>
     );
