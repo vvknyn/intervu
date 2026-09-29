@@ -6445,7 +6445,12 @@ export function JobsContent({
                                 onTailorApply={(job) => {
                                     submitSearch(job.title);
                                 }}
-                                footer={<HubYourJobs signedIn={Boolean(user)} returnTo={serpReturnTo} />}
+                                footer={
+                                    <HubYourJobs
+                                        auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
+                                        returnTo={serpReturnTo}
+                                    />
+                                }
                             />
                         ) : (
                             <ForYouHome

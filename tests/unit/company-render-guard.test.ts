@@ -89,6 +89,11 @@ const ALLOWLIST: AllowEntry[] = [
     reason: "slug-building input, no domain to key off — presentation.ts:802-808's documented raw-consumer category",
   },
   {
+    file: "src/components/jobs/for-you/HubYourJobs.tsx",
+    match: "jobPath({ id: view.job_id, title: view.job_snapshot.title, company: view.job_snapshot.company })",
+    reason: "slug-building input for the packs hub's Recently viewed row — same as the /yours/history row above; the rendered name goes through displayCompanyName",
+  },
+  {
     file: "src/app/yours/page.tsx",
     match: "company_name: draft.company",
     reason: "user-typed manual pursuit-entry form field, not corpus data",

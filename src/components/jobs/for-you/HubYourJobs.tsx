@@ -53,10 +53,15 @@ export interface HubYourJobsViewProps {
     onRetryRecent: () => void;
 }
 
-export function HubYourJobs({ signedIn, returnTo }: { signedIn: boolean; returnTo: SitePath }) {
+/** `auth` is the page's confirmed state (`isConfirmedSignedIn` /
+ *  `isConfirmedSignedOut`): nothing renders until it settles, so a signed-in
+ *  visitor never sees the sign-in gate flash in first. */
+export function HubYourJobs({ auth, returnTo }: { auth: "signed-in" | "signed-out" | "pending"; returnTo: SitePath }) {
     const tracker = usePursuits();
     const recent = useViewed();
     const [nowMs] = useState(() => Date.now());
+    if (auth === "pending") return null;
+    const signedIn = auth === "signed-in";
     return (
         <HubYourJobsView
             signedIn={signedIn}
@@ -90,7 +95,7 @@ export function HubYourJobsView(props: HubYourJobsViewProps) {
 
 function SectionHeader({ title, link }: { title: string; link?: { href: string; label: string; testId: string } }) {
     return (
-        <div className="flex items-baseline justify-between gap-3 px-[var(--list-inset)]">
+        <div className="flex items-baseline justify-between gap-3 poster-list-inset-x">
             <h2 className="text-base font-semibold leading-snug text-foreground">{title}</h2>
             {link ? (
                 <Link href={link.href} data-testid={link.testId} className="shrink-0 text-sm text-brand hover:underline">
@@ -120,7 +125,7 @@ function TrackerSection({ pursuits, trackerLoading, trackerFailed, onRetryTracke
                     className="mt-4"
                 />
             ) : !hasAny ? (
-                <div className="px-[var(--list-inset)] pt-2" data-testid="hub-tracker-empty">
+                <div className="poster-list-inset-x pt-2" data-testid="hub-tracker-empty">
                     <p className="text-sm text-muted-foreground">{COPY.trackerEmpty}</p>
                     <Button asChild variant="outline" size="sm" className="mt-3">
                         <Link href="/yours?view=new">{TRACKER_PRIMARY_CTA}</Link>
@@ -128,7 +133,7 @@ function TrackerSection({ pursuits, trackerLoading, trackerFailed, onRetryTracke
                 </div>
             ) : (
                 <>
-                    <dl className="mt-4 flex flex-wrap gap-x-10 gap-y-3 px-[var(--list-inset)]" data-testid="hub-tracker-stats">
+                    <dl className="mt-4 flex flex-wrap gap-x-10 gap-y-3 poster-list-inset-x" data-testid="hub-tracker-stats">
                         {hubTrackerStats(pursuits).map((stat) => (
                             <div key={stat.key} className="flex flex-col-reverse" data-testid={`hub-tracker-stat-${stat.key}`}>
                                 <dt className="mono-data mt-0.5 text-sm text-muted-foreground">{stat.label}</dt>
@@ -137,7 +142,7 @@ function TrackerSection({ pursuits, trackerLoading, trackerFailed, onRetryTracke
                         ))}
                     </dl>
                     {rows.length === 0 ? (
-                        <p className="mt-4 px-[var(--list-inset)] text-sm text-muted-foreground">{COPY.trackerAllClosed}</p>
+                        <p className="mt-4 poster-list-inset-x text-sm text-muted-foreground">{COPY.trackerAllClosed}</p>
                     ) : (
                         <div className="mt-2 grid md:grid-cols-2 md:gap-x-6">
                             {rows.map((p) => (
@@ -145,9 +150,9 @@ function TrackerSection({ pursuits, trackerLoading, trackerFailed, onRetryTracke
                                     key={p.id}
                                     href={`/yours/${p.id}`}
                                     testId="hub-tracker-row"
-                                    title={p.job_snapshot?.title || p.position}
+                                    title={p.position}
                                     meta={[
-                                        displayCompanyName(p.job_snapshot?.company ?? p.company_name),
+                                        displayCompanyName(p.company_name),
                                         hubTrackerAgeLabel(p, nowMs),
                                         hubTrackerStaleLabel(p, nowMs),
                                     ]}
@@ -187,7 +192,7 @@ function RecentSection({
                     className="mt-4"
                 />
             ) : rows.length === 0 ? (
-                <p className="px-[var(--list-inset)] pt-2 text-sm text-muted-foreground" data-testid="hub-recent-empty">
+                <p className="poster-list-inset-x pt-2 text-sm text-muted-foreground" data-testid="hub-recent-empty">
                     {COPY.recentEmpty}
                 </p>
             ) : (
@@ -228,7 +233,7 @@ function HubRow({
         <Link
             href={href}
             data-testid={testId}
-            className="grid px-[var(--list-inset)] pt-3 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+            className="grid poster-list-inset-x pt-3 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
         >
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-3">
                 <div className="min-w-0">
@@ -252,7 +257,7 @@ function RowsLoading({ label }: { label: string }) {
             skeleton={
                 <div className="grid md:grid-cols-2 md:gap-x-6">
                     {[0, 1, 2, 3].map((i) => (
-                        <div key={i} className="px-[var(--list-inset)] pt-3">
+                        <div key={i} className="poster-list-inset-x pt-3">
                             <div className="space-y-1.5 border-b border-border pb-3">
                                 <WaitBar className="h-4 w-2/3" />
                                 <WaitBar className="h-3 w-1/3" />
@@ -278,7 +283,7 @@ function SignedOutPlaceholder({ returnTo }: { returnTo: SitePath }) {
                 {sections.map((s) => (
                     <section key={s.testId} aria-label={s.title} data-testid={s.testId}>
                         <SectionHeader title={s.title} />
-                        <p className="mt-3 rounded-panel border border-dashed border-border bg-card px-[var(--list-inset)] py-6 text-sm text-muted-foreground">
+                        <p className="mt-3 rounded-panel border border-dashed border-border bg-card poster-list-inset-x py-6 text-sm text-muted-foreground">
                             {s.body}
                         </p>
                     </section>
