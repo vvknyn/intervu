@@ -14,7 +14,7 @@ if (!process.env.NEXT_PUBLIC_SITE_URL) {
 
 function privacyArticle(): string {
   const src = readFileSync(join(ROOT, "src/app/privacy/page.tsx"), "utf8");
-  const article = src.split("<article")[1]?.split("</article>")[0] ?? src;
+  const article = src.split("<Prose")[1]?.split("</Prose>")[0] ?? src;
   return article.replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
 }
 

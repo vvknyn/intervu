@@ -61,18 +61,18 @@ describe("JobDetail guest chrome", () => {
         );
         assert.doesNotMatch(
             detail,
-            /<h1\b/,
+            /<(h1|PageTitle)\b/,
             "JobDetail only mounts under a page that already owns the h1 (/jobs masthead, /co company name)",
         );
 
         const doc = readFileSync(JOB_DOCUMENT, "utf8");
         assert.match(
             doc,
-            /<h1[^>]*>\{jobTitle\}<\/h1>/,
+            /<(h1|PageTitle)\b[^>]*>\{jobTitle\}<\/\1>/,
             "the standalone document's h1 must render the presented title",
         );
         assert.equal(
-            (doc.match(/<h1\b/g) ?? []).length,
+            (doc.match(/<(h1|PageTitle)\b/g) ?? []).length,
             1,
             "the standalone document must own exactly one h1",
         );

@@ -14,3 +14,11 @@ export const toolbarChipClass =
 
 /** Docked header search form + its trailing CTA peer. */
 export const topbarDockedSearchHeight = "ctl-md";
+
+/** Job actions — Apply, Customize résumé, Upload-to-customize, Save, Report —
+ * on every job action row (split-view detail pane, the mobile sheet's sticky
+ * bar, /jobs/[slug], the For-you deck): the control scale's `lg` step, one
+ * token so no peer drifts to another height. */
+export const jobActionSize = "lg";
+/** The icon-only form of the same step (the Save bookmark). */
+export const jobActionIconSize = `icon-${jobActionSize}` as const;

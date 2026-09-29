@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { ArrowSquareOut } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDescription } from "@/components/jobs/JobDetail";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
@@ -105,7 +106,7 @@ export function DeckRoleDetail({
 
             <div className="flex flex-wrap items-center gap-2 px-4 py-4 sm:px-6">
                 {job.apply_url ? (
-                    <Button size="lg"
+                    <Button size={jobActionSize}
                         onClick={onOpenPosting}
                         className="gap-2 rounded-ctl bg-foreground px-4 text-sm font-semibold text-background"
                     >
@@ -116,7 +117,7 @@ export function DeckRoleDetail({
                 {resume != null ? (
                     <LocalCustomizePanel job={job} resume={resume} compactTrigger signedIn />
                 ) : onUploadResume ? (
-                    <Button size="lg"
+                    <Button size={jobActionSize}
                         type="button"
                         variant="outline"
                         data-testid="job-detail-upload-to-customize"

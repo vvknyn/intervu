@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Copy, DownloadSimple, Check, Cpu, ShieldCheck } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import {
     Dialog,
     DialogBody,
@@ -181,6 +182,7 @@ export function LocalCustomizePanel({
             <Button
                 type="button"
                 variant="outline"
+                size={jobActionSize}
                 data-testid="local-customize-open"
                 aria-label="Customize for this job"
                 disabled={loading && dialogOpen}
