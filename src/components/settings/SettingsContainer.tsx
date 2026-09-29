@@ -216,10 +216,10 @@ export function SettingsContainer() {
                                 </div>
                             </dl>
                             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                                <Button size="lg" onClick={() => void handlePasswordReset()} disabled={isResetting} className="w-full rounded-ctl sm:w-auto">
+                                <Button onClick={() => void handlePasswordReset()} disabled={isResetting} className="w-full sm:w-auto">
                                     {isResetting ? "Sending…" : "Send password reset link"}
                                 </Button>
-                                <Button size="lg" variant="outline" onClick={() => void handleSignOut()} className="w-full rounded-ctl sm:w-auto">
+                                <Button variant="outline" onClick={() => void handleSignOut()} className="w-full sm:w-auto">
                                     Sign out
                                 </Button>
                             </div>
@@ -241,14 +241,14 @@ export function SettingsContainer() {
                         <SettingsCard>
                             <h2 className="mb-1 text-base font-semibold leading-snug">Danger zone</h2>
                             <p className="mb-4 text-sm text-muted-foreground">Permanent. No recovery.</p>
-                            <Button size="lg"
+                            <Button
                                 ref={deleteTriggerRef}
                                 variant="outline"
                                 onClick={() => {
                                     setDeleteError(null);
                                     setShowDeleteDialog(true);
                                 }}
-                                className="rounded-ctl border-danger-text bg-transparent text-danger-text hover:bg-danger-text/10"
+                                className="border-danger-text bg-transparent text-danger-text hover:bg-danger-text/10"
                             >
                                 Delete account
                             </Button>
@@ -297,14 +297,14 @@ export function SettingsContainer() {
                             {deleteError && <SettingsInlineError>{deleteError}</SettingsInlineError>}
                         </div>
                         <DialogFooter>
-                            <Button size="lg" variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={isDeleting} className="rounded-ctl">
+                            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={isDeleting}>
                                 Cancel
                             </Button>
-                            <Button size="lg"
+                            <Button
                                 variant="destructive"
                                 onClick={handleDeleteAccount}
                                 disabled={deleteConfirmText !== "DELETE" || isDeleting}
-                                className="gap-2 rounded-ctl"
+                                className="gap-2"
                             >
                                 {isDeleting ? <InlineSpinner size={16} /> : <Trash size={16} />}
                                 {isDeleting ? "Deleting…" : "Delete Forever"}

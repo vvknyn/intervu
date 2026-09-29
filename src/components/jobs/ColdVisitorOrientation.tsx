@@ -99,7 +99,7 @@ export function ColdVisitorOrientation({
                     onClick={onRankByFit}
                     data-testid="orientation-rank-by-fit"
                     title={RANK_SECONDARY_COPY}
-                    className="shrink-0 text-xs font-semibold rounded-ctl"
+                    className="shrink-0"
                 >
                     Rank with my résumé
                 </Button>
@@ -107,7 +107,7 @@ export function ColdVisitorOrientation({
                     type="button"
                     onClick={handleDismiss}
                     aria-label="Dismiss welcome guide"
-                    className="ctl-md shrink-0 inline-flex ctl-square items-center justify-center rounded-ctl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    className="ctl-md ctl-button shrink-0 inline-flex ctl-square items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 >
                     <X size={16} weight="bold" aria-hidden />
                 </button>
@@ -127,7 +127,7 @@ export function ColdVisitorOrientation({
                 type="button"
                 onClick={handleDismiss}
                 aria-label="Dismiss welcome guide"
-                className="ctl-md absolute right-3 top-3 inline-flex ctl-square items-center justify-center rounded-ctl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="ctl-md ctl-button absolute right-3 top-3 inline-flex ctl-square items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
                 <X size={16} weight="bold" aria-hidden />
             </button>
@@ -174,7 +174,7 @@ export function ColdVisitorOrientation({
                         size="sm"
                         onClick={onRankByFit}
                         data-testid="orientation-rank-by-fit"
-                        className="shrink-0 text-xs font-semibold rounded-ctl"
+                        className="shrink-0"
                     >
                         Rank with my résumé
                     </Button>

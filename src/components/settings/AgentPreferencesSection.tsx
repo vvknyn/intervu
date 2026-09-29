@@ -240,7 +240,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
             {status === "error" && (
                 <div className="space-y-2">
                     <SettingsInlineError>{SETTINGS_AGENT_PREFERENCES_LOAD_ERROR}</SettingsInlineError>
-                    <Button variant="outline" size="sm" className="rounded-ctl" onClick={loadPreferences}>
+                    <Button variant="outline" size="sm" onClick={loadPreferences}>
                         Try again
                     </Button>
                 </div>
@@ -443,7 +443,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="w-full rounded-ctl sm:w-auto"
+                            className="w-full sm:w-auto"
                             onClick={addCustomRow}
                             disabled={customRows.length >= AGENT.PREFERENCES_CUSTOM_ANSWERS_MAX}
                         >
@@ -452,7 +452,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                     </div>
 
                     <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
-                        <Button size="lg" onClick={handleSave} disabled={saving} className="w-full rounded-ctl sm:w-auto">
+                        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
                             {saving ? "Saving…" : "Save"}
                         </Button>
                     </div>

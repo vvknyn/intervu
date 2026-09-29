@@ -195,7 +195,7 @@ export function TourOverlay() {
               <button
                 onClick={prevStep}
                 disabled={isFirst}
-                className="ctl-md text-xs px-3 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                className="ctl-md ctl-button px-3 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none"
               >
                 Previous
               </button>
@@ -206,7 +206,7 @@ export function TourOverlay() {
             {!isSingleStep && (
             <button
               onClick={minimize}
-              className="ctl-md text-xs px-2 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="ctl-md ctl-button px-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               Minimize
             </button>
@@ -216,7 +216,7 @@ export function TourOverlay() {
 
             <button
               onClick={isSingleStep ? stopTour : nextStep}
-              className="ctl-md text-xs font-semibold px-3 rounded-none bg-brand text-brand-foreground hover:opacity-90 transition-opacity"
+              className="ctl-md ctl-button px-3 bg-brand text-brand-foreground hover:opacity-90 transition-opacity"
             >
               {isSingleStep ? "Close" : isLast ? "Finish" : "Next"}
             </button>

@@ -57,7 +57,7 @@ function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
             title="Sign in to see your history." // signup-gate-exempt: private tracker history page, sign-in is its only signed-out state
             description="We keep track of every job you open so you can find your way back to it."
             actions={
-                <Button className="rounded-ctl font-semibold" onClick={onLoginClick}>
+                <Button onClick={onLoginClick}>
                     {AUTH_CTA_LABEL}
                 </Button>
             }
@@ -72,7 +72,7 @@ function HistoryEmptyState() {
             title={HISTORY_EMPTY_TITLE}
             description={HISTORY_EMPTY_DESCRIPTION}
             actions={
-                <Button asChild variant="outline" size="sm" className="rounded-ctl font-semibold">
+                <Button asChild variant="outline" size="sm">
                     <Link href="/jobs">Browse verified roles</Link>
                 </Button>
             }

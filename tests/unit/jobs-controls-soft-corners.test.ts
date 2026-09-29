@@ -50,8 +50,11 @@ describe("jobs sheet action-bar soft corners", () => {
         // 11429940 put `size={jobActionSize}` ahead of className on every job action.
         const applyBlock = src.match(/<Button size=\{jobActionSize\} className="[^"]*" onClick=\{onOpenPosting\}>/)?.[0] ?? "";
         assert.ok(applyBlock.length > 0, "Apply Button element not found");
-        assert.match(applyBlock, /rounded-ctl/, "Apply button must use rounded-ctl");
-        assert.doesNotMatch(applyBlock, /rounded-none/, "Apply button must not carry rounded-none");
+        // The control corner comes from the Button face (`.ctl-button` paints
+        // rounded-ctl, 2026-09-29), so the call site names no corner at all —
+        // tests/unit/control-type.test.ts fails one that does.
+        assert.doesNotMatch(applyBlock, /\brounded(?:-[\w-]+)?\b/, "Apply button must take its corner from the Button face");
+        assert.match(readFileSync(join(SRC, "components/ui/button.tsx"), "utf8"), /"ctl-button /, "the Button primitive paints the face");
     });
 
     /**

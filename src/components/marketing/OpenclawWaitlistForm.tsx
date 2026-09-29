@@ -60,7 +60,8 @@ export function OpenclawWaitlistForm({
               aria-label="Email address"
               className="ctl-lg sm:min-w-0 sm:flex-1"
             />
-            <Button size="lg" type="submit" disabled={pending} className="w-full shrink-0 font-semibold sm:w-auto">
+            {/* control-type-allow: shares the sm+ form row with the 44px email field (one row, one step — J-NAV-34) */}
+            <Button size="lg" type="submit" disabled={pending} className="w-full shrink-0 sm:w-auto">
               {pending ? "Joining…" : ctaLabel}
             </Button>
           </form>

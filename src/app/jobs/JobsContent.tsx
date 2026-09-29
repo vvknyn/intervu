@@ -495,7 +495,7 @@ function ToolbarSegment({
             onClick={onClick}
             title={title}
             className={cn(
-                "ctl-md inline-flex box-border items-center justify-center gap-2 rounded-ctl px-3 text-sm font-semibold leading-none transition-all duration-150 text-foreground",
+                "ctl-md ctl-button inline-flex box-border items-center justify-center gap-2 px-3 leading-none transition-all duration-150 text-foreground",
                 pressed && "underline underline-offset-2",
             )}
         >
@@ -591,7 +591,8 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     data-testid="serp-ask-seed"
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
-                    className="ctl-md inline-flex items-center rounded-pill border border-border bg-muted px-2.5 text-left text-xs text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
+                    // control-type-allow: a seed suggestion chip keeps the chip pill; its type still comes from the step
+                    className="ctl-md ctl-button inline-flex items-center rounded-pill border border-border bg-muted px-2.5 text-left text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
                 >
                     {seed}
                 </button>
@@ -633,7 +634,7 @@ function JobsTourReplayButton() {
                         onClick={() => startTour()}
                         className={cn(
                             toolbarControlHeight,
-                            "ctl-square inline-flex shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                            "ctl-button ctl-square inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                         )}
                     >
                         <Question size={16} weight="bold" aria-hidden />
@@ -5332,7 +5333,7 @@ export function JobsContent({
                     className={cn(
                         chipVariants({ active: activeCategory != null, interactive: true }),
                         toolbarControlHeight,
-                        "inline-flex box-border shrink-0 items-center justify-center gap-1 whitespace-nowrap px-3 text-xs font-semibold leading-none transition-colors lg:px-2",
+                        "ctl-button inline-flex box-border shrink-0 items-center justify-center gap-1 whitespace-nowrap px-3 leading-none transition-colors lg:px-2",
                     )}
                 >
                     {activeCategory ? activeCategory.title : "Browse by field"}
@@ -5383,7 +5384,7 @@ export function JobsContent({
                         className={cn(
                             chipVariants({ active: isMatch, interactive: true }),
                             toolbarControlHeight,
-                            "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap px-3 text-xs font-semibold leading-none transition-colors",
+                            "ctl-button inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap px-3 leading-none transition-colors",
                         )}
                     >
                         {cat.title}
@@ -5430,7 +5431,7 @@ export function JobsContent({
             onClick={() => void handleRankByFit()}
             className={cn(
                 toolbarControlHeight,
-                "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
+                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap text-foreground transition-colors",
             )}
         >
             Rank with my résumé
@@ -5449,7 +5450,7 @@ export function JobsContent({
                         onClick={() => setManualAlertOpen((prev) => !prev)}
                         className={cn(
                             toolbarControlHeight,
-                            "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-2",
+                            "ctl-button inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-foreground transition-colors px-2",
                         )}
                         title="Get email alerts for this search"
                     >
@@ -5502,7 +5503,7 @@ export function JobsContent({
             onClick={panelClearAll}
             className={cn(
                 toolbarControlHeight,
-                "inline-flex shrink-0 items-center whitespace-nowrap px-2 text-xs text-danger-text transition-colors hover:opacity-80",
+                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap px-2 text-danger-text transition-colors hover:opacity-80",
             )}
         >
             Clear ({activeCount})
@@ -5585,7 +5586,7 @@ export function JobsContent({
                         setLocationDraft("");
                         clearLocations();
                     }}
-                    className="ctl-sm mr-1 flex ctl-square shrink-0 self-center items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:text-foreground"
+                    className="ctl-sm ctl-button mr-1 flex ctl-square shrink-0 self-center items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <X size={20} aria-hidden />
                 </button>
@@ -5608,7 +5609,7 @@ export function JobsContent({
                     data-testid="jobs-sort-trigger"
                     className={cn(
                         toolbarControlHeight,
-                        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
+                        "ctl-button inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-foreground transition-colors",
                     )}
                 >
                     {fitResolving && <InlineSpinner size={16} className="shrink-0" />}
@@ -5804,7 +5805,7 @@ export function JobsContent({
                                 <button
                                     type="button"
                                     onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
+                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
                                     data-testid="jobs-back-to-packs"
                                 >
                                     ← Back to Job Packs
@@ -5973,9 +5974,12 @@ export function JobsContent({
                                 <button
                                     type="button"
                                     data-testid="location-picker-trigger"
+                                    // A button that IS a field: the journeys read its type as the field's, not a button face's.
+                                    data-control="field"
                                     aria-label={mobileLocationLabel}
                                     title={mobileLocationLabel}
                                     onClick={() => setLocationSheetOpen(true)}
+                                    // control-type-allow: the phone's location FIELD (opens the picker sheet), so it takes the field recipe: 44px, 16px/400, pill like the query field beside it
                                     className="ctl-lg flex min-w-0 flex-1 items-center truncate rounded-pill border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
                                 >
                                     <span className={cn("truncate", mobileLocationLabel === "City, state, or remote" && "text-muted-foreground")}>
@@ -6024,7 +6028,7 @@ export function JobsContent({
                                             setLocationDraft("");
                                             clearLocations();
                                         }}
-                                        className="ctl-sm mr-2 hidden ctl-square shrink-0 items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:flex"
+                                        className="ctl-sm ctl-button mr-2 hidden ctl-square shrink-0 items-center justify-center bg-muted text-muted-foreground transition-colors hover:text-foreground lg:flex"
                                     >
                                         <X size={20} aria-hidden />
                                     </button>
@@ -6041,13 +6045,14 @@ export function JobsContent({
                                 hairline shape) at rest instead of a second,
                                 bespoke hairline style. */}
                             <Button
+                                // control-type-allow: the one 44px button — Search shares the [data-search-line] row with the 44px query and location fields (J-JOBS-29)
                                 size="lg"
                                 type="button"
                                 data-testid="search-submit"
                                 onClick={() => submitSearch(queryDraft)}
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
-                                    "w-auto shrink-0 rounded-pill px-4 text-xs font-semibold sm:px-6 transition-colors",
+                                    "w-auto shrink-0 px-4 sm:px-6 transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
                             >
@@ -6111,7 +6116,7 @@ export function JobsContent({
                                     <button
                                         type="button"
                                         onClick={handleClearSearch}
-                                        className="ctl-md -my-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
+                                        className="ctl-md ctl-button -my-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
                                     >
                                         clear ✕
                                     </button>
@@ -6176,7 +6181,7 @@ export function JobsContent({
                             className={cn(
                                 chipVariants({ active: filtersOpen, interactive: true }),
                                 toolbarControlHeight,
-                                "box-border shrink-0 px-3.5 font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
+                                "ctl-button box-border shrink-0 px-3.5 inline-flex items-center justify-center gap-2 whitespace-nowrap leading-none transition-colors lg:px-3",
                             )}
                         >
                             <span className="lg:hidden">Filters</span>
@@ -6348,7 +6353,7 @@ export function JobsContent({
                                 <button
                                     type="button"
                                     onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
+                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
                                     data-testid="jobs-back-to-packs"
                                 >
                                     ← Back to Job Packs
@@ -7123,10 +7128,10 @@ export function JobsContent({
                     // real height already had.
                     className="fixed inset-x-0 z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] lg:hidden"
                 >
-                    <Button size="lg"
+                    <Button
                         type="button"
                         onClick={handleMobilePrimaryCta}
-                        className="w-full rounded-ctl bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
+                        className="w-full bg-primary text-primary-foreground hover:bg-primary"
                     >
                         Search
                     </Button>
@@ -7271,9 +7276,9 @@ export function JobsContent({
                                 type="button"
                                 aria-label="Close"
                                 onClick={() => router.back()}
-                                className="ctl-lg flex ctl-square shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80"
+                                className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
                             >
-                                ×
+                                <X size={16} aria-hidden />
                             </button>
                         </div>
                     </div>

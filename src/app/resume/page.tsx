@@ -71,10 +71,8 @@ export function SignedOutEmptyState({ onUploadClick }: { onUploadClick: () => vo
             actionsClassName="mt-4"
             actions={
                 <Button
-                    size="lg"
                     onClick={onUploadClick}
                     data-testid="resume-signed-out-upload"
-                    className="rounded-ctl font-semibold"
                 >
                     <UploadSimple size={16} className="mr-2" aria-hidden />
                     Upload résumé
@@ -186,7 +184,6 @@ function ResumeContent() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => beginResumeUpload()}
-                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         Replace
                                     </Button>
@@ -194,7 +191,6 @@ function ResumeContent() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => openResumeAuth()}
-                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         <PencilSimple size={16} className="mr-1" />
                                         Edit
@@ -203,7 +199,6 @@ function ResumeContent() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => openResumeAuth()}
-                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         <DownloadSimple size={16} className="mr-1" />
                                         PDF
@@ -211,7 +206,6 @@ function ResumeContent() {
                                     <Button
                                         size="sm"
                                         onClick={() => openResumeAuth()}
-                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}Sign up to sync
                                     </Button>

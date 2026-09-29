@@ -274,7 +274,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         variant="ghost"
                         size="sm"
                         onClick={onClose}
-                        className="shrink-0 gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-ctl"
+                        className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft /> Back
                     </Button>
@@ -303,7 +303,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         variant={versionsOpen ? "secondary" : "outline"}
                         size="sm"
                         onClick={() => setVersionsOpen(!versionsOpen)}
-                        className="gap-1 text-xs rounded-ctl"
+                        className="gap-1"
                         title="Versions & diffs"
                     >
                         <ClockCounterClockwise />
@@ -317,7 +317,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         size="sm"
                         onClick={() => setShowDiffs(!showDiffs)}
                         className={cn(
-                            "gap-1 text-xs rounded-ctl",
+                            "gap-1",
                             showDiffs && "border-warn text-warn",
                         )}
                         title="Toggle visual diff highlights"
@@ -331,7 +331,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         variant="outline"
                         size="sm"
                         onClick={handleDownloadPdf}
-                        className="hidden sm:inline-flex gap-1 text-xs rounded-ctl"
+                        className="hidden sm:inline-flex gap-1"
                     >
                         <DownloadSimple /> .pdf
                     </Button>
@@ -341,7 +341,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         variant="outline"
                         size="sm"
                         onClick={handleDownloadDocx}
-                        className="hidden lg:inline-flex gap-1 text-xs rounded-ctl"
+                        className="hidden lg:inline-flex gap-1"
                     >
                         <DownloadSimple /> .docx
                     </Button>
@@ -352,7 +352,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         size="sm"
                         onClick={handleDownloadJson}
                         title="Download the structured resume data"
-                        className="hidden xl:inline-flex gap-1 text-xs rounded-ctl"
+                        className="hidden xl:inline-flex gap-1"
                     >
                         <DownloadSimple /> .json
                     </Button>
@@ -362,7 +362,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         size="sm"
                         onClick={handleSave}
                         disabled={saving}
-                        className="gap-1.5 text-xs font-semibold rounded-ctl"
+                        className="gap-1.5"
                     >
                         {saving ? <InlineSpinner /> : <FloppyDisk />}
                         <span className="sm:hidden">{saving ? "Saving…" : "Save"}</span>
@@ -491,7 +491,6 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         size="sm"
                                         onClick={handleSaveNewVersion}
                                         disabled={savingVersion || !newVersionLabel.trim()}
-                                        className="text-xs rounded-ctl"
                                     >
                                         {savingVersion ? "Saving…" : "Save"}
                                     </Button>
@@ -546,7 +545,6 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => setConfirmDeleteId(null)}
-                                                                className="text-xs rounded-ctl"
                                                             >
                                                                 Cancel
                                                             </Button>
@@ -556,7 +554,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 size="sm"
                                                                 disabled={deletingId === ver.id}
                                                                 onClick={() => void handleDeleteVersion(ver)}
-                                                                className="text-xs gap-1 rounded-ctl"
+                                                                className="gap-1"
                                                             >
                                                                 {deletingId === ver.id ? (
                                                                     <InlineSpinner />
@@ -573,7 +571,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => handleRecallVersion(ver)}
-                                                                className="text-xs gap-1 rounded-ctl flex-1"
+                                                                className="gap-1 flex-1"
                                                             >
                                                                 <ArrowCounterClockwise /> Recall
                                                             </Button>
@@ -582,7 +580,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => handleCompareVersion(ver)}
-                                                                className="text-xs gap-1 rounded-ctl flex-1 text-warn"
+                                                                className="gap-1 flex-1 text-warn"
                                                             >
                                                                 <GitDiff /> Compare
                                                             </Button>
@@ -592,7 +590,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 size="sm"
                                                                 title={`Delete "${ver.label}"`}
                                                                 onClick={() => setConfirmDeleteId(ver.id)}
-                                                                className="w-7 p-0 shrink-0 rounded-ctl text-muted-foreground hover:text-danger-text"
+                                                                className="w-7 p-0 shrink-0 text-muted-foreground hover:text-danger-text"
                                                             >
                                                                 <Trash />
                                                             </Button>

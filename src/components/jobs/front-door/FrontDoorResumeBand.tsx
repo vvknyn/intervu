@@ -48,7 +48,7 @@ export function FrontDoorResumeBand({
                     <button
                         type="button"
                         onClick={onUploadClick}
-                        className="ctl-lg inline-flex items-center justify-center gap-1.5 rounded-ctl bg-brand-foreground px-5 text-xs font-semibold text-brand transition-colors hover:opacity-90"
+                        className="ctl-md ctl-button inline-flex items-center justify-center gap-1.5 bg-brand-foreground px-5 text-brand transition-colors hover:opacity-90"
                     >
                         <UploadSimple size={16} weight="bold" aria-hidden />
                         {RESUME_UPLOAD_CTA}

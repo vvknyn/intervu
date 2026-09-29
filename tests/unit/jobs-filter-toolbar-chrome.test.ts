@@ -90,10 +90,14 @@ describe("jobs filter toolbar chrome", () => {
         assert.doesNotMatch(src, /active && "border-brand bg-muted text-brand"/);
     });
 
-    it("FacetBar trigger uses text-xs to match toolbar peers", () => {
+    it("FacetBar trigger takes its type from the button face, like its toolbar peers", () => {
+        // Was `text-xs` on every toolbar peer; since 2026-09-29 a button's type
+        // comes from its step (`.ctl-button`, tests/unit/control-type.test.ts),
+        // so the peers match by naming none.
         const src = readFileSync(FACET_BAR, "utf8");
         const facetChip = src.slice(src.indexOf("function FacetChip"), src.indexOf("function facetActiveValue"));
-        assert.match(facetChip, /text-xs/);
+        assert.match(facetChip, /\bctl-button\b/);
+        assert.doesNotMatch(facetChip, /\btext-(?:xs|sm|base)\b|\bfont-(?:normal|medium|semibold|bold)\b/);
     });
 
     it("FacetBar root is visible below lg (no hidden lg:flex)", () => {
@@ -314,7 +318,9 @@ describe("jobs filter toolbar chrome", () => {
         const saved = readFileSync(SAVED_SEARCHES, "utf8");
         const rankBlock = page.slice(page.indexOf('data-testid="jobs-rank-by-fit"'), page.indexOf('data-testid="jobs-rank-by-fit"') + 350);
         assert.doesNotMatch(rankBlock, /chipVariants/);
-        assert.match(rankBlock, /text-xs font-semibold text-foreground/);
+        // Quiet text on the button face: the step sets the type (2026-09-29).
+        assert.match(rankBlock, /"ctl-button [^"]*text-foreground/);
+        assert.doesNotMatch(rankBlock, /\btext-(?:xs|sm)\b|\bfont-semibold\b/);
 
         const asOfBlock = page.slice(page.indexOf('data-testid="resume-as-of"'), page.indexOf('data-testid="resume-as-of"') + 550);
         assert.doesNotMatch(asOfBlock, /chipVariants/);
@@ -329,7 +335,8 @@ describe("jobs filter toolbar chrome", () => {
         const saveTrigger = saved.slice(saved.indexOf('data-testid="save-search-trigger"'), saved.indexOf('data-testid="save-search-trigger"') + 450);
         assert.doesNotMatch(saveTrigger, /chipVariants/);
         assert.match(saveTrigger, /toolbarControlHeight/);
-        assert.match(saveTrigger, /text-xs font-semibold text-foreground/);
+        assert.match(saveTrigger, /"ctl-button [^"]*text-foreground/);
+        assert.doesNotMatch(saveTrigger, /\btext-(?:xs|sm)\b|\bfont-semibold\b/);
     });
 
     it("shouldShowSearchAlertCapture call sites suppress while guest auth gate is visible", () => {

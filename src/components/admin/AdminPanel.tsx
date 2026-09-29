@@ -164,7 +164,7 @@ export function AdminPanel() {
                                     <button
                                         key={filter}
                                         onClick={() => setFeedbackFilter(filter)}
-                                        className={`px-2.5 ctl-md text-xs rounded-none transition-colors ${
+                                        className={`px-2.5 ctl-md ctl-button transition-colors ${
                                             feedbackFilter === filter
                                                 ? "bg-muted text-brand"
                                                 : "text-muted-foreground hover:bg-muted"

@@ -126,7 +126,7 @@ export function ApplyIntentDialog({
 
                 <DialogBody className="flex flex-col gap-2 px-6 py-0.5">
                     {saved && !choosing ? (
-                        <Button type="button" variant="secondary" size="lg" className="w-full gap-2" onClick={() => handoff(saved)}>
+                        <Button type="button" variant="secondary" className="w-full gap-2" onClick={() => handoff(saved)}>
                             Open in {CLIENT_LABEL[saved]}
                         </Button>
                     ) : (
@@ -136,7 +136,6 @@ export function ApplyIntentDialog({
                                     key={client}
                                     type="button"
                                     variant="secondary"
-                                    size="lg"
                                     className="w-full"
                                     onClick={() => handoff(client)}
                                 >
@@ -166,7 +165,7 @@ export function ApplyIntentDialog({
                     Claude/ChatGPT. */}
                 <div className="flex shrink-0 flex-col gap-2 border-t border-border px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                     {postingHref ? (
-                        <Button asChild variant="secondary" size="lg" className="w-full gap-2">
+                        <Button asChild variant="secondary" className="w-full gap-2">
                             <a
                                 href={postingHref}
                                 target="_blank"
@@ -178,7 +177,7 @@ export function ApplyIntentDialog({
                             </a>
                         </Button>
                     ) : (
-                        <Button type="button" variant="secondary" size="lg" className="w-full gap-2" onClick={handleContinueSideEffects}>
+                        <Button type="button" variant="secondary" className="w-full gap-2" onClick={handleContinueSideEffects}>
                             <ArrowSquareOut size={16} />
                             Continue to the posting
                         </Button>

@@ -176,7 +176,7 @@ export function TopBar() {
                             <button
                                 type="submit"
                                 data-testid="search-submit"
-                                className="box-border flex shrink-0 items-center justify-center whitespace-nowrap px-4 text-sm font-semibold leading-none text-foreground transition-colors hover:bg-muted"
+                                className="ctl-button box-border flex shrink-0 items-center justify-center whitespace-nowrap px-4 leading-none text-foreground transition-colors hover:bg-muted"
                             >
                                 Search
                             </button>
@@ -228,7 +228,7 @@ export function TopBar() {
                                     setAuthTab("login");
                                     setAuthPopoverOpen(true);
                                 }}
-                                className={cn("font-normal text-muted-foreground", CHROME_FOCUS_VISIBLE)}
+                                className={cn("text-muted-foreground", CHROME_FOCUS_VISIBLE)}
                             >
                                 {AUTH_CTA_LABEL}
                             </Button>
@@ -268,7 +268,7 @@ export function TopBar() {
                                     className={cn(
                                         chipVariants({ active: docked.filtersExpanded, interactive: true }),
                                         toolbarControlHeight,
-                                        "box-border shrink-0 items-center justify-center gap-2 px-3 text-xs font-semibold lg:px-3",
+                                        "ctl-button box-border shrink-0 items-center justify-center gap-2 px-3 lg:px-3",
                                     )}
                                 >
                                     Filters

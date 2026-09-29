@@ -119,7 +119,7 @@ function TrackerEmptyState({
             title={TRACKER_EMPTY_TITLE}
             description={TRACKER_EMPTY_DESCRIPTION}
             actions={
-                <Button asChild variant="outline" size="sm" className="rounded-ctl font-semibold">
+                <Button asChild variant="outline" size="sm">
                     <Link href="/jobs">Browse verified roles</Link>
                 </Button>
             }
@@ -314,7 +314,7 @@ function YoursContent() {
                         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
                             <Button
                                 size="sm"
-                                className="order-1 w-full rounded-ctl sm:order-2 sm:w-auto"
+                                className="order-1 w-full sm:order-2 sm:w-auto"
                                 data-testid="tracker-track-role-cta"
                                 onClick={openAdd}
                             >
@@ -325,7 +325,7 @@ function YoursContent() {
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    className="order-2 w-full rounded-ctl font-normal text-muted-foreground sm:order-1 sm:w-auto"
+                                    className="order-2 w-full text-muted-foreground sm:order-1 sm:w-auto"
                                     data-testid="tracker-export-csv"
                                     onClick={() => downloadTrackerExport(pursuits, "csv")}
                                 >
@@ -377,7 +377,7 @@ function YoursContent() {
                     ) : (
                         <div className="py-8 text-left text-sm text-muted-foreground">
                             {TRACKER_FILTER_EMPTY}{" "}
-                            <Button variant="outline" size="sm" className="ml-2 rounded-ctl" onClick={openAdd}>
+                            <Button variant="outline" size="sm" className="ml-2" onClick={openAdd}>
                                 {TRACKER_PRIMARY_CTA}
                             </Button>
                         </div>

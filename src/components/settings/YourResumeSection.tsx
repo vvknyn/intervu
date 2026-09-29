@@ -333,7 +333,7 @@ function ResumeSummaryBody({
                     </p>
                 </div>
                 <div className="flex flex-col items-center gap-2 pt-1">
-                    <Button size="sm" onClick={onOpenEditor} className="w-full gap-1.5 text-xs font-semibold rounded-ctl sm:w-auto">
+                    <Button size="sm" onClick={onOpenEditor} className="w-full gap-1.5 sm:w-auto">
                         <PencilSimple /> Edit template
                     </Button>
                     <button type="button" onClick={onReplace} className="text-xs text-foreground underline underline-offset-2 hover:underline">
@@ -350,11 +350,11 @@ function ResumeSummaryBody({
                 type="button"
                 size="sm"
                 onClick={onOpenEditor}
-                className="w-full gap-1.5 text-xs font-semibold rounded-ctl sm:w-auto"
+                className="w-full gap-1.5 sm:w-auto"
             >
                 <PencilSimple /> Edit template
             </Button>
-            <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 text-xs rounded-ctl sm:w-auto">
+            <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 sm:w-auto">
                 <Upload /> Replace
             </Button>
             {confirmingDelete ? (
@@ -370,7 +370,7 @@ function ResumeSummaryBody({
                     variant="outline"
                     size="sm"
                     onClick={() => setConfirmingDelete(true)}
-                    className="w-full gap-1.5 text-xs text-danger-text hover:text-danger-text rounded-ctl sm:w-auto"
+                    className="w-full gap-1.5 text-danger-text hover:text-danger-text sm:w-auto"
                 >
                     <Trash />
                     Delete
@@ -392,7 +392,7 @@ function ResumeSummaryBody({
                 <LiveResumePreview data={resumeData} />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => void downloadBaseResumePdf(summary)} className="w-full text-xs rounded-ctl sm:w-auto">
+                <Button variant="outline" size="sm" onClick={() => void downloadBaseResumePdf(summary)} className="w-full sm:w-auto">
                     Download .pdf
                 </Button>
                 <Button
@@ -403,7 +403,7 @@ function ResumeSummaryBody({
                             ? downloadBlob(summary.resume_text, "resume.txt", "text/plain")
                             : downloadBlob(JSON.stringify(summary.resume_data, null, 2), "resume.json", "application/json")
                     }
-                    className="w-full text-xs rounded-ctl sm:w-auto"
+                    className="w-full sm:w-auto"
                 >
                     {summary.source === "resume_text" ? "Download .txt" : "Download .json"}
                 </Button>
@@ -484,7 +484,7 @@ function ResumeUploadForm({
                         if (file) void handleFile(file);
                     }}
                 />
-                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={busy} className="w-full gap-1.5 text-xs rounded-ctl sm:w-auto">
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={busy} className="w-full gap-1.5 sm:w-auto">
                     <Upload />
                     {extracting ? "Reading…" : "Choose file"}
                 </Button>
@@ -492,11 +492,11 @@ function ResumeUploadForm({
             </div>
             {error && <p className="text-xs text-danger-text">{error}</p>}
             <div className="flex flex-col gap-2 sm:flex-row">
-                <Button size="sm" disabled={busy || !text.trim()} onClick={handleSave} className="w-full text-xs font-semibold rounded-ctl sm:w-auto">
+                <Button size="sm" disabled={busy || !text.trim()} onClick={handleSave} className="w-full sm:w-auto">
                     {pending ? "Saving…" : "Save"}
                 </Button>
                 {showCancel && (
-                    <Button variant="outline" size="sm" onClick={onCancel} disabled={busy} className="w-full text-xs rounded-ctl sm:w-auto">
+                    <Button variant="outline" size="sm" onClick={onCancel} disabled={busy} className="w-full sm:w-auto">
                         Cancel
                     </Button>
                 )}

@@ -1023,13 +1023,12 @@ export function CategoryHubGrid({
                             packs → deck → Download & apply. Quiet Search stays. */}
                         <Button
                             type="button"
-                            size="lg"
                             data-testid="hub-browse-all-matches"
                             onClick={() => {
                                 const allItem = DEFAULT_CATEGORY_HUBS.find((c) => c.id === "all");
                                 if (allItem) handleCategoryClick(allItem);
                             }}
-                            className="w-full justify-center text-xs font-semibold sm:w-auto"
+                            className="w-full justify-center sm:w-auto"
                         >
                             Browse all matches
                         </Button>
@@ -1148,7 +1147,7 @@ export function CategoryHubGrid({
                                         type="button"
                                         onClick={() => setModalCategory(null)}
                                         aria-label="Close dialog"
-                                        className="ctl-md ctl-square inline-flex items-center justify-center rounded-ctl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                        className="ctl-md ctl-button ctl-square inline-flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                     >
                                         <X size={16} />
                                     </button>
@@ -1175,7 +1174,7 @@ export function CategoryHubGrid({
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={handleShuffle}
-                                                className="gap-1.5 text-xs font-semibold"
+                                                className="gap-1.5"
                                             >
                                                 <Shuffle size={16} />
                                                 Shuffle
@@ -1186,6 +1185,7 @@ export function CategoryHubGrid({
                                                     type="button"
                                                     onClick={handlePrev}
                                                     title="Previous role"
+                                                    // control-type-allow: joined half of a prev/next segment; the bordered group carries the corner, an icon carries no type
                                                     className="ctl-md ctl-square flex items-center justify-center bg-surface hover:bg-muted text-foreground border-r border-border transition-colors"
                                                 >
                                                     <CaretLeft size={16} />
@@ -1194,6 +1194,7 @@ export function CategoryHubGrid({
                                                     type="button"
                                                     onClick={handleNext}
                                                     title="Next role"
+                                                    // control-type-allow: joined half of a prev/next segment; the bordered group carries the corner, an icon carries no type
                                                     className="ctl-md ctl-square flex items-center justify-center bg-surface hover:bg-muted text-foreground transition-colors"
                                                 >
                                                     <CaretRight size={16} />
@@ -1345,7 +1346,7 @@ export function CategoryHubGrid({
                                                         <Button
                                                             size="sm"
                                                             onClick={() => handleTailorApply(activeRole)}
-                                                            className="w-full gap-1.5 text-xs font-semibold"
+                                                            className="w-full gap-1.5"
                                                         >
                                                             <Sparkle size={16} />
                                                             Tailor & Apply
@@ -1355,7 +1356,7 @@ export function CategoryHubGrid({
                                                             type="button"
                                                             onClick={() => toggleSaveRole(activeRole.id)}
                                                             className={cn(
-                                                                "w-full ctl-md px-2.5 rounded-ctl border text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors",
+                                                                "w-full ctl-md ctl-button px-2.5 border inline-flex items-center justify-center gap-1.5 transition-colors",
                                                                 savedRoleIds.has(activeRole.id)
                                                                     ? "border-live bg-surface text-live"
                                                                     : "border-border bg-surface text-muted-foreground hover:text-foreground",
@@ -1459,14 +1460,13 @@ export function CategoryHubGrid({
                                                             setCurrentIndex(idx);
                                                             setViewMode("shuffle");
                                                         }}
-                                                        className="text-xs"
                                                     >
                                                         View all details
                                                     </Button>
                                                     <Button
                                                         size="sm"
                                                         onClick={() => handleTailorApply(job)}
-                                                        className="gap-1.5 text-xs font-semibold"
+                                                        className="gap-1.5"
                                                     >
                                                         <Sparkle size={16} />
                                                         Tailor & Apply
@@ -1493,7 +1493,7 @@ export function CategoryHubGrid({
                                             variant="outline"
                                             size="sm"
                                             onClick={handleShuffle}
-                                            className="gap-1.5 text-xs flex-1 sm:flex-initial"
+                                            className="gap-1.5 flex-1 sm:flex-initial"
                                         >
                                             <Shuffle size={16} />
                                             Shuffle next
@@ -1504,7 +1504,7 @@ export function CategoryHubGrid({
                                         <Button
                                             size="sm"
                                             onClick={() => handleTailorApply(activeRole)}
-                                            className="gap-1.5 text-xs font-semibold flex-1 sm:flex-initial"
+                                            className="gap-1.5 flex-1 sm:flex-initial"
                                         >
                                             <Sparkle size={16} />
                                             Tailor & Apply
@@ -1515,7 +1515,7 @@ export function CategoryHubGrid({
                                         variant="outline"
                                         size="sm"
                                         onClick={() => setModalCategory(null)}
-                                        className="text-xs flex-none sm:flex-initial"
+                                        className="flex-none sm:flex-initial"
                                     >
                                         Done
                                     </Button>
@@ -1542,7 +1542,7 @@ export function CategoryHubGrid({
                         variant="outline"
                         size="sm"
                         onClick={onOpenAdvancedSearch}
-                        className="text-xs font-semibold shrink-0"
+                        className="shrink-0"
                     >
                         Advanced search →
                     </Button>
@@ -1636,7 +1636,6 @@ export function CategoryHubGrid({
                             variant="outline"
                             size="sm"
                             onClick={() => setProfileModalOpen(false)}
-                            className="text-xs"
                         >
                             Cancel
                         </Button>
@@ -1644,7 +1643,7 @@ export function CategoryHubGrid({
                             type="button"
                             size="sm"
                             onClick={handleSaveProfileParameters}
-                            className="text-xs font-semibold gap-1.5"
+                            className="gap-1.5"
                         >
                             <Check size={16} />
                             Save parameters

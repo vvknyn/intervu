@@ -597,7 +597,7 @@ export function ForYouHome({
                                             size="sm"
                                             data-testid="for-you-upload-resume"
                                             onClick={onReplaceResume}
-                                            className="inline-flex items-center gap-1.5 font-normal"
+                                            className="inline-flex items-center gap-1.5"
                                         >
                                             <UploadSimple size={16} weight="bold" aria-hidden />
                                             Upload résumé
@@ -605,7 +605,7 @@ export function ForYouHome({
                                     </div>
                                 ) : null}
                                 <div className="flex gap-2">
-                                <Button size="lg"
+                                <Button
                                     type="button"
                                     variant="outline"
                                     className="flex-1 lg:flex-none"
@@ -622,7 +622,7 @@ export function ForYouHome({
                                         FOR_YOU_DOWNLOAD_LABEL
                                     )}
                                 </Button>
-                                <Button size="lg"
+                                <Button
                                     type="button"
                                     variant="outline"
                                     className="flex-1 lg:flex-none"
@@ -690,7 +690,6 @@ export function ForYouHome({
                                         data-testid="for-you-show-more"
                                         onClick={() => void onLoadMore()}
                                         disabled={loadingMore}
-                                        className="text-xs font-semibold"
                                     >
                                         {loadingMore ? "Loading more…" : "Show more matches"}
                                     </Button>
