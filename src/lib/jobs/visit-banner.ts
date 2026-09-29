@@ -16,3 +16,16 @@ import type { CorpusCount } from "./corpus-count";
 export function resolveVisitBannerState(input: { hasCursor: boolean; count: CorpusCount }): "hidden" | "shown" {
   return input.hasCursor && input.count.value >= 1 ? "shown" : "hidden";
 }
+
+/**
+ * A page with fewer rows than this is a zero or thin state, where a toast
+ * announcing hundreds of new roles contradicts what the visitor is looking at
+ * (and, docked at the bottom, sits on top of the few rows there are). One
+ * screen's worth of rows on mobile; below it the banner stays away.
+ */
+export const VISIT_BANNER_MIN_RESULTS = 10;
+
+/** Whether the rendered results are populated enough to carry the banner. */
+export function visitBannerFitsResults(resultCount: number): boolean {
+  return resultCount >= VISIT_BANNER_MIN_RESULTS;
+}

@@ -17,7 +17,7 @@ export default async function HomePage({
     if (params.signin === "1") {
         const raw = typeof params.next === "string" ? params.next : null;
         const next = validateNextParam(raw);
-        redirect(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
+        redirect(next ? `/login?next=${encodeURIComponent(next)}` : "/login"); // signup-gate-exempt: server redirect into the auth flow, not a rendered prompt
     }
     redirect("/jobs");
 }

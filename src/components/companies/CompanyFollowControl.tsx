@@ -96,6 +96,7 @@ function CompanyFollowControlInner({
         onOpenChange={setAuthOpen}
         showTrigger={false}
         trigger="user"
+        reason="follow"
         onAuthed={() => void syncGuestFollowsToServer()}
         valueLine={followPersistValueLine(displayName)}
       />

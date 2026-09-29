@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
 import { captureEvent, type SignupMethod } from '@/lib/analytics/events'
@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { CircleNotch, Fingerprint } from '@phosphor-icons/react'
+import { Fingerprint } from '@phosphor-icons/react'
+import { InlineSpinner } from '@/components/ui/wait-state'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
@@ -23,6 +24,7 @@ import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from 'next/link'
 import { BrandLockup } from '@/components/brand/BrandMark'
+import { PageTitle } from '@/components/ui/heading'
 
 interface LoginFormProps {
     onSuccess?: () => void;
@@ -96,6 +98,8 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
     const [message, setMessage] = useState<string | null>(null)
     const [showForgotPassword, setShowForgotPassword] = useState(false)
     const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+    // Where a failed Turnstile sends the visitor: the Google button above the form.
+    const googleButtonRef = useRef<HTMLButtonElement>(null)
 
     const copy = authCardCopy(activeTab)
 
@@ -157,7 +161,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
         if (activeTab === "signup") params.set("mode", "signup")
         if (provider) params.set("provider", provider)
         const query = params.toString()
-        window.location.href = `/auth/start${query ? `?${query}` : ""}`
+        window.location.href = `/auth/start${query ? `?${query}` : ""}` // signup-gate-exempt: the login form itself, part of the auth flow
     }
 
     const handleSignUp = async (e: React.FormEvent) => {
@@ -189,7 +193,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
                 // so an abandoned Google redirect + password signup cannot double-fire.
                 clearSignupSignalCookieFromDocument()
-                captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() })
+                if (result.signupCompleted) {
+                    captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() }) // signup-once: gated on the server claim (claimSignupEvent)
+                }
                 clearGateAttempt(window.sessionStorage)
                 router.refresh()
                 revalidateClientSession()
@@ -201,7 +207,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 }
                 if (onSuccess) onSuccess()
             } catch (err) {
-                setMessage(err instanceof Error ? err.message : "Failed to create account")
+                setMessage(err instanceof Error ? err.message : "Failed to create account") // signup-gate-exempt: the login form itself, part of the auth flow
             }
         })
     }
@@ -219,9 +225,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 <Link href="/jobs" className="inline-flex w-fit transition-opacity hover:opacity-90" data-rulebook-exempt>
                     <BrandLockup />
                 </Link>
-                <h1 className="font-semibold text-xl text-foreground">
+                <PageTitle>
                     {headline?.title ?? copy.title}
-                </h1>
+                </PageTitle>
                 {headline ? (
                     <p className="whitespace-pre-line text-xs text-muted-foreground">{headline.body}</p>
                 ) : (
@@ -252,9 +258,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         the dashboard — not an app-side name, and not validated
                         here, because WorkOS is the authority on which
                         providers an environment actually has. */}
-                    <Button variant="outline" type="button" className="w-full h-11" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                    <Button ref={googleButtonRef} size="lg" variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
                         {authKitPending === "GoogleOAuth" ? (
-                            <CircleNotch size={16} className="mr-2 animate-spin" />
+                            <InlineSpinner size={16} className="mr-2" />
                         ) : (
                             <GoogleGlyph />
                         )}
@@ -265,22 +271,22 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         has no API to call, so the page has to run it. No
                         provider here means WorkOS shows whichever methods are
                         enabled for the environment. */}
-                    <Button
+                    <Button size="lg"
                         variant="outline"
                         type="button"
-                        className="w-full h-11"
+                        className="w-full"
                         disabled={isPending || authKitPending !== null}
                         onClick={() => startAuthKit()}
                     >
                         {authKitPending === "passkey" ? (
-                            <CircleNotch size={16} className="mr-2 animate-spin" />
+                            <InlineSpinner size={16} className="mr-2" />
                         ) : (
                             <Fingerprint weight="bold" className="size-4" />
                         )}
                         Use a passkey or email code
                     </Button>
                     {onGuestAccess && (
-                        <Button variant="outline" type="button" className="w-full h-11" disabled={isPending} onClick={onGuestAccess}>
+                        <Button size="lg" variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
                             Continue as Guest
                         </Button>
                     )}
@@ -364,16 +370,21 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                 )}
                             </Field>
                             {activeTab === "signup" && (
-                                <TurnstileWidget onVerify={setTurnstileToken} />
+                                <TurnstileWidget
+                                    surface="signup"
+                                    onVerify={setTurnstileToken}
+                                    errorMessage="Security check couldn't load. Sign up with Google or an email code above."
+                                    alternativeRef={googleButtonRef}
+                                />
                             )}
-                            <Button
+                            <Button size="lg"
                                 type="submit"
                                 data-testid="auth-submit-button"
                                 disabled={isPending}
-                                className="w-full h-11 font-semibold"
+                                className="w-full font-semibold"
                             >
                                 {isPending && (
-                                    <CircleNotch size={16} className="mr-2 animate-spin" />
+                                    <InlineSpinner size={16} className="mr-2" />
                                 )}
                                 {copy.submitLabel}
                             </Button>

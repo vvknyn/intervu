@@ -12,7 +12,7 @@ import {
 } from "../../src/lib/jobs/result-state";
 import { shouldShowSearchAlertCapture } from "../../src/lib/jobs/search-alert-capture";
 
-const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx");
+const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "JobsContent.tsx");
 
 describe("jobs search degraded UX helpers", () => {
   it("flags operator setup notes", () => {
@@ -99,13 +99,5 @@ describe("jobs page wiring", () => {
     assert.doesNotMatch(notConnected, /border-foreground/);
     assert.doesNotMatch(notConnected, /\bvelai\b/);
     assert.match(src, /variant="link"[\s\S]*Try again/);
-  });
-});
-
-describe("TopBar lean Sign in focus", () => {
-  it("uses emphasized chrome focus ring on filled brand CTA", () => {
-    const src = readFileSync(join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx"), "utf8");
-    const leanSignIn = src.slice(src.indexOf("leanSurface ?"), src.indexOf(") : (", src.indexOf("leanSurface ?")));
-    assert.match(leanSignIn, /CHROME_FOCUS_ON_BRAND/);
   });
 });

@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * ITEM O-FE (2026-08-15, Vivek-approved, SIGNED-IN ONLY) — user-facing
+ * ITEM O-FE (2026-08-15, Vivek-approved; anonymous reports allowed 2026-09-28) — user-facing
  * "Report listing" writes to Subspace's flags endpoint
  * (`POST /api/v1/flags`). Same `x-api-key` header convention every other
  * Subspace `/api/v1/*` client in this repo uses (see subspaceJobs.ts's
@@ -16,6 +16,9 @@
  */
 
 import { getServerUser } from "@/lib/auth/server-user";
+import { getClientIp } from "@/lib/shield/client-ip";
+import { allowReportListingRequest } from "@/lib/shield/rate-limit";
+import { resolveReporterKey } from "@/lib/jobs/reporter-key";
 
 /** Plain-language radio label the dialog shows. */
 export type ReportJobReason =
@@ -63,11 +66,17 @@ export async function reportJobAction(input: {
   reason: ReportJobReason;
   notes: string;
 }): Promise<ReportJobResult> {
-  const user = await getServerUser();
-  if (!user) return { kind: "error", message: "unauthorized" };
-
   const config = flagsApiConfig();
   if (!config) return { kind: "error", message: "Reporting isn't available yet." };
+
+  // No account needed. The write chokepoint is the per-IP limiter here plus
+  // the flags endpoint's own per-key daily cap and (job_url, reporter_key)
+  // uniqueness; the key is derived server-side (`resolveReporterKey`).
+  const user = await getServerUser();
+  const ip = await getClientIp();
+  const reporterKey = resolveReporterKey(user?.uid ?? null, ip, config.key);
+  if (!reporterKey) return { kind: "error", message: "We couldn't verify this request. Try again shortly." };
+  if (!allowReportListingRequest(ip)) return { kind: "rate_limited" };
 
   // "dead-link: " prefix on notes distinguishes the two plain-language
   // reasons that both map onto the schema's single "expired" value.
@@ -83,7 +92,7 @@ export async function reportJobAction(input: {
         job_title: input.jobTitle,
         reason: REASON_SCHEMA[input.reason],
         notes,
-        reporter_key: user.uid,
+        reporter_key: reporterKey,
       }),
     });
   } catch (e) {

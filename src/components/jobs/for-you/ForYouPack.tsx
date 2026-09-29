@@ -10,7 +10,8 @@ import { chipVariants } from "@/components/ui/chip";
 import { useAiJobDescription } from "@/hooks/use-ai-job-description";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
-import { displayCompanyBrand, locationText, placeWithWorkMode, stripRemoteSegmentsFromPlace } from "@/lib/jobs/presentation";
+import { displayCompanyBrand, locationText, placeWithWorkMode } from "@/lib/jobs/presentation";
+import { stripPlaceSegment } from "@/lib/presentation/location-normalise";
 import { inferReasons, noScoreReason, NO_SCORE_MESSAGES, type NoScoreReason } from "@/lib/jobs/for-you/infer-reasons";
 import { descriptionPaneState } from "@/lib/jobs/for-you/description-pane-state";
 import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
@@ -66,7 +67,7 @@ const JD_SCROLL_CLASS =
 /** Employer-stated fact — quiet on cream paper (outline/tint + paper ink), noninteractive. */
 export const STATED_CHIP_CLASS = cn(
     chipVariants({ active: false }),
-    "paper-fact-chip h-7 gap-1.5 px-2.5 text-xs font-normal",
+    "paper-fact-chip ctl-sm gap-1.5 px-2.5 text-xs font-normal",
 );
 
 /**
@@ -77,7 +78,7 @@ export const DERIVED_CHIP_CLASS = cn(
     chipVariants({ active: false }),
     // Long inferred titles (e.g. "Technical Account Manager | …") must stay
     // inside the FIT column — override chip `shrink-0` / `whitespace-nowrap`.
-    "paper-inferred-chip h-auto min-h-7 max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 py-1 text-xs font-normal",
+    "paper-inferred-chip ctl-grow max-w-full min-w-0 shrink whitespace-normal break-words px-2.5 text-xs font-normal",
 );
 
 /**
@@ -158,7 +159,7 @@ export function ForYouPack({
     const rawPlace = locationText(displayJob);
     const place =
         displayJob.work_type === "remote"
-            ? stripRemoteSegmentsFromPlace(rawPlace)
+            ? stripPlaceSegment(rawPlace, "Remote")
             : placeWithWorkMode(rawPlace, displayJob.work_type);
     const strongFit = matchScore != null && matchBand(matchScore.total) === "strong";
     const noScore = matchScore == null ? noScoreReason(resume) : null;
@@ -275,7 +276,8 @@ export function ForYouPack({
                         <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
                         <div className="min-w-0 flex-1">
                             <p className={SECTION_LABEL}>{company}</p>
-                            <h2 className="break-words text-title-sm font-semibold text-surface-postcard-foreground lg:text-title">
+                            {/* page-scale-allow: a job's title heads its detail pane at the page-title step; the h1 is the list masthead */}
+                            <h2 className="break-words text-xl font-semibold text-surface-postcard-foreground lg:text-2xl">
                                 {displayJob.title}
                             </h2>
                             {place && <p className="mt-0.5 text-sm text-surface-postcard-muted">{place}</p>}

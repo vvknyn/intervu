@@ -29,11 +29,13 @@ import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import type { JobView } from "@/lib/views/types";
 import { posterListPanelClassName } from "@/components/layout/route-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
     HISTORY_EMPTY_DESCRIPTION,
     HISTORY_EMPTY_TITLE,
 } from "@/lib/pursuits/tracker-voice-copy";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /** Exported so `/mock/history` (fixture preview — `useViewed()` has no
  *  guest fallback, so the real route can't show filled/empty states
@@ -52,7 +54,7 @@ export function HistoryHeader() {
 function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
     return (
         <EmptyState
-            title="Sign in to see your history."
+            title="Sign in to see your history." // signup-gate-exempt: private tracker history page, sign-in is its only signed-out state
             description="We keep track of every job you open so you can find your way back to it."
             actions={
                 <Button className="rounded-ctl font-semibold" onClick={onLoginClick}>
@@ -128,14 +130,21 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
  */
 export function HistoryList({
     loading,
+    failed,
+    onRetry,
     entries,
     byJobId,
 }: {
     loading: boolean;
+    failed: boolean;
+    onRetry: () => void;
     entries: JobView[];
     byJobId: Map<string, Pursuit>;
 }) {
     if (loading) return <HistoryLoading />;
+    if (entries.length === 0 && failed) {
+        return <LoadFailedState title="We can't load your history right now." onRetry={onRetry} testId="history-load-failed" />;
+    }
     if (entries.length === 0) {
         return (
             <ConceptAEmptyPageSlot placement="after-controls">
@@ -154,39 +163,42 @@ export function HistoryList({
     );
 }
 
-/** §6: "skeleton-bar bars shaped like the row anatomy" — decomposed into
+/** §6: wait-state bars shaped like the row anatomy — decomposed into
  *  title/company/meta bars (matches the jobs/page.tsx reference skeleton),
  *  not one flat block standing in for the whole row. */
 function HistoryLoading() {
     return (
-        <div className={posterListPanelClassName} role="status" aria-busy="true">
-            <div aria-hidden className="divide-y divide-border border-t border-border">
-                {[0, 1, 2, 3, 4].map((i) => (
-                    <div key={i} className="px-[var(--list-inset)] pt-4">
-                        <div className="space-y-1.5 border-b border-border pb-4">
-                            <div className="skeleton-bar h-4 w-2/3" />
-                            <div className="skeleton-bar h-3 w-1/3" />
-                            <div className="skeleton-bar h-3 w-24" />
+        <WaitState
+            label="Loading your history"
+            className={posterListPanelClassName}
+            skeleton={
+                <div className="divide-y divide-border border-t border-border">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                        <div key={i} className="px-[var(--list-inset)] pt-4">
+                            <div className="space-y-1.5 border-b border-border pb-4">
+                                <WaitBar className="h-4 w-2/3" />
+                                <WaitBar className="h-3 w-1/3" />
+                                <WaitBar className="h-3 w-24" />
+                            </div>
                         </div>
-                    </div>
-                ))}
-            </div>
-            <span className="sr-only">Loading your history…</span>
-        </div>
+                    ))}
+                </div>
+            }
+        />
     );
 }
 
 export default function HistoryPage() {
     const [user, setUser] = useState(() => getCurrentUser());
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
-    const { entries, loading } = useViewed();
+    const { entries, loading, failed, retry } = useViewed();
     const { byJobId } = usePursuits();
 
     useEffect(() => onAuthChange(setUser), []);
 
     return (
         <PageLayout fullWidth header={<HistoryHeader />}>
-            <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
+            <div className="shell-row pb-16 pt-6">
                 <TrackerTabs active="history" />
                 {!user ? (
                     <div className="mt-4">
@@ -194,7 +206,7 @@ export default function HistoryPage() {
                     </div>
                 ) : (
                     <div className="mt-4">
-                        <HistoryList loading={loading} entries={entries} byJobId={byJobId} />
+                        <HistoryList loading={loading} failed={failed} onRetry={retry} entries={entries} byJobId={byJobId} />
                     </div>
                 )}
             </div>

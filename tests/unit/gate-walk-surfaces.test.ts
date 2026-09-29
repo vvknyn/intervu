@@ -7,7 +7,8 @@ test('gate-walk-signed-in.mjs covers privacy, landing, motion, and gate viewport
   const src = readFileSync('scripts/gate-walk-signed-in.mjs', 'utf8');
   assert.match(src, /runLandingSignedOut/, 'signed-out landing runner');
   assert.match(src, /runLandingAxeWithContrastFallback/, 'landing computed-AA fallback');
-  assert.match(src, /concept-a-landing/, 'landing scans visible Concept A root');
+  // #652 (f6a8e9cc) made signed-out /jobs the board; the Concept A root is gone.
+  assert.match(src, /data-testid="job-row"/, 'landing probes the signed-out board');
   assert.match(src, /\/privacy/, 'privacy route');
   assert.match(src, /1440,\s*height:\s*900/, 'desktop gate viewport');
   assert.match(src, /prefers-reduced-motion|reducedMotion/, 'reduced-motion emulation');

@@ -31,6 +31,7 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
   const [email, setEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
+  const [rejectMessage, setRejectMessage] = useState<string | null>(null);
 
   // This component only ever mounts once a signed-out Follow click has
   // opened it (FollowButton renders it behind `emailStepOpen`), so mount IS
@@ -60,7 +61,10 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
         }),
       });
       // 400 (rejected: bad email/turnstile) and 503 (PG unavailable) both
-      // land here — an honest retry line, never a fabricated "sent".
+      // land here — an honest retry line, never a fabricated "sent". A
+      // Turnstile refusal carries its own actionable `message`.
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
+      setRejectMessage(body?.message ?? null);
       setStatus(res.ok ? "sent" : "error");
     } catch {
       setStatus("error");
@@ -87,17 +91,17 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@company.com"
           data-testid="follow-email-input"
-          className="h-8 text-xs"
+          className="ctl-md text-xs"
         />
-        <TurnstileWidget onVerify={setTurnstileToken} />
+        <TurnstileWidget surface="follow_email" onVerify={setTurnstileToken} />
         {status === "error" && (
-          <p className="text-xs text-destructive">Couldn&apos;t send that — try again.</p>
+          <p className="text-xs text-destructive">{rejectMessage ?? "Couldn't send that — try again."}</p>
         )}
         <Button
           type="submit"
           size="sm"
           disabled={status === "submitting"}
-          className="h-8 w-full text-xs"
+          className="w-full text-xs"
         >
           {status === "submitting" ? "Sending…" : "Send confirmation"}
         </Button>
@@ -106,10 +110,10 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
         <Button
           type="button"
           variant="link"
-          size="sm"
+          size="link"
           data-testid="follow-email-signin"
           onClick={onSignInInstead}
-          className="mt-1 h-auto px-0 py-0 text-xs text-muted-foreground"
+          className="mt-1 text-xs text-muted-foreground"
         >
           Have an account? Sign in
         </Button>

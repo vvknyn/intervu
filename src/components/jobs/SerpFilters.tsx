@@ -72,6 +72,7 @@ export function Affordance({
                 checked={active}
                 readOnly
                 onClick={onClick}
+                // control-scale-allow: checkbox/radio glyph (dynamic `type`), not a scale control
                 className="h-3.5 w-3.5 shrink-0 accent-brand"
             />
             <span className="min-w-0 flex-1">{children}</span>

@@ -1,7 +1,9 @@
 /**
  * Corpus-scale Meilisearch counts for hub pack pills — same live-vacancy +
- * hide-ghosts + places baseline as `getCachedDefaultBrowse`, not the fit
- * probe's 30d window or browse page hits.
+ * hide-ghosts + places baseline as `getCachedDefaultBrowse`, in the same
+ * posted window as the list a pill opens (`DEFAULT_URL_STATE.postedBucket`),
+ * never browse page hits. A pill counting all-time beside a 30-day list is
+ * two filter states under one label.
  *
  * Query-string `OR` is not a disjunction on this index: the token is dropped,
  * `matchingStrategy: "all"` then requires every remaining word (0 hits), and
@@ -19,17 +21,14 @@ import {
 } from "@/lib/jobs/meilisearch";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, PlaceClause } from "@/lib/jobs/types";
 import { HUB_PACK_IDS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
-
-/** Keeps jobs with no country. `!=` alone drops documents missing the field. */
-export const HUB_PACK_NOT_CANADA_FILTER =
-    '(location_country NOT EXISTS OR location_country IS EMPTY OR (location_country != "Canada" AND location_country != "CA"))';
+import { DEFAULT_URL_STATE } from "@/lib/jobs/url-state";
 
 const HAS_SALARY_FILTER =
     "(salary_min > 0 OR salary_max > 0 OR normalized_salary_min > 0 OR normalized_salary_max > 0)";
 
 /** `isLeadJob` experience_level branch. Title regex is not filterable (CONTAINS is off). */
 const LEAD_EXPERIENCE_FILTER =
-    '(experience_level = "lead" OR experience_level = "principal" OR experience_level = "staff" OR experience_level = "director")';
+    '(experience_level = "lead" OR experience_level = "principal" OR experience_level = "staff" OR experience_level = "director")'; // unknown-inclusive-exempt: the Lead pack is a topic (lead-level roles), not a candidate seniority filter
 
 /** Quoted phrases from `AI_RE`. `occupation` is not a searchableAttribute. */
 const AI_PACK_QUERIES = [
@@ -76,6 +75,7 @@ const HAYSTACK_ATTRIBUTES = ["title", "tags", "company"] as const;
 function baseBrowseParams(places: PlaceClause[] | undefined): JobSearchParams {
     return {
         hideGhosts: true,
+        postedBucket: DEFAULT_URL_STATE.postedBucket,
         places,
         limit: 0,
         offset: 0,
@@ -86,13 +86,13 @@ function baseBrowseParams(places: PlaceClause[] | undefined): JobSearchParams {
 
 function extraFiltersForPack(packId: HubPackId): string[] {
     if (packId === "all") return [];
-    const extra: string[] = [HUB_PACK_NOT_CANADA_FILTER];
+    const extra: string[] = [];
     if (packId === "salary") extra.push(`(${HAS_SALARY_FILTER})`);
     if (packId === "lead") extra.push(LEAD_EXPERIENCE_FILTER);
     return extra;
 }
 
-function packSearchParams(packId: HubPackId, places: PlaceClause[] | undefined): JobSearchParams {
+export function hubPackCorpusParams(packId: HubPackId, places: PlaceClause[] | undefined): JobSearchParams {
     const base = baseBrowseParams(places);
     switch (packId) {
         case "all":
@@ -110,7 +110,7 @@ function packSearchParams(packId: HubPackId, places: PlaceClause[] | undefined):
             // apply_url is not filterable. Changing filterableAttributes reindexes;
             // do not. The public document copies the listing URL into apply_url,
             // and a 5,000-row sample of recent live listings had no empty URL
-            // (2026-09-28), so this pill is the non-Canada live corpus.
+            // (2026-09-28), so this pill is the live corpus.
             return base;
         default:
             return base;
@@ -123,7 +123,7 @@ function packSearchBody(
     legacy: boolean,
     q?: string,
 ) {
-    const params = packSearchParams(packId, places);
+    const params = hubPackCorpusParams(packId, places);
     const body = buildSearchBody(q ? { ...params, q } : params, legacy, "all", {});
     const extra = extraFiltersForPack(packId);
     if (extra.length) body.filter = [...body.filter, ...extra];

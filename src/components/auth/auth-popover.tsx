@@ -25,8 +25,8 @@ const EXPLICIT_USER_GATE_REASONS = new Set<AuthGateReason>([
     "resume",
     "tailor",
     "tracker",
-    "report",
     "alert",
+    "follow",
 ]);
 
 function ensureGateAttemptRecorded(
@@ -192,7 +192,7 @@ export function AuthPopover({
         return (
             <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
                 <DialogContent
-                    className="sm:max-w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain bg-surface-2 p-5 pt-7 sm:p-6 sm:pt-8"
+                    className="sm:max-w-105 max-h-[min(640px,var(--overlay-max-h))] bg-surface-2 p-5 pt-7 sm:p-6 sm:pt-8"
                     onCloseAutoFocus={handleDialogCloseAutoFocus}
                 >
                     <DialogTitle className="sr-only">{gateTitle ?? "Authentication"}</DialogTitle>
@@ -206,7 +206,7 @@ export function AuthPopover({
     return (
         <Popover open={effectiveOpen} onOpenChange={onOpenChange}>
             <PopoverTrigger asChild>
-                <Button size="sm" variant="outline" className="h-8">
+                <Button size="sm" variant="outline" >
                     {AUTH_CTA_LABEL}
                 </Button>
             </PopoverTrigger>

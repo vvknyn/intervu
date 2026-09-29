@@ -23,7 +23,7 @@ describe("jobs home view crossfade policy", () => {
     });
 
     it("jobs page wraps the home column in JobsHomeViewTransition", () => {
-        const page = readFileSync(join(ROOT, "src/app/jobs/page.tsx"), "utf8");
+        const page = readFileSync(join(ROOT, "src/app/jobs/JobsContent.tsx"), "utf8");
         assert.match(page, /<JobsHomeViewTransition surface=\{resolvedHomeView\}>/);
     });
 });

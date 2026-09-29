@@ -12,7 +12,7 @@ import { Anchor as PopoverAnchor } from "@radix-ui/react-popover";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { addGuestFollow, removeGuestFollow } from "@/lib/follows/guest-store";
 import { invalidateFollowsCache, useFollows } from "@/lib/follows/use-follows";
-import { CircleNotch } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 
 /** Busy-state label for follow/unfollow actions — one place for tests and UI. */
@@ -209,13 +209,13 @@ export function FollowButton({
         className={cn(
           "inline-flex items-center justify-center gap-2",
           variant === "elite" &&
-            "border px-4 py-2 text-sm font-semibold transition-colors",
+            "border px-4 ctl-md text-sm font-semibold transition-colors",
           variant === "elite" &&
             (following
               ? "border-[color:var(--elite-ink)] bg-[color:var(--elite-ink)] text-[color:var(--elite-surface)]"
               : "border-[color:var(--elite-ink)] bg-[color:var(--elite-card)] text-[color:var(--elite-ink)] hover:bg-[color:var(--elite-rule)]"),
           variant === "pill" &&
-            "rounded-none border px-3 py-1.5 text-xs transition-colors",
+            "rounded-none border ctl-md px-3 text-xs transition-colors",
           variant === "pill" &&
             (following
               ? "border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] text-[color:var(--elite-brand)]"
@@ -223,7 +223,7 @@ export function FollowButton({
           className,
         )}
       >
-        {showSpinner && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
+        {showSpinner && <InlineSpinner className="shrink-0" />}
         {displayLabel}
       </button>
     ) : (
@@ -245,7 +245,7 @@ export function FollowButton({
           className,
         )}
       >
-        {showSpinner && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
+        {showSpinner && <InlineSpinner className="shrink-0" />}
         {displayLabel}
       </Button>
     );

@@ -5,6 +5,9 @@ import { ELUTA_ALTERNATIVE, ELUTA_ALTERNATIVE_FAQ } from "@/lib/seo/alternatives
 import { buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
+import { Prose } from "@/components/ui/prose";
+import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = ELUTA_ALTERNATIVE;
 
@@ -16,11 +19,10 @@ export const metadata: Metadata = {
 
 const faqJsonLd = buildFaqPageJsonLd(ELUTA_ALTERNATIVE_FAQ);
 
-const ASEC = "mt-8 mb-3 text-xs font-semibold text-muted-foreground";
 
 export default function ElutaAlternativePage() {
   return (
-    <main data-testid="eluta-alternative-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <PageContainer measure="reading" data-testid="eluta-alternative-page" className="py-10">
       {faqJsonLd && (
         <script
           type="application/ld+json"
@@ -28,14 +30,14 @@ export default function ElutaAlternativePage() {
         />
       )}
       <p className="text-xs font-semibold text-brand">Eluta alternative</p>
-      <h1 className="mt-3 font-display text-display font-semibold text-foreground">
+      <PageTitle className="mt-3">
         Eluta crawls the career page. So do we — then we ask if it&apos;s still open.
-      </h1>
-      <p className="mt-1.5 text-sm italic text-muted-foreground">
+      </PageTitle>
+      <p className="mt-1.5 text-base text-muted-foreground">
         velai reads employer career pages wherever they publish. Eluta stays focused on one regional catalog.
       </p>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+      <Prose className="mt-6">
         <p>
           People who search &quot;Eluta alternative&quot; usually already know the pitch: jobs pulled from
           employer websites, not a pile of reposted ads. Eluta built that catalog around well-known
@@ -47,21 +49,21 @@ export default function ElutaAlternativePage() {
           limited to one regional index when you also want employers that hire across regions.
         </p>
 
-        <h2 className={ASEC}>What Eluta gets right</h2>
+        <SectionTitle>What Eluta gets right</SectionTitle>
         <p>
           Eluta&apos;s whole premise is that the employer&apos;s site is the signal. Public boards emphasize
           visibility; big aggregators sell reach. Eluta sits closer to the source. velai agrees with that
           premise — we just add a freshness pass and extend the same crawl when the employer publishes
           roles beyond a single national catalog.
         </p>
-      </article>
+      </Prose>
 
       <div className="mt-8">
         <BoardComparisonTable board="typical" />
       </div>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
-        <h2 className={ASEC}>When to keep Eluta, when to add velai</h2>
+      <Prose className="mt-6">
+        <SectionTitle>When to keep Eluta, when to add velai</SectionTitle>
         <p>
           Keep Eluta if you want a familiar employer-site directory in one regional catalog and you are happy
           browsing without a stale-posting flag. Use velai when you want to know whether the role is still on the
@@ -72,14 +74,14 @@ export default function ElutaAlternativePage() {
           <Link href="/jobs">the live listings</Link>.
         </p>
 
-        <h2 className={ASEC}>Look at the jobs</h2>
+        <SectionTitle>Look at the jobs</SectionTitle>
         <p>
           Searching is free. {PUBLIC_ANTI_SCORE_SENTENCE}{" "}
           <Link href="/jobs">The live listings are here</Link>. Indeed and LinkedIn are different problems (
           <Link href="/indeed-alternative">Indeed alternative</Link>,{" "}
           <Link href="/linkedin-jobs-alternative">LinkedIn Jobs alternative</Link>).
         </p>
-      </article>
-    </main>
+      </Prose>
+    </PageContainer>
   );
 }

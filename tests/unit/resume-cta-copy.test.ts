@@ -14,9 +14,7 @@ import {
     SIGN_IN_TO_SYNC_LABEL,
     UPLOAD_TO_CUSTOMIZE_LABEL,
     jobsTabHelperCopy,
-    resumeUploadCtaLabel,
 } from "../../src/lib/jobs/resume-cta-copy";
-import { RESUME_UPLOAD_AUTH_CTA, RESUME_UPLOAD_CTA } from "../../src/lib/auth/auth-gate-copy";
 import { PUBLIC_ANTI_SCORE_SENTENCE } from "../../src/lib/marketing/public-copy";
 import { connectTabLabel } from "../../src/components/layout/nav-tabs";
 
@@ -35,14 +33,14 @@ test("jobsTabHelperCopy shows Add-résumé helper only when résumé is confirme
 });
 
 test("jobs page imports shared résumé CTA copy and tracks resumeOnFile", () => {
-    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
     assert.match(pageSrc, /from "@\/lib\/jobs\/resume-cta-copy"/);
     assert.match(pageSrc, /RESUME_UPLOAD_PROMISE/);
     assert.match(pageSrc, /\bresumeOnFile\b/);
 });
 
 test("inline Search button uses rounded-pill, not rounded-ctl", () => {
-    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+    const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
     const searchButtonBlock =
         pageSrc.match(
             /onClick=\{\(\) => submitSearch\(queryDraft\)\}[\s\S]*?<\/Button>/,
@@ -62,7 +60,8 @@ test("rank secondary copy matches contract", () => {
 test("front door card subcopy matches contract", () => {
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
-        "Create a free account and upload one résumé to unlock personalized picks, fit bands, customize, and tailored PDFs.",
+        // 4ac07706 (signed-out résumé privacy claims) added "It stays in this browser".
+        "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.",
     );
 });
 
@@ -97,11 +96,4 @@ test("connectTabLabel switches on résumé presence", () => {
 test("PUBLIC_ANTI_SCORE_SENTENCE matches contract", () => {
     assert.match(PUBLIC_ANTI_SCORE_SENTENCE, /No fake percentage/i);
     assert.match(PUBLIC_ANTI_SCORE_SENTENCE, /Strong\/Good\/Stretch/i);
-});
-
-test("resumeUploadCtaLabel switches on auth vs importer next step", () => {
-    assert.equal(resumeUploadCtaLabel("auth"), RESUME_UPLOAD_AUTH_CTA);
-    assert.equal(resumeUploadCtaLabel("importer"), RESUME_UPLOAD_CTA);
-    assert.equal(resumeUploadCtaLabel("auth"), "Create account & upload résumé");
-    assert.equal(resumeUploadCtaLabel("importer"), "Upload résumé");
 });

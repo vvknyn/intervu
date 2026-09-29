@@ -1,9 +1,14 @@
 import type { Page } from "@playwright/test";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { expect, test } from "./fixtures";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+// Guest résumé path: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
+const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
+const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
+
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -113,4 +118,113 @@ test("a job page opened directly renders one h1 and an Apply button", { tag: ["@
 test("returning visitor's search session throws no uncaught page errors", { tag: ["@J-SRCH-21"] }, async ({ page, diagnostics }) => {
   await searchFor(page, "engineer");
   expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/** Fabricated candidate (no real person) whose résumé location is `location`. */
+const guestWithResume = (page: Page, location: string) =>
+  page.addInitScript(
+    ([enabledKey, resumeKey, location]) => {
+      const resume = {
+        profile: { name: "Sam Rivera", profession: "Software Engineer", yearsOfExperience: 4, location, email: "sam.rivera.dev@example.com", phone: "555-010-1234", linkedin: "", website: "" },
+        experience: [{ id: "exp1", company: "Nimbus Data", role: "Software Engineer", dates: "2021 - Present", description: "Built backend services in TypeScript and Node." }],
+        competencies: [{ category: "Languages", skills: ["TypeScript", "JavaScript", "Python", "SQL"] }],
+        education: [{ id: "edu1", degree: "B.S. Computer Science", institution: "State University", year: "2018" }],
+        generatedSummary: "Software engineer with four years of experience building backend systems in TypeScript.",
+      };
+      localStorage.setItem(enabledKey, "1");
+      localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
+    },
+    [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location],
+  );
+
+test("a For-you pack's Edit filters opens /jobs on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
+  // Iceland: a country with few software roles, so the pack is thin whatever the corpus holds today.
+  await guestWithResume(page, "Reykjavik, Iceland");
+  await page.goto("/jobs?view=for-you");
+  const edit = page.getByTestId("pack-edit-filters");
+  await expect(edit).toBeVisible({ timeout: 30_000 });
+  const href = new URL((await edit.getAttribute("href"))!, "http://x");
+  expect(href.pathname).toBe("/jobs");
+  expect(href.searchParams.get("country")).toBe("Iceland");
+  expect(href.searchParams.get("view")).toBe("search");
+
+  // Thin pack: the shared broaden nudge, with a count on every option it draws.
+  const broaden = page.getByTestId("broaden-options");
+  await expect(broaden).toBeVisible({ timeout: 30_000 });
+  await expect(broaden.getByRole("link").first()).toContainText(/\d[\d,]* roles/);
+
+  // Edit filters lands on the search board carrying the pack's country facet.
+  await edit.click();
+  await expect(page).toHaveURL(/[?&]country=Iceland/);
+  await expect(page.getByTestId("for-you-home")).toHaveCount(0);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("a board search with zero results offers to broaden, each option with its count", { tag: ["@J-JOBS-28"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.goto("/jobs?view=search&q=engineer&country=Iceland&exp=entry&posted=1d");
+  const broaden = page.getByTestId("broaden-options");
+  await expect(broaden).toBeVisible({ timeout: 30_000 });
+  await expect(broaden.getByRole("button").first()).toContainText(/\d[\d,]* roles/);
+  await broaden.getByRole("button").first().click();
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+/**
+ * Every Server Action POST answers 503, in the browser only; nothing reaches
+ * the origin. Returns a switch that lets actions through again (the fixture's
+ * analytics block stays in place, so no unroute).
+ */
+const failEveryAction = async (page: Page) => {
+  let failing = true;
+  await page.route("**/*", (route) =>
+    failing && route.request().method() === "POST" && route.request().headers()["next-action"]
+      ? route.fulfill({ status: 503, contentType: "text/plain", body: "journey stub: 503" })
+      : route.fallback(),
+  );
+  return () => {
+    failing = false;
+  };
+};
+
+test("a failed ranked-list read shows an error with Retry, never the empty state", { tag: ["@J-JOBS-31"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  const recover = await failEveryAction(page);
+  await page.goto("/jobs?view=for-you");
+  await page.getByTestId("hub-pack-card-all").click();
+
+  // One automatic retry (2-4 s) runs first, then the failure shows.
+  const failed = page.getByTestId("for-you-load-failed");
+  await expect(failed).toBeVisible({ timeout: 30_000 });
+  await expect(failed).toHaveAttribute("role", "alert");
+  await expect(page.getByTestId("for-you-empty")).toHaveCount(0);
+
+  // Retry re-reads: with actions answering again, the error clears.
+  recover();
+  await page.getByTestId("for-you-load-failed-retry").click();
+  await expect(failed).toHaveCount(0, { timeout: 30_000 });
+});
+
+/** Real reduplicated place names: the only strings the repeated-token check must not flag. */
+const REDUPLICATED_PLACES = /\b(walla walla|bora bora|pago pago|wagga wagga)\b/gi;
+const repeatedToken = (label: string) => label.replace(REDUPLICATED_PLACES, "").match(/\b(\w{3,})\s*\1\b/i)?.[0] ?? null;
+
+test("no job card or job page location label repeats an adjacent token", { tag: ["@J-JOBS-26"] }, async ({ page, diagnostics }) => {
+  // "remote" biases the result set toward the ATS "Remote Location" / "RemoteRemote" shapes.
+  await searchFor(page, "remote");
+  const locations = page.getByTestId("job-location");
+  await expect(locations.first()).toBeVisible();
+  const cardLabels = await locations.allTextContents();
+  expect(cardLabels.length, "job cards rendered no location labels").toBeGreaterThan(0);
+  expect(cardLabels.filter(repeatedToken), "card location labels with a repeated token").toEqual([]);
+
+  const path = await page.getByTestId("job-row").first().locator('a[href^="/jobs/"]').first().getAttribute("href");
+  await page.goto(path!);
+  await expect(locations.first()).toBeVisible();
+  const detailLabels = await locations.allTextContents();
+  expect(detailLabels.filter(repeatedToken), "job page location labels with a repeated token").toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
 });

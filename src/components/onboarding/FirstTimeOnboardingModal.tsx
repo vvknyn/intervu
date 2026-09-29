@@ -1,5 +1,6 @@
 "use client";
 
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { useState, useRef, useEffect } from "react";
 import {
     Sparkle,
@@ -16,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
@@ -127,7 +129,7 @@ export function FirstTimeOnboardingModal({
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className="max-w-xl p-0 overflow-hidden rounded-panel border border-border bg-card"
+                className="max-w-xl p-0 rounded-panel border border-border bg-card"
                 showCloseButton={false}
             >
                 <div className="sr-only">
@@ -165,11 +167,12 @@ export function FirstTimeOnboardingModal({
                     />
                 </div>
 
+                <DialogBody>
                 {/* Step 1: Tour & Value Proposition */}
                 {step === 1 && (
                     <div className="p-6 sm:p-7 space-y-6">
                         <div className="space-y-1">
-                            <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
+                            <h2 className="text-xl font-semibold text-foreground">
                                 Job hunting without the noise
                             </h2>
                             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -218,19 +221,19 @@ export function FirstTimeOnboardingModal({
                         {/* Background Pre-warm Card */}
                         <div className="flex items-center justify-between rounded-ctl border border-border bg-card p-3 text-xs">
                             <div className="flex items-center gap-2.5">
-                                <Cpu size={16} className={cn("text-brand", !modelReady && "animate-spin")} />
+                                {modelReady ? <Cpu size={16} className="text-brand" /> : <InlineSpinner size={16} className="text-brand" />}
                                 <span className="font-normal text-foreground">
                                     {modelReady ? "Private assistant ready" : "Preparing your private assistant…"}
                                 </span>
                             </div>
                             <span className="text-xs text-muted-foreground">
-                                {modelReady ? "Ready ✓" : "Takes a few seconds"}
+                                {modelReady ? "Ready ✓" : ""}
                             </span>
                         </div>
 
                         <div className="flex justify-end pt-1">
                             <Button onClick={() => setStep(2)} className="gap-2 text-xs font-semibold">
-                                Next: Create your account <ArrowRight size={16} />
+                                {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Next: Create your account <ArrowRight size={16} />
                             </Button>
                         </div>
                     </div>
@@ -240,8 +243,8 @@ export function FirstTimeOnboardingModal({
                 {step === 2 && (
                     <div className="p-6 sm:p-7 space-y-5">
                         <div className="space-y-1">
-                            <h2 className="text-lg sm:text-xl font-semibold text-foreground">
-                                Create your free account
+                            <h2 className="text-xl font-semibold text-foreground">
+                                {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Create your free account
                             </h2>
                             <p className="text-xs text-muted-foreground">
                                 Save your matched roles, track applications, and get email alerts when new verified jobs open up.
@@ -255,7 +258,7 @@ export function FirstTimeOnboardingModal({
                                     onOpenAuth?.();
                                     setStep(3);
                                 }}
-                                className="w-full h-11 rounded-ctl border border-border bg-card hover:bg-muted text-xs font-semibold flex items-center justify-center gap-2.5 transition-colors"
+                                className="ctl-lg w-full rounded-ctl border border-border bg-card hover:bg-muted text-xs font-semibold flex items-center justify-center gap-2.5 transition-colors"
                             >
                                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -276,15 +279,15 @@ export function FirstTimeOnboardingModal({
                                 <input
                                     type="email"
                                     placeholder="you@work.com"
-                                    className="w-full h-11 px-3 rounded-ctl border border-border bg-card text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground"
+                                    className="ctl-lg w-full px-3 rounded-ctl border border-border bg-card text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground"
                                 />
-                                <Button
+                                <Button size="lg"
                                     type="button"
                                     onClick={() => {
                                         onOpenAuth?.();
                                         setStep(3);
                                     }}
-                                    className="w-full h-11 text-xs font-semibold"
+                                    className="w-full text-xs font-semibold"
                                 >
                                     Continue with email
                                 </Button>
@@ -314,7 +317,7 @@ export function FirstTimeOnboardingModal({
                 {step === 3 && (
                     <div className="p-6 sm:p-7 space-y-5">
                         <div className="space-y-1">
-                            <h2 className="text-lg sm:text-xl font-semibold text-foreground">
+                            <h2 className="text-xl font-semibold text-foreground">
                                 Add your résumé
                             </h2>
                             <p className="text-xs text-muted-foreground">
@@ -353,7 +356,7 @@ export function FirstTimeOnboardingModal({
                             />
                             {uploading ? (
                                 <div className="space-y-2 py-2">
-                                    <Cpu size={24} className="mx-auto animate-spin text-brand" />
+                                    <InlineSpinner size={24} className="mx-auto text-brand" />
                                     <p className="text-xs font-semibold text-foreground">Reading résumé privately on your computer…</p>
                                 </div>
                             ) : uploadedFile ? (
@@ -444,6 +447,7 @@ export function FirstTimeOnboardingModal({
                         </div>
                     </div>
                 )}
+                </DialogBody>
             </DialogContent>
         </Dialog>
     );

@@ -20,7 +20,7 @@ const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url),
 const CSS = read("src/app/globals.css");
 const TOPBAR = read("src/components/layout/TopBar.tsx");
 const FOOTER = read("src/components/layout/Footer.tsx");
-const JOBS = read("src/app/jobs/page.tsx");
+const JOBS = read("src/app/jobs/JobsContent.tsx");
 
 /**
  * Every `shell-row` declaration in a file, each reduced to a single string:
@@ -156,7 +156,7 @@ describe("shell width: one owner, declared by the page", () => {
             shellRowDeclarationsIn(`<div className="shell-row flex items-center">`),
             ["shell-row flex items-center"],
         );
-        // The regression: shell-row as a cn(...) argument (jobs/page.tsx's shape).
+        // The regression: shell-row as a cn(...) argument (jobs/JobsContent.tsx's shape).
         assert.deepEqual(
             shellRowDeclarationsIn(`className={cn("shell-row flex min-h-0 flex-col pt-2 sm:pt-3", extra)}`),
             ["shell-row flex min-h-0 flex-col pt-2 sm:pt-3"],

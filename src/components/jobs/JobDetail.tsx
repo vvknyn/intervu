@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowSquareOut, Check, Minus, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -52,6 +53,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ResumeData } from "@/types/resume";
 import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
+import { WaitBar } from "@/components/ui/wait-state";
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -260,28 +262,28 @@ export function JobDetailSkeleton() {
         <div className="overflow-hidden border border-border bg-surface" aria-hidden="true">
             <div className="border-b border-border p-6">
                 <div className="flex items-start gap-4">
-                    <div className="skeleton-bar h-12 w-12 shrink-0" />
+                    <WaitBar className="h-12 w-12 shrink-0" />
                     <div className="min-w-0 flex-1 space-y-2">
-                        <div className="skeleton-bar h-5 w-2/3" />
-                        <div className="skeleton-bar h-3.5 w-1/3" />
+                        <WaitBar className="h-5 w-2/3" />
+                        <WaitBar className="h-3.5 w-1/3" />
                         <div className="flex flex-wrap gap-2 pt-1">
-                            <div className="skeleton-bar h-5 w-20" />
-                            <div className="skeleton-bar h-5 w-24" />
-                            <div className="skeleton-bar h-5 w-16" />
+                            <WaitBar className="h-5 w-20" />
+                            <WaitBar className="h-5 w-24" />
+                            <WaitBar className="h-5 w-16" />
                         </div>
                     </div>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
-                    <div className="skeleton-bar h-9 w-40" />
-                    <div className="skeleton-bar h-9 w-48" />
-                    <div className="skeleton-bar h-9 w-32" />
+                    <WaitBar className="h-9 w-40" />
+                    <WaitBar className="h-9 w-48" />
+                    <WaitBar className="h-9 w-32" />
                 </div>
             </div>
             <div className="space-y-2 p-6">
-                <div className="skeleton-bar h-3.5 w-full" />
-                <div className="skeleton-bar h-3.5 w-full" />
-                <div className="skeleton-bar h-3.5 w-5/6" />
-                <div className="skeleton-bar h-3.5 w-2/3" />
+                <WaitBar className="h-3.5 w-full" />
+                <WaitBar className="h-3.5 w-full" />
+                <WaitBar className="h-3.5 w-5/6" />
+                <WaitBar className="h-3.5 w-2/3" />
             </div>
         </div>
     );
@@ -354,7 +356,7 @@ export function JobDetailActionBar({
             className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-surface px-4", className)}
         >
             {job.apply_url && (
-                <Button className="h-10 flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
+                <Button size={jobActionSize} className="flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
                     <ArrowSquareOut weight="bold" />
                     {APPLY_BUTTON_LABEL}
                 </Button>
@@ -369,17 +371,17 @@ export function JobDetailActionBar({
                     onSignInToSync={onSignInToSync}
                 />
             ) : onUploadResume ? (
-                <Button
+                <Button size={jobActionSize}
                     type="button"
                     variant="outline"
                     data-testid="job-detail-upload-to-customize"
                     onClick={onUploadResume}
-                    className="h-10 shrink-0 rounded-ctl text-xs font-semibold sm:h-9"
+                    className="shrink-0 rounded-ctl text-xs font-semibold"
                 >
                     {UPLOAD_TO_CUSTOMIZE_LABEL}
                 </Button>
             ) : null}
-            {/* Same 40px icon-only ghost bookmark as the desktop action row —
+            {/* Same icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}
             <RowBookmarkButton
                 pursuit={pursuit}
@@ -421,7 +423,7 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
             }}
             // rounded-none: KEEP — flush full-width row (px-0), mirrors JobCard's
             // hairline-separated list treatment — not a discrete control.
-            className="flex w-full flex-col gap-0.5 rounded-none px-0 py-3 text-left transition-colors hover:bg-muted cursor-pointer group"
+            className="ctl-md flex w-full flex-col gap-0.5 rounded-none px-0 text-left transition-colors hover:bg-muted cursor-pointer group"
         >
             <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
             <span className="mono-data truncate text-xs text-muted-foreground">
@@ -446,11 +448,8 @@ export function JobDetail({
     onClose,
     className,
     signedIn = true,
-    onRequestSignIn,
     onOpenRelated,
     reportJobEnabled = false,
-    reportDialogOpen,
-    onReportDialogOpenChange,
     collapseDescription = true,
     matchScore = null,
     matchAsOfDate = null,
@@ -471,19 +470,10 @@ export function JobDetail({
     onOpenPosting: () => void;
     /** When false, Apply/Save gate at click; description body stays public. */
     signedIn?: boolean;
-    /** Opens auth for gated actions (e.g. "Report listing") — AuthPopover on
-     *  the board, a `/login` redirect on `/jobs/[slug]`, not a second gate. */
-    onRequestSignIn?: () => void;
     /** ITEM O-FE (2026-08-15) — probed once by the caller via
      *  `reportJobEnabledAction`; the flags endpoint isn't deployed yet, so
      *  this defaults to hidden rather than showing a button that 404s. */
     reportJobEnabled?: boolean;
-    /** Forwarded straight to `ReportJobButton`'s own `open`/`onOpenChange` —
-     *  lets the caller reopen the report dialog after a gated report action
-     *  replays post-auth. Both optional: omit to keep the button's own
-     *  default (uncontrolled) state. */
-    reportDialogOpen?: boolean;
-    onReportDialogOpenChange?: (open: boolean) => void;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
      *  so callers built before the removal — e.g. app/page.tsx, out of this
      *  change's scope — still typecheck without editing their call sites. */
@@ -810,7 +800,7 @@ export function JobDetail({
                                     <button
                                         type="button"
                                         aria-label="More actions"
-                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                        className="ctl-lg flex w-10 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                     >
                                         <DotsThree size={20} weight="bold" aria-hidden />
                                     </button>
@@ -827,7 +817,7 @@ export function JobDetail({
                                 type="button"
                                 aria-label="Close"
                                 onClick={onClose}
-                                className="flex h-10 w-10 items-center justify-center rounded-ctl bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
+                                className="ctl-lg flex w-10 items-center justify-center rounded-ctl bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
                             >
                                 ×
                             </button>
@@ -837,7 +827,8 @@ export function JobDetail({
 
                 {/* Title row */}
                 <div className="px-4 pb-3 pt-3 sm:px-6">
-                    <h2 className="font-display text-title-lg font-semibold leading-tight text-balance text-foreground">{jobTitle}</h2>
+                    {/* page-scale-allow: a job's title heads its detail pane at the page-title step; the h1 is the list masthead */}
+                    <h2 className="font-display text-2xl font-semibold leading-tight text-balance text-foreground">{jobTitle}</h2>
                     {matchScore && (
                         <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -887,7 +878,7 @@ export function JobDetail({
                             outlined control. rounded-ctl on both, same as
                             every other control in this row. */}
                         {job.apply_url && (
-                            <Button onClick={onOpenPosting} className="gap-2 h-10 px-4 rounded-ctl bg-foreground text-background text-sm font-semibold transition-colors">
+                            <Button size={jobActionSize} onClick={onOpenPosting} className="gap-2 px-4 rounded-ctl bg-foreground text-background text-sm font-semibold transition-colors">
                                 <ArrowSquareOut size={16} />
                                 {APPLY_BUTTON_LABEL}
                             </Button>
@@ -901,12 +892,12 @@ export function JobDetail({
                                 onSignInToSync={onSignInToSync}
                             />
                         ) : onUploadResume ? (
-                            <Button
+                            <Button size={jobActionSize}
                                 type="button"
                                 variant="outline"
                                 data-testid="job-detail-upload-to-customize"
                                 onClick={onUploadResume}
-                                className="h-10 shrink-0 rounded-ctl text-xs font-semibold"
+                                className="shrink-0 rounded-ctl text-xs font-semibold"
                             >
                                 {UPLOAD_TO_CUSTOMIZE_LABEL}
                             </Button>
@@ -933,9 +924,6 @@ export function JobDetail({
                             <ReportJobButton
                                 jobUrl={job.apply_url}
                                 jobTitle={jobTitle}
-                                onRequireAuth={() => onRequestSignIn?.()}
-                                open={reportDialogOpen}
-                                onOpenChange={onReportDialogOpenChange}
                                 className="ml-auto"
                             />
                         )}
@@ -965,7 +953,7 @@ export function JobDetail({
                                             ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
                                             : locationDisclosure.visible
                                         ).map((segment, i) => (
-                                            <span key={i}>{segment}</span>
+                                            <span key={i} data-testid="job-location">{segment}</span>
                                         ))}
                                         <button
                                             type="button"
@@ -976,7 +964,7 @@ export function JobDetail({
                                         </button>
                                     </>
                                 ) : (
-                                    <span>{locationDisplay}</span>
+                                    <span data-testid="job-location">{locationDisplay}</span>
                                 )}
                                 {/* Review fix: `variants` (page.tsx's
                                     `detailVariants`, same clusters the SERP
@@ -1245,9 +1233,9 @@ export function JobDetail({
                                     // `.skeleton-bar` idiom as JobDetailSkeleton.
                                     <>
                                         <div className="space-y-2" aria-hidden="true">
-                                            <div className="skeleton-bar h-3.5 w-full" />
-                                            <div className="skeleton-bar h-3.5 w-full" />
-                                            <div className="skeleton-bar h-3.5 w-5/6" />
+                                            <WaitBar className="h-3.5 w-full" />
+                                            <WaitBar className="h-3.5 w-full" />
+                                            <WaitBar className="h-3.5 w-5/6" />
                                         </div>
                                         <div className="mt-3">
                                             <DescriptionLoadingStatus />

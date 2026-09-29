@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBody, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Affordance } from "@/components/jobs/SerpFilters";
 import {
     POPULAR_LOCATION_COUNTRIES,
@@ -143,10 +143,10 @@ export function LocationPickerSheet({
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent
                 side="bottom"
-                className="mx-auto max-h-[85dvh] w-full max-w-[720px] overflow-hidden border-border p-0"
+                className="mx-auto w-full max-w-[720px] border-border p-0"
             >
                 <SheetTitle className="sr-only">Location</SheetTitle>
-                <div className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-surface p-4 pb-[env(safe-area-inset-bottom,16px)]">
+                <SheetBody className="bg-surface p-4 pb-[env(safe-area-inset-bottom,16px)]">
                     <h3 className="text-sm font-semibold text-foreground">Where do you want to work?</h3>
                     <p className="mt-1 text-xs text-muted-foreground">Pick one or more — results update when you continue.</p>
 
@@ -238,15 +238,15 @@ export function LocationPickerSheet({
                                 onChange={(e) =>
                                     setDraft((d) => ({ ...d, otherText: e.target.value, useDetected: false }))
                                 }
-                                className="h-11 rounded-ctl border-border bg-background text-base"
+                                className="ctl-lg rounded-ctl border-border bg-background text-base"
                             />
                         )}
                     </div>
 
-                    <Button
+                    <Button size="lg"
                         type="button"
                         data-testid="location-sheet-continue"
-                        className="mt-5 h-11 w-full rounded-ctl bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
+                        className="mt-5 w-full rounded-ctl bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
                             onClick={() => {
                                 const suppressDefault =
                                     !draft.useDetected &&
@@ -256,7 +256,7 @@ export function LocationPickerSheet({
                     >
                         Continue
                     </Button>
-                </div>
+                </SheetBody>
             </SheetContent>
         </Sheet>
     );

@@ -4,20 +4,24 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ConfidenceIndicator, ConfidenceBadge, WarningBanner } from "./ConfidenceIndicator";
-import { ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ParsedResumeResult } from "@/types/resume";
+import { ConfidenceIndicator, WarningBanner } from "./ConfidenceIndicator";
+import { ResumeReviewFields } from "./ResumeReviewFields";
+import { ResumeData, ParsedResumeResult } from "@/types/resume";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
-import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
+import { parseResumeLocally, type LocalParseResult } from "@/lib/local-ai/parse-resume";
+import { ModelEnhancementStrip, type EnhancementPhase } from "./ModelEnhancementStrip";
+import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
+import { ModelDownloadSize } from "@/components/local-ai/ModelLoadProgress";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
 import { RESUME_IMPORT_PARSE_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resume/profile-review-parse";
@@ -100,18 +104,11 @@ type InputMethod = 'file' | 'paste';
  */
 export function ResumeParsingStep() {
     return (
-        <div className="py-12 text-center space-y-4">
-            <div className="w-16 h-16 rounded-pill bg-surface-2 flex items-center justify-center mx-auto animate-pulse shadow-[var(--shadow-bevel-inset)]">
-                <Cpu size={24} weight="fill" className="text-live" />
-            </div>
-            <div>
-                <p className="text-foreground">Parsing your résumé...</p>
-                <p className="text-sm text-muted-foreground mt-1">Structuring on this device — no cloud LLM</p>
-            </div>
-            <div className="w-48 h-1 rounded-pill bg-surface-3 mx-auto overflow-hidden">
-                <div className="h-full w-full rounded-pill bg-live animate-pulse" />
-            </div>
-        </div>
+        <WaitState
+            label="Reading your résumé"
+            status="Structuring your résumé on this device"
+            className="py-12"
+        />
     );
 }
 
@@ -133,6 +130,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const [localAiConsent, setLocalAiConsent] = useState(false);
     const [consentDeclined, setConsentDeclined] = useState(false);
     const [engineLabel, setEngineLabel] = useState<string | null>(null);
+    // Model upgrade of the quick (rules) parse — see `startEnhancement`.
+    const [enhancement, setEnhancement] = useState<EnhancementPhase | null>(null);
+    const [improved, setImproved] = useState<LocalParseResult | null>(null);
+    const enhancementRun = useRef(0);
+    const skipEnhancement = useRef<(() => void) | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -147,6 +149,13 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         );
     }, [isOpen, funnelContext?.reason, funnelContext?.surface, funnelContext?.signed_in]);
 
+    // A new parse (or closing) invalidates any in-flight model upgrade of the old one.
+    const abandonEnhancement = () => {
+        enhancementRun.current += 1;
+        setEnhancement(null);
+        setImproved(null);
+    };
+
     const resetState = () => {
         setStep('input');
         setPastedText("");
@@ -157,6 +166,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setIsProcessing(false);
         setEngineLabel(null);
         setConsentDeclined(false);
+        abandonEnhancement();
     };
 
     const handleClose = () => {
@@ -267,9 +277,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         return result.text || "";
     };
 
+    // The quick (rules) parse is instant, so review opens at once; the model —
+    // which may be a large first-time download — upgrades it in the background.
     const runParse = async (textContent: string) => {
         const started = Date.now();
-        const local = await parseResumeLocally(textContent, { skipDownload: consentDeclined });
+        const local = await parseResumeLocally(textContent, { skipDownload: true });
         const refusal = refuseResumeReview(local.data.parsed, textContent);
         if (refusal) {
             throw new Error(refusal);
@@ -302,7 +314,46 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setConsentDeclined(true);
     };
 
+    const adoptImproved = (result: LocalParseResult) => {
+        setEngineLabel(result.engineLabel);
+        setParseResult(result.data);
+        setEditedData(result.data.parsed);
+        setImproved(null);
+        setEnhancement(null);
+    };
+
+    // Waits for the model however long the download takes — the user can skip
+    // at any time. Skipping only stops the wait: transformers.js can't cancel a
+    // download, so it finishes in the background and is cached for next time.
+    const startEnhancement = async (textContent: string) => {
+        const run = ++enhancementRun.current;
+        setEnhancement("loading");
+        const skipped = new Promise<"skipped">((resolve) => {
+            skipEnhancement.current = () => resolve("skipped");
+        });
+        const upgraded = (async () => {
+            if ((await initLocalAiLadder({ waitMs: Infinity })) === "heuristic") return null;
+            return parseResumeLocally(textContent);
+        })().catch(() => null);
+        const outcome = await Promise.race([upgraded, skipped]);
+        if (enhancementRun.current !== run) return;
+        if (outcome === "skipped") return setEnhancement("skipped");
+        if (outcome === null || outcome.engine === "heuristic" || refuseResumeReview(outcome.data.parsed, textContent)) {
+            return setEnhancement("unimproved");
+        }
+        setImproved(outcome);
+        setEnhancement("improved-pending");
+    };
+
+    // Untouched quick match → swap in the model's parse silently. Edited → the
+    // strip offers it as a button instead of overwriting the user's work.
+    useEffect(() => {
+        if (improved && parseResult && editedData === parseResult.parsed) adoptImproved(improved);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [improved, parseResult, editedData]);
+
     const handleParse = async () => {
+        abandonEnhancement();
         setIsProcessing(true);
         setError(null);
         captureEvent(
@@ -328,14 +379,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             setStep('parsing');
             captureEvent("resume_parse_started", buildResumeFunnelPayload({ ...funnelContext }));
 
+            await runParse(textContent);
+
             // Explicitly declining the download means heuristic rules only —
             // never trigger a model download the user asked to skip.
             if (!consentDeclined) {
                 if (!localAiConsent) grantConsent();
-                await initLocalAiLadder();
+                void startEnhancement(textContent);
             }
-
-            await runParse(textContent);
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : "Failed to parse resume";
             setError(message);
@@ -398,36 +449,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         handleClose();
     };
 
-    // Edit handlers for the review step
-    const updateProfile = (field: keyof ResumeData['profile'], value: string | number) => {
-        if (!editedData) return;
-        setEditedData({
-            ...editedData,
-            profile: { ...editedData.profile, [field]: value }
-        });
-    };
-
-    const updateExperience = (index: number, field: keyof ResumeExperience, value: string) => {
-        if (!editedData) return;
-        const newExp = [...editedData.experience];
-        newExp[index] = { ...newExp[index], [field]: value };
-        setEditedData({ ...editedData, experience: newExp });
-    };
-
-    const updateCompetency = (index: number, skills: string[]) => {
-        if (!editedData) return;
-        const newComp = [...editedData.competencies];
-        newComp[index] = { ...newComp[index], skills };
-        setEditedData({ ...editedData, competencies: newComp });
-    };
-
-    const updateEducation = (index: number, field: keyof ResumeEducation, value: string) => {
-        if (!editedData) return;
-        const newEdu = [...editedData.education];
-        newEdu[index] = { ...newEdu[index], [field]: value };
-        setEditedData({ ...editedData, education: newEdu });
-    };
-
     // Privacy/consent block — explanation + optional basic-parsing link only.
     // The one green parse/download primary lives in the modal footer (no extra
     // first-visit step); footer label is "Download model & parse" until consent
@@ -442,7 +463,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                     To read your résumé, Velai downloads an AI model to this browser once and runs it here.
-                    The download can be large, but it only happens once.
+                    {localAiConsent ? null : <ModelDownloadSize />}
                 </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                     {RESUME_IMPORT_PARSE_LINE} {storageNote}
@@ -451,9 +472,10 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     <Button
                         type="button"
                         variant="link"
+                        size="link"
                         data-testid="resume-import-skip-download"
                         onClick={handleSkipDownload}
-                        className="inline-flex h-auto min-h-11 justify-start px-0 py-2 text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                        className="inline-flex justify-start text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
                     >
                         Skip the download (basic parsing)
                     </Button>
@@ -471,12 +493,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 onValueChange={(v) => setInputMethod(v as InputMethod)}
                 className="gap-4"
             >
-                <TabsList variant="block" className="grid w-full grid-cols-2">
-                    <TabsTrigger value="file" className="gap-2">
+                <TabsList className="w-full">
+                    <TabsTrigger value="file" className="flex-1">
                         <Upload size={16} weight={inputMethod === "file" ? "fill" : "regular"} />
                         Upload file
                     </TabsTrigger>
-                    <TabsTrigger value="paste" className="gap-2">
+                    <TabsTrigger value="paste" className="flex-1">
                         <ClipboardText size={16} weight={inputMethod === "paste" ? "fill" : "regular"} />
                         Paste text
                     </TabsTrigger>
@@ -576,6 +598,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     </div>
                 </div>
 
+                {enhancement && (
+                    <ModelEnhancementStrip
+                        phase={enhancement}
+                        onSkip={() => skipEnhancement.current?.()}
+                        onUseImproved={() => improved && adoptImproved(improved)}
+                    />
+                )}
+
                 {/* Warnings */}
                 {parseResult.warnings.length > 0 && (
                     <div className="px-6">
@@ -596,195 +626,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     </div>
                 )}
 
-                <ScrollArea className="min-h-0 flex-1 max-h-[min(50dvh,400px)]">
+                <div>
                     <div className="px-6 space-y-6">
-                        {/* Profile Section */}
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-semibold flex items-center gap-2">
-                                    Profile
-                                    <ConfidenceBadge score={reviewConfidence.profile} section="Profile" />
-                                </h4>
-                            </div>
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Name</Label>
-                                    <Input
-                                        value={editedData.profile.name || ""}
-                                        onChange={(e) => updateProfile('name', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Profession</Label>
-                                    <Input
-                                        value={editedData.profile.profession}
-                                        onChange={(e) => updateProfile('profession', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Years of Experience</Label>
-                                    <Input
-                                        type="number"
-                                        value={editedData.profile.yearsOfExperience}
-                                        onChange={(e) => updateProfile('yearsOfExperience', parseInt(e.target.value) || 0)}
-                                        className="h-8 text-base md:text-sm"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Location</Label>
-                                    <Input
-                                        value={editedData.profile.location}
-                                        onChange={(e) => updateProfile('location', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Email</Label>
-                                    <Input
-                                        value={editedData.profile.email}
-                                        onChange={(e) => updateProfile('email', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Phone</Label>
-                                    <Input
-                                        value={editedData.profile.phone}
-                                        onChange={(e) => updateProfile('phone', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs">LinkedIn</Label>
-                                    <Input
-                                        value={editedData.profile.linkedin || ""}
-                                        onChange={(e) => updateProfile('linkedin', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Experience Section */}
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-semibold flex items-center gap-2">
-                                    Experience ({editedData.experience.length})
-                                    <ConfidenceBadge score={reviewConfidence.experience} section="Experience" />
-                                </h4>
-                            </div>
-                            <div className="space-y-4">
-                                {editedData.experience.map((exp, idx) => (
-                                    <div key={exp.id} className="rounded-panel p-3 bg-surface-2 space-y-2 shadow-[var(--shadow-bevel-inset)]">
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <Input
-                                                value={exp.company}
-                                                onChange={(e) => updateExperience(idx, 'company', e.target.value)}
-                                                placeholder="Company"
-                                                className="h-8 text-base md:text-sm"
-                                            />
-                                            <Input
-                                                value={exp.role}
-                                                onChange={(e) => updateExperience(idx, 'role', e.target.value)}
-                                                placeholder="Role"
-                                                className="h-8 text-base md:text-sm"
-                                            />
-                                        </div>
-                                        <Input
-                                            value={exp.dates}
-                                            onChange={(e) => updateExperience(idx, 'dates', e.target.value)}
-                                            placeholder="Dates"
-                                            className="h-8 text-base md:text-sm"
-                                        />
-                                        <Textarea
-                                            value={exp.description}
-                                            onChange={(e) => updateExperience(idx, 'description', e.target.value)}
-                                            placeholder="Description"
-                                            className="min-h-16 text-base md:text-xs"
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Competencies Section */}
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-semibold flex items-center gap-2">
-                                    Skills
-                                    <ConfidenceBadge score={reviewConfidence.competencies} section="Skills" />
-                                </h4>
-                            </div>
-                            <div className="space-y-3">
-                                {editedData.competencies.map((comp, idx) => (
-                                    <div key={idx} className="space-y-2">
-                                        <Label className="text-xs">{comp.category}</Label>
-                                        <Input
-                                            value={comp.skills.join(', ')}
-                                            onChange={(e) => updateCompetency(idx, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                                            placeholder="Skills (comma separated)"
-                                            className="h-8 text-base md:text-sm"
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Education Section */}
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-semibold flex items-center gap-2">
-                                    Education ({editedData.education.length})
-                                    <ConfidenceBadge score={reviewConfidence.education} section="Education" />
-                                </h4>
-                            </div>
-                            <div className="space-y-3">
-                                {editedData.education.map((edu, idx) => (
-                                    <div key={edu.id} className="rounded-panel p-3 bg-surface-2 space-y-2 shadow-[var(--shadow-bevel-inset)]">
-                                        <Input
-                                            value={edu.degree}
-                                            onChange={(e) => updateEducation(idx, 'degree', e.target.value)}
-                                            placeholder="Degree"
-                                            className="h-8 text-base md:text-sm"
-                                        />
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <Input
-                                                value={edu.institution}
-                                                onChange={(e) => updateEducation(idx, 'institution', e.target.value)}
-                                                placeholder="Institution"
-                                                className="h-8 text-base md:text-sm col-span-2"
-                                            />
-                                            <Input
-                                                value={edu.year || ""}
-                                                onChange={(e) => updateEducation(idx, 'year', e.target.value)}
-                                                placeholder="Year"
-                                                className="h-8 text-base md:text-sm"
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Summary Section */}
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-semibold flex items-center gap-2">
-                                    Summary
-                                    <ConfidenceBadge score={reviewConfidence.summary} section="Summary" />
-                                </h4>
-                            </div>
-                            <Textarea
-                                value={editedData.generatedSummary}
-                                onChange={(e) => setEditedData({ ...editedData, generatedSummary: e.target.value })}
-                                placeholder="Professional summary"
-                                className="min-h-20 text-base md:text-sm"
-                            />
-                        </div>
+                        <ResumeReviewFields data={editedData} onChange={setEditedData} />
                     </div>
-                </ScrollArea>
+                </div>
             </div>
         );
     };
@@ -804,7 +650,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="flex w-full max-w-[calc(100%-1rem)] flex-col overflow-hidden max-h-[90dvh] sm:max-w-2xl">
+            <DialogContent className="w-full max-w-[calc(100%-1rem)] sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         {title ? (
@@ -821,38 +667,38 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-hidden py-4">
+                <DialogBody key={step} className="-mx-6 px-6 py-1">
                     {step === 'input' && renderInputStep()}
                     {step === 'parsing' && <ResumeParsingStep />}
                     {step === 'review' && renderReviewStep()}
-                </div>
+                </DialogBody>
 
-                <div className="flex justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <DialogFooter className="flex-row justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:justify-between">
                     {step === 'review' ? (
                         <>
-                            <Button variant="outline" className="h-11 min-h-11" onClick={() => setStep('input')}>
+                            <Button size="lg" variant="outline" onClick={() => setStep('input')}>
                                 <ArrowLeft size={16} className="mr-2" />
                                 Back
                             </Button>
-                            <Button className="h-11 min-h-11" onClick={handleConfirm} disabled={localParseBlocked}>
+                            <Button size="lg" onClick={handleConfirm} disabled={localParseBlocked}>
                                 <Check size={16} className="mr-2" />
                                 {confirmLabel}
                             </Button>
                         </>
                     ) : (
                         <>
-                            <Button variant="outline" className="h-11 min-h-11" onClick={handleClose} disabled={isProcessing}>
+                            <Button size="lg" variant="outline" onClick={handleClose} disabled={isProcessing}>
                                 Cancel
                             </Button>
-                            <Button
-                                className="h-11 min-h-11"
+                            <Button size="lg"
+                                
                                 data-testid="resume-import-parse-primary"
                                 onClick={handleParse}
                                 disabled={!canProceed() || isProcessing}
                             >
                                 {isProcessing ? (
                                     <>
-                                        <div className="mr-2 h-4 w-4 animate-spin rounded-pill border-2 border-background border-t-transparent" />
+                                        <InlineSpinner className="mr-2" />
                                         Processing...
                                     </>
                                 ) : (
@@ -865,7 +711,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </Button>
                         </>
                     )}
-                </div>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

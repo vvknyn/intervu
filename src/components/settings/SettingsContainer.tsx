@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CircleNotch, WarningOctagon, Trash } from "@phosphor-icons/react";
+import { WarningOctagon, Trash } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { deleteAccount, requestPasswordResetAction } from "@/actions/auth";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -156,6 +157,7 @@ export function SettingsContainer() {
     return (
         <PageLayout fullWidth>
             <div
+                // page-scale-allow: the open résumé editor runs edge to edge below lg, and the form tabs keep their centred 3xl column
                 className={cn(
                     "mx-auto transition-all",
                     resumeEditorOpen
@@ -214,10 +216,10 @@ export function SettingsContainer() {
                                 </div>
                             </dl>
                             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                                <Button onClick={() => void handlePasswordReset()} disabled={isResetting} className="h-11 w-full rounded-ctl sm:w-auto">
+                                <Button size="lg" onClick={() => void handlePasswordReset()} disabled={isResetting} className="w-full rounded-ctl sm:w-auto">
                                     {isResetting ? "Sending…" : "Send password reset link"}
                                 </Button>
-                                <Button variant="outline" onClick={() => void handleSignOut()} className="h-11 w-full rounded-ctl sm:w-auto">
+                                <Button size="lg" variant="outline" onClick={() => void handleSignOut()} className="w-full rounded-ctl sm:w-auto">
                                     Sign out
                                 </Button>
                             </div>
@@ -239,14 +241,14 @@ export function SettingsContainer() {
                         <SettingsCard>
                             <h2 className="mb-1 text-base font-semibold leading-snug">Danger zone</h2>
                             <p className="mb-4 text-sm text-muted-foreground">Permanent. No recovery.</p>
-                            <Button
+                            <Button size="lg"
                                 ref={deleteTriggerRef}
                                 variant="outline"
                                 onClick={() => {
                                     setDeleteError(null);
                                     setShowDeleteDialog(true);
                                 }}
-                                className="h-11 rounded-ctl border-danger-text bg-transparent text-danger-text hover:bg-danger-text/10"
+                                className="rounded-ctl border-danger-text bg-transparent text-danger-text hover:bg-danger-text/10"
                             >
                                 Delete account
                             </Button>
@@ -295,16 +297,16 @@ export function SettingsContainer() {
                             {deleteError && <SettingsInlineError>{deleteError}</SettingsInlineError>}
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={isDeleting} className="h-11 rounded-ctl">
+                            <Button size="lg" variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={isDeleting} className="rounded-ctl">
                                 Cancel
                             </Button>
-                            <Button
+                            <Button size="lg"
                                 variant="destructive"
                                 onClick={handleDeleteAccount}
                                 disabled={deleteConfirmText !== "DELETE" || isDeleting}
-                                className="h-11 gap-2 rounded-ctl"
+                                className="gap-2 rounded-ctl"
                             >
-                                {isDeleting ? <CircleNotch size={16} className="animate-spin" /> : <Trash size={16} />}
+                                {isDeleting ? <InlineSpinner size={16} /> : <Trash size={16} />}
                                 {isDeleting ? "Deleting…" : "Delete Forever"}
                             </Button>
                         </DialogFooter>

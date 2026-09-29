@@ -6,6 +6,9 @@ import { buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getGhostJobsStats } from "@/lib/research/ghost-jobs-snapshot";
 import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
+import { Prose } from "@/components/ui/prose";
+import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = INDEED_ALTERNATIVE;
 
@@ -18,11 +21,10 @@ export const metadata: Metadata = {
 const faqJsonLd = buildFaqPageJsonLd(INDEED_ALTERNATIVE_FAQ);
 const stats = getGhostJobsStats();
 
-const ASEC = "mt-8 mb-3 text-xs font-semibold text-muted-foreground";
 
 export default function IndeedAlternativePage() {
   return (
-    <main data-testid="indeed-alternative-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <PageContainer measure="reading" data-testid="indeed-alternative-page" className="py-10">
       {faqJsonLd && (
         <script
           type="application/ld+json"
@@ -30,14 +32,14 @@ export default function IndeedAlternativePage() {
         />
       )}
       <p className="text-xs font-semibold text-brand">Indeed alternative</p>
-      <h1 className="mt-3 font-display text-display font-semibold text-foreground">
+      <PageTitle className="mt-3">
         The listing is still up. That doesn&apos;t mean they&apos;re hiring.
-      </h1>
-      <p className="mt-1.5 text-sm italic text-muted-foreground">
+      </PageTitle>
+      <p className="mt-1.5 text-base text-muted-foreground">
         velai reads the career page. Indeed sells the leftover ad.
       </p>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+      <Prose className="mt-6">
         <p>
           People type &quot;Indeed alternative&quot; after a stretch of applications that went nowhere. Not because
           they hate the logo. The job they spent a Sunday on was still marked actively hiring, and nobody on the
@@ -48,20 +50,20 @@ export default function IndeedAlternativePage() {
           result and almost nothing else.
         </p>
 
-        <h2 className={ASEC}>What we read instead</h2>
+        <SectionTitle>What we read instead</SectionTitle>
         <p>
           velai doesn&apos;t take job ads. We read what the company posted on its own career page: Greenhouse,
           Lever, Ashby, Workday, the systems HR actually logs into. When they close the role there, it leaves
           here, usually within a day.
         </p>
-      </article>
+      </Prose>
 
       <div className="mt-8">
         <BoardComparisonTable board="indeed" />
       </div>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
-        <h2 className={ASEC}>The Sunday you don&apos;t get back</h2>
+      <Prose className="mt-6">
+        <SectionTitle>The Sunday you don&apos;t get back</SectionTitle>
         <p>
           A paid listing can outlive the job. That&apos;s the product. The company already bought the slot, so the
           slot stays filled, and the apply button keeps working. You find out it was empty after you&apos;ve
@@ -77,7 +79,7 @@ export default function IndeedAlternativePage() {
           company&apos;s own site.
         </p>
 
-        <h2 className={ASEC}>Look at the jobs</h2>
+        <SectionTitle>Look at the jobs</SectionTitle>
         <p>
           Searching is free.{" "}
           {PUBLIC_ANTI_SCORE_SENTENCE}{" "}
@@ -85,7 +87,7 @@ export default function IndeedAlternativePage() {
           <Link href="/linkedin-jobs-alternative">no profile, no Easy Apply pile</Link>
           ).
         </p>
-      </article>
-    </main>
+      </Prose>
+    </PageContainer>
   );
 }

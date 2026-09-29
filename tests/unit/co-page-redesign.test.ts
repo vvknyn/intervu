@@ -77,14 +77,16 @@ describe("/co/[slug]: roles list renders before secondary (intel/hiring-activity
   });
 });
 
-describe("/co/[slug]: hero fact row is icon-led facts, not a joined mono string", () => {
+// #421 (d254a782) dropped the fact-row icons: the rulebook says the facts
+// row has no icons, so it is plain DotSeparated text.
+describe("/co/[slug]: hero fact row is plain dot-separated facts, not a joined mono string", () => {
   it("renders the domain as a real link plus the hiring-geos and remote-share facts via buildCompanyFacts", () => {
     const source = readFileSync(CO_PAGE, "utf8");
     assert.match(source, /buildCompanyFacts\(/, "hero must read the structured facts, not the retired joined-line helper");
     assert.match(source, /href=\{`https:\/\/\$\{facts\.domain\}`\}/, "domain must render as a real external link");
-    assert.match(source, /ArrowSquareOut/);
-    assert.match(source, /GlobeHemisphereWest/);
-    assert.match(source, /House/);
+    assert.match(source, /<DotSeparated/);
+    assert.match(source, /facts\.hiringGeos/);
+    assert.match(source, /facts\.remoteShare/);
   });
 
   it("carries no font-mono utility — the fact row is prose, not a tabular/aligned surface", () => {
@@ -105,9 +107,12 @@ describe("/co/[slug]: the rail — hiring record and list health, gated, no butt
     assert.ok(railGateIndex < recordHeadingIndex && railGateIndex < listHealthIndex, "both named boxes must live inside the rail gate");
   });
 
-  it("the rail gate passes showFollowButton={false} — no duplicate CTA beside the header's Follow control", () => {
+  // #554 (d3622138): the rail gate renders nothing when locked (fallback={null})
+  // instead of a CTA-less second card, so the page shows exactly one lock card.
+  it("the rail gate passes fallback={null} — no duplicate lock card beside the header's Follow control", () => {
     const source = readFileSync(CO_PAGE, "utf8");
-    assert.match(source, /showFollowButton=\{false\}/);
+    const railGate = source.slice(source.indexOf('testId="company-intel-gate-record"'));
+    assert.match(railGate.slice(0, railGate.indexOf(">")), /fallback=\{null\}/);
   });
 });
 

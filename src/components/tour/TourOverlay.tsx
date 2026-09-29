@@ -125,6 +125,7 @@ export function TourOverlay() {
 
   return (
     <AnimatePresence>
+      {/* dialog-primitive-exempt: pointer-events-none spotlight layer, not a dialog */}
       <div className="fixed inset-0 z-[200] pointer-events-none">
         <svg
           className="absolute inset-0 w-full h-full pointer-events-auto"
@@ -194,7 +195,7 @@ export function TourOverlay() {
               <button
                 onClick={prevStep}
                 disabled={isFirst}
-                className="text-xs px-3 py-1.5 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                className="ctl-md text-xs px-3 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none"
               >
                 Previous
               </button>
@@ -205,7 +206,7 @@ export function TourOverlay() {
             {!isSingleStep && (
             <button
               onClick={minimize}
-              className="text-xs px-2 py-1.5 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="ctl-md text-xs px-2 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               Minimize
             </button>
@@ -215,7 +216,7 @@ export function TourOverlay() {
 
             <button
               onClick={isSingleStep ? stopTour : nextStep}
-              className="text-xs font-semibold px-3 py-1.5 rounded-none bg-brand text-brand-foreground hover:opacity-90 transition-opacity"
+              className="ctl-md text-xs font-semibold px-3 rounded-none bg-brand text-brand-foreground hover:opacity-90 transition-opacity"
             >
               {isSingleStep ? "Close" : isLast ? "Finish" : "Next"}
             </button>

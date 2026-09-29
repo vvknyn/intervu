@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { createServerListCache } from "@/lib/server-list-cache";
 import { listSavedSearchesAction, syncGuestSavedSearchesAction } from "@/actions/saved-searches";
 import {
     loadSavedSearches,
@@ -23,42 +24,10 @@ import {
 } from "@/lib/jobs/saved-searches";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 
-let cache: SavedSearch[] | null = null;
-let inflight: Promise<SavedSearch[]> | null = null;
-const listeners = new Set<() => void>();
-
-function notify(): void {
-    listeners.forEach((cb) => cb());
-}
-
-function subscribe(cb: () => void): () => void {
-    listeners.add(cb);
-    return () => listeners.delete(cb);
-}
-
-async function fetchServerSavedSearches(): Promise<SavedSearch[]> {
-    if (cache) return cache;
-    if (!inflight) {
-        inflight = listSavedSearchesAction()
-            .then((res) => {
-                cache = res.data ?? [];
-                return cache;
-            })
-            .catch(() => {
-                cache = [];
-                return cache;
-            })
-            .finally(() => {
-                inflight = null;
-            });
-    }
-    return inflight;
-}
+const server = createServerListCache(listSavedSearchesAction);
 
 export function invalidateSavedSearchesCache(): void {
-    cache = null;
-    inflight = null;
-    notify();
+    server.invalidate();
 }
 
 /** @returns true when there was nothing to sync or every guest row landed. */
@@ -78,12 +47,17 @@ export async function syncGuestSavedSearchesToServer(): Promise<boolean> {
 export interface UseSavedSearchesResult {
     saved: SavedSearch[];
     loading: boolean;
+    /** The signed-in read failed after its automatic retry — render
+     *  `LoadFailedState`, never the empty state. */
+    failed: boolean;
+    retry: () => void;
 }
 
 export function useSavedSearches(): UseSavedSearchesResult {
     const [user, setUser] = useState(() => getCurrentUser());
-    const [saved, setSaved] = useState<SavedSearch[]>(() => (user ? (cache ?? []) : loadSavedSearches()));
-    const [loading, setLoading] = useState(!!user && !cache);
+    const [saved, setSaved] = useState<SavedSearch[]>(() => (user ? (server.peek() ?? []) : loadSavedSearches()));
+    const [loading, setLoading] = useState(!!user && !server.peek());
+    const [failed, setFailed] = useState(false);
 
     useEffect(
         () =>
@@ -93,6 +67,7 @@ export function useSavedSearches(): UseSavedSearchesResult {
                     invalidateSavedSearchesCache();
                     setSaved(loadSavedSearches());
                     setLoading(false);
+                    setFailed(false);
                 }
             }),
         [],
@@ -107,25 +82,27 @@ export function useSavedSearches(): UseSavedSearchesResult {
             if (!signedIn) {
                 setSaved(loadSavedSearches());
                 setLoading(false);
+                setFailed(false);
                 return;
             }
             const pendingGuest = loadSavedSearches();
             if (pendingGuest.length > 0) {
                 setSaved(pendingGuest);
                 setLoading(false);
+                setFailed(false);
                 return;
             }
-            setLoading(!cache);
-            fetchServerSavedSearches().then((data) => {
-                if (!cancelled) {
-                    setSaved(data);
-                    setLoading(false);
-                }
+            setLoading(!server.peek());
+            server.fetch().then((res) => {
+                if (cancelled) return;
+                if (res.ok) setSaved(res.data);
+                setFailed(!res.ok);
+                setLoading(false);
             });
         };
 
         Promise.resolve().then(refresh);
-        const unsubServer = subscribe(refresh);
+        const unsubServer = server.subscribe(refresh);
         const unsubGuest = subscribeSavedSearches(refresh);
         return () => {
             cancelled = true;
@@ -134,5 +111,5 @@ export function useSavedSearches(): UseSavedSearchesResult {
         };
     }, [user]);
 
-    return { saved, loading };
+    return { saved, loading, failed, retry: invalidateSavedSearchesCache };
 }

@@ -149,6 +149,17 @@ export const JOBS_LOCATION_MAX_REQUESTS = 90;
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the location route's own store. */
 export const allowJobsLocationRequest = createIpRateLimiter(JOBS_LOCATION_WINDOW_MS, JOBS_LOCATION_MAX_REQUESTS);
 
+/**
+ * Per-IP limit for anonymous "Report listing" (`reportJobAction`) — its own
+ * store. Every accepted report lowers a job's ghost score, so an unauthenticated
+ * write gets a tight per-IP budget on top of the flags endpoint's per-key cap.
+ */
+export const REPORT_LISTING_WINDOW_MS = 600_000;
+export const REPORT_LISTING_MAX_REQUESTS = 5;
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the report action's own store. */
+export const allowReportListingRequest = createIpRateLimiter(REPORT_LISTING_WINDOW_MS, REPORT_LISTING_MAX_REQUESTS);
+
 /** Retry-After value (seconds) for jobs typeahead 429 responses. */
 export function typeaheadRetryAfterHeader(windowMs: number): Record<string, string> {
   return { "Retry-After": String(Math.ceil(windowMs / 1000)) };

@@ -6,6 +6,7 @@ import { LiveResumePreview } from "./LiveResumePreview";
 import { EditingPanel } from "./EditingPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TabItem, TabNav } from "@/components/ui/tabs";
 import { toast } from "@/lib/toast";
 import { exportToDocx } from "@/lib/export-docx";
 import { downloadBlob } from "@/lib/export-utils";
@@ -24,7 +25,6 @@ import {
     ArrowLeft,
     Eye,
     PencilSimple,
-    CircleNotch,
     Check,
     ClockCounterClockwise,
     Trash,
@@ -33,6 +33,7 @@ import {
     BookmarkSimple,
     ArrowCounterClockwise,
 } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 
 interface ResumeEditorProps {
@@ -363,7 +364,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         disabled={saving}
                         className="gap-1.5 text-xs font-semibold rounded-ctl"
                     >
-                        {saving ? <CircleNotch className="animate-spin" /> : <FloppyDisk />}
+                        {saving ? <InlineSpinner /> : <FloppyDisk />}
                         <span className="sm:hidden">{saving ? "Saving…" : "Save"}</span>
                         <span className="hidden sm:inline">{saving ? "Saving…" : "Save changes"}</span>
                     </Button>
@@ -371,40 +372,14 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             </div>
 
             {/* Mobile View Selector */}
-            <div
-                role="tablist"
-                aria-label="Editor or preview"
-                className="flex lg:hidden border-b border-border bg-muted p-0.5"
-            >
-                <button
-                    type="button"
-                    role="tab"
-                    aria-selected={mobileTab === "edit"}
-                    onClick={() => setMobileTab("edit")}
-                    className={cn(
-                        "flex-1 flex min-h-10 items-center justify-center gap-1.5 rounded-pill py-1.5 text-xs font-semibold transition-colors",
-                        mobileTab === "edit"
-                            ? "bg-surface text-foreground shadow-[var(--shadow-bevel-highlight)]"
-                            : "text-muted-foreground hover:text-foreground",
-                    )}
-                >
+            <TabNav aria-label="Editor or preview" className="border-b border-border lg:hidden">
+                <TabItem current={mobileTab === "edit"} onClick={() => setMobileTab("edit")} className="flex-1">
                     <PencilSimple /> Editor
-                </button>
-                <button
-                    type="button"
-                    role="tab"
-                    aria-selected={mobileTab === "preview"}
-                    onClick={() => setMobileTab("preview")}
-                    className={cn(
-                        "flex-1 flex min-h-10 items-center justify-center gap-1.5 rounded-pill py-1.5 text-xs font-semibold transition-colors",
-                        mobileTab === "preview"
-                            ? "bg-surface text-foreground shadow-[var(--shadow-bevel-highlight)]"
-                            : "text-muted-foreground hover:text-foreground",
-                    )}
-                >
+                </TabItem>
+                <TabItem current={mobileTab === "preview"} onClick={() => setMobileTab("preview")} className="flex-1">
                     <Eye /> Live Preview
-                </button>
-            </div>
+                </TabItem>
+            </TabNav>
 
             {/* Main Split Body */}
             <div className="flex-1 flex min-h-0 overflow-hidden relative">
@@ -503,7 +478,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         value={newVersionLabel}
                                         onChange={(e) => setNewVersionLabel(e.target.value)}
                                         placeholder="e.g. Tailored for Apple, Post-review v2..."
-                                        className="h-8 text-base md:text-xs"
+                                        className="ctl-md text-base md:text-xs"
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") {
                                                 e.preventDefault();
@@ -516,7 +491,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         size="sm"
                                         onClick={handleSaveNewVersion}
                                         disabled={savingVersion || !newVersionLabel.trim()}
-                                        className="h-8 text-xs rounded-ctl"
+                                        className="text-xs rounded-ctl"
                                     >
                                         {savingVersion ? "Saving…" : "Save"}
                                     </Button>
@@ -538,7 +513,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
 
                                 {loadingVersions ? (
                                     <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
-                                        <CircleNotch size={16} className="animate-spin" /> Loading history…
+                                        <InlineSpinner size={16} /> Loading history…
                                     </div>
                                 ) : versions.length === 0 ? (
                                     <div className="py-8 text-center text-xs text-muted-foreground border border-border p-4">
@@ -571,7 +546,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => setConfirmDeleteId(null)}
-                                                                className="h-7 text-xs rounded-ctl"
+                                                                className="text-xs rounded-ctl"
                                                             >
                                                                 Cancel
                                                             </Button>
@@ -581,10 +556,10 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 size="sm"
                                                                 disabled={deletingId === ver.id}
                                                                 onClick={() => void handleDeleteVersion(ver)}
-                                                                className="h-7 text-xs gap-1 rounded-ctl"
+                                                                className="text-xs gap-1 rounded-ctl"
                                                             >
                                                                 {deletingId === ver.id ? (
-                                                                    <CircleNotch className="animate-spin" />
+                                                                    <InlineSpinner />
                                                                 ) : (
                                                                     <Trash />
                                                                 )}
@@ -598,7 +573,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => handleRecallVersion(ver)}
-                                                                className="h-7 text-xs gap-1 rounded-ctl flex-1"
+                                                                className="text-xs gap-1 rounded-ctl flex-1"
                                                             >
                                                                 <ArrowCounterClockwise /> Recall
                                                             </Button>
@@ -607,7 +582,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => handleCompareVersion(ver)}
-                                                                className="h-7 text-xs gap-1 rounded-ctl flex-1 text-warn"
+                                                                className="text-xs gap-1 rounded-ctl flex-1 text-warn"
                                                             >
                                                                 <GitDiff /> Compare
                                                             </Button>
@@ -617,7 +592,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 size="sm"
                                                                 title={`Delete "${ver.label}"`}
                                                                 onClick={() => setConfirmDeleteId(ver.id)}
-                                                                className="h-7 w-7 p-0 shrink-0 rounded-ctl text-muted-foreground hover:text-danger-text"
+                                                                className="w-7 p-0 shrink-0 rounded-ctl text-muted-foreground hover:text-danger-text"
                                                             >
                                                                 <Trash />
                                                             </Button>

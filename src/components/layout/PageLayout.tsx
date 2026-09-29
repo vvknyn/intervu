@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -21,22 +22,20 @@ interface PageLayoutProps {
 }
 
 export function PageLayout({ children, header, sidebar, fullWidth, className, shellClassName }: PageLayoutProps) {
+  const body = sidebar ? (
+    <div className="flex flex-col xl:flex-row gap-6">
+      <div className="flex-1 min-w-0">{children}</div>
+      <aside className="w-full xl:w-80 xl:shrink-0 xl:sticky xl:top-20 xl:self-start">
+        {sidebar}
+      </aside>
+    </div>
+  ) : children;
+
   return (
     <div className={cn("min-h-screen bg-background flex flex-col", shellClassName)}>
       {header}
-      <div className={cn(
-        "flex-1",
-        !fullWidth && "mx-auto w-full max-w-6xl xl:max-w-7xl px-4 sm:px-8 py-6 xl:px-10",
-        className
-      )}>
-        {sidebar ? (
-          <div className="flex flex-col xl:flex-row gap-6">
-            <div className="flex-1 min-w-0">{children}</div>
-            <aside className="w-full xl:w-80 xl:shrink-0 xl:sticky xl:top-20 xl:self-start">
-              {sidebar}
-            </aside>
-          </div>
-        ) : children}
+      <div className={cn("flex-1", className)}>
+        {fullWidth ? body : <PageContainer className="py-6">{body}</PageContainer>}
       </div>
     </div>
   );

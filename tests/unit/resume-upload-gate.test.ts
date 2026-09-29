@@ -67,7 +67,7 @@ test("local résumé guest banner uses canonical on-device privacy label", () =>
 
 test("post-auth upload replay still reopens the importer exactly once via useAuthGate", () => {
     assert.match(SOURCE, /import \{ useAuthGate \} from "@\/components\/auth\/use-auth-gate";/);
-    const handlersStart = SOURCE.indexOf("useAuthGate<never, never>({");
+    const handlersStart = SOURCE.indexOf("useAuthGate<never>({");
     assert.ok(handlersStart !== -1, "useAuthGate call site not found");
     const handlersEnd = SOURCE.indexOf("});", handlersStart);
     const handlersBlock = SOURCE.slice(handlersStart, handlersEnd);

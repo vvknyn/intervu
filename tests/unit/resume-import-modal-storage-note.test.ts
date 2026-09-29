@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { RESUME_IMPORT_STORAGE_NOTE } from "@/lib/jobs/resume-privacy-copy";
+import { RESUME_IMPORT_STORAGE_NOTE, resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
 
 const STORAGE_NOTE_BY_IDENTIFIER: Record<string, string> = {
     RESUME_IMPORT_STORAGE_NOTE,
@@ -49,6 +49,9 @@ function extractStorageNotes(source: string): string[] {
             assert.ok(resolved, `<ResumeImportModal> storageNote={${bound[1]}} is not registered in this test`);
             return resolved;
         }
+        // State-derived: the signed-in branch is the one that persists to the account
+        // (its guest branch is checked by the test below).
+        if (/storageNote=\{resumeImportStorageNote\(/.test(tag)) return resumeImportStorageNote(true);
         assert.fail("<ResumeImportModal> call site has no storageNote attribute");
     });
 }
@@ -80,3 +83,8 @@ for (const file of callSites) {
         }
     });
 }
+
+test("the state-derived storage note claims the account only when signed in", () => {
+    assert.match(resumeImportStorageNote(true).toLowerCase(), /account/);
+    assert.doesNotMatch(resumeImportStorageNote(false).toLowerCase(), /account/);
+});

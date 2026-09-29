@@ -20,6 +20,7 @@ import {
   rebuildAfterRejection,
   placeClause,
   preferStrictCity,
+  citySpellings,
   type PlaceResolution,
   type LocationField,
   type ResolvePlaceOptions,
@@ -324,17 +325,17 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
  */
 async function probeFacetFields(
   fields: readonly LocationField[],
-  phrase: string,
+  phrases: readonly string[],
   vocab: LocationVocabulary,
 ): Promise<PlaceFilter[]> {
   const [hits] = await vocab.corpusChecker([
-    fields.map((field) => ({ field, value: phrase, matchMode: "literal" as const })),
+    fields.flatMap((field) => phrases.map((value) => ({ field, value, matchMode: "literal" as const }))),
   ]);
   return hits;
 }
 
 export async function resolveExactFacetValue(phrase: string, vocab: LocationVocabulary): Promise<PlaceFilter[]> {
-  return probeFacetFields(LOCATION_FACET_FIELDS, phrase, vocab);
+  return probeFacetFields(LOCATION_FACET_FIELDS, [phrase], vocab);
 }
 
 /**
@@ -362,7 +363,10 @@ export async function resolvePickedFacetValue(
   phrase: string,
   vocab: LocationVocabulary,
 ): Promise<PlaceFilter[]> {
-  return probeFacetFields([field], phrase, vocab);
+  // A city is picked by one spelling but its corpus rows are split across the
+  // old and new names — probe every recorded spelling (`citySpellings`).
+  const phrases = field === "location_city" ? citySpellings(phrase, vocab.gazetteer) : [phrase];
+  return probeFacetFields([field], phrases, vocab);
 }
 
 /**

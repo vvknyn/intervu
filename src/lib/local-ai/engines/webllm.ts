@@ -5,12 +5,19 @@
  * Not bundled as npm dep to keep install lean; WASM transformers is required path.
  */
 
+import type { ModelLoadReport } from "../model-load";
 import type { LocalAiEngine, ModelParseOutput } from "./types";
 
 const WEBLLM_CDN = "https://esm.run/@mlc-ai/web-llm@0.2.79";
 
 /** Strongest practical everyday WebGPU model in the 0.2.79 catalog (~2.3GB VRAM). */
 export const WEBLLM_MODEL_ID = "Llama-3.2-3B-Instruct-q4f16_1-MLC";
+
+/**
+ * Sum of the Hugging Face repo file sizes for mlc-ai/Llama-3.2-3B-Instruct-q4f16_1-MLC
+ * (params_shard_0..57 + tokenizer.json), measured 2026-09-28 via the HF model API.
+ */
+export const WEBLLM_DOWNLOAD_BYTES = 1_816_811_105;
 
 export function getWebllmDisplayLabel(): string {
     return "On-device · Llama-3.2-3B-Instruct";
@@ -38,6 +45,19 @@ function tryParseJson(text: string): ModelParseOutput {
 
 let engine: { chat: { completions: { create: (opts: { messages: { role: string; content: string }[]; temperature?: number }) => Promise<{ choices: { message: { content: string } }[] }> } } } | null = null;
 
+type WebllmModule = {
+    CreateMLCEngine: (
+        model: string,
+        opts?: { initProgressCallback?: (p: { progress: number }) => void },
+    ) => Promise<typeof engine>;
+    hasModelInCache?: (model: string) => Promise<boolean>;
+};
+
+// Dynamic CDN import — not in server bundle
+async function loadWebllm(): Promise<WebllmModule> {
+    return (await import(/* webpackIgnore: true */ WEBLLM_CDN)) as WebllmModule;
+}
+
 type NavigatorWithGpu = Navigator & {
     gpu?: { requestAdapter(): Promise<{ readonly?: unknown } | null> };
 };
@@ -55,21 +75,27 @@ export async function hasWebGpuAdapter(): Promise<boolean> {
 
 export const webllmEngine: LocalAiEngine = {
     id: "webllm",
+    downloadBytes: WEBLLM_DOWNLOAD_BYTES,
+
+    async isCached() {
+        try {
+            return (await (await loadWebllm()).hasModelInCache?.(WEBLLM_MODEL_ID)) ?? false;
+        } catch {
+            return false;
+        }
+    },
 
     async isAvailable() {
         return hasWebGpuAdapter();
     },
 
-    async init() {
+    async init(report?: ModelLoadReport) {
         if (!(await hasWebGpuAdapter())) {
             throw new Error("WebGPU adapter unavailable");
         }
-        // Dynamic CDN import — not in server bundle
-        const mod = (await import(/* webpackIgnore: true */ WEBLLM_CDN)) as {
-            CreateMLCEngine: (model: string, opts?: { initProgressCallback?: (p: { progress: number }) => void }) => Promise<typeof engine>;
-        };
+        const mod = await loadWebllm();
         engine = await mod.CreateMLCEngine(WEBLLM_MODEL_ID, {
-            initProgressCallback: () => {},
+            initProgressCallback: (p) => report?.({ kind: "fraction", fraction: p.progress }),
         });
     },
 

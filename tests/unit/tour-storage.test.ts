@@ -13,7 +13,7 @@ import {
 const STORAGE_KEY = "intervu-tour-state";
 const PROVIDER = path.join(process.cwd(), "src/components/tour/TourProvider.tsx");
 const OVERLAY = path.join(process.cwd(), "src/components/tour/TourOverlay.tsx");
-const JOBS_PAGE = path.join(process.cwd(), "src/app/jobs/page.tsx");
+const JOBS_PAGE = path.join(process.cwd(), "src/app/jobs/JobsContent.tsx");
 
 class FakeLocalStorage {
   private store = new Map<string, string>();

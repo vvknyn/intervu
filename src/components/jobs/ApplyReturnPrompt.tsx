@@ -106,6 +106,7 @@ export function ApplyReturnPrompt({
             data-testid="apply-return-prompt"
             role="status"
             aria-live="polite"
+            // page-scale-allow: a fixed toast, not a page column
             className="fixed inset-x-3 z-[var(--z-apply-return)] mx-auto flex w-auto max-w-sm flex-col gap-3 rounded-panel border border-border-strong bg-surface-2 px-4 py-3 shadow-[var(--shadow-overlay)] bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+0.75rem)] sm:inset-x-auto sm:right-4 sm:left-auto lg:bottom-24"
         >
             <div className="min-w-0">
@@ -118,7 +119,7 @@ export function ApplyReturnPrompt({
                     data-testid="apply-return-mark-applied"
                     onClick={onMarkApplied}
                     size="lg"
-                    className="min-h-11 flex-1 text-xs font-semibold sm:flex-none"
+                    className="flex-1 text-xs font-semibold sm:flex-none"
                 >
                     Yes
                 </Button>
@@ -128,7 +129,7 @@ export function ApplyReturnPrompt({
                     onClick={onDismiss}
                     variant="outline"
                     size="lg"
-                    className="min-h-11 flex-1 text-xs font-semibold text-foreground sm:flex-none"
+                    className="flex-1 text-xs font-semibold text-foreground sm:flex-none"
                 >
                     Not yet
                 </Button>
@@ -138,7 +139,7 @@ export function ApplyReturnPrompt({
                     onClick={onDismiss}
                     variant="ghost"
                     size="lg"
-                    className="min-h-11 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                    className="px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
                 >
                     Skip
                 </Button>

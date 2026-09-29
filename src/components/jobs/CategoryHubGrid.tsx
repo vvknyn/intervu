@@ -30,13 +30,16 @@ import { useRouter } from "next/navigation";
 import { jobsBrowseSearchHref, jobsForYouHubHref } from "@/lib/jobs/prefetch-jobs-route";
 import { cn } from "@/lib/utils";
 import { matchBandLabel } from "@/lib/match/score";
-import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
+import { WaitState } from "@/components/ui/wait-state";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SolidBadge } from "@/components/ui/badge";
+import { TabItem, TabNav } from "@/components/ui/tabs";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogTitle,
     DialogDescription,
@@ -44,6 +47,7 @@ import {
 import { toast } from "@/lib/toast";
 import type { ResumeData } from "@/types/resume";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { hubGreeting } from "@/lib/jobs/front-door-state";
 
 export interface RoleDetailListing {
     id: string;
@@ -944,13 +948,11 @@ export function CategoryHubGrid({
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [modalCategory, handleNext, handlePrev, handleShuffle]);
 
-    if (!isAuthenticated) {
-        return null;
-    }
-
-    const firstName = userName ? userName.trim().split(/\s+/)[0] : null;
-    const greetingTitle = firstName ? `Welcome back, ${firstName}` : "Welcome back";
-    const greetingSubtitle = "Choose a category below to browse verified roles tailored to your background.";
+    const { title: greetingTitle, subtitle: greetingSubtitle } = hubGreeting({
+        signedIn: isAuthenticated,
+        userName,
+        hasResume,
+    });
 
     const resolveCountLabel = (category: CategoryHubItem): string => {
         const live = hubCountLabels?.[category.id];
@@ -978,7 +980,7 @@ export function CategoryHubGrid({
                                 Private matching active on this device
                             </div>
                         )}
-                        <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
+                        <h2 className="text-xl font-semibold text-foreground">
                             {greetingTitle}
                         </h2>
                         <p className="text-xs text-muted-foreground">
@@ -1009,8 +1011,8 @@ export function CategoryHubGrid({
                             </p>
                         ) : null}
                         {proofLoading || (hubMatching && !hubCorpusLine) ? (
-                            <RotatingLoadingCopy
-                                variant="hub"
+                            <WaitState
+                                label="Counting matches across your packs"
                                 className="pt-1 text-xs font-semibold"
                             />
                         ) : null}
@@ -1021,13 +1023,13 @@ export function CategoryHubGrid({
                             packs → deck → Download & apply. Quiet Search stays. */}
                         <Button
                             type="button"
-                            size="sm"
+                            size="lg"
                             data-testid="hub-browse-all-matches"
                             onClick={() => {
                                 const allItem = DEFAULT_CATEGORY_HUBS.find((c) => c.id === "all");
                                 if (allItem) handleCategoryClick(allItem);
                             }}
-                            className="min-h-11 w-full justify-center text-xs font-semibold sm:w-auto"
+                            className="w-full justify-center text-xs font-semibold sm:w-auto"
                         >
                             Browse all matches
                         </Button>
@@ -1061,6 +1063,7 @@ export function CategoryHubGrid({
                             onClick={() => handleCategoryClick(category)}
                             onMouseEnter={prefetchAdjacentHub}
                             onFocus={prefetchAdjacentHub}
+                            // control-scale-allow: pack card — a content tile, its padding/min-height is layout, not a bar control
                             className={cn(
                                 "flex flex-col rounded-panel border bg-surface shadow-[var(--shadow-bevel-highlight)] min-h-[5.75rem] cursor-pointer gap-0 py-3 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live sm:py-4 md:min-h-0 md:active:scale-100",
                                 isSelected
@@ -1103,7 +1106,7 @@ export function CategoryHubGrid({
             <Dialog open={modalCategory !== null} onOpenChange={(open) => !open && setModalCategory(null)}>
                 <DialogContent
                     showCloseButton={false}
-                    className="w-[95vw] max-w-7xl h-[90dvh] max-h-[90dvh] p-0 gap-0 overflow-hidden flex flex-col bg-background rounded-panel border border-border"
+                    className="w-[95vw] max-w-7xl h-[var(--overlay-max-h)] p-0 gap-0 overflow-hidden bg-background rounded-panel border border-border"
                 >
                     {modalCategory && (
                         <>
@@ -1119,9 +1122,7 @@ export function CategoryHubGrid({
                                                 {modalCategory.label}
                                             </DialogTitle>
                                             {resolveCountLabel(modalCategory) ? (
-                                                <span className="mono-data rounded-pill bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-                                                    {resolveCountLabel(modalCategory)}
-                                                </span>
+                                                <SolidBadge tone="muted">{resolveCountLabel(modalCategory)}</SolidBadge>
                                             ) : null}
                                         </div>
                                         <DialogDescription className="text-xs text-muted-foreground">
@@ -1132,40 +1133,22 @@ export function CategoryHubGrid({
 
                                 <div className="flex items-center gap-2">
                                     {/* View Mode Toggle: Shuffle Card vs All List */}
-                                    <div className="hidden sm:flex items-center rounded-ctl border border-border bg-muted p-0.5 text-xs">
-                                        <button
-                                            type="button"
-                                            onClick={() => setViewMode("shuffle")}
-                                            className={cn(
-                                                "px-2.5 py-1 rounded-ctl text-xs font-semibold transition-colors flex items-center gap-1.5",
-                                                viewMode === "shuffle"
-                                                    ? "bg-surface text-foreground"
-                                                    : "text-muted-foreground hover:text-foreground",
-                                            )}
-                                        >
+                                    <TabNav aria-label="Shuffle deck or list view" className="hidden sm:flex">
+                                        <TabItem current={viewMode === "shuffle"} onClick={() => setViewMode("shuffle")}>
                                             <Cards size={16} />
                                             Shuffle Deck
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setViewMode("list")}
-                                            className={cn(
-                                                "px-2.5 py-1 rounded-ctl text-xs font-semibold transition-colors flex items-center gap-1.5",
-                                                viewMode === "list"
-                                                    ? "bg-surface text-foreground"
-                                                    : "text-muted-foreground hover:text-foreground",
-                                            )}
-                                        >
+                                        </TabItem>
+                                        <TabItem current={viewMode === "list"} onClick={() => setViewMode("list")}>
                                             <List size={16} />
                                             List view
-                                        </button>
-                                    </div>
+                                        </TabItem>
+                                    </TabNav>
 
                                     <button
                                         type="button"
                                         onClick={() => setModalCategory(null)}
                                         aria-label="Close dialog"
-                                        className="h-8 w-8 inline-flex items-center justify-center rounded-ctl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                        className="ctl-md ctl-square inline-flex items-center justify-center rounded-ctl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                     >
                                         <X size={16} />
                                     </button>
@@ -1203,7 +1186,7 @@ export function CategoryHubGrid({
                                                     type="button"
                                                     onClick={handlePrev}
                                                     title="Previous role"
-                                                    className="h-8 w-8 flex items-center justify-center bg-surface hover:bg-muted text-foreground border-r border-border transition-colors"
+                                                    className="ctl-md ctl-square flex items-center justify-center bg-surface hover:bg-muted text-foreground border-r border-border transition-colors"
                                                 >
                                                     <CaretLeft size={16} />
                                                 </button>
@@ -1211,7 +1194,7 @@ export function CategoryHubGrid({
                                                     type="button"
                                                     onClick={handleNext}
                                                     title="Next role"
-                                                    className="h-8 w-8 flex items-center justify-center bg-surface hover:bg-muted text-foreground transition-colors"
+                                                    className="ctl-md ctl-square flex items-center justify-center bg-surface hover:bg-muted text-foreground transition-colors"
                                                 >
                                                     <CaretRight size={16} />
                                                 </button>
@@ -1236,7 +1219,7 @@ export function CategoryHubGrid({
                                                         <span>Posted {activeRole.postedAgo}</span>
                                                     </div>
 
-                                                    <h3 className="text-xl sm:text-2xl font-semibold text-foreground leading-tight">
+                                                    <h3 className="text-xl font-semibold text-foreground leading-tight">
                                                         {activeRole.title}
                                                     </h3>
 
@@ -1372,7 +1355,7 @@ export function CategoryHubGrid({
                                                             type="button"
                                                             onClick={() => toggleSaveRole(activeRole.id)}
                                                             className={cn(
-                                                                "w-full h-8 px-2.5 rounded-ctl border text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors",
+                                                                "w-full ctl-md px-2.5 rounded-ctl border text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors",
                                                                 savedRoleIds.has(activeRole.id)
                                                                     ? "border-live bg-surface text-live"
                                                                     : "border-border bg-surface text-muted-foreground hover:text-foreground",
@@ -1510,7 +1493,7 @@ export function CategoryHubGrid({
                                             variant="outline"
                                             size="sm"
                                             onClick={handleShuffle}
-                                            className="gap-1.5 text-xs flex-1 sm:flex-initial h-9"
+                                            className="gap-1.5 text-xs flex-1 sm:flex-initial"
                                         >
                                             <Shuffle size={16} />
                                             Shuffle next
@@ -1521,7 +1504,7 @@ export function CategoryHubGrid({
                                         <Button
                                             size="sm"
                                             onClick={() => handleTailorApply(activeRole)}
-                                            className="gap-1.5 text-xs font-semibold flex-1 sm:flex-initial h-9"
+                                            className="gap-1.5 text-xs font-semibold flex-1 sm:flex-initial"
                                         >
                                             <Sparkle size={16} />
                                             Tailor & Apply
@@ -1532,7 +1515,7 @@ export function CategoryHubGrid({
                                         variant="outline"
                                         size="sm"
                                         onClick={() => setModalCategory(null)}
-                                        className="text-xs flex-none sm:flex-initial h-9"
+                                        className="text-xs flex-none sm:flex-initial"
                                     >
                                         Done
                                     </Button>
@@ -1584,7 +1567,7 @@ export function CategoryHubGrid({
                         </DialogDescription>
                     </div>
 
-                    <div className="space-y-3">
+                    <DialogBody className="space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             <div className="space-y-1">
                                 <Label className="text-xs text-foreground">Full Name</Label>
@@ -1592,7 +1575,7 @@ export function CategoryHubGrid({
                                     value={profileName}
                                     onChange={(e) => setProfileName(e.target.value)}
                                     placeholder="Your Name"
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                             <div className="space-y-1">
@@ -1601,7 +1584,7 @@ export function CategoryHubGrid({
                                     value={profileRole}
                                     onChange={(e) => setProfileRole(e.target.value)}
                                     placeholder="e.g. Senior Software Engineer"
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                             <div className="space-y-1">
@@ -1612,7 +1595,7 @@ export function CategoryHubGrid({
                                     max={50}
                                     value={profileYears}
                                     onChange={(e) => setProfileYears(parseInt(e.target.value, 10) || 0)}
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                             <div className="space-y-1">
@@ -1621,7 +1604,7 @@ export function CategoryHubGrid({
                                     value={profileLocation}
                                     onChange={(e) => setProfileLocation(e.target.value)}
                                     placeholder="e.g. San Francisco, CA or Remote"
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                             <div className="space-y-1 sm:col-span-2">
@@ -1630,7 +1613,7 @@ export function CategoryHubGrid({
                                     value={profileSkills}
                                     onChange={(e) => setProfileSkills(e.target.value)}
                                     placeholder="e.g. TypeScript, React, Next.js, Python, SQL"
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                         </div>
@@ -1645,9 +1628,9 @@ export function CategoryHubGrid({
                                 Open in Settings →
                             </Link>
                         </div>
-                    </div>
+                    </DialogBody>
 
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                    <div className="flex shrink-0 items-center justify-end gap-2 pt-2 border-t border-border">
                         <Button
                             type="button"
                             variant="outline"

@@ -106,14 +106,14 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
                             onClick={() => onEdit(story)}
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            className="text-muted-foreground hover:text-foreground"
                             title="Edit"
                         >
                             <PencilSimple size={16} />
                         </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                                     <DotsThreeVertical size={16} />
                                 </Button>
                             </DropdownMenuTrigger>

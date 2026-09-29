@@ -28,7 +28,7 @@ async function runAxe(page) {
 }
 async function preparePage(page) {
   await page.addInitScript(() => {
-    try { localStorage.setItem("velai.onboarding.completed", "1"); localStorage.setItem("concept-a-landing-dismissed", "1"); } catch {}
+    try { localStorage.setItem("velai.onboarding.completed", "1"); } catch {}
   });
   await page.route("**/*", async (route) => {
     const req = route.request();

@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { PageTitle } from "@/components/ui/heading";
 
 interface PageHeaderProps {
   title: string;
@@ -40,15 +42,7 @@ export function PageHeader({
 
   const titleBlock = (
     <div className="min-w-0">
-      <h1
-        className={
-          display
-            ? "font-display text-2xl font-semibold"
-            : "truncate text-xl font-semibold"
-        }
-      >
-        {title}
-      </h1>
+      <PageTitle className={display ? undefined : "truncate"}>{title}</PageTitle>
       {description &&
         (display ? (
           <div className="mt-1.5 text-meta text-muted-foreground">{description}</div>
@@ -104,10 +98,10 @@ export function PageHeader({
         sticky && "sticky top-0 z-50",
       )}
     >
-      <div className="mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-8 xl:px-10">
+      <PageContainer>
         <div className={display ? "pb-4 pt-8" : undefined}>{row}</div>
         {children && <div className="pb-4">{children}</div>}
-      </div>
+      </PageContainer>
     </div>
   );
 }

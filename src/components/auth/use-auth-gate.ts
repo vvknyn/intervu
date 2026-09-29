@@ -11,37 +11,37 @@ import {
     type PendingAction,
 } from "@/lib/jobs/pending-actions";
 
-export type AuthGateHandlers<Apply, Report> = {
-    [K in PendingAction<Apply, Report>["kind"]]: (
-        action: Extract<PendingAction<Apply, Report>, { kind: K }>,
+export type AuthGateHandlers<Apply> = {
+    [K in PendingAction<Apply>["kind"]]: (
+        action: Extract<PendingAction<Apply>, { kind: K }>,
     ) => void | Promise<void>;
 };
 
-export interface UseAuthGateResult<Apply, Report> {
-    gate: (action: PendingAction<Apply, Report>, meta?: { originSurface?: OriginSurface; gateReason?: string }) => void;
+export interface UseAuthGateResult<Apply> {
+    gate: (action: PendingAction<Apply>, meta?: { originSurface?: OriginSurface; gateReason?: string }) => void;
     authOpen: boolean;
     setAuthOpen: (open: boolean) => void;
     onAuthed: () => void;
 }
 
-function runHandler<Apply, Report>(
-    handlers: AuthGateHandlers<Apply, Report>,
-    action: PendingAction<Apply, Report>,
+function runHandler<Apply>(
+    handlers: AuthGateHandlers<Apply>,
+    action: PendingAction<Apply>,
 ): void {
     const handler = handlers[action.kind] as
-        | ((a: PendingAction<Apply, Report>) => void | Promise<void>)
+        | ((a: PendingAction<Apply>) => void | Promise<void>)
         | undefined;
     if (!handler) return;
     void handler(action);
 }
 
-export function useAuthGate<Apply, Report = Apply>({
+export function useAuthGate<Apply>({
     handlers,
     user,
 }: {
-    handlers: AuthGateHandlers<Apply, Report>;
+    handlers: AuthGateHandlers<Apply>;
     user: unknown;
-}): UseAuthGateResult<Apply, Report> {
+}): UseAuthGateResult<Apply> {
     const [authOpen, setAuthOpenState] = useState(false);
     const handlersRef = useRef(handlers);
     handlersRef.current = handlers;
@@ -56,7 +56,7 @@ export function useAuthGate<Apply, Report = Apply>({
     }, []);
 
     const replayPersisted = useCallback(() => {
-        const persisted = takePersistedPendingAction<Apply, Report>(window.sessionStorage, {
+        const persisted = takePersistedPendingAction<Apply>(window.sessionStorage, {
             currentPath: window.location.pathname,
             now: Date.now(),
         });
@@ -72,7 +72,7 @@ export function useAuthGate<Apply, Report = Apply>({
     }, [replayPersisted]);
 
     const gate = useCallback(
-        (action: PendingAction<Apply, Report>, meta?: { originSurface?: OriginSurface; gateReason?: string }) => {
+        (action: PendingAction<Apply>, meta?: { originSurface?: OriginSurface; gateReason?: string }) => {
             if (userRef.current) {
                 runHandler(handlersRef.current, action);
                 return;
@@ -87,9 +87,7 @@ export function useAuthGate<Apply, Report = Apply>({
                     originSurface: meta?.originSurface ?? "job_detail",
                     returnTo: buildReturnTo(window.location),
                     jobId:
-                        action.kind === "apply" || action.kind === "report"
-                            ? (action.payload as { id?: string })?.id
-                            : undefined,
+                        action.kind === "apply" ? (action.payload as { id?: string })?.id : undefined,
                 });
                 persistPendingAction(window.sessionStorage, {
                     action,

@@ -9,26 +9,36 @@ const SHEET_PATH = join(ROOT, "src", "components", "ui", "sheet.tsx");
 const TOAST_PATH = join(ROOT, "src", "lib", "toast.tsx");
 const AUTH_POPOVER_PATH = join(ROOT, "src", "components", "auth", "auth-popover.tsx");
 const LOGIN_FORM_PATH = join(ROOT, "src", "components", "auth", "login-form.tsx");
-const JOBS_PAGE_PATH = join(ROOT, "src", "app", "jobs", "page.tsx");
+const JOBS_PAGE_PATH = join(ROOT, "src", "app", "jobs", "JobsContent.tsx");
 const GLOBALS_CSS_PATH = join(ROOT, "src", "app", "globals.css");
 
-test("DialogOverlay and DialogContent use modal z-index tier (z-[200], z-[210])", () => {
+// 8b775697 moved the z-index tiers into globals.css tokens; the tier values
+// are asserted on the tokens, the primitives on reading them.
+test("DialogOverlay and DialogContent use modal z-index tier (200, 210)", () => {
     const src = readFileSync(DIALOG_PATH, "utf8");
-    assert.match(src, /data-slot="dialog-overlay"[\s\S]*?z-\[200\]/);
-    assert.match(src, /data-slot="dialog-content"[\s\S]*?z-\[210\]/);
+    const css = readFileSync(GLOBALS_CSS_PATH, "utf8");
+    assert.match(src, /data-slot="dialog-overlay"[\s\S]*?z-\[var\(--z-dialog-scrim\)\]/);
+    assert.match(src, /data-slot="dialog-content"[\s\S]*?z-\[var\(--z-dialog\)\]/);
+    assert.match(css, /--z-dialog-scrim:\s*200;/);
+    assert.match(css, /--z-dialog:\s*210;/);
 });
 
 test("DialogContent enforces max-height and internal scrolling on mobile", () => {
     const src = readFileSync(DIALOG_PATH, "utf8");
-    assert.match(src, /max-h-\[calc\(100dvh-2rem\)\]/);
+    assert.match(src, /max-h-\[var\(--overlay-max-h\)\]/);
+    // the token is the single dvh definition (vh fallback, dvh where supported)
+    const css = readFileSync(GLOBALS_CSS_PATH, "utf8");
+    assert.match(css, /--overlay-max-h:\s*calc\(100vh - 2rem\)/);
+    assert.match(css, /@supports \(height: 100dvh\)[\s\S]*?--overlay-max-h:\s*calc\(100dvh - 2rem\)/);
     assert.match(src, /overflow-y-auto/);
     assert.match(src, /overscroll-contain/);
 });
 
 test("AuthPopover DialogContent and PopoverContent have mobile max-height and scrolling", () => {
     const src = readFileSync(AUTH_POPOVER_PATH, "utf8");
-    assert.match(src, /max-h-\[min\(92dvh,640px\)\]/);
-    assert.match(src, /overflow-y-auto/);
+    // Dialog: capped by the shared overlay token; scrolling comes from the DialogContent primitive.
+    assert.match(src, /<DialogContent[\s\S]*?max-h-\[min\(640px,var\(--overlay-max-h\)\)\]/);
+    assert.match(src, /<PopoverContent[^>]*max-h-\[min\(92dvh,640px\)\][^>]*overflow-y-auto/);
 });
 
 test("SheetOverlay and SheetContent use z-[150] tier (below Dialog, above page chrome)", () => {
@@ -37,9 +47,10 @@ test("SheetOverlay and SheetContent use z-[150] tier (below Dialog, above page c
     assert.match(src, /sheetVariants[\s\S]*?z-\[150\]/);
 });
 
-test("Toaster uses z-[300] to float above dialogs and sheets", () => {
+test("Toaster uses the 300 tier to float above dialogs and sheets", () => {
     const src = readFileSync(TOAST_PATH, "utf8");
-    assert.match(src, /z-\[300\]/);
+    assert.match(src, /z-\[var\(--z-toast\)\]/);
+    assert.match(readFileSync(GLOBALS_CSS_PATH, "utf8"), /--z-toast:\s*300;/);
 });
 
 test("mobile-search-cta uses z-40 and is suppressed when authOpen or importOpen", () => {

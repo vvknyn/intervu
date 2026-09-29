@@ -99,7 +99,7 @@ export function FrontDoorReturnCard({
                 <button
                     type="button"
                     onClick={() => onRerun(recentQuery)}
-                    className="rounded-ctl border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+                    className="ctl-md rounded-ctl border border-border bg-surface px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
                 >
                     Run search
                 </button>
@@ -110,7 +110,7 @@ export function FrontDoorReturnCard({
                         dismissForSession();
                         setDismissed(true);
                     }}
-                    className="flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                    className="ctl-md flex ctl-square items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <X size={16} aria-hidden />
                 </button>

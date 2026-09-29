@@ -270,3 +270,12 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     const out = sp.toString();
     return out ? `?${out}` : "";
 }
+
+/**
+ * `/jobs` on the SEARCH board with exactly this state. `view=search` is
+ * required: `resolveJobsHomeView` sends a `q` with `sort=fit` to the For-you
+ * home, which would land a candidate coming from a pack back on the pack.
+ */
+export function jobsBoardHref(state: JobsUrlState): string {
+    return `/jobs${serializeJobsUrl({ ...state, homeView: "search" })}`;
+}

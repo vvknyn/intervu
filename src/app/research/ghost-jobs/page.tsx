@@ -3,6 +3,9 @@ import Link from "next/link";
 import { buildArticleJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getGhostJobsStats } from "@/lib/research/ghost-jobs-snapshot";
+import { Prose } from "@/components/ui/prose";
+import { PageTitle, SectionTitle, SubTitle } from "@/components/ui/heading";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 const HEADLINE = "Ghost jobs aren't the problem — wasted applications are";
 // This article was first published as an essay in July 2026; that authorship
@@ -45,25 +48,11 @@ const RTABLE = {
   tdNum: `${RTABLE_TD} text-right`,
 };
 
-// House document grammar (data-surfaces redesign proposal §03): mono
-// uppercase section labels with a house-token underline — the same "asec"
-// treatment /trends' TrendSection header uses, so the two data surfaces read
-// as one house vocabulary rather than each inventing its own. Tailwind
-// Typography's `.prose h2` rule is written with a zero-specificity `:where()`
-// selector, so a plain className on the element overrides it without an
-// `!important` fight.
-const DOC_SECTION_LABEL =
-  "mono-data mb-3 mt-10 border-b border-border pb-2 text-xs font-semibold text-muted-foreground";
 
-// Sub-section headings within "What separates good listings from bad ones"
-// — one tier below DOC_SECTION_LABEL, so sized at body (16/22) but bolded
-// rather than jumping to the full 20/28 heading tier a child shouldn't
-// outsize its own section label.
-const SUBHEAD = "mt-8 mb-3 text-base font-semibold text-foreground";
 
 export default function GhostJobsResearchPage() {
   return (
-    <div data-testid="research-ghost-jobs-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <PageContainer measure="reading" data-testid="research-ghost-jobs-page" className="py-10">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
@@ -71,9 +60,9 @@ export default function GhostJobsResearchPage() {
       <p className="mono-data text-xs font-semibold text-muted-foreground">
         From our research · Corpus snapshot
       </p>
-      <h1 className="mt-3 font-display text-display font-semibold text-foreground">
+      <PageTitle className="mt-3">
         Ghost jobs aren&apos;t the problem. Wasted applications are.
-      </h1>
+      </PageTitle>
       <p className="mt-1.5 text-base text-muted-foreground">
         We scored {stats.totalScored.toLocaleString()} job listings from corporate ATS platforms.{" "}
         {stats.gradePct.DF}% are outright junk. But nearly half are missing the signals you need to know if
@@ -87,7 +76,7 @@ export default function GhostJobsResearchPage() {
         doesn&apos;t have to
       </p>
 
-      <article className="prose prose-sm max-w-none dark:prose-invert">
+      <Prose>
         <p>
           The internet is obsessed with ghost jobs. &quot;50% of listings are fake.&quot; &quot;Companies post jobs
           they never intend to fill.&quot; It makes for great rage content.
@@ -101,7 +90,7 @@ export default function GhostJobsResearchPage() {
           fake ones ever could — because you can&apos;t tell the difference until you&apos;re three interviews deep.
         </p>
 
-        <h2 className={DOC_SECTION_LABEL}>The real numbers</h2>
+        <SectionTitle>The real numbers</SectionTitle>
         <p>
           This is a {stats.asOfLabel} snapshot of our scored corpus. We pull listings directly from corporate
           applicant tracking systems — Greenhouse, Ashby, Lever, SmartRecruiters, Workday, and 17 others. Not from
@@ -163,9 +152,9 @@ export default function GhostJobsResearchPage() {
           angry about. But they&apos;re the minority of the problem.
         </p>
 
-        <h2 className={DOC_SECTION_LABEL}>
+        <SectionTitle>
           The real problem: {stats.grades.C.count.toLocaleString()} listings you can&apos;t read
-        </h2>
+        </SectionTitle>
         <p>The C-grade bucket — {stats.gradePct.C}% of all listings — is where careers go to die quietly.</p>
         <p>
           These aren&apos;t fake jobs. The company probably does want to hire someone. But the listing gives you
@@ -194,9 +183,9 @@ export default function GhostJobsResearchPage() {
           it requires more data than &quot;real or fake.&quot;
         </p>
 
-        <h2 className={DOC_SECTION_LABEL}>What separates good listings from bad ones</h2>
+        <SectionTitle>What separates good listings from bad ones</SectionTitle>
 
-        <h3 className={SUBHEAD}>Salary transparency is the #1 signal</h3>
+        <SubTitle>Salary transparency is the #1 signal</SubTitle>
         <div className="not-prose my-6 overflow-x-auto">
           <table className={RTABLE.table}>
             <thead>
@@ -226,14 +215,14 @@ export default function GhostJobsResearchPage() {
           default.
         </p>
 
-        <h3 className={SUBHEAD}>{stats.stalenessPct}% of listings are stale</h3>
+        <SubTitle>{stats.stalenessPct}% of listings are stale</SubTitle>
         <p>
           Of the {stats.staleness.withPostedDate.toLocaleString()} listings with posted dates,{" "}
           {stats.staleness.over60d.toLocaleString()} ({stats.stalenessPct}%) have been live for over 60 days without
           being updated.
         </p>
 
-        <h3 className={SUBHEAD}>Remote jobs are higher quality</h3>
+        <SubTitle>Remote jobs are higher quality</SubTitle>
         <div className="not-prose my-6 overflow-x-auto">
           <table className={RTABLE.table}>
             <thead>
@@ -262,7 +251,7 @@ export default function GhostJobsResearchPage() {
           nationally, you can&apos;t rely on proximity, so you have to sell the role on paper.
         </p>
 
-        <h3 className={SUBHEAD}>Bigger companies post better listings</h3>
+        <SubTitle>Bigger companies post better listings</SubTitle>
         <div className="not-prose my-6 overflow-x-auto">
           <table className={RTABLE.table}>
             <thead>
@@ -290,7 +279,7 @@ export default function GhostJobsResearchPage() {
           listings than those with fewer than 10.
         </p>
 
-        <h2 className={DOC_SECTION_LABEL}>Why &quot;ghost job detector&quot; is the wrong product</h2>
+        <SectionTitle>Why &quot;ghost job detector&quot; is the wrong product</SectionTitle>
         <p>
           The ghost job framing asks a binary question: real or fake? But the data shows that&apos;s not the useful
           question. Only {stats.gradePct.DF}% of listings are clearly fake. The other{" "}
@@ -299,7 +288,7 @@ export default function GhostJobsResearchPage() {
           decision.
         </p>
 
-        <h2 className={DOC_SECTION_LABEL}>What to do with this</h2>
+        <SectionTitle>What to do with this</SectionTitle>
         <p>
           If you&apos;re a job seeker: stop asking &quot;is this job real?&quot; Start asking &quot;does this
           listing tell me enough to decide?&quot; Look for salary, check the posted date, read the description with
@@ -316,7 +305,7 @@ export default function GhostJobsResearchPage() {
           ones.
         </p>
 
-        <h2 className={DOC_SECTION_LABEL}>How the screening works</h2>
+        <SectionTitle>How the screening works</SectionTitle>
         <p>
           Every listing gets one of four states below. Like everything else on this page, these are automated
           estimates, not verdicts — see our <Link href="/terms">terms</Link> for how we frame ghost-job and risk
@@ -345,7 +334,7 @@ export default function GhostJobsResearchPage() {
           <span className="h-2 w-2 bg-brand" aria-hidden />
           data · the Subspace jobs corpus
         </div>
-      </article>
-    </div>
+      </Prose>
+    </PageContainer>
   );
 }

@@ -46,6 +46,7 @@ export function SearchAlertCapture({
   const [email, setEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
+  const [rejectMessage, setRejectMessage] = useState<string | null>(null);
 
   useEffect(() => {
     captureEvent("search_alert_impressed", {
@@ -102,6 +103,9 @@ export function SearchAlertCapture({
         markSearchAlertSubmitted();
         setStatus("sent");
       } else {
+        // A Turnstile refusal carries its own actionable `message`.
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        setRejectMessage(body?.message ?? null);
         setStatus("error");
       }
     } catch {
@@ -135,12 +139,12 @@ export function SearchAlertCapture({
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@company.com"
           data-testid="search-alert-email-input"
-          className="h-9 w-full max-w-[260px] text-base"
+          className="ctl-md w-full max-w-[260px] text-base"
         />
-        <TurnstileWidget onVerify={setTurnstileToken} />
+        <TurnstileWidget surface="search_alert" onVerify={setTurnstileToken} />
         {status === "error" && (
           <p className="w-full text-xs text-destructive" data-testid="search-alert-error">
-            Couldn&apos;t send that — try again.
+            {rejectMessage ?? "Couldn't send that — try again."}
           </p>
         )}
         <Button

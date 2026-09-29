@@ -516,14 +516,14 @@ export function EditingPanel({
                                     <Input
                                         value={cat.category}
                                         onChange={(e) => updateCategoryName(catIdx, e.target.value)}
-                                        className="h-8 font-semibold text-base md:text-xs max-w-xs"
+                                        className="ctl-md font-semibold text-base md:text-xs max-w-xs"
                                     />
                                     <Button
                                         type="button"
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeCategory(catIdx)}
-                                        className="h-8 text-danger-text hover:text-danger-text"
+                                        className="text-danger-text hover:text-danger-text"
                                     >
                                         <Trash />
                                     </Button>
@@ -550,7 +550,7 @@ export function EditingPanel({
 
                                 {/* Add skill input */}
                                 <div className="flex gap-2">
-                                    <Input
+                                    <Input className="ctl-md"
                                         value={newSkillInputs[catIdx] || ""}
                                         onChange={(e) =>
                                             setNewSkillInputs((prev) => ({
@@ -565,15 +565,14 @@ export function EditingPanel({
                                             }
                                         }}
                                         placeholder="Add skill (press Enter)..."
-                                        className="h-8"
-                                    />
+                                        />
                                     <Button
                                         type="button"
                                         variant="outline"
                                         size="sm"
                                         onClick={() => addSkillToCategory(catIdx)}
                                         disabled={!(newSkillInputs[catIdx] || "").trim()}
-                                        className="h-8 text-xs"
+                                        className="text-xs"
                                     >
                                         Add
                                     </Button>
@@ -646,7 +645,7 @@ export function EditingPanel({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeExp(exp.id)}
-                                        className="h-7 text-danger-text hover:text-danger-text"
+                                        className="text-danger-text hover:text-danger-text"
                                     >
                                         <Trash />
                                     </Button>
@@ -757,7 +756,7 @@ export function EditingPanel({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeProj(proj.id)}
-                                        className="h-7 text-danger-text hover:text-danger-text"
+                                        className="text-danger-text hover:text-danger-text"
                                     >
                                         <Trash />
                                     </Button>
@@ -881,7 +880,7 @@ export function EditingPanel({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removeEdu(edu.id)}
-                                        className="h-7 text-danger-text hover:text-danger-text"
+                                        className="text-danger-text hover:text-danger-text"
                                     >
                                         <Trash />
                                     </Button>

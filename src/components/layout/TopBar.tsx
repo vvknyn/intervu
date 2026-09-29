@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MagnifyingGlass, MapPin, CaretDown } from "@phosphor-icons/react";
+import { MagnifyingGlass, MapPin } from "@phosphor-icons/react";
 import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
@@ -11,19 +11,15 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { Button } from "@/components/ui/button";
-import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { NAV_TABS, menuNavActive, menuNavTriggerLabel } from "@/components/layout/nav-tabs";
+import { CountBadge, SolidBadge } from "@/components/ui/badge";
+import { chipVariants, ChipDismiss } from "@/components/ui/chip";
+import { TabItem, TabNav } from "@/components/ui/tabs";
+import { NAV_TABS } from "@/components/layout/nav-tabs";
 import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
-import { cn, CHROME_FOCUS_ON_BRAND, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
+import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
@@ -56,18 +52,20 @@ export function TopBar() {
     const authChrome = resolveAuthChrome(user);
     const { docked, homeViewDocked } = useSearchDock();
     const navBadges = useNavBadgeCounts();
-    const menuTabs = NAV_TABS.filter((t) => t.placement === "menu");
-    const barTabs = NAV_TABS.filter((t) => t.placement === "bar").filter((t) => {
-        if (t.href !== "/connect") return true;
-        // Lean hub/deck/apply: drop desktop header MCP (/connect). Pack-deck
-        // `for-you-mcp-handoff` stays — that is not TopBar chrome.
-        if (leanSurface) return false;
-        // Signed-out public chrome (404, marketing-adjacent routes): no MCP tab.
-        if (authChrome !== "authenticated") return false;
-        return true;
+    // The header's ONE nav: every product destination as an underline tab.
+    const navTabs = NAV_TABS.filter((t) => {
+        // Signed out there is no product nav (sign-in / create-account instead).
+        if (!user) return false;
+        if (t.href === "/connect") {
+            // Lean hub/deck/apply: drop desktop header MCP (/connect). Pack-deck
+            // `for-you-mcp-handoff` stays — that is not TopBar chrome.
+            // Signed-out public chrome (404, marketing-adjacent routes): no MCP tab.
+            return !leanSurface && authChrome === "authenticated";
+        }
+        // The For you ↔ Search switch IS the Jobs destination's tab while docked;
+        // a second "Jobs" link beside it would be two navs for one page.
+        return !(homeViewDocked && t.match(pathname));
     });
-    const menuActive = menuNavActive(pathname, NAV_TABS);
-    const menuTriggerLabel = menuNavTriggerLabel(pathname, NAV_TABS);
     const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
 
     const hideNav = shouldHideSiteChrome(pathname);
@@ -158,7 +156,7 @@ export function TopBar() {
                             }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="hidden h-8 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="ctl-md hidden min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
                                 <MagnifyingGlass className="shrink-0 self-center text-foreground" />
@@ -178,85 +176,33 @@ export function TopBar() {
                             <button
                                 type="submit"
                                 data-testid="search-submit"
-                                className="box-border flex h-full min-h-0 shrink-0 items-center justify-center whitespace-nowrap px-4 py-0 text-sm font-semibold leading-none text-foreground transition-colors hover:bg-muted"
+                                className="box-border flex shrink-0 items-center justify-center whitespace-nowrap px-4 text-sm font-semibold leading-none text-foreground transition-colors hover:bg-muted"
                             >
                                 Search
                             </button>
                         </form>
                     )}
                     <div className="flex shrink-0 items-center gap-3">
-                    <nav
-                        aria-label="Primary"
-                        className="hidden items-center gap-3 text-xs lg:flex"
-                    >
-                        {user && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger
-                                    className={cn(
-                                        "inline-flex items-center gap-1 whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors outline-none",
-                                        menuActive
-                                            ? "font-semibold text-foreground"
-                                            : "font-normal text-muted-foreground hover:text-foreground",
-                                    )}
-                                >
-                                    <span className={cn(menuActive && "border-b-2 border-brand")}>{menuTriggerLabel}</span>
-                                    <CaretDown aria-hidden />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="min-w-[9rem] rounded-panel border-border bg-card">
-                                    {menuTabs.map((tab) => {
-                                        const active = tab.match(pathname);
-                                        return (
-                                            <DropdownMenuItem key={tab.href + tab.label} asChild>
-                                                <Link
-                                                    href={tab.href}
-                                                    data-testid={tab.testId}
-                                                    aria-current={active ? "page" : undefined}
-                                                    className={cn(
-                                                        "flex w-full items-center whitespace-nowrap",
-                                                        active && "font-semibold text-foreground",
-                                                    )}
-                                                >
-                                                    {tab.label}
-                                                    {tab.badge && navBadges[tab.badge] > 0 && (
-                                                        <span
-                                                            data-testid={`${tab.testId}-badge`}
-                                                            className="ml-auto mono-data text-xs font-semibold text-brand"
-                                                        >
-                                                            {navBadges[tab.badge]}
-                                                        </span>
-                                                    )}
-                                                </Link>
-                                            </DropdownMenuItem>
-                                        );
-                                    })}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
-                        {barTabs.map((tab) => {
+                    <TabNav aria-label="Primary" className="hidden lg:flex">
+                        {navTabs.map((tab) => {
                             const active = tab.match(pathname);
-                            const label = tab.href === "/connect" ? "MCP" : tab.label;
+                            const count = tab.badge ? navBadges[tab.badge] : 0;
                             return (
-                                <Link
-                                    key={tab.href + tab.label}
-                                    href={tab.href}
-                                    title={tab.title}
-                                    data-testid={tab.testId}
-                                    data-tour={tab.tourSelector}
-                                    aria-current={active ? "page" : undefined}
-                                    data-nav-current={active ? "true" : undefined}
-                                    className={cn(
-                                        "whitespace-nowrap rounded-ctl px-3 py-1 text-sm transition-colors",
-                                        CHROME_FOCUS_VISIBLE,
-                                        active
-                                            ? "font-semibold text-foreground"
-                                            : "font-normal text-muted-foreground hover:text-foreground",
-                                    )}
-                                >
-                                    <span className={cn(active && "border-b-2 border-brand")}>{label}</span>
-                                </Link>
+                                <TabItem key={tab.href + tab.label} asChild size="bar" current={active ? "page" : false}>
+                                    <Link
+                                        href={tab.href}
+                                        title={tab.title}
+                                        data-testid={tab.testId}
+                                        data-tour={tab.tourSelector}
+                                        data-nav-current={active ? "true" : undefined}
+                                    >
+                                        {tab.href === "/connect" ? "MCP" : tab.label}
+                                        {count > 0 && <CountBadge count={count} data-testid={`${tab.testId}-badge`} />}
+                                    </Link>
+                                </TabItem>
                             );
                         })}
-                    </nav>
+                    </TabNav>
 
                     <FollowAlertsBell />
 
@@ -264,7 +210,7 @@ export function TopBar() {
                         /* Auth unresolved: reserve the row height so the bar
                            does not jump when it resolves, and assert nothing
                            about who is signed in. */
-                        <span aria-hidden data-testid="topbar-auth-pending" className="block h-10 w-8 shrink-0" />
+                        <span aria-hidden data-testid="topbar-auth-pending" className="ctl-md ctl-square block shrink-0" />
                     ) : authChrome === "authenticated" && user ? (
                         <AccountMenu
                             user={user}
@@ -272,20 +218,6 @@ export function TopBar() {
                             signingOut={signingOut}
                             onSignOut={handleSignOut}
                         />
-                    ) : leanSurface ? (
-                        <>
-                            <Button
-                                type="button"
-                                data-testid="topbar-signin"
-                                onClick={() => {
-                                    setAuthTab("login");
-                                    setAuthPopoverOpen(true);
-                                }}
-                                className={cn("min-h-11 rounded-ctl", CHROME_FOCUS_ON_BRAND)}
-                            >
-                                {AUTH_CTA_LABEL}
-                            </Button>
-                        </>
                     ) : (
                         <>
                             <Button
@@ -296,7 +228,7 @@ export function TopBar() {
                                     setAuthTab("login");
                                     setAuthPopoverOpen(true);
                                 }}
-                                className={cn("min-h-11 rounded-ctl font-normal text-muted-foreground", CHROME_FOCUS_VISIBLE)}
+                                className={cn("font-normal text-muted-foreground", CHROME_FOCUS_VISIBLE)}
                             >
                                 {AUTH_CTA_LABEL}
                             </Button>
@@ -307,9 +239,9 @@ export function TopBar() {
                                     setAuthTab("signup");
                                     setAuthPopoverOpen(true);
                                 }}
-                                className={cn("min-h-11 rounded-ctl", CHROME_FOCUS_VISIBLE)}
+                                className={CHROME_FOCUS_VISIBLE}
                             >
-                                Create account
+                                {/* signup-gate-exempt: header entry point (gate id header), not an in-content gate */}Create account
                             </Button>
                         </>
                     )}
@@ -341,9 +273,9 @@ export function TopBar() {
                                 >
                                     Filters
                                     {docked.filterCount > 0 && (
-                                        <span className={cn("ml-0.5", filterCountBadgeClass)}>
+                                        <SolidBadge tone="muted" className="ml-0.5">
                                             {docked.filterCount}
-                                        </span>
+                                        </SolidBadge>
                                     )}
                                 </button>
                                 <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />

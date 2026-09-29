@@ -4,7 +4,8 @@ import { Fragment, useState, useEffect, useRef, useSyncExternalStore, useImperat
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
-import { CircleNotch, Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
+import { Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
@@ -377,7 +378,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onClear?.()}
                         className={cn(
-                            "absolute right-1.5 z-30 flex h-10 w-10 items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5 lg:h-6 lg:w-6",
+                            "absolute right-1.5 z-30 flex ctl-sm ctl-square items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5",
                             CONTROL_FOCUS_VISIBLE,
                         )}
                     >
@@ -408,7 +409,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         >
                             {showSuggestLoading && (
                                 <li role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
-                                    <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />
+                                    <InlineSpinner size={16} className="shrink-0" />
                                     Loading suggestions…
                                 </li>
                             )}

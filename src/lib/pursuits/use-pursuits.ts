@@ -15,48 +15,16 @@
  */
 
 import { useEffect, useState } from "react";
+import { createServerListCache } from "@/lib/server-list-cache";
 import { getApplications, upsertPursuitForJob, createManualPursuit } from "@/actions/application";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import { listGuestPursuits, clearGuestPursuits, subscribeGuestPursuits } from "@/lib/pursuits/guest-store";
 
-let cache: Pursuit[] | null = null;
-let inflight: Promise<Pursuit[]> | null = null;
-const listeners = new Set<() => void>();
+const server = createServerListCache(getApplications);
 
-function notify(): void {
-    listeners.forEach((cb) => cb());
-}
-
-function subscribe(cb: () => void): () => void {
-    listeners.add(cb);
-    return () => listeners.delete(cb);
-}
-
-async function fetchServerPursuits(): Promise<Pursuit[]> {
-    if (cache) return cache;
-    if (!inflight) {
-        inflight = getApplications()
-            .then((res) => {
-                cache = res.data ?? [];
-                return cache;
-            })
-            .catch(() => {
-                cache = [];
-                return cache;
-            })
-            .finally(() => {
-                inflight = null;
-            });
-    }
-    return inflight;
-}
-
-/** Every mutation calls this so all mounted consumers re-fetch. */
 export function invalidatePursuitsCache(): void {
-    cache = null;
-    inflight = null;
-    notify();
+    server.invalidate();
 }
 
 /**
@@ -116,6 +84,10 @@ export async function syncGuestPursuitsToServer(): Promise<boolean> {
 export interface UsePursuitsResult {
     pursuits: Pursuit[];
     loading: boolean;
+    /** The signed-in read failed after its automatic retry — render
+     *  `LoadFailedState`, never the empty state. */
+    failed: boolean;
+    retry: () => void;
     hasAny: boolean;
     /** job_id → pursuit, for an O(1) "does this job already have a pursuit" check. */
     byJobId: Map<string, Pursuit>;
@@ -123,8 +95,9 @@ export interface UsePursuitsResult {
 
 export function usePursuits(): UsePursuitsResult {
     const [user, setUser] = useState(() => getCurrentUser());
-    const [pursuits, setPursuits] = useState<Pursuit[]>(() => (user ? (cache ?? []) : listGuestPursuits()));
-    const [loading, setLoading] = useState(!!user && !cache);
+    const [pursuits, setPursuits] = useState<Pursuit[]>(() => (user ? (server.peek() ?? []) : listGuestPursuits()));
+    const [loading, setLoading] = useState(!!user && !server.peek());
+    const [failed, setFailed] = useState(false);
 
     useEffect(
         () =>
@@ -134,6 +107,7 @@ export function usePursuits(): UsePursuitsResult {
                     invalidatePursuitsCache();
                     setPursuits(listGuestPursuits());
                     setLoading(false);
+                    setFailed(false);
                 }
             }),
         [],
@@ -153,27 +127,29 @@ export function usePursuits(): UsePursuitsResult {
             if (!signedIn) {
                 setPursuits(listGuestPursuits());
                 setLoading(false);
+                setFailed(false);
                 return;
             }
             const pendingGuest = listGuestPursuits();
             if (pendingGuest.length > 0) {
                 setPursuits(pendingGuest);
                 setLoading(false);
+                setFailed(false);
                 return;
             }
-            setLoading(!cache);
-            fetchServerPursuits().then((data) => {
-                if (!cancelled) {
-                    setPursuits(data);
-                    setLoading(false);
-                }
+            setLoading(!server.peek());
+            server.fetch().then((res) => {
+                if (cancelled) return;
+                if (res.ok) setPursuits(res.data);
+                setFailed(!res.ok);
+                setLoading(false);
             });
         };
 
         // Kick off the first read via a microtask rather than synchronously,
         // so this effect's own body never calls setState directly.
         Promise.resolve().then(refresh);
-        const unsubServer = subscribe(refresh);
+        const unsubServer = server.subscribe(refresh);
         const unsubGuest = subscribeGuestPursuits(refresh);
         return () => {
             cancelled = true;
@@ -185,5 +161,5 @@ export function usePursuits(): UsePursuitsResult {
     const byJobId = new Map<string, Pursuit>();
     for (const p of pursuits) if (p.job_id) byJobId.set(p.job_id, p);
 
-    return { pursuits, loading, hasAny: pursuits.length > 0, byJobId };
+    return { pursuits, loading, failed, retry: invalidatePursuitsCache, hasAny: pursuits.length > 0, byJobId };
 }

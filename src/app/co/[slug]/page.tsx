@@ -32,6 +32,7 @@ import {
   sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
 import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { PageTitle } from "@/components/ui/heading";
 
 export async function generateMetadata({
   params,
@@ -177,8 +178,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(companyJsonLd) }}
       />
-      <div className="border-b border-border px-4 sm:px-8 xl:px-10">
-        <nav className="mx-auto flex h-10 max-w-6xl items-center text-sm text-muted-foreground xl:max-w-7xl">
+      <div className="border-b border-border">
+        <nav className="shell-row flex h-10 items-center text-sm text-muted-foreground">
           <Link href="/jobs" className="text-brand hover:underline">
             Find jobs
           </Link>
@@ -188,7 +189,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       </div>
 
       <CompanyFollowChannelProvider domain={data.domain} displayName={data.name}>
-      <div data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10">
+      <div data-testid="company-page" className="shell-row py-8 pb-12 sm:pb-16">
         {/* Identity header: name, the "is X hiring?" answer folded straight
             into the subtitle line (no separate boxed KPI card), and Follow
             as the page's one primary action — inverted-ink treatment via
@@ -199,7 +200,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           <div className="flex min-w-0 gap-5">
             <CompanyLogo domain={data.domain} name={data.name} size="lg" />
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-2xl font-semibold">{data.name}</h1>
+              <PageTitle>{data.name}</PageTitle>
               {data.oneLiner && (
                 <p className="mt-1.5 text-sm sm:text-base leading-snug text-muted-foreground">
                   {data.oneLiner}

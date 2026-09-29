@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ConnectClient } from "./connect-client";
-import { RouteSuspenseFallback } from "@/components/ui/route-suspense-fallback";
+import { WaitState } from "@/components/ui/wait-state";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { AGENT } from "@/lib/agent/config";
 import { getServerUser } from "@/lib/auth/server-user";
@@ -35,8 +35,8 @@ export default async function ConnectPage() {
   const issuer = AGENT.issuer();
   const user = await getServerUser();
   return (
-    <div data-testid="connect-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-8 py-10">
-      <Suspense fallback={<RouteSuspenseFallback label="Loading agents page" />}>
+    <div data-testid="connect-page" className="shell-row py-10">
+      <Suspense fallback={<WaitState label="Loading agents page" fill className="bg-background" />}>
         <ConnectClient
           mcpUrl={mcpConnectorUrl(issuer)}
           installCommand={openclawInstallCommand(issuer)}

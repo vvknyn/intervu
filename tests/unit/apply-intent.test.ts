@@ -88,7 +88,7 @@ test("reads the same storage key McpHandoffActions writes", () => {
 });
 
 test("both apply entry points consult the gate", () => {
-    for (const file of ["src/app/jobs/page.tsx", "src/components/jobs/PublicJobDetail.tsx"]) {
+    for (const file of ["src/app/jobs/JobsContent.tsx", "src/components/jobs/PublicJobDetail.tsx"]) {
         const src = readFileSync(path.join(ROOT, file), "utf8");
         assert.ok(
             /shouldPromptApplyIntent\(\)/.test(src),

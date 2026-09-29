@@ -48,19 +48,6 @@ function topBarAuthButtonBlock(src: string, testId: string, occurrence: number):
     return src.slice(Math.max(0, idx - 160), idx + 480);
 }
 
-function signedOutTopBarBranches(src: string): { lean: string; marketing: string } {
-    const leanStart = src.indexOf(") : leanSurface ?");
-    assert.notStrictEqual(leanStart, -1, "leanSurface branch missing");
-    const marketingStart = src.indexOf(") : (", leanStart);
-    assert.notStrictEqual(marketingStart, -1, "marketing branch missing");
-    const marketingEnd = src.indexOf("                    )}", marketingStart);
-    assert.notStrictEqual(marketingEnd, -1, "marketing branch end missing");
-    return {
-        lean: src.slice(leanStart, marketingStart),
-        marketing: src.slice(marketingStart, marketingEnd),
-    };
-}
-
 describe("Phase 2 batch 4 — tracker voice", () => {
     it("subcopy carries journey and applicant control in warm voice", () => {
         assert.match(TRACKER_PAGE_SUBCOPY, /from saved to offer/i);
@@ -121,7 +108,7 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
         assert.ok(footer.length > 0);
     });
 
-    it("signed-out upload and skip-download controls meet 44px touch targets", () => {
+    it("signed-out upload and skip-download controls take their height from the control scale (44px touch = hit area)", () => {
         const resume = readFileSync(join(ROOT, "src/app/resume/page.tsx"), "utf8");
         const uploadTestId = 'data-testid="resume-signed-out-upload"';
         const uploadIdx = resume.indexOf(uploadTestId);
@@ -132,7 +119,6 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
         assert.notStrictEqual(uploadButtonEnd, -1, "upload Button closer");
         const uploadButton = resume.slice(uploadButtonStart, uploadButtonEnd);
         assert.match(uploadButton, /size="lg"/);
-        assert.match(uploadButton, /min-h-11/);
         assert.match(uploadButton, /resume-signed-out-upload/);
 
         const modal = readFileSync(IMPORT_MODAL, "utf8");
@@ -142,7 +128,8 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
         const skipButtonStart = modal.lastIndexOf("<Button", skipIdx);
         const skipButtonEnd = modal.indexOf("</Button>", skipIdx);
         const skipButton = modal.slice(skipButtonStart, skipButtonEnd);
-        assert.match(skipButton, /min-h-11/);
+        assert.match(skipButton, /size="link"/);
+        assert.doesNotMatch(skipButton, /min-h-/);
         assert.match(skipButton, /variant="link"/);
     });
 });
@@ -173,18 +160,12 @@ describe("Phase 2 batch 4 — auth retry", () => {
 });
 
 describe("Phase 2 batch 4 — marketing TopBar", () => {
-    it("lean /jobs: filled Sign in only; marketing: ghost Sign in + Create account", () => {
+    it("every signed-out surface (lean /jobs and marketing alike): ghost Sign in + filled Create account", () => {
         const src = readFileSync(TOPBAR, "utf8");
-        const { lean } = signedOutTopBarBranches(src);
-        assert.match(lean, /topbar-signin/);
-        assert.doesNotMatch(lean, /topbar-create-account/);
-        assert.doesNotMatch(lean, /variant="ghost"/);
+        assert.equal(src.match(/data-testid="topbar-signin"/g)?.length, 1, "exactly one signed-out Sign in — no per-surface variant");
+        assert.doesNotMatch(src, /\) : leanSurface \?/, "no lean-surface auth branch");
 
-        const leanSignIn = topBarAuthButtonBlock(src, "topbar-signin", 0);
-        assert.doesNotMatch(leanSignIn, /variant="ghost"/);
-        assert.match(leanSignIn, /setAuthTab\("login"\)/);
-
-        const marketingSignIn = topBarAuthButtonBlock(src, "topbar-signin", 1);
+        const marketingSignIn = topBarAuthButtonBlock(src, "topbar-signin", 0);
         assert.match(marketingSignIn, /variant="ghost"/);
         assert.match(marketingSignIn, /setAuthTab\("login"\)/);
 
@@ -221,7 +202,7 @@ describe("Phase 2 batch 4 — 4/8 rhythm on changed blocks", () => {
                 sliceBetween(importModal, 'data-testid="resume-import-parse-primary"', "onClick={handleParse}"),
             ],
             ["auth retry panel", retry],
-            ["topbar signed-out branches", signedOutTopBarBranches(topbar).lean + signedOutTopBarBranches(topbar).marketing],
+            ["topbar signed-out branches", sliceBetween(topbar, 'authChrome === "pending"', "                    )}")],
         ];
 
         const offenders: string[] = [];

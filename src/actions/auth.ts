@@ -9,12 +9,13 @@ import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/li
 import { assessSignupEmail, realEmailQualityDeps, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowAuthSignupRequest, allowAuthSignInRequest, allowAuthResetRequest } from "@/lib/shield/rate-limit";
-import { verifyTurnstile } from "@/lib/shield/turnstile";
+import { turnstileRejectMessage, verifyTurnstile } from "@/lib/shield/turnstile";
 import { forgetIdentity } from "@/lib/identity/forget";
 import { getIntervuPg, getTelemetryForgetPg } from "@/lib/pg/pool";
 import { friendlyWorkosAuthMessage } from "@/lib/auth/workos-errors";
 import { resolveWorkosUserId, getWorkosUserManagement } from "@/lib/auth/workos-runtime";
 import { provisionAppAccess } from "@/lib/auth/provisioning";
+import { claimSignupEvent } from "@/lib/auth/signup-event";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { type AuthActionDeps, realAuthActionDeps } from "@/lib/auth/auth-action-deps";
 
@@ -90,7 +91,7 @@ export async function signUpCore(
 export async function signUp(
     prevState: any,
     formData: FormData,
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string } | { success: true; signupCompleted: boolean }> {
     const username = formData.get("username") as string;
     const password = formData.get("password") as string;
     const turnstileToken = formData.get("turnstileToken") as string | null;
@@ -127,7 +128,7 @@ export async function signUp(
 
     const turnstile = await verifyTurnstile(turnstileToken, ip);
     if (turnstile.status === "reject") {
-        return { error: "Verification failed — please try again." };
+        return { error: `${turnstileRejectMessage(turnstile.reason)} Or continue with Google or an email code.` };
     }
 
     // Deliverability (MX/A/AAAA) check runs only here — after rate-limiting
@@ -161,7 +162,10 @@ export async function signUp(
         ),
     );
 
-    return { success: true };
+    // The client reports `signup_completed` only when this claim is won, the
+    // same chokepoint the AuthKit callback uses, so a later Google sign-in on
+    // this account cannot report a second signup.
+    return { success: true, signupCompleted: await claimSignupEvent(result.user) };
 }
 
 /**

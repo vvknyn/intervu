@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { chipVariants } from "@/components/ui/chip";
+import { PageTitle } from "@/components/ui/heading";
 
 /**
  * Two decisions on one page, both about the SERP's surface rather than its
@@ -271,7 +272,7 @@ export function SurfaceMock() {
     return (
         <main className="min-h-screen bg-background pb-24 text-foreground">
             <div className="px-6 pt-8">
-                <h1 className="text-xl font-semibold">Surface options — page width and page ground</h1>
+                <PageTitle>Surface options — page width and page ground</PageTitle>
                 <p className="mt-1 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
                     Two separate calls. Everything below renders at true scale: the tinted area in each
                     width band is the actual gutter at this window size

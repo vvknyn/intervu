@@ -17,6 +17,8 @@ import {
 } from "@/lib/resume/contact-line";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
+import { DATE_RANGE_RE, MONTH } from "./resume-dates";
+import { TITLE_WORD_RE, cleanRoleTitle } from "./title-text";
 import type { ResumeCompetencyCategory, ResumeData, ResumeEducation, ResumeExperience, ResumeProfile } from "@/types/resume";
 
 export interface StructuredResumeDraft {
@@ -27,20 +29,6 @@ export interface StructuredResumeDraft {
     education: Omit<ResumeEducation, "id">[];
     generatedSummary: string;
 }
-
-const MONTH =
-    "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
-
-/** U+0027 straight apostrophe or U+2019 curly apostrophe before 2-digit year (e.g. September '21). */
-const APOSTROPHE_YEAR = "(?:['\u2019]\\d{2})";
-
-const DATE_TOKEN = `(?:${MONTH}\\.?\\s+(?:\\d{4}|${APOSTROPHE_YEAR})|\\d{1,2}\\/\\d{4}|\\d{4})`;
-
-/** Requires a range separator — bare graduation years like "2016" do not match. */
-const DATE_RANGE_RE = new RegExp(
-    `(${DATE_TOKEN})\\s*(?:-|–|—|\\s+to\\s+|\\s+-\\s+)\\s*(${DATE_TOKEN}|Present|Current|Now)`,
-    "i",
-);
 
 const BULLET_RE = /^[\s]*[•\-\*●◦▪]\s+/;
 
@@ -141,7 +129,7 @@ function looksLikeName(line: string): boolean {
     if (/^https?:\/\//i.test(line)) return false;
     const words = line.replace(/[,|].*$/, "").trim().split(/\s+/);
     if (words.length < 2 || words.length > 5) return false;
-    const capitalized = words.filter((w) => /^[A-Z][a-z'.-]+$/.test(w));
+    const capitalized = words.filter((w) => /^\p{Lu}[\p{Ll}\p{M}'.-]+$/u.test(w));
     return capitalized.length >= 2;
 }
 
@@ -149,12 +137,7 @@ function looksLikeTitle(line: string): boolean {
     if (line.length < 4 || line.length > 80) return false;
     if (EMAIL_RE.test(line) || PHONE_RE.test(line)) return false;
     if (ALL_SECTION_HEADERS.has(normalizeSectionKey(line))) return false;
-    const lower = line.toLowerCase();
-    return (
-        /\b(engineer|developer|manager|designer|analyst|director|lead|architect|consultant|specialist|coordinator|administrator|scientist|product|programmer|devops|sre|customer success|operations|account|support|success|associate|partner|recruiter|people|talent)\b/i.test(
-            lower,
-        ) || /\b(senior|staff|principal|junior|head of|vp|vice president)\b/i.test(lower)
-    );
+    return TITLE_WORD_RE.test(line);
 }
 
 function looksLikeCompany(text: string): boolean {
@@ -195,8 +178,9 @@ function isSectionHeader(line: string): string | null {
     if (/^skills?:\s+\S/i.test(line.trim())) return null;
     const key = normalizeSectionKey(line);
     if (ALL_SECTION_HEADERS.has(key)) return key;
-    // Fuzzy header heuristics only on short lines — prose like "12+ years of experience" must not flip sections.
-    if (line.length > 80) return null;
+    // Fuzzy header heuristics only on heading-shaped lines — a sentence that
+    // mentions "experience" or "skills" is prose, not a section break.
+    if (line.length > 80 || line.trim().split(/\s+/).length > 5 || /[.!?]$/.test(line.trim())) return null;
     if (isExperienceHeader(key)) return key;
     if (key.includes("skill") || key.includes("competen") || SKILLS_HEADERS.has(key)) return key;
     if (EDUCATION_HEADERS.has(key) || /\b(education|academic)\b/.test(key)) return key;
@@ -216,7 +200,7 @@ function assignRoleCompany(first: string, second: string): { role: string; compa
 
 function parseRoleCompanyFromLine(line: string, dates: string): { role: string; company: string } {
     let leftover = line.replace(dates, "").trim();
-    leftover = leftover.replace(/\(\s*\)/g, "").replace(/^[\(\[\{]+|[\)\]\},;]+$/g, "").trim();
+    leftover = leftover.replace(/\(\s*\)/g, "").replace(/^[\s(\[{|·•,;—–-]+|[\s)\]}|·•,;—–-]+$/g, "");
 
     const atMatch = leftover.match(/^(.+?)\s+(?:at|@)\s+(.+)$/i);
     if (atMatch) {
@@ -395,9 +379,7 @@ function placeCandidatesFromLines(lines: string[]): string[] {
     for (const line of lines) {
         if (isSectionHeader(line)) continue;
         if (BULLET_RE.test(line) || DATE_RANGE_RE.test(line)) continue;
-        if (/\b(university|college|school|institute)\b/i.test(line)) continue;
-        if (!isContactOrPlaceLine(line) && !isLikelyPlaceSegment(line)) continue;
-        if ((looksLikeName(line) || looksLikeTitle(line)) && !isLikelyPlaceSegment(line)) continue;
+        if (INSTITUTION_RE.test(line)) continue;
 
         const cleaned = line
             .replace(EMAIL_RE, "")
@@ -406,11 +388,11 @@ function placeCandidatesFromLines(lines: string[]): string[] {
             .replace(/\s+/g, " ")
             .trim();
 
-        const segments = cleaned.split(/[·|•|]/).map((s) => s.trim()).filter(Boolean);
-        for (const seg of segments) {
-            if (isLikelyPlaceSegment(seg)) {
-                candidates.push(seg.replace(/^[\s·|•]+|[\s·|•]+$/g, "").trim());
-            }
+        // A dash joins a qualifier to its place ("Remote — Austin, TX") or a
+        // name to it ("Jane Doe — Calgary, Alberta"): the whole segment first.
+        for (const seg of cleaned.split(/[·|•]/)) {
+            const place = [seg, ...seg.split(/\s[—–]\s/)].find((part) => isLikelyPlaceSegment(part));
+            if (place) candidates.push(sanitizeLocation(place));
         }
     }
     return candidates;
@@ -447,12 +429,13 @@ export function locationFromResumePlainText(text: string): string {
 
 const SKILL_CATEGORY_RE = /^([^:]{2,60}):\s*(.+)$/;
 const SKILLS_WRAPPER_RE = /^Skills?:\s*(.+)$/i;
+/** A degree name or abbreviation (`B.Sc.`, `BSc (Hons)`, `M.B.A.`, `B.Tech`, `Master of Design`). */
 const DEGREE_LIKE_RE =
-    /\b(b\.?s\.?|m\.?s\.?|mba|ph\.?d\.?|bachelor|master|micromasters?|certificate|diploma)\b/i;
+    /(?<![\p{L}])(?:bachelor|master|doctor(?:ate)?|associate|micromasters?|certificate|diploma|m\.?b\.?a|ph\.?\s?d|[bm]\.?\s?(?:sc|s|a|tech|eng|com|arch|ed|des|fa|phil)\.?|ll\.?[bm]|j\.?d)(?![\p{L}])/iu;
 
-/** Place-like tail tokens when a pipe-delimited education line has 3+ parts. */
-const PLACE_TAIL_RE =
-    /^(buffalo|urbana-champaign|cambridge|stanford|mit|berkeley|ann arbor|new york|boston)$/i;
+/** Words that name a school in the languages our résumés arrive in. */
+const INSTITUTION_RE =
+    /(?<![\p{L}])(?:universit\p{L}*|college|coll[eè]ge|institut\p{L}*|school|academy|acad[eé]mie|polytechnic|politecnico|hochschule|escola|escuela|école)(?![\p{L}])/iu;
 
 function stripSkillsWrapper(line: string): string {
     const m = line.match(SKILLS_WRAPPER_RE);
@@ -539,22 +522,6 @@ function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
     return [{ category: "", skills: [...new Set(fallbackSkills)] }];
 }
 
-function joinPipeInstitution(parts: string[]): { degree: string; institution: string } {
-    const trimmed = parts.map((p) => p.trim()).filter(Boolean);
-    if (trimmed.length === 0) return { degree: "", institution: "" };
-    if (trimmed.length === 1) return { degree: trimmed[0], institution: "" };
-    if (trimmed.length === 2) {
-        return { degree: trimmed[0], institution: trimmed[1] };
-    }
-    const last = trimmed[trimmed.length - 1];
-    const secondLast = trimmed[trimmed.length - 2];
-    if (PLACE_TAIL_RE.test(last) || /\bat\b/i.test(secondLast)) {
-        const institution = `${secondLast} at ${last}`.replace(/\s+at\s+at\s+/i, " at ");
-        return { degree: trimmed.slice(0, -2).join(" | "), institution };
-    }
-    return { degree: trimmed[0], institution: trimmed.slice(1).join(" | ") };
-}
-
 function splitDegreeAtInstitution(withoutYear: string): { degree: string; institution: string } | null {
     const atRe = /\s+at\s+/gi;
     let match: RegExpExecArray | null;
@@ -569,27 +536,59 @@ function splitDegreeAtInstitution(withoutYear: string): { degree: string; instit
     return null;
 }
 
+/**
+ * Pure: which part of one education line is the degree and which the
+ * school, in either order. A part naming a school (University, Institute…)
+ * is the institution; without one, the institution is the part at the far
+ * end from the degree. Every other part belongs to the degree
+ * (`B.Tech, Mechanical Engineering`).
+ */
+function assignDegreeInstitution(parts: string[]): { degree: string; institution: string } {
+    if (parts.length === 1) {
+        const at = splitDegreeAtInstitution(parts[0]);
+        if (at) return at;
+        return DEGREE_LIKE_RE.test(parts[0]) ? { degree: parts[0], institution: "" } : { degree: "", institution: parts[0] };
+    }
+    let inst = parts.findIndex((p) => INSTITUTION_RE.test(p) && !DEGREE_LIKE_RE.test(p));
+    if (inst === -1) inst = DEGREE_LIKE_RE.test(parts[0]) ? parts.length - 1 : 0;
+    return { degree: parts.filter((_, i) => i !== inst).join(", "), institution: parts[inst] };
+}
+
+/** Pure: one education line → the slots it fills. Strong separators (| — ·) split before commas. */
+function parseEducationLine(line: string): Omit<ResumeEducation, "id"> {
+    const year = line.match(/\b(?:19|20)\d{2}\b/g)?.at(-1) ?? "";
+    const rest = line
+        .replace(DATE_RANGE_RE, "")
+        .replace(new RegExp(`(?:${MONTH}\\.?\\s+)?\\b(?:19|20)\\d{2}\\b`, "gi"), "")
+        .replace(/\(\s*\)/g, "")
+        .replace(/^[\s,;|·•—–-]+|[\s,;|·•—–-]+$/g, "");
+    if (!rest) return { degree: "", institution: "", year };
+    const strong = rest.split(/\s*[|·•]\s*|\s+[—–-]\s+/).filter(Boolean);
+    const commas = rest.split(/\s*,\s*/).filter(Boolean);
+    // A comma alone separates a school only when a part names one; otherwise it
+    // is inside the degree (`M.B.A., General Business Administration`).
+    const parts = strong.length > 1 ? strong : commas.some((p) => INSTITUTION_RE.test(p)) ? commas : [rest];
+    return { ...assignDegreeInstitution(parts.map((p) => p.trim())), year };
+}
+
+/**
+ * One entry may span lines (`ETH Zürich` / `M.Sc. Computer Science, 2016`):
+ * a line joins the open entry while it fills only slots that entry still
+ * has empty, and starts a new entry otherwise. `Label: value` lines (GPA,
+ * coursework) are details, not slots.
+ */
 function parseEducationBlock(lines: string[]): Omit<ResumeEducation, "id">[] {
     const entries: Omit<ResumeEducation, "id">[] = [];
     for (const rawLine of lines) {
         const line = rawLine.replace(BULLET_RE, "").trim();
-        if (!line) continue;
-        const yearMatch = line.match(/\b(19|20)\d{2}\b/);
-        const year = yearMatch?.[0] ?? "";
-        const withoutYear = year ? line.replace(year, "").replace(/[,|\-–—]\s*$/, "").trim() : line;
-
-        const pipeSplit = withoutYear.split(/\s*\|\s*/);
-        if (pipeSplit.length >= 2) {
-            const { degree, institution } = joinPipeInstitution(pipeSplit);
-            entries.push({ degree, institution, year });
-            continue;
-        }
-
-        const atSplit = splitDegreeAtInstitution(withoutYear);
-        if (atSplit) {
-            entries.push({ degree: atSplit.degree, institution: atSplit.institution, year });
+        if (!line || /^[^:]{2,30}:\s/.test(line)) continue;
+        const parsed = parseEducationLine(line);
+        const open = entries.at(-1);
+        const slots = ["degree", "institution", "year"] as const;
+        if (open && slots.every((k) => !parsed[k] || !open[k])) {
+            for (const k of slots) open[k] = open[k] || parsed[k] || "";
         } else {
-            entries.push({ degree: withoutYear, institution: "", year });
+            entries.push(parsed);
         }
     }
     return entries.slice(0, 6);
@@ -633,13 +632,16 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     let profession = "";
     for (let i = 0; i < Math.min(lines.length, 8); i++) {
         const line = lines[i];
+        // A headline sits above the first section; past it (or on a dated line) a title-ish
+        // line is a job entry, not the candidate's headline.
+        if (isSectionHeader(line) || DATE_RANGE_RE.test(line)) break;
         if (!name && looksLikeName(line)) {
             name = line.replace(/[,|].*$/, "").trim();
             continue;
         }
         if (name && !profession && looksLikeTitle(line)) {
-            profession = line.trim();
-            break;
+            profession = cleanRoleTitle(line);
+            if (profession) break;
         }
     }
 
@@ -666,7 +668,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     const projects = parseExperienceBlock(sections.projects ?? []);
 
     if (!profession && experience.length > 0) {
-        profession = experience[0].role || profession;
+        profession = cleanRoleTitle(experience[0].role) || profession;
     }
 
     const tempExperience: ResumeExperience[] = experience.map((exp, idx) => ({
@@ -679,7 +681,11 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         const headerEnd = lines.findIndex((l, idx) => idx > 2 && (isSectionHeader(l) || DATE_RANGE_RE.test(l)));
         const bodyStart = name ? 1 : 0;
         const bodyEnd = headerEnd > 0 ? headerEnd : Math.min(lines.length, 6);
-        generatedSummary = lines.slice(bodyStart + (profession ? 1 : 0), bodyEnd).join(" ").trim();
+        generatedSummary = lines
+            .slice(bodyStart + (profession ? 1 : 0), bodyEnd)
+            .filter((l) => !isContactOrPlaceLine(l))
+            .join(" ")
+            .trim();
         if (generatedSummary.length > 500) generatedSummary = generatedSummary.slice(0, 500);
     }
 

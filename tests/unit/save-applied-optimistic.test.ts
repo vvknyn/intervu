@@ -10,7 +10,7 @@ import {
 } from "../../src/lib/pursuits/optimistic-pursuit";
 import type { Pursuit } from "../../src/lib/pursuits/types";
 
-const PAGE = join(__dirname, "../../src/app/jobs/page.tsx");
+const PAGE = join(__dirname, "../../src/app/jobs/JobsContent.tsx");
 
 describe("optimistic save / applied ordering", () => {
     it("builds optimistic pursuit before server id exists", () => {

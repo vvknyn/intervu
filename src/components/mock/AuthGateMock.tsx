@@ -30,6 +30,7 @@ import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import type { PublicJob } from "@/lib/jobs/types";
 import { CONNECT_HEALTH_COPY } from "@/lib/mcp/connect-health-copy";
 import { cn } from "@/lib/utils";
+import { PageTitle } from "@/components/ui/heading";
 
 const MOCK_NOW = Date.UTC(2026, 7, 5, 15, 0, 0);
 
@@ -268,15 +269,16 @@ export function AuthGateMock() {
                         className="mb-6 w-full max-w-[520px] rounded-none border-0 p-2"
                         style={{ background: "rgba(255,255,255,0.045)" }}
                     >
+                        {/* tab-kit: KEEP — design-mock fixture with its own inline-style palette, not shipped chrome */}
                         <div className="grid grid-cols-3 gap-1" role="tablist" aria-label="Intent">
                             {LANES.map(({ id, label }) => (
                                 <button
                                     key={id}
                                     type="button"
-                                    role="tab"
+                                    role="tab" // tab-kit: KEEP — design-mock fixture with its own inline-style palette, not shipped chrome
                                     aria-selected={lane === id}
                                     onClick={() => setLane(id)}
-                                    className="cursor-pointer rounded-none border-0 px-2.5 py-3.5 text-center text-xs"
+                                    className="ctl-md cursor-pointer rounded-none border-0 px-2.5 text-center text-xs"
                                     style={lane === id ? tabActive : tabIdle}
                                 >
                                     {label}
@@ -289,7 +291,7 @@ export function AuthGateMock() {
                         type="button"
                         data-testid="mock-sign-in-cta"
                         onClick={handleLandingCta}
-                        className="cursor-pointer rounded-none border-0 px-6 py-3.5 text-sm text-[#12151a]"
+                        className="ctl-lg cursor-pointer rounded-none border-0 px-6 text-sm text-[#12151a]"
                         style={{ background: "#ececec" }}
                     >
                         {signInCtaLabel(lane)}
@@ -299,7 +301,7 @@ export function AuthGateMock() {
 
             {phase === "bounce" && (
                 <main className="flex min-h-[calc(100dvh-40px)] flex-col items-center justify-center px-5 text-center">
-                    <h1 className="text-2xl font-semibold">Sign in to connect your AI</h1>
+                    {/* signup-gate-exempt: dev mock harness, not shipped UI */}<PageTitle>Sign in to connect your AI</PageTitle>
                     <p className="mt-3 max-w-md text-sm text-[#8b919a]">
                         After sign-in you open Connect to pair {agentLabel(lane === "board" ? "mcp" : lane)}.
                     </p>
@@ -330,7 +332,7 @@ export function AuthGateMock() {
             {phase === "app" && (
                 <>
                     <header className={cn("sticky top-0 z-40 border-b", siteChrome.bar, siteChrome.border)}>
-                        <div className="mx-auto flex h-16 w-full max-w-[920px] items-center justify-between px-5 sm:px-7">
+                        <div className="shell-row flex h-16 items-center justify-between">
                             <div className="flex items-center gap-2.5">
                                 <BrandMark className="h-10 w-10" />
                                 <span className="text-lg font-semibold">velai</span>
@@ -375,7 +377,7 @@ export function AuthGateMock() {
                     </header>
 
                     {panel === "jobs" && (
-                        <main className="mx-auto w-full max-w-[720px] px-5 py-8 sm:px-7">
+                        <main className="shell-row py-8">
                             <p className="mb-4 text-xs text-[#8b919a]">
                                 Mock SERP · browse free · detail needs sign-in
                             </p>
@@ -386,8 +388,8 @@ export function AuthGateMock() {
                     )}
 
                     {panel === "connect" && signedIn && (
-                        <main className="mx-auto w-full max-w-[720px] px-5 py-10 sm:px-7">
-                            <h1 className="text-2xl font-semibold">Connect your agent</h1>
+                        <main className="shell-row py-10">
+                            <PageTitle>Connect your agent</PageTitle>
                             <p className="mt-2 max-w-xl text-sm text-[#8b919a]">
                                 Sign-in linked this browser. Next: allow your AI in the connector popup.
                             </p>
@@ -418,7 +420,7 @@ export function AuthGateMock() {
                             side="bottom"
                             hideCloseButton
                             overlayClassName="bg-[rgba(18,21,26,0.42)]"
-                            className="left-1/2 flex max-h-[min(88dvh,640px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0"
+                            className="left-1/2 max-h-[min(640px,var(--overlay-max-h))] w-full max-w-[720px] -translate-x-1/2 overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0"
                         >
                             <SheetTitle className="sr-only">
                                 {decodeText(selectedJob.title)} at {cleanCompany(selectedJob.company)}
@@ -438,7 +440,7 @@ export function AuthGateMock() {
                                             size="lg"
                                         />
                                         <div>
-                                            <h2 className="text-lg font-semibold">{decodeText(selectedJob.title)}</h2>
+                                            <h2 className="text-xl font-semibold">{decodeText(selectedJob.title)}</h2>
                                             <p className="mt-1 text-sm text-muted-foreground">
                                                 {cleanCompany(selectedJob.company)} · {locationText(selectedJob)}
                                             </p>
@@ -454,7 +456,7 @@ export function AuthGateMock() {
                                         className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card px-6 text-center"
                                     >
                                         <p className="text-sm font-semibold text-foreground">
-                                            Sign in to view this role
+                                            {/* signup-gate-exempt: dev mock harness, not shipped UI */}Sign in to view this role
                                         </p>
                                         <Button
                                             onClick={() => {

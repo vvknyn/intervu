@@ -41,7 +41,9 @@ test("JOBS_SYNONYMS: pm stays one-way — no reverse hop from either expansion",
 
 test("JOBS_SYNONYMS: pre-existing bidirectional pairs are unaffected", () => {
     assert.deepEqual(JOBS_SYNONYMS.swe, ["software engineer"]);
-    assert.deepEqual(JOBS_SYNONYMS["software engineer"], ["swe"]);
+    // #395 (09569eb9) added sde / "software developer" → "software engineer",
+    // so the reverse now holds those too; the pre-existing swe pair must survive.
+    assert.deepEqual(JOBS_SYNONYMS["software engineer"], ["swe", "sde", "software developer"]);
     assert.deepEqual(JOBS_SYNONYMS.k8s, ["kubernetes"]);
     assert.deepEqual(JOBS_SYNONYMS.kubernetes, ["k8s"]);
 });

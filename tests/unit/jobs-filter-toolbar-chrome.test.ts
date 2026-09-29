@@ -12,7 +12,7 @@ import { PRISTINE_FILTER_STATE, type FilterState } from "../../src/components/jo
 const CHIP = join(__dirname, "..", "..", "src", "components", "ui", "chip.tsx");
 const FILTER_CHIPS_ROW = join(__dirname, "..", "..", "src", "components", "jobs", "FilterChipsRow.tsx");
 const FACET_BAR = join(__dirname, "..", "..", "src", "components", "jobs", "FacetBar.tsx");
-const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx");
+const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "JobsContent.tsx");
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
 const SAVED_SEARCHES = join(__dirname, "..", "..", "src", "components", "jobs", "SavedSearchesPanel.tsx");
 const GLOBALS = join(__dirname, "..", "..", "src", "app", "globals.css");
@@ -68,21 +68,20 @@ describe("jobs filter toolbar chrome", () => {
         );
     });
 
-    it("chip active variant uses a 3px brand blade, tinted fill, squared geometry", () => {
+    // #537 (ba9603bf) replaced the squared 3px brand blade with pill chips;
+    // e8aa53a1 moved the count badge onto the shared solid-badge primitive.
+    it("chip is a neutral pill: active is a foreground border, never a brand fill", () => {
         const src = readFileSync(CHIP, "utf8");
-        assert.match(src, /border-l-\[3px\]/);
-        assert.match(src, /border-l-brand/);
-        assert.match(src, /bg-brand\/\[0\.06\]/);
-        assert.match(src, /rounded-none/);
+        assert.match(src, /rounded-pill/);
+        assert.match(src, /true: "border-foreground text-foreground"/);
         assert.match(src, /motion-reduce:transition-none/);
         assert.doesNotMatch(src, /rounded-full/);
         assert.doesNotMatch(src, /bg-brand text-brand-foreground/);
     });
 
-    it("exports shared filterCountBadgeClass", () => {
+    it("exports shared filterCountBadgeClass on the neutral solid badge", () => {
         const src = readFileSync(CHIP, "utf8");
-        assert.match(src, /export const filterCountBadgeClass/);
-        assert.match(src, /rounded-none border border-brand bg-muted/);
+        assert.match(src, /export const filterCountBadgeClass = solidBadgeVariants\(\{ tone: "muted" \}\)/);
     });
 
     it("FilterChipsRow does not override chipVariants active/inactive styling", () => {
@@ -206,7 +205,7 @@ describe("jobs filter toolbar chrome", () => {
             chipVariantsActiveValues(src).includes("true"),
             "a docked active-filter chip should render chipVariants({ active: true, ...}) — an already-applied filter is unconditionally active",
         );
-        assert.match(src, /filterCountBadgeClass/);
+        assert.match(src, /<SolidBadge tone="muted"/);
         assert.match(src, /bg-muted lg:block/);
 
         const bandRow = src.slice(

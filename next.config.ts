@@ -19,15 +19,19 @@ applyWorkOsRedirectUriBridge();
  * use eval-ish codegen. connect-src is intentionally broad (https:) so BYOK keys
  * can hit any provider host the user configures without a redeploy.
  *
+ * script-src third-party origins = every origin src/ loads a script from:
+ * challenges.cloudflare.com (Turnstile api.js, components/ui/turnstile-widget.tsx).
+ * tests/unit/csp-script-src.test.ts scans src/ and fails when one is missing.
+ *
  * Shipped in Report-Only mode first so a missed directive surfaces in the browser
  * console as a violation report instead of breaking runtime.
  * TODO(security): tighten (drop 'unsafe-eval', enumerate connect-src hosts, add a
  * report-uri/Reporting-API endpoint) and promote to the enforcing
  * `Content-Security-Policy` header once violations are confirmed clean in prod.
  */
-const CONTENT_SECURITY_POLICY = [
+export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
@@ -73,11 +77,16 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [],
   },
-  // Next 16 defaults to Turbopack for `next dev` / `next build`. A webpack-only
-  // config (the onnx fallbacks below) is treated as a misconfiguration unless
-  // Turbopack is acknowledged. Empty object: we don't need custom Turbopack
-  // rules; webpack fallbacks still apply when someone builds with `--webpack`.
-  turbopack: {},
+  // Next 16 defaults to Turbopack for `next dev` / `next build`. The browser
+  // alias is Turbopack's form of the webpack fallbacks below (still used with
+  // `--webpack`): transformers.js must see an empty object for fs/path, not
+  // `undefined` — see src/lib/local-ai/empty-node-builtin.ts.
+  turbopack: {
+    resolveAlias: {
+      fs: { browser: "./src/lib/local-ai/empty-node-builtin.ts" },
+      path: { browser: "./src/lib/local-ai/empty-node-builtin.ts" },
+    },
+  },
   webpack(config, { isServer }) {
     // Transformers.js + onnxruntime-web reference Node builtins in browser builds.
     if (!isServer) {

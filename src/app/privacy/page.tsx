@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { LegalDocHeader, LEGAL_H2 } from "@/components/legal/LegalDocHeader";
+import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 import { TELEMETRY_LEDGER_FIELDS_DISCLOSED } from "@/lib/telemetry/public-disclosure";
 import {
   ACCOUNT_SELF_SERVE_DELETION_FLOW,
   PUBLIC_SUPPORT_EMAIL,
 } from "@/lib/legal/public-contact";
+import { Prose } from "@/components/ui/prose";
+import { SectionTitle } from "@/components/ui/heading";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 export { TELEMETRY_LEDGER_FIELDS_DISCLOSED };
 
@@ -98,17 +101,17 @@ export const FIRESTORE_COLLECTIONS_DISCLOSED: readonly string[] =
 
 export default function PrivacyPage() {
   return (
-    <div data-testid="privacy-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <PageContainer measure="reading" data-testid="privacy-page" className="py-10">
       <div className="rounded-none border border-border bg-card p-6 sm:p-10">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
-        <article className="prose prose-sm max-w-none dark:prose-invert">
+        <Prose>
         <p>
           Velai is a job search tool. This page explains what we collect, why, and how you can control it. If
           anything here is unclear, use the contact page — we read every message ourselves.
         </p>
 
-        <h2 className={LEGAL_H2}>What we collect</h2>
+        <SectionTitle>What we collect</SectionTitle>
         <p>
           When you create an account, we collect the email address and profile information you provide. You can
           sign in with Google, a passkey, an email code, or a username and password. Google, passkey, and
@@ -144,7 +147,7 @@ export default function PrivacyPage() {
           at any time via the <Link href="/contact">contact page</Link>.
         </p>
         <p>
-          If you sign up for weekly search alerts while browsing jobs without an account, we store the email
+          {/* signup-gate-exempt: legal policy prose, not a prompt */}If you sign up for weekly search alerts while browsing jobs without an account, we store the email
           address you enter and the search you asked to watch, and use them only to send you new matching roles
           each week until you unsubscribe.
         </p>
@@ -184,7 +187,7 @@ export default function PrivacyPage() {
           We don&apos;t buy marketing profiles about you from data brokers.
         </p>
 
-        <h2 className={LEGAL_H2}>How we use it</h2>
+        <SectionTitle>How we use it</SectionTitle>
         <p>
           We use your account data to run the product: to show your tracked applications and keep your résumés and
           prep answers where you left them. We use your search-activity profile for two things: to make your own
@@ -194,7 +197,7 @@ export default function PrivacyPage() {
           to advertisers.
         </p>
 
-        <h2 className={LEGAL_H2}>AI processing</h2>
+        <SectionTitle>AI processing</SectionTitle>
         <p>
           We read your résumé in your browser and do not send it to a cloud AI to interpret it. Optional models, if
           you allow a download, run in that browser. We do not keep the original file.
@@ -215,7 +218,7 @@ export default function PrivacyPage() {
           send a recording to Groq. Those requests are not your résumé.
         </p>
 
-        <h2 className={LEGAL_H2}>Connected AI clients</h2>
+        <SectionTitle>Connected AI clients</SectionTitle>
         <p>
           If you pair an AI client with Velai from the <Link href="/connect">connect page</Link> (Claude,
           ChatGPT, Gemini, or another app that speaks MCP), that client can — after you sign in and approve the
@@ -227,7 +230,7 @@ export default function PrivacyPage() {
           further access.
         </p>
 
-        <h2 className={LEGAL_H2}>Email</h2>
+        <SectionTitle>Email</SectionTitle>
         <p>
           We send email through Resend, a transactional email provider, which processes your address and message
           content on our behalf under its own processor terms. Beyond your address itself, we store which kind of
@@ -242,7 +245,7 @@ export default function PrivacyPage() {
           <Link href="/settings">account settings</Link>.
         </p>
 
-        <h2 className={LEGAL_H2}>Behavioural analytics ledger</h2>
+        <SectionTitle>Behavioural analytics ledger</SectionTitle>
         <p>
           Alongside PostHog (below), we keep a separate behavioural ledger in a PostgreSQL database we run. Your
           browser batches product events to our telemetry API — the same catalogue of actions we use to understand
@@ -253,7 +256,7 @@ export default function PrivacyPage() {
           ledger to improve search quality and to compute aggregate statistics. Rows are deleted after 90 days.
         </p>
 
-        <h2 className={LEGAL_H2}>Cookies &amp; analytics</h2>
+        <SectionTitle>Cookies &amp; analytics</SectionTitle>
         <p>
           We use a session cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts) and
           identifies your session — nothing more. The jobs board sets one more tiny cookie the first time you
@@ -293,7 +296,7 @@ export default function PrivacyPage() {
           viewports we disable automatic survey UI so it does not overlap page content.
         </p>
 
-        <h2 className={LEGAL_H2}>Where data is processed</h2>
+        <SectionTitle>Where data is processed</SectionTitle>
         <p>
           You may be in one country while our providers and infrastructure operate elsewhere. We have not verified
           or published a single home region for every data store behind Velai. PostHog product analytics are
@@ -304,7 +307,7 @@ export default function PrivacyPage() {
           confirmed in configuration.
         </p>
 
-        <h2 className={LEGAL_H2}>Retention &amp; deletion</h2>
+        <SectionTitle>Retention &amp; deletion</SectionTitle>
         <p>
           We keep your account data for as long as your account is active. Search-activity records in Firestore —
           which searches, which clicks, which applies — are kept for 90 days and then deleted; after that we keep
@@ -341,7 +344,7 @@ export default function PrivacyPage() {
           contact-form records that are not tied to an account.
         </p>
 
-        <h2 className={LEGAL_H2}>Your choices</h2>
+        <SectionTitle>Your choices</SectionTitle>
         <p>
           You can edit or delete content you created in the product. To remove your entire account, use the
           self-serve flow in account settings ({ACCOUNT_SELF_SERVE_DELETION_FLOW}). For questions about privacy or
@@ -352,7 +355,7 @@ export default function PrivacyPage() {
           or use the <Link href="/contact">contact page</Link>.
         </p>
 
-        <h2 className={LEGAL_H2}>Contact</h2>
+        <SectionTitle>Contact</SectionTitle>
         <p>
           Questions: email{" "}
           <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
@@ -360,8 +363,8 @@ export default function PrivacyPage() {
           </a>{" "}
           or use the <Link href="/contact">contact page</Link>.
         </p>
-      </article>
+      </Prose>
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -142,7 +142,8 @@ test("resolveSearchSeeds fills the curated list up to the target cap", () => {
 
 test("resolveSearchSeeds with no recent searches falls back to curated alone, capped at ~8 by default", () => {
     assert.deepEqual(resolveSearchSeeds([]), CURATED_SEARCH_SEEDS);
-    assert.equal(resolveSearchSeeds([]).length, 8);
+    // afa39dca dropped the Canada preset, leaving 7 curated seeds — the cap is 8, not a count.
+    assert.ok(resolveSearchSeeds([]).length <= 8);
 });
 
 test("resolveSearchSeeds drops empty/whitespace-only entries from either source", () => {

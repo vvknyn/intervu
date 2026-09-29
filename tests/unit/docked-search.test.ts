@@ -27,7 +27,7 @@ const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url),
 
 const CSS = read("src/app/globals.css");
 const TOPBAR = read("src/components/layout/TopBar.tsx");
-const JOBS = read("src/app/jobs/page.tsx");
+const JOBS = read("src/app/jobs/JobsContent.tsx");
 const DOCK_CONTEXT = read("src/components/layout/SearchDockContext.tsx");
 
 /** Source with JSX/block comments removed, so a number or word quoted in
@@ -51,7 +51,8 @@ function classNameForTestId(src: string, id: string): string {
 describe("header height: the token is still the one source", () => {
     it("the token exists and the bar sizes itself from it", () => {
         assert.match(CSS, /--topbar-h:\s*\d+px;/, "globals.css must define the header height once");
-        const row = classNamesIn(TOPBAR).find((c) => c.includes("shell-row") && c.includes("--topbar-h"));
+        // 98f2fee6 moved the row's classes into cn(...), so read every string literal.
+        const row = [...TOPBAR.matchAll(/"([^"]*)"/g)].map((m) => m[1]).find((c) => c.includes("shell-row") && c.includes("--topbar-h"));
         assert.ok(row, "TopBar's primary row must take its height FROM the token");
         assert.doesNotMatch(row, /\bh-\d/, "a literal height lets the bar drift from every offset derived from it");
     });
@@ -77,8 +78,9 @@ describe("dock trigger: presence follows the search, not scroll position", () =>
             /if \(!headerDockActive\)\s*{\s*setDocked\(null\);/,
             "the dock must clear on the SAME fact the hero/toolbar use to stand down, not a re-derived condition",
         );
-        // lg+ always docks — pristine landing uses the header search too.
-        assert.match(src, /const headerDockActive = isLgUp;/);
+        // b1471917 (#534): the at-rest front door owns search, so lg+ docks
+        // only once a search is active on the Search view.
+        assert.match(src, /const headerDockActive = isLgUp && showSearchHome && !atRest;/);
     });
 
     it("the dock effect's dependency list carries no object/array literal — the React #185 guard", () => {
@@ -87,7 +89,8 @@ describe("dock trigger: presence follows the search, not scroll position", () =>
         // chips this effect now carries are built from it, so it is exactly
         // as easy to reach for here as `filterState` was originally.
         const src = stripComments(JOBS);
-        const effect = src.match(/useEffect\(\(\) => {\s*if \(!headerDockActive\)[\s\S]*?}, \[([^\]]*)\]\);/);
+        // 12476231 put a For-you (`!showSearchHome`) clear ahead of the dock guard.
+        const effect = src.match(/useEffect\(\(\) => {\s*(?:if \(!showSearchHome\) {\s*setDocked\(null\);\s*return;\s*}\s*)?if \(!headerDockActive\)[\s\S]*?}, \[([^\]]*)\]\);/);
         assert.ok(effect, "could not find the dock-setting effect");
         const deps = effect[1];
         assert.doesNotMatch(deps, /\bfilterState\b/, "an object literal here reintroduces the infinite-update loop");
@@ -101,7 +104,8 @@ describe("dock chips: sourced from activeFilterEntries only", () => {
         const src = stripComments(JOBS);
         assert.match(
             src,
-            /chips:\s*unnamedEntries\.map\(\(entry\)\s*=>\s*\({\s*key:\s*entry\.key,\s*label:\s*chipLabelForEntry\(entry\)\s*}\)\)/,
+            // 6feaf72c (#366) routes them through buildDockedChips, which prepends the location-default chip.
+            /chips:\s*buildDockedChips\([^)]*unnamedEntries\.map\(\(entry\)\s*=>\s*\({\s*key:\s*entry\.key,\s*label:\s*chipLabelForEntry\(entry\)\s*}\)\)/,
             "header chips must use entriesNeedingOwnChip(activeEntries) so FacetBar-owned filters are not duplicated",
         );
         assert.match(src, /entriesNeedingOwnChip\(activeEntries, facetBarRepresents/);
@@ -209,7 +213,10 @@ describe("docked search: mobile still owns nothing here", () => {
 
     it("the chips/Filters row exists and is lg-gated too", () => {
         assert.match(TOPBAR, /data-testid="topbar-docked-filters-toggle"/, "the header's Filters button must exist");
-        const wrapper = classNamesIn(TOPBAR).find((c) => c.includes("border-t") && c.includes("lg:block"));
-        assert.ok(wrapper, "the chips row's own wrapper must stay off below lg, same as the search field");
+        // d254a782 (#421) made the row a `data-region="band"` wrapper; the lg gate lives there.
+        const band = classNameForTestId(TOPBAR.replace('data-region="band"', 'data-testid="__band"'), "__band");
+        assert.match(band, /\bhidden\b/, "the chips row's own wrapper must stay off below lg, same as the search field");
+        assert.match(band, /\blg:block\b/, "the chips row's own wrapper must stay off below lg, same as the search field");
+        assert.ok(TOPBAR.indexOf('data-region="band"') < TOPBAR.indexOf('data-testid="topbar-docked-filters-toggle"'), "the Filters button must live inside the lg-gated band");
     });
 });

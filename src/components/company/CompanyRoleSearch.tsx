@@ -220,7 +220,7 @@ export function CompanyRoleSearch({
                 if (e.key === "Escape") setQuery("");
               }}
               placeholder={`Search ${companyName}'s open roles…`}
-              className="rounded-ctl border border-border bg-card h-11 pl-9 text-base"
+              className="ctl-lg rounded-ctl border border-border bg-card pl-9 text-base"
             />
           </div>
           {searchesPartialWindow && hasQuery && (
@@ -284,6 +284,7 @@ export function CompanyRoleSearch({
                 <button
                   type="button"
                   onClick={() => setSelectedJob(job)}
+                  // control-scale-allow: full-width list row — its padding is content layout, not a bar control
                   className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 border-b border-border pt-4 pb-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand cursor-pointer"
                 >
                   <div className="min-w-0">
@@ -348,7 +349,7 @@ export function CompanyRoleSearch({
         <SheetContent
           side="bottom"
           hideCloseButton
-          className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-180 -translate-x-1/2 flex-col overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+          className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-180 -translate-x-1/2 overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
         >
           <div className="shrink-0 border-b border-border">
             <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
@@ -373,7 +374,7 @@ export function CompanyRoleSearch({
                 type="button"
                 aria-label="Close"
                 onClick={() => setSelectedJob(null)}
-                className="flex h-11 w-11 shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
+                className="ctl-lg flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
               >
                 <X size={16} weight="bold" aria-hidden />
               </button>

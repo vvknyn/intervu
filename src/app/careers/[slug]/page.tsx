@@ -3,6 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { careerHubJobsHref, getAllCareerHubSlugs, getCareerHub } from "@/lib/seo/career-hubs";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { Prose } from "@/components/ui/prose";
+import { PageTitle } from "@/components/ui/heading";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 export function generateStaticParams() {
   return getAllCareerHubSlugs().map((slug) => ({ slug }));
@@ -35,15 +38,15 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
   const facetJobsHref = careerHubJobsHref(hub);
 
   return (
-    <main data-testid={`career-hub-${hub.slug}`} className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <PageContainer measure="reading" data-testid={`career-hub-${hub.slug}`} className="py-10">
       <p className="text-xs font-semibold text-muted-foreground">Career hub</p>
-      <h1 className="mt-3 font-display text-display font-semibold text-foreground">{hub.h1}</h1>
+      <PageTitle className="mt-3">{hub.h1}</PageTitle>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+      <Prose className="mt-6">
         {hub.intro.map((paragraph) => (
           <p key={paragraph.slice(0, 40)}>{paragraph}</p>
         ))}
-      </article>
+      </Prose>
 
       <nav aria-label="Related career topics" className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-sm">
         <Link href="/jobs" className="font-semibold text-brand hover:underline">
@@ -65,6 +68,6 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
           </Link>
         )}
       </nav>
-    </main>
+    </PageContainer>
   );
 }

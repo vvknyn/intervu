@@ -7,7 +7,7 @@ import { z } from "zod";
 import { validate, nonEmptyString } from "@/lib/validation";
 import { getIntervuPg } from "@/lib/pg/pool";
 import { getSiteUrl } from "@/lib/seo/constants";
-import { verifyTurnstile } from "@/lib/shield/turnstile";
+import { verifyTurnstileVerdict } from "@/lib/shield/turnstile";
 import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
 import { allowSearchAlertRequest } from "@/lib/shield/rate-limit";
 import { sendVerifySearchAlertEmail } from "@/lib/email/verify-search-alert";
@@ -42,10 +42,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const result = await submitSearchAlert(
     {
       q: getIntervuPg(),
-      verifyTurnstile: async (token, remoteIp) => {
-        const outcome = await verifyTurnstile(token, remoteIp);
-        return { success: outcome.status !== "reject" };
-      },
+      verifyTurnstile: verifyTurnstileVerdict,
       sendVerifyEmail: sendVerifySearchAlertEmail,
       baseUrl: getSiteUrl(),
       allowRequest: allowSearchAlertRequest,
@@ -81,5 +78,5 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
   }
 
-  return NextResponse.json({ status: result.status }, { status: STATUS_CODE[result.status] });
+  return NextResponse.json(result, { status: STATUS_CODE[result.status] });
 }

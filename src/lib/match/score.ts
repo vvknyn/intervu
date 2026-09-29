@@ -14,9 +14,10 @@
  * convention) — this runs client-side on `/jobs` and can run server-side on
  * `/co` without change.
  *
- * Honest gaps: a component only appears when both sides actually have the
- * field to compare. A job/résumé pair with NO comparable field returns
- * `null` (no chip), never a fabricated 0.
+ * Honest gaps: `relevance` is required — a pair with no topical overlap
+ * returns `null` (no chip), never a fabricated 0. Seniority and location are
+ * always reported; a side that is unknown makes that component neutral and
+ * flagged `unknown` (see `scoreJobAgainstResume`).
  *
  * Redesign (2026-08): the previous version scored `skills` and `occupation`
  * as two independent, individually-optional components, then renormalized
@@ -44,10 +45,15 @@
  * topical overlap returns `null` (no chip) rather than falling back to a
  * seniority-only 100. `seniority` stays as an optional modifier on top.
  */
-import { classifyCountryValue } from "@/lib/jobs/country-classification";
+import {
+    candidateCountries,
+    resolveCandidateSignals,
+    type CandidateSignals,
+} from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
-import { resumeCountriesFromLocation } from "@/lib/jobs/resume-location";
-import { topSkills } from "@/lib/jobs/resume-match";
+import { jobCountries } from "@/lib/jobs/resume-location";
+import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
+import { topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { RANK_WORDS, resumeDutyTokens } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -61,6 +67,9 @@ export interface MatchComponent {
     detail: string;
     /** This component's own match quality, 0..1. */
     score: number;
+    /** True when a side of the comparison is unknown: `score` is the neutral
+     *  `UNKNOWN_COMPONENT_SCORE`, not evidence of a fit or a misfit. */
+    unknown?: boolean;
 }
 
 export interface MatchScore {
@@ -70,17 +79,23 @@ export interface MatchScore {
 }
 
 /**
- * Component weights. The ONLY place these live; the total is a weighted
- * average renormalized over whichever components actually scored (see
- * `scoreJobAgainstResume`) — but `relevance` is REQUIRED (the whole match is
- * `null` without it), so that renormalization only ever adjusts for
- * `seniority` being present or absent, never leaves `relevance` out.
+ * Component weights. The ONLY place these live. The total is the weighted sum
+ * over ALL components divided by the fixed sum of the weights: a component
+ * that cannot be compared (unknown candidate or job side) counts as the
+ * neutral `UNKNOWN_COMPONENT_SCORE` and says so — it is never dropped from
+ * the average, which would let the components that remain stand in for it.
+ * `relevance` is REQUIRED (the whole match is `null` without it).
  */
 export const MATCH_WEIGHTS: Readonly<Record<MatchComponentKey, number>> = {
     relevance: 0.75,
     seniority: 0.25,
     location: 0.10,
 };
+
+const WEIGHT_SUM = Object.values(MATCH_WEIGHTS).reduce((sum, w) => sum + w, 0);
+
+/** What a component scores when one side of its comparison is unknown. */
+export const UNKNOWN_COMPONENT_SCORE = 0.5;
 
 /** Qualitative fit bands on the 0–100 integer `MatchScore.total` scale. */
 export type MatchBand = "stretch" | "good" | "strong";
@@ -108,27 +123,13 @@ export function matchBandLabel(band: MatchBand): "Stretch" | "Good" | "Strong" {
 }
 
 /**
- * Years-of-experience → seniority label, upper-bound-inclusive per tier
- * (same convention as `seniorityFromYears` in resume-match.ts: exactly 2y
- * lands in the LOWER tier, not the next one up). The one place this ladder
- * is defined — both the receipt's "senior — fits" text and the tier used to
- * compare against a job's `experience_level` read this array, not a copy.
+ * `PublicJob.experience_level`'s real vocabulary, in ladder order — also the
+ * candidate's (`Seniority`, resume-match.ts). A job value not in this list,
+ * including "unknown", has no index, so the comparison is unknown rather
+ * than guessed. Matched on the VALUE itself (indexOf), not by enumerating
+ * "unknown" as a special case.
  */
-export const SENIORITY_LADDER: ReadonlyArray<{ maxYears: number; label: string }> = [
-    { maxYears: 2, label: "junior" },
-    { maxYears: 5, label: "mid" },
-    { maxYears: 9, label: "senior" },
-    { maxYears: Infinity, label: "lead/principal" },
-];
-
-/**
- * `PublicJob.experience_level`'s real vocabulary, in ladder order (see
- * `Seniority` in resume-match.ts: "entry | mid | senior | unknown"). A job
- * whose value isn't in this list — including "unknown" — has no index, so
- * the seniority component is absent rather than guessed. Matched on the
- * VALUE itself (indexOf), not by enumerating "unknown" as a special case.
- */
-const JOB_EXPERIENCE_LEVEL_ORDER = ["entry", "mid", "senior"] as const;
+const EXPERIENCE_LEVEL_ORDER: readonly Seniority[] = ["entry", "mid", "senior"];
 
 /** SERP hits usually omit description; cap keeps detail/hydrated jobs cheap. */
 const JOB_DESCRIPTION_SLICE_CHARS = 1500;
@@ -216,136 +217,106 @@ function isRemoteWorkType(workType: string | null | undefined): boolean {
     return /remote/i.test(workType ?? "");
 }
 
-function jobHasKnownLocation(job: PublicJob): boolean {
-    if (job.location?.trim()) return true;
-    if (job.location_city?.trim()) return true;
-    if (job.location_state?.trim()) return true;
-    if (job.location_country) {
-        const raw = Array.isArray(job.location_country) ? job.location_country : [job.location_country];
-        if (raw.some((c) => (c ?? "").trim())) return true;
-    }
-    return false;
-}
+const locationComponent = (detail: string, score: number, unknown?: boolean): MatchComponent => ({
+    key: "location",
+    label: "Location",
+    detail,
+    score,
+    ...(unknown ? { unknown } : {}),
+});
 
-function jobCountries(job: PublicJob): string[] {
-    const raw = job.location_country;
-    if (!raw) return [];
-    const values = Array.isArray(raw) ? raw : [raw];
-    const out = new Set<string>();
-    for (const value of values) {
-        const classified = classifyCountryValue((value ?? "").trim());
-        if (classified.kind === "country") out.add(classified.canonical);
-    }
-    return [...out];
-}
-
-/** Résumé place vs job location — optional; absent when either side lacks data. */
-function scoreLocation(resume: ResumeData, job: PublicJob): MatchComponent | null {
-    const resumeLoc = (resume.profile?.location ?? "").trim();
-    if (!resumeLoc) return null;
-
+/**
+ * Candidate location vs job location. Same country is 1; a country the
+ * candidate said they would relocate to is 0.8; another country is 0.35 (0.65
+ * when the role is remote). A role that is remote with no country is open to
+ * anyone. When the candidate's country or the job's country is unknown the
+ * component is neutral and flagged `unknown` — never guessed.
+ */
+function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const remote = isRemoteWorkType(job.work_type);
-    if (!remote && !jobHasKnownLocation(job)) return null;
+    const jobList = jobCountries(job);
+    if (remote && jobList.length === 0) return locationComponent("remote — open to any location", 1);
+    if (signals.remotePreference.value && remote) return locationComponent("remote — matches your remote-only preference", 1);
 
-    const resumeCountries = resumeCountriesFromLocation(resumeLoc);
-    const jobCountryList = jobCountries(job);
-
-    if (remote) {
-        if (jobCountryList.length > 0) {
-            if (resumeCountries.length > 0) {
-                const sameCountry = resumeCountries.some((rc) => jobCountryList.includes(rc));
-                if (sameCountry) {
-                    return {
-                        key: "location",
-                        label: "Location",
-                        detail: "remote — same country",
-                        score: 1,
-                    };
-                }
-                const jobCountryStr = jobCountryList.join(", ");
-                return {
-                    key: "location",
-                    label: "Location",
-                    detail: `remote — based in ${jobCountryStr}`,
-                    score: 0.65,
-                };
-            }
-            return {
-                key: "location",
-                label: "Location",
-                detail: "remote — open to this location",
-                score: 1,
-            };
-        }
-
-        return {
-            key: "location",
-            label: "Location",
-            detail: "remote — open to any location",
-            score: 1,
-        };
+    const own = candidateCountries(signals);
+    if (own.length === 0) {
+        return locationComponent(
+            signals.location.value ? "your résumé's place names no country we can match" : "no location on your résumé",
+            UNKNOWN_COMPONENT_SCORE,
+            true,
+        );
     }
-
-    if (resumeCountries.length === 0 || jobCountryList.length === 0) return null;
-
-    const sameCountry = resumeCountries.some((rc) => jobCountryList.includes(rc));
-    if (sameCountry) {
-        return {
-            key: "location",
-            label: "Location",
-            detail: "same country",
-            score: 1,
-        };
+    if (jobList.length === 0) {
+        return locationComponent("this role's country isn't listed", UNKNOWN_COMPONENT_SCORE, true);
     }
-
-    return {
-        key: "location",
-        label: "Location",
-        detail: "different country",
-        score: 0.35,
-    };
+    if (own.some((country) => jobList.includes(country))) {
+        return locationComponent(remote ? "remote — same country" : "same country", 1);
+    }
+    const relocation = signals.relocation.value;
+    if (relocation?.open && (relocation.countries.length === 0 || relocation.countries.some((c) => jobList.includes(c)))) {
+        return locationComponent("in a country you said you'd relocate to", 0.8);
+    }
+    return remote
+        ? locationComponent(`remote — based in ${jobList.join(", ")}`, 0.65)
+        : locationComponent("different country", 0.35);
 }
 
-/** Years-derived seniority vs a job's `experience_level`. */
-function scoreSeniority(resume: ResumeData, job: PublicJob): MatchComponent | null {
-    const years = resume.profile?.yearsOfExperience;
-    if (!Number.isFinite(years) || (years as number) < 0) return null;
+const SENIORITY_LABEL: Record<Seniority, string> = { entry: "entry-level", mid: "mid-level", senior: "senior" };
 
-    const jobIndex = JOB_EXPERIENCE_LEVEL_ORDER.indexOf(
-        normalize(job.experience_level ?? "") as (typeof JOB_EXPERIENCE_LEVEL_ORDER)[number],
-    );
-    if (jobIndex === -1) return null;
+/** Candidate seniority vs a job's `experience_level`. Unknown on either side is neutral and flagged. */
+function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchComponent {
+    const own = signals.seniority.value;
+    const jobIndex = EXPERIENCE_LEVEL_ORDER.indexOf(normalize(job.experience_level ?? "") as Seniority);
+    const unknown = (detail: string): MatchComponent => ({
+        key: "seniority",
+        label: "Seniority",
+        detail,
+        score: UNKNOWN_COMPONENT_SCORE,
+        unknown: true,
+    });
+    if (!own) return unknown("no years of experience on your résumé");
+    if (jobIndex === -1) return unknown("this role's level isn't listed");
 
-    const ladderIndex = SENIORITY_LADDER.findIndex((tier) => (years as number) <= tier.maxYears);
-    const tier = SENIORITY_LADDER[ladderIndex === -1 ? SENIORITY_LADDER.length - 1 : ladderIndex];
-    // Job vocabulary tops out at "senior" — a lead/principal candidate still
-    // compares against that top rung rather than falling off the ladder.
-    const candidateIndex = Math.min(ladderIndex, JOB_EXPERIENCE_LEVEL_ORDER.length - 1);
-
-    const diff = candidateIndex - jobIndex;
+    const diff = EXPERIENCE_LEVEL_ORDER.indexOf(own) - jobIndex;
     const score = diff === 0 ? 1 : diff > 0 ? 0.65 : 0.25;
     const verdict = diff === 0 ? "fits" : diff > 0 ? "exceeds ask" : "below ask";
-    return { key: "seniority", label: "Seniority", detail: `${tier.label} — ${verdict}`, score };
+    return { key: "seniority", label: "Seniority", detail: `${SENIORITY_LABEL[own]} — ${verdict}`, score };
+}
+
+/**
+ * A seniority filter also retrieves jobs whose level was never derived
+ * (`unknown-inclusive-facets.ts`). For a candidate whose level IS known, such a
+ * job cannot be verified as a fit, so like an unverifiable location it never
+ * reads as Strong — the ranker then places the verified-level jobs above it.
+ */
+export function levelUnverified(signals: CandidateSignals, job: PublicJob): boolean {
+    return signals.seniority.value != null && isUnknownFacetValue("experience_level", job.experience_level);
 }
 
 /**
  * The one scoring function. `relevance` is REQUIRED — no topical overlap
  * between résumé and job means no honest match to report, so this returns
- * `null` (no chip) rather than falling back to any other component alone.
- * When `relevance` does score, the total folds in `seniority` too when
- * comparable (renormalized weighted average), or stands alone otherwise.
+ * `null` (no chip). Seniority and location always contribute; when either is
+ * unknown it contributes the neutral score and is flagged. A job whose
+ * location cannot be verified for this candidate never reads as Strong: the
+ * total is capped just under the Strong band (so is a job whose level was
+ * never derived, for a candidate whose level is known — `levelUnverified`).
+ *
+ * `signals` defaults to the résumé-only resolution; callers that hold the
+ * candidate's saved preferences pass `resolveCandidateSignals(resume, prefs)`.
  */
-export function scoreJobAgainstResume(resume: ResumeData, job: PublicJob): MatchScore | null {
+export function scoreJobAgainstResume(
+    resume: ResumeData,
+    job: PublicJob,
+    signals: CandidateSignals = resolveCandidateSignals(resume),
+): MatchScore | null {
     const relevance = scoreRelevance(resume, job);
     if (!relevance) return null;
 
-    const seniority = scoreSeniority(resume, job);
-    const location = scoreLocation(resume, job);
-    const components = [relevance, seniority, location].filter((c): c is MatchComponent => c !== null);
-
-    const weightSum = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key], 0);
+    const components = [relevance, scoreSeniority(signals, job), scoreLocation(signals, job)];
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);
-    const total = Math.round((weighted / weightSum) * 100);
+    const total = Math.round((weighted / WEIGHT_SUM) * 100);
+    const locationUnknown = components.some((c) => c.key === "location" && c.unknown);
 
-    return { total, components };
+    return { total: locationUnknown || levelUnverified(signals, job) ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components };
 }

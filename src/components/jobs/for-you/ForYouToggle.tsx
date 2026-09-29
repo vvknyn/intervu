@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { TabItem, TabNav } from "@/components/ui/tabs";
 import type { JobsHomeView } from "@/lib/jobs/for-you/home-view";
 
 export interface ForYouToggleProps {
@@ -9,41 +9,30 @@ export interface ForYouToggleProps {
     className?: string;
 }
 
+const VIEWS = [
+    { view: "for-you", label: "For you", testId: "jobs-home-for-you" },
+    { view: "search", label: "Search", testId: "jobs-home-search" },
+] as const;
+
 /**
- * Header-row switch: For you (personalized packs) ↔ Search.
- * Active segment matches the resolved home view.
+ * Header-row view switch: For you (personalized packs) ↔ Search. Two views of
+ * one page, not two panels — so a labelled nav with `aria-current`, not a
+ * `tablist` (which would owe every tab a controlled `tabpanel`).
  */
 export function ForYouToggle({ value, onChange, className }: ForYouToggleProps) {
     return (
-        <div
-            role="tablist"
-            aria-label="For you or Search"
-            data-testid="jobs-home-toggle"
-            className={cn(
-                "inline-flex min-h-11 items-center gap-0.5 rounded-pill border border-border bg-muted p-0.5",
-                className,
-            )}
-        >
-            {(["for-you", "search"] as const).map((tab) => {
-                const active = value === tab;
-                const label = tab === "for-you" ? "For you" : "Search";
-                return (
-                    <button
-                        key={tab}
-                        type="button"
-                        role="tab"
-                        aria-selected={active}
-                        data-testid={tab === "for-you" ? "jobs-home-for-you" : "jobs-home-search"}
-                        onClick={() => onChange(tab)}
-                        className={cn(
-                            "inline-flex min-h-10 items-center rounded-pill px-2.5 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2 sm:px-4",
-                            active ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground",
-                        )}
-                    >
-                        {label}
-                    </button>
-                );
-            })}
-        </div>
+        <TabNav aria-label="For you or Search" data-testid="jobs-home-toggle" className={className}>
+            {VIEWS.map(({ view, label, testId }) => (
+                <TabItem
+                    key={view}
+                    size="bar"
+                    current={value === view}
+                    data-testid={testId}
+                    onClick={() => onChange(view)}
+                >
+                    {label}
+                </TabItem>
+            ))}
+        </TabNav>
     );
 }

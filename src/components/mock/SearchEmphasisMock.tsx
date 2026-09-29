@@ -4,6 +4,7 @@ import React from "react";
 import { MagnifyingGlass, MapPin } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
+import { PageTitle } from "@/components/ui/heading";
 
 /**
  * The /jobs search line, reduced to static markup. Every class on the field
@@ -149,10 +150,10 @@ const VARIANTS: {
 
 export function SearchEmphasisMock() {
     return (
-        <div className="mx-auto max-w-5xl px-8 py-10">
-            <h1 className="text-2xl font-semibold text-foreground">
+        <div className="shell-row py-10">
+            <PageTitle>
                 Making the search box matter — without a shadow
-            </h1>
+            </PageTitle>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
                 Six alternatives to the drop shadow, each drawn with the real search field so
                 nothing changes when one gets picked. The first panel is what is live now.

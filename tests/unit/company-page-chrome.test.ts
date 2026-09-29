@@ -102,7 +102,7 @@ describe("follow control: the parent places it, not the other way round", () => 
 describe("company page: the wait is shown, and shaped like the page", () => {
     it("the route has an instant loading state", () => {
         assert.match(CO_LOADING, /export default function \w+\(/, "loading.tsx must default-export a component");
-        assert.match(CO_LOADING, /skeleton-bar/, "use the house skeleton bar, not a spinner");
+        assert.match(CO_LOADING, /<WaitState[\s\S]*skeleton=\{/, "a page-shaped skeleton on the shared wait ladder, not a spinner");
     });
 
     it("the skeleton reserves the same frame as the real page", () => {
@@ -122,13 +122,16 @@ describe("company page: the wait is shown, and shaped like the page", () => {
         assert.ok(logoSize, "could not read CompanyLogo's lg size");
         assert.match(
             CO_LOADING,
-            new RegExp(`skeleton-bar ${logoSize[1]}\\b`),
+            new RegExp(`<WaitBar className="${logoSize[1]}\\b`),
             `the skeleton's logo slot must be ${logoSize[1]}, or the header shifts when the real logo lands`,
         );
     });
 
     it("announces itself to a screen reader without reading out the bars", () => {
-        assert.match(CO_LOADING, /role="status"/, "a loading state should be announced");
-        assert.match(CO_LOADING, /aria-hidden="true"/, "the decorative bars should not be");
+        // WaitState owns both: role="status" + an sr-only label, and an aria-hidden skeleton wrapper.
+        assert.match(CO_LOADING, /<WaitState\s+label="[^"]+"/, "a loading state should be announced");
+        const primitive = read("src/components/ui/wait-state.tsx");
+        assert.match(primitive, /role="status"/);
+        assert.match(primitive, /<div aria-hidden className=\{view\.skeleton/, "the decorative bars should not be");
     });
 });

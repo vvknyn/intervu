@@ -15,14 +15,13 @@ const BASE = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
 
 const MOBILE = { width: 390, height: 844 };
 const DESKTOP = { width: 1440, height: 900 };
-/** Same as #618: skip Concept A step 1 and land on SERP so the tab bar is visible. */
+/** Land on a SERP so the tab bar is visible (signed-out /jobs is the board since #652). */
 const JOBS_CAPTURE_URL = `${BASE}/jobs?q=software%20engineer&posted=any`;
 
 async function prepareSignedOutJobsSurface(page) {
   await page.addInitScript(() => {
     try {
       localStorage.setItem("velai.onboarding.completed", "1");
-      localStorage.setItem("concept-a-landing-dismissed", "1");
     } catch {
       /* private mode */
     }
@@ -31,10 +30,6 @@ async function prepareSignedOutJobsSurface(page) {
 
 async function gotoJobsSerp(page) {
   await page.goto(JOBS_CAPTURE_URL, { waitUntil: "domcontentloaded", timeout: 120_000 });
-  await page.waitForFunction(
-    () => !document.body.classList.contains("concept-a-landing-active"),
-    { timeout: 120_000 },
-  );
   await page.getByTestId("mobile-tabbar").waitFor({ state: "visible", timeout: 120_000 });
   await page.waitForTimeout(600);
 }

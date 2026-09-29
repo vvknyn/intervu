@@ -299,6 +299,11 @@
   --motion-deck-shift: 12%;
   --for-you-deck-min-height: min(72dvh, 720px);
 
+  /* Tallest a dialog/sheet may be: dynamic viewport minus a margin (vh fallback
+     below for browsers without dvh). The one source `ui/dialog.tsx` and
+     `ui/sheet.tsx` read — sites cap tighter with min(<px>, var(--overlay-max-h)). */
+  --overlay-max-h: calc(100vh - 2rem);
+
   /* Elevation — Tailwind named scale stays `none`; sanctioned semantic shadows
      below (Concept A skeuomorphic, 2026-09-26). See DESIGN-LANGUAGE.md. */
   --shadow-overlay: 0 12px 40px -8px rgb(0 0 0 / 0.45), 0 4px 12px rgb(0 0 0 / 0.28);
@@ -320,6 +325,12 @@
   --z-dialog: 210;
   --z-tour: 200;
   --z-toast: 300;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --overlay-max-h: calc(100dvh - 2rem);
+  }
 }
 
 .dark {
@@ -689,6 +700,103 @@ body:has([data-shell="bleed"]) {
   }
 }
 
+/* CONTROL SCALE — the ONE height ladder for every button, input, select,
+   chip and icon button (design-language.md §5: h-6 segment, h-8 chip/compact,
+   h-11 input/form button). A primitive picks a step (`.ctl-sm|md|lg`); a
+   call site never writes its own h-* / py-* on a control, so controls that
+   share a bar share a step. `.ctl-square` makes an icon button as wide as it
+   is tall. tests/unit/control-scale.test.ts fails a hand-rolled height. */
+:root {
+  --control-h-sm: 1.5rem;
+  --control-h-md: 2rem;
+  --control-h-lg: 2.75rem;
+  /* WCAG 2.5.5 / Apple HIG touch floor. The VISUAL control stays on its step;
+     only the hit area grows (below). */
+  --hit-min: 2.75rem;
+}
+@utility ctl-sm {
+  --ctl-h: var(--control-h-sm);
+  height: var(--ctl-h);
+}
+@utility ctl-md {
+  --ctl-h: var(--control-h-md);
+  height: var(--ctl-h);
+}
+@utility ctl-lg {
+  --ctl-h: var(--control-h-lg);
+  height: var(--ctl-h);
+}
+/* A control whose label may wrap: the step becomes its MIN height. Compound
+   selector so it beats the step's own `height` whatever the utility order. */
+@utility ctl-grow {
+  &.ctl-sm,
+  &.ctl-md,
+  &.ctl-lg {
+    height: auto;
+    min-height: var(--ctl-h);
+  }
+}
+@utility ctl-square {
+  width: var(--ctl-h);
+  padding-inline: 0;
+}
+/* TOUCH HIT-AREA FLOOR — on a coarse pointer every control's tappable box is
+   at least --hit-min square, grown with an invisible ::before centred on the
+   control (never by making the visual taller). ::before, because components
+   paint with ::after (the tab underline); an element that styles its own
+   ::before (`before:*` utilities) is skipped rather than half-overridden.
+   @layer base + :where() keep this at zero specificity, so an explicit
+   `absolute`/`fixed` utility on a control still wins over `position:relative`.
+   Replaced elements (input, select, textarea) cannot carry a pseudo-element,
+   so they sit on the `lg` step (44px) themselves. */
+@layer base {
+  @media (pointer: coarse) {
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"])) {
+      position: relative;
+    }
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"]))::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, var(--hit-min));
+      height: max(100%, var(--hit-min));
+      transform: translate(-50%, -50%);
+    }
+  }
+}
+
+/* WRAP ROW — a row of controls that wraps without stranding its last control
+   on a line of its own (the /jobs "?" that dropped under "Get alerts" at
+   390px). Flex lines cannot be balanced, so the row lays its items out as
+   inline boxes and `text-wrap: balance` evens the lines. The gap is item
+   margin (`[--wrap-gap-x:…]` / `[--wrap-gap-y:…]` to change it): end margin
+   across, and half the row gap above and below each item (symmetric, so
+   `vertical-align: middle` still centres the item), which the row's own
+   negative block margin cancels at its top and bottom edges — so space the
+   row from its neighbours with padding, not an `m*-` utility (that would
+   replace the margin). @layer components, so an item's own display utility
+   (`hidden`, `lg:inline`) still wins — which is also why an item must not
+   be a block-level `flex`. tests/e2e/journeys/page-scale.spec.ts fails a
+   stranded control on any wrapping row. */
+@layer components {
+  .wrap-row {
+    --wrap-gap-x: 0.5rem;
+    --wrap-gap-y: 0.5rem;
+    text-wrap: balance;
+    margin-block: calc(-0.5 * var(--wrap-gap-y));
+  }
+  .wrap-row > * {
+    display: inline-flex;
+    vertical-align: middle;
+    margin-inline-end: var(--wrap-gap-x);
+    margin-block: calc(0.5 * var(--wrap-gap-y));
+  }
+  .wrap-row > :last-child {
+    margin-inline-end: 0;
+  }
+}
+
 /* Heading typography */
 h1,
 h2,
@@ -740,10 +848,36 @@ h4 {
    flat pulse; the site-wide `prefers-reduced-motion` rule below still
    collapses the animation, so no separate opt-out is needed here. */
 .skeleton-bar {
-  /* Same look as the Skeleton primitive (src/components/ui/skeleton.tsx):
+  /* Painted only by `WaitBar` (src/components/ui/wait-state.tsx):
      flat layer block that pulses. Rulebook v2: no shimmer gradient, no
      radius, no depth — a placeholder is a quiet rectangle. */
   @apply bg-muted animate-pulse rounded-none;
+}
+
+/* Wait-state progress bar (components/ui/wait-state.tsx `WaitProgressBar`).
+   Native <progress>: determinate when it has a value, pulsing when it has
+   none (`:indeterminate`). Flat track + brand fill, no radius, no depth. */
+/* Track = --border: --muted is the dialog panel's own fill (surface-2 = chip), so it vanished. */
+.wait-progress {
+  @apply h-2 w-full appearance-none overflow-hidden rounded-none border-0 bg-border;
+}
+
+.wait-progress::-webkit-progress-bar {
+  @apply bg-border;
+}
+
+.wait-progress::-webkit-progress-value {
+  @apply bg-brand;
+}
+
+.wait-progress::-moz-progress-bar {
+  @apply bg-brand;
+}
+
+/* Chromium paints the track with ::-webkit-progress-bar, so the indeterminate fill goes there too. */
+.wait-progress:indeterminate,
+.wait-progress:indeterminate::-webkit-progress-bar {
+  @apply bg-brand animate-pulse;
 }
 
 /* Panel/dialog enter (Job 1e, 2026-08-01) — a small fade + settle applied on

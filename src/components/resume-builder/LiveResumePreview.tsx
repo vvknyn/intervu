@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { ResumeData, ResumeSection, getSectionOrder } from "@/types/resume";
 import { PencilSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { SolidBadge } from "@/components/ui/badge";
 
 interface LiveResumePreviewProps {
     data: ResumeData;
@@ -56,13 +57,13 @@ function SectionWrapper({
 
     const diffBadge =
         changeStatus === "modified" ? (
-            <span className="absolute -top-1 -right-1 rounded-pill bg-warn text-white px-1.5 py-0.5 text-xs font-semibold">
+            <SolidBadge tone="warn" className="absolute -top-1 -right-1">
                 Diff
-            </span>
+            </SolidBadge>
         ) : changeStatus === "new" ? (
-            <span className="absolute -top-1 -right-1 rounded-pill bg-live text-white px-1.5 py-0.5 text-xs font-semibold">
+            <SolidBadge tone="brand" className="absolute -top-1 -right-1">
                 New
-            </span>
+            </SolidBadge>
         ) : null;
 
     return (
@@ -578,6 +579,7 @@ export function LiveResumePreview({
             >
                 {/* Header Section */}
                 <SectionWrapper id="header" className="text-center px-4 pb-2 mb-2.5 border-b border-surface-postcard-foreground" changeStatus={headerChangeStatus} ctx={ctx}>
+                    {/* page-scale-allow: the résumé's name line, sized for the printed page, not the app scale */}
                     <h1 className="text-xl font-semibold text-surface-postcard-foreground mb-0.5">
                         {data.profile?.name || "Your Name"}
                     </h1>

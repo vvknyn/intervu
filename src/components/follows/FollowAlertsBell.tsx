@@ -1,5 +1,6 @@
 "use client";
 
+import { WaitBar } from "@/components/ui/wait-state";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Bell } from "@phosphor-icons/react";
@@ -15,6 +16,7 @@ import { decodeText, locationText, placeWithWorkMode, titleCaseDisplay } from "@
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { PublicJob } from "@/lib/jobs/types";
 import { useFollows } from "@/lib/follows/use-follows";
+import { CountBadge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type AlertRow = {
@@ -67,7 +69,7 @@ export function FollowAlertsBell() {
       const sinceIso = readFollowAlertCursor();
       const res = await listFollowAlertsAction(sinceIso, follows);
       if (cancelled) return;
-      setGroups(res.data ?? []);
+      if (res.data) setGroups(res.data);
       setLoading(false);
     })();
 
@@ -88,11 +90,7 @@ export function FollowAlertsBell() {
 
   if (loading) {
     return (
-      <div
-        data-testid="topbar-follow-alerts-skeleton"
-        aria-hidden
-        className="skeleton-bar h-8 w-8 shrink-0"
-      />
+      <WaitBar data-testid="topbar-follow-alerts-skeleton" aria-hidden className="h-8 w-8 shrink-0" />
     );
   }
 
@@ -112,12 +110,10 @@ export function FollowAlertsBell() {
           type="button"
           data-testid="topbar-follow-alerts"
           aria-label={title}
-          className="relative grid h-8 w-8 shrink-0 place-items-center text-muted-foreground transition-colors outline-none hover:text-foreground"
+          className="ctl-md relative grid ctl-square shrink-0 place-items-center text-muted-foreground transition-colors outline-none hover:text-foreground"
         >
           <Bell size={20} weight="regular" aria-hidden />
-          <span className="absolute -right-1 -top-1 mono-data rounded-none bg-brand px-1 text-xs font-semibold text-brand-foreground">
-            {totalNew}
-          </span>
+          <CountBadge count={totalNew} data-testid="topbar-follow-alerts-count" className="absolute -right-1 top-0" />
         </button>
       </PopoverTrigger>
       <PopoverContent

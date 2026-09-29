@@ -35,7 +35,7 @@ export function ExhaustGateSignInCard({
   displayName: string;
   teasers: ExhaustGateTeaser[];
 }) {
-  const nextHref = `/login?next=${encodeURIComponent(`/co/${slug}`)}`;
+  const nextHref = `/login?next=${encodeURIComponent(`/co/${slug}`)}`; // signup-gate-exempt: server-rendered teaser card with real per-band counts, unlock-step owns its single ask
 
   return (
     <section
@@ -46,7 +46,7 @@ export function ExhaustGateSignInCard({
         The full record
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-foreground">
-        Sign in to open {displayName}&apos;s full hiring record — free.
+        {/* signup-gate-exempt: server-rendered teaser card with real per-band counts, unlock-step owns its single ask */}Sign in to open {displayName}&apos;s full hiring record — free.
       </p>
       <div className="mt-4 divide-y divide-border">
         {teasers.map((t) => (
@@ -65,7 +65,7 @@ export function ExhaustGateSignInCard({
         Follow {displayName} to also see its hiring history — changes, funding, tech stack, and news.
       </p>
       <Button asChild className="mt-5">
-        <a href={nextHref}>Sign in to open the record</a>
+        {/* signup-gate-exempt: server-rendered teaser card with real per-band counts, unlock-step owns its single ask */}<a href={nextHref}>Sign in to open the record</a>
       </Button>
       <p className="mt-4 text-xs font-semibold text-muted-foreground">Signed-in members only</p>
     </section>

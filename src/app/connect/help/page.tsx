@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/openclaw-content";
 import { AGENT } from "@/lib/agent/config";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { PageTitle, SectionTitle } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
   title: "Setup help — velai",
@@ -41,8 +43,8 @@ function HelpSection({
 }) {
   return (
     <section id={id} className="scroll-mt-8 border-t border-border py-8 first:border-t-0 first:pt-0">
-      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-      <div className="mt-3 space-y-3 text-sm leading-relaxed text-foreground">{children}</div>
+      <SectionTitle>{title}</SectionTitle>
+      <div className="mt-3 space-y-3 text-base leading-relaxed text-foreground">{children}</div>
     </section>
   );
 }
@@ -65,14 +67,12 @@ export default function ConnectHelpPage() {
   const MCP_CONNECTOR_URL = mcpConnectorUrl(issuer);
   const OPENCLAW_INSTALL_COMMAND = openclawInstallCommand(issuer);
   return (
-    <div data-testid="connect-help-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <PageContainer measure="reading" data-testid="connect-help-page" className="py-10">
       <p className="text-xs font-semibold text-muted-foreground">
         Setup help
       </p>
-      <h1 className="mt-2 text-title-lg font-semibold text-foreground">
-        Connecting your AI to velai
-      </h1>
-      <p className="mt-3 max-w-xl text-sm text-muted-foreground">
+      <PageTitle className="mt-2">Connecting your AI to velai</PageTitle>
+      <p className="mt-3 max-w-xl text-base text-muted-foreground">
         Two ways to connect: a connector you paste into an AI client you already use, or a local
         agent you install on your own Mac. If an install failed and sent you here, find the
         section it named below — each one covers what happened, why, and what to do next. Start
@@ -343,6 +343,6 @@ export default function ConnectHelpPage() {
           </p>
         </HelpSection>
       </div>
-    </div>
+    </PageContainer>
   );
 }

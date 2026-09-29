@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 /**
  * "Grep-proof" class-fix regression test for the results-list tail in
- * src/app/jobs/page.tsx (`ListTail`).
+ * src/app/jobs/JobsContent.tsx (`ListTail`).
  *
  * Bug this guards against (user-reported): affordances rendered
  * unconditionally at the very bottom of the results container, AFTER the
@@ -33,7 +33,7 @@ import { join } from "node:path";
  * invariants that make the class fix hold, reading the actual page.tsx
  * source.
  */
-const SOURCE = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+const SOURCE = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
 
 function section(startMarker: string, endMarker: string): string {
     const start = SOURCE.indexOf(startMarker);
@@ -43,7 +43,8 @@ function section(startMarker: string, endMarker: string): string {
     return SOURCE.slice(start, end);
 }
 
-const LIST_TAIL_BODY = section("function ListTail({", "\nfunction JobsContent() {");
+// 6cd53890 made JobsContent an exported component taking the route-gate props.
+const LIST_TAIL_BODY = section("function ListTail({", "\nexport function JobsContent({");
 
 test("ListTail early-returns null on \"more-available\" before any JSX — the guard is structural, not positional", () => {
     // Anchored to line-start (only leading whitespace before `if`) so a

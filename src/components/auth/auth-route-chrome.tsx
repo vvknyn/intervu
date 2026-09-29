@@ -1,3 +1,4 @@
+import { WaitState } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 
 /** Poster canvas + raised panel — shared by chrome-free auth routes. */
@@ -39,13 +40,10 @@ export function AuthRaisedPanel({
 export function AuthRouteLoading({ label }: { label: string }) {
     return (
         <AuthRouteLayout>
-            <div role="status" aria-busy="true" className={cn(authRaisedPanelClassName, "flex flex-col items-center justify-center gap-3 p-10 text-muted-foreground")}>
-                <div
-                    className="h-5 w-5 animate-spin rounded-pill border-2 border-live border-t-transparent"
-                    aria-hidden
-                />
-                <p className="text-sm">{label}</p>
-            </div>
+            <WaitState
+                label={label}
+                className={cn(authRaisedPanelClassName, "flex min-h-32 flex-col items-center justify-center p-10")}
+            />
         </AuthRouteLayout>
     );
 }

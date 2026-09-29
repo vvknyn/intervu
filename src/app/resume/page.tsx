@@ -24,9 +24,10 @@ import {
 } from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
-import { InlinePlaceholderPanel } from "@/components/layout/route-loading";
+import { posterInlinePanelClassName } from "@/components/layout/route-loading";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 function ResumeHeader() {
     return (
@@ -42,13 +43,17 @@ function ResumeHeader() {
 
 function ResumeAuthSkeleton() {
     return (
-        <InlinePlaceholderPanel label="Loading resume" className="space-y-4">
-            <div className="mx-auto max-w-sm space-y-3">
-                <div className="skeleton-bar mx-auto h-12 w-12" />
-                <div className="skeleton-bar mx-auto h-4 w-48" />
-                <div className="skeleton-bar mx-auto h-3 w-full" />
-            </div>
-        </InlinePlaceholderPanel>
+        <WaitState
+            label="Loading resume"
+            className={cn(posterInlinePanelClassName, "p-8")}
+            skeleton={
+                <div className="mx-auto max-w-sm space-y-3">
+                    <WaitBar className="mx-auto h-12 w-12" />
+                    <WaitBar className="mx-auto h-4 w-48" />
+                    <WaitBar className="mx-auto h-3 w-full" />
+                </div>
+            }
+        />
     );
 }
 
@@ -69,7 +74,7 @@ export function SignedOutEmptyState({ onUploadClick }: { onUploadClick: () => vo
                     size="lg"
                     onClick={onUploadClick}
                     data-testid="resume-signed-out-upload"
-                    className="min-h-11 rounded-ctl font-semibold"
+                    className="rounded-ctl font-semibold"
                 >
                     <UploadSimple size={16} className="mr-2" aria-hidden />
                     Upload résumé
@@ -98,18 +103,17 @@ function ResumeContent() {
     // The one auth gate (`use-auth-gate.ts`), same mechanism /jobs uses: signed
     // in → run the handler now; signed out → persist the action (survives both
     // in-place login and a hard OAuth/passkey navigation away and back) and
-    // open the popover. `apply`/`report` are never queued from this page —
+    // open the popover. `apply` is never queued from this page —
     // `PendingAction`'s kinds are shared with /jobs, and
     // `takePersistedPendingAction` is path-scoped (pending-actions.ts), so a
     // /jobs-queued action can never replay here — but the hook's handler map
-    // is total over every kind, so they're still typed, inert no-ops.
-    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<never, never>({
+    // is total over every kind, so it's still a typed, inert no-op.
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<never>({
         handlers: {
             apply: () => {},
             upload: () => {
                 setImportModalOpen(true);
             },
-            report: () => {},
         },
         user,
     });
@@ -152,10 +156,11 @@ function ResumeContent() {
         <PageLayout fullWidth header={!editorOpen ? <ResumeHeader /> : undefined}>
             <div
                 className={cn(
-                    "mx-auto transition-all",
+                    "transition-all",
                     editorOpen
-                        ? "max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
-                        : "max-w-6xl px-4 pb-16 pt-6 sm:px-8 xl:max-w-7xl xl:px-10",
+                        // page-scale-allow: the open editor's canvas runs edge to edge below lg
+                        ? "mx-auto max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
+                        : "shell-row pb-16 pt-6",
                 )}
             >
                 {!authReady ? (
@@ -173,7 +178,7 @@ function ResumeContent() {
                                     <FileText size={20} className="text-live shrink-0" />
                                     <div>
                                         <p className="text-sm font-semibold text-foreground">Local résumé on this device</p>
-                                        <p className="text-xs text-muted-foreground">Create a free account to edit in the full builder, export formatted PDFs, and sync across devices.</p>
+                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}<p className="text-xs text-muted-foreground">Create a free account to edit in the full builder, export formatted PDFs, and sync across devices.</p>
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -208,7 +213,7 @@ function ResumeContent() {
                                         onClick={() => openResumeAuth()}
                                         className="rounded-ctl text-xs font-semibold"
                                     >
-                                        Sign up to sync
+                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}Sign up to sync
                                     </Button>
                                 </div>
                             </div>

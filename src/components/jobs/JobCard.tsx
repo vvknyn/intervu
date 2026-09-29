@@ -258,7 +258,7 @@ export function JobCard({
                     {locationKnown && (
                         <span className="inline-flex items-center gap-1">
                             <span aria-hidden>·</span>
-                            {presented.location}
+                            <span data-testid="job-location">{presented.location}</span>
                         </span>
                     )}
                 </div>
@@ -308,7 +308,7 @@ export function JobCard({
                     </div>
                 )}
             </div>
-            {/* Right meta column: bookmark (rulebook's 40px icon-only row
+            {/* Right meta column: bookmark (rulebook's icon-only row
                 control) sits above match receipt and posted age so this
                 column's height tracks the mid column's text instead of
                 driving the row past the rulebook's 96-112px band. The
@@ -320,7 +320,8 @@ export function JobCard({
             <span className="flex h-fit flex-col items-end gap-1 self-start">
                 <span className="flex items-center gap-1">
                     {onGoAfter && (
-                        <span data-rulebook-exempt>
+                        // Saving is not opening: on mobile the row's panel is a sheet that would cover the save gate.
+                        <span data-rulebook-exempt onClick={(e) => e.stopPropagation()}>
                             <RowBookmarkButton
                                 pursuit={pursuit}
                                 onGoAfter={onGoAfter}

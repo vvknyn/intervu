@@ -1,18 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CircleNotch, UploadSimple } from "@phosphor-icons/react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { UploadSimple } from "@phosphor-icons/react";
+import { InlineSpinner, WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
     JOBS_SESSION_FRAME_CLASS,
     JobsSessionLoadingShell,
 } from "@/components/layout/jobs-session-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
-import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
+import { searchJobsAction } from "@/actions/jobs";
+import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { JobCard } from "@/components/jobs/JobCard";
+import { countResults, isThinResults } from "@/lib/jobs/broaden";
+import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
+import { packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { jobsBoardHref, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { DeckRoleDetail } from "@/components/jobs/for-you/DeckRoleDetail";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
@@ -54,7 +61,13 @@ export interface ForYouHomeProps {
     onSkip: () => void;
     matchScores: Map<string, MatchScore | null> | null;
     resume: ResumeData | null;
+    /** Résumé + saved preferences, resolved once by the page (`resolveCandidateSignals`). */
+    signals: CandidateSignals | null;
     nowMs: number;
+    /** The ranked list's read failed (after its automatic retry). With no
+     *  rows, this renders `LoadFailedState` instead of the empty state. */
+    loadError: string | null;
+    onRetryLoad: () => void;
     fitResolving: boolean;
     loading: boolean;
     fitActive: boolean;
@@ -70,6 +83,8 @@ export interface ForYouHomeProps {
     onLoadMore?: () => void;
     loadingMore?: boolean;
     hasMore?: boolean;
+    /** The page's fit gate, shown where the list stops for a guest (replaces "Show more"). */
+    signupGate?: ReactNode;
     /** Known corpus total for optional "N of ~total · Strong first" near Show more. */
     resultTotal?: number | null;
     /** CRAFT-3 — enter-reveal on first pack after auto-reveal. */
@@ -88,11 +103,11 @@ function RankedListSkeleton() {
         <div className="overflow-hidden rounded-panel border border-border bg-surface" aria-hidden>
             {Array.from({ length: 6 }, (_, index) => (
                 <div key={index} className="flex gap-3 border-b border-border px-[var(--list-inset)] py-4 last:border-b-0">
-                    <Skeleton className="size-10 shrink-0" />
+                    <WaitBar className="size-10 shrink-0" />
                     <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-2/3" />
-                        <Skeleton className="h-3 w-1/2" />
-                        <Skeleton className="h-3 w-1/3" />
+                        <WaitBar className="h-4 w-2/3" />
+                        <WaitBar className="h-3 w-1/2" />
+                        <WaitBar className="h-3 w-1/3" />
                     </div>
                 </div>
             ))}
@@ -108,9 +123,12 @@ export function ForYouHome({
     onSkip,
     matchScores,
     resume,
+    signals,
     nowMs,
     fitResolving,
     loading,
+    loadError,
+    onRetryLoad,
     hydratedJobs,
     onActivePackChange,
     onRetryDescription,
@@ -122,6 +140,7 @@ export function ForYouHome({
     onLoadMore,
     loadingMore = false,
     hasMore = false,
+    signupGate = null,
     resultTotal = null,
     firstRevealEnter = false,
     firstRevealDeckFocus = false,
@@ -284,6 +303,24 @@ export function ForYouHome({
     }, [onActiveIndexChange, onSkip]);
 
     const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
+    // The pack is a `/jobs` filter state: "Edit filters" opens /jobs on exactly it.
+    const filters = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
+    // The pack's own count: what applying these filters returns, not the size of the deck on screen.
+    const [packTotal, setPackTotal] = useState<number | null>(null);
+    const packKey = filters ? serializeJobsUrl(filters) : null;
+    useEffect(() => {
+        if (!filters) return;
+        let live = true;
+        setPackTotal(null);
+        void countResults(filters, searchJobsAction).then((total) => {
+            if (live) setPackTotal(total);
+        });
+        return () => {
+            live = false;
+        };
+        // `packKey` is the identity of `filters`; `searchJobsAction` is a stable action.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [packKey]);
     const selectedIndex =
         activeIndex >= 0 && activeIndex < visiblePacks.length ? activeIndex : 0;
     const selectedJob = visiblePacks[selectedIndex] ?? activeJob;
@@ -396,11 +433,47 @@ export function ForYouHome({
                 </div>
             ) : null}
 
-            {showLoading ? (
-                <div data-testid="for-you-loading" className="state-opacity-in space-y-3">
-                    <RotatingLoadingCopy variant="deck" className="px-1 text-xs font-semibold" />
-                    <RankedListSkeleton />
+            {filters && !showLoading ? (
+                <div className="mb-3 shrink-0 space-y-3" data-testid="for-you-pack-filters">
+                    <Link
+                        href={jobsBoardHref(filters)}
+                        data-testid="pack-edit-filters"
+                        className={REPLACE_RESUME_CLASS}
+                    >
+                        Edit filters
+                    </Link>
+                    {packTotal != null && isThinResults(packTotal) ? (
+                        <>
+                            {packTotal > 0 ? (
+                                <p className="text-xs text-muted-foreground" data-testid="for-you-thin-note">
+                                    Only {packTotal} {packTotal === 1 ? "role matches" : "roles match"} your filters.
+                                </p>
+                            ) : null}
+                            <BroadenOptions
+                                state={filters}
+                                total={packTotal}
+                                ctx={{ relocation: signals?.relocation.value }}
+                                search={searchJobsAction}
+                            />
+                        </>
+                    ) : null}
                 </div>
+            ) : null}
+
+            {showLoading ? (
+                <WaitState
+                    data-testid="for-you-loading"
+                    className="state-opacity-in"
+                    label="Loading your ranked roles"
+                    skeleton={<RankedListSkeleton />}
+                />
+            ) : visiblePacks.length === 0 && loadError ? (
+                <LoadFailedState
+                    title="We can't load your matches right now."
+                    detail={loadError}
+                    onRetry={onRetryLoad}
+                    testId="for-you-load-failed"
+                />
             ) : visiblePacks.length === 0 ? (
                 <ConceptAEmptyPageSlot placement="page" className="flex-1" data-testid="for-you-empty-wrap">
                     <ConceptAEmptyState
@@ -499,27 +572,27 @@ export function ForYouHome({
                                     </div>
                                 ) : null}
                                 <div className="flex gap-2">
-                                <Button
+                                <Button size="lg"
                                     type="button"
                                     variant="outline"
-                                    className="h-11 min-h-11 flex-1 lg:flex-none"
+                                    className="flex-1 lg:flex-none"
                                     data-testid="for-you-download-apply"
                                     onClick={handleDownloadApply}
                                     disabled={applying || !resume}
                                 >
                                     {applying ? (
                                         <>
-                                            <CircleNotch size={16} className="mr-2 animate-spin" aria-hidden />
+                                            <InlineSpinner size={16} className="mr-2" />
                                             Preparing…
                                         </>
                                     ) : (
                                         FOR_YOU_DOWNLOAD_LABEL
                                     )}
                                 </Button>
-                                <Button
+                                <Button size="lg"
                                     type="button"
                                     variant="outline"
-                                    className="h-11 min-h-11 flex-1 lg:flex-none"
+                                    className="flex-1 lg:flex-none"
                                     data-testid="for-you-skip"
                                     onClick={onSkip}
                                     disabled={applying}
@@ -562,7 +635,8 @@ export function ForYouHome({
                             );
                         })}
                         <div style={{ height: windowed.padBottom }} aria-hidden />
-                        {(showingLine || (hasMore && onLoadMore)) && (
+                        {signupGate}
+                        {!signupGate && (showingLine || (hasMore && onLoadMore)) && (
                             <div
                                 className="flex flex-col items-center gap-2 border-t border-border px-3 py-3"
                                 data-testid="for-you-show-more-wrap"

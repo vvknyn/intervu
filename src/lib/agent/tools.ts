@@ -16,6 +16,7 @@ import { degradedResultsNote } from "../jobs/result-state";
 import { canonicalFacetValues } from "../jobs/meilisearch";
 import type { MatchScore } from "../match/score";
 import { fitFor } from "../jobs/for-you/fit";
+import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidate-signals";
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
 import { rankForYou } from "../jobs/for-you/ranked";
 import { resumeIsUsable } from "../resume/resume-usable";
@@ -227,7 +228,11 @@ export type JobDetailFields = Pick<
   fit_reasons?: InferReasonsResult;
 };
 
-export function toJobDetailFields(job: PublicJob, resume: ResumeData | null = null): JobDetailFields {
+export function toJobDetailFields(
+  job: PublicJob,
+  resume: ResumeData | null = null,
+  signals?: CandidateSignals,
+): JobDetailFields {
   const {
     id, title, company, company_domain, location, location_country,
     work_type, employment_type, experience_level,
@@ -235,7 +240,7 @@ export function toJobDetailFields(job: PublicJob, resume: ResumeData | null = nu
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
   } = job;
-  const fit = fitFor(resume, job);
+  const fit = fitFor(resume, job, signals);
   return {
     id, title,
     // The index carries the ATS-stated raw name (intervu owns display-time
@@ -633,7 +638,8 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   const resume = structuredResume(base);
   if (!resume || !resumeIsUsable(resume)) return { error: NO_RESUME_ERROR };
 
-  const ranked = await rankForYou({ resume, search: deps.search, candidateDepth: AGENT.SEARCH_DEPTH_CAP });
+  const signals = resolveCandidateSignals(resume, await deps.getPreferences(deps.uid));
+  const ranked = await rankForYou({ resume, signals, search: deps.search, candidateDepth: AGENT.SEARCH_DEPTH_CAP });
   if (ranked.unavailable) {
     return {
       hits: [],
@@ -645,7 +651,7 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   }
 
   const page = ranked.hits.slice(offset, offset + limit);
-  const hits: ForYouHit[] = page.map((h) => ({ ...toJobDetailFields(h.job, resume), group: h.group }));
+  const hits: ForYouHit[] = page.map((h) => ({ ...toJobDetailFields(h.job, resume, signals), group: h.group }));
 
   // Corpus-harvesting guardrail — same daily record budget search_jobs/
   // get_job meter against, so for_you can't be used to route around it.

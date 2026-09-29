@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { FlagIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Affordance } from "@/components/jobs/SerpFilters";
@@ -12,20 +13,9 @@ import { cn } from "@/lib/utils";
 /**
  * ITEM O-FE (2026-08-15, Vivek-approved) — one component, two mounts
  * (`JobDetail`'s action row, `JobDetailDocument`'s pass-through, both via
- * `PublicJobDetail` or `jobs/page.tsx`). Every trigger click hands off to
- * the caller's `onRequireAuth` unconditionally — this component makes NO
- * auth decision of its own. It used to gate itself with
- * a local `getCurrentUser()` check mirroring the apply gate, but `getCurrentUser()`
- * only ever answers synchronously from the e2e mock (see
- * `lib/firebase/client-auth.ts`) — in production it is always `null`, so
- * that check always read "signed out" and silently re-gated every already
- * signed-in user's report, too (bug, fixed 2026-09-10). The caller's
- * `onRequireAuth` now IS the one auth gate (`useAuthGate`'s `gate({kind:
- * "report", ...})`): signed in → it flips `open` true itself (see the
- * `open`/`onOpenChange` props below); signed out → it persists the report
- * intent and prompts sign-in, then reopens this exact dialog on return —
- * same as Apply, not the "reopen and try again" this component used to be
- * the one holdout on.
+ * `PublicJobDetail` or `jobs/page.tsx`). No account is needed to report
+ * (2026-09-28): the trigger opens the dialog directly and `reportJobAction`
+ * rate-limits and keys the write server-side.
  */
 
 const REASON_OPTIONS: { value: ReportJobReason; label: string }[] = [
@@ -42,24 +32,13 @@ type Phase = "form" | "submitting" | "done";
 export function ReportJobButton({
     jobUrl,
     jobTitle,
-    onRequireAuth,
     className,
-    open: openProp,
-    onOpenChange,
 }: {
     jobUrl: string;
     jobTitle: string;
-    onRequireAuth: () => void;
     className?: string;
-    /** Controlled by the parent so a post-auth replay can reopen this exact
-     *  dialog once the user is back — omit both to keep this button's own
-     *  default (uncontrolled) open state. */
-    open?: boolean;
-    onOpenChange?: (open: boolean) => void;
 }) {
-    const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-    const open = openProp ?? uncontrolledOpen;
-    const setOpen = onOpenChange ?? setUncontrolledOpen;
+    const [open, setOpen] = useState(false);
     const [reason, setReason] = useState<ReportJobReason>("dead_link");
     const [notes, setNotes] = useState("");
     const [phase, setPhase] = useState<Phase>("form");
@@ -72,10 +51,7 @@ export function ReportJobButton({
     // corpus-backed `report_count` chip (ITEM Q) other jobs may carry.
     const [reported, setReported] = useState(false);
 
-    // Fresh form state every time the dialog opens — whether that's this
-    // click (open goes true synchronously below) or a controlled parent
-    // reopening it on a post-auth replay, which never runs `handleTrigger`
-    // at all. Kept ABOVE the `reported` early return below (Rules of Hooks —
+    // Fresh form state every time the dialog opens. Kept ABOVE the `reported` early return below (Rules of Hooks —
     // every hook here must run on every render, including the ones that
     // return the "Reported ✓" pill instead of the dialog).
     useEffect(() => {
@@ -98,10 +74,6 @@ export function ReportJobButton({
         );
     }
 
-    const handleTrigger = () => {
-        onRequireAuth();
-    };
-
     const submit = async () => {
         setPhase("submitting");
         const result = await reportJobAction({ jobUrl, jobTitle, reason, notes });
@@ -118,7 +90,7 @@ export function ReportJobButton({
                 break;
             case "rate_limited":
                 setPhase("done");
-                setResultText("Try again tomorrow.");
+                setResultText("Try again later.");
                 break;
             case "error":
                 setPhase("form");
@@ -133,8 +105,8 @@ export function ReportJobButton({
             <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                onClick={handleTrigger}
+                size={jobActionSize}
+                onClick={() => setOpen(true)}
                 data-testid="report-job-trigger"
                 className={cn("gap-1.5 text-muted-foreground", className)}
             >

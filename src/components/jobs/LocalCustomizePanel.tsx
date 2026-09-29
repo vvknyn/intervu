@@ -3,8 +3,10 @@
 import { useState, useCallback } from "react";
 import { Copy, DownloadSimple, Check, Cpu, ShieldCheck } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
@@ -18,6 +20,8 @@ import {
 import { readLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
+import { ModelDownloadSize, ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
+import { WaitState } from "@/components/ui/wait-state";
 import { writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
@@ -121,6 +125,9 @@ export function LocalCustomizePanel({
 
     const handleEnableAi = useCallback(async () => {
         grantLocalAiConsent();
+        // Leave the consent card at once: the wait below shows the model's real download progress.
+        setConsentNeeded(false);
+        setLoading(true);
         await initLocalAiLadder();
         void runGenerate(true);
     }, [runGenerate]);
@@ -175,12 +182,13 @@ export function LocalCustomizePanel({
             <Button
                 type="button"
                 variant="outline"
+                size={jobActionSize}
                 data-testid="local-customize-open"
                 aria-label="Customize for this job"
                 disabled={loading && dialogOpen}
                 onClick={handleOpen}
                 className={cn(
-                    "h-10 shrink-0 rounded-ctl text-xs font-semibold sm:h-9",
+                    "shrink-0 rounded-ctl text-xs font-semibold",
                     compactTrigger && "px-3",
                     loading && dialogOpen && "opacity-60",
                 )}
@@ -190,8 +198,7 @@ export function LocalCustomizePanel({
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-                <DialogContent className="z-[70] flex max-h-[85dvh] w-[calc(100%-1rem)] max-w-[720px] flex-col overflow-hidden p-0 sm:max-w-xl">
-                    <div className="flex min-h-0 max-h-[85dvh] flex-col">
+                <DialogContent className="z-[70] w-[calc(100%-1rem)] max-w-[720px] gap-0 p-0 sm:max-w-xl">
                         <div className="shrink-0 border-b border-border px-5 py-4 pr-12">
                             <DialogHeader className="space-y-1 text-left">
                                 <div className="flex items-center gap-1.5 text-xs text-brand font-semibold">
@@ -220,9 +227,9 @@ export function LocalCustomizePanel({
                             </DialogHeader>
                         </div>
 
-                        <div
+                        <DialogBody
                             data-testid="local-customize-panel"
-                            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4"
+                            className="px-5 py-4"
                         >
                             {consentNeeded && !loading && !draft && (
                                 <div className="space-y-4">
@@ -231,14 +238,14 @@ export function LocalCustomizePanel({
                                         leaves this device until you copy or download.
                                     </p>
                                     <p className="text-sm text-muted-foreground">
-                                        Enable downloads a small local model. You can also use a rules-based draft
-                                        without enabling.
+                                        Enabling downloads an on-device model.<ModelDownloadSize /> You can also use a
+                                        rules-based draft without enabling.
                                     </p>
                                     <div className="flex flex-wrap gap-2">
                                         <Button
                                             type="button"
                                             size="sm"
-                                            className="h-11 min-h-11 rounded-ctl text-xs font-semibold"
+                                            className="rounded-ctl text-xs font-semibold"
                                             onClick={() => void handleEnableAi()}
                                         >
                                             <Cpu size={16} className="mr-1.5" />
@@ -248,7 +255,7 @@ export function LocalCustomizePanel({
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            className="h-11 min-h-11 rounded-ctl text-xs font-semibold"
+                                            className="rounded-ctl text-xs font-semibold"
                                             onClick={handleRulesDraft}
                                         >
                                             Use a rules draft
@@ -258,7 +265,10 @@ export function LocalCustomizePanel({
                             )}
 
                             {loading && !draft && !consentNeeded && (
-                                <p className="text-sm text-muted-foreground">Tailoring on-device…</p>
+                                <div className="space-y-3">
+                                    <ModelLoadProgress />
+                                    <WaitState label="Tailoring on-device" />
+                                </div>
                             )}
 
                             {draft && (
@@ -313,7 +323,7 @@ export function LocalCustomizePanel({
                                     </Accordion>
                                 </div>
                             )}
-                        </div>
+                        </DialogBody>
 
                         <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                             <Button
@@ -321,7 +331,7 @@ export function LocalCustomizePanel({
                                 variant="outline"
                                 size="sm"
                                 data-testid="local-customize-close"
-                                className="h-11 min-h-11 rounded-ctl text-xs font-semibold"
+                                className="rounded-ctl text-xs font-semibold"
                                 onClick={() => handleDialogOpenChange(false)}
                             >
                                 Close
@@ -334,7 +344,7 @@ export function LocalCustomizePanel({
                                         size="sm"
                                         data-testid="local-customize-copy"
                                         onClick={() => void handleCopy()}
-                                        className="h-11 min-h-11 rounded-ctl text-xs font-semibold"
+                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         {copied ? <Check size={16} /> : <Copy size={16} />}
                                         {copied ? "Copied" : "Copy"}
@@ -345,7 +355,7 @@ export function LocalCustomizePanel({
                                         size="sm"
                                         data-testid="local-customize-pdf"
                                         onClick={handlePdf}
-                                        className="h-11 min-h-11 rounded-ctl text-xs font-semibold"
+                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         <DownloadSimple size={16} />
                                         Download PDF
@@ -355,7 +365,7 @@ export function LocalCustomizePanel({
                                         data-testid="local-customize-accept"
                                         variant="outline"
                                         size="sm"
-                                        className="ml-auto h-11 min-h-11 rounded-ctl text-xs font-semibold"
+                                        className="ml-auto rounded-ctl text-xs font-semibold"
                                         onClick={() => void handleAccept()}
                                     >
                                         Accept
@@ -363,7 +373,6 @@ export function LocalCustomizePanel({
                                 </>
                             )}
                         </div>
-                    </div>
                 </DialogContent>
             </Dialog>
 

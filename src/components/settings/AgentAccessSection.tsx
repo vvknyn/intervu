@@ -12,7 +12,8 @@ import {
     revokeAgentCredentialAction,
     type AgentCredentialSummary,
 } from "@/actions/agent-access";
-import { Copy, Check, Trash, CircleNotch, WarningCircle } from "@phosphor-icons/react";
+import { Copy, Check, Trash, WarningCircle } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
 import { SettingsSectionLoading } from "@/components/settings/SettingsSectionLoading";
@@ -92,7 +93,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
         for (let attempt = 0; attempt < 4; attempt++) {
             const res = await listAgentCredentialsAction();
             if (!res.error) {
-                setCredentials(res.data ?? []);
+                setCredentials(res.data ?? []); // load-result-allow: res.error was checked on the line above
                 setLoadStatus("ready");
                 resetSettingsLoadErrorDedup();
                 return;
@@ -224,7 +225,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                             disabled={revokingId === c.id}
                             onClick={() => handleRevoke(c)}
                         >
-                            {revokingId === c.id ? <CircleNotch className="animate-spin" /> : <Trash />}
+                            {revokingId === c.id ? <InlineSpinner /> : <Trash />}
                             Revoke
                         </Button>
                     </div>
@@ -246,7 +247,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         className="max-w-64"
                     />
                     <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating} className="shrink-0">
-                        {generating ? <CircleNotch className="animate-spin" /> : null}
+                        {generating ? <InlineSpinner /> : null}
                         {generating ? "Generating..." : "Generate manual token"}
                     </Button>
                 </div>

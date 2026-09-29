@@ -9,9 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-    Trash, Plus, Link as LinkIcon, FileText, Note, Spinner,
+    Trash, Plus, Link as LinkIcon, FileText, Note,
     Globe, EyeSlash, MagnifyingGlass, Check, CaretDown, CaretUp,
 } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import {
     saveSource, deleteSource, fetchUrlContent, discoverLinks,
     fetchPublicSources, addPublicSourceToCollection,
@@ -334,7 +335,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         />
                                         {isLoading ? (
                                             <div className="flex flex-col items-center gap-2">
-                                                <Spinner className="animate-spin h-6 w-6" />
+                                                <InlineSpinner className="h-6 w-6" />
                                                 <p className="text-sm text-muted-foreground">Processing file...</p>
                                             </div>
                                         ) : (
@@ -355,7 +356,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                     onChange={(e) => setUrl(e.target.value)}
                                                 />
                                                 <Button onClick={handleFetchUrl} disabled={isLoading || !url} variant="secondary">
-                                                    {isLoading ? <Spinner className="animate-spin" /> : "Fetch"}
+                                                    {isLoading ? <InlineSpinner /> : "Fetch"}
                                                 </Button>
                                             </div>
                                         )}
@@ -382,7 +383,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                 >
                                                     {showDiscovered ? <CaretUp /> : <CaretDown />}
                                                     Related pages found ({discoveredLinks.length})
-                                                    {isDiscovering && <Spinner className="animate-spin" />}
+                                                    {isDiscovering && <InlineSpinner />}
                                                 </button>
 
                                                 {showDiscovered && discoveredLinks.length > 0 && (
@@ -400,7 +401,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                                     className="text-xs rounded-ctl"
                                                                 >
                                                                     {isFetchingSelected
-                                                                        ? <><Spinner className="animate-spin mr-1" /> Fetching...</>
+                                                                        ? <><InlineSpinner className="mr-1" /> Fetching...</>
                                                                         : `Fetch Selected (${selectedCount})`
                                                                     }
                                                                 </Button>
@@ -424,7 +425,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                                         <p className="truncate text-xs">{link.title}</p>
                                                                         <p className="truncate text-xs text-muted-foreground">{link.url}</p>
                                                                     </div>
-                                                                    {link.status === 'loading' && <Spinner className="animate-spin shrink-0" />}
+                                                                    {link.status === 'loading' && <InlineSpinner className="shrink-0" />}
                                                                     {link.status === 'success' && <Check className="text-live shrink-0" />}
                                                                     {link.status === 'error' && (
                                                                         <span className="text-danger-text text-xs shrink-0" title={link.error}>Failed</span>
@@ -464,8 +465,8 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                     </div>
                                     <Button
                                         variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-danger-text"
+                                        size="icon-sm"
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-danger-text"
                                         onClick={(e) => handleDelete(source.id, e)}
                                     >
                                         <Trash />
@@ -503,17 +504,17 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                 value={communitySearch}
                                 onChange={(e) => setCommunitySearch(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') loadCommunity(communitySearch); }}
-                                className="h-11 pl-9"
+                                className="ctl-lg pl-9"
                             />
                         </div>
                         <Button variant="secondary" onClick={() => loadCommunity(communitySearch)} disabled={communityLoading}>
-                            {communityLoading ? <Spinner className="animate-spin" /> : "Search"}
+                            {communityLoading ? <InlineSpinner /> : "Search"}
                         </Button>
                     </div>
 
                     {communityLoading ? (
                         <div className="flex items-center justify-center py-12 text-muted-foreground">
-                            <Spinner className="animate-spin mr-2" /> Loading community sources...
+                            <InlineSpinner className="mr-2" /> Loading community sources...
                         </div>
                     ) : communitySources.length === 0 ? (
                         <div className="space-y-3 py-12 text-center text-muted-foreground border border-border rounded-panel">
@@ -557,7 +558,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                             onClick={() => handleAddFromCommunity(source.id)}
                                         >
                                             {addingSourceId === source.id ? (
-                                                <Spinner className="animate-spin" />
+                                                <InlineSpinner />
                                             ) : (
                                                 <><Plus className="mr-1" /> Add</>
                                             )}

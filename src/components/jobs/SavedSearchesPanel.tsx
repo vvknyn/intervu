@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookmarkSimple, X, CircleNotch } from "@phosphor-icons/react";
+import { BookmarkSimple, X } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-searches";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
+import { SignupGate } from "@/components/auth/SignupGate";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { guestSaveGateReached } from "@/lib/auth/guest-save-gate";
 import { readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {
@@ -47,7 +51,7 @@ export function SavedSearchesPanel({
     onApply: (href: string) => void;
     /**
      * Called BEFORE a guest (signed-out) save is committed. Return `"block"`
-     * to cancel the save (e.g. because the parent has opened an auth gate);
+     * to cancel the save (the panel then shows the signup gate);
      * return `"proceed"` to let the save go through. Omit for signed-in-only
      * contexts where guest saves cannot occur.
      */
@@ -69,8 +73,14 @@ export function SavedSearchesPanel({
     const [newCounts, setNewCounts] = useState<Record<string, CorpusCount>>({});
     const [saving, setSaving] = useState(false);
     const [removingId, setRemovingId] = useState<string | null>(null);
+    // A guest past their free save sees the signup gate instead of a name field.
+    const [gated, setGated] = useState(false);
 
     const startSave = () => {
+        if (!getCurrentUser() && guestSaveGateReached()) {
+            setGated(true);
+            return;
+        }
         setNameDraft(suggestSavedSearchName(urlState));
         setNaming(true);
     };
@@ -88,6 +98,7 @@ export function SavedSearchesPanel({
                 if (onBeforeGuestSave?.() === "block") {
                     setNaming(false);
                     setNameDraft("");
+                    setGated(true);
                     return;
                 }
                 persistSavedSearch({ name, href });
@@ -160,28 +171,40 @@ export function SavedSearchesPanel({
             )}
         >
             {canSave && !naming && (
-                <button
-                    type="button"
-                    data-testid="save-search-trigger"
-                    onClick={startSave}
-                    className={cn(
-                        compact
-                            ? cn(
-                                  toolbarControlHeight,
-                                  "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-3 lg:px-2",
-                              )
-                            : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-ctl px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
-                    )}
-                >
-                    {!compact && <BookmarkSimple aria-hidden />}
-                    {label}
-                </button>
+                <Popover open={gated} onOpenChange={setGated}>
+                    <PopoverAnchor asChild>
+                        <button
+                            type="button"
+                            data-testid="save-search-trigger"
+                            onClick={startSave}
+                            className={cn(
+                                compact
+                                    ? cn(
+                                          toolbarControlHeight,
+                                          "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-3 lg:px-2",
+                                      )
+                                    : "inline-flex ctl-lg items-center gap-1.5 rounded-ctl px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
+                            )}
+                        >
+                            {!compact && <BookmarkSimple aria-hidden />}
+                            {label}
+                        </button>
+                    </PopoverAnchor>
+                    <PopoverContent align="start" className="w-80 p-0">
+                        <SignupGate
+                            reason="alert"
+                            originSurface="jobs_banner"
+                            returnTo={`/jobs${hrefFromJobsUrlState(urlState)}`}
+                            className="border-0"
+                        />
+                    </PopoverContent>
+                </Popover>
             )}
             {naming && (
                 <div className={cn(
                     compact
                         ? "flex items-center gap-1"
-                        : "flex h-11 sm:h-[46px] items-center gap-1.5 rounded-ctl bg-surface border border-border px-2",
+                        : "flex ctl-lg items-center gap-1.5 rounded-ctl bg-surface border border-border px-2",
                 )}>
                     <input
                         data-testid="save-search-name"
@@ -193,8 +216,8 @@ export function SavedSearchesPanel({
                         }}
                         className={cn(
                             compact
-                                ? "h-6 min-w-[6rem] rounded-ctl border border-border bg-background px-1.5 text-xs text-foreground outline-none focus:border-brand"
-                                : "h-7 min-w-[8rem] rounded-ctl border border-border bg-background px-2 text-base md:text-xs text-foreground outline-none focus:border-brand",
+                                ? "ctl-sm min-w-[6rem] rounded-ctl border border-border bg-background px-1.5 text-xs text-foreground outline-none focus:border-brand"
+                                : "ctl-md min-w-[8rem] rounded-ctl border border-border bg-background px-2 text-base md:text-xs text-foreground outline-none focus:border-brand",
                         )}
                         aria-label="Saved search name"
                         autoFocus
@@ -207,10 +230,10 @@ export function SavedSearchesPanel({
                         className={cn(
                             compact
                                 ? "inline-flex items-center gap-1 text-xs text-foreground underline underline-offset-2 hover:no-underline disabled:opacity-50"
-                                : "inline-flex h-7 items-center gap-1 rounded-ctl bg-muted text-brand px-2.5 text-xs font-semibold whitespace-nowrap disabled:opacity-50",
+                                : "inline-flex ctl-md items-center gap-1 rounded-ctl bg-muted text-brand px-2.5 text-xs font-semibold whitespace-nowrap disabled:opacity-50",
                         )}
                     >
-                        {saving && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
+                        {saving && <InlineSpinner className="shrink-0" />}
                         {saving ? "Saving…" : "Save"}
                     </button>
                     <button
@@ -232,7 +255,7 @@ export function SavedSearchesPanel({
                         <li key={s.id} className={cn(
                             compact
                                 ? "inline-flex items-center gap-1"
-                                : "inline-flex h-11 sm:h-[46px] items-center gap-1 rounded-pill bg-muted px-2.5 py-0.5",
+                                : "inline-flex ctl-lg items-center gap-1 rounded-pill bg-muted px-2.5",
                         )}>
                             <button
                                 type="button"
@@ -267,7 +290,7 @@ export function SavedSearchesPanel({
                                 aria-label={`Remove saved search ${s.name}`}
                             >
                                 {removingId === s.id ? (
-                                    <CircleNotch className="animate-spin" aria-hidden />
+                                    <InlineSpinner />
                                 ) : (
                                     <X />
                                 )}

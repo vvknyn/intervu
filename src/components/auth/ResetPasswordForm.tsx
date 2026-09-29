@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { confirmPasswordResetAction } from "@/actions/auth";
-import { CircleNotch, CheckCircle } from "@phosphor-icons/react";
+import { CheckCircle } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
+import { PageTitle } from "@/components/ui/heading";
 
 export function ResetPasswordForm() {
     const router = useRouter();
@@ -88,9 +90,9 @@ export function ResetPasswordForm() {
         <AuthRouteLayout>
             <AuthRaisedPanel>
                 <div className="mb-8 text-center">
-                    <h1 className="text-xl font-semibold text-foreground">
+                    <PageTitle>
                         Set new password
-                    </h1>
+                    </PageTitle>
                     <p className="text-xs text-muted-foreground mt-1">
                         Enter your new password below
                     </p>
@@ -158,7 +160,7 @@ export function ResetPasswordForm() {
 
                     <Button type="submit" variant="brand" disabled={isPending || !token} className="w-full mt-6">
                         {isPending ? (
-                            <CircleNotch size={16} className="animate-spin" />
+                            <InlineSpinner size={16} />
                         ) : (
                             "Update password"
                         )}

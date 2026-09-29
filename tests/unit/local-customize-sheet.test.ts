@@ -100,8 +100,7 @@ describe("Customize dialog contract", () => {
         assert.doesNotMatch(src, /side="bottom"/);
         assert.match(src, /DialogContent/);
         assert.match(src, /z-\[70\]/);
-        assert.match(src, /overflow-y-auto/);
-        assert.match(src, /min-h-0 flex-1/);
+        assert.match(src, /<DialogBody[^>]*data-testid="local-customize-panel"/);
         assert.match(src, /confirmToast/);
         assert.match(src, /Enable on-device AI/);
         assert.match(src, /Use a rules draft/);
@@ -152,7 +151,7 @@ describe("Customize dialog contract", () => {
     it("JobDetail action row keeps the trigger; document mobile bar gets compact variant", () => {
         const detail = readFileSync(DETAIL, "utf8");
         const doc = readFileSync(DOCUMENT, "utf8");
-        const page = readFileSync(join(__dirname, "..", "..", "src", "app", "jobs", "page.tsx"), "utf8");
+        const page = readFileSync(join(__dirname, "..", "..", "src", "app", "jobs", "JobsContent.tsx"), "utf8");
         const publicDetail = readFileSync(
             join(__dirname, "..", "..", "src", "components", "jobs", "PublicJobDetail.tsx"),
             "utf8",
@@ -209,7 +208,8 @@ describe("Customize dialog contract", () => {
             }),
         );
         assert.match(html, /data-testid="local-customize-open"/);
-        assert.match(html, />Customize<\/button>/);
+        // f714e2d0 renamed the trigger "Customize" → "Customize résumé" (copy states what a résumé unlocks).
+        assert.match(html, />Customize résumé<\/button>/);
         assert.doesNotMatch(html, /hidden sm:inline.*for this job/);
         assert.doesNotMatch(html, /data-testid="local-customize-panel"/);
     });

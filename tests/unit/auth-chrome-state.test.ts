@@ -52,23 +52,36 @@ test("stale in-memory résumé does not count as on file after sign-out", () => 
             authReady: true,
             signedIn: false,
             hasUsableResume: true,
-            localAiGuestEnabled: false,
+            guestResumeInBrowser: false,
             resumeKnownOnServer: true,
         }),
         false,
     );
 });
 
-test("local-AI guest résumé still unlocks For you when signed out", () => {
+test("a guest résumé kept in this browser is on file when signed out", () => {
     assert.equal(
         resolveJobsResumeOnFile({
             authReady: true,
             signedIn: false,
             hasUsableResume: true,
-            localAiGuestEnabled: true,
+            guestResumeInBrowser: true,
             resumeKnownOnServer: false,
         }),
         true,
+    );
+});
+
+test("a guest résumé in this browser that is not usable is not on file", () => {
+    assert.equal(
+        resolveJobsResumeOnFile({
+            authReady: true,
+            signedIn: false,
+            hasUsableResume: false,
+            guestResumeInBrowser: true,
+            resumeKnownOnServer: false,
+        }),
+        false,
     );
 });
 
@@ -151,8 +164,8 @@ test("jobs page gates For-you chrome on confirmed session and clears stale résu
     const src = readFileSync(new URL("../../src/app/jobs/JobsContent.tsx", import.meta.url), "utf8");
     assert.match(src, /shouldShowJobsHomeViewToggle/);
     assert.match(src, /resolveJobsResumeOnFile/);
-    assert.match(src, /signedOut[\s\S]*localAiGuestEnabled[\s\S]*setResume\(null\)/);
-    assert.match(src, /useSyncExternalStore\([\s\S]*subscribeLocalAiEnabled/);
+    assert.match(src, /signedOut \|\| readUsableLocalResume\(\)\) return;\s*setResume\(null\)/);
+    assert.match(src, /setGuestResumeInBrowser\(stored != null\)/);
     assert.match(src, /deepLinkedSession[\s\S]*revalidateClientSession/);
 });
 

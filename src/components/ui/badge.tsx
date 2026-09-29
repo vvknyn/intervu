@@ -60,4 +60,53 @@ function Badge({
   )
 }
 
-export { Badge, badgeVariants }
+/**
+ * The solid counter/label chip — the one filled badge on the site (`Badge`
+ * above is for words; this is for a count or a one-word flag that has to stand
+ * out on a control: the bell, a tab, a corner "New").
+ *
+ * 16px high, square (rulebook radius 0), 12/600 text. Pin it to a corner with
+ * `className` (e.g. `absolute right-0 top-1`) — never restyle its shape, and
+ * never hand-roll a rounded count pill (tests/unit/tab-primitive-gate.test.ts).
+ */
+const solidBadgeVariants = cva(
+  "inline-flex h-4 min-w-4 shrink-0 items-center justify-center whitespace-nowrap rounded-none px-1 text-xs font-semibold leading-none tabular-nums",
+  {
+    variants: {
+      tone: {
+        brand: "bg-brand text-brand-foreground",
+        warn: "bg-warn text-brand-foreground",
+        muted: "border border-border bg-muted text-foreground",
+      },
+    },
+    defaultVariants: { tone: "brand" },
+  }
+)
+
+/** Past nine reads "9+": a 16px chip stays 16px wide. */
+function formatBadgeCount(count: number): string {
+  return count > 9 ? "9+" : String(count)
+}
+
+function SolidBadge({
+  tone,
+  className,
+  ...props
+}: React.ComponentProps<"span"> & VariantProps<typeof solidBadgeVariants>) {
+  return (
+    <span
+      data-slot="solid-badge"
+      className={cn(solidBadgeVariants({ tone }), className)}
+      {...props}
+    />
+  )
+}
+
+function CountBadge({
+  count,
+  ...props
+}: Omit<React.ComponentProps<typeof SolidBadge>, "children"> & { count: number }) {
+  return <SolidBadge {...props}>{formatBadgeCount(count)}</SolidBadge>
+}
+
+export { Badge, badgeVariants, SolidBadge, CountBadge, solidBadgeVariants, formatBadgeCount }

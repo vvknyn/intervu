@@ -10,13 +10,14 @@
 // file is NOT exempt from the banned-utility gate.
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Upload } from "@phosphor-icons/react";
 import { SignedOutEmptyState } from "@/app/resume/page";
 import { ResumeParsingStep } from "@/components/resume-builder/ResumeImportModal";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import type { ResumeData } from "@/types/resume";
+import { PageTitle } from "@/components/ui/heading";
 
 const FIXTURE_RESUME: ResumeData = {
     profile: {
@@ -85,8 +86,8 @@ export function ResumeStatesMock() {
     const [state, setState] = useState<MockState>(initialStateFromQuery);
 
     return (
-        <div className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-8 xl:max-w-7xl xl:px-10">
-            <h1 className="text-2xl font-semibold text-foreground">Resume states (design proof)</h1>
+        <div className="shell-row pb-16 pt-6">
+            <PageTitle>Resume states (design proof)</PageTitle>
             <p className="mt-1 text-sm text-muted-foreground">
                 Dev-only harness — not linked from product navigation.
             </p>
@@ -101,7 +102,7 @@ export function ResumeStatesMock() {
                         key={s.id}
                         type="button"
                         onClick={() => setState(s.id)}
-                        className={`min-h-6 rounded-ctl px-3 text-xs font-semibold leading-none transition-colors ${
+                        className={`ctl-sm rounded-ctl px-3 text-xs font-semibold leading-none transition-colors ${
                             state === s.id
                                 ? "text-foreground underline underline-offset-2"
                                 : "text-muted-foreground hover:text-foreground"
@@ -117,7 +118,7 @@ export function ResumeStatesMock() {
 
                 {state === "parsing" && (
                     <Dialog open onOpenChange={() => {}}>
-                        <DialogContent className="flex w-full max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-panel bg-white max-h-[90dvh] dark:bg-muted sm:max-w-2xl">
+                        <DialogContent className="w-full max-w-[calc(100%-1rem)] rounded-panel bg-white dark:bg-muted sm:max-w-2xl">
                             <DialogHeader>
                                 <DialogTitle className="flex items-center gap-2">
                                     <div className="w-8 h-8 rounded-panel bg-muted flex items-center justify-center">
@@ -127,14 +128,14 @@ export function ResumeStatesMock() {
                                 </DialogTitle>
                                 <DialogDescription>AI is extracting structured information</DialogDescription>
                             </DialogHeader>
-                            <div className="flex-1 overflow-hidden py-4">
+                            <DialogBody className="py-4">
                                 <ResumeParsingStep />
-                            </div>
+                            </DialogBody>
                             <div className="flex justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                                <Button variant="outline" className="h-11 min-h-11" disabled>
+                                <Button size="lg" variant="outline" disabled>
                                     Cancel
                                 </Button>
-                                <Button className="h-11 min-h-11" disabled>
+                                <Button size="lg" disabled>
                                     Processing...
                                 </Button>
                             </div>

@@ -41,6 +41,7 @@ import { AUTH_CTA_LABEL, formatAuthGateValueLine, guestKeepLine } from "@/lib/au
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
 import { posterInlinePanelClassName } from "@/components/layout/route-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
 
 function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
     return (
@@ -58,24 +59,28 @@ function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
 function YoursLoading() {
     return (
         <PageLayout fullWidth header={<TrackerHeader />}>
-            <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 py-8 sm:px-8 xl:px-10">
-                <div className={cn(posterInlinePanelClassName, "p-6")} role="status" aria-busy="true">
-                    <div aria-hidden className="space-y-4">
-                        <div className="skeleton-bar h-9 w-full max-w-md" />
-                        <div className="flex gap-3 overflow-hidden">
-                            {[0, 1, 2, 3, 4].map((i) => (
-                                <div key={i} className="skeleton-bar h-64 w-5/6 max-w-80 shrink-0 md:w-full" />
-                            ))}
+            <div className="shell-row py-8">
+                <WaitState
+                    label="Loading your tracker"
+                    className={cn(posterInlinePanelClassName, "p-6")}
+                    skeleton={
+                        <div className="space-y-4">
+                            <WaitBar className="h-9 w-full max-w-md" />
+                            <div className="flex gap-3 overflow-hidden">
+                                {[0, 1, 2, 3, 4].map((i) => (
+                                    <WaitBar key={i} className="h-64 w-5/6 max-w-80 shrink-0 md:w-full" />
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                    <span className="sr-only">Loading your tracker…</span>
-                </div>
+                    }
+                />
             </div>
         </PageLayout>
     );
 }
 
 import { BookmarkSimple, MagnifyingGlass } from "@phosphor-icons/react";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /** Applied-this-week + soft daily plan (Today X/12) — quiet Tracker chrome. */
 function AppliedThisWeekBadge({
@@ -147,7 +152,7 @@ function YoursContent() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
     const [saving, setSaving] = useState(false);
-    const { pursuits, loading } = usePursuits();
+    const { pursuits, loading, failed, retry } = usePursuits();
     const guestSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
     // G5e (Grok UX wave) — same xl (1280px) mount-site split the job board's
@@ -309,7 +314,7 @@ function YoursContent() {
                         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
                             <Button
                                 size="sm"
-                                className="order-1 min-h-11 w-full rounded-ctl sm:order-2 sm:w-auto"
+                                className="order-1 w-full rounded-ctl sm:order-2 sm:w-auto"
                                 data-testid="tracker-track-role-cta"
                                 onClick={openAdd}
                             >
@@ -320,7 +325,7 @@ function YoursContent() {
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    className="order-2 min-h-11 w-full rounded-ctl font-normal text-muted-foreground sm:order-1 sm:w-auto"
+                                    className="order-2 w-full rounded-ctl font-normal text-muted-foreground sm:order-1 sm:w-auto"
                                     data-testid="tracker-export-csv"
                                     onClick={() => downloadTrackerExport(pursuits, "csv")}
                                 >
@@ -332,7 +337,7 @@ function YoursContent() {
                 />
             }
         >
-            <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
+            <div className="shell-row pb-16 pt-6">
                 <TrackerTabs active="tracker" />
                 {pursuits.length > 0 ? (
                     <div className="mb-4 mt-4 flex flex-wrap items-center gap-3">
@@ -347,7 +352,7 @@ function YoursContent() {
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Search tracker…"
                                 data-testid="tracker-search"
-                                className="h-11 rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
+                                className="ctl-lg rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
                             />
                         </div>
                         <AppliedThisWeekBadge count={appliedThisWeek} appliedToday={appliedToday} />
@@ -355,7 +360,14 @@ function YoursContent() {
                 ) : null}
 
                 {filtered.length === 0 ? (
-                    pursuits.length === 0 ? (
+                    pursuits.length === 0 && failed ? (
+                        <LoadFailedState
+                            title="We can't load your tracker right now."
+                            onRetry={retry}
+                            testId="tracker-load-failed"
+                            className="mt-4"
+                        />
+                    ) : pursuits.length === 0 ? (
                         <ConceptAEmptyPageSlot placement="after-controls">
                             <TrackerEmptyState
                                 user={!!user}
@@ -365,7 +377,7 @@ function YoursContent() {
                     ) : (
                         <div className="py-8 text-left text-sm text-muted-foreground">
                             {TRACKER_FILTER_EMPTY}{" "}
-                            <Button variant="outline" size="sm" className="ml-2 min-h-11 rounded-ctl" onClick={openAdd}>
+                            <Button variant="outline" size="sm" className="ml-2 rounded-ctl" onClick={openAdd}>
                                 {TRACKER_PRIMARY_CTA}
                             </Button>
                         </div>

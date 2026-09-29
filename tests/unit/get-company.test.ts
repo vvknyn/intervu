@@ -264,12 +264,14 @@ describe("getCompanyPageData — name repair is a rule, not a lookup table", () 
 
     it("falls back to a domain label when the corpus name is unusable, and says so", async () => {
         const search = ok({
-            hits: hits(2, { company: "acme-corp.applicantpro.com", company_domain: "acme-corp.com" }),
+            // Was acme-corp.com → "Acme Corp"; #384 (7ac05f9a) now strips bare
+            // "Corp" at display, so the fixture uses a domain with no legal word.
+            hits: hits(2, { company: "acme-robotics.applicantpro.com", company_domain: "acme-robotics.com" }),
             total: 2,
         });
 
-        const result = await getCompanyPageData("acme-corp--com", search);
-        assert.equal(result?.name, "Acme Corp");
+        const result = await getCompanyPageData("acme-robotics--com", search);
+        assert.equal(result?.name, "Acme Robotics");
         assert.equal(result?.nameSource, "domain");
     });
 

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Cpu, DownloadSimple, CheckCircle, ShieldCheck } from "@phosphor-icons/react";
 import type { LocalAiEngineId } from "@/lib/local-ai/engines/types";
 import { Switch } from "@/components/settings/Switch";
+import { ModelDownloadSize, ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
+import { WaitState } from "@/components/ui/wait-state";
 
 /**
  * On-Device AI inference settings:
@@ -63,7 +65,7 @@ export function LocalAiSettingsSection() {
     };
 
     if (!mounted) {
-        return <p className="text-xs text-muted-foreground">Loading…</p>;
+        return <WaitState label="Loading on-device AI settings" />;
     }
 
     const hasDownloaded = consent && activeEngine !== "heuristic" && getActiveEngineId() !== "heuristic";
@@ -108,19 +110,22 @@ export function LocalAiSettingsSection() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-border">
                             <p className="text-xs text-muted-foreground">
                                 Preload the local model into your browser cache for instant on-device parsing and tailoring.
+                                <ModelDownloadSize />
                             </p>
                             <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => void handleDownloadModel()}
                                 disabled={isDownloading}
-                                className="h-8 shrink-0 rounded-ctl text-xs font-semibold"
+                                className="shrink-0 rounded-ctl text-xs font-semibold"
                             >
                                 <DownloadSimple size={16} className="mr-1.5" />
                                 {isDownloading ? "Downloading model…" : "Download on-device model"}
                             </Button>
                         </div>
                     )}
+
+                    <ModelLoadProgress />
 
                     {downloadError && (
                         <p className="text-xs text-danger-text">{downloadError}</p>

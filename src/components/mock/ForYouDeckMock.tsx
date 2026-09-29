@@ -94,7 +94,7 @@ function ForYouDeckMockInner() {
     }, [pursuitsByJobIdMerged]);
 
     return (
-        <div className="mx-auto w-full max-w-3xl px-4 py-6" data-testid="for-you-deck-mock-root">
+        <div className="shell-row py-6" data-testid="for-you-deck-mock-root">
             <ForYouHome
                 visiblePacks={packs}
                 activeIndex={activeIndex}
@@ -103,9 +103,13 @@ function ForYouDeckMockInner() {
                 onSkip={handleSkip}
                 matchScores={matchScores}
                 resume={MOCK_FOR_YOU_DECK_RESUME}
+                // No signals: the fixture deck has no search to count or filter against (no Meili).
+                signals={null}
                 nowMs={MOCK_FOR_YOU_DECK_NOW_MS}
                 fitResolving={false}
                 loading={false}
+                loadError={null}
+                onRetryLoad={() => {}}
                 fitActive
                 hydratedJobs={hydratedJobs}
                 onActivePackChange={() => {}}

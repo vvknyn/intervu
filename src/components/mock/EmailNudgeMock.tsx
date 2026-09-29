@@ -15,6 +15,7 @@
  * failure is invisible unless something asks for it on purpose.
  */
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
+import { PageTitle } from "@/components/ui/heading";
 
 function Case({ title, note, children }: { title: string; note: string; children: React.ReactNode }) {
     return (
@@ -31,11 +32,11 @@ function Case({ title, note, children }: { title: string; note: string; children
 
 export function EmailNudgeMock() {
     return (
-        <div className="mx-auto flex max-w-[820px] flex-col gap-6 p-8" data-testid="email-nudge-mock">
+        <div className="shell-row flex flex-col gap-6 py-8" data-testid="email-nudge-mock">
             <header>
-                <h1 className="text-lg font-semibold">
+                <PageTitle>
                     Account email prompt — every state
-                </h1>
+                </PageTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
                     Fixture for pixel verification. Not linked from anywhere and not indexed.
                 </p>

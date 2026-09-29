@@ -32,6 +32,9 @@ import {
     type Pursuit,
 } from "@/lib/pursuits/types";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
+import { PageTitle } from "@/components/ui/heading";
 
 /** Resume used row (spec: "label, saved date (mono), Download button") —
  *  degrades by omission to a plain sentence when no resume was ever filed
@@ -96,7 +99,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
 export default function PursuitDetailPage() {
     const params = useParams<{ id: string }>();
     const id = Array.isArray(params.id) ? params.id[0] : params.id;
-    const { pursuits, loading } = usePursuits();
+    const { pursuits, loading, failed, retry } = usePursuits();
     const [interviewDate, setInterviewDate] = useState("");
     const [saving, setSaving] = useState(false);
     // One clock read for this page's whole lifetime. JobDetail derives relative
@@ -155,7 +158,7 @@ export default function PursuitDetailPage() {
         if (loading || searchParams.get("download") !== "pdf") return;
         if (!getCurrentUser()) {
             const here = `/yours/${id}?${searchParams.toString()}`;
-            router.replace(`/login?next=${encodeURIComponent(here)}`);
+            router.replace(`/login?next=${encodeURIComponent(here)}`); // signup-gate-exempt: client redirect into the auth flow, not a rendered prompt
             return;
         }
         if (!pursuit) return; // still resolving, or genuinely not found — no-op, no false error
@@ -239,13 +242,11 @@ export default function PursuitDetailPage() {
             apply: () => {
                 if (pursuit?.job_id) void openDetail(pursuit.job_id);
             },
-            // This page has no résumé importer or report flow — nothing
-            // here ever calls `gate({ kind: "upload"/"report", ... })`.
-            // Still required: `AuthGateHandlers` is a mapped type over
-            // every `PendingAction` kind, so every caller supplies all
-            // three.
+            // This page has no résumé importer — nothing here ever calls
+            // `gate({ kind: "upload", ... })`. Still required:
+            // `AuthGateHandlers` is a mapped type over every `PendingAction`
+            // kind, so every caller supplies both.
             upload: () => {},
-            report: () => {},
         },
         user,
     });
@@ -284,11 +285,23 @@ export default function PursuitDetailPage() {
     if (loading) {
         return (
             <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
-                <div className="space-y-4" role="status" aria-busy="true">
-                    <span className="sr-only">Loading pursuit…</span>
-                    <div aria-hidden className="skeleton-bar h-32 rounded-panel" />
-                    <div aria-hidden className="skeleton-bar h-24 rounded-panel" />
-                </div>
+                <WaitState
+                    label="Loading pursuit"
+                    skeleton={
+                        <div className="space-y-4">
+                            <WaitBar className="h-32 rounded-panel" />
+                            <WaitBar className="h-24 rounded-panel" />
+                        </div>
+                    }
+                />
+            </PageLayout>
+        );
+    }
+
+    if (!pursuit && failed) {
+        return (
+            <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
+                <LoadFailedState title="We can't load this pursuit right now." onRetry={retry} testId="pursuit-load-failed" />
             </PageLayout>
         );
     }
@@ -318,7 +331,7 @@ export default function PursuitDetailPage() {
         <>
             <Buildings size={24} className="mt-0.5 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-semibold">{companyName}</h1>
+                <PageTitle>{companyName}</PageTitle>
                 <p className="text-sm text-muted-foreground">{pursuit.position}</p>
                 {snapshot?.location && <p className="mt-1 text-xs text-muted-foreground">{snapshot.location}</p>}
             </div>
@@ -393,7 +406,7 @@ export default function PursuitDetailPage() {
                                 type="date"
                                 value={interviewDate}
                                 onChange={(e) => setInterviewDate(e.target.value)}
-                                className="h-11 w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
+                                className="ctl-lg w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
                                 aria-label="Interview date"
                             />
                             <Button
@@ -428,7 +441,7 @@ export default function PursuitDetailPage() {
             </div>
 
             <Sheet open={detail.open} onOpenChange={(open) => setDetail((d) => ({ ...d, open }))}>
-                <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-panel p-0">
+                <SheetContent side="bottom" className="custom-scrollbar rounded-t-panel p-0">
                     <SheetTitle className="sr-only">
                         {pursuit.position} at {companyName}
                     </SheetTitle>

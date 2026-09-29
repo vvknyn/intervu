@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogDescription,
     DialogFooter,
@@ -89,7 +90,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[700px] max-h-[90dvh] flex flex-col overflow-hidden">
+            <DialogContent className="sm:max-w-[700px]">
                 <DialogHeader className="pr-8">
                     <div className="flex items-center justify-between mb-2">
                         <DialogTitle>{story ? 'Edit Story' : 'New STAR Story'}</DialogTitle>
@@ -117,7 +118,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto py-4 px-1">
+                <DialogBody className="py-4 px-1">
                     {step === 'refine' && (
                         <div className="space-y-6">
                             <div className="grid gap-6">
@@ -205,7 +206,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                             ).map((q, i) => (
                                                 <button
                                                     key={i}
-                                                    className="w-full text-left px-3 py-2 text-sm rounded-none hover:bg-muted hover:text-brand transition-colors text-foreground"
+                                                    className="ctl-md w-full text-left px-3 text-sm rounded-none hover:bg-muted hover:text-brand transition-colors text-foreground"
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
                                                         setFormData({ ...formData, question: q });
@@ -232,7 +233,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                     value={formData.title || ''}
                                     onChange={e => setFormData({ ...formData, title: e.target.value })}
                                     placeholder="e.g. Critical Bug Fix"
-                                    className="text-base font-semibold h-10 border-input"
+                                    className="ctl-lg text-base font-semibold border-input"
                                 />
                                 <p className="text-xs text-muted-foreground">
                                     A short, memorable name for you to reference this story.
@@ -248,7 +249,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                     value={formData.importance || 'medium'}
                                     onValueChange={(v: any) => setFormData({ ...formData, importance: v })}
                                 >
-                                    <SelectTrigger className="h-10">
+                                    <SelectTrigger size="lg" >
                                         <SelectValue placeholder="Select importance" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -262,7 +263,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                             {/* Future: Tags input could go here */}
                         </div>
                     )}
-                </div>
+                </DialogBody>
 
                 <DialogFooter className="border-t pt-4">
                     {step === 'refine' ? (

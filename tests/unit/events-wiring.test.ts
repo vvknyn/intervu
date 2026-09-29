@@ -94,7 +94,7 @@ test("the scanner detects a call site, and the absence of one", () => {
  * the whole funnel reads as zero conversion rather than as broken.
  */
 test("the top of the funnel is wired on the jobs page specifically", () => {
-  const jobsPage = readFileSync(join(SRC, "app/jobs/page.tsx"), "utf8");
+  const jobsPage = readFileSync(join(SRC, "app/jobs/JobsContent.tsx"), "utf8");
   assert.match(jobsPage, /captureEvent\(\s*["'`]search_submitted["'`]/);
   assert.match(jobsPage, /captureEvent\(\s*["'`]result_clicked["'`]/);
 });
@@ -106,7 +106,7 @@ test("the top of the funnel is wired on the jobs page specifically", () => {
  * later "let's see what people search for" change would quietly reverse.
  */
 test("search events carry a length, never the query itself", () => {
-  const jobsPage = readFileSync(join(SRC, "app/jobs/page.tsx"), "utf8");
+  const jobsPage = readFileSync(join(SRC, "app/jobs/JobsContent.tsx"), "utf8");
   const call = jobsPage.match(
     /captureEvent\(\s*["'`]search_submitted["'`]\s*,\s*\{[^}]*\}/,
   );
@@ -123,7 +123,7 @@ test("search events carry a length, never the query itself", () => {
  * (docs/analytics/EVENTS.md). Source-order lock — no runtime behavior change.
  */
 test("apply_clicked fires before gatedOpenPosting in handleOpenPosting", () => {
-  const jobsPage = readFileSync(join(SRC, "app/jobs/page.tsx"), "utf8");
+  const jobsPage = readFileSync(join(SRC, "app/jobs/JobsContent.tsx"), "utf8");
   const fnMatch = jobsPage.match(
     /const handleOpenPosting = \(job: PublicJob\) => \{([\s\S]*?)\n    \};/,
   );

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowSquareOut, Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
 import { getCompanyRailAction, getRelatedJobsAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDescription, JobDetailActionBar, KpiStat, MetaLine, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobRow } from "@/components/jobs/JobDetail";
@@ -53,6 +54,7 @@ import type { Pursuit } from "@/lib/pursuits/types";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
+import { PageTitle } from "@/components/ui/heading";
 
 /** The employer rail — live open-role count, opened/closed 90d, and a
  *  postings-sourced about line (`getCompanyRailAction`, one shared query
@@ -237,15 +239,8 @@ export interface JobDetailDocumentProps {
     pursuit: Pursuit | undefined;
     saveSuccessPulse?: boolean;
     signedIn?: boolean;
-    onRequestSignIn?: () => void;
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
     reportJobEnabled?: boolean;
-    /** Forwarded straight to `ReportJobButton`'s own `open`/`onOpenChange` —
-     *  lets the caller reopen the report dialog after a gated report action
-     *  replays post-auth. Both optional: omit to keep the button's own
-     *  default (uncontrolled) state. */
-    reportDialogOpen?: boolean;
-    onReportDialogOpenChange?: (open: boolean) => void;
     /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
      *  no signed-in résumé or no comparable field — renders no chip, never a
      *  fabricated 0 (Rule 3, match-contract.md). Same value the SERP panel
@@ -289,11 +284,8 @@ export function JobDetailDocument({
     pursuit,
     saveSuccessPulse = false,
     signedIn = true,
-    onRequestSignIn,
     onOpenRelated,
     reportJobEnabled = false,
-    reportDialogOpen,
-    onReportDialogOpenChange,
     matchScore = null,
     matchAsOfDate = null,
     matchPending = false,
@@ -354,7 +346,7 @@ export function JobDetailDocument({
             <div className="flex items-start gap-4">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-xl font-semibold leading-snug text-foreground sm:text-2xl">{jobTitle}</h1>
+                    <PageTitle>{jobTitle}</PageTitle>
                     {matchScore && (
                         <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -379,14 +371,14 @@ export function JobDetailDocument({
                         {locationClamped ? (
                             <>
                                 {(locationExpanded ? [...locationDisclosure.visible, ...locationDisclosure.hidden] : locationDisclosure.visible).map((segment, i) => (
-                                    <span key={i} className="block">{segment}</span>
+                                    <span key={i} className="block" data-testid="job-location">{segment}</span>
                                 ))}
                                 <button type="button" onClick={() => setLocationExpanded((v) => !v)} className="mt-0.5 block text-xs text-brand hover:underline">
                                     {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
                                 </button>
                             </>
                         ) : (
-                            location
+                            <span data-testid="job-location">{location}</span>
                         )}
                     </div>
                 </div>
@@ -449,7 +441,7 @@ export function JobDetailDocument({
         <div data-testid="job-detail-apply-card" className="border-t border-border py-4">
             <p className="mb-3 text-sm text-muted-foreground">This role is closed — it&apos;s no longer accepting applications.</p>
             {job.company_domain && (
-                <Button asChild className="h-11 w-full gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
+                <Button size="lg" asChild className="w-full gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
                     <Link href={buildCompanyJobsUrl({ domain: job.company_domain.trim() })}>See open roles at {companyBrand || cleanedCompany}</Link>
                 </Button>
             )}
@@ -473,12 +465,12 @@ export function JobDetailDocument({
         >
             <div className="flex items-center gap-2">
                 {job.apply_url && (
-                    <Button onClick={onOpenPosting} className="h-10 flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
+                    <Button size={jobActionSize} onClick={onOpenPosting} className="flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
                         <ArrowSquareOut size={16} />
                         {APPLY_BUTTON_LABEL}
                     </Button>
                 )}
-                {/* Rulebook item f: Save outline → the same 40px icon-only
+                {/* Rulebook item f: Save outline → the same icon-only
                     ghost bookmark control every other surface (JobDetail's
                     action row, JobCard's row) already uses — one chokepoint,
                     no independent restyle. */}
@@ -496,12 +488,12 @@ export function JobDetailDocument({
                         onSignInToSync={onSignInToSync}
                     />
                 ) : onUploadResume ? (
-                    <Button
+                    <Button size={jobActionSize}
                         type="button"
                         variant="outline"
                         data-testid="job-detail-upload-to-customize"
                         onClick={onUploadResume}
-                        className="h-10 shrink-0 rounded-ctl text-xs font-semibold"
+                        className="shrink-0 rounded-ctl text-xs font-semibold"
                     >
                         {UPLOAD_TO_CUSTOMIZE_LABEL}
                     </Button>
@@ -524,9 +516,6 @@ export function JobDetailDocument({
             <ReportJobButton
                 jobUrl={job.apply_url}
                 jobTitle={jobTitle}
-                onRequireAuth={() => onRequestSignIn?.()}
-                open={reportDialogOpen}
-                onOpenChange={onReportDialogOpenChange}
             />
         </div>
     );

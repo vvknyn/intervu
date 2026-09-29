@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHandle, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBody, SheetClose, SheetContent, SheetDescription, SheetHandle, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { TabItem } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { orderResumeVersionsLatestFirst } from "@/lib/pursuits/types";
@@ -52,7 +53,7 @@ export function PursuitDetailSheet({
                 side="bottom"
                 hideCloseButton
                 className={cn(
-                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-t-panel border-b-0 p-0",
+                    "mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 rounded-t-panel border-b-0 p-0",
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
@@ -162,26 +163,18 @@ function PursuitDetailBody({
                     </SheetClose>
                 </div>
             </div>
-            <div className="space-y-4 px-5 py-4 pb-7">
-                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status">
-                    {TRACKER_LANE_STAGES.map(({ stage, label }) => {
-                        const pressed = isActiveTrackerLaneStage(pursuit.status, stage);
-                        return (
-                            <button
-                                key={stage}
-                                type="button"
-                                aria-pressed={pressed}
-                                disabled={saving}
-                                onClick={() => void onStatusChange(stage)}
-                                className={cn(
-                                    "min-h-6 whitespace-nowrap rounded-ctl px-3 text-sm font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground",
-                                    pressed && "text-foreground underline underline-offset-2",
-                                )}
-                            >
-                                {label}
-                            </button>
-                        );
-                    })}
+            <SheetBody className="space-y-4 px-5 py-4 pb-7">
+                <div className="flex flex-wrap" role="group" aria-label="Status">
+                    {TRACKER_LANE_STAGES.map(({ stage, label }) => (
+                        <TabItem
+                            key={stage}
+                            aria-pressed={isActiveTrackerLaneStage(pursuit.status, stage)}
+                            disabled={saving}
+                            onClick={() => void onStatusChange(stage)}
+                        >
+                            {label}
+                        </TabItem>
+                    ))}
                 </div>
 
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-panel border border-border bg-surface-2 p-3.5 shadow-[var(--shadow-bevel-inset)]">
@@ -284,7 +277,7 @@ function PursuitDetailBody({
                 {!hasResumeLinked(pursuit) && (
                     <p className="text-xs text-muted-foreground">No resume version on file for this application.</p>
                 )}
-            </div>
+            </SheetBody>
         </>
     );
 }

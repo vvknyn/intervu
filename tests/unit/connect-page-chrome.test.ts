@@ -6,12 +6,13 @@ import { join } from "node:path";
 const CONNECT_CLIENT = join(__dirname, "..", "..", "src", "app", "connect", "connect-client.tsx");
 
 describe("connect page chrome guards", () => {
-    it("uses house chip variants and brand tokens, not emerald pills", () => {
+    // #421 (d254a782) replaced the chipVariants kicker/tab chips with a plain
+    // eyebrow and the house Tabs primitive; the no-emerald-pill guard stays.
+    it("uses house tokens and the Tabs primitive, not emerald pills", () => {
         const src = readFileSync(CONNECT_CLIENT, "utf8");
         assert.doesNotMatch(src, /rounded-full/);
         assert.doesNotMatch(src, /border-emerald/);
         assert.doesNotMatch(src, /emerald-/);
-        assert.match(src, /chipVariants/);
-        assert.match(src, /chipVariants\(\{ active: true \}\)/);
+        assert.match(src, /from "@\/components\/ui\/tabs"/);
     });
 });

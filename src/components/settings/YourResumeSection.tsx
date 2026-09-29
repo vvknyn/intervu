@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CircleNotch, Upload, Trash, PencilSimple, FileText } from "@phosphor-icons/react";
+import { Upload, Trash, PencilSimple, FileText } from "@phosphor-icons/react";
+import { WaitState } from "@/components/ui/wait-state";
 import type { User } from "@/lib/firebase/client-auth";
 import { fetchResumeSummaryAction, uploadBaseResumeAction, deleteBaseResumeAction, type ResumeSummary } from "@/actions/resume-summary";
 import { saveResumeData } from "@/actions/resume";
@@ -248,10 +249,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
             </p>
 
             {status === "loading" && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                    <CircleNotch size={16} className="animate-spin" />
-                    Loading...
-                </div>
+                <WaitState label="Loading your résumé" className="py-2" />
             )}
 
             {status === "error" && (

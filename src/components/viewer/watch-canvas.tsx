@@ -151,7 +151,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
         const join = async (previousOfferSdp: string | null) => {
             for (let attempt = 0; attempt < HOST_WAIT_ATTEMPTS && !cancelled; attempt++) {
                 const res = await fetch(url);
-                if (res.status === 401) return setStatus("sign in to velai on this phone, then reopen this link", "ended");
+                if (res.status === 401) return setStatus("sign in to velai on this phone, then reopen this link", "ended"); // signup-gate-exempt: viewer status line after a 401, not a conversion gate
                 if (!res.ok) return setStatus(ENDED_COPY, "ended");
 
                 const { host } = (await res.json()) as { host: { sdp: string } | null };
@@ -362,7 +362,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                     type="button"
                     data-testid="watch-control-toggle"
                     onClick={toggleControl}
-                    className="rounded-none border border-white px-3 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand"
+                    className="ctl-md rounded-none border border-white px-3 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand"
                 >
                     {controlOn ? "watching only" : "take control"}
                 </button>

@@ -58,13 +58,13 @@ export function OpenclawWaitlistForm({
               placeholder="you@company.com"
               disabled={pending}
               aria-label="Email address"
-              className="h-11 sm:min-w-0 sm:flex-1"
+              className="ctl-lg sm:min-w-0 sm:flex-1"
             />
-            <Button type="submit" disabled={pending} className="h-11 w-full shrink-0 font-semibold sm:w-auto">
+            <Button size="lg" type="submit" disabled={pending} className="w-full shrink-0 font-semibold sm:w-auto">
               {pending ? "Joining…" : ctaLabel}
             </Button>
           </form>
-          <TurnstileWidget onVerify={setTurnstileToken} />
+          <TurnstileWidget surface="waitlist" onVerify={setTurnstileToken} />
           {outcome?.kind === "error" ? (
             <p className="mt-2 text-sm text-destructive" data-testid="openclaw-waitlist-error">
               {outcome.message}

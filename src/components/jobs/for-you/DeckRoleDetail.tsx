@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { ArrowSquareOut } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDescription } from "@/components/jobs/JobDetail";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
@@ -80,7 +81,8 @@ export function DeckRoleDetail({
                     </p>
                 </div>
                 <div className="mt-3 flex flex-wrap items-start gap-x-3 gap-y-2">
-                    <h2 className="min-w-0 flex-1 font-display text-title-lg font-semibold leading-tight text-balance text-foreground">
+                    {/* page-scale-allow: a job's title heads its detail pane at the page-title step; the h1 is the list masthead */}
+                    <h2 className="min-w-0 flex-1 font-display text-2xl font-semibold leading-tight text-balance text-foreground">
                         {presented.title}
                     </h2>
                     {band && (
@@ -104,9 +106,9 @@ export function DeckRoleDetail({
 
             <div className="flex flex-wrap items-center gap-2 px-4 py-4 sm:px-6">
                 {job.apply_url ? (
-                    <Button
+                    <Button size={jobActionSize}
                         onClick={onOpenPosting}
-                        className="h-10 gap-2 rounded-ctl bg-foreground px-4 text-sm font-semibold text-background"
+                        className="gap-2 rounded-ctl bg-foreground px-4 text-sm font-semibold text-background"
                     >
                         <ArrowSquareOut size={16} />
                         {APPLY_BUTTON_LABEL}
@@ -115,12 +117,12 @@ export function DeckRoleDetail({
                 {resume != null ? (
                     <LocalCustomizePanel job={job} resume={resume} compactTrigger signedIn />
                 ) : onUploadResume ? (
-                    <Button
+                    <Button size={jobActionSize}
                         type="button"
                         variant="outline"
                         data-testid="job-detail-upload-to-customize"
                         onClick={onUploadResume}
-                        className="h-10 shrink-0 rounded-ctl text-xs font-semibold"
+                        className="shrink-0 rounded-ctl text-xs font-semibold"
                     >
                         {UPLOAD_TO_CUSTOMIZE_LABEL}
                     </Button>

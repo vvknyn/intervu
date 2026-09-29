@@ -8,6 +8,7 @@ import { companyBoardPath, companyFromSlug, companyPagePath } from "@/lib/compan
 import { CompanyHeader } from "@/components/company/CompanyHeader";
 import { CompanyRolesList } from "@/components/company/CompanyRolesList";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 /**
  * Per-company truth page — live roles from scraped hiring data.
@@ -78,16 +79,16 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
 
   if (!profile) {
     return (
-      <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <PageContainer measure="reading" data-testid="company-truth-page" className="py-10">
         <p className="text-sm text-muted-foreground">Company data isn&apos;t available right now.</p>
-      </div>
+      </PageContainer>
     );
   }
 
   const jobsSearchUrl = `/?q=${encodeURIComponent(profile.name)}`;
 
   return (
-    <div data-testid="company-truth-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <PageContainer measure="reading" data-testid="company-truth-page" className="py-10">
       <CompanyHeader name={profile.name} totalOpenRoles={profile.totalOpenRoles} />
 
       {profile.roles.length === 0 ? (
@@ -105,6 +106,6 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
       ) : (
         <CompanyRolesList roles={profile.roles} jobsSearchUrl={jobsSearchUrl} now={Date.now()} />
       )}
-    </div>
+    </PageContainer>
   );
 }

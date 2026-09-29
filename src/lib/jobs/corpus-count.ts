@@ -73,6 +73,18 @@ export function formatCorpusCount(count: CorpusCount): string {
     return count.kind === "floor" ? `${n}+` : n;
 }
 
+/**
+ * How many results of `total` the visitor has NOT been shown — the number an
+ * anonymous depth wall may honestly quote. Same honesty class as `total`: an
+ * exact total yields an exact remainder, a floor total yields a floor
+ * remainder (rendered "N+" by `formatCorpusCount`). `null` when nothing is
+ * hidden, so a caller can never print "0 more roles".
+ */
+export function resolveHiddenCount(total: CorpusCount, shown: number): CorpusCount | null {
+    const value = total.value - shown;
+    return value > 0 ? { kind: total.kind, value } : null;
+}
+
 /** Compact approximate count for toolbar/status lines — "~2.1 mil", "~820k". */
 export function formatCompactCorpusCount(count: CorpusCount): string {
     const n = count.value;

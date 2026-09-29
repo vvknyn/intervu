@@ -44,7 +44,7 @@ export function OnboardingMock() {
                         size="sm"
                         variant={mode === "step2" ? "default" : "outline"}
                         onClick={() => setMode("step2")}
-                        className="text-xs h-7 px-2.5"
+                        className="text-xs px-2.5"
                     >
                         Step 2
                     </Button>
@@ -52,7 +52,7 @@ export function OnboardingMock() {
                         size="sm"
                         variant={mode === "step3_upload" ? "default" : "outline"}
                         onClick={() => setMode("step3_upload")}
-                        className="text-xs h-7 px-2.5"
+                        className="text-xs px-2.5"
                     >
                         Step 3 (Dropzone)
                     </Button>
@@ -60,7 +60,7 @@ export function OnboardingMock() {
                         size="sm"
                         variant={mode === "step3_parsed" ? "default" : "outline"}
                         onClick={() => setMode("step3_parsed")}
-                        className="text-xs h-7 px-2.5"
+                        className="text-xs px-2.5"
                     >
                         Step 3 (Profile Params)
                     </Button>
@@ -68,13 +68,14 @@ export function OnboardingMock() {
                         size="sm"
                         variant={mode === "dashboard" ? "default" : "outline"}
                         onClick={() => setMode("dashboard")}
-                        className="text-xs h-7 px-2.5"
+                        className="text-xs px-2.5"
                     >
                         Dashboard (CategoryHubGrid)
                     </Button>
                 </div>
             </div>
 
+            {/* page-scale-allow: a bordered stage panel (p-4 is its inset), not a page column */}
             <div className="relative flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full overflow-hidden rounded-panel border border-border p-4 min-h-[500px]">
                 <LandingAnimatedBackground />
                 <div className="relative z-10 w-full max-w-2xl">

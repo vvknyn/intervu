@@ -21,7 +21,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, WarningCircle, Spinner } from "@phosphor-icons/react";
+import { CheckCircle, WarningCircle } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 
 interface FeedbackModalProps {
     children: React.ReactNode;
@@ -94,7 +95,7 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
                 {status === "success" ? (
                     <div className="flex flex-col items-center justify-center py-6 space-y-2 text-center">
                         <CheckCircle size={24} className="text-live" weight="fill" />
-                        <h3 className="text-lg">Thank you!</h3>
+                        <h3 className="text-xl">Thank you!</h3>
                         <p className="text-sm text-muted-foreground">
                             Your feedback has been submitted successfully.
                         </p>
@@ -152,7 +153,7 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
                             </Button>
                             <Button type="submit" disabled={isSubmitting || !message.trim()}>
                                 {isSubmitting && (
-                                    <Spinner className="mr-2 h-4 w-4 animate-spin" />
+                                    <InlineSpinner className="mr-2 h-4 w-4" />
                                 )}
                                 Submit
                             </Button>

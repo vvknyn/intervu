@@ -24,7 +24,7 @@ export default async function AuthRetryPage({ searchParams }: { searchParams: Pr
     if (landing.kind === "redirect") redirect(landing.path);
 
     return (
-        <Suspense fallback={<AuthRouteLoading label="Loading" />}>
+        <Suspense fallback={<AuthRouteLoading label="Loading sign-in" />}>
             <AuthRetryClient />
         </Suspense>
     );

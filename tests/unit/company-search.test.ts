@@ -252,7 +252,8 @@ describe("searchMeili — inferred company-intent zero-hit fallback", () => {
             bodies.push(body);
             if (isProbeBody(body)) return companyProbeResponse("Globex Corporation", "globex.com", 500);
             if (isCompanyScopedBody(body)) return jsonResponse(200, { hits: [], totalHits: 0 });
-            return jsonResponse(200, { hits: [], totalHits: 42 });
+            // The unscoped pass is a federated /multi-search (67edf68f), which reports estimatedTotalHits.
+            return jsonResponse(200, { hits: [], estimatedTotalHits: 42 });
         });
 
         const result = await searchMeili({ q: "globex" });
@@ -271,7 +272,7 @@ describe("searchMeili — inferred company-intent zero-hit fallback", () => {
             bodies.push(body);
             if (isProbeBody(body)) return companyProbeResponse("Oracle", "oracle.com", 1675);
             if (isCompanyScopedBody(body)) return jsonResponse(200, { hits: [], totalHits: 0 });
-            return jsonResponse(200, { hits: [], totalHits: 4378 });
+            return jsonResponse(200, { hits: [], estimatedTotalHits: 4378 });
         });
 
         const result = await searchMeili({ q: "oracle" });

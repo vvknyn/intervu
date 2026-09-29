@@ -17,6 +17,7 @@ import { derivePostedTs } from "./meilisearch";
 import { compareJobsBySort, resolveEffectiveSort } from "./sort";
 import { hasSubspaceApiKey, iterateSnapshot } from "./subspaceJobs";
 import { FACETABLE_KEYS } from "./types";
+import { facetValueMatches } from "./unknown-inclusive-facets";
 import type { FacetDistribution, FacetKey, JobSearchParams, JobSearchResult, PostedBucket, PublicJob } from "./types";
 
 const MAX_PAGES = 6; // ≤ 6 × 500 = 3000 jobs held in memory
@@ -111,8 +112,7 @@ function passBase(j: PublicJob, p: JobSearchParams): boolean {
 
 function passFacet(j: PublicJob, key: FacetKey, vals: string[] | undefined): boolean {
   if (!vals || vals.length === 0) return true;
-  const v = facetValue(j, key);
-  return v != null && vals.includes(v);
+  return facetValueMatches(key, facetValue(j, key), vals);
 }
 
 /** All facet predicates except `exceptKey` (for disjunctive facet counting). */

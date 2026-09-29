@@ -20,6 +20,7 @@ import { dutyDerivedRoleTitles } from "@/lib/match/duty-signals";
 import type { ResumeData } from "@/types/resume";
 import type { FacetKey } from "./types";
 import { splitRoleTitles, suggestAdjacentRolesLocal } from "./adjacent-roles";
+import { isRoleTitlePhrase } from "@/lib/resume/title-text";
 import { formatQuotedOrQuery } from "./fit-phrases";
 
 export interface DerivedQuery {
@@ -38,6 +39,16 @@ export function seniorityFromYears(years: number): Seniority | null {
     if (years <= 2) return "entry";
     if (years <= 6) return "mid";
     return "senior";
+}
+
+/**
+ * The `experience_level` facet values a candidate at `seniority` retrieves.
+ * Senior candidates often fit adjacent mid-level PM/TAM/CSM postings; senior-only
+ * would hide most of those titles from Rank retrieval.
+ */
+export function experienceLevelFacet(seniority: Seniority | null): string[] | null {
+    if (seniority === "senior") return ["mid", "senior"];
+    return seniority ? [seniority] : null;
 }
 
 /** Distinct experience role titles in résumé order (most recent first). */
@@ -118,16 +129,8 @@ export function buildMatchQuery(resume: ResumeData): DerivedQuery {
 
     const q = formatQuotedOrQuery(terms);
     const facets: Partial<Record<FacetKey, string[]>> = {};
-    const seniority = seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0);
-    if (seniority === "senior") {
-        // Senior candidates often fit adjacent mid-level PM/TAM/CSM postings; senior-only
-        // would hide most of those titles from Rank retrieval.
-        facets.experience_level = ["mid", "senior"];
-    } else if (seniority === "mid") {
-        facets.experience_level = ["mid"];
-    } else if (seniority === "entry") {
-        facets.experience_level = ["entry"];
-    }
+    const levels = experienceLevelFacet(seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0));
+    if (levels) facets.experience_level = levels;
     return { q, facets, phrases: terms };
 }
 
@@ -165,7 +168,7 @@ export function capExploreTerms(terms: string[], max = 4): string[] {
     const out: string[] = [];
     for (const raw of terms) {
         const term = (raw ?? "").trim();
-        if (!term) continue;
+        if (!isRoleTitlePhrase(term)) continue;
         if (out.some((t) => t.toLowerCase() === term.toLowerCase())) continue;
         out.push(term);
         if (out.length >= max) break;
