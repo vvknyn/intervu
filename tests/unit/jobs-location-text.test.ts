@@ -6,8 +6,8 @@ import {
     clampLocationSegments,
     stripStreetAddress,
     placeWithWorkMode,
-    stripRemoteSegmentsFromPlace,
 } from "../../src/lib/jobs/presentation";
+import { stripPlaceSegment } from "../../src/lib/presentation/location-normalise";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 const job = (over: Partial<PublicJob>): PublicJob =>
@@ -274,9 +274,9 @@ test("placeWithWorkMode does not append Remote when the place already includes i
     assert.equal(placeWithWorkMode("Milan, Italy", "remote"), "Milan, Italy · Remote");
 });
 
-test("stripRemoteSegmentsFromPlace removes Remote while keeping country/city prose", () => {
-    assert.equal(stripRemoteSegmentsFromPlace("Canada · Remote"), "Canada");
-    assert.equal(stripRemoteSegmentsFromPlace("Canada · Remote · Remote"), "Canada");
-    assert.equal(stripRemoteSegmentsFromPlace("Remote"), "");
-    assert.equal(stripRemoteSegmentsFromPlace("Toronto, Canada"), "Toronto, Canada");
+test("stripPlaceSegment removes Remote while keeping country/city prose", () => {
+    assert.equal(stripPlaceSegment("Canada · Remote", "Remote"), "Canada");
+    assert.equal(stripPlaceSegment("Canada · Remote · Remote", "Remote"), "Canada");
+    assert.equal(stripPlaceSegment("Remote", "Remote"), "");
+    assert.equal(stripPlaceSegment("Toronto, Canada", "Remote"), "Toronto, Canada");
 });

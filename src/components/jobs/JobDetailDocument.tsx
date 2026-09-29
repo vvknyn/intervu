@@ -379,14 +379,14 @@ export function JobDetailDocument({
                         {locationClamped ? (
                             <>
                                 {(locationExpanded ? [...locationDisclosure.visible, ...locationDisclosure.hidden] : locationDisclosure.visible).map((segment, i) => (
-                                    <span key={i} className="block">{segment}</span>
+                                    <span key={i} className="block" data-testid="job-location">{segment}</span>
                                 ))}
                                 <button type="button" onClick={() => setLocationExpanded((v) => !v)} className="mt-0.5 block text-xs text-brand hover:underline">
                                     {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
                                 </button>
                             </>
                         ) : (
-                            location
+                            <span data-testid="job-location">{location}</span>
                         )}
                     </div>
                 </div>
