@@ -137,7 +137,7 @@ export function TodayHome({
                 offset: 0,
                 withFacets: false,
             };
-            const read = () => searchJobsAction(params).catch(() => null);
+            const read = () => searchJobsAction(params).catch(() => null); // load-result-allow: null is a failed read here, retried once and then shown as LoadFailedState
             // One automatic retry after a jittered delay, then the failure shows (`lib/load-result.ts`).
             let r = await read();
             if (cancelled) return;
