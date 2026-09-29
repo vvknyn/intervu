@@ -1,0 +1,125 @@
+/**
+ * Live audit of the For-you packs: for each golden résumé (tests/fixtures),
+ * open every pack tile on velai.app as a guest with that résumé, take the
+ * roles the tile recommends, read the full posting behind each, and check it
+ * (pack-audit.ts): the right country, the right level, the kind of role the
+ * résumé targets, and a member of the tile. Writes audit-output/pack-audit.md
+ * and .json; fails when any recommendation fails a check.
+ *
+ * Read-only, but it runs real searches under the per-IP search limit, so it
+ * paces itself between tiles. Run: `npm run audit:packs:prod`.
+ */
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { expect, test, type Page } from "@playwright/test";
+import { HUB_PACK_IDS, type HubPackId } from "../../../src/lib/jobs/for-you/hub-pack-filters";
+import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
+import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { buildMatchQuery } from "../../../src/lib/jobs/resume-match";
+import type { PublicJob } from "../../../src/lib/jobs/types";
+import { structureResumeText } from "../../../src/lib/resume/structure-resume-text";
+import type { ResumeData } from "../../../src/types/resume";
+import { auditRecommendation, failedChecks, renderAuditMarkdown, type AuditVerdict } from "./pack-audit";
+
+const RESUMES = ["vivek-pm-resume", "vivek-okta-resume", "vivek-csm-golden-resume"];
+/** Rows per tile: a guest sees the top 3 before the fit gate. */
+const ROWS_PER_TILE = Number(process.env.AUDIT_ROWS_PER_TILE ?? 3);
+const TILE_PAUSE_MS = Number(process.env.AUDIT_TILE_PAUSE_MS ?? 20_000);
+const RATE_LIMIT_WAIT_MS = 65_000;
+const OUT_DIR = path.join(process.cwd(), "audit-output");
+
+const loadResume = (name: string): ResumeData =>
+    structureResumeText(readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), "utf8").replace(/'/g, "’")) as ResumeData;
+
+async function seedGuest(page: Page, resume: ResumeData) {
+    await page.addInitScript(
+        ([resumeJson, onboardingKey, introKey]) => {
+            localStorage.setItem(onboardingKey, "1");
+            localStorage.setItem(introKey, "1");
+            localStorage.setItem("velai.localAi.enabled", "1");
+            localStorage.setItem(
+                "velai.localAi.resume",
+                JSON.stringify({ data: JSON.parse(resumeJson), updatedAt: new Date().toISOString(), sourceLabel: "pack-audit" }),
+            );
+        },
+        [JSON.stringify(resume), ONBOARDING_COMPLETED_STORAGE_KEY, PACKS_HOME_INTRO_KEY] as const,
+    );
+}
+
+/** The rows a tile shows once its own search has ranked them; [] for an empty tile. */
+async function openTile(page: Page, tile: HubPackId): Promise<{ id: string; band: string | null }[]> {
+    await page.getByTestId(`hub-pack-card-${tile}`).click({ timeout: 60_000 });
+    await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 60_000 });
+    const settled = page.locator(
+        '[data-testid="for-you-deck"] [data-testid="job-row"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"], [data-testid="for-you-load-failed"]',
+    );
+    await expect(settled.first()).toBeVisible({ timeout: 60_000 });
+    if (await page.getByTestId("for-you-load-failed").isVisible()) {
+        await page.waitForTimeout(RATE_LIMIT_WAIT_MS);
+        await page.getByTestId("for-you-load-failed-retry").click();
+        await expect(page.locator('[data-testid="for-you-deck"] [data-testid="job-row"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"]').first()).toBeVisible({ timeout: 60_000 });
+    }
+    await expect(page.getByTestId("for-you-loading")).toHaveCount(0, { timeout: 60_000 });
+    const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+    const out: { id: string; band: string | null }[] = [];
+    for (let i = 0; i < Math.min(await rows.count(), ROWS_PER_TILE); i++) {
+        const row = rows.nth(i);
+        const chip = row.getByTestId("match-chip");
+        const label = (await chip.count()) > 0 ? await chip.first().getAttribute("aria-label") : null;
+        out.push({ id: (await row.getAttribute("data-job-id")) ?? "", band: label?.replace(/ match$/, "") ?? null });
+    }
+    return out.filter((r) => r.id);
+}
+
+/** The full posting behind a row, from the same id lookup the job page uses. */
+async function fetchPosting(page: Page, id: string): Promise<PublicJob | null> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const res = await page.request.get(`/api/jobs/${encodeURIComponent(id)}/description`);
+        if (res.status() === 429) {
+            await page.waitForTimeout(RATE_LIMIT_WAIT_MS);
+            continue;
+        }
+        if (!res.ok()) return null;
+        const body = (await res.json()) as { hits?: PublicJob[] };
+        return body.hits?.[0] ?? null;
+    }
+    return null;
+}
+
+test.describe.configure({ mode: "serial" });
+
+const report: { name: string; searched: string[]; verdicts: AuditVerdict[]; empty: HubPackId[] }[] = [];
+
+for (const name of RESUMES) {
+    test(`pack audit: ${name}`, async ({ page }) => {
+        test.setTimeout(30 * 60_000);
+        const resume = loadResume(name);
+        await seedGuest(page, resume);
+        await page.goto("/jobs?view=for-you");
+
+        const verdicts: AuditVerdict[] = [];
+        const empty: HubPackId[] = [];
+        const postings = new Map<string, PublicJob | null>();
+        for (const tile of HUB_PACK_IDS) {
+            const rows = await openTile(page, tile);
+            if (rows.length === 0) empty.push(tile);
+            for (const [index, row] of rows.entries()) {
+                if (!postings.has(row.id)) postings.set(row.id, await fetchPosting(page, row.id));
+                const job = postings.get(row.id);
+                if (!job) continue;
+                verdicts.push(auditRecommendation({ resume, tile, position: index + 1, job, shownBand: row.band, nowMs: Date.now() }));
+            }
+            await page.getByTestId("jobs-back-to-packs").click();
+            await page.waitForTimeout(TILE_PAUSE_MS);
+        }
+
+        report.push({ name, searched: buildMatchQuery(resume).phrases, verdicts, empty });
+        mkdirSync(OUT_DIR, { recursive: true });
+        writeFileSync(path.join(OUT_DIR, "pack-audit.md"), renderAuditMarkdown(report));
+        writeFileSync(path.join(OUT_DIR, "pack-audit.json"), JSON.stringify(report, null, 2));
+
+        const failures = verdicts.filter((v) => failedChecks(v).length > 0).map((v) => `${v.tile} #${v.position} ${v.title} (${failedChecks(v).join(", ")})`);
+        expect.soft(failures, `recommendations failing a check for ${name}`).toEqual([]);
+        expect.soft(verdicts.length, `no recommendations were checked for ${name}`).toBeGreaterThan(0);
+    });
+}
