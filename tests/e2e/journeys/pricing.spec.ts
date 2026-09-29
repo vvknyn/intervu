@@ -15,6 +15,9 @@ const FOUNDING_SEAT_COUNT = "100";
 test("the pricing page shows three plans and the founding seat", { tag: ["@J-PRICING-01"] }, async ({ page, diagnostics }) => {
   await page.goto("/pricing");
 
+  // Release 5 shipped the page behind a permanent /pricing → / redirect left in
+  // next.config.ts by the 2026-08-27 billing removal; the page never rendered.
+  await expect(page).toHaveURL(/\/pricing$/);
   await expect(page.getByTestId("pricing-page")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Free while you search");
 

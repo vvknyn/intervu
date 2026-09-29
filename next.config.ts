@@ -199,14 +199,6 @@ const nextConfig: NextConfig = {
         destination: "/yours",
         permanent: true,
       },
-      // Billing removed (2026-08-27 — everything free, yield is user data).
-      // /pricing no longer exists; anything linking to it lands on the
-      // front door instead of a 404.
-      {
-        source: "/pricing",
-        destination: "/",
-        permanent: true,
-      },
       ...REMOVED_CANADA_CAREER_SLUGS.map((slug) => ({
         source: `/careers/${slug}`,
         destination: CANADA_CAREER_REDIRECT_DESTINATION,
