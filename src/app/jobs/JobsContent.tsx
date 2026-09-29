@@ -108,7 +108,7 @@ import {
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
-import { isThinResults } from "@/lib/jobs/broaden";
+import { isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
@@ -1747,6 +1747,8 @@ export function JobsContent({
         };
     }, [uid]);
     const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
+    // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
+    const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
     const [importOpen, setImportOpen] = useState(false);
     const importOpenRef = useRef(importOpen);
     importOpenRef.current = importOpen;
@@ -3004,7 +3006,7 @@ export function JobsContent({
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals) {
+        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack) {
             return;
         }
         let cancelled = false;
@@ -3019,7 +3021,7 @@ export function JobsContent({
             try {
                 const previous = readHubCountBaseline();
                 // The pack's own search params: the probe counts what the packs retrieve.
-                const packParams = packSearchParams(packFilters(resume, signals));
+                const packParams = packSearchParams(pack);
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
                 let unavailableRetries = 0;
@@ -3045,9 +3047,12 @@ export function JobsContent({
                         });
                         return;
                     }
-                    poolTotal = r.total;
-                    setHubResumeAllCount(resolveCorpusCount(r));
-                    for (const h of r.hits ?? []) {
+                    // The pack's location is where the candidate can work: a search that
+                    // dropped it (no roles there) matched nothing, not the whole corpus.
+                    const placesMissing = locationDropped(pack, r);
+                    poolTotal = placesMissing ? 0 : r.total;
+                    setHubResumeAllCount(placesMissing ? { kind: "exact", value: 0 } : resolveCorpusCount(r));
+                    for (const h of placesMissing ? [] : (r.hits ?? [])) {
                         if (scoredById.has(h.id)) continue;
                         let scoredHit: ScoredHubHit["score"] | null = null;
                         try {
@@ -3134,11 +3139,16 @@ export function JobsContent({
         [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubFitProbe.scored],
     );
 
+    // Fit applies the pack's location; a result that dropped it has no roles there (see the probe above).
+    const fitPlacesMissing = useMemo(
+        () => fitActive && pack != null && result != null && locationDropped(pack, result),
+        [fitActive, pack, result],
+    );
     const hubCorpusLine = useMemo(() => {
         if (hubFitProbe.scored.length > 0 || (fitActive && result?.total != null)) {
             return (
                 formatHubCorpusLine(
-                    fitActive && result?.total != null ? result.total : hubFitProbe.total,
+                    fitActive && result?.total != null ? (fitPlacesMissing ? 0 : result.total) : hubFitProbe.total,
                     hubFitProbe.loading || hubFitProbe.probing,
                 ) || null
             );
@@ -3147,7 +3157,7 @@ export function JobsContent({
             return formatBrowseHubCorpusLine(hubBrowse.total);
         }
         return null;
-    }, [fitActive, result?.total, hubFitProbe, hubBrowse.total]);
+    }, [fitActive, fitPlacesMissing, result?.total, hubFitProbe, hubBrowse.total]);
 
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
@@ -6358,6 +6368,7 @@ export function JobsContent({
                                 hasMore={hasMore}
                                 signupGate={fitGateEl}
                                 resultTotal={result?.total ?? null}
+                                unmatchedPlaces={result?.unmatchedPlaceMentions}
                                 activePursuit={
                                     forYouDeck.activeJob
                                         ? pursuitsByJobIdMerged.get(forYouDeck.activeJob.id)

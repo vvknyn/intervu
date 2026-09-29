@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_RESULTS_BELOW, broadenRungs, isThinResults, resolveBroadenOptions } from '../../src/lib/jobs/broaden';
+import { THIN_RESULTS_BELOW, broadenRungs, countResults, isThinResults, locationDropped, resolveBroadenOptions } from '../../src/lib/jobs/broaden';
 import { DEFAULT_URL_STATE, type JobsUrlState } from '../../src/lib/jobs/url-state';
 import type { JobSearchParams, JobSearchResult } from '../../src/lib/jobs/types';
 import { NOW, corpusStub, mkJob } from '../support/jobs-corpus-stub';
@@ -124,5 +124,68 @@ describe('resolveBroadenOptions: counts come from the same search call', () => {
         };
         const options = await resolveBroadenOptions({ state: canadaMid, total: 3, search: flaky });
         assert.deepEqual(ids(options), ['any_seniority']);
+    });
+});
+
+/**
+ * The search drops a place it cannot filter on (no corpus rows) and says so in
+ * `unmatchedPlaceMentions`; the rows it returns are then unfiltered by location.
+ */
+function droppingUnknownPlaces(corpus = CORPUS) {
+    const known = new Set(corpus.map((j) => j.location_country).filter(Boolean) as string[]);
+    const { search, calls } = corpusStub(corpus);
+    return {
+        calls,
+        async search(params: JobSearchParams) {
+            const named = (params.facets?.location_country ?? []).filter((v) => v !== 'any' && v !== 'all');
+            const unmatched = named.filter((v) => !known.has(v));
+            if (unmatched.length === 0) return search(params);
+            const kept = named.filter((v) => known.has(v));
+            const facets = { ...params.facets };
+            if (kept.length > 0) facets.location_country = kept;
+            else delete facets.location_country;
+            return { ...(await search({ ...params, facets })), unmatchedPlaceMentions: unmatched };
+        },
+    };
+}
+
+const iceland = state({ location_country: ['Iceland'] });
+
+describe('locationDropped', () => {
+    it('is true only when every named place was dropped', () => {
+        assert.equal(locationDropped(iceland, { unmatchedPlaceMentions: ['iceland'] }), true);
+        assert.equal(locationDropped(iceland, {}), false);
+        assert.equal(locationDropped(state({ location_country: ['Iceland', 'Canada'] }), { unmatchedPlaceMentions: ['Iceland'] }), false);
+    });
+
+    it('a state that names no place never dropped one', () => {
+        assert.equal(locationDropped(state({}), { unmatchedPlaceMentions: ['Iceland'] }), false);
+        assert.equal(locationDropped(state({ location_country: ['any'] }), { unmatchedPlaceMentions: ['any'] }), false);
+    });
+});
+
+describe('a pack location the corpus has no roles for', () => {
+    it('counts 0 when the location is required, the unfiltered total otherwise (the board)', async () => {
+        const { search } = droppingUnknownPlaces();
+        const inDefaultWindow = CORPUS.filter((j) => !j.id.startsWith('o')).length;
+        assert.equal(await countResults(iceland, search), inDefaultWindow);
+        assert.equal(await countResults(iceland, search, { locationRequired: true }), 0);
+    });
+
+    it('a place the corpus has keeps its own count when another is dropped', async () => {
+        const { search } = droppingUnknownPlaces();
+        const count = await countResults(state({ location_country: ['Iceland', 'Germany'] }), search, { locationRequired: true });
+        assert.equal(count, 6);
+    });
+
+    it('the broaden options count against 0 and the location-free rungs still show', async () => {
+        const { search } = droppingUnknownPlaces();
+        const options = await resolveBroadenOptions({
+            state: iceland,
+            total: 0,
+            ctx: { locationRequired: true, relocation: { open: true, countries: ['Germany'] } },
+            search,
+        });
+        assert.deepEqual(countsById(options), { remote_anywhere: 4, relocation: 6 });
     });
 });

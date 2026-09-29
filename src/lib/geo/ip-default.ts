@@ -24,13 +24,21 @@ import type { CountryLookup } from "./ip-country";
  * default-location chip is dismissed). The two are independent: an explicit
  * place always wins on its own, and the override holds even for a query
  * that carries no place at all.
+ *
+ * A place the searcher named that the corpus can't filter on
+ * (`unmatchedPlaceMentions`) is still a place they named. Query
+ * understanding strips it from `facets` before this runs, so without this
+ * check the requester's IP country replaced it: a For-you pack for an
+ * Iceland résumé (no Iceland rows) listed the visitor's own country's roles
+ * as Iceland matches, under a note saying "showing results without it".
  */
 export function hasLocationSignal(
-  p: Pick<JobSearchParams, "places" | "facets" | "suppressLocationDefault">,
+  p: Pick<JobSearchParams, "places" | "facets" | "suppressLocationDefault" | "unmatchedPlaceMentions">,
 ): boolean {
   return (
     Boolean(p.suppressLocationDefault) ||
     Boolean(p.places?.length) ||
+    Boolean(p.unmatchedPlaceMentions?.length) ||
     LOCATION_FACET_FIELDS.some((field) => Boolean(p.facets?.[field]?.length))
   );
 }

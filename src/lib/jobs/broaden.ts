@@ -37,6 +37,9 @@ export interface BroadenContext {
     relocation?: CandidateRelocation | null;
     /** Label of a location the search applied on its own (IP default) — not one the user chose. */
     autoLocationLabel?: string;
+    /** The state's location is an eligibility filter (a For-you pack): every count reads a
+     *  search that dropped it (`locationDropped`) as 0 roles there, never the unfiltered total. */
+    locationRequired?: boolean;
 }
 
 /** "Any": the search's own sentinel for "no location filter" (it also stops the IP default re-applying). */
@@ -60,6 +63,32 @@ const POSTED_LABEL: Record<PostedBucket, string> = {
 };
 
 const isNeutral = (v: string): boolean => ["any", "all"].includes(v.trim().toLowerCase());
+const fold = (v: string): string => v.trim().toLowerCase();
+
+/** What a search result says about the location text it could not filter on
+ *  (`JobSearchParams.unmatchedPlaceMentions`, echoed on the response). */
+export interface LocationReport {
+    unmatchedPlaceMentions?: string[];
+}
+
+/** The places `state` filters on, as written ("any"/"all" name none). */
+export function namedPlaces(state: JobsUrlState): string[] {
+    return LOCATION_FACETS.flatMap((key) => state.facets[key] ?? []).filter((v) => v.trim() && !isNeutral(v));
+}
+
+/**
+ * True when `state` names a place and the search dropped every one of them:
+ * the rows are that search with no location at all. The board shows them under
+ * a note ("showing results without it"). A For-you pack cannot: its location
+ * is an eligibility filter, so a dropped one means no roles there, not the
+ * whole world (an Iceland résumé's pack listed ~1M roles from other countries).
+ */
+export function locationDropped(state: JobsUrlState, result: LocationReport): boolean {
+    const named = namedPlaces(state);
+    if (named.length === 0) return false;
+    const dropped = new Set((result.unmatchedPlaceMentions ?? []).map(fold));
+    return named.every((v) => dropped.has(fold(v)));
+}
 
 function withoutLocation(facets: JobsUrlState["facets"]): JobsUrlState["facets"] {
     const next = { ...facets };
@@ -128,16 +157,22 @@ export interface ResolveBroadenInput {
     total: number;
     ctx?: BroadenContext;
     /** The same search call the results come from. */
-    search: (params: JobSearchParams) => Promise<JobSearchResult>;
+    search: (params: JobSearchParams) => Promise<JobSearchResult & LocationReport>;
 }
 
 type SearchFn = ResolveBroadenInput["search"];
 
+export interface CountOptions {
+    /** See `BroadenContext.locationRequired`. */
+    locationRequired?: boolean;
+}
+
 /** How many results `state` returns, from the search call the results use; `null` when that call fails. */
-export async function countResults(state: JobsUrlState, search: SearchFn): Promise<number | null> {
+export async function countResults(state: JobsUrlState, search: SearchFn, opts: CountOptions = {}): Promise<number | null> {
     try {
         const result = await search({ ...searchParamsFromUrlState(state), limit: 1, offset: 0 });
-        return result.unavailable === true || !result.configured ? null : result.total;
+        if (result.unavailable === true || !result.configured) return null;
+        return opts.locationRequired && locationDropped(state, result) ? 0 : result.total;
     } catch {
         return null;
     }
@@ -147,7 +182,7 @@ export async function countResults(state: JobsUrlState, search: SearchFn): Promi
 export async function resolveBroadenOptions({ state, total, ctx, search }: ResolveBroadenInput): Promise<BroadenOption[]> {
     const counted = await Promise.all(
         broadenRungs(state, ctx).map(async (rung): Promise<BroadenOption | null> => {
-            const count = await countResults(rung.next, search);
+            const count = await countResults(rung.next, search, { locationRequired: ctx?.locationRequired });
             return count === null ? null : { ...rung, count };
         }),
     );

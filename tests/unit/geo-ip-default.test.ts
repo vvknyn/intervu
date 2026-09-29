@@ -163,6 +163,21 @@ test("applyLocationDefault: an explicit place already resolved suppresses it too
   assert.equal(result.params, params, "same reference — nothing to change");
 });
 
+test("hasLocationSignal: true when the searcher named a place the corpus can't filter on", () => {
+  assert.equal(hasLocationSignal({ unmatchedPlaceMentions: ["Iceland"] }), true);
+  assert.equal(hasLocationSignal({ unmatchedPlaceMentions: [] }), false);
+});
+
+test("applyLocationDefault: a named place with no corpus rows is not replaced by the requester's country", async () => {
+  // Query understanding strips "Iceland" from the facets and records it as unmatched; the
+  // IP default used to fill the gap, listing Canada's roles as the Iceland pack's.
+  const lookup: CountryLookup = async () => "CA";
+  const params = { q: "engineer", facets: {}, unmatchedPlaceMentions: ["Iceland"] };
+  const result = await applyLocationDefault(params, "1.2.3.4", lookup, fakeLoadContext(["Canada"]));
+  assert.equal(result.defaultedLocation, undefined);
+  assert.equal(result.params, params, "same reference — nothing to change");
+});
+
 test("createMmdbCountryLookup: a missing mmdb file fails open (null), never throws", async () => {
   const lookup = createMmdbCountryLookup("/nonexistent/path/does-not-exist.mmdb");
   const result = await lookup("8.8.8.8");

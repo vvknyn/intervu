@@ -126,9 +126,8 @@ export function unmatchedPlaceNote(mentions: string[] | undefined): string | nul
     const quoted = mentions.map((m) => `"${m}"`);
     const list =
         quoted.length === 1 ? quoted[0] : `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]}`;
-    const noun = mentions.length === 1 ? "a place" : "places";
     const pronoun = mentions.length === 1 ? "it" : "them";
-    return `We don't recognize ${list} as ${noun} — showing results without ${pronoun}.`;
+    return `We have no roles in ${list} — showing results without ${pronoun}.`;
 }
 
 /**

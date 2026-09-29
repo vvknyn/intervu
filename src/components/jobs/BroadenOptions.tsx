@@ -27,7 +27,7 @@ export interface BroadenOptionsProps extends Pick<ResolveBroadenInput, "search">
  */
 export function BroadenOptions({ state, total, ctx, search, onApply, className, testId = "broaden-options" }: BroadenOptionsProps) {
     const [options, setOptions] = useState<BroadenOption[]>([]);
-    const key = `${serializeJobsUrl(state)}|${total}|${ctx?.autoLocationLabel ?? ""}|${JSON.stringify(ctx?.relocation ?? null)}`;
+    const key = `${serializeJobsUrl(state)}|${total}|${ctx?.autoLocationLabel ?? ""}|${JSON.stringify(ctx?.relocation ?? null)}|${Boolean(ctx?.locationRequired)}`;
 
     useEffect(() => {
         let live = true;

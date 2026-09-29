@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -172,6 +172,26 @@ test("a board search with zero results offers to broaden, each option with its c
   await expect(broaden.getByRole("button").first()).toContainText(/\d[\d,]* roles/);
   await broaden.getByRole("button").first().click();
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("a For-you pack in a country with no roles says so, never listing roles from elsewhere", { tag: ["@J-JOBS-37"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  // Tuvalu: a country the corpus has no roles in. The search drops a place it cannot filter
+  // on; the pack used to list the whole corpus (or the visitor's own country) as its matches.
+  await guestWithResume(page, "Funafuti, Tuvalu");
+  await page.goto("/jobs?view=for-you");
+  await page.getByTestId("hub-pack-card-all").click({ timeout: 30_000 });
+
+  const none = page.getByTestId("for-you-no-roles-there");
+  await expect(none).toBeVisible({ timeout: 30_000 });
+  await expect(none).toContainText("No roles in Tuvalu yet.");
+  await expect(page.getByTestId("for-you-deck")).toHaveCount(0);
+  // The pack counts 0 there, so the broaden options offer the way out, each with its count.
+  const broaden = page.getByTestId("broaden-options");
+  await expect(broaden).toBeVisible({ timeout: 30_000 });
+  await expect(broaden.getByRole("link").first()).toContainText(/\d[\d,]* roles/);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
