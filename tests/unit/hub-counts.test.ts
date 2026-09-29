@@ -15,6 +15,7 @@ import {
     packBandTotalsFromSources,
     resolveAllMatchesHubCount,
     resolveAllPackHubCounts,
+    resumeHubPackCounts,
 } from "../../src/lib/jobs/for-you/hub-counts";
 import { deckListLoading } from "../../src/lib/jobs/for-you/deck-list-loading";
 import {
@@ -413,5 +414,35 @@ describe("deckListLoading", () => {
             }),
             false,
         );
+    });
+});
+
+describe("resumeHubPackCounts", () => {
+    // Every tile opens the résumé list, so a tile counts only rows of that list.
+    const list = [
+        job({ id: "r1", title: "Backend Engineer", work_type: "remote", salary_min: 120_000 }),
+        job({ id: "r2", title: "Platform Engineer", work_type: "remote" }),
+        job({ id: "o1", title: "Data Engineer", salary_max: 150_000 }),
+    ];
+
+    it("counts remote and salary inside the list, exactly once the list is whole", () => {
+        const counts = resumeHubPackCounts({ listTotal: { kind: "exact", value: 3 }, listJobs: list });
+        assert.deepEqual(counts.all, { kind: "exact", value: 3 });
+        assert.deepEqual(counts.remote, { kind: "exact", value: 2 });
+        assert.deepEqual(counts.salary, { kind: "exact", value: 2 });
+        assert.deepEqual(counts.lead, { kind: "exact", value: 0 });
+    });
+
+    it("is a floor while only part of the list is fetched, and never exceeds the list", () => {
+        const counts = resumeHubPackCounts({ listTotal: { kind: "exact", value: 40 }, listJobs: list });
+        assert.deepEqual(counts.all, { kind: "exact", value: 40 });
+        assert.deepEqual(counts.remote, { kind: "floor", value: 2 });
+        assert.deepEqual(counts.fresh, { kind: "floor", value: 0 });
+        assert.equal(formatHubPackCorpusRoleLabels(counts).remote, "2+ roles");
+    });
+
+    it("is a floor when the list total itself is capped", () => {
+        const counts = resumeHubPackCounts({ listTotal: { kind: "floor", value: 3 }, listJobs: list });
+        assert.deepEqual(counts.salary, { kind: "floor", value: 2 });
     });
 });

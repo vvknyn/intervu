@@ -39,16 +39,24 @@ async function expectDoors(page: Page, reason: string, returnToPattern: RegExp) 
   expect(decodeURIComponent(signIn.split("next=")[1])).toMatch(returnToPattern);
 }
 
+/**
+ * Pages with "Show N more", one page per click, until the wall. Not by scrolling: the list's
+ * IntersectionObserver fires only when the sentinel enters range, so a page that leaves the
+ * sentinel in range (or a scroll that is a no-op) loads nothing more, and the wait became a race.
+ * The button renders only while no page is loading and the wall is not up.
+ */
 async function reachDepthWall(page: Page) {
   await searchFor(page, "engineer");
   const wall = gate(page, "depth");
+  const more = page.getByTestId("jobs-load-more");
   await expect
     .poll(
       async () => {
-        await page.getByTestId("job-row").last().scrollIntoViewIfNeeded();
+        // A page load can start between the check and the click; the next poll re-checks.
+        if (await more.isVisible()) await more.click({ timeout: 2_000 }).catch(() => undefined);
         return wall.isVisible();
       },
-      { timeout: 90_000, message: "scroll the list until the anonymous depth wall" },
+      { timeout: 45_000, message: "page the list until the anonymous depth wall" },
     )
     .toBe(true);
   return wall;
