@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "September 27, 2026";
+const LAST_UPDATED = "September 29, 2026";
 
 /**
  * Plain-language Firestore storage categories for /privacy, each tied to the
@@ -193,8 +193,12 @@ export default function PrivacyPage() {
           prep answers where you left them. We use your search-activity profile for two things: to make your own
           results more relevant the more you use Velai, and, looked at in aggregate across everyone, to understand
           which kinds of job postings people actually apply to so we can improve search for everyone. Velai is
-          free to use — nothing you do draws on a balance or requires payment — and we don&apos;t sell any of this
-          to advertisers.
+          free to use today; if we introduce a paid plan it will be listed on the{" "}
+          <Link href="/pricing">pricing page</Link> before anything is charged. We don&apos;t sell any of this to
+          advertisers. Derived signals about postings and companies (whether a listing is still live, how long
+          roles stay open, applicant activity reduced to aggregate statistics) may be licensed to third parties
+          through a Data API; those signals never include your résumé, your applications, your saved jobs, your
+          account details, or anything that identifies you.
         </p>
 
         <SectionTitle>AI processing</SectionTitle>

@@ -77,6 +77,8 @@ Never commit directly on `main` or `staging`.
 
 Firebase, WorkOS, Meilisearch read key, Subspace API, encryption, etc. live in `.env.production` on the host — **not** in git.
 
+`FOUNDING_MEMBER_CHECKOUT_URL` (server-only, optional) is the Stripe Payment Link behind the founding-seat button on `/pricing`. Create the link in the Stripe dashboard with the after-payment redirect set to `https://velai.app/pricing?checkout=success&session_id={CHECKOUT_SESSION_ID}`, then add the `https://buy.stripe.com/…` URL to `.env.production` and restart the container. Unset, the button reads "Founding seats open soon" and nothing links out. It is not `NEXT_PUBLIC_*`: `src/app/pricing/page.tsx` reads it at request time.
+
 `NEXT_PUBLIC_*` are required at **docker build** time (inlined into the client bundle). Server secrets are runtime-only via `env_file`.
 
 ## Jobs sync worker
