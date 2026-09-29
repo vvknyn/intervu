@@ -140,7 +140,7 @@ export interface EventPayloads {
      *  search response (actions/jobs.ts). Never the typed query text. */
     defaulted_location: string | null;
     /** Typed location text the resolver could not match to anything in the
-     *  corpus and dropped (the "We don't recognize…" disclosure) — mirrors
+     *  corpus and dropped (the "We have no roles in…" disclosure) — mirrors
      *  `unmatchedPlaceMentions` on the search response. Empty when nothing
      *  was dropped. The resolver's interpretation of a place it DID
      *  recognize is not included: that value (`places`, query-

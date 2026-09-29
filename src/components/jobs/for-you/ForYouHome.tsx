@@ -16,7 +16,7 @@ import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { searchJobsAction } from "@/actions/jobs";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { JobCard } from "@/components/jobs/JobCard";
-import { countResults, isThinResults } from "@/lib/jobs/broaden";
+import { countResults, isThinResults, locationDropped, namedPlaces } from "@/lib/jobs/broaden";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { jobsBoardHref, serializeJobsUrl } from "@/lib/jobs/url-state";
@@ -87,6 +87,9 @@ export interface ForYouHomeProps {
     signupGate?: ReactNode;
     /** Known corpus total for optional "N of ~total · Strong first" near Show more. */
     resultTotal?: number | null;
+    /** Location text the list's search could not filter on (`unmatchedPlaceMentions`).
+     *  When it covers every place the pack names, the list is not the pack. */
+    unmatchedPlaces?: string[];
     /** CRAFT-3 — enter-reveal on first pack after auto-reveal. */
     firstRevealEnter?: boolean;
     /** CRAFT-3 — focus deck primary CTA once after first-pack auto-reveal. */
@@ -96,6 +99,11 @@ export interface ForYouHomeProps {
     activePursuit?: Pursuit;
     onGoAfter?: (job: PublicJob) => void;
     saveSuccessPulse?: boolean;
+}
+
+/** "Iceland", "Iceland and Norway", "Iceland, Norway and Denmark". */
+function formatPlaceList(places: string[]): string {
+    return places.length < 2 ? (places[0] ?? "") : `${places.slice(0, -1).join(", ")} and ${places[places.length - 1]}`;
 }
 
 function RankedListSkeleton() {
@@ -115,8 +123,11 @@ function RankedListSkeleton() {
     );
 }
 
+/** Nothing to list: a stable empty deck. */
+const NO_PACKS: PublicJob[] = [];
+
 export function ForYouHome({
-    visiblePacks,
+    visiblePacks: listedPacks,
     activeIndex,
     onActiveIndexChange,
     activeJob,
@@ -148,7 +159,14 @@ export function ForYouHome({
     activePursuit,
     onGoAfter,
     saveSuccessPulse = false,
+    unmatchedPlaces,
 }: ForYouHomeProps) {
+    // The pack is a `/jobs` filter state: "Edit filters" opens /jobs on exactly it.
+    const filters = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
+    // The list's search dropped every place the pack names, so its rows come from
+    // anywhere. The pack's location is where the candidate can work: none of them fit.
+    const placesMissing = filters != null && locationDropped(filters, { unmatchedPlaceMentions: unmatchedPlaces });
+    const visiblePacks = placesMissing ? NO_PACKS : listedPacks;
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
     const [proofLoading, setProofLoading] = useState(false);
@@ -303,16 +321,15 @@ export function ForYouHome({
     }, [onActiveIndexChange, onSkip]);
 
     const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
-    // The pack is a `/jobs` filter state: "Edit filters" opens /jobs on exactly it.
-    const filters = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
     // The pack's own count: what applying these filters returns, not the size of the deck on screen.
+    // The pack's location is where the candidate can work, so a search that dropped it counts 0.
     const [packTotal, setPackTotal] = useState<number | null>(null);
     const packKey = filters ? serializeJobsUrl(filters) : null;
     useEffect(() => {
         if (!filters) return;
         let live = true;
         setPackTotal(null);
-        void countResults(filters, searchJobsAction).then((total) => {
+        void countResults(filters, searchJobsAction, { locationRequired: true }).then((total) => {
             if (live) setPackTotal(total);
         });
         return () => {
@@ -452,7 +469,7 @@ export function ForYouHome({
                             <BroadenOptions
                                 state={filters}
                                 total={packTotal}
-                                ctx={{ relocation: signals?.relocation.value }}
+                                ctx={{ relocation: signals?.relocation.value, locationRequired: true }}
                                 search={searchJobsAction}
                             />
                         </>
@@ -467,6 +484,14 @@ export function ForYouHome({
                     label="Loading your ranked roles"
                     skeleton={<RankedListSkeleton />}
                 />
+            ) : placesMissing && filters ? (
+                <ConceptAEmptyPageSlot placement="page" className="flex-1" data-testid="for-you-no-roles-there-wrap">
+                    <ConceptAEmptyState
+                        testId="for-you-no-roles-there"
+                        title={`No roles in ${formatPlaceList(namedPlaces(filters))} yet.`}
+                        description="Edit filters or broaden the search to see roles elsewhere."
+                    />
+                </ConceptAEmptyPageSlot>
             ) : visiblePacks.length === 0 && loadError ? (
                 <LoadFailedState
                     title="We can't load your matches right now."
