@@ -137,10 +137,14 @@ const guestWithResume = (page: Page, location: string) =>
     [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location],
   );
 
-test("a For-you pack's Edit filters opens /jobs on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
+test("a For-you pack opened from the hub, past the intro, has Edit filters on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
   // Iceland: a country with few software roles, so the pack is thin whatever the corpus holds today.
   await guestWithResume(page, "Reykjavik, Iceland");
   await page.goto("/jobs?view=for-you");
+  // For you opens on the packs hub; its first-visit intro must not block the pack controls once dismissed.
+  await page.getByTestId("packs-home-intro-got-it").click({ timeout: 30_000 });
+  await expect(page.getByTestId("packs-home-intro-modal")).toHaveCount(0);
+  await page.getByTestId("hub-pack-card-all").click();
   const edit = page.getByTestId("pack-edit-filters");
   await expect(edit).toBeVisible({ timeout: 30_000 });
   const href = new URL((await edit.getAttribute("href"))!, "http://x");

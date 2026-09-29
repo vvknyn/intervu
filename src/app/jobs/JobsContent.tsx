@@ -329,7 +329,7 @@ import {
 } from "@/lib/pursuits/optimistic-pursuit";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
-import { packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
     formatBrowseHubCorpusLine,
@@ -338,6 +338,7 @@ import {
     formatHubPackCorpusRoleLabels,
     packBandTotalsFromSources,
     resolveAllPackHubCounts,
+    resumeHubPackCounts,
     type ScoredHubHit,
 } from "@/lib/jobs/for-you/hub-counts";
 import {
@@ -3016,8 +3017,8 @@ export function JobsContent({
         void (async () => {
             try {
                 const previous = readHubCountBaseline();
-                // The pack's own filters (seniority, country, remote): the probe counts what the packs retrieve.
-                const { q, facets: merged } = packFilters(resume, signals);
+                // The pack's own search params: the probe counts what the packs retrieve.
+                const packParams = packSearchParams(packFilters(resume, signals));
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
                 let unavailableRetries = 0;
@@ -3025,15 +3026,7 @@ export function JobsContent({
                 for (let step = 0; step < HUB_PROBE_LIMITS.length; step++) {
                     if (cancelled) return;
                     const limit = HUB_PROBE_LIMITS[step];
-                    const r = await searchJobsAction({
-                        q,
-                        hideGhosts: true,
-                        postedBucket: DEFAULT_URL_STATE.postedBucket,
-                        limit,
-                        offset: 0,
-                        withFacets: step === 0,
-                        ...(Object.keys(merged).length ? { facets: merged } : {}),
-                    });
+                    const r = await searchJobsAction({ ...packParams, limit, offset: 0, withFacets: step === 0 });
                     if (cancelled) return;
                     if (isUnavailableJobsResult(r)) {
                         if (unavailableRetries < 1) {
@@ -3117,18 +3110,27 @@ export function JobsContent({
         };
     }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, agentPrefs]);
 
+    // A résumé visitor's tiles all open the résumé's pack list, so every tile
+    // counts inside that list (`resumeHubPackCounts`), never the corpus —
+    // loading until that list's total is known.
     const hubCountLabels = useMemo(
         () =>
-            hubPackCorpusCounts?.ok === false
-                ? {}
-                : formatHubPackCorpusRoleLabels(
-                      {
-                          ...hubPackCorpusCounts?.data,
-                          ...(hubResumeKey && hubResumeAllCount ? { all: hubResumeAllCount } : {}),
-                      },
-                      { loading: hubPackCorpusCounts == null },
-                  ),
-        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount],
+            hubResumeKey
+                ? formatHubPackCorpusRoleLabels(
+                      hubResumeAllCount
+                          ? resumeHubPackCounts({
+                                listTotal: hubResumeAllCount,
+                                listJobs: hubFitProbe.scored.map((h) => h.job),
+                            })
+                          : {},
+                      { loading: !hubResumeAllCount },
+                  )
+                : hubPackCorpusCounts?.ok === false
+                  ? {}
+                  : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
+                        loading: hubPackCorpusCounts == null,
+                    }),
+        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubFitProbe.scored],
     );
 
     const hubCorpusLine = useMemo(() => {
@@ -6968,6 +6970,7 @@ export function JobsContent({
                                                 <button
                                                     type="button"
                                                     onClick={() => void loadMore()}
+                                                    data-testid="jobs-load-more"
                                                     className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                                                 >
                                                     Show {Math.min(PAGE, Math.max(total - hits.length, 0)) || PAGE} more ↓
