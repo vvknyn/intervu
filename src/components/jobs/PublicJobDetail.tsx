@@ -133,16 +133,11 @@ export function PublicJobDetail({
         if (!authReady) return;
 
         if (!user) {
-            if (readLocalAiEnabled()) {
-                const stored = readLocalAiResume();
-                if (stored && resumeIsUsable(stored.data)) {
-                    setResume(stored.data);
-                    const ms = Date.parse(stored.updatedAt);
-                    setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
-                } else {
-                    setResume(null);
-                    setResumeAsOfDate(null);
-                }
+            const stored = readLocalAiResume();
+            if (stored && resumeIsUsable(stored.data)) {
+                setResume(stored.data);
+                const ms = Date.parse(stored.updatedAt);
+                setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
             } else {
                 setResume(null);
                 setResumeAsOfDate(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CircleNotch, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -84,6 +84,8 @@ export interface ForYouHomeProps {
     onLoadMore?: () => void;
     loadingMore?: boolean;
     hasMore?: boolean;
+    /** The page's fit gate, shown where the list stops for a guest (replaces "Show more"). */
+    signupGate?: ReactNode;
     /** Known corpus total for optional "N of ~total · Strong first" near Show more. */
     resultTotal?: number | null;
     /** CRAFT-3 — enter-reveal on first pack after auto-reveal. */
@@ -139,6 +141,7 @@ export function ForYouHome({
     onLoadMore,
     loadingMore = false,
     hasMore = false,
+    signupGate = null,
     resultTotal = null,
     firstRevealEnter = false,
     firstRevealDeckFocus = false,
@@ -631,7 +634,8 @@ export function ForYouHome({
                             );
                         })}
                         <div style={{ height: windowed.padBottom }} aria-hidden />
-                        {(showingLine || (hasMore && onLoadMore)) && (
+                        {signupGate}
+                        {!signupGate && (showingLine || (hasMore && onLoadMore)) && (
                             <div
                                 className="flex flex-col items-center gap-2 border-t border-border px-3 py-3"
                                 data-testid="for-you-show-more-wrap"

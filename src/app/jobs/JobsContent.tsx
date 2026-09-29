@@ -1753,20 +1753,20 @@ export function JobsContent({
         signed_in?: boolean;
     }>({ reason: "fit", surface: "jobs_banner" });
 
-    // R&D local mode: hydrate browser-stored résumé for signed-out guests.
+    // Guest résumé kept in this browser (parsing on device is open to guests):
+    // hydrate it for signed-out visitors and record that it exists, so an
+    // in-memory résumé left over from a signed-out account never counts.
     // useLayoutEffect so a usable local résumé is in state before paint and
     // `resumeOnFile` can resolve For you without a Search-chrome flash.
+    const [guestResumeInBrowser, setGuestResumeInBrowser] = useState(false);
     useLayoutEffect(() => {
-        if (user) return;
-        if (!localAiGuestEnabled) return;
-        if (resume && resumeIsUsable(resume)) return;
-        const stored = readUsableLocalResume();
-        if (stored) {
-            setResume(stored.data);
-            setResumeUpdatedAt(stored.updatedAt);
-            setResumeSourceLabel(stored.sourceLabel ?? null);
-        }
-    }, [user, resume, localAiGuestEnabled]);
+        const stored = user ? null : readUsableLocalResume();
+        setGuestResumeInBrowser(stored != null);
+        if (!stored || (resume && resumeIsUsable(resume))) return;
+        setResume(stored.data);
+        setResumeUpdatedAt(stored.updatedAt);
+        setResumeSourceLabel(stored.sourceLabel ?? null);
+    }, [user, resume]);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
     // fetch of the résumé itself; Task 4 removed that). The card's other gate
@@ -1820,6 +1820,9 @@ export function JobsContent({
     const [hubPackCorpusCounts, setHubPackCorpusCounts] = useState<LoadResult<
         Partial<Record<HubPackId, CorpusCount | null>>
     > | null>(null);
+    // For a résumé holder the "All" pill opens the résumé-filtered pack, so it
+    // counts that pack (the probe's own search), not the unfiltered corpus.
+    const [hubResumeAllCount, setHubResumeAllCount] = useState<CorpusCount | null>(null);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -2040,7 +2043,7 @@ export function JobsContent({
         authReady,
         signedIn,
         hasUsableResume,
-        localAiGuestEnabled,
+        guestResumeInBrowser,
         resumeKnownOnServer,
     });
 
@@ -2868,12 +2871,31 @@ export function JobsContent({
     // the visible order now matches the chip. `Array.prototype.sort` is
     // stable (ES2019+), so a tie (or a cluster with no score, -1) keeps its
     // original relevance position instead of shuffling.
-    const renderedClusters = useMemo(() => {
+    const rankedClusters = useMemo(() => {
         if (!fitActive || !matchScores) return clusters;
         return [...clusters].sort(
             (a, b) => (matchScores.get(b.primary.id)?.total ?? -1) - (matchScores.get(a.primary.id)?.total ?? -1),
         );
     }, [clusters, fitActive, matchScores]);
+
+    // Honest display count for THIS search's result total (result-count
+    // toolbar text + the end-of-list line below) — distinct from `total`
+    // below, which stays the raw Meili value on purpose: `hasMore`'s
+    // pagination-boundary math is correct either way (whether `total` is
+    // exact or capped, `hits.length < total` and `hits.length < MAX_REACHABLE`
+    // both still hold), so only the DISPLAY sites route through the honest
+    // resolver — see corpus-count.ts's header comment.
+    const totalCount = resolveCorpusCount(result ?? { total: 0 }, MAX_REACHABLE);
+
+    // The résumé-fit gate: a guest's ranked list stops after the free preview and
+    // the rest needs an account. Applied at the SOURCE of every ranked surface —
+    // the Search list, the For-you deck and keyboard order all read
+    // `renderedClusters`, so no surface can show a row past the gate.
+    const fitGate = useMemo(
+        () => splitFitGate({ fitActive, ranked: matchScores !== null, signedOut, rows: rankedClusters, total: totalCount }),
+        [fitActive, matchScores, signedOut, rankedClusters, totalCount.value, totalCount.kind], // eslint-disable-line react-hooks/exhaustive-deps
+    );
+    const renderedClusters = fitGate.visible;
 
     // Not gated on `showForYouHome`: deck progress is owned by `useForYouDeck`
     // below, which is called unconditionally so it survives the Search <->
@@ -3004,7 +3026,7 @@ export function JobsContent({
                     const r = await searchJobsAction({
                         q,
                         hideGhosts: true,
-                        postedBucket: "30d",
+                        postedBucket: DEFAULT_URL_STATE.postedBucket,
                         limit,
                         offset: 0,
                         withFacets: step === 0,
@@ -3028,6 +3050,7 @@ export function JobsContent({
                         return;
                     }
                     poolTotal = r.total;
+                    setHubResumeAllCount(resolveCorpusCount(r));
                     for (const h of r.hits ?? []) {
                         if (scoredById.has(h.id)) continue;
                         let scoredHit: ScoredHubHit["score"] | null = null;
@@ -3096,10 +3119,14 @@ export function JobsContent({
         () =>
             hubPackCorpusCounts?.ok === false
                 ? {}
-                : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
-                      loading: hubPackCorpusCounts == null,
-                  }),
-        [hubPackCorpusCounts],
+                : formatHubPackCorpusRoleLabels(
+                      {
+                          ...hubPackCorpusCounts?.data,
+                          ...(hubResumeKey && hubResumeAllCount ? { all: hubResumeAllCount } : {}),
+                      },
+                      { loading: hubPackCorpusCounts == null },
+                  ),
+        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount],
     );
 
     const hubCorpusLine = useMemo(() => {
@@ -3552,25 +3579,6 @@ export function JobsContent({
     const total = result ? resolveHeadlineTotal(result) : 0;
     const hasMore =
         result?.configured === true && hits.length > 0 && hits.length < total && hits.length < MAX_REACHABLE;
-    // Honest display count for THIS search's result total (result-count
-    // toolbar text + the end-of-list line below) — distinct from `total`
-    // above, which stays the raw Meili value on purpose: `hasMore`'s
-    // pagination-boundary math is correct either way (whether `total` is
-    // exact or capped, `hits.length < total` and `hits.length < MAX_REACHABLE`
-    // both still hold), so only the DISPLAY sites route through the honest
-    // resolver — see corpus-count.ts's header comment.
-    const totalCount = resolveCorpusCount(result ?? { total: 0 }, MAX_REACHABLE);
-
-    // The résumé-fit gate: a guest's ranked list stops after the free preview and
-    // the rest needs an account. Layered at the RENDER site only — `renderedClusters`
-    // stays whole for the For-you deck and keyboard-order derivations below.
-    const fitGate = splitFitGate({
-        fitActive,
-        ranked: matchScores !== null,
-        signedOut,
-        rows: renderedClusters,
-        total: totalCount,
-    });
     // A4 — once `hasMore` goes false, WHY it stopped matters: genuinely out
     // of results, or just out of MAX_REACHABLE reach while `totalCount` (the
     // honest, facet-sum-recovered total) is far bigger. See
@@ -4453,14 +4461,14 @@ export function JobsContent({
     // signed in — otherwise a deep-linked SERP keeps painting For you /
     // "Scoring with …" from the previous account's in-memory résumé.
     useEffect(() => {
-        if (!signedOut || localAiGuestEnabled) return;
+        if (!signedOut || readUsableLocalResume()) return;
         setResume(null);
         setResumeUpdatedAt(null);
         setResumeSourceLabel(null);
         setFitActive(false);
         setFitResolving(false);
         fitIntentRef.current?.begin();
-    }, [signedOut, localAiGuestEnabled]);
+    }, [signedOut]);
 
     // Cancel ANY action queued for after sign-in (apply / gate / upload) so a
     // later, unrelated login can't hijack the user into it or write a
@@ -4481,9 +4489,8 @@ export function JobsContent({
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
         const readLocalFallback = (): ResumeData | null => {
-            if (!localAiGuestEnabled) return null;
-            const stored = readLocalAiResume();
-            if (stored && resumeIsUsable(stored.data)) {
+            const stored = readUsableLocalResume();
+            if (stored) {
                 setResume(stored.data);
                 setResumeUpdatedAt(stored.updatedAt);
                 setResumeSourceLabel(stored.sourceLabel ?? null);
@@ -5447,6 +5454,18 @@ export function JobsContent({
     // Where a signed-out gate returns to — this exact SERP, filters and all.
     const serpReturnTo = `${pathname}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`;
 
+    // One fit gate element for both ranked surfaces (Search list, For-you deck).
+    const fitGateEl = fitGate.gated ? (
+        <SignupGate
+            reason="fit"
+            originSurface="jobs_banner"
+            returnTo={serpReturnTo}
+            count={fitGate.count}
+            onDismiss={() => chooseSort("relevance")}
+            className="my-4 w-full"
+        />
+    ) : null;
+
     const dockedQueryEl = (
         <div className="relative flex h-full w-full items-center">
             <SearchAutocomplete
@@ -5575,7 +5594,7 @@ export function JobsContent({
 
     // "Scoring with {filename} · Replace" — one toolbar résumé control.
     const asOfEl =
-        hasUsableResume && (signedIn || localAiGuestEnabled) ? (
+        hasUsableResume && (signedIn || guestResumeInBrowser) ? (
             <span
                 data-testid="resume-as-of"
                 className="mono-data inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
@@ -6324,6 +6343,7 @@ export function JobsContent({
                                 onLoadMore={() => void loadMore()}
                                 loadingMore={loadingMore}
                                 hasMore={hasMore}
+                                signupGate={fitGateEl}
                                 resultTotal={result?.total ?? null}
                                 activePursuit={
                                     forYouDeck.activeJob
@@ -6825,7 +6845,7 @@ export function JobsContent({
                                             `seamIndex` directly — see its own comment
                                             above (`clusterJobs`, lib/jobs/cluster.ts)
                                             for why a cluster can never straddle it. */}
-                                        {fitGate.visible.flatMap((cluster, i) => {
+                                        {renderedClusters.flatMap((cluster, i) => {
                                             const expanded = expandedClusters.has(cluster.primary.id);
                                             const rows = [
                                                 renderJobRow(
@@ -6918,16 +6938,7 @@ export function JobsContent({
                                         `paginationRef`/`loadingMore` — so a click racing an
                                         in-flight auto-load is a safe no-op) for anyone who'd rather
                                         tap than scroll. */}
-                                    {fitGate.gated && (
-                                        <SignupGate
-                                            reason="fit"
-                                            originSurface="jobs_banner"
-                                            returnTo={serpReturnTo}
-                                            count={fitGate.count}
-                                            onDismiss={() => chooseSort("relevance")}
-                                            className="my-4 w-full"
-                                        />
-                                    )}
+                                    {fitGateEl}
                                     {hasMore && !fitGate.gated && (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
                                             {depthGated ? (

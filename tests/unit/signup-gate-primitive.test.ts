@@ -76,6 +76,15 @@ describe("signed-out gates go through SignupGate", () => {
         assert.match(read("components/jobs/SavedSearchesPanel.tsx"), /<SignupGate[^>]*reason="alert"/);
     });
 
+    it("every ranked surface reads the fit-gated rows, never the whole ranked list", () => {
+        const jobs = read("app/jobs/JobsContent.tsx");
+        assert.match(jobs, /const renderedClusters = fitGate\.visible;/);
+        // The ungated list feeds only the gate itself: declaration, `rows:`, deps.
+        assert.equal(jobs.match(/\brankedClusters\b/g)?.length, 3, "a surface reads rankedClusters past the fit gate");
+        assert.match(jobs, /<ForYouHome[\s\S]*signupGate=\{fitGateEl\}/);
+        assert.match(read("components/jobs/for-you/ForYouHome.tsx"), /\{signupGate\}/);
+    });
+
     it("only the primitive renders the gate card", () => {
         const owners = walk(SRC).filter((f) => readFileSync(f, "utf8").includes('data-testid="signup-gate"'));
         assert.deepEqual(owners.map((f) => f.slice(SRC.length + 1)), ["components/auth/SignupGate.tsx"]);

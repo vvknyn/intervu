@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures";
 
 /**
  * Journeys for the signed-out gates — see tests/journeys/CATALOG.md
- * (J-JOBS-06/07/26/27/28, J-DETAIL-24/28, J-COMPANY-13). Every gate is the one `SignupGate`
+ * (J-JOBS-06/07/29/30/31, J-DETAIL-24/28, J-COMPANY-13). Every gate is the one `SignupGate`
  * card (`data-testid="signup-gate"`, `data-gate-reason=<reason>`): it names the
  * action, offers "Create free account" (signup-mode /auth/start) and
  * "Sign in" (/login), both carrying the page in `next=`. Read-only: nothing
