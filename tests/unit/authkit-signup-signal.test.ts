@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   mapAuthKitSignupMethod,
-  resolveAuthKitSignupSignal,
   serializeSignupSignalCookie,
   serializeExpiredSignupSignalCookie,
   parseSignupSignalCookie,
@@ -24,38 +23,6 @@ test("mapAuthKitSignupMethod returns null for unknown or missing methods", () =>
   assert.equal(mapAuthKitSignupMethod("SSO"), null);
   assert.equal(mapAuthKitSignupMethod(null), null);
   assert.equal(mapAuthKitSignupMethod(undefined), null);
-});
-
-test("resolveAuthKitSignupSignal: tagged intervu user → null even for GoogleOAuth", () => {
-  assert.equal(
-    resolveAuthKitSignupSignal({ apps: "intervu", authenticationMethod: "GoogleOAuth" }),
-    null,
-  );
-  assert.equal(
-    resolveAuthKitSignupSignal({ apps: "intervu,subspace", authenticationMethod: "Passkey" }),
-    null,
-  );
-});
-
-test("resolveAuthKitSignupSignal: untagged Google → google", () => {
-  assert.equal(
-    resolveAuthKitSignupSignal({ apps: undefined, authenticationMethod: "GoogleOAuth" }),
-    "google",
-  );
-});
-
-test("resolveAuthKitSignupSignal: subspace-only apps without intervu → still a signal", () => {
-  assert.equal(
-    resolveAuthKitSignupSignal({ apps: "subspace", authenticationMethod: "GoogleOAuth" }),
-    "google",
-  );
-});
-
-test("resolveAuthKitSignupSignal: untagged unknown method → null", () => {
-  assert.equal(
-    resolveAuthKitSignupSignal({ apps: null, authenticationMethod: "ExternalAuth" }),
-    null,
-  );
 });
 
 test("isSignupMethod accepts only known methods", () => {

@@ -189,7 +189,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
                 // so an abandoned Google redirect + password signup cannot double-fire.
                 clearSignupSignalCookieFromDocument()
-                captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() })
+                if (result.signupCompleted) {
+                    captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() }) // signup-once: gated on the server claim (claimSignupEvent)
+                }
                 clearGateAttempt(window.sessionStorage)
                 router.refresh()
                 revalidateClientSession()

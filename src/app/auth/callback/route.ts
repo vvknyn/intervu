@@ -12,8 +12,9 @@ import {
     decideCallbackFailureLanding,
     withDirectHitGuard,
 } from "@/lib/auth/callback-guard";
+import { claimSignupEvent } from "@/lib/auth/signup-event";
 import {
-    resolveAuthKitSignupSignal,
+    mapAuthKitSignupMethod,
     SIGNUP_SIGNAL_COOKIE_NAME,
     signupSignalCookieOptions,
 } from "@/lib/auth/authkit-signup-signal";
@@ -57,10 +58,11 @@ import {
  * API WorkOS `saveSession` already uses on this route — wrapping
  * handleAuth's Response to append Set-Cookie would risk dropping the
  * session cookie) and consumed client-side in `PostHogProvider` after
- * `posthog.identify(uid)`. The signal is `!hasApp(metadata.apps, intervu)`
- * evaluated BEFORE `provisionAppAccess` tags them — not
- * `user.createdAt ≈ now`. Username/password signups never hit this route;
- * they fire from `login-form.tsx` directly.
+ * `posthog.identify(uid)`. The cookie is set only when `claimSignupEvent`
+ * (src/lib/auth/signup-event.ts) wins: a fresh WorkOS `createdAt` plus a
+ * durable once-per-uid claim — never the `metadata.apps` tag, which is only
+ * written later by the `after()` below. Username/password signups never hit
+ * this route; `signUp` claims through the same function.
  *
  * `withDirectHitGuard` (src/lib/auth/callback-guard.ts) redirects a request
  * that carries neither `code` nor `error` straight to /auth/retry instead
@@ -92,13 +94,10 @@ export const GET = withDirectHitGuard(
                 : buildCallbackRetryRedirect(request, "exchange_failed");
         },
         onSuccess: async ({ user, authenticationMethod }) => {
-            const signal = resolveAuthKitSignupSignal({
-                apps: user.metadata?.apps,
-                authenticationMethod: authenticationMethod ?? "ExternalAuth",
-            });
-            if (signal) {
+            const method = mapAuthKitSignupMethod(authenticationMethod);
+            if ((await claimSignupEvent(user)) && method) {
                 const cookieStore = await cookies();
-                cookieStore.set(SIGNUP_SIGNAL_COOKIE_NAME, signal, signupSignalCookieOptions());
+                cookieStore.set(SIGNUP_SIGNAL_COOKIE_NAME, method, signupSignalCookieOptions()); // signup-once: cookie only after claimSignupEvent won
             }
             after(() =>
                 realProvisioningDeps()
