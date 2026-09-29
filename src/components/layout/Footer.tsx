@@ -13,6 +13,7 @@ import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-sta
 export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true }[] = [
     { label: "Research", href: "/research/ghost-jobs" },
     { label: "About", href: "/about" },
+    { label: "Pricing", href: "/pricing" },
     { label: "Remote jobs", href: "/careers/remote-jobs" },
     { label: "Company career pages", href: "/careers/company-career-pages" },
     { label: "Indeed alternative", href: "/indeed-alternative" },

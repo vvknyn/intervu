@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/terms", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "September 26, 2026";
+const LAST_UPDATED = "September 29, 2026";
 
 export default function TermsPage() {
   return (
@@ -64,8 +64,30 @@ export default function TermsPage() {
         </ul>
         <p>We may suspend or terminate accounts that violate these terms, including accounts we reasonably believe are engaged in abuse.</p>
 
-        <SectionTitle>AI features</SectionTitle>
-        <p>AI features are free. Nothing is metered and there is nothing to buy.</p>
+        <SectionTitle>Data licensing</SectionTitle>
+        <p>
+          We may license derived signals about job postings and companies to third parties through a Data API: for
+          example whether a listing is still published on the employer&apos;s site, how long roles stay open, how a
+          company reposts, and applicant activity aggregated across everyone and reduced to statistics that no
+          longer identify anyone. That never includes your résumé, your applications, your saved jobs, your account
+          details, or anything that identifies you. The acceptable-use rules above still apply: bulk extraction
+          outside a Data API agreement remains prohibited.
+        </p>
+
+        <SectionTitle>Pricing and the founding offer</SectionTitle>
+        <p>
+          Everything on velai today is free at the limits shown in the product, including AI features. We may
+          offer a paid plan (&quot;Pro&quot;) and a Data API in future. What each includes and costs will be on the{" "}
+          <Link href="/pricing">pricing page</Link> before anything is charged, and nothing you use today moves
+          behind a paywall without notice on that page and an update to these terms.
+        </p>
+        <p>
+          A founding seat is a one-off payment, made through our payment provider, that entitles the account it was
+          bought for to Pro for as long as we offer Pro, from the day Pro opens. It is limited in number, tied to
+          one account, and not transferable. Until Pro opens you may request a full refund at any time, for any
+          reason, by contacting us from the email address you paid with. Payment processing is handled by our
+          payment provider under its own terms; we do not see or store your card details.
+        </p>
 
         <SectionTitle>Employers</SectionTitle>
         <p>

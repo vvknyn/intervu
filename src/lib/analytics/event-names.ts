@@ -46,6 +46,10 @@ export const ANALYTICS_EVENTS = {
   resume_parse_failed: "resume_parse_failed",
   resume_review_completed: "resume_review_completed",
 
+  pricing_viewed: "pricing_viewed",
+  upgrade_clicked: "upgrade_clicked",
+  founding_member_paid: "founding_member_paid",
+
   home_viewed: "home_viewed",
   home_action_clicked: "home_action_clicked",
   pack_opened: "pack_opened",
