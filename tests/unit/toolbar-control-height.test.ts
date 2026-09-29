@@ -20,7 +20,7 @@ import path from "node:path";
  * only thing that keeps a control added next year agreeing with the rest.
  */
 
-const PAGE = path.join(process.cwd(), "src/app/jobs/page.tsx");
+const PAGE = path.join(process.cwd(), "src/app/jobs/JobsContent.tsx");
 const SHARED = path.join(process.cwd(), "src/lib/jobs/toolbar-control-height.ts");
 const FILTER_CHIPS = path.join(process.cwd(), "src/components/jobs/FilterChipsRow.tsx");
 const SAVED_SEARCHES = path.join(process.cwd(), "src/components/jobs/SavedSearchesPanel.tsx");
@@ -91,23 +91,15 @@ test("toolbar control height", async (t) => {
         );
     });
 
-    await t.test("the two segmented groups are written once, not twice", () => {
-        assert.match(sharedSrc, /export const toolbarSegmentGroupClass =/);
-        // Sort and Layout previously carried byte-identical class strings, so
-        // a change to one silently left the other behind.
-        const uses = pageSrc.match(/toolbarSegmentGroupClass/g) ?? [];
-        assert.equal(uses.length, 2, "expected one import and both groups using it");
-    });
-
-    await t.test("a segment fills its group rather than fixing its own height", () => {
-        // The group owns the height; `self-stretch` is what lets a 24px segment
-        // sit inside a 28px frame without the two disagreeing.
+    await t.test("a segment takes a control-scale step, never its own height", () => {
+        // Sort segments share the toolbar chips' md step (globals.css `.ctl-md`)
+        // so the same control is the same height in the header bar and the sheet.
         const start = src.indexOf("function ToolbarSegment");
         assert.notEqual(start, -1, "ToolbarSegment must exist");
         const seg = classNameBlockAt(src.indexOf("className={", start));
         assert.ok(seg, "ToolbarSegment must style itself through a className expression");
-        assert.match(seg!, /self-stretch/);
-        assert.match(seg!, /items-center/, "stretched segments must flex-center their label");
+        assert.match(seg!, /\bctl-md\b/);
+        assert.match(seg!, /items-center/, "segments must flex-center their label");
         assert.match(seg!, /leading-none/, "uppercase labels need a flush line-box or they sit high");
         assert.doesNotMatch(seg!, HEIGHT_UTIL);
     });

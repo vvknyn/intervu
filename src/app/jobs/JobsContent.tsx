@@ -485,8 +485,7 @@ function ToolbarSegment({
             onClick={onClick}
             title={title}
             className={cn(
-                // control-scale-allow: ToolbarSegment is reshaped by the /jobs toolbar PR (#653)
-                "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-2 rounded-ctl px-3 text-sm font-semibold leading-none transition-all duration-150 text-foreground",
+                "ctl-md inline-flex box-border items-center justify-center gap-2 rounded-ctl px-3 text-sm font-semibold leading-none transition-all duration-150 text-foreground",
                 pressed && "underline underline-offset-2",
             )}
         >
