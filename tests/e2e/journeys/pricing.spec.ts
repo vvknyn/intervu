@@ -5,8 +5,10 @@ import { expect, test } from "./fixtures";
  * Read-only: nothing here reaches Stripe. The founding-seat button's target
  * depends on whether `FOUNDING_MEMBER_CHECKOUT_URL` is set on the server
  * under test, so J-PRICING-03 accepts either state and asserts the one that
- * is showing is well-formed (a real `https://buy.stripe.com/…` link, or an
- * inert "open soon" button) — never a guessed URL.
+ * is showing is well-formed (a real `https://buy.stripe.com/…` link, or the
+ * email-only reservation form) — never a guessed URL. Nothing here submits
+ * the reservation; that is J-PRICING-07 (uncovered: it needs a Firestore-
+ * backed server and a throwaway inbox).
  */
 
 const FOUNDING_SEAT_PRICE = "$49";
@@ -49,7 +51,7 @@ test("the footer links to pricing from a marketing page", { tag: ["@J-PRICING-02
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("the founding-seat button links to Stripe, or is inert while unconfigured", { tag: ["@J-PRICING-03"] }, async ({ page, diagnostics }) => {
+test("the founding-seat button links to Stripe, or takes a reservation while unconfigured", { tag: ["@J-PRICING-03"] }, async ({ page, diagnostics }) => {
   await page.goto("/pricing");
 
   const cta = page.getByTestId("pricing-founding-cta");
@@ -68,11 +70,14 @@ test("the founding-seat button links to Stripe, or is inert while unconfigured",
     await expect(description).toHaveAttribute("content", /seats are open now/);
     await expect(ogDescription).toHaveAttribute("content", /seats are open now/);
   } else {
-    await expect(cta).toBeDisabled();
-    await expect(cta).toHaveText("Founding seats open soon");
+    // No Stripe link on this server: the Pro column takes an email
+    // reservation instead of showing an inert button (release 9).
+    await expect(cta).toBeEnabled();
+    await expect(cta).toHaveText("Reserve a founding seat");
+    await expect(page.getByTestId("pricing-founding-email")).toBeVisible();
     // The headline and badge must not promise what the button withholds
     // (release 7 said "open now" over an "open soon" button).
-    await expect(pro).toContainText("Founding seats soon");
+    await expect(pro).toContainText("Reservations open");
     await expect(page.getByTestId("pricing-page")).toContainText("seats open soon");
     await expect(page.getByTestId("pricing-page")).not.toContainText("are open now");
     await expect(description).toHaveAttribute("content", /seats open soon/);

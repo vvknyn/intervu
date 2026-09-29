@@ -54,6 +54,11 @@ export default async function PricingPage({
     user ? { uid: user.uid, email: user.email } : null,
   );
   return (
-    <PricingClient signedIn={Boolean(user)} checkoutUrl={checkoutUrl} paidSessionId={paidCheckoutSessionId(params)} />
+    <PricingClient
+      signedIn={Boolean(user)}
+      email={user?.email ?? null}
+      checkoutUrl={checkoutUrl}
+      paidSessionId={paidCheckoutSessionId(params)}
+    />
   );
 }
