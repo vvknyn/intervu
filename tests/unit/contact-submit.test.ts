@@ -9,6 +9,7 @@ import {
   buildContactNotificationEmail,
 } from "../../src/lib/contact/submit";
 import { validate, contactMessageSchema } from "../../src/lib/validation";
+import { turnstileRejectMessage } from "../../src/lib/shield/turnstile";
 
 const VALID_INPUT = {
   email: "ada@example.com",
@@ -25,7 +26,7 @@ describe("resolveContactGate", () => {
     });
     assert.deepEqual(result, {
       proceed: false,
-      result: { error: "Verification failed — please try again.", status: 400 },
+      result: { error: turnstileRejectMessage("invalid-token"), status: 400 },
     });
   });
 
@@ -72,7 +73,7 @@ describe("submitContact — Turnstile reject", () => {
     process.env.TURNSTILE_SECRET_KEY = "test-secret";
     try {
       const result = await submitContact({ ...VALID_INPUT, turnstileToken: undefined });
-      assert.deepEqual(result, { error: "Verification failed — please try again.", status: 400 });
+      assert.deepEqual(result, { error: turnstileRejectMessage("missing-token"), status: 400 });
     } finally {
       if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
       else process.env.TURNSTILE_SECRET_KEY = original;

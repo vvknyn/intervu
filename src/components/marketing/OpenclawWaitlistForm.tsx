@@ -64,7 +64,7 @@ export function OpenclawWaitlistForm({
               {pending ? "Joining…" : ctaLabel}
             </Button>
           </form>
-          <TurnstileWidget onVerify={setTurnstileToken} />
+          <TurnstileWidget surface="waitlist" onVerify={setTurnstileToken} />
           {outcome?.kind === "error" ? (
             <p className="mt-2 text-sm text-destructive" data-testid="openclaw-waitlist-error">
               {outcome.message}

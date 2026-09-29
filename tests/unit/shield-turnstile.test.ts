@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decideTurnstileResult, verifyTurnstile } from "../../src/lib/shield/turnstile";
+import { decideTurnstileResult, turnstileRejectMessage, verifyTurnstile, verifyTurnstileVerdict } from "../../src/lib/shield/turnstile";
 import { UNKNOWN_CLIENT_IP } from "../../src/lib/shield/client-ip";
 
 test("decideTurnstileResult: unconfigured (no secret key) is inert regardless of token or response", () => {
@@ -187,6 +187,35 @@ test("verifyTurnstile: a non-timeout transport failure logs a message that does 
     assert.deepEqual(result, { status: "reject", reason: "verify-request-failed" });
     assert.equal(errorLogs.length, 1);
     assert.doesNotMatch(String(errorLogs[0][0]), /timed out/i);
+  } finally {
+    if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
+    else process.env.TURNSTILE_SECRET_KEY = original;
+  }
+});
+
+test("turnstileRejectMessage: every reject reason maps to a distinct, actionable message", () => {
+  const missing = turnstileRejectMessage("missing-token");
+  const unreachable = turnstileRejectMessage("verify-request-failed");
+  const expired = turnstileRejectMessage("timeout-or-duplicate");
+  const other = turnstileRejectMessage("invalid-input-response");
+  assert.equal(new Set([missing, unreachable, expired, other]).size, 4);
+  assert.match(missing, /reload/i);
+  assert.match(expired, /again/i);
+  // Cloudflare can return several codes at once; a known one still wins.
+  assert.equal(turnstileRejectMessage("invalid-input-response,timeout-or-duplicate"), expired);
+  // Never the old generic line.
+  for (const m of [missing, unreachable, expired, other]) assert.doesNotMatch(m, /Verification failed/);
+});
+
+test("verifyTurnstileVerdict: reject carries its reason; not-configured passes", async (t) => {
+  const original = process.env.TURNSTILE_SECRET_KEY;
+  try {
+    delete process.env.TURNSTILE_SECRET_KEY;
+    assert.deepEqual(await verifyTurnstileVerdict("any"), { success: true });
+    process.env.TURNSTILE_SECRET_KEY = "test-secret";
+    assert.deepEqual(await verifyTurnstileVerdict(undefined), { success: false, reason: "missing-token" });
+    t.mock.method(globalThis, "fetch", async () => ({ json: async () => ({ success: false, "error-codes": ["invalid-input-response"] }) }));
+    assert.deepEqual(await verifyTurnstileVerdict("bad"), { success: false, reason: "invalid-input-response" });
   } finally {
     if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
     else process.env.TURNSTILE_SECRET_KEY = original;

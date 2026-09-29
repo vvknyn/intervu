@@ -12,10 +12,11 @@ import {
   type SearchAlertAnalytics,
 } from "./store";
 import { validateSearchAlertHref } from "./validate-search-href";
+import { turnstileRejectMessage, type TurnstileVerdict } from "../shield/turnstile";
 
 export interface SubmitSearchAlertDeps {
   q: Queryable | null;
-  verifyTurnstile(token: string | null | undefined, remoteIp?: string): Promise<{ success: boolean }>;
+  verifyTurnstile(token: string | null | undefined, remoteIp?: string): Promise<TurnstileVerdict>;
   sendVerifyEmail(input: { email: string; searchName: string; verifyUrl: string }): Promise<void>;
   baseUrl: string;
   allowRequest(ip: string): boolean;
@@ -24,7 +25,8 @@ export interface SubmitSearchAlertDeps {
 export type SubmitSearchAlertResult =
   | { status: "accepted" }
   | { status: "unavailable" }
-  | { status: "rejected" };
+  /** `message` is set only when the human check refused it — what the visitor can do about that. */
+  | { status: "rejected"; message?: string };
 
 const MAX_VERIFY_SENDS_PER_DAY = 3;
 const RECENT_WINDOW_HOURS = 24;
@@ -58,7 +60,7 @@ export async function submitSearchAlert(
   if (input.requestIp && !deps.allowRequest(input.requestIp)) return { status: "rejected" };
 
   const turnstile = await deps.verifyTurnstile(input.turnstileToken, input.requestIp);
-  if (!turnstile.success) return { status: "rejected" };
+  if (!turnstile.success) return { status: "rejected", message: turnstileRejectMessage(turnstile.reason) };
 
   const email = parsedEmail.data;
   const recentSends = await countRecentVerifyTokensForPurpose(

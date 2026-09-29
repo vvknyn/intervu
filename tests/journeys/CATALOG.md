@@ -300,6 +300,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-AUTH-40 | @writes Add an account email from the /jobs banner and dismiss it | signed-in | /jobs (signed-in, no reachable email) | signed-in | yes | uncovered | — |
 | J-AUTH-41 | Start again on /auth/retry restarts sign-in at /auth/start | anon | /auth/retry?reason=exchange_failed | signed-out | no | covered | auth-retry.spec.ts |
 | J-AUTH-42 | Signed-in visitor on /auth/retry is sent on, never shown the sign-in error (needs E2E_STORAGE_STATE; skipped without) | signed-in | /auth/retry?reason=exchange_failed | signed-in | no | covered | auth-retry.spec.ts |
+| J-AUTH-43 | Failed Turnstile (error 110200 stubbed) on signup says to use Google or an email code above, and moves focus to the existing Continue with Google button (skips if the build has no site key) | signing-up | /login (Create account tab) | signed-out | no | covered | turnstile.spec.ts |
+| J-AUTH-44 | Turnstile api.js blocked or offline on signup shows the same message and focus move (skips if the build has no site key) | signing-up | /login (Create account tab) | signed-out | no | covered | turnstile.spec.ts |
 
 ## RESUME
 
@@ -540,6 +542,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-CONTENT-21 | Open /stories signed in and select the Sources tab | signed-in | /stories?tab=sources | signed-in | no | uncovered | — |
 | J-CONTENT-22 | Get to /stories from the /library legacy URL | anon | /library | signed-out | no | uncovered | — |
 | J-CONTENT-23 | See every public content route with a unique non-empty title | anon | /privacy | signed-out | no | uncovered | — (legacy: route-titles.spec.ts › /privacy has a non-empty title that differs from the homepage) |
+| J-CONTENT-24 | Failed Turnstile (error stubbed) on /contact shows the notice telling the visitor to reload, with no invented alternative path (skips if the build has no site key) | anon | /contact | signed-out | no | covered | turnstile.spec.ts |
 
 ## SEO
 
