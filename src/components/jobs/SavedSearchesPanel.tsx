@@ -8,6 +8,9 @@ import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-searches";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
+import { SignupGate } from "@/components/auth/SignupGate";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { guestSaveGateReached } from "@/lib/auth/guest-save-gate";
 import { readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {
@@ -47,7 +50,7 @@ export function SavedSearchesPanel({
     onApply: (href: string) => void;
     /**
      * Called BEFORE a guest (signed-out) save is committed. Return `"block"`
-     * to cancel the save (e.g. because the parent has opened an auth gate);
+     * to cancel the save (the panel then shows the signup gate);
      * return `"proceed"` to let the save go through. Omit for signed-in-only
      * contexts where guest saves cannot occur.
      */
@@ -69,8 +72,14 @@ export function SavedSearchesPanel({
     const [newCounts, setNewCounts] = useState<Record<string, CorpusCount>>({});
     const [saving, setSaving] = useState(false);
     const [removingId, setRemovingId] = useState<string | null>(null);
+    // A guest past their free save sees the signup gate instead of a name field.
+    const [gated, setGated] = useState(false);
 
     const startSave = () => {
+        if (!getCurrentUser() && guestSaveGateReached()) {
+            setGated(true);
+            return;
+        }
         setNameDraft(suggestSavedSearchName(urlState));
         setNaming(true);
     };
@@ -88,6 +97,7 @@ export function SavedSearchesPanel({
                 if (onBeforeGuestSave?.() === "block") {
                     setNaming(false);
                     setNameDraft("");
+                    setGated(true);
                     return;
                 }
                 persistSavedSearch({ name, href });
@@ -160,22 +170,34 @@ export function SavedSearchesPanel({
             )}
         >
             {canSave && !naming && (
-                <button
-                    type="button"
-                    data-testid="save-search-trigger"
-                    onClick={startSave}
-                    className={cn(
-                        compact
-                            ? cn(
-                                  toolbarControlHeight,
-                                  "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-3 lg:px-2",
-                              )
-                            : "inline-flex ctl-lg items-center gap-1.5 rounded-ctl px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
-                    )}
-                >
-                    {!compact && <BookmarkSimple aria-hidden />}
-                    {label}
-                </button>
+                <Popover open={gated} onOpenChange={setGated}>
+                    <PopoverAnchor asChild>
+                        <button
+                            type="button"
+                            data-testid="save-search-trigger"
+                            onClick={startSave}
+                            className={cn(
+                                compact
+                                    ? cn(
+                                          toolbarControlHeight,
+                                          "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-3 lg:px-2",
+                                      )
+                                    : "inline-flex ctl-lg items-center gap-1.5 rounded-ctl px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
+                            )}
+                        >
+                            {!compact && <BookmarkSimple aria-hidden />}
+                            {label}
+                        </button>
+                    </PopoverAnchor>
+                    <PopoverContent align="start" className="w-80 p-0">
+                        <SignupGate
+                            reason="alert"
+                            originSurface="jobs_banner"
+                            returnTo={hrefFromJobsUrlState(urlState)}
+                            className="border-0"
+                        />
+                    </PopoverContent>
+                </Popover>
             )}
             {naming && (
                 <div className={cn(

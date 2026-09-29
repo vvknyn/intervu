@@ -96,3 +96,13 @@ export function shouldOpenResumeGateAfterInlineAuth(input: {
     if (input.alreadyHandled || input.importAlreadyOpen) return false;
     return input.hasResume === false;
 }
+
+/**
+ * Hrefs for the two doors a signed-out gate offers — real links, so the gate
+ * needs no client state. Both carry the page the visitor was on; `/auth/start`
+ * itself rewrites a signup `next` to the résumé gate (`resolveAuthKitReturnTo`).
+ */
+export function signupGateHrefs(returnTo: string): { create: string; signIn: string } {
+    const next = encodeURIComponent(returnTo);
+    return { create: `/auth/start?mode=signup&next=${next}`, signIn: `/login?next=${next}` };
+}

@@ -112,6 +112,8 @@ import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
+import { SignupGate } from "@/components/auth/SignupGate";
+import { splitFitGate } from "@/lib/jobs/fit-gate";
 import { indexCategories } from "@/lib/jobs/index-categories";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
@@ -152,10 +154,10 @@ import {
     getLocalAiEnabledSnapshot,
     subscribeLocalAiEnabled,
 } from "@/lib/local-ai/flag";
-import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
-import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
 import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
@@ -370,6 +372,7 @@ import {
 } from "@/lib/auth/auth-gate-copy";
 import {
     getGuestSaveCount,
+    guestSaveGateReached,
     recordGuestSave,
     isGuestSaveBannerDismissed,
     dismissGuestSaveBanner,
@@ -383,7 +386,6 @@ import {
     shouldShowGuestEngageNudge,
     subscribeGuestEngageNudge,
 } from "@/lib/auth/guest-engage-nudge";
-import { ANONYMOUS_DEPTH_GATE_MESSAGE } from "@/lib/shield/depth-cap";
 import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
 
 /**
@@ -1415,11 +1417,10 @@ export function JobsContent({
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     // Set once `loadMore` hits the anonymous depth wall (`meta.gated`, see
-    // `interpretLoadMoreResponse`) — holds the server's own note verbatim so
-    // the sentinel below can swap "Show N more" for a sign-in CTA instead of
-    // silently doing nothing forever. Reset alongside `loadingMore` whenever
-    // a new first-page search starts.
-    const [depthGateNote, setDepthGateNote] = useState<string | null>(null);
+    // `interpretLoadMoreResponse`) so the sentinel below can swap "Show N more"
+    // for the signup gate instead of silently doing nothing forever. Reset
+    // alongside `loadingMore` whenever a new first-page search starts.
+    const [depthGated, setDepthGated] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
@@ -1888,10 +1889,6 @@ export function JobsContent({
     // below; every `openAuth`/`gate()`/`setAuthOpen(true)` call site sets it
     // right before opening, same pattern as `authGateReason`.
     const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
-    // Controls the report dialog from outside `ReportJobButton` so a
-    // post-auth replay (see `useAuthGate` below) can reopen the exact
-    // dialog the user was filling out before sign-in.
-    const [reportDialogOpen, setReportDialogOpen] = useState(false);
     // The one auth gate (`use-auth-gate.ts`): signed in → run the handler
     // now; signed out → persist the action (survives both in-place login and
     // a hard OAuth/passkey navigation away and back) and open the popover.
@@ -1910,18 +1907,6 @@ export function JobsContent({
                     fitToken: fitIntentRef.current!.begin(),
                 };
                 setImportOpen(true);
-            },
-            // Reopening the dialog isn't enough on its own — the page's
-            // current overlay may be showing a DIFFERENT job than the one
-            // reported (browser back/forward while the auth popover was
-            // open). Re-select the reported job by id via the same `openJob`
-            // every SERP row/permalink uses (declared below — safe for the
-            // same closure reason as `doMarkApplied` above), and skip the
-            // dialog entirely if it can't be identified.
-            report: (action) => {
-                if (!action.payload?.id) return;
-                openJob(action.payload.id);
-                setReportDialogOpen(true);
             },
         },
         user,
@@ -2018,6 +2003,27 @@ export function JobsContent({
     // every render, per the Rules of Hooks; combined with `hasUsableResume`
     // below rather than short-circuited into it.
     const resumeKnownOnServer = useResumePresence(user?.uid ?? null, authReady);
+
+    // A visitor who parsed a résumé as a guest (the fit gate lets them upload and
+    // see their top 3 first) and then created the account arrives here with the
+    // résumé only in this browser. Adopt it into the account once — otherwise the
+    // signup the gate asked for returns them to a page that has forgotten what
+    // they uploaded. Only when the server has none: never overwrite a saved résumé.
+    useEffect(() => {
+        if (!user || resumeKnownOnServer !== false) return;
+        const stored = readLocalAiResume();
+        if (!stored || !resumeIsUsable(stored.data)) return;
+        void saveResumeData(stored.data, "pdf", 1)
+            .then((res) => {
+                if (res.error) return;
+                clearLocalAiResume();
+                setResume(stored.data);
+                setResumeUpdatedAt(stored.updatedAt);
+                setResumeSourceLabel(stored.sourceLabel ?? null);
+                captureEvent("resume_uploaded", { surface: "jobs" });
+            })
+            .catch(() => {});
+    }, [user, resumeKnownOnServer]);
 
     // Whether the sort control's résumé-aware "Best match" segment (below)
     // should treat a résumé as on file — `hasUsableResume` (session-local:
@@ -2296,7 +2302,7 @@ export function JobsContent({
         const generation = paginationRef.current!.beginFirstPage();
         setSearchError(null);
         setLoadingMore(false);
-        setDepthGateNote(null);
+        setDepthGated(false);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
         setLoading(true);
@@ -3549,6 +3555,17 @@ export function JobsContent({
     // both still hold), so only the DISPLAY sites route through the honest
     // resolver — see corpus-count.ts's header comment.
     const totalCount = resolveCorpusCount(result ?? { total: 0 }, MAX_REACHABLE);
+
+    // The résumé-fit gate: a guest's ranked list stops after the free preview and
+    // the rest needs an account. Layered at the RENDER site only — `renderedClusters`
+    // stays whole for the For-you deck and keyboard-order derivations below.
+    const fitGate = splitFitGate({
+        fitActive,
+        ranked: matchScores !== null,
+        signedOut,
+        rows: renderedClusters,
+        total: totalCount,
+    });
     // A4 — once `hasMore` goes false, WHY it stopped matters: genuinely out
     // of results, or just out of MAX_REACHABLE reach while `totalCount` (the
     // honest, facet-sum-recovered total) is far bigger. See
@@ -3584,8 +3601,8 @@ export function JobsContent({
         // never drops below `hits.length` from a gated response — see the
         // `setResult` updater below, which never touches `total`). Without
         // this guard that would mean one refused request per re-intersect,
-        // forever. Cleared only by `setDepthGateNote(null)` on a new search.
-        if (depthGateNote) return;
+        // forever. Cleared only by `setDepthGated(false)` on a new search.
+        if (depthGated) return;
         const cur = result;
         if (!cur || !cur.configured) return;
         if (cur.hits.length >= cur.total || cur.hits.length >= MAX_REACHABLE) return;
@@ -3621,7 +3638,7 @@ export function JobsContent({
                 // Refused, not searched — `r.hits`/`r.total` are not a real
                 // (if empty) page, so `setResult` must never see them: doing
                 // so would clobber the real total this search already has.
-                setDepthGateNote(r.note ?? ANONYMOUS_DEPTH_GATE_MESSAGE);
+                setDepthGated(true);
                 return;
             }
             // "depth" = which page this load-more just fetched (1-indexed);
@@ -3660,9 +3677,9 @@ export function JobsContent({
         // every other field `buildJobSearchPayload` reads from this render.
         // `locationDefaultSuppressed` (default-location chip's "×"), same
         // reason: page 2+ must never silently reapply a default this
-        // session already cleared. `depthGateNote` added for the guard above.
+        // session already cleared. `depthGated` added for the guard above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, yearsExperience, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed, depthGateNote]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, yearsExperience, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed, depthGated]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -4225,7 +4242,7 @@ export function JobsContent({
     // `gate({ kind: "apply" })` for tracking only — Save's 2nd-gate stays.
     const handleGoAfter = (job: PublicJob) => {
         if (!user) {
-            if (getGuestSaveCount() >= 1) {
+            if (guestSaveGateReached()) {
                 openAuth("save", "user");
                 return;
             }
@@ -4295,16 +4312,13 @@ export function JobsContent({
         })();
     };
 
-    // Gate callback for SavedSearchesPanel's guest save path — mirrors
-    // `handleGoAfter`'s own guest-save gate so both save types share the same
-    // "first save free, second requires sign-in" rule with one counter.
+    // Gate callback for SavedSearchesPanel's guest save path — the same
+    // `guestSaveGateReached` rule as `handleGoAfter` ("first save free, second
+    // needs an account", one counter). On "block" the panel shows its own
+    // signup gate.
     const handleBeforeGuestSavedSearch = (): "proceed" | "block" => {
-        if (getGuestSaveCount() >= 1) {
-            openAuth("save", "user");
-            return "block";
-        }
-        const newCount = recordGuestSave();
-        setGuestSaveCount(newCount);
+        if (guestSaveGateReached()) return "block";
+        setGuestSaveCount(recordGuestSave());
         return "proceed";
     };
 
@@ -4718,36 +4732,12 @@ export function JobsContent({
         setImportOpen(true);
     };
 
-    // Every OTHER résumé-upload entry point (fit-rank fallback, résumé-moment
-    // card, toolbar Replace) goes through this name — it is just
-    // `beginResumeUpload` under a stable identifier.
+    // Every résumé-upload entry point (front-door band, match teaser, fit-rank
+    // fallback, résumé-moment card, toolbar Replace) goes through this name — it
+    // is just `beginResumeUpload` under a stable identifier. Uploading and
+    // parsing are open to guests; the gate is on the FULL ranked list.
     const handleUploadClick = () => {
         beginResumeUpload();
-    };
-
-    /** Résumé-upload / fit-rank gate — shared by FrontDoorResumeBand and
-     *  JobCard's match teaser (same flow as RESUME_UPLOAD_AUTH_CTA). */
-    const handleFitRankUploadGate = () => {
-        if (user) {
-            handleUploadClick();
-            return;
-        }
-        resumeActionAfterImportRef.current = {
-            kind: "fit",
-            fitToken: fitIntentRef.current!.begin(),
-        };
-        setAuthGateReason("fit");
-        setAuthTrigger("user");
-        recordAuthGateOpen({
-            storage: window.sessionStorage,
-            reason: "fit",
-            trigger: "user",
-            originSurface: "jobs_banner",
-        });
-        gate(
-            { kind: "upload", payload: true },
-            { originSurface: "jobs_banner", gateReason: "fit" },
-        );
     };
 
     const showMatchTeaser = needsResumeEntry({
@@ -5071,7 +5061,7 @@ export function JobsContent({
                 tourAnchor={tourAnchor}
                 matchScore={matchScores?.get(j.id) ?? null}
                 showMatchTeaser={showMatchTeaser}
-                onMatchTeaserClick={handleFitRankUploadGate}
+                onMatchTeaserClick={handleUploadClick}
                 matchAsOfDate={resumeAsOfDate}
                 pursuit={pursuitsByJobIdMerged.get(j.id)}
                 onGoAfter={() => handleGoAfter(j)}
@@ -5122,19 +5112,6 @@ export function JobsContent({
                     now={nowMs}
                     source="serp"
                     signedIn={Boolean(user)}
-                    onRequestSignIn={() => {
-                        setAuthGateReason("report");
-                        setAuthTrigger("user");
-                        setAuthGateReason("report");
-                        recordAuthGateOpen({
-                            storage: window.sessionStorage,
-                            reason: "report",
-                            trigger: "user",
-                            originSurface: "job_detail",
-                            jobId: detailJob.id,
-                        });
-                        gate({ kind: "report", payload: detailJob }, { originSurface: "job_detail", gateReason: "report" });
-                    }}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
                     onOpenRelated={openJob}
@@ -5143,8 +5120,6 @@ export function JobsContent({
                     saveSuccessPulse={savePulseJobIds.has(detailJob.id)}
                     onClose={onClose}
                     reportJobEnabled={reportJobEnabled}
-                    reportDialogOpen={reportDialogOpen}
-                    onReportDialogOpenChange={setReportDialogOpen}
                     collapseDescription={collapseDescription}
                     className="border-0 bg-transparent"
                     descriptionPending={detailDescriptionPending}
@@ -5462,10 +5437,8 @@ export function JobsContent({
 
     const tourReplayEl = <JobsTourReplayButton />;
 
-    // Where the depth-gate CTA's "Sign in" link returns to — this exact
-    // SERP, filters and all. Same `/login?next=` shape used everywhere else
-    // sign-in is a detour rather than a destination (e.g. CompanyExhaustGate).
-    const depthGateSignInHref = `/login?next=${encodeURIComponent(`${pathname}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`)}`;
+    // Where a signed-out gate returns to — this exact SERP, filters and all.
+    const serpReturnTo = `${pathname}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`;
 
     const dockedQueryEl = (
         <div className="relative flex h-full w-full items-center">
@@ -6440,7 +6413,7 @@ export function JobsContent({
                             the funnel at pageview. */}
                         <div className="flex min-h-0 flex-1 flex-col">
                             <>
-                                <BoardVisitBanner />
+                                <BoardVisitBanner resultCount={hits.length} aboveMobileCta={showMobileSearchCta} />
 
                                 {/* Single container for the contiguous guest-nudge / alert
                                     group below — reads the ONE `--list-inset` token so these
@@ -6474,27 +6447,13 @@ export function JobsContent({
                                     Signed-in users never see it (`showGuestSaveBanner` is false
                                     whenever `user` is truthy). */}
                                 {showGuestSaveBanner && (
-                                    <div
-                                        data-testid="guest-save-banner"
-                                        className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
-                                    >
-                                        <span>Sign in to keep this list across devices and get alerts when new roles match —</span>
-                                        <span className="inline-flex items-baseline gap-3 whitespace-nowrap">
-                                            <button
-                                                type="button"
-                                                onClick={() => openAuth("save", "user")}
-                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                            >
-                                                {AUTH_CTA_LABEL}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleDismissGuestSaveBanner}
-                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                            >
-                                                not now
-                                            </button>
-                                        </span>
+                                    <div data-testid="guest-save-banner" className="mb-3 border-t border-border pt-4 pb-2">
+                                        <SignupGate
+                                            reason="save"
+                                            originSurface="jobs_banner"
+                                            returnTo={serpReturnTo}
+                                            onDismiss={handleDismissGuestSaveBanner}
+                                        />
                                     </div>
                                 )}
 
@@ -6859,7 +6818,7 @@ export function JobsContent({
                                             `seamIndex` directly — see its own comment
                                             above (`clusterJobs`, lib/jobs/cluster.ts)
                                             for why a cluster can never straddle it. */}
-                                        {renderedClusters.flatMap((cluster, i) => {
+                                        {fitGate.visible.flatMap((cluster, i) => {
                                             const expanded = expandedClusters.has(cluster.primary.id);
                                             const rows = [
                                                 renderJobRow(
@@ -6952,24 +6911,33 @@ export function JobsContent({
                                         `paginationRef`/`loadingMore` — so a click racing an
                                         in-flight auto-load is a safe no-op) for anyone who'd rather
                                         tap than scroll. */}
-                                    {hasMore && (
+                                    {fitGate.gated && (
+                                        <SignupGate
+                                            reason="fit"
+                                            originSurface="jobs_banner"
+                                            returnTo={serpReturnTo}
+                                            count={fitGate.count}
+                                            onDismiss={() => chooseSort("relevance")}
+                                            className="my-4 w-full"
+                                        />
+                                    )}
+                                    {hasMore && !fitGate.gated && (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
-                                            {depthGateNote ? (
+                                            {depthGated ? (
                                                 // The anonymous depth wall refused the next page
                                                 // (`loadMore`'s `interpretLoadMoreResponse` → "gated").
                                                 // The sentinel div stays mounted (harmless — `loadMore`
-                                                // itself now guards on `depthGateNote` so re-intersecting
-                                                // it is a no-op) but the "Show N more" button is gone:
-                                                // clicking it could never have worked past this point.
-                                                <p className="text-xs text-muted-foreground">
-                                                    {depthGateNote}{" "}
-                                                    <a
-                                                        href={depthGateSignInHref}
-                                                        className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                                    >
-                                                        {AUTH_CTA_LABEL}
-                                                    </a>
-                                                </p>
+                                                // itself guards on `depthGated` so re-intersecting it is
+                                                // a no-op) but "Show N more" is gone: clicking it could
+                                                // never have worked past this point. The hidden count is
+                                                // this search's own total minus what is already on screen.
+                                                <SignupGate
+                                                    reason="depth"
+                                                    originSurface="jobs_banner"
+                                                    returnTo={serpReturnTo}
+                                                    count={resolveHiddenCount(totalCount, hits.length)}
+                                                    className="w-full"
+                                                />
                                             ) : loadingMore ? (
                                                 <span className="text-xs text-muted-foreground">Loading more roles…</span>
                                             ) : (
@@ -7019,29 +6987,7 @@ export function JobsContent({
                     first-viewport contract: jobs, then the résumé invite. */}
                 {frontDoorBandVisible && (
                     <FrontDoorResumeBand
-                        nextStep={user ? "importer" : "auth"}
-                        onUploadClick={() => {
-                            if (user) {
-                                handleUploadClick();
-                                return;
-                            }
-                            resumeActionAfterImportRef.current = {
-                                kind: "fit",
-                                fitToken: fitIntentRef.current!.begin(),
-                            };
-                            setAuthGateReason("fit");
-                            setAuthTrigger("user");
-                            recordAuthGateOpen({
-                                storage: window.sessionStorage,
-                                reason: "fit",
-                                trigger: "user",
-                                originSurface: "jobs_banner",
-                            });
-                            gate(
-                                { kind: "upload", payload: true },
-                                { originSurface: "jobs_banner", gateReason: "fit" },
-                            );
-                        }}
+                        onUploadClick={handleUploadClick}
                         onSignInClick={() => openAuth("generic", "user")}
                     />
                 )}

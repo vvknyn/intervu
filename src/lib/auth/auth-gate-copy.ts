@@ -3,6 +3,7 @@
  */
 
 import { ANALYTICS_EVENTS } from "@/lib/analytics/event-names";
+import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { AUTH_GATE_RESUME_UNLOCK_BODY } from "@/lib/jobs/resume-privacy-copy";
 
 export type AuthGateReason =
@@ -10,11 +11,12 @@ export type AuthGateReason =
     | "generic"
     | "save"
     | "fit"
-    | "report"
     | "tailor"
     | "resume"
     | "tracker"
     | "alert"
+    | "depth"
+    | "follow"
     | "topbar";
 
 /** Who opened the popover: explicit user click vs passive product prompt. */
@@ -46,6 +48,10 @@ const FIT_RESUME_GATE_BODY = `${AUTH_GATE_RESUME_UNLOCK_BODY}\n\n${AUTH_GATE_RES
 interface AuthGateCopy {
     title?: string;
     body: string;
+    /** Names the attempted action — the `SignupGate` card headline. Falls back to `title`. */
+    action?: string;
+    /** Card headline when the gate can quote a true count (hidden remainder or total matches) (already formatted, "N" or "N+"). */
+    actionWithCount?: (count: string) => string;
 }
 
 const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
@@ -57,13 +63,15 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
     topbar: { body: "Sign in to sync your tracker across devices." },
     save: {
         title: "Sign in to save this job to Tracker.",
+        action: "Keep your saved roles on every device",
         body: "Your saved jobs and application stages will sync across devices.",
     },
     fit: {
         title: "Create your free account, then upload your résumé.",
+        action: "See all your ranked matches",
+        actionWithCount: (count) => `See all ${count} matches ranked for you`,
         body: FIT_RESUME_GATE_BODY,
     },
-    report: { body: "Sign in to report an issue with this listing." },
     tailor: {
         body: "Sign in to sync this tailored version across devices.",
     },
@@ -75,7 +83,16 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
         title: "Sign in to track this application",
         body: "Your saved jobs and application stages will sync across devices.",
     },
-    alert: { body: "Sign in to save this search and get alerts when new roles match." },
+    alert: {
+        action: "Save this search",
+        body: "A free account keeps this search and emails you when new roles match.",
+    },
+    follow: { body: "Sign in to keep the companies you follow across devices." },
+    depth: {
+        action: "See every result",
+        actionWithCount: (hidden) => `See the other ${hidden} roles that match`,
+        body: "It's free, and it also gets you saved searches and email alerts.",
+    },
 };
 
 export function authGateTitle(reason: AuthGateReason): string | undefined {
@@ -97,6 +114,29 @@ export function formatAuthGateValueLine(reason: AuthGateReason, guestPursuitCoun
 
 export const AUTH_CTA_LABEL = "Sign in";
 
+export const SIGNUP_GATE_CREATE_LABEL = "Create free account";
+
+export interface SignupGateCopy {
+    title: string;
+    body: string;
+    createLabel: string;
+    signInLabel: string;
+}
+
+/**
+ * Copy for the one signed-out gate card (`SignupGate`): names the attempted
+ * action, says what the account gives, and quotes a hidden count only when the
+ * caller holds a true one — a floor renders "N+", never a bare number.
+ */
+export function signupGateCopy(reason: AuthGateReason, count?: CorpusCount | null): SignupGateCopy {
+    const entry = AUTH_GATE_COPY[reason];
+    const title =
+        count && entry.actionWithCount
+            ? entry.actionWithCount(formatCorpusCount(count))
+            : (entry.action ?? entry.title ?? "Create your free account");
+    return { title, body: entry.body, createLabel: SIGNUP_GATE_CREATE_LABEL, signInLabel: AUTH_CTA_LABEL };
+}
+
 export type AuthCardTab = "login" | "signup";
 
 export interface AuthCardCopy {
@@ -114,10 +154,7 @@ export function authCardCopy(tab: AuthCardTab): AuthCardCopy {
     };
 }
 
-/** Upload CTA when auth is the next step (not the importer). */
-export const RESUME_UPLOAD_AUTH_CTA = "Create account & upload résumé";
-
-/** Upload CTA when the importer opens next. */
+/** Upload CTA — the importer opens next; uploading needs no account. */
 export const RESUME_UPLOAD_CTA = "Upload résumé";
 
 export const GUEST_AUTH_STRINGS: Record<string, string> = {
@@ -131,5 +168,4 @@ export const GUEST_AUTH_STRINGS: Record<string, string> = {
     FIT_TITLE: authGateTitle("fit")!,
     SAVE_TITLE: authGateTitle("save")!,
     TAILOR_LINE: formatAuthGateValueLine("tailor", 0),
-    REPORT_LINE: formatAuthGateValueLine("report", 0),
 };

@@ -167,9 +167,9 @@ export function ConnectClient({
                 <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">1.</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-xs font-semibold text-foreground">Sign in to velai</h3>
+                    {/* signup-gate-exempt: agent-connect card, the sign-in is the page's only step */}<h3 className="text-xs font-semibold text-foreground">Sign in to velai</h3>
                     <Button asChild size="sm" className="shrink-0">
-                      <a href={`/login?next=${encodeURIComponent("/connect")}`}>{AUTH_CTA_LABEL}</a>
+                      {/* signup-gate-exempt: agent-connect card, the sign-in is the page's only step */}<a href={`/login?next=${encodeURIComponent("/connect")}`}>{AUTH_CTA_LABEL}</a>
                     </Button>
                   </div>
                   <p className="mt-1 text-xs leading-snug text-muted-foreground">

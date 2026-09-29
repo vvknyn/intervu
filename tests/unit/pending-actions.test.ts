@@ -66,7 +66,7 @@ describe('persistPendingAction / takePersistedPendingAction — survives a hard-
             createdAt: 1000,
         });
 
-        const record = takePersistedPendingAction<string, string>(storage, {
+        const record = takePersistedPendingAction<string>(storage, {
             currentPath: '/jobs/job-A',
             now: 1500,
         });
@@ -75,23 +75,35 @@ describe('persistPendingAction / takePersistedPendingAction — survives a hard-
         assert.equal(record?.returnTo, '/jobs/job-A?query=engineer');
     });
 
-    // Second class case beyond "report": a plain "apply" replay round-trips
+    // Second class case beyond "apply": an "upload" replay round-trips
     // through the exact same persistence helpers — proving this is class-wide
-    // storage for any PendingAction kind, not a report-specific mechanism.
-    it('round-trips a report action back on the same path', () => {
+    // storage for any PendingAction kind.
+    it('round-trips an upload action back on the same path', () => {
         const storage = fakeStorage();
         persistPendingAction(storage, {
-            action: { kind: 'report', payload: 'job-R' },
-            returnTo: '/jobs/job-R',
+            action: { kind: 'upload', payload: true },
+            returnTo: '/jobs',
             scrollY: 0,
             createdAt: 1000,
         });
 
-        const record = takePersistedPendingAction<string, string>(storage, {
-            currentPath: '/jobs/job-R',
+        const record = takePersistedPendingAction<string>(storage, {
+            currentPath: '/jobs',
             now: 1000,
         });
-        assert.deepEqual(record?.action, { kind: 'report', payload: 'job-R' });
+        assert.deepEqual(record?.action, { kind: 'upload', payload: true });
+    });
+
+    // A record queued by the retired "report" kind (still in a tab's
+    // sessionStorage across a deploy) must replay as nothing, not throw.
+    it('drops a persisted record of the retired report kind', () => {
+        const storage = fakeStorage();
+        storage.setItem(
+            PENDING_ACTION_STORAGE_KEY,
+            JSON.stringify({ action: { kind: 'report', payload: 'job-R' }, returnTo: '/jobs', scrollY: 0, createdAt: 1000 }),
+        );
+        assert.equal(takePersistedPendingAction(storage, { currentPath: '/jobs', now: 1000 }), null);
+        assert.equal(storage.getItem(PENDING_ACTION_STORAGE_KEY), null);
     });
 
     it('clears the record after taking it — a second take returns null', () => {
@@ -225,17 +237,17 @@ describe('takePersistedPendingAction — malformed records never reach the calle
     it('still accepts and round-trips a well-formed record', () => {
         const storage = fakeStorage();
         persistPendingAction(storage, {
-            action: { kind: 'report', payload: 'job-R' },
+            action: { kind: 'apply', payload: 'job-R' },
             returnTo: '/jobs',
             scrollY: 120,
             createdAt: 1000,
         });
 
-        const record = takePersistedPendingAction<string, string>(storage, {
+        const record = takePersistedPendingAction<string>(storage, {
             currentPath: '/jobs',
             now: 1000,
         });
-        assert.deepEqual(record?.action, { kind: 'report', payload: 'job-R' });
+        assert.deepEqual(record?.action, { kind: 'apply', payload: 'job-R' });
         assert.equal(record?.scrollY, 120);
     });
 });

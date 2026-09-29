@@ -90,7 +90,7 @@ export function LandingOnboardingView({
         params.set("mode", mode);
         if (provider) params.set("provider", provider);
         const query = params.toString();
-        window.location.href = `/auth/start${query ? `?${query}` : ""}`;
+        window.location.href = `/auth/start${query ? `?${query}` : ""}`; // signup-gate-exempt: onboarding step that is the account-creation flow itself
     };
 
     const handleStartAuth = (provider?: string) => {
@@ -240,10 +240,10 @@ export function LandingOnboardingView({
                 >
                     <div className="space-y-2">
                         <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
-                            Create your free account
+                            {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Create your free account
                         </h2>
                         <p className="text-sm leading-relaxed text-muted-foreground">
-                            Sign in to save matches, tailored résumés, and applications to your private Velai profile.
+                            {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Sign in to save matches, tailored résumés, and applications to your private Velai profile.
                         </p>
                     </div>
 

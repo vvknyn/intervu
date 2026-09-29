@@ -2,14 +2,12 @@
  * Pending post-auth action state for /jobs — persisted across an auth
  * round trip.
  *
- * On /jobs a logged-out user can trigger three actions that require sign-in:
+ * On /jobs a logged-out user can trigger two actions that require sign-in:
  *
  *   - apply   — optional guest tracker prompt after Apply opens the employer
  *               site; after sign-in, resume tracking (apply-intent / mark
  *               applied) rather than blocking the outbound click.
  *   - upload  — gate: open the resume-import modal
- *   - report  — flag/report a job → after login, reopen the report dialog
- *               for that job and let the user resubmit
  *
  * (A legacy `"gate"` kind — open the posting and write the tracker
  * application on replay — was superseded 2026-09-10 and retired 2026-09-18
@@ -32,7 +30,7 @@
  * past the sign-in that follows it.
  *
  * Purity: the module never inspects the payloads — they are opaque generics
- * (a page passes `PublicJob` for apply/report). That keeps it
+ * (a page passes `PublicJob` for apply). That keeps it
  * runtime-dependency-free so it loads under `tsx` for unit tests without `@/`
  * path resolution. `upload` carries no payload of its own (it is a plain
  * "open the importer" flag), so its slot is a `boolean`.
@@ -41,19 +39,18 @@
 import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import type { OriginSurface } from "@/lib/auth/gate-attempt";
 
-/** The three kinds of pending action — the single source of truth
+/** The kinds of pending action — the single source of truth
  *  `PendingAction`'s `kind` union AND this module's own persisted-record
  *  validation both derive from. A new kind is covered by adding it here
  *  once, not by touching a second list. */
-export const PENDING_ACTION_KINDS = ["apply", "upload", "report"] as const;
+export const PENDING_ACTION_KINDS = ["apply", "upload"] as const;
 
 export type PendingActionKind = (typeof PENDING_ACTION_KINDS)[number];
 
 /** Maps each kind to its payload type. */
-interface PendingActionPayloadByKind<Apply, Report> {
+interface PendingActionPayloadByKind<Apply> {
     apply: Apply;
     upload: boolean;
-    report: Report;
 }
 
 /**
@@ -62,8 +59,8 @@ interface PendingActionPayloadByKind<Apply, Report> {
  * type error here until `PendingActionPayloadByKind` supplies its payload
  * type — there is no second enumeration of kinds to keep in sync.
  */
-export type PendingAction<Apply, Report = Apply> = {
-    [K in PendingActionKind]: { kind: K; payload: PendingActionPayloadByKind<Apply, Report>[K] };
+export type PendingAction<Apply> = {
+    [K in PendingActionKind]: { kind: K; payload: PendingActionPayloadByKind<Apply>[K] };
 }[PendingActionKind];
 
 function isKnownPendingActionKind(kind: unknown): kind is PendingActionKind {
@@ -93,8 +90,8 @@ export interface PendingActionStorage {
 /** A persisted pending action: the action itself, where to return the user to
  *  replay it, how far down the page they were, and when it was queued (for
  *  expiry). `returnTo` is `pathname + search + hash` — see `buildReturnTo`. */
-export interface PersistedPendingAction<Apply, Report> {
-    action: PendingAction<Apply, Report>;
+export interface PersistedPendingAction<Apply> {
+    action: PendingAction<Apply>;
     returnTo: string;
     scrollY: number;
     createdAt: number;
@@ -119,9 +116,9 @@ export function buildReturnTo(location: Pick<Location, "pathname" | "search" | "
  * gate — it just means neither the OAuth-return nor the in-place replay can
  * happen, and the user re-does the gated click after signing in manually.
  */
-export function persistPendingAction<Apply, Report>(
+export function persistPendingAction<Apply>(
     storage: PendingActionStorage,
-    record: PersistedPendingAction<Apply, Report>,
+    record: PersistedPendingAction<Apply>,
 ): void {
     try {
         storage.setItem(PENDING_ACTION_STORAGE_KEY, JSON.stringify(record));
@@ -225,10 +222,10 @@ function isValidPersistedPendingActionShape(value: unknown): value is {
  * would be the same "phantom action on an abandoned job" bug this module
  * exists to kill, just via the durable path instead of the in-memory one.
  */
-export function takePersistedPendingAction<Apply, Report>(
+export function takePersistedPendingAction<Apply>(
     storage: PendingActionStorage,
     { currentPath, now, maxAgeMs = DEFAULT_MAX_PENDING_ACTION_AGE_MS }: TakePersistedPendingActionOptions,
-): PersistedPendingAction<Apply, Report> | null {
+): PersistedPendingAction<Apply> | null {
     let raw: string | null;
     try {
         raw = storage.getItem(PENDING_ACTION_STORAGE_KEY);
@@ -247,11 +244,11 @@ export function takePersistedPendingAction<Apply, Report>(
     }
     if (!isValidPersistedPendingActionShape(parsed)) return null;
 
-    const record: PersistedPendingAction<Apply, Report> = {
+    const record: PersistedPendingAction<Apply> = {
         returnTo: parsed.returnTo,
         createdAt: parsed.createdAt,
         scrollY: parsed.scrollY ?? 0,
-        action: parsed.action as PendingAction<Apply, Report>,
+        action: parsed.action as PendingAction<Apply>,
         ...(parsed.pendingActionId ? { pendingActionId: parsed.pendingActionId } : {}),
         ...(parsed.gateReason ? { gateReason: parsed.gateReason as AuthGateReason } : {}),
         ...(parsed.firstGateReason ? { firstGateReason: parsed.firstGateReason as AuthGateReason } : {}),

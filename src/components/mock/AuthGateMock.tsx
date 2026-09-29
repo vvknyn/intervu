@@ -300,7 +300,7 @@ export function AuthGateMock() {
 
             {phase === "bounce" && (
                 <main className="flex min-h-[calc(100dvh-40px)] flex-col items-center justify-center px-5 text-center">
-                    <h1 className="text-2xl font-semibold">Sign in to connect your AI</h1>
+                    {/* signup-gate-exempt: dev mock harness, not shipped UI */}<h1 className="text-2xl font-semibold">Sign in to connect your AI</h1>
                     <p className="mt-3 max-w-md text-sm text-[#8b919a]">
                         After sign-in you open Connect to pair {agentLabel(lane === "board" ? "mcp" : lane)}.
                     </p>
@@ -455,7 +455,7 @@ export function AuthGateMock() {
                                         className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card px-6 text-center"
                                     >
                                         <p className="text-sm font-semibold text-foreground">
-                                            Sign in to view this role
+                                            {/* signup-gate-exempt: dev mock harness, not shipped UI */}Sign in to view this role
                                         </p>
                                         <Button
                                             onClick={() => {

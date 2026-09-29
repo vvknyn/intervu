@@ -144,7 +144,7 @@ export default function PrivacyPage() {
           at any time via the <Link href="/contact">contact page</Link>.
         </p>
         <p>
-          If you sign up for weekly search alerts while browsing jobs without an account, we store the email
+          {/* signup-gate-exempt: legal policy prose, not a prompt */}If you sign up for weekly search alerts while browsing jobs without an account, we store the email
           address you enter and the search you asked to watch, and use them only to send you new matching roles
           each week until you unsubscribe.
         </p>

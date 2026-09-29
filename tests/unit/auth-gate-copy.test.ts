@@ -9,7 +9,6 @@ import {
     guestKeepLine,
     SIGNUP_SUBCOPY,
     RESUME_UPLOAD_CTA,
-    RESUME_UPLOAD_AUTH_CTA,
 } from "../../src/lib/auth/auth-gate-copy";
 import { RESUME_LOCAL_DEVICE_BANNER } from "../../src/lib/jobs/resume-privacy-copy";
 test("guestKeepLine is null for zero count", () => {
@@ -62,9 +61,8 @@ test("tailor gate mentions sync, not auth wall before customize", () => {
     assert.match(formatAuthGateValueLine("tailor", 0), /sync/i);
 });
 
-test("resume upload CTA labels distinguish auth-next vs importer-next", () => {
+test("resume upload CTA names the importer — uploading needs no account", () => {
     assert.equal(RESUME_UPLOAD_CTA, "Upload résumé");
-    assert.equal(RESUME_UPLOAD_AUTH_CTA, "Create account & upload résumé");
 });
 
 test("authCardCopy: tab label, title, and submit label are identical per tab", () => {

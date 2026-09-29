@@ -42,7 +42,7 @@ export const AUTH_GATE_RESUME_UNLOCK_BODY =
 
 /** /jobs front-door résumé band (signed-out or no résumé on file). */
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
-    "Create a free account and upload one résumé to unlock personalized picks, fit bands, customize, and tailored PDFs.";
+    "Upload one résumé to see your top 3 matches and why. A free account unlocks every match, customize, and tailored PDFs.";
 
 /** Landing onboarding — device-only storage choice helper. */
 export const LANDING_DEVICE_STORAGE_NOTE =

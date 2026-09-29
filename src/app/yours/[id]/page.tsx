@@ -156,7 +156,7 @@ export default function PursuitDetailPage() {
         if (loading || searchParams.get("download") !== "pdf") return;
         if (!getCurrentUser()) {
             const here = `/yours/${id}?${searchParams.toString()}`;
-            router.replace(`/login?next=${encodeURIComponent(here)}`);
+            router.replace(`/login?next=${encodeURIComponent(here)}`); // signup-gate-exempt: client redirect into the auth flow, not a rendered prompt
             return;
         }
         if (!pursuit) return; // still resolving, or genuinely not found — no-op, no false error
@@ -240,13 +240,11 @@ export default function PursuitDetailPage() {
             apply: () => {
                 if (pursuit?.job_id) void openDetail(pursuit.job_id);
             },
-            // This page has no résumé importer or report flow — nothing
-            // here ever calls `gate({ kind: "upload"/"report", ... })`.
-            // Still required: `AuthGateHandlers` is a mapped type over
-            // every `PendingAction` kind, so every caller supplies all
-            // three.
+            // This page has no résumé importer — nothing here ever calls
+            // `gate({ kind: "upload", ... })`. Still required:
+            // `AuthGateHandlers` is a mapped type over every `PendingAction`
+            // kind, so every caller supplies both.
             upload: () => {},
-            report: () => {},
         },
         user,
     });

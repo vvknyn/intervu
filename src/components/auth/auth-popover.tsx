@@ -25,8 +25,8 @@ const EXPLICIT_USER_GATE_REASONS = new Set<AuthGateReason>([
     "resume",
     "tailor",
     "tracker",
-    "report",
     "alert",
+    "follow",
 ]);
 
 function ensureGateAttemptRecorded(

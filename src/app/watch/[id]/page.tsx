@@ -23,9 +23,9 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
         return (
             <div className="min-h-dvh bg-background flex items-center justify-center p-6">
                 <div className="max-w-sm text-center space-y-4" data-testid="watch-login-required">
-                    <h1 className="text-lg font-semibold text-foreground">Sign in to watch</h1>
+                    {/* signup-gate-exempt: phone-viewer page whose only state is signed out, nothing to preview */}<h1 className="text-lg font-semibold text-foreground">Sign in to watch</h1>
                     <p className="text-sm text-muted-foreground">
-                        Sign in to velai on this phone, then open this link again to see the
+                        {/* signup-gate-exempt: phone-viewer page whose only state is signed out, nothing to preview */}Sign in to velai on this phone, then open this link again to see the
                         application being filled in.
                     </p>
                     <Button asChild>

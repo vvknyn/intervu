@@ -159,7 +159,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
         if (activeTab === "signup") params.set("mode", "signup")
         if (provider) params.set("provider", provider)
         const query = params.toString()
-        window.location.href = `/auth/start${query ? `?${query}` : ""}`
+        window.location.href = `/auth/start${query ? `?${query}` : ""}` // signup-gate-exempt: the login form itself, part of the auth flow
     }
 
     const handleSignUp = async (e: React.FormEvent) => {
@@ -205,7 +205,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 }
                 if (onSuccess) onSuccess()
             } catch (err) {
-                setMessage(err instanceof Error ? err.message : "Failed to create account")
+                setMessage(err instanceof Error ? err.message : "Failed to create account") // signup-gate-exempt: the login form itself, part of the auth flow
             }
         })
     }

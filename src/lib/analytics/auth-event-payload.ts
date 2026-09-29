@@ -4,6 +4,7 @@ import {
     type GateAttempt,
     type GateAttemptEventFields,
     type OriginSurface,
+    type SignupGateId,
 } from "@/lib/auth/gate-attempt";
 
 /** Shared auth funnel properties — reason + gate_reason mirror for dashboards. */
@@ -21,6 +22,7 @@ export interface AuthEventContext {
 }
 
 export interface AuthContinuityFields {
+    gate?: SignupGateId;
     first_gate_reason?: AuthGateReason;
     last_gate_reason?: AuthGateReason;
     pending_action_id?: string;

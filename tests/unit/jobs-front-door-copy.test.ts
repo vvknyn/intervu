@@ -46,9 +46,9 @@ test("FrontDoorResumeBand renders card subcopy and the sign-in value line", () =
     );
     assert.match(band, /\{FRONT_DOOR_RESUME_CARD_SUBCOPY\}/);
     assert.match(band, /RESUME_UPLOAD_SIGNIN_LINE\.split/);
-    assert.match(band, /\{resumeUploadCtaLabel\(nextStep\)\}/);
+    assert.match(band, /\{RESUME_UPLOAD_CTA\}/);
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
-        "Create a free account, upload one résumé, and unlock For you, fit bands, Customize, and tailored PDFs.",
+        "Upload one résumé to see your top 3 matches and why. A free account unlocks every match, customize, and tailored PDFs.",
     );
 });

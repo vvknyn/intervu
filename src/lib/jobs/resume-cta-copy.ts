@@ -1,4 +1,3 @@
-import { RESUME_UPLOAD_AUTH_CTA, RESUME_UPLOAD_CTA } from "@/lib/auth/auth-gate-copy";
 import {
     FRONT_DOOR_RESUME_CARD_SUBCOPY,
     RESUME_UPLOAD_PROMISE,
@@ -10,11 +9,6 @@ export { FRONT_DOOR_RESUME_CARD_SUBCOPY, RESUME_UPLOAD_PROMISE };
  * Shared résumé-upload CTA copy — the /jobs front door, /resume empty state,
  * For you deck, and job-detail customize entry points.
  */
-
-/** Upload button label — auth-first vs importer-first entry points. */
-export function resumeUploadCtaLabel(next: "auth" | "importer"): string {
-    return next === "auth" ? RESUME_UPLOAD_AUTH_CTA : RESUME_UPLOAD_CTA;
-}
 
 export const RESUME_UPLOAD_SIGNIN_LINE =
     "Sign in to sync your résumé and tracker across devices.";

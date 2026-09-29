@@ -46,8 +46,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-03 | Seeded anon visit renders result rows on first paint with no dialog | anon | SEED-A + `/jobs?posted=any` | signed-out | no | uncovered | — |
 | J-JOBS-04 | Result count line states the 30-day window | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-JOBS-05 | Load more rows by scrolling the list sentinel (20 per page) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
-| J-JOBS-06 | Hit the anonymous depth wall after 90 results | anon | SEED-A + `/jobs?q=software+engineer` then scroll to end | signed-out | no | uncovered | — |
-| J-JOBS-07 | Depth-wall "Sign in" link carries the current URL in `next=` | anon | SEED-A + `/jobs?q=software+engineer` at the wall | signed-out | no | uncovered | — |
+| J-JOBS-06 | Hit the anonymous depth wall after 90 results: it states the true hidden count ("See the other N roles that match") and offers Create free account, with no dismiss | anon | SEED-A + `/jobs?q=software+engineer` then scroll to end | signed-out | no | covered | signup-gates.spec.ts |
+| J-JOBS-07 | Depth-wall "Create free account" and "Sign in" links carry the current URL in `next=` | anon | SEED-A + `/jobs?q=software+engineer` at the wall | signed-out | no | covered | signup-gates.spec.ts |
 | J-JOBS-08 | Signed-in user is not depth-walled past 90 results | signed-in | `/jobs?q=software+engineer` then scroll past 90 | signed-in | no | uncovered | — |
 | J-JOBS-09 | Open a row at xl and see it in the split-view detail pane with `?job=` | anon | SEED-A + viewport 1440x900 + `/jobs?q=software+engineer` | signed-out | yes | uncovered | — (legacy: jobs-split-view.spec.ts › (b) clicking a row shows that job in the pane; list stays visible; URL carries ?job=) |
 | J-JOBS-10 | First-job auto-preview fills the detail pane without touching the URL | anon | SEED-A + viewport 1440x900 + `/jobs?q=software+engineer` | signed-out | no | uncovered | — (legacy: jobs-split-view.spec.ts › (a) renders the list AND an auto-previewed first job in the pane, no sheet, no ?job=) |
@@ -72,6 +72,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-29 | The /jobs search row (query, location, Search) shares the lg control step (44px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
 | J-JOBS-30 | Every control in the /jobs toolbar row takes the md control step (32px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
 | J-JOBS-31 | A failed For-you ranked-list read (every Server Action answers 503) shows an error with Retry, never "No ranked roles to show right now."; Retry re-reads | Candidate with a local résumé | `/jobs?view=for-you` (guest résumé seeded in localStorage), click `hub-pack-card-all`, action POSTs fulfilled 503 in the browser | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-32 | A guest whose second save is a saved search meets the "Save this search" gate (Create free account + Sign in), not a bare input | anon | `intervu.guestSaveCount=1` seeded + `/jobs?q=engineer`, click `save-search-trigger` | signed-out | no | covered | signup-gates.spec.ts |
+| J-JOBS-33 | A guest's first job save shows the dismissible save gate card; "Not now" removes it | anon | `/jobs?q=engineer`, click `job-save-trigger` on the first row | signed-out | no | covered | signup-gates.spec.ts |
+| J-JOBS-34 | A guest with a résumé sees exactly their top 3 ranked matches, then the "See all N matches ranked for you" gate | anon | `velai.localAi.enabled` + a synthetic local résumé seeded + `/jobs?sort=fit` | signed-out | no | covered | signup-gates.spec.ts |
 
 ## SRCH
 
@@ -180,10 +183,11 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-21 | Guest saves one job locally from the job page; the toast links the Tracker | anon | JOB_PATH at 1440x900 | signed-out | no | uncovered | — |
 | J-DETAIL-22 | Guest's second save is blocked by the "Sign in to save this job to Tracker." gate | anon | JOB_PATH (after J-DETAIL-21 state) | signed-out | no | uncovered | — |
 | J-DETAIL-23 | Signed-in save flips the bookmark to a confirmed link into /yours/<id> @writes | signed-in | JOB_PATH at 1440x900 | signed-in | yes | uncovered | — |
-| J-DETAIL-24 | Signed-out Report opens the sign-in gate (only when the report flag is on) | anon | JOB_PATH at 1440x900 | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Report persists the action and the /auth/start next param matches the current page (flag-skipped)) |
+| J-DETAIL-24 | Signed-out Report listing opens the report form with no sign-in gate (only when the report flag is on) | anon | JOB_PATH at 1440x900 | signed-out | no | covered | signup-gates.spec.ts |
 | J-DETAIL-25 | Signed-in Report submits and flips to "Reported ✓" (flag on) @writes | signed-in | JOB_PATH at 1440x900 | signed-in | yes | uncovered | — |
 | J-DETAIL-26 | Share control in the board detail pane is a labelled "Copy link" action | anon | /jobs?posted=any at 1440x900 (pane) | signed-out | no | uncovered | — |
 | J-DETAIL-27 | Slow document load shows the "Loading job page" skeleton before the job | anon | JOB_PATH with the document request delayed | signed-out | no | uncovered | — |
+| J-DETAIL-28 | Anonymous Report submit reaches "Reported ✓" (flag on) @writes | anon | JOB_PATH at 1440x900, open `report-job-trigger`, click `report-job-submit` | signed-out | yes | covered | signup-gates.spec.ts |
 
 ## APPLY
 
@@ -231,7 +235,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-10 | "View all N jobs" CTA opens the company-scoped board | anon | /co/anthropic--com | signed-out | no | uncovered | — |
 | J-COMPANY-11 | Company with zero open roles shows the follow-me empty state | anon | /co/<slug of a company with 0 live roles> | signed-out | no | uncovered | — |
 | J-COMPANY-12 | Guest Follow click opens the email step and never renders "Following" | anon | /co/anthropic--com | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › guest click on Follow never renders Following — it opens the email step instead) |
-| J-COMPANY-13 | Email step is focusable and its sign-in link falls back to the auth dialog | anon | /co/anthropic--com | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › email step: focusable, sign-in link falls back to the auth dialog) |
+| J-COMPANY-13 | Guest Follow email step is focusable and its "Have an account? Sign in" opens the auth dialog (follow gate) | anon | /co/anthropic--com | signed-out | no | covered | signup-gates.spec.ts |
 | J-COMPANY-14 | Email step submit sends a confirmation @writes | signing-up | /co/anthropic--com | signed-out | yes | uncovered | — |
 | J-COMPANY-15 | Follow email API rejects an invalid body with 400 | agent | POST /api/follow-email | signed-out | no | uncovered | — |
 | J-COMPANY-16 | Verify link success redirects to the company page with ?followed=1 and shows the verified state | anon | /api/follow-email/verify?token=...&domain=...&name=... | signed-out | yes | uncovered | — |

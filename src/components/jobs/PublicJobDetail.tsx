@@ -22,7 +22,7 @@ import {
     GUEST_SAVE_TOAST,
     type AuthGateReason,
 } from "@/lib/auth/auth-gate-copy";
-import { getGuestSaveCount, recordGuestSave } from "@/lib/auth/guest-save-gate";
+import { guestSaveGateReached, recordGuestSave } from "@/lib/auth/guest-save-gate";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { shortDate } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -95,10 +95,6 @@ export function PublicJobDetail({
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
     const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
     const [guestTrackPrompt, setGuestTrackPrompt] = useState<GuestApplyTrackRecord | null>(null);
-    // Controls the report dialog from outside `ReportJobButton` so a
-    // post-auth replay (see `useAuthGate` below) can reopen the exact
-    // dialog the user was filling out before sign-in.
-    const [reportDialogOpen, setReportDialogOpen] = useState(false);
     const router = useRouter();
     const { byJobId } = usePursuits();
     const pursuitsByJobId = useMemo(() => {
@@ -212,25 +208,17 @@ export function PublicJobDetail({
             // Same reasoning as jobs/page.tsx's sibling handler: a guest's
             // Apply click never reached the ATS (auth-first gate), so the
             // replay opens the apply-intent dialog rather than calling
-            // `window.open` outside a click gesture. Guard on job id like
-            // `report` below — this route only ever shows one job, but a
-            // stale/foreign persisted record must never pop the dialog for
-            // it.
+            // `window.open` outside a click gesture. Guard on job id —
+            // this route only ever shows one job, but a stale/foreign
+            // persisted record must never pop the dialog for it.
             apply: (action) => {
                 if (action.payload?.id === job.id) setApplyIntentOpen(true);
             },
             // This surface has no résumé importer — nothing here ever calls
             // `gate({ kind: "upload", ... })`, so this is unreachable. Still
             // required: `AuthGateHandlers` is a mapped type over every
-            // `PendingAction` kind, so every caller supplies all three.
+            // `PendingAction` kind, so every caller supplies both.
             upload: () => {},
-            // Single-job page: only reopen the dialog when the persisted
-            // report actually belongs to THIS job — a stale or foreign
-            // record must never pop the dialog for whatever job this route
-            // happens to be showing.
-            report: (action) => {
-                if (action.payload?.id === job.id) setReportDialogOpen(true);
-            },
         },
         user,
     });
@@ -358,7 +346,7 @@ export function PublicJobDetail({
 
     const handleGoAfter = (target: PublicJob) => {
         if (!user) {
-            if (getGuestSaveCount() >= 1) {
+            if (guestSaveGateReached()) {
                 openAuth("save", "user");
                 return;
             }
@@ -436,23 +424,6 @@ export function PublicJobDetail({
         }
     };
 
-    // The only `onRequestSignIn` consumer on this surface is `ReportJobButton`
-    // (both `JobDetail`/`JobDetailDocument` reserve that prop for it) — route
-    // it through the report gate so a signed-out report reopens this exact
-    // dialog once the user is back, same as Apply.
-    const requireReportAuth = () => {
-        setAuthGateReason("report");
-        setAuthTrigger("user");
-        recordAuthGateOpen({
-            storage: window.sessionStorage,
-            reason: "report",
-            trigger: "user",
-            originSurface: "job_detail",
-            jobId: job.id,
-        });
-        gate({ kind: "report", payload: job }, { originSurface: "job_detail", gateReason: "report" });
-    };
-
     return (
         <>
             <ApplyIntentDialog
@@ -489,10 +460,7 @@ export function PublicJobDetail({
                     pursuit={pursuitsByJobId.get(job.id)}
                     saveSuccessPulse={savePulse}
                     reportJobEnabled={reportJobEnabled}
-                    reportDialogOpen={reportDialogOpen}
-                    onReportDialogOpenChange={setReportDialogOpen}
                     onOpenRelated={handleOpenRelated}
-                    onRequestSignIn={requireReportAuth}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
@@ -515,11 +483,8 @@ export function PublicJobDetail({
                     pursuit={pursuitsByJobId.get(job.id)}
                     saveSuccessPulse={savePulse}
                     reportJobEnabled={reportJobEnabled}
-                    reportDialogOpen={reportDialogOpen}
-                    onReportDialogOpenChange={setReportDialogOpen}
                     onClose={onClose}
                     onOpenRelated={handleOpenRelated}
-                    onRequestSignIn={requireReportAuth}
                     collapseDescription={collapseDescription}
                     className={cn(detailClassName)}
                     onOpenPosting={() => handleOpenPosting(job)}

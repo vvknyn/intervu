@@ -74,7 +74,7 @@ describe("decideNudgeOnce", () => {
         // guard itself: whatever the second call proposes, the record from
         // the first call wins.
         const first = decideNudgeOnce(null, { reason: "apply", trigger: "auto" });
-        const second = decideNudgeOnce(first, { reason: "report", trigger: "auto" });
+        const second = decideNudgeOnce(first, { reason: "tailor", trigger: "auto" });
         assert.deepEqual(second, { reason: "apply", trigger: "auto" }, "existing record is unchanged, not overwritten by the second call's proposal");
         assert.equal(second, first, "same object identity — not even a new record shape");
     });

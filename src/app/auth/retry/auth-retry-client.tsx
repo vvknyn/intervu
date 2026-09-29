@@ -30,7 +30,7 @@ import {
 export function AuthRetryClient() {
     const searchParams = useSearchParams();
     const next = validateNextParam(searchParams.get("next"));
-    const retryHref = `/auth/start${next ? `?next=${encodeURIComponent(next)}` : ""}`;
+    const retryHref = `/auth/start${next ? `?next=${encodeURIComponent(next)}` : ""}`; // signup-gate-exempt: retry link inside the auth flow itself, not a conversion gate
 
     return (
         <AuthRouteLayout>
