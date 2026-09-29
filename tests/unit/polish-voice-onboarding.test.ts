@@ -11,7 +11,6 @@ import {
 const ROOT = join(__dirname, "..", "..");
 
 const ONBOARDING_PROSE_FILES = [
-    "src/components/onboarding/ConceptALanding.tsx",
     "src/components/onboarding/FirstTimeOnboardingModal.tsx",
     "src/components/onboarding/LandingOnboardingView.tsx",
     "src/components/onboarding/onboarding-step-label.tsx",
@@ -58,9 +57,6 @@ describe("Phase 2 — voice onboarding batch", () => {
 
         const modal = read("src/components/onboarding/FirstTimeOnboardingModal.tsx");
         assert.match(modal, /<OnboardingStepLabel step=\{step\} \/>/);
-
-        const conceptA = read("src/components/onboarding/ConceptALanding.tsx");
-        assert.doesNotMatch(conceptA, /OnboardingStepLabel/);
     });
 
     it("onboarding user-visible copy uses Velai casing and résumé spelling", () => {

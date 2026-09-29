@@ -14,8 +14,7 @@ import { test as authTest } from './helpers/auth-gate';
  * gone — nav destinations live in the signed-in avatar's dropdown menu
  * (TopBar, data-testid="topbar-avatar"). Signed-out visitors — the
  * default state in these tests, no login fixture here — only see the
- * wordmark and Sign in — on /jobs use visible Concept A `concept-a-sign-in`
- * when the poster is shown; marketing routes use TopBar `topbar-signin` and
+ * wordmark and Sign in — TopBar `topbar-signin` and
  * `topbar-create-account`. Menu-driven navigation tests below are
  * conditional on the avatar being visible.
  */
@@ -23,16 +22,14 @@ test.describe('NAV - Navigation Tests', () => {
   /**
    * TC-NAV-001: Home page loads successfully
    *
-   * Signed-out /jobs at rest: Concept A landing poster (Velai brand), not legacy SERP chrome.
+   * Signed-out /jobs at rest: board-first, TopBar Sign in visible, no poster.
    */
   test('TC-NAV-001: Home page loads successfully', async ({ page }) => {
     await page.goto('/jobs');
 
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByTestId('concept-a-landing')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByTestId('concept-a-brand')).toContainText('Velai');
-    await expect(page.getByTestId('concept-a-sign-in')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('topbar-signin')).toBeVisible({ timeout: 10000 });
   });
 
   /**

@@ -162,13 +162,7 @@ import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorField
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
-import { CONCEPT_A_LANDING_BODY_CLASS } from "@/components/onboarding/ConceptALanding";
 import {
-    CONCEPT_A_LANDING_PENDING_HTML_CLASS,
-    hideJobsSsrLanding,
-    restoreJobsSsrLanding,
-    revealJobsSiteHeader,
-    readJobsSignedInPaintHint,
     readOnboardingCompletedFromStorage,
     subscribeOnboardingCompleted,
     writeOnboardingCompletedInStorage,
@@ -1018,8 +1012,8 @@ function ListTail({
 }
 
 export type JobsContentProps = {
-    /** Skip SSR Step 1 — open onboarding at steps 2–3 (auth/résumé gate). */
-    onboardingInitialStep?: 1 | 2 | 3;
+    /** Open onboarding at step 2 or 3 (auth/résumé gate after OAuth return). */
+    onboardingInitialStep?: 2 | 3;
 };
 
 export function JobsContent({
@@ -1813,16 +1807,6 @@ export function JobsContent({
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
-    useEffect(() => {
-        try {
-            if (readOnboardingCompletedFromStorage()) {
-                hideJobsSsrLanding();
-            }
-        } catch {
-            /* private mode */
-        }
-    }, []);
-
     // Packs-home intro — start dismissed to avoid SSR/hydration flash; reveal
     // once localStorage says this user has not seen it.
     const [packsIntroDismissed, setPacksIntroDismissed] = useState(true);
@@ -2213,41 +2197,20 @@ export function JobsContent({
     // (the masthead's marketing content specifically wants zero filters
     // too). See `isAtRest` (lib/jobs/front-door-state.ts) for the pure rule.
     const atRest = isAtRest({ query, jobParam: searchParams.get("job") });
-    // Sign-in is the absolute gate: unauthenticated visitors cannot access categories or job feeds
-    const isSignedOut = !user;
+    // /jobs is board-first: the Search home (search box, filters, job rows) is
+    // what every visitor lands on. The ONE thing that stands in front of it is
+    // the signed-in résumé card, so signed-out visitors are never gated here.
     const userNeedsOnboarding = Boolean(user) && !hasUsableResume && !onboardingDismissed;
-    const showSignedOutLanding = isSignedOut && !onboardingDismissed;
-    // Signed-in Search must show the query bar. The résumé step covers that
-    // bar, so signed-out dismissed visitors skip this shell entirely.
     const showLandingOnboarding =
-        (showSignedOutLanding || userNeedsOnboarding) &&
+        userNeedsOnboarding &&
         !showAdvancedSearch &&
         atRest &&
         showSearchHome &&
         !showForYouHome;
 
-    useEffect(() => {
-        const root = document.documentElement;
-        if (showLandingOnboarding) {
-            // Signed-in résumé / account steps are still exact /jobs. The
-            // Step 1 chrome-hide class must not stay on them. A refresh
-            // also mounts this before auth resolves; the paint hint already
-            // skipped the poster, so don't put it back while the session
-            // is still unknown.
-            if (userNeedsOnboarding || onboardingDismissed || (!authReady && readJobsSignedInPaintHint())) {
-                revealJobsSiteHeader();
-            } else {
-                restoreJobsSsrLanding();
-            }
-        } else {
-            hideJobsSsrLanding();
-            root.classList.remove(CONCEPT_A_LANDING_PENDING_HTML_CLASS);
-            document.body.classList.remove(CONCEPT_A_LANDING_BODY_CLASS);
-        }
-    }, [showLandingOnboarding, onboardingDismissed, userNeedsOnboarding, authReady]);
-
-    // At rest, the raw corpus feed is tucked away behind Advanced Search or explicit search intent
-    const defaultFeedAtRest = showAdvancedSearch && atRest && showSearchHome && !showForYouHome;
+    // At rest the Search home still runs the default recency feed below the
+    // search box, so first paint shows real jobs.
+    const defaultFeedAtRest = atRest && showSearchHome && !showForYouHome && !showLandingOnboarding;
     // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the
     // ONE gate between "no results surface" and the live results surface (the
     // results list, its skeleton rows, the result-count line, and the fetch
@@ -5673,8 +5636,7 @@ export function JobsContent({
     const showColdOrientation = !user && resumeOnFile !== true && !hasUsableResume;
     const frontDoorBandVisible =
         showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive }) &&
-        !showLandingOnboarding &&
-        (!atRest || showAdvancedSearch);
+        !showLandingOnboarding;
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -5736,7 +5698,7 @@ export function JobsContent({
                     rest, requirement 1a). Once a search runs, this unmounts
                     in favor of the sr-only heading so the page still carries
                     exactly one h1. */}
-                {showSearchHome && showAdvancedSearch && !showLandingOnboarding ? (
+                {showSearchHome && !showLandingOnboarding ? (
                         <div className="pb-1.5">
                             <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
                                 <button
@@ -6079,7 +6041,7 @@ export function JobsContent({
                         </div>
                     </div>
                 )}
-                {showJobsToolbarSection && showSearchHome && !showLandingOnboarding && (!atRest || showAdvancedSearch) && (
+                {showJobsToolbarSection && showSearchHome && !showLandingOnboarding && (
                 <section
                     data-testid="jobs-toolbar"
                     className={cn(
@@ -6246,7 +6208,7 @@ export function JobsContent({
                     </div>
                 ) : (
                     <>
-                        {showAdvancedSearch && atRest && showSearchHome && (
+                        {atRest && showSearchHome && (
                             <FrontDoorFieldLinks onSelectQuery={submitSearch} />
                         )}
                     </>
