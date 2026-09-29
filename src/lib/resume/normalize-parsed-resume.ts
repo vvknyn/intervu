@@ -26,6 +26,7 @@ export interface RawParsedResumeInput {
         email?: string;
         phone?: string;
         linkedin?: string;
+        unconfirmedPlaces?: string[];
     };
     experience?: Array<{
         id?: string;
@@ -92,6 +93,7 @@ export function normalizeParsedResume(
             email: raw.profile?.email || "",
             phone: raw.profile?.phone || "",
             linkedin: raw.profile?.linkedin || "",
+            ...(raw.profile?.unconfirmedPlaces?.length ? { unconfirmedPlaces: raw.profile.unconfirmedPlaces } : {}),
         },
         experience,
         competencies: Array.isArray(raw.competencies)

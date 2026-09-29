@@ -133,6 +133,30 @@ export function buildGazetteerIndex(data: GazetteerData): Gazetteer {
   };
 }
 
+/** "Springfield" alone is a dozen places; a one-tap prompt offers the largest few. */
+export const CITY_PLACE_LABELS_MAX = 5;
+
+/**
+ * Pure: every place the gazetteer knows by exactly this city name, as
+ * "City, Region, Country" — largest first for display only. Which one the
+ * user means is theirs to say, so no entry is ever picked for them.
+ */
+export function cityPlaceLabels(name: string, gazetteer: Gazetteer): string[] {
+  const cities = [...(gazetteer.citiesByName.get(name.trim().toLowerCase()) ?? [])].sort(
+    (a, b) => b.population - a.population,
+  );
+  const labels = cities.map((city) =>
+    [
+      city.name,
+      gazetteer.admin1ByCountry.get(city.countryCode)?.find((a) => a.code === city.admin1Code)?.name,
+      gazetteer.countriesByIso2.get(city.countryCode.toUpperCase())?.name,
+    ]
+      .filter(Boolean)
+      .join(", "),
+  );
+  return [...new Set(labels)].slice(0, CITY_PLACE_LABELS_MAX);
+}
+
 let cached: Gazetteer | null = null;
 
 /** The committed gazetteer, indexed once per server instance. */
