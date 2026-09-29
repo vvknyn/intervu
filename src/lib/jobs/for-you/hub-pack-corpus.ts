@@ -20,10 +20,6 @@ import {
 import type { FacetDistribution, JobSearchParams, JobSearchResult, PlaceClause } from "@/lib/jobs/types";
 import { HUB_PACK_IDS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 
-/** Keeps jobs with no country. `!=` alone drops documents missing the field. */
-export const HUB_PACK_NOT_CANADA_FILTER =
-    '(location_country NOT EXISTS OR location_country IS EMPTY OR (location_country != "Canada" AND location_country != "CA"))';
-
 const HAS_SALARY_FILTER =
     "(salary_min > 0 OR salary_max > 0 OR normalized_salary_min > 0 OR normalized_salary_max > 0)";
 
@@ -86,7 +82,7 @@ function baseBrowseParams(places: PlaceClause[] | undefined): JobSearchParams {
 
 function extraFiltersForPack(packId: HubPackId): string[] {
     if (packId === "all") return [];
-    const extra: string[] = [HUB_PACK_NOT_CANADA_FILTER];
+    const extra: string[] = [];
     if (packId === "salary") extra.push(`(${HAS_SALARY_FILTER})`);
     if (packId === "lead") extra.push(LEAD_EXPERIENCE_FILTER);
     return extra;
@@ -110,7 +106,7 @@ function packSearchParams(packId: HubPackId, places: PlaceClause[] | undefined):
             // apply_url is not filterable. Changing filterableAttributes reindexes;
             // do not. The public document copies the listing URL into apply_url,
             // and a 5,000-row sample of recent live listings had no empty URL
-            // (2026-09-28), so this pill is the non-Canada live corpus.
+            // (2026-09-28), so this pill is the live corpus.
             return base;
         default:
             return base;

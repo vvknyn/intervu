@@ -214,7 +214,7 @@ describe("resolveAllPackHubCounts", () => {
 });
 
 describe("resolveHubRoleCountLabels", () => {
-    it("shows a role count on every pack and keeps Toronto out of the sample", () => {
+    it("shows a role count on every pack, counting Toronto like any other place", () => {
         const toronto = job({ id: "to", title: "Engineer", work_type: "remote" });
         toronto.location = "Toronto, ON";
         const scored = [
@@ -240,7 +240,7 @@ describe("resolveHubRoleCountLabels", () => {
             scored,
         });
         assert.equal(labels.all, "503 roles");
-        assert.equal(labels.remote, "1 role");
+        assert.equal(labels.remote, "2 roles");
         assert.equal(labels.ai, "1 role");
         assert.equal(labels.good, "0 roles");
         assert.equal(formatHubRoleCount(1), "1 role");
@@ -252,7 +252,7 @@ describe("resolveHubRoleCountLabels", () => {
             scored,
         });
         assert.equal(partial.all, "503 roles");
-        assert.equal(partial.remote, "1 role");
+        assert.equal(partial.remote, "2 roles");
         assert.equal(partial.good, "0 roles");
     });
 });
@@ -332,7 +332,7 @@ describe("formatHubPackCorpusRoleLabels", () => {
 describe("browse hub without a résumé", () => {
     const nowMs = Date.parse("2026-09-28T16:00:00Z");
 
-    it("labels every pack from unscored jobs and drops Canada", () => {
+    it("labels every pack from unscored jobs, Canada included", () => {
         const labels = resolveBrowseHubRoleCountLabels({
             nowMs,
             poolTotal: 1831,
@@ -359,11 +359,11 @@ describe("browse hub without a résumé", () => {
             ],
         });
         assert.equal(labels.all, formatHubRoleCount(1831));
-        assert.equal(labels.ai, "1 role");
-        assert.equal(labels.remote, "1 role");
-        assert.equal(labels.fresh, "1 role");
-        assert.equal(labels.salary, "1 role");
-        assert.equal(labels.apply, "1 role");
+        assert.equal(labels.ai, "2 roles");
+        assert.equal(labels.remote, "2 roles");
+        assert.equal(labels.fresh, "2 roles");
+        assert.equal(labels.salary, "2 roles");
+        assert.equal(labels.apply, "2 roles");
         assert.equal(labels.lead, "1 role");
         assert.equal(labels.good, "0 roles");
         for (const label of Object.values(labels)) {

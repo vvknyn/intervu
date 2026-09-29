@@ -15,6 +15,7 @@
  * convention `toJobDetailFields` already applies to `match` alone. Pure, no
  * I/O — same isomorphic convention as its two inputs.
  */
+import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { inferReasons, type InferReasonsResult } from "@/lib/jobs/for-you/infer-reasons";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -25,8 +26,8 @@ export interface Fit {
     fit_reasons: InferReasonsResult;
 }
 
-export function fitFor(resume: ResumeData | null, job: PublicJob): Fit | null {
-    const match = resume ? scoreJobAgainstResume(resume, job) : null;
+export function fitFor(resume: ResumeData | null, job: PublicJob, signals?: CandidateSignals): Fit | null {
+    const match = resume ? scoreJobAgainstResume(resume, job, signals) : null;
     if (!match) return null;
     return { match, fit_reasons: inferReasons(job, match, resume) };
 }

@@ -101,6 +101,7 @@ export function inferReasons(
         // above); this only asks whether qualifying evidence exists.
         const hasQualifyingComponent = score.components.some(
             (component) =>
+                !component.unknown &&
                 (component.key === "relevance" && component.score >= 0.35) ||
                 (component.key === "seniority" && component.score >= 0.5) ||
                 (component.key === "location" && component.score >= 0.5),

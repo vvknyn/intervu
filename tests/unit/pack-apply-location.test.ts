@@ -41,12 +41,11 @@ describe("pack apply candidate location", () => {
         });
         assert.equal(buildPackApplyPayload(source).candidateLocation, "Richmond Hill, Ontario");
         assert.equal(resumeForPackApply(source).profile.location, "Richmond Hill, Ontario");
-        const facets = packApplyLocationFacets(source);
-        assert.equal(facets.location_country, undefined);
-        assert.equal(facets.location_city, undefined);
+        // Canada is filtered like every other country — no special case.
+        assert.deepEqual(packApplyLocationFacets(source), { location_country: ["Canada"] });
     });
 
-    it("uses a non-Canada city on the location the pack search sends", () => {
+    it("sends the country, not the city, as the location the pack search filters on", () => {
         const source = resume({
             profile: {
                 name: "Ada Lovelace",
@@ -58,8 +57,7 @@ describe("pack apply candidate location", () => {
             },
         });
         assert.equal(buildPackApplyPayload(source).candidateLocation, "Austin, Texas");
-        assert.deepEqual(packApplyLocationFacets(source).location_city, ["Austin"]);
-        assert.deepEqual(packApplyLocationFacets(source).location_country, ["United States"]);
+        assert.deepEqual(packApplyLocationFacets(source), { location_country: ["United States"] });
     });
 
     it("recovers a city that sits in the résumé body when the profile field is empty", () => {

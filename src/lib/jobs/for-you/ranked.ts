@@ -4,26 +4,25 @@
  * this never reaches for an MCP-only or server-only search implementation
  * directly).
  *
- * Mirrors the SAME pipeline `/jobs` (`app/jobs/page.tsx`, read-only
- * reference — never edited here) runs client-side: `buildMatchQuery(resume)`
- * plus résumé city/region facets (`packApplyLocationFacets`, same as pack apply) → one
- * search call → fit attached per hit → sorted by `match.total` descending
- * (`matchScores`/`renderedClusters`, ~page.tsx:2782-2828) → reordered by
- * `orderForYouJobsByBand` (Strong → Good → Stretch, unscored last) with
- * target-title relevance inside each band. A future web caller could adopt
- * this module directly instead of re-deriving the same steps a second time.
+ * A pack IS a `/jobs` filter state (`packFilters`, ./pack-filters.ts): the
+ * search call is exactly the one `/jobs` sends for those filters, so the ids
+ * a candidate gets by applying them by hand are the ids returned here. Fit
+ * only REORDERS that result (sorted by `match.total` descending, then
+ * `orderForYouJobsByBand`: Strong → Good → Stretch, unscored last, with
+ * target-title relevance inside each band) — it never removes a job.
  *
  * Scoring/reasons pairing goes through the ONE fit chokepoint (`fitFor`,
  * ./fit.ts) — this module never calls `scoreJobAgainstResume` or
  * `inferReasons` itself.
  */
-import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
-import { packApplyLocationFacets } from "@/lib/jobs/for-you/pack-apply-location";
+import { resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
+import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { fitFor } from "@/lib/jobs/for-you/fit";
 import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { decodeText } from "@/lib/jobs/presentation";
-import type { JobSearchParams, JobSearchResult, PostedBucket, PublicJob } from "@/lib/jobs/types";
+import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
+import type { JobsUrlState } from "@/lib/jobs/url-state";
 import type { MatchScore } from "@/lib/match/score";
 import type { InferReasonsResult } from "@/lib/jobs/for-you/infer-reasons";
 import type { ResumeData } from "@/types/resume";
@@ -38,6 +37,9 @@ export interface RankedHit {
 export interface RankForYouResult {
     hits: RankedHit[];
     query_used: string;
+    /** The filter state the pack retrieved with — the same one `/jobs` opens on
+     *  (`jobsBoardHref`, url-state.ts). */
+    filters: JobsUrlState;
     /** Mirrors `SearchOut`'s unavailable/note pair (agent/tools.ts) — a real
      *  backend failure, never a true zero-match ranked list. */
     unavailable?: boolean;
@@ -52,10 +54,9 @@ export interface RankForYouParams {
      *  page (pass `AGENT.SEARCH_DEPTH_CAP`, the existing agent-wide depth
      *  cap — this module never invents its own). */
     candidateDepth: number;
-    /** Same "posted within" window the site defaults to
-     *  (`DEFAULT_URL_STATE.postedBucket`, url-state.ts) — defaults to
-     *  "30d" here too when omitted. */
-    postedBucket?: PostedBucket;
+    /** Résumé + saved preferences, resolved once by the caller
+     *  (`resolveCandidateSignals`). Defaults to the résumé alone. */
+    signals?: CandidateSignals;
 }
 
 /**
@@ -64,19 +65,12 @@ export interface RankForYouParams {
  * paginates the backend itself.
  */
 export async function rankForYou(params: RankForYouParams): Promise<RankForYouResult> {
-    const { resume, search, candidateDepth, postedBucket } = params;
-    const { q, facets: derivedFacets } = buildMatchQuery(resume);
-    const locationFacets = packApplyLocationFacets(resume);
-    const facets = mergeFacets({}, { ...derivedFacets, ...locationFacets });
+    const { resume, search, candidateDepth } = params;
+    const signals = params.signals ?? resolveCandidateSignals(resume);
+    const filters = packFilters(resume, signals);
+    const q = filters.q;
 
-    const result = await search({
-        q,
-        hideGhosts: true,
-        postedBucket: postedBucket ?? "30d",
-        limit: candidateDepth,
-        offset: 0,
-        ...(Object.keys(facets).length ? { facets } : {}),
-    });
+    const result = await search({ ...packSearchParams(filters), limit: candidateDepth, offset: 0 });
 
     // A real backend failure (never wired up, or a configured backend that
     // threw) must not read like a true zero-match ranked list — same
@@ -84,6 +78,7 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     if (result.unavailable === true || !result.configured) {
         return {
             hits: [],
+            filters,
             query_used: q,
             unavailable: true,
             note: result.note ?? "search backend unavailable",
@@ -92,7 +87,7 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
 
     const queryUsed = result.effectiveQ ?? q;
     const scored = result.hits.map((job) => {
-        const fit = fitFor(resume, job);
+        const fit = fitFor(resume, job, signals);
         return { job, match: fit?.match ?? null, fit_reasons: fit?.fit_reasons ?? null };
     });
     // Stable sort, unscored jobs last (Array.prototype.sort is stable per spec).
@@ -114,5 +109,5 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
         return { job, match: entry.match, fit_reasons: entry.fit_reasons, group };
     });
 
-    return { hits, query_used: queryUsed };
+    return { hits, filters, query_used: queryUsed };
 }

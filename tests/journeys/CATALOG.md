@@ -44,3 +44,5 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-02 | Searches a keyword from the search box and gets job rows, `q=` in the URL | Returning visitor | /jobs | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-03 | Opens a job page directly: one visible h1 and one visible Apply button | Job seeker | /jobs/<slug> | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-04 | Searches as a returning visitor with no uncaught page errors (React hydration error #418 seen on prod 2026-09-28) | Returning visitor | /jobs | signed-out | no | known-bug | jobs.spec.ts |
+| J-JOBS-05 | A For-you pack's Edit filters opens the search board on exactly the pack's filters; a thin pack offers the broaden options with counts | Candidate with a local résumé | /jobs?view=for-you | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-06 | A board search with zero results offers the same broaden options with counts (JobsContent wiring pending) | Returning visitor | /jobs | signed-out | no | known-bug | jobs.spec.ts |

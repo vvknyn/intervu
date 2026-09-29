@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { CircleNotch, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
@@ -12,7 +13,13 @@ import {
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
+import { searchJobsAction } from "@/actions/jobs";
+import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { JobCard } from "@/components/jobs/JobCard";
+import { isThinResults } from "@/lib/jobs/broaden";
+import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
+import { packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { jobsBoardHref } from "@/lib/jobs/url-state";
 import { DeckRoleDetail } from "@/components/jobs/for-you/DeckRoleDetail";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
@@ -284,6 +291,9 @@ export function ForYouHome({
     }, [onActiveIndexChange, onSkip]);
 
     const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
+    // The pack is a `/jobs` filter state: "Edit filters" opens /jobs on exactly it.
+    const filters = useMemo(() => (resume ? packFilters(resume, resolveCandidateSignals(resume)) : null), [resume]);
+    const packTotal = visiblePacks.length === 0 ? 0 : resultTotal;
     const selectedIndex =
         activeIndex >= 0 && activeIndex < visiblePacks.length ? activeIndex : 0;
     const selectedJob = visiblePacks[selectedIndex] ?? activeJob;
@@ -393,6 +403,28 @@ export function ForYouHome({
                     >
                         Replace résumé
                     </button>
+                </div>
+            ) : null}
+
+            {filters && !showLoading ? (
+                <div className="mb-3 shrink-0 space-y-3" data-testid="for-you-pack-filters">
+                    <Link
+                        href={jobsBoardHref(filters)}
+                        data-testid="pack-edit-filters"
+                        className={REPLACE_RESUME_CLASS}
+                    >
+                        Edit filters
+                    </Link>
+                    {packTotal != null && isThinResults(packTotal) ? (
+                        <>
+                            {packTotal > 0 ? (
+                                <p className="text-xs text-muted-foreground" data-testid="for-you-thin-note">
+                                    Only {packTotal} {packTotal === 1 ? "role matches" : "roles match"} your filters.
+                                </p>
+                            ) : null}
+                            <BroadenOptions state={filters} total={packTotal} search={searchJobsAction} />
+                        </>
+                    ) : null}
                 </div>
             ) : null}
 

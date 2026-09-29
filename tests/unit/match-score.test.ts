@@ -8,6 +8,7 @@ import {
     matchBand,
     matchBandLabel,
 } from '../../src/lib/match/score';
+import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import type { ResumeData } from '../../src/types/resume';
 import type { PublicJob } from '../../src/lib/jobs/types';
 
@@ -113,11 +114,11 @@ describe('scoreJobAgainstResume', () => {
             const result = scoreJobAgainstResume(SWE_RESUME, J1_FULL_MATCH);
             assert.ok(result);
             assert.equal(result!.total, 100);
-            assert.equal(result!.components.length, 2);
-            assert.deepEqual(result!.components.map((c) => c.key).sort(), ['relevance', 'seniority']);
+            assert.equal(result!.components.length, 3);
+            assert.deepEqual(result!.components.map((c) => c.key).sort(), ['location', 'relevance', 'seniority']);
         });
 
-        it('zero topical overlap but a matching seniority band scores 25, not 100', () => {
+        it('zero topical overlap but a matching seniority band scores 32, not 100', () => {
             // This is the bug: the OLD total renormalized over whichever
             // components scored, so "found nothing on the subject, but the
             // level matches" alone reached 100. `relevance` is now required
@@ -129,14 +130,14 @@ describe('scoreJobAgainstResume', () => {
             const relevance = result!.components.find((c) => c.key === 'relevance');
             const seniority = result!.components.find((c) => c.key === 'seniority');
             assert.equal(relevance?.score, 0);
-            assert.equal(seniority?.detail, 'mid — fits');
-            assert.equal(result!.total, 25);
+            assert.equal(seniority?.detail, 'mid-level — fits');
+            assert.equal(result!.total, 32);
         });
 
-        it('zero topical overlap AND a worse seniority band scores lower still (16)', () => {
+        it('zero topical overlap AND a worse seniority band scores lower still (24)', () => {
             const result = scoreJobAgainstResume(SWE_RESUME, J4_NO_OVERLAP_WORSE_SENIORITY);
             assert.ok(result);
-            assert.equal(result!.total, 16);
+            assert.equal(result!.total, 24);
         });
     });
 
@@ -155,7 +156,7 @@ describe('scoreJobAgainstResume', () => {
             const nurseJobScore = scoreJobAgainstResume(NURSE_RESUME, J3_NO_OVERLAP_SAME_SENIORITY)!.total;
             const sweJobScore = scoreJobAgainstResume(NURSE_RESUME, J1_FULL_MATCH)!.total;
             assert.equal(nurseJobScore, 100);
-            assert.equal(sweJobScore, 25);
+            assert.equal(sweJobScore, 32);
             assert.ok(nurseJobScore > sweJobScore);
         });
     });
@@ -264,9 +265,10 @@ describe('scoreJobAgainstResume', () => {
             const job = mkJob({ title: 'Frontend Developer', tags: [], occupation: undefined });
             const result = scoreJobAgainstResume(roleOnlyResume, job);
             assert.ok(result);
-            assert.equal(result!.total, 100);
-            assert.equal(result!.components.length, 1);
-            assert.equal(result!.components[0].key, 'relevance');
+            // Unknown seniority counts as neutral (flagged), not dropped from the average.
+            assert.equal(result!.total, 89);
+            assert.deepEqual(result!.components.map((c) => c.key), ['relevance', 'seniority', 'location']);
+            assert.equal(result!.components[1].unknown, true);
         });
 
         it('tolerates case and simple plurals between a résumé skill and a job tag', () => {
@@ -278,11 +280,11 @@ describe('scoreJobAgainstResume', () => {
             const result = scoreJobAgainstResume(resume, job);
             assert.ok(result);
             assert.equal(result!.components[0].detail, '1 of 1 terms this role names');
-            assert.equal(result!.total, 100);
+            assert.equal(result!.total, 89);
         });
     });
 
-    describe('relevance-only (no comparable seniority data)', () => {
+    describe('unknown seniority (neutral, flagged — never dropped from the average)', () => {
         it('scores and reports against the JOB\'s own vocabulary size, not the résumé\'s', () => {
             const resume = mkResume({ profession: '', yearsOfExperience: NaN }, [
                 { category: 'Skills', skills: ['React', 'Python'] },
@@ -290,10 +292,9 @@ describe('scoreJobAgainstResume', () => {
             const job = mkJob({ title: 'React Engineer', tags: ['react'], occupation: undefined, experience_level: 'unknown' });
             const result = scoreJobAgainstResume(resume, job);
             assert.ok(result);
-            assert.equal(result!.components.length, 1);
             assert.equal(result!.components[0].key, 'relevance');
             assert.equal(result!.components[0].detail, '1 of 2 terms this role names');
-            assert.equal(result!.total, 83);
+            assert.equal(result!.total, 77);
         });
     });
 
@@ -309,7 +310,7 @@ describe('scoreJobAgainstResume', () => {
         it('seniority boundary: exactly 2 years is junior, not mid', () => {
             const result = scoreJobAgainstResume(relevantResume(2), relevantJob('entry'));
             const seniority = result!.components.find((c) => c.key === 'seniority');
-            assert.equal(seniority?.detail, 'junior — fits');
+            assert.equal(seniority?.detail, 'entry-level — fits');
         });
 
         it('seniority boundary: exactly 9 years is senior, not lead/principal', () => {
@@ -318,17 +319,13 @@ describe('scoreJobAgainstResume', () => {
             assert.equal(seniority?.detail, 'senior — fits');
         });
 
-        it('seniority just above the lead boundary compares against the job vocabulary\'s top rung', () => {
-            const result = scoreJobAgainstResume(relevantResume(9.5), relevantJob('senior'));
-            const seniority = result!.components.find((c) => c.key === 'seniority');
-            assert.equal(seniority?.detail, 'lead/principal — fits');
-        });
-
-        it('an unmapped experience_level value leaves seniority absent, but relevance still scores alone', () => {
+        it('an unmapped experience_level value makes seniority neutral and flagged, still counted', () => {
             const result = scoreJobAgainstResume(relevantResume(4), relevantJob('director'));
             assert.ok(result);
-            assert.equal(result!.components.some((c) => c.key === 'seniority'), false);
-            assert.equal(result!.components.length, 1);
+            const seniority = result!.components.find((c) => c.key === 'seniority');
+            assert.equal(seniority?.unknown, true);
+            assert.equal(seniority?.score, 0.5);
+            assert.equal(result!.components.length, 3);
         });
     });
 
@@ -379,11 +376,56 @@ describe('scoreJobAgainstResume', () => {
             [{ category: 'Skills', skills: ['JavaScript', 'React', 'Node.js'] }],
         );
 
-        it('empty résumé location → no location component (existing totals unchanged)', () => {
+        const usOnsiteJob = (country: string | null) => mkJob({
+            title: 'Software Engineer', tags: ['javascript', 'react', 'node.js'], occupation: 'Software Engineer',
+            experience_level: 'mid', work_type: 'onsite', location: 'Somewhere', location_country: country,
+        });
+
+        it('a remote role open to anyone scores location 1 even when the résumé has no location', () => {
             const result = scoreJobAgainstResume(SWE_RESUME, J1_FULL_MATCH);
             assert.ok(result);
             assert.equal(result!.total, 100);
-            assert.equal(result!.components.some((c) => c.key === 'location'), false);
+            assert.equal(result!.components.find((c) => c.key === 'location')?.score, 1);
+        });
+
+        it('no résumé location + a country-bound role → neutral, flagged unknown, and never Strong', () => {
+            const result = scoreJobAgainstResume(SWE_RESUME, usOnsiteJob('United States'));
+            assert.ok(result);
+            const location = result!.components.find((c) => c.key === 'location');
+            assert.equal(location?.unknown, true);
+            assert.equal(location?.score, 0.5);
+            assert.ok(result!.total <= MATCH_BAND_STRONG_MIN - 1, `${result!.total} must sit under Strong`);
+        });
+
+        it('a role whose country cannot be verified never reads as Strong, whoever the candidate is', () => {
+            const result = scoreJobAgainstResume(ONTARIO_RESUME, usOnsiteJob(null));
+            assert.ok(result);
+            assert.equal(result!.components.find((c) => c.key === 'location')?.unknown, true);
+            assert.ok(result!.total <= MATCH_BAND_STRONG_MIN - 1);
+        });
+
+        it('same-country scoring is class-wide: an India résumé + India role is a full match, an Ontario role is not', () => {
+            const india = mkResume(
+                { profession: 'Software Engineer', yearsOfExperience: 5, location: 'Bengaluru, India' },
+                [{ category: 'Skills', skills: ['JavaScript', 'React', 'Node.js'] }],
+            );
+            const inRole = scoreJobAgainstResume(india, usOnsiteJob('India'))!;
+            const caRole = scoreJobAgainstResume(india, usOnsiteJob('Canada'))!;
+            assert.equal(inRole.components.find((c) => c.key === 'location')?.score, 1);
+            assert.equal(caRole.components.find((c) => c.key === 'location')?.score, 0.35);
+            assert.equal(inRole.total, 100);
+            assert.ok(caRole.total < inRole.total);
+        });
+
+        it('a country the candidate said they would relocate to scores 0.8, only when stated', () => {
+            const job = usOnsiteJob('United States');
+            const stated = resolveCandidateSignals(ONTARIO_RESUME, {
+                configured: true,
+                search: { location: '', remoteOnly: false },
+                answers: { relocation: 'Open to relocating to the US' },
+            } as never);
+            assert.equal(scoreJobAgainstResume(ONTARIO_RESUME, job, stated)!.components.find((c) => c.key === 'location')?.score, 0.8);
+            assert.equal(scoreJobAgainstResume(ONTARIO_RESUME, job)!.components.find((c) => c.key === 'location')?.score, 0.35);
         });
 
         it('Ontario résumé + remote job includes location bonus', () => {
