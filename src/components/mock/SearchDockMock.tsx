@@ -67,6 +67,7 @@ function Pill() {
     return (
         <button
             type="button"
+            // control-type-allow: mock of the search dock at rest — it reads as the field it opens, not a button face
             className="ctl-md flex min-w-0 max-w-[420px] flex-1 items-center gap-2 rounded-none border border-foreground bg-card px-3 text-left"
         >
             <MagnifyingGlass weight="bold" className="shrink-0 text-foreground" />

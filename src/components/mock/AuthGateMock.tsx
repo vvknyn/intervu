@@ -291,6 +291,7 @@ export function AuthGateMock() {
                         type="button"
                         data-testid="mock-sign-in-cta"
                         onClick={handleLandingCta}
+                        // control-type-allow: decorative mock of the retired dark 0-radius skin (design-lint-allow-file), not product UI
                         className="ctl-lg cursor-pointer rounded-none border-0 px-6 text-sm text-[#12151a]"
                         style={{ background: "#ececec" }}
                     >
@@ -308,6 +309,7 @@ export function AuthGateMock() {
                     <p className="mt-1 text-xs text-[#5c636e]">next={pendingNext}</p>
                     <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                         <Button
+                            // control-type-allow: decorative mock of the retired dark 0-radius skin (design-lint-allow-file), not product UI
                             className="rounded-none bg-[#ececec] text-[#12151a] hover:bg-[#ececec]/90"
                             onClick={() => {
                                 setSignedIn(true);
@@ -400,6 +402,7 @@ export function AuthGateMock() {
                                         Allow {agentLabel(lane === "board" ? "mcp" : lane)} to access velai?
                                     </p>
                                     <Button
+                                        // control-type-allow: decorative mock of the retired dark 0-radius skin (design-lint-allow-file), not product UI
                                         className="mt-5 rounded-none bg-[#ececec] text-[#12151a] hover:bg-[#ececec]/90"
                                         onClick={() => setConsent("connected")}
                                     >

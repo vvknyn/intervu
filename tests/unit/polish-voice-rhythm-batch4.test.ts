@@ -118,7 +118,9 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
         const uploadButtonEnd = resume.indexOf("</Button>", uploadIdx);
         assert.notStrictEqual(uploadButtonEnd, -1, "upload Button closer");
         const uploadButton = resume.slice(uploadButtonStart, uploadButtonEnd);
-        assert.match(uploadButton, /size="lg"/);
+        // md, the Button default: the 44px step is for fields and the /jobs
+        // Search submit only (2026-09-29, tests/unit/control-type.test.ts).
+        assert.doesNotMatch(uploadButton, /\bsize="(?:icon-)?lg"/);
         assert.match(uploadButton, /resume-signed-out-upload/);
 
         const modal = readFileSync(IMPORT_MODAL, "utf8");

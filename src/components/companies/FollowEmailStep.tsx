@@ -101,7 +101,7 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
           type="submit"
           size="sm"
           disabled={status === "submitting"}
-          className="w-full text-xs"
+          className="w-full"
         >
           {status === "submitting" ? "Sending…" : "Send confirmation"}
         </Button>
@@ -113,6 +113,7 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
           size="link"
           data-testid="follow-email-signin"
           onClick={onSignInInstead}
+          // control-type-allow: an inline text link (size="link") set with the 12px form copy around it
           className="mt-1 text-xs text-muted-foreground"
         >
           Have an account? Sign in

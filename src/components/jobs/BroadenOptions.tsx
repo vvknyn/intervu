@@ -55,7 +55,8 @@ export function BroadenOptions({ state, total, ctx, search, onApply, className, 
                             <span className="text-muted-foreground">{option.count.toLocaleString()} roles</span>
                         </>
                     );
-                    const cls = chipVariants({ interactive: true });
+                    // A chip that is a control takes the button face's type (globals.css `.ctl-button`); the chip keeps its pill.
+                    const cls = cn(chipVariants({ interactive: true }), "ctl-button");
                     return onApply ? (
                         <button
                             key={option.id}

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Check, Minus, Warning } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, Minus, Warning, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
@@ -356,7 +356,7 @@ export function JobDetailActionBar({
             className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-surface px-4", className)}
         >
             {job.apply_url && (
-                <Button size={jobActionSize} className="flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
+                <Button size={jobActionSize} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand transition-colors" onClick={onOpenPosting}>
                     <ArrowSquareOut weight="bold" />
                     {APPLY_BUTTON_LABEL}
                 </Button>
@@ -376,7 +376,7 @@ export function JobDetailActionBar({
                     variant="outline"
                     data-testid="job-detail-upload-to-customize"
                     onClick={onUploadResume}
-                    className="shrink-0 rounded-ctl text-xs font-semibold"
+                    className="shrink-0"
                 >
                     {UPLOAD_TO_CUSTOMIZE_LABEL}
                 </Button>
@@ -416,6 +416,8 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
         <button
             type="button"
             data-testid="related-job-row"
+            // A list row, not a button face: J-NAV-38 reads `data-control` to leave it out.
+            data-control="row"
             onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -423,6 +425,7 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
             }}
             // rounded-none: KEEP — flush full-width row (px-0), mirrors JobCard's
             // hairline-separated list treatment — not a discrete control.
+            // control-type-allow: a full-width list row (title + meta lines), not a button face
             className="ctl-md flex w-full flex-col gap-0.5 rounded-none px-0 text-left transition-colors hover:bg-muted cursor-pointer group"
         >
             <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
@@ -788,7 +791,7 @@ export function JobDetail({
                                             "job",
                                         )}
                                         jobId={job.id}
-                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                        className="ctl-md ctl-button ctl-square flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                     />
                                 </TooltipTrigger>
                                 <TooltipContent className="text-xs">Copy link</TooltipContent>
@@ -800,7 +803,7 @@ export function JobDetail({
                                     <button
                                         type="button"
                                         aria-label="More actions"
-                                        className="ctl-lg flex w-10 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                        className="ctl-md ctl-button ctl-square flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                     >
                                         <DotsThree size={20} weight="bold" aria-hidden />
                                     </button>
@@ -817,9 +820,9 @@ export function JobDetail({
                                 type="button"
                                 aria-label="Close"
                                 onClick={onClose}
-                                className="ctl-lg flex w-10 items-center justify-center rounded-ctl bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
+                                className="ctl-md ctl-button ctl-square flex items-center justify-center bg-muted text-muted-foreground hover:text-foreground transition-colors"
                             >
-                                ×
+                                <X size={16} aria-hidden />
                             </button>
                         )}
                     </div>
@@ -878,7 +881,7 @@ export function JobDetail({
                             outlined control. rounded-ctl on both, same as
                             every other control in this row. */}
                         {job.apply_url && (
-                            <Button size={jobActionSize} onClick={onOpenPosting} className="gap-2 px-4 rounded-ctl bg-foreground text-background text-sm font-semibold transition-colors">
+                            <Button size={jobActionSize} onClick={onOpenPosting} className="gap-2 px-4 bg-foreground text-background transition-colors">
                                 <ArrowSquareOut size={16} />
                                 {APPLY_BUTTON_LABEL}
                             </Button>
@@ -897,7 +900,7 @@ export function JobDetail({
                                 variant="outline"
                                 data-testid="job-detail-upload-to-customize"
                                 onClick={onUploadResume}
-                                className="shrink-0 rounded-ctl text-xs font-semibold"
+                                className="shrink-0"
                             >
                                 {UPLOAD_TO_CUSTOMIZE_LABEL}
                             </Button>

@@ -207,15 +207,15 @@ export function FollowButton({
         aria-busy={showSpinner || undefined}
         onClick={() => void handleClick()}
         className={cn(
-          "inline-flex items-center justify-center gap-2",
+          "ctl-button inline-flex items-center justify-center gap-2",
           variant === "elite" &&
-            "border px-4 ctl-md text-sm font-semibold transition-colors",
+            "border px-4 ctl-md transition-colors",
           variant === "elite" &&
             (following
               ? "border-[color:var(--elite-ink)] bg-[color:var(--elite-ink)] text-[color:var(--elite-surface)]"
               : "border-[color:var(--elite-ink)] bg-[color:var(--elite-card)] text-[color:var(--elite-ink)] hover:bg-[color:var(--elite-rule)]"),
           variant === "pill" &&
-            "rounded-none border ctl-md px-3 text-xs transition-colors",
+            "border ctl-md px-3 transition-colors",
           variant === "pill" &&
             (following
               ? "border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] text-[color:var(--elite-brand)]"

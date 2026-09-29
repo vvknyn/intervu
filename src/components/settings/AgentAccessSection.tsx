@@ -46,7 +46,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
             type="button"
             variant="outline"
             size="sm"
-            className="gap-1.5 rounded-ctl text-xs shrink-0"
+            className="gap-1.5 shrink-0"
             onClick={async () => {
                 await navigator.clipboard.writeText(value);
                 setCopied(true);
@@ -193,7 +193,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-ctl border-danger-text text-danger-text hover:bg-danger-text/10"
+                            className="border-danger-text text-danger-text hover:bg-danger-text/10"
                             onClick={() => void loadCredentials()}
                         >
                             Try again
@@ -221,7 +221,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="rounded-ctl text-xs px-2.5 shrink-0 text-muted-foreground hover:text-danger-text"
+                            className="px-2.5 shrink-0 text-muted-foreground hover:text-danger-text"
                             disabled={revokingId === c.id}
                             onClick={() => handleRevoke(c)}
                         >

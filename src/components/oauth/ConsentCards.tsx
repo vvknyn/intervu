@@ -60,7 +60,7 @@ export function LoggedOutCard({ returnTo }: { returnTo: string }) {
                 {/* signup-gate-exempt: OAuth consent screen, part of the auth flow itself */}<p>Sign in to approve connecting your agent.</p>
             </CardContent>
             <CardFooter>
-                <Button asChild className="w-full" size="lg">
+                <Button asChild className="w-full">
                     <Link href={loginUrl}>{AUTH_CTA_LABEL}</Link>
                 </Button>
             </CardFooter>

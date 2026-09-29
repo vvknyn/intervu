@@ -38,7 +38,7 @@ export function ContextHelp({ content, className, side = "top", icon, children, 
                         className={cn(
                             textTrigger
                                 ? "cursor-help inline-flex items-center"
-                                : "text-muted-foreground hover:text-foreground transition-colors cursor-help inline-flex items-center justify-center align-middle ml-1 ctl-sm ctl-square -my-1 shrink-0 leading-none",
+                                : "text-muted-foreground hover:text-foreground transition-colors cursor-help inline-flex items-center justify-center align-middle ml-1 ctl-sm ctl-button ctl-square -my-1 shrink-0 leading-none",
                             className,
                         )}
                     >

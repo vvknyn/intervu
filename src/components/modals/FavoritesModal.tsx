@@ -170,7 +170,6 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                                         size="sm"
                                                         onClick={() => handleSaveNotes(favorite.id)}
                                                         disabled={savingNotes}
-                                                        className="text-xs"
                                                     >
                                                         {savingNotes ? (
                                                             <>
@@ -185,7 +184,6 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                                         size="sm"
                                                         variant="ghost"
                                                         onClick={() => setEditingId(null)}
-                                                        className="text-xs"
                                                     >
                                                         Cancel
                                                     </Button>

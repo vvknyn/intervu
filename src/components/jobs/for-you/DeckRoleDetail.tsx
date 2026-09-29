@@ -108,7 +108,7 @@ export function DeckRoleDetail({
                 {job.apply_url ? (
                     <Button size={jobActionSize}
                         onClick={onOpenPosting}
-                        className="gap-2 rounded-ctl bg-foreground px-4 text-sm font-semibold text-background"
+                        className="gap-2 bg-foreground px-4 text-background"
                     >
                         <ArrowSquareOut size={16} />
                         {APPLY_BUTTON_LABEL}
@@ -122,7 +122,7 @@ export function DeckRoleDetail({
                         variant="outline"
                         data-testid="job-detail-upload-to-customize"
                         onClick={onUploadResume}
-                        className="shrink-0 rounded-ctl text-xs font-semibold"
+                        className="shrink-0"
                     >
                         {UPLOAD_TO_CUSTOMIZE_LABEL}
                     </Button>

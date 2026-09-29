@@ -66,7 +66,6 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="rounded-ctl"
                                     onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
                                 >
                                     Download
@@ -384,7 +383,7 @@ export default function PursuitDetailPage() {
                                 <Button
                                     variant="outline"
                                     onClick={() => gatedOpenPosting(pursuit.job_url!)}
-                                    className="gap-2 rounded-ctl"
+                                    className="gap-2"
                                 >
                                     <ArrowSquareOut size={16} />
                                     Open posting
@@ -393,7 +392,6 @@ export default function PursuitDetailPage() {
                             <Button
                                 disabled={saving}
                                 onClick={() => mutate({ status: "applied", applied_at: new Date().toISOString() })}
-                                className="rounded-ctl"
                             >
                                 {saving ? "Saving…" : "I applied"}
                             </Button>
@@ -414,7 +412,7 @@ export default function PursuitDetailPage() {
                                 onClick={() =>
                                     mutate({ status: "interviewing", interview_date: new Date(interviewDate).toISOString() })
                                 }
-                                className="gap-2 rounded-ctl"
+                                className="gap-2"
                             >
                                 <CalendarBlank size={16} />
                                 {saving ? "Saving…" : "Set interview date"}

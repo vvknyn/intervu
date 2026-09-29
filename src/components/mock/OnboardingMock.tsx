@@ -44,7 +44,7 @@ export function OnboardingMock() {
                         size="sm"
                         variant={mode === "step2" ? "default" : "outline"}
                         onClick={() => setMode("step2")}
-                        className="text-xs px-2.5"
+                        className="px-2.5"
                     >
                         Step 2
                     </Button>
@@ -52,7 +52,7 @@ export function OnboardingMock() {
                         size="sm"
                         variant={mode === "step3_upload" ? "default" : "outline"}
                         onClick={() => setMode("step3_upload")}
-                        className="text-xs px-2.5"
+                        className="px-2.5"
                     >
                         Step 3 (Dropzone)
                     </Button>
@@ -60,7 +60,7 @@ export function OnboardingMock() {
                         size="sm"
                         variant={mode === "step3_parsed" ? "default" : "outline"}
                         onClick={() => setMode("step3_parsed")}
-                        className="text-xs px-2.5"
+                        className="px-2.5"
                     >
                         Step 3 (Profile Params)
                     </Button>
@@ -68,7 +68,7 @@ export function OnboardingMock() {
                         size="sm"
                         variant={mode === "dashboard" ? "default" : "outline"}
                         onClick={() => setMode("dashboard")}
-                        className="text-xs px-2.5"
+                        className="px-2.5"
                     >
                         Dashboard (CategoryHubGrid)
                     </Button>

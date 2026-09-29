@@ -36,7 +36,8 @@ import {
  * default startup sans and JetBrains Mono is literally an IDE typeface; a
  * nurse reading a page set in them correctly concludes it is not for them.
  *
- * - Source Sans 3 (body/UI): Concept A canonical sans — static 400/600 cuts from
+ * - Source Sans 3 (body/UI): Concept A canonical sans — static 400/500/600 cuts
+ *   (500 is the button face, globals.css `--control-weight`) from
  *   next/font (not the default variable axis bundle) so small semibold labels keep
  *   the face without the exaggerated post-`t` sidebearing the variable asset showed.
  * - Libre Franklin (display face variable): kept for intentional OG use only;
@@ -59,7 +60,7 @@ const sans = Source_Sans_3({
   subsets: ["latin"],
   // optional: hero/subline use metric-matched fallback on first paint (LCP).
   display: "optional",
-  weight: ["400", "600"],
+  weight: ["400", "500", "600"],
   preload: true,
   adjustFontFallback: true,
 });

@@ -441,7 +441,7 @@ export function JobDetailDocument({
         <div data-testid="job-detail-apply-card" className="border-t border-border py-4">
             <p className="mb-3 text-sm text-muted-foreground">This role is closed — it&apos;s no longer accepting applications.</p>
             {job.company_domain && (
-                <Button size="lg" asChild className="w-full gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
+                <Button asChild className="w-full gap-2 bg-brand text-brand-foreground hover:bg-brand">
                     <Link href={buildCompanyJobsUrl({ domain: job.company_domain.trim() })}>See open roles at {companyBrand || cleanedCompany}</Link>
                 </Button>
             )}
@@ -465,7 +465,7 @@ export function JobDetailDocument({
         >
             <div className="flex items-center gap-2">
                 {job.apply_url && (
-                    <Button size={jobActionSize} onClick={onOpenPosting} className="flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
+                    <Button size={jobActionSize} onClick={onOpenPosting} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand">
                         <ArrowSquareOut size={16} />
                         {APPLY_BUTTON_LABEL}
                     </Button>
@@ -493,7 +493,7 @@ export function JobDetailDocument({
                         variant="outline"
                         data-testid="job-detail-upload-to-customize"
                         onClick={onUploadResume}
-                        className="shrink-0 rounded-ctl text-xs font-semibold"
+                        className="shrink-0"
                     >
                         {UPLOAD_TO_CUSTOMIZE_LABEL}
                     </Button>

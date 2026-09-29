@@ -306,7 +306,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setVisibility(v => v === 'private' ? 'public' : 'private')}
-                                        className="gap-2 text-xs"
+                                        className="gap-2"
                                     >
                                         {visibility === 'private' ? (
                                             <><EyeSlash size={16} /> Private</>
@@ -389,7 +389,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                 {showDiscovered && discoveredLinks.length > 0 && (
                                                     <div className="mt-3 space-y-2">
                                                         <div className="flex items-center gap-2 mb-2">
-                                                            <Button variant="ghost" size="sm" onClick={selectAllLinks} className="text-xs rounded-ctl">
+                                                            <Button variant="ghost" size="sm" onClick={selectAllLinks}>
                                                                 {discoveredLinks.every(l => l.selected) ? 'Deselect All' : 'Select All'}
                                                             </Button>
                                                             {selectedCount > 0 && (
@@ -398,7 +398,6 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                                                     size="sm"
                                                                     onClick={handleFetchSelected}
                                                                     disabled={isFetchingSelected}
-                                                                    className="text-xs rounded-ctl"
                                                                 >
                                                                     {isFetchingSelected
                                                                         ? <><InlineSpinner className="mr-1" /> Fetching...</>
@@ -487,7 +486,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                     <p>No sources added yet.</p>
                                     <p className="text-sm">Add documents, URLs, or notes to give more context to the AI.</p>
                                 </div>
-                                <Button onClick={() => setIsAdding(true)} variant="outline" size="sm" className="rounded-ctl">
+                                <Button onClick={() => setIsAdding(true)} variant="outline" size="sm">
                                     <Plus className="mr-2" /> Add Source
                                 </Button>
                             </div>
@@ -553,7 +552,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="text-xs shrink-0 rounded-ctl"
+                                            className="shrink-0"
                                             disabled={addingSourceId === source.id}
                                             onClick={() => handleAddFromCommunity(source.id)}
                                         >

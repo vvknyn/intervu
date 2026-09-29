@@ -110,7 +110,7 @@ export function FollowAlertsBell() {
           type="button"
           data-testid="topbar-follow-alerts"
           aria-label={title}
-          className="ctl-md relative grid ctl-square shrink-0 place-items-center text-muted-foreground transition-colors outline-none hover:text-foreground"
+          className="ctl-md ctl-button relative grid ctl-square shrink-0 place-items-center text-muted-foreground transition-colors outline-none hover:text-foreground"
         >
           <Bell size={20} weight="regular" aria-hidden />
           <CountBadge count={totalNew} data-testid="topbar-follow-alerts-count" className="absolute -right-1 top-0" />

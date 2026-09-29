@@ -68,7 +68,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                         key={client}
                         type="button"
                         onClick={() => pickClient(client)}
-                        className="ctl-md inline-flex items-center justify-center rounded-none border border-border bg-background px-3 text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
+                        className="ctl-md ctl-button inline-flex items-center justify-center border border-border bg-background px-3 text-foreground hover:bg-muted transition-colors cursor-pointer"
                     >
                         {CLIENT_LABEL[client]}
                     </button>
@@ -89,7 +89,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                 <button
                     type="button"
                     onClick={handlePrimary}
-                    className="ctl-md inline-flex items-center justify-center rounded-none bg-brand px-3 text-xs font-semibold text-brand-foreground hover:bg-brand transition-colors cursor-pointer"
+                    className="ctl-md ctl-button inline-flex items-center justify-center bg-brand px-3 text-brand-foreground hover:bg-brand transition-colors cursor-pointer"
                 >
                     Open in {CLIENT_LABEL[savedClient]}
                 </button>
@@ -109,7 +109,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
             <button
                 type="button"
                 onClick={handlePrimary}
-                className="ctl-md inline-flex items-center justify-center rounded-none bg-brand px-3.5 text-xs font-semibold text-brand-foreground hover:bg-brand transition-colors cursor-pointer"
+                className="ctl-md ctl-button inline-flex items-center justify-center bg-brand px-3.5 text-brand-foreground hover:bg-brand transition-colors cursor-pointer"
             >
                 Open in your AI
             </button>

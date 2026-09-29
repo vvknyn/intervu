@@ -243,10 +243,10 @@ export function LocationPickerSheet({
                         )}
                     </div>
 
-                    <Button size="lg"
+                    <Button
                         type="button"
                         data-testid="location-sheet-continue"
-                        className="mt-5 w-full rounded-ctl bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
+                        className="mt-5 w-full bg-primary text-primary-foreground hover:bg-primary"
                             onClick={() => {
                                 const suppressDefault =
                                     !draft.useDetected &&

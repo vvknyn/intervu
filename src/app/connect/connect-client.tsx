@@ -217,7 +217,7 @@ export function ConnectClient({
                       {currentInstruction.title} Setup
                     </h4>
                     {currentMeta.openUrl && (
-                      <Button asChild size="xs" variant="ghost" className="gap-1 font-semibold">
+                      <Button asChild size="xs" variant="ghost" className="gap-1">
                         <a href={currentMeta.openUrl} target="_blank" rel="noopener noreferrer">
                           Open {currentMeta.label} <ArrowSquareOut size={16} />
                         </a>
@@ -292,7 +292,7 @@ export function ConnectClient({
                         variant="ghost"
                         size="xs"
                         onClick={() => navigator.clipboard.writeText(prompt)}
-                        className="shrink-0 gap-1 whitespace-nowrap px-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                        className="shrink-0 gap-1 whitespace-nowrap px-1.5 text-muted-foreground hover:text-foreground"
                       >
                         <Copy size={16} /> Copy
                       </Button>

@@ -6,9 +6,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Body/UI sans: Source Sans 3 via next/font (`--font-sans-face`, static 400/600
-     in app/layout.tsx). Variable-axis Source Sans had normal computed tracking but
-     visible post-`t` gaps in small semibold hub labels; static cuts keep the face.
+  /* Body/UI sans: Source Sans 3 via next/font (`--font-sans-face`, static
+     400/500/600 in app/layout.tsx; 500 is the button face only).
+     Variable-axis Source Sans had normal computed tracking but visible
+     post-`t` gaps in small semibold hub labels; static cuts keep the face.
      Display and mono `*-face` variables still come from next/font in layout.tsx. */
   --font-sans: var(--font-sans-face), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
@@ -91,7 +92,9 @@
   --text-title-sm: 1.25rem;
   --text-title-sm--line-height: 1.75rem;
 
-  /* Weights: rulebook uses 400/600 only (Carbon has no 500 either). */
+  /* Weights: rulebook uses 400/600 only (Carbon has no 500 either), so
+     `font-medium` stays an alias of 400. The one 500 is the button face,
+     `--control-weight` beside the control scale, never a call-site class. */
   --font-weight-medium: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 600;
@@ -705,26 +708,67 @@ body:has([data-shell="bleed"]) {
    h-11 input/form button). A primitive picks a step (`.ctl-sm|md|lg`); a
    call site never writes its own h-* / py-* on a control, so controls that
    share a bar share a step. `.ctl-square` makes an icon button as wide as it
-   is tall. tests/unit/control-scale.test.ts fails a hand-rolled height. */
+   is tall. tests/unit/control-scale.test.ts fails a hand-rolled height.
+
+   BUTTON TYPE rides on the same step: 24px → 12px, 32px → 14px, 44px → 16px,
+   all at weight 500 (Vivek, 2026-09-29: "fat pills with mismatched fonts" —
+   call sites had been setting their own size, weight and corner on top of the
+   primitive). The step utility carries its type as `--ctl-text*`; `.ctl-button`
+   (below) paints it, with the control corner. A call site never writes a
+   text size, weight or rounding on a button: tests/unit/control-type.test.ts.
+   The 44px step is for fields and the /jobs Search submit; other buttons sit
+   on 32px. Fields keep their own type (16px typed text at weight 400). */
 :root {
   --control-h-sm: 1.5rem;
   --control-h-md: 2rem;
   --control-h-lg: 2.75rem;
+  --control-text-sm: 0.75rem;
+  --control-text-sm--line-height: 1rem;
+  --control-text-md: 0.875rem;
+  --control-text-md--line-height: 1.25rem;
+  --control-text-lg: 1rem;
+  --control-text-lg--line-height: 1.375rem;
+  --control-weight: 500;
   /* WCAG 2.5.5 / Apple HIG touch floor. The VISUAL control stays on its step;
      only the hit area grows (below). */
   --hit-min: 2.75rem;
 }
 @utility ctl-sm {
   --ctl-h: var(--control-h-sm);
+  --ctl-text: var(--control-text-sm);
+  --ctl-leading: var(--control-text-sm--line-height);
+  --ctl-weight: var(--control-weight);
   height: var(--ctl-h);
 }
 @utility ctl-md {
   --ctl-h: var(--control-h-md);
+  --ctl-text: var(--control-text-md);
+  --ctl-leading: var(--control-text-md--line-height);
+  --ctl-weight: var(--control-weight);
   height: var(--ctl-h);
 }
 @utility ctl-lg {
   --ctl-h: var(--control-h-lg);
+  --ctl-text: var(--control-text-lg);
+  --ctl-leading: var(--control-text-lg--line-height);
+  --ctl-weight: var(--control-weight);
   height: var(--ctl-h);
+}
+/* The button face: its step's type at the control weight, on the control
+   corner. The Button primitive carries it; a raw <button> on a step adds it
+   beside its `.ctl-*` class. The `--ctl-*` type rides the cascade, so a face
+   with no step of its own takes the NEAREST stepped ancestor's type (the
+   header's docked Search submit fills its 32px bar), and with no stepped
+   ancestor at all (an inline text-link button) the unset vars fall back to
+   the text around it. @layer components, so a utility on a call site that
+   carries `control-type-allow: <reason>` still wins. */
+@layer components {
+  .ctl-button {
+    font-size: var(--ctl-text);
+    line-height: var(--ctl-leading);
+    font-weight: var(--ctl-weight);
+    border-radius: var(--radius-ctl);
+  }
 }
 /* A control whose label may wrap: the step becomes its MIN height. Compound
    selector so it beats the step's own `height` whatever the utility order. */

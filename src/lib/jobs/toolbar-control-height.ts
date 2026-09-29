@@ -8,9 +8,10 @@
  * `.ctl-md` adds (globals.css), never a taller visual. */
 export const toolbarControlHeight = "ctl-md";
 
-/** Peers of the Filters control on the toolbar row. */
+/** Peers of the Filters control on the toolbar row — chip-shaped buttons, so
+ * their type is the button face of the step (`ctl-button`, globals.css). */
 export const toolbarChipClass =
-    `inline-flex box-border items-center justify-center whitespace-nowrap ${toolbarControlHeight} px-3 text-xs lg:px-2`;
+    `ctl-button inline-flex box-border items-center justify-center whitespace-nowrap ${toolbarControlHeight} px-3 lg:px-2`;
 
 /** Docked header search form + its trailing CTA peer. */
 export const topbarDockedSearchHeight = "ctl-md";
